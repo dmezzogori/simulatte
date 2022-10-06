@@ -6,9 +6,10 @@ from simpy.resources.store import Store
 
 from simulatte import Job
 from simulatte.simpy_extension import SequentialStore
+from simulatte.typings import ProcessGenerator
 
 if TYPE_CHECKING:
-    from simpy import Environment
+    from simpy import Environment, Process
 
 
 class WorkCenter:
@@ -29,16 +30,16 @@ class WorkCenter:
     def _main_process(self, job: Job):
         raise NotImplementedError
 
-    def _put_job(self, job):
+    def _put_job(self, job) -> ProcessGenerator[Job]:
         yield self._input_queue.put(job)
 
-    def put(self, job):
+    def put(self, job) -> Process:
         return self.env.process(self._put_job(job))
 
-    def _get_job(self, job):
+    def _get_job(self, job) -> ProcessGenerator[Job]:
         yield self._output_queue.get(lambda j: j == job)
 
-    def get(self, job):
+    def get(self, job) -> Process:
         return self.env.process(self._get_job(job))
 
     def main(self):
