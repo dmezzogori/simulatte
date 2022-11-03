@@ -3,7 +3,7 @@ from __future__ import annotations
 from simpy.resources.base import BoundClass
 from simpy.resources.resource import Release, PriorityRequest, PriorityResource
 
-from simulatte import Priority
+from simulatte.utils import Priority
 
 
 class MonitoredRequest(PriorityRequest):

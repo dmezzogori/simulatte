@@ -1,0 +1,2 @@
+class WarehouseLocation:
+    pass

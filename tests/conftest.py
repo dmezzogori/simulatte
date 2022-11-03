@@ -1,5 +1,6 @@
 import pytest
-from simpy import Environment
+
+from simulatte.environment import Environment
 
 
 @pytest.fixture(scope="function")
