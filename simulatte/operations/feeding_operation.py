@@ -1,30 +1,27 @@
 from __future__ import annotations
 
 from functools import total_ordering
-from itertools import count
 from typing import TYPE_CHECKING
 
 from simulatte.events import LoggedEvent
 from simulatte.unitload import Pallet
-
+from simulatte.utils import Identifiable
 
 if TYPE_CHECKING:
     from simulatte.ant import Ant
-    from simulatte.stores import WarehouseStore
     from simulatte.picking_cell import PickingCell
     from simulatte.picking_cell.areas.position import Position
     from simulatte.requests import PickingRequest
+    from simulatte.stores import WarehouseStore
 
 
 @total_ordering
-class FeedingOperation:
+class FeedingOperation(metaclass=Identifiable):
     """
     Represents a feeding operation assigned by the WMS to an ant.
     The ant is responsible for retrieving a unit load from a specific store, according to the
     picking request, and then to bring it to the assigned picking cell.
     """
-
-    _id_iter = count()
 
     def __init__(
         self,
@@ -48,8 +45,6 @@ class FeedingOperation:
         :attr side: The side where the ant is going once inside the layer picking cell.
         :attr ready: The event triggered when the operation is ready for an unload by the robot.
         """
-        self.id = next(self._id_iter)
-
         self.cell = cell
         self.cell.feeding_operations.append(self)
 

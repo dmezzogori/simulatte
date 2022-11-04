@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from enum import Enum, auto
-from itertools import count
 from typing import TYPE_CHECKING, Iterable
 
 import matplotlib.pyplot as plt
@@ -10,7 +9,7 @@ from simpy import PriorityResource
 from simulatte.location import Location
 from simulatte.typings import ProcessGenerator
 from simulatte.unitload import CaseContainer
-from simulatte.utils import as_process
+from simulatte.utils import Identifiable, as_process
 
 if TYPE_CHECKING:
     from simpy import Environment
@@ -38,7 +37,7 @@ class AntRestLocation(Location):
 ant_rest_location = AntRestLocation()
 
 
-class Ant(PriorityResource):
+class Ant(PriorityResource, metaclass=Identifiable):
     """
     Represent a generic Ant.
 
@@ -57,11 +56,8 @@ class Ant(PriorityResource):
     +-----------------+-----------------+
     """
 
-    _id_iter = count()
-
     def __init__(self, env: Environment, load_timeout=0, unload_timeout=0) -> None:
         super().__init__(env, capacity=1)
-        self.id = next(self._id_iter)
         self.env = env
         self._case_container: CaseContainer | None = None
         self.load_timeout = load_timeout

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from itertools import count
 from typing import TYPE_CHECKING, Iterable
 
 from simulatte.products import Product
 from simulatte.unitload import Pallet
+from simulatte.utils import Identifiable
 
 if TYPE_CHECKING:
     from simulatte.picking_cell import FeedingOperation
@@ -97,12 +97,9 @@ class LayerRequest(Request):
         return self
 
 
-class PalletRequest(Request):
-    _id_iter = count()
-
+class PalletRequest(Request, metaclass=Identifiable):
     def __init__(self, *layer_requests: LayerRequest, wood_board=False) -> None:
         super().__init__()
-        self.id = next(self._id_iter)
         self.sub_requests = list(layer_requests)
         self.unit_load = Pallet(wood_board=wood_board)
 

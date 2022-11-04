@@ -1,19 +1,17 @@
 from __future__ import annotations
 
 import random
-from itertools import count
 from typing import Callable, Optional, TypeVar
 
 import numpy as np
+
+from simulatte.utils import Identifiable
 
 T = TypeVar("T")
 DistributionCallable = Callable[[], T]
 
 
-class Product:
-
-    _id_iter = count()
-
+class Product(metaclass=Identifiable):
     def __init__(
         self,
         *,
@@ -23,8 +21,6 @@ class Product:
         min_case_per_pallet: int,
         lp_enabled: bool,
     ) -> None:
-        self.id = next(self._id_iter)
-
         self.probability = probability
         self.cases_per_layer = cases_per_layer
         self.max_case_per_pallet = max_case_per_pallet
