@@ -13,8 +13,9 @@ from simulatte.unitload import CaseContainer
 from simulatte.utils import as_process
 
 if TYPE_CHECKING:
-    from simulatte.system import System
     from simpy import Environment
+
+    from simulatte.system import System
 
 
 class AntStatus(Enum):
@@ -70,6 +71,12 @@ class Ant(PriorityResource):
         self._travel_time = 0
         self._mission_history: list[float] = []
 
+        self.loading_waiting_times = []
+        self.loading_waiting_time_start: float | None = None
+
+        self._waiting_to_enter_staging_area: float | None = None
+        self.feeding_area_waiting_times = []
+
     @property
     def status(self) -> AntStatus:
         return self._status
@@ -116,15 +123,25 @@ class Ant(PriorityResource):
     def waiting_to_be_loaded(self) -> None:
         """Set the ant to waiting status"""
         self.status = AntStatus.WAITING_UNLOADED
+        self.loading_waiting_time_start = self.env.now
 
     def waiting_to_be_unloaded(self) -> None:
         """Set the ant to waiting status"""
         self.status = AntStatus.WAITING_LOADED
 
+    def waiting_to_enter_staging_area(self) -> None:
+        self._waiting_to_enter_staging_area = self.env.now
+
+    def enter_staging_area(self) -> None:
+        self.feeding_area_waiting_times.append(self.env.now - self._waiting_to_enter_staging_area)
+
     @as_process
     def load(self, *, unit_load: CaseContainer) -> ProcessGenerator:
         self.unit_load = unit_load
         yield self.env.timeout(self.load_timeout)
+        if self.loading_waiting_time_start is not None:
+            self.loading_waiting_times.append(self.env.now - self.loading_waiting_time_start)
+        self.loading_waiting_time_start = None
 
     @as_process
     def unload(self) -> ProcessGenerator:
