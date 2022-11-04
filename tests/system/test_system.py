@@ -1,15 +1,8 @@
+from simulatte.environment import Environment
 from simulatte.system import System
-from simulatte.utils import Singleton
 
 
-def test_system() -> None:
-    system1 = System()
-    system2 = System()
+def test_system(env: Environment) -> None:
+    system1 = System(env=env)
+    system2 = System(env=env)
     assert system1 is system2
-
-    class MySystem(System, metaclass=Singleton):
-        pass
-
-    print(dir(MySystem))
-
-    assert MySystem() is MySystem()

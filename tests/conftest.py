@@ -6,7 +6,9 @@ from simulatte.system import System
 
 @pytest.fixture(scope="function")
 def env() -> Environment:
-    return Environment()
+    Environment.clear()
+    yield Environment()
+    Environment.clear()
 
 
 @pytest.fixture(scope="function")
