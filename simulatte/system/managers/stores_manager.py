@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import Iterable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable
 
 from simulatte.products import Product
 from simulatte.stores import WarehouseStore
-from simulatte.system.policies import UnitLoadPolicy, LocationPolicy
+from simulatte.system.policies import LocationPolicy, UnitLoadPolicy
 from simulatte.unitload import Pallet
 
 if TYPE_CHECKING:
-    from simulatte.stores.warehouse_location import WarehouseLocation
+    from simulatte.stores.warehouse_location.warehouse_location import WarehouseLocation
 
 
 class StoresManager:

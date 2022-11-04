@@ -1,5 +1,5 @@
 from simulatte.location import Location
-from simulatte.stores.warehouse_location import WarehouseLocation
+from simulatte.stores.warehouse_location.warehouse_location import WarehouseLocation
 
 
 class WarehouseStore:
@@ -7,7 +7,7 @@ class WarehouseStore:
     locout: Location
     name: str
 
-    locations: list[WarehouseLocation]
+    locations: tuple[WarehouseLocation]
 
     def load_ant(self, *args, **kwargs):
         raise NotImplementedError

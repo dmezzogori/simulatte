@@ -6,7 +6,7 @@ from simulatte.products import Product
 from simulatte.stores import WarehouseStore
 
 if TYPE_CHECKING:
-    from simulatte.stores.warehouse_location import WarehouseLocation
+    from simulatte.stores.warehouse_location.warehouse_location import WarehouseLocation
 
 
 class LocationPolicy:
