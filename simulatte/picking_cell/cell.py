@@ -68,22 +68,30 @@ class PickingCell:
 
         self._productivity_history: list[tuple[float, float]] = []
 
+        self.pallet_requests_done: list[PalletRequest] = []
+
         self._main: Process | None = None
         if register_main_process:
             self._main = self.main()
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.__class__.__name__
 
     @property
     def productivity(self) -> float:
         """
-        Return the productivity of the PickingCell, expressed as number of PalletRequest per unit of time.
+        Return the productivity of the PickingCell, expressed as number of PalletRequest completed per unit of time.
         """
-        return len(self.output_queue.items) / self.system.env.now
+        return len(self.pallet_requests_done) / self.system.env.now
 
     def register_feeding_operation(self, *, feeding_operation: FeedingOperation) -> None:
+        """
+        Register a FeedingOperation into the PickingCell.
+
+        Updates the FeedingOperationMap, which maps which FeedingOperation is associated to which ProductRequest.
+        It also adds the FeedingOperation to the FeedingArea.
+        """
         self.feeding_operation_map[feeding_operation.picking_request] = feeding_operation
         self.feeding_area.append(feeding_operation)
 
@@ -104,14 +112,19 @@ class PickingCell:
         self, *, product_request: ProductRequest, pallet_request: PalletRequest
     ) -> ProcessGenerator:
         """
-        Processo di gestione di una ProductRequest.
+        Main process which manages the handling of a ProductRequest.
+
+        To be concretely implemented in a subclass.
         """
         raise NotImplementedError
 
-    def _ant_internal_movement_process(self, *, feeding_operation: FeedingOperation):
+    @as_process
+    def let_ant_in(self, *, feeding_operation: FeedingOperation) -> ProcessGenerator:
         """
-        Manage the internal movements of an Ant which moves from the StagingArea to the InternalArea.
+        Manage the internal physical movements of an Ant which moves from the StagingArea to the InternalArea.
         """
+
+        # Find which position to take in the InternalArea
         position = None
         while position is None:
             for unload_position in self.internal_area.unload_positions:
@@ -120,9 +133,14 @@ class PickingCell:
                     break
             yield self.system.env.timeout(0.1)
 
+        # Wait for the InternalArea PhysicalPosition to be free
         position_request = position.request(operation=feeding_operation)
         yield position_request
+
+        # Move the Ant from the StagingArea to the InternalArea
         yield feeding_operation.ant.move_to(system=self.system, location=self.internal_location)
+
+        # Housekeeping
         feeding_operation.unload_position = position
         feeding_operation.ready_for_unload()
         feeding_operation.ant.waiting_to_be_unloaded()
@@ -130,10 +148,11 @@ class PickingCell:
     @as_process
     def put(self, *, pallet_request: PalletRequest) -> ProcessGenerator:
         """
-        It is used by the WMS to assign a pallet request to the picking cell.
-        The pallet request is put inside the input queue.
-        The pallet request is then decomposed in picking requests, which are placed in the picking requests queue.
-        Eventually, the feeding area signal event is triggered.
+        Assigns a PalletRequest to the PickingCell.
+        The PalletRequest is stored within the input queue.
+        Moreover, the PalletRequest is then decomposed in picking requests,
+        which are placed in the picking requests queue.
+        Eventually, the FeedingArea signal event is triggered.
         """
 
         yield self.input_queue.put(pallet_request)
@@ -151,13 +170,16 @@ class PickingCell:
     @as_process
     def get(self, pallet_request: PalletRequest) -> ProcessGenerator[PalletRequest]:
         """
-        Gets a pallet request once it has been completed by the picking cell.
+        Retrieves a completed PalletRequest.
         """
         pallet_request = yield self.output_queue.get(lambda e: e == pallet_request)
         return pallet_request
 
     @staticmethod
     def iter_pallet_request(*, pallet_request: PalletRequest) -> Iterable[ProductRequest]:
+        """
+        Iterates over the  ProductRequest of a PalletRequest.
+        """
         for layer_request in pallet_request.sub_requests:
             for product_request in layer_request.sub_requests:
                 yield product_request
@@ -165,31 +187,42 @@ class PickingCell:
     @as_process
     def main(self) -> ProcessGenerator:
         """
-        Processo principale della cella.
+        Main PickingCell process.
 
-        Rimane in attesa di una PalletRequest da gestire.
-        Una volta ottenuta una PalletRequest, attende la disponibilità del BuildingPoint.
-        Verifica la necessità di dover posizionare una paletta di legno per iniziare il pallet di formazione.
-        Genera un processo per ogni PickingRequest da gestire all'interno della PalletRequest.
-        Attende il processamento di tutte le PickingRequest.
-        Posiziona la PalletRequest terminata nella coda di output della cella.
+        Waits for a PalletRequest to be handled.
+        Once a PalletRequest is obtained, it waits for the availability of the BuildingPoint.
+        Generates a handling process for each ProductRequest to be handled within the PalletRequest.
+        Waits for the processing of all ProductRequest.
+        Once finished, positions the completed PalletRequest in the output queue of the cell,
+        and asks the System to handle the retrieval of the finished PalletRequest.
         """
-
         while True:
+
+            # Wait for a PalletRequest to be handled
             pallet_request: PalletRequest = yield self.input_queue.get()
             pallet_request.assigned(time=self.system.env.now)
             self.current_pallet_request = pallet_request
 
             with self.building_point.request() as building_point_request:
+                # Wait for the availability of the BuildingPoint
                 yield building_point_request
 
+                # Generate a handling process for each ProductRequest to be handled within the PalletRequest
                 procs: list[simpy.Process] = [
                     self._process_product_request(product_request=product_request, pallet_request=pallet_request)
                     for product_request in self.iter_pallet_request(pallet_request=pallet_request)
                 ]
 
+                # Wait for the processing of all ProductRequest
                 yield self.system.env.all_of(procs)
+
+                # Once finished, positions the completed PalletRequest in the output queue of the cell
                 yield self.output_queue.put(pallet_request)
+
+                # Housekeeping
+                self.pallet_requests_done.append(pallet_request)
                 pallet_request.completed(time=self.system.env.now)
                 self._productivity_history.append((self.system.env.now, self.productivity))
+
+                # Ask the System to handle the retrieval of the finished PalletRequest
                 self.system.retrieve_from_cell(cell=self, pallet_request=pallet_request)

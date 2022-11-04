@@ -4,6 +4,7 @@ from enum import Enum, auto
 from itertools import count
 from typing import TYPE_CHECKING, Iterable
 
+import matplotlib.pyplot as plt
 from simpy import PriorityResource
 
 from simulatte.location import Location
@@ -67,7 +68,7 @@ class Ant(PriorityResource):
         self._status = AntStatus.IDLE
         self.current_location: Location = ant_rest_location
         self._travel_time = 0
-        self._mission_history = []
+        self._mission_history: list[float] = []
 
     @property
     def status(self) -> AntStatus:
@@ -108,15 +109,15 @@ class Ant(PriorityResource):
             raise ValueError(f"Ant [{self.id}] cannot carry two unit loads at the same time.")
         self._case_container = value
 
-    def idle(self):
+    def idle(self) -> None:
         """Set the ant to idle status"""
         self.status = AntStatus.IDLE
 
-    def waiting_to_be_loaded(self):
+    def waiting_to_be_loaded(self) -> None:
         """Set the ant to waiting status"""
         self.status = AntStatus.WAITING_UNLOADED
 
-    def waiting_to_be_unloaded(self):
+    def waiting_to_be_unloaded(self) -> None:
         """Set the ant to waiting status"""
         self.status = AntStatus.WAITING_LOADED
 
@@ -158,8 +159,6 @@ class Ant(PriorityResource):
         self._mission_history.append(self.env.now)
 
     def plot(self) -> None:
-        import matplotlib.pyplot as plt
-
         plt.plot([(end - start) / 60 for start, end in self.missions], "o-")
         plt.title(f"Ant [{self.id}] mission duration [min]")
         plt.show()

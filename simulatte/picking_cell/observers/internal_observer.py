@@ -40,4 +40,4 @@ class InternalObserver(Observer[InternalArea]):
             self.cell.internal_area.append(feeding_operation)
 
             # Start moving the ant to the unloading position
-            self.system.env.process(self.cell._ant_internal_movement_process(feeding_operation=feeding_operation))
+            self.cell.let_ant_in(feeding_operation=feeding_operation)

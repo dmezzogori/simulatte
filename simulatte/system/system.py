@@ -29,8 +29,8 @@ class System(metaclass=Singleton):
     stores: Iterable[WarehouseStore]
     locations: Iterable[Location]
 
-    def __init__(self) -> None:
-        self.env = Environment()
+    def __init__(self, env: Environment) -> None:
+        self.env = env
         self.logger = Logger()
 
     def distance(self, from_: Location, to: Location) -> Distance:

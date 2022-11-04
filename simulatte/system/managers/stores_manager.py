@@ -24,8 +24,12 @@ class StoresManager:
         self._stores.append(store)
 
     @property
-    def stores(self) -> Iterable[WarehouseStore]:
+    def stores(self) -> list[WarehouseStore]:
         return self._stores
+
+    @staticmethod
+    def freeze(location: WarehouseLocation, unit_load: Pallet) -> None:
+        location.freeze(unit_load=unit_load)
 
     def find_location_for_product(self, *, store: WarehouseStore, product: Product) -> WarehouseLocation:
         return self._location_policy(store=store, product=product)
@@ -55,5 +59,5 @@ class StoresManager:
         """
         location = self._unit_load_policy(store=store, product=product, quantity=quantity)
         if location is None and raise_on_none:
-            raise ValueError("Location not found.")
+            raise ValueError(f"Location not found for product {product}.")
         return location
