@@ -152,7 +152,8 @@ class Ant(PriorityResource):
         self._waiting_to_be_unloaded = self.env.now
 
     def picking_begins(self):
-        self.unloading_waiting_times.append(self.env.now - self._waiting_to_be_unloaded)
+        if self._waiting_to_be_unloaded is not None:
+            self.unloading_waiting_times.append(self.env.now - self._waiting_to_be_unloaded)
         self._waiting_to_be_unloaded = None
         self._waiting_picking_to_end = self.env.now
 
