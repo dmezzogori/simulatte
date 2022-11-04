@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from typing import Generic, TypeVar
-from typing import TYPE_CHECKING, Sequence, Callable, Any
+from typing import TYPE_CHECKING, Any, Callable, Generic, Sequence, TypeVar
 
-from simpy.resources.store import Store, FilterStore
+from simpy.resources.store import FilterStore, Store
 
 if TYPE_CHECKING:
     from simpy import Environment
-
 
 
 T = TypeVar("T")

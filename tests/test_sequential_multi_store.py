@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import functools
 import operator
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -28,9 +27,7 @@ def sequential_multi_store(env: Environment):
     return SequentialMultiStore(env, capacity=5)
 
 
-def test_sequential_multi_store_01(
-    env: Environment, sequential_multi_store: SequentialMultiStore
-):
+def test_sequential_multi_store_01(env: Environment, sequential_multi_store: SequentialMultiStore):
     def put_items():
         yield env.timeout(10)
         yield sequential_multi_store.put(["A", "B", "C"])

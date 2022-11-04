@@ -15,9 +15,7 @@ def sequential_store(env: Environment):
     return SequentialStore(env, 10)
 
 
-def test_sequential_store_single_request(
-    env: Environment, sequential_store: SequentialStore
-):
+def test_sequential_store_single_request(env: Environment, sequential_store: SequentialStore):
     def get_item():
         yield sequential_store.get(lambda x: x == "A")
 
@@ -45,9 +43,7 @@ def test_sequential_store_single_request(
     env.run()
 
 
-def test_sequential_store_multiple_requests(
-    env: Environment, sequential_store: SequentialStore
-):
+def test_sequential_store_multiple_requests(env: Environment, sequential_store: SequentialStore):
     """
     Test the SequentialStore by simulating the following scenario:
     - The SequentialStore is empty.
