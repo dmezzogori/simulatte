@@ -23,6 +23,9 @@ class StoresManager:
         """
         self._stores.append(store)
 
+    def __getattr__(self, item) -> WarehouseStore | None:
+        return next(store for store in self._stores if store.name == item)
+
     @property
     def stores(self) -> list[WarehouseStore]:
         return self._stores

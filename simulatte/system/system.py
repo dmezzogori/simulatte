@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, Iterable
+from typing import TYPE_CHECKING, Iterable, Protocol
 
 from simpy import Process
 from simpy.resources.resource import PriorityRequest
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     pass
 
 
-class System(metaclass=Singleton):
+class System:
     feeding_operations: list[FeedingOperation]
     ants_manager: AntsManager
     stores_manager: StoresManager
