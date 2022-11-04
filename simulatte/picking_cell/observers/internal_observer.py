@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .base_observer import Observer
 from ..areas import InternalArea
+from .base_observer import Observer
 
 if TYPE_CHECKING:
     from simulatte.operations import FeedingOperation
@@ -38,6 +38,8 @@ class InternalObserver(Observer[InternalArea]):
 
             # Register the FeedingOperation into the InternalArea
             self.cell.internal_area.append(feeding_operation)
+
+            feeding_operation.ant.enter_internal_area()
 
             # Start moving the ant to the unloading position
             self.cell.let_ant_in(feeding_operation=feeding_operation)

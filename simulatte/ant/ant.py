@@ -77,6 +77,15 @@ class Ant(PriorityResource):
         self._waiting_to_enter_staging_area: float | None = None
         self.feeding_area_waiting_times = []
 
+        self._waiting_to_enter_internal_area: float | None = None
+        self.staging_area_waiting_times = []
+
+        self._waiting_to_be_unloaded: float | None = None
+        self.unloading_waiting_times = []
+
+        self._waiting_picking_to_end: float | None = None
+        self.picking_waiting_times = []
+
     @property
     def status(self) -> AntStatus:
         return self._status
@@ -134,6 +143,22 @@ class Ant(PriorityResource):
 
     def enter_staging_area(self) -> None:
         self.feeding_area_waiting_times.append(self.env.now - self._waiting_to_enter_staging_area)
+        self._waiting_to_enter_staging_area = None
+        self._waiting_to_enter_internal_area = self.env.now
+
+    def enter_internal_area(self):
+        self.staging_area_waiting_times.append(self.env.now - self._waiting_to_enter_internal_area)
+        self._waiting_to_enter_internal_area = None
+        self._waiting_to_be_unloaded = self.env.now
+
+    def picking_begins(self):
+        self.unloading_waiting_times.append(self.env.now - self._waiting_to_be_unloaded)
+        self._waiting_to_be_unloaded = None
+        self._waiting_picking_to_end = self.env.now
+
+    def picking_ends(self):
+        self.picking_waiting_times.append(self.env.now - self._waiting_picking_to_end)
+        self._waiting_picking_to_end = None
 
     @as_process
     def load(self, *, unit_load: CaseContainer) -> ProcessGenerator:
