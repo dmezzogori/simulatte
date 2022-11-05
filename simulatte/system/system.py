@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterable, Protocol
+from typing import Iterable
 
 from simpy import Process
 from simpy.resources.resource import PriorityRequest
 
+from simulatte.distance import Distance
 from simulatte.environment import Environment
 from simulatte.location import Location
 from simulatte.logger import Logger
@@ -13,10 +14,6 @@ from simulatte.picking_cell import PickingCell
 from simulatte.requests import PalletRequest
 from simulatte.stores import WarehouseStore
 from simulatte.system.managers import AntsManager, StoresManager
-from simulatte.utils import Singleton
-
-if TYPE_CHECKING:
-    pass
 
 
 class System:

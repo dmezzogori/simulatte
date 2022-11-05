@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Generic, TypeVar
 
 import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
 
 if TYPE_CHECKING:
     from simulatte.picking_cell import PickingCell
@@ -51,6 +52,11 @@ class Area(list, Generic[T]):
         self._history.append((self.env.now, len(self)))
 
     def plot(self):
-        x = [t for t, _ in self._history]
+        x = [t / 60 / 60 for t, _ in self._history]
         y = [s for _, s in self._history]
         plt.plot(x, y)
+        plt.yticks(range(0, max(y) + 1))
+        plt.xlabel("Time [h]")
+        plt.ylabel(f"Queue [#items]")
+        plt.title(f"{self.__class__.__name__} queue")
+        plt.show()

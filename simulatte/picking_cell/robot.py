@@ -83,15 +83,19 @@ class Robot(simpy.Resource):
     def rotate(self) -> simpy.Process:
         return self.env.process(self._rotate_process())
 
-    def plot(self) -> None:
-        x = [t for t, _ in self._saturation_history]
-        y = [s for _, s in self._saturation_history]
+    def plot(self, *, show_productivity=False) -> None:
+        x = [t / 60 / 60 for t, _ in self._saturation_history]
+        y = [s * 100 for _, s in self._saturation_history]
         plt.plot(x, y)
-        plt.title("Saturation [%]")
+        plt.xlabel("Time [h]")
+        plt.ylabel(f"Saturation [%]")
+        plt.title("Robot Productivity")
+        plt.ylim([0, 100])
         plt.show()
 
-        x = [t for t, _ in self._productivity_history]
-        y = [p * 60 * 60 for _, p in self._productivity_history]
-        plt.plot(x, y)
-        plt.title("Productivity [pcs/h]")
-        plt.show()
+        if show_productivity:
+            x = [t for t, _ in self._productivity_history]
+            y = [p * 60 * 60 for _, p in self._productivity_history]
+            plt.plot(x, y)
+            plt.title("Productivity [pcs/h]")
+            plt.show()

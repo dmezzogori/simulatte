@@ -164,6 +164,7 @@ class Ant(PriorityResource, metaclass=Identifiable):
         if self.loading_waiting_time_start is not None:
             self.loading_waiting_times.append(self.env.now - self.loading_waiting_time_start)
         self.loading_waiting_time_start = None
+        self.status = AntStatus.WAITING_LOADED
 
     @as_process
     def unload(self) -> ProcessGenerator:
@@ -171,6 +172,7 @@ class Ant(PriorityResource, metaclass=Identifiable):
             raise ValueError("Ant cannot unload non-existent unit load.")
         yield self.env.timeout(self.unload_timeout)
         self.unit_load = None
+        self.status = AntStatus.WAITING_LOADED
 
     @as_process
     def move_to(self, *, system: System, location: Location):
@@ -185,6 +187,11 @@ class Ant(PriorityResource, metaclass=Identifiable):
         self._travel_time += timeout
         self.current_location = location
 
+        if self.unit_load is not None:
+            self.status = AntStatus.WAITING_LOADED
+        else:
+            self.status = AntStatus.WAITING_UNLOADED
+
     def release_current(self):
         """Release the current request the ant is taking care of"""
         if len(self.users) == 0:
@@ -193,9 +200,11 @@ class Ant(PriorityResource, metaclass=Identifiable):
 
     def mission_started(self) -> None:
         self._mission_history.append(self.env.now)
+        self.status = AntStatus.WAITING_UNLOADED
 
     def mission_ended(self) -> None:
         self._mission_history.append(self.env.now)
+        self.status = AntStatus.IDLE
 
     def plot(self) -> None:
         plt.plot([(end - start) / 60 for start, end in self.missions], "o-")
