@@ -37,6 +37,20 @@ class AntRestLocation(Location):
 ant_rest_location = AntRestLocation()
 
 
+class AntMission:
+
+    def __init__(self, ant: Ant, start_location: Location, end_location: Location):
+        self.ant = ant
+        self.start_location = start_location
+        self.start_time = ant.env.now
+        self.end_location = end_location
+        self.end_time = None
+
+    def end(self):
+        self.end_time = self.ant.env.now
+        self.ant.mission_logs.append(self)
+
+
 class Ant(PriorityResource, metaclass=Identifiable):
     """
     Represent a generic Ant.
@@ -66,6 +80,7 @@ class Ant(PriorityResource, metaclass=Identifiable):
         self.current_location: Location = ant_rest_location
         self._travel_time = 0
         self._mission_history: list[float] = []
+        self.mission_logs: list[AntMission] = []
 
         self.loading_waiting_times = []
         self.loading_waiting_time_start: float | None = None
@@ -176,6 +191,12 @@ class Ant(PriorityResource, metaclass=Identifiable):
 
     @as_process
     def move_to(self, *, system: System, location: Location):
+        mission = AntMission(
+            ant=self,
+            start_location=self.current_location,
+            end_location=location
+        )
+
         timeout = system.distance(self.current_location, location).as_time
 
         if self.unit_load is not None:
@@ -185,6 +206,9 @@ class Ant(PriorityResource, metaclass=Identifiable):
 
         yield self.env.timeout(timeout)
         self._travel_time += timeout
+
+        mission.end()
+
         self.current_location = location
 
         if self.unit_load is not None:
