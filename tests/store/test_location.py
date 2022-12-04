@@ -50,6 +50,7 @@ def test_location_02(location: WarehouseLocation, product_a: Product, product_b:
     """
 
     unit_load = Pallet(Tray(product=product_a, n_cases=1))
+    location.freeze(unit_load=unit_load)
     location.put(unit_load)
 
     assert location.is_half_full
@@ -70,9 +71,11 @@ def test_location_03(location: WarehouseLocation, product_a: Product, product_b:
     """
 
     unit_load = Pallet(Tray(product=product_a, n_cases=1))
+    location.freeze(unit_load=unit_load)
     location.put(unit_load)
 
     unit_load_b = Pallet(Tray(product=product_a, n_cases=1))
+    location.freeze(unit_load=unit_load_b)
     location.put(unit_load_b)
 
     assert location.is_full
@@ -97,9 +100,11 @@ def test_location_04(location: WarehouseLocation, product_a: Product, product_b:
     """
 
     unit_load_a = Pallet(Tray(product=product_a, n_cases=1))
+    location.freeze(unit_load=unit_load_a)
     location.put(unit_load_a)
 
     unit_load_b = Pallet(Tray(product=product_a, n_cases=1))
+    location.freeze(unit_load=unit_load_b)
     location.put(unit_load_b)
 
     unit_load = location.get()
@@ -124,6 +129,7 @@ def test_location_05(location: WarehouseLocation, product_a: Product, product_b:
     """
 
     unit_load_a = Pallet(Tray(product=product_a, n_cases=1))
+    location.freeze(unit_load=unit_load_a)
     location.put(unit_load_a)
 
     with pytest.raises(IncompatibleUnitLoad):

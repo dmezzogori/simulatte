@@ -36,7 +36,7 @@ class WarehouseLocation:
         self.future_unit_loads: list[Pallet] = []
 
     def __repr__(self) -> str:
-        return f"Location ({self.x}, {self.y}, {self.side}) containing {self.product})"
+        return f"Location ({self.x}, {self.y}, {self.side}) reserved for {self.product} [{len(self.future_unit_loads)}, {self.n_unit_loads}, {self.is_empty}, {self.is_half_full}, {self.is_full}]"
 
     def check_product_compatibility(self, unit_load: Pallet) -> bool:
         if unit_load.product != self.first_available_unit_load.product:
@@ -50,6 +50,17 @@ class WarehouseLocation:
         If the location is not empty, first it checks that the unit load is compatible
         (same product as the one already stored).
         """
+        if self.is_empty:
+            if len(self.future_unit_loads) == self.depth:
+                raise ValueError(
+                    f"Cannot freeze a location with empty positions, but with {self.depth} future unit loads"
+                )
+        elif self.is_half_full:
+            if len(self.future_unit_loads) >= 1:
+                raise ValueError("Cannot freeze a location with one busy position, and one future unit load")
+        else:
+            raise ValueError("Cannot freeze a location with two busy positions")
+
         if not self.is_empty:
             self.check_product_compatibility(unit_load)
 
@@ -57,8 +68,13 @@ class WarehouseLocation:
         self.future_unit_loads.append(unit_load)
 
     def unfreeze(self, unit_load: Pallet) -> None:
-        self.frozen = False
+        if unit_load not in self.future_unit_loads:
+            raise ValueError("Unit load not found in the future unit loads")
+
         self.future_unit_loads.remove(unit_load)
+
+        if len(self.future_unit_loads) == 0:
+            self.frozen = False
 
     @property
     def product(self) -> Product | None:
@@ -78,12 +94,25 @@ class WarehouseLocation:
         else:
             return self.first_available_unit_load.product
 
+    @property
+    def n_cases(self) -> int:
+        """
+        Returns the number of cases stored in the location.
+        """
+        return (
+            self.first_position.n_cases
+            + self.second_position.n_cases
+            + sum(unit_load.n_cases for unit_load in self.future_unit_loads)
+        )
+
     def deals_with_products(self, product: Product) -> bool:
         return self.product == product
 
     @property
     def is_empty(self) -> bool:
-        return self.first_position.free and self.second_position.free if self.depth == 2 else self.first_position.free
+        if self.depth == 2:
+            return self.first_position.free and self.second_position.free
+        return self.first_position.free
 
     @property
     def is_half_full(self) -> bool:
@@ -91,7 +120,9 @@ class WarehouseLocation:
 
     @property
     def is_full(self) -> bool:
-        return self.first_position.busy and self.second_position.busy if self.depth == 2 else self.first_position.busy
+        if self.depth == 2:
+            return self.first_position.busy and self.second_position.busy
+        return self.first_position.busy
 
     @property
     def n_unit_loads(self) -> int:
@@ -134,6 +165,7 @@ class WarehouseLocation:
             raise LocationBusy(self)
 
         physical_position.put(unit_load=unit_load)
+        self.unfreeze(unit_load=unit_load)
 
     def get(self) -> Pallet:
         if self.is_half_full:
@@ -143,3 +175,18 @@ class WarehouseLocation:
         else:
             raise LocationEmpty(self)
         return physical_position.get()
+
+    def affinity(self, product: Product) -> float:
+        """
+        Returns the affinity of the location to a certain product.
+        The lower the number, the better is the location for the product.
+        """
+
+        if self.product == product:
+            if len(self.future_unit_loads) + self.n_unit_loads == self.depth:
+                return float("inf")
+            return 0
+        if self.product is None:
+            return 1
+        if self.product != product:
+            return float("inf")

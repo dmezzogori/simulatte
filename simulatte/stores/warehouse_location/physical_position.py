@@ -16,6 +16,15 @@ class PhysicalPosition:
     def __init__(self, unit_load: Pallet | None = None) -> None:
         self.unit_load = unit_load
 
+    @property
+    def n_cases(self) -> int:
+        """
+        Return the number of cases in the physical position.
+        """
+        if self.unit_load is not None:
+            return self.unit_load.n_cases
+        return 0
+
     def put(self, *, unit_load: Pallet) -> None:
         """
         Load a unit load into the physical position.

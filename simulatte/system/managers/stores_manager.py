@@ -34,6 +34,10 @@ class StoresManager:
     def freeze(location: WarehouseLocation, unit_load: Pallet) -> None:
         location.freeze(unit_load=unit_load)
 
+    @staticmethod
+    def stock(*, store: WarehouseStore, product: Product) -> int:
+        return sum(location.n_cases for location in store.locations_with_product(product=product))
+
     def find_location_for_product(self, *, store: WarehouseStore, product: Product) -> WarehouseLocation:
         return self._location_policy(store=store, product=product)
 

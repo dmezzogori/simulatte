@@ -12,7 +12,10 @@ if TYPE_CHECKING:
 class LocationBusy(Exception):
     def __init__(self, location: WarehouseLocation):
         self.location = location
-        super().__init__(f"Location {location} is busy")
+        super().__init__(location)
+
+    def __str__(self) -> str:
+        return f"{self.location} is busy"
 
 
 class LocationEmpty(Exception):
