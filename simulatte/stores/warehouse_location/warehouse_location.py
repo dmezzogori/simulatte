@@ -34,6 +34,7 @@ class WarehouseLocation:
         self.second_position = PhysicalPosition()
         self.frozen = False
         self.future_unit_loads: list[Pallet] = []
+        self.booked_pickups: list[Pallet] = []
 
     def __repr__(self) -> str:
         return f"Location ({self.x}, {self.y}, {self.side}) reserved for {self.product} [{len(self.future_unit_loads)}, {self.n_unit_loads}, {self.is_empty}, {self.is_half_full}, {self.is_full}]"
@@ -42,6 +43,16 @@ class WarehouseLocation:
         if unit_load.product != self.first_available_unit_load.product:
             raise IncompatibleUnitLoad(unit_load, self)
         return True
+
+    def book_pickup(self, unit_load: Pallet) -> None:
+        if self.fully_booked:
+            raise ValueError(f"Cannot book more than {self.depth} pickups")
+
+        self.booked_pickups.append(unit_load)
+
+    @property
+    def fully_booked(self) -> bool:
+        return len(self.booked_pickups) == self.depth
 
     def freeze(self, *, unit_load: Pallet) -> None:
         """
@@ -168,13 +179,18 @@ class WarehouseLocation:
         self.unfreeze(unit_load=unit_load)
 
     def get(self) -> Pallet:
+        if len(self.booked_pickups) == 0:
+            raise ValueError("Cannot get a unit load without booking it first")
+
         if self.is_half_full:
             physical_position = self.second_position
         elif self.is_full:
             physical_position = self.first_position
         else:
             raise LocationEmpty(self)
-        return physical_position.get()
+        unit_load = physical_position.get()
+        self.booked_pickups.remove(unit_load)
+        return unit_load
 
     def affinity(self, product: Product) -> float:
         """

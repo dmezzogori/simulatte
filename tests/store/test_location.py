@@ -37,7 +37,7 @@ def test_location_01(location: WarehouseLocation, product_a: Product, product_b:
     assert location.first_position.free
     assert location.n_unit_loads == 0
 
-    with pytest.raises(LocationEmpty):
+    with pytest.raises(ValueError):
         location.get()
 
 
@@ -107,12 +107,14 @@ def test_location_04(location: WarehouseLocation, product_a: Product, product_b:
     location.freeze(unit_load=unit_load_b)
     location.put(unit_load_b)
 
+    location.book_pickup(unit_load=unit_load_b)
     unit_load = location.get()
     assert unit_load == unit_load_b
     assert location.is_half_full
     assert location.second_position.busy
     assert location.first_position.free
 
+    location.book_pickup(unit_load=unit_load_a)
     unit_load = location.get()
     assert unit_load == unit_load_a
     assert location.is_empty

@@ -35,7 +35,7 @@ class ClosestUnitLoadPolicy(UnitLoadPolicy):
         )
 
         for location in locs:
-            if not location.frozen and location.product == product:
+            if not location.fully_booked and location.product == product:
                 if location.first_available_unit_load.n_cases >= quantity:
                     return location
         return None
