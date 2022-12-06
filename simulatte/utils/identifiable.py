@@ -13,6 +13,3 @@ class Identifiable(type):
         _instance.id = next(cls._id_iter)
         cls._instances[_instance.id] = _instance
         return _instance
-
-    def __getitem__(cls, item):
-        return cls._instances[item]
