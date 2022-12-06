@@ -1,3 +1,4 @@
+import simulatte
 from simulatte.stores.warehouse_location import WarehouseLocation
 from simulatte.unitload import Pallet
 
@@ -37,17 +38,18 @@ class Operation:
 class InputOperation(Operation):
     """An instance of this class represents an input operation"""
 
-    def __init__(self, env, unit_load, location, priority):
+    def __init__(self, unit_load, location, priority):
         """
         Initialise.
 
         :attr lift_process: The process through which the unitload is moved by the input lift.
         :attr lifted: An event triggered when the operation can be taken by the shuttle.
         """
-        super().__init__(env, unit_load, location, priority)
+        self.env = simulatte.Environment()
+        super().__init__(self.env, unit_load, location, priority)
         self.lift_process = None
         self.lifted_flag = False
-        self.lifted = env.event()
+        self.lifted = self.env.event()
 
 
 class OutputOperation(Operation):

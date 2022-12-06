@@ -24,7 +24,7 @@ class StoresManager:
         self._stores.append(store)
 
     def __getattr__(self, item) -> WarehouseStore | None:
-        return next(store for store in self._stores if store.name == item)
+        return next(store for store in self._stores if item in store.name.lower())
 
     @property
     def stores(self) -> list[WarehouseStore]:
@@ -36,7 +36,7 @@ class StoresManager:
 
     @staticmethod
     def stock(*, store: WarehouseStore, product: Product) -> int:
-        return sum(location.n_cases for location in store.locations_with_product(product=product))
+        return sum(location.n_cases for location in store.filter_locations(product=product))
 
     def find_location_for_product(self, *, store: WarehouseStore, product: Product) -> WarehouseLocation:
         return self._location_policy(store=store, product=product)
