@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from enum import Enum
+from typing import TYPE_CHECKING, Generic, TypeVar
 
-from simulatte.products import Product
-from simulatte.unitload import Pallet
-from simulatte.utils import Identifiable
-
+from ...unitload import CaseContainer
+from ...utils import Identifiable
 from .exceptions import IncompatibleUnitLoad, LocationBusy, LocationEmpty
 from .physical_position import PhysicalPosition
+
+if TYPE_CHECKING:
+    from simulatte.products import Product
 
 
 class WarehouseLocationSide(Enum):
@@ -16,7 +18,10 @@ class WarehouseLocationSide(Enum):
     ORIGIN = "origin"
 
 
-class WarehouseLocation(metaclass=Identifiable):
+T = TypeVar("T", bound=CaseContainer)
+
+
+class WarehouseLocation(Generic[T], metaclass=Identifiable):
     """
     Warehouse physical storage location, where the unit loads are stored.
     """
@@ -49,11 +54,15 @@ class WarehouseLocation(metaclass=Identifiable):
         self.first_position = PhysicalPosition()
         self.second_position = PhysicalPosition()
         self.frozen = False
-        self.future_unit_loads: list[Pallet] = []
-        self.booked_pickups: list[Pallet] = []
+        self.future_unit_loads: list[T] = []
+        self.booked_pickups: list[T] = []
 
     def __repr__(self) -> str:
-        return f"Location ({self.x}, {self.y}, {self.side}) reserved for {self.product} [{len(self.future_unit_loads)}, {self.n_unit_loads}, {self.is_empty}, {self.is_half_full}, {self.is_full}]"
+        return (
+            f"Location ({self.x}, {self.y}, {self.side}) reserved for {self.product} "
+            f"[{len(self.future_unit_loads)}, {self.n_unit_loads}, "
+            f"{self.is_empty}, {self.is_half_full}, {self.is_full}]"
+        )
 
     @property
     def coordinates(self) -> tuple[float, float]:
@@ -62,14 +71,17 @@ class WarehouseLocation(metaclass=Identifiable):
         """
         return self.x * self.width, self.y * self.height
 
-    def check_product_compatibility(self, unit_load: Pallet) -> bool:
+    def check_product_compatibility(self, unit_load: T) -> bool:
         if unit_load.product != self.first_available_unit_load.product:
             raise IncompatibleUnitLoad(unit_load, self)
         return True
 
-    def book_pickup(self, unit_load: Pallet) -> None:
+    def book_pickup(self, unit_load: T) -> None:
         if self.fully_booked:
             raise ValueError(f"Cannot book more than {self.depth} pickups")
+
+        if unit_load in self.booked_pickups:
+            raise RuntimeError("Unit load already booked")
 
         self.booked_pickups.append(unit_load)
 
@@ -77,7 +89,7 @@ class WarehouseLocation(metaclass=Identifiable):
     def fully_booked(self) -> bool:
         return len(self.booked_pickups) == self.depth
 
-    def freeze(self, *, unit_load: Pallet) -> None:
+    def freeze(self, *, unit_load: T) -> None:
         """
         Freeze the location for a certain unit load.
 
@@ -101,7 +113,7 @@ class WarehouseLocation(metaclass=Identifiable):
         self.frozen = True
         self.future_unit_loads.append(unit_load)
 
-    def unfreeze(self, unit_load: Pallet) -> None:
+    def unfreeze(self, unit_load: T) -> None:
         if unit_load not in self.future_unit_loads:
             raise ValueError("Unit load not found in the future unit loads")
 
@@ -163,7 +175,7 @@ class WarehouseLocation(metaclass=Identifiable):
         return int(self.first_position.busy) + int(self.second_position.busy)
 
     @property
-    def first_available_unit_load(self) -> Pallet:
+    def first_available_unit_load(self) -> T:
         """
         Returns the first available unit load.
         If the first position is busy, the unit load in second position is not available.
@@ -177,7 +189,7 @@ class WarehouseLocation(metaclass=Identifiable):
         if self.is_half_full:
             return self.second_position.unit_load
 
-    def put(self, unit_load: Pallet) -> None:
+    def put(self, unit_load: T) -> None:
         """
         Stores a unit load into the location.
 
@@ -201,7 +213,7 @@ class WarehouseLocation(metaclass=Identifiable):
         physical_position.put(unit_load=unit_load)
         self.unfreeze(unit_load=unit_load)
 
-    def get(self) -> Pallet:
+    def get(self) -> T:
         if len(self.booked_pickups) == 0:
             raise ValueError("Cannot get a unit load without booking it first")
 

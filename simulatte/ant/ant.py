@@ -134,7 +134,7 @@ class Ant(PriorityResource, metaclass=Identifiable):
     @unit_load.setter
     def unit_load(self, value: CaseContainer | None) -> None:
         if self._case_container is not None and value is not None:
-            raise ValueError(f"Ant [{self.id}] cannot carry two unit loads at the same time.")
+            raise RuntimeError(f"Ant [{self.id}] cannot carry two unit loads at the same time.")
         self._case_container = value
 
     def idle(self) -> None:

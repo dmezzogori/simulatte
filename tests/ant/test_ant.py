@@ -44,7 +44,7 @@ def test_double_load(env: Environment, ant: Ant):
         unit_load = CaseContainer()
         yield ant.load(unit_load=unit_load)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(RuntimeError):
             yield ant.load(unit_load=unit_load)
 
     env.process(test())
