@@ -1,5 +1,8 @@
 import simpy
 
+import simulatte
+from simulatte.location import Location
+
 
 class ServicePoint(simpy.PriorityResource):
     """
@@ -7,13 +10,13 @@ class ServicePoint(simpy.PriorityResource):
     where ants go to be served.
     """
 
-    def __init__(self, env, loc, capacity=1):
+    def __init__(self, *, location: Location, capacity=1):
         """
         Initialise.
 
         :param env: The simulation environment
         :param loc: The node where the service point is placed.
         """
-        self.env = env
-        self.loc = loc
-        super(ServicePoint, self).__init__(env, capacity=capacity)
+        self.env = simulatte.Environment()
+        self.location = location
+        super().__init__(self.env, capacity=capacity)
