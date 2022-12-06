@@ -1,18 +1,14 @@
 import pytest
 
 from simulatte.products import Product
-from simulatte.stores.warehouse_location import (
-    IncompatibleUnitLoad,
-    LocationBusy,
-    LocationEmpty,
-)
-from simulatte.stores.warehouse_location.warehouse_location import WarehouseLocation
+from simulatte.stores import WarehouseLocation, WarehouseLocationSide
+from simulatte.stores.warehouse_location import IncompatibleUnitLoad, LocationBusy
 from simulatte.unitload import Pallet, Tray
 
 
 @pytest.fixture(scope="function")
 def location() -> WarehouseLocation:
-    return WarehouseLocation(x=0, y=0, side="left", depth=2)
+    return WarehouseLocation(x=0, y=0, side=WarehouseLocationSide.LEFT, depth=2, width=1, height=1)
 
 
 @pytest.fixture(scope="function")

@@ -38,7 +38,6 @@ ant_rest_location = AntRestLocation()
 
 
 class AntMission:
-
     def __init__(self, ant: Ant, start_location: Location, end_location: Location):
         self.ant = ant
         self.start_location = start_location
@@ -69,6 +68,8 @@ class Ant(PriorityResource, metaclass=Identifiable):
     |            MISSION TIME           |
     +-----------------+-----------------+
     """
+
+    id: int
 
     def __init__(self, env: Environment, load_timeout=0, unload_timeout=0) -> None:
         super().__init__(env, capacity=1)
@@ -191,11 +192,7 @@ class Ant(PriorityResource, metaclass=Identifiable):
 
     @as_process
     def move_to(self, *, system: System, location: Location):
-        mission = AntMission(
-            ant=self,
-            start_location=self.current_location,
-            end_location=location
-        )
+        mission = AntMission(ant=self, start_location=self.current_location, end_location=location)
 
         timeout = system.distance(self.current_location, location).as_time
 

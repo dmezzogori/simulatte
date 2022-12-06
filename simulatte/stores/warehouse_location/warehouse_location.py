@@ -1,18 +1,31 @@
 from __future__ import annotations
 
+from enum import Enum
+
 from simulatte.products import Product
 from simulatte.unitload import Pallet
+from simulatte.utils import Identifiable
 
 from .exceptions import IncompatibleUnitLoad, LocationBusy, LocationEmpty
 from .physical_position import PhysicalPosition
 
 
-class WarehouseLocation:
+class WarehouseLocationSide(Enum):
+    LEFT = "left"
+    RIGHT = "right"
+    ORIGIN = "origin"
+
+
+class WarehouseLocation(metaclass=Identifiable):
     """
     Warehouse physical storage location, where the unit loads are stored.
     """
 
-    def __init__(self, *, x: int, y: int, side: str, depth: int = 2) -> None:
+    id: int
+
+    def __init__(
+        self, *, x: int, y: int, side: WarehouseLocationSide, depth: int = 2, width: float, height: float
+    ) -> None:
         """
         :param x: The discrete x-coordinate of the location (x-axis).
         :param y: The discrete y-coordinate of the location (y-axis).
@@ -22,13 +35,16 @@ class WarehouseLocation:
         self.x = x
         self.y = y
 
-        if side not in ("left", "right"):
-            raise ValueError("Side must be 'left' or 'right'")
-        self.side = side
+        if side not in WarehouseLocationSide:
+            raise ValueError("Side must be a value of WarehouseLocationSide")
+        self.side = side.value
 
         if depth not in (1, 2):
             raise ValueError("The depth of the location must be positive and cannot be greater than 2.")
         self.depth = depth
+
+        self.width = width
+        self.height = height
 
         self.first_position = PhysicalPosition()
         self.second_position = PhysicalPosition()
@@ -38,6 +54,13 @@ class WarehouseLocation:
 
     def __repr__(self) -> str:
         return f"Location ({self.x}, {self.y}, {self.side}) reserved for {self.product} [{len(self.future_unit_loads)}, {self.n_unit_loads}, {self.is_empty}, {self.is_half_full}, {self.is_full}]"
+
+    @property
+    def coordinates(self) -> tuple[float, float]:
+        """
+        The location coordinates in meters.
+        """
+        return self.x * self.width, self.y * self.height
 
     def check_product_compatibility(self, unit_load: Pallet) -> bool:
         if unit_load.product != self.first_available_unit_load.product:

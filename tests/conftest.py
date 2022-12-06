@@ -1,16 +1,15 @@
 import pytest
 
-from simulatte.environment import Environment
-from simulatte.system import System
+import simulatte
 
 
 @pytest.fixture(scope="function")
-def env() -> Environment:
-    Environment.clear()
-    yield Environment()
-    Environment.clear()
+def env() -> simulatte.Environment:
+    simulatte.Environment.clear()
+    yield simulatte.Environment()
+    simulatte.Environment.clear()
 
 
 @pytest.fixture(scope="function")
-def system(env: Environment) -> System:
-    return System(env=env)
+def system(env: simulatte.Environment) -> simulatte.System:
+    return simulatte.System(env=env)
