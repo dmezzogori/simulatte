@@ -16,6 +16,6 @@ class MinorWorkloadAntsPolicy(AntSelectionPolicy):
     def sorter(ant: Ant) -> tuple[int, int]:
         return len(ant.users), len(ant.queue)
 
-    def __call__(self, *, ants: Sequence[Ant], exceptions: Sequence[Ant] | None = None) -> Ant:
+    def __call__(self, *, ants: Sequence[Ant], exceptions: Sequence[Ant] | None = None) -> Ant | None:
         exceptions = exceptions or set()
-        return min((ant for ant in ants if ant not in exceptions), key=self.sorter)
+        return min((ant for ant in ants if ant not in exceptions), key=self.sorter, default=None)

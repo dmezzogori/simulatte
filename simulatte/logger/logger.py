@@ -2,15 +2,14 @@ from __future__ import annotations
 
 import pprint
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any, Optional, TypedDict
 
 import pandas as pd
 
 import simulatte
 
 if TYPE_CHECKING:
-    from simulatte.picking_cell import PickingCell
-    from simulatte.picking_cell import FeedingOperation
+    from simulatte.picking_cell import FeedingOperation, PickingCell
 
 
 class EventPayload(TypedDict, total=False):
@@ -18,7 +17,7 @@ class EventPayload(TypedDict, total=False):
     cell: PickingCell
     event: str
     type: int
-    operation: FeedingOperation | None
+    operation: Optional[FeedingOperation]
     value: Any | None  # TODO: remove this
 
 

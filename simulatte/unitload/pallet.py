@@ -19,12 +19,12 @@ class Pallet(CaseContainer):
             self.layers = deque(layers)
 
     @classmethod
-    def by_product(cls, *, product: Product) -> Pallet:
+    def by_product(cls, *, product: Product, n_layers: int = 10) -> Pallet:
         """
         Create a pallet with a single layer of the given product.
         """
         return cls(
-            *(Tray(product=product, n_cases=product.cases_per_layer) for _ in range(10)),
+            *(Tray(product=product, n_cases=product.cases_per_layer) for _ in range(n_layers)),
         )
 
     def __repr__(self) -> str:
