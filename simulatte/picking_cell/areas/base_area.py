@@ -43,6 +43,10 @@ class Area(list, Generic[T]):
     def is_empty(self) -> bool:
         return len(self) == 0
 
+    @property
+    def free_space(self) -> int:
+        return self.capacity - len(self)
+
     def append(self, item: T) -> None:
         if self.is_full:
             raise ValueError("Area is full.")

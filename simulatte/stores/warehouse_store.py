@@ -42,8 +42,8 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         conveyor_capacity: int = 5,
     ):
         self.env = simulatte.Environment()
-        self.input_location = simulatte.location.Location(name="AVSRS Input")
-        self.output_location = simulatte.location.Location(name="AVSRS Output")
+        self.input_location = simulatte.location.Location(name=f"{self.__class__.__name__} Input")
+        self.output_location = simulatte.location.Location(name=f"{self.__class__.__name__} Output")
         self.location_width = location_width
         self.location_height = location_height
         self.depth = depth

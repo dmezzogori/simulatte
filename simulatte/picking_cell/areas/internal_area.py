@@ -17,9 +17,21 @@ class InternalArea(ObservableArea[FeedingOperation]):
     Manage both unloading and pre-unloading positions.
     """
 
-    def __init__(self, *, cell: PickingCell, capacity: int = float("inf")):
+    def __init__(self, *, cell: PickingCell, capacity: int, pre_unload: bool = False) -> None:
         super().__init__(cell=cell, capacity=capacity)
-        self.unload_positions = (Position(env=cell.system.env, capacity=1), Position(env=cell.system.env, capacity=1))
+
+        if pre_unload:
+            self.unload_positions = tuple(
+                Position(name=f"UnloadPosition{i}", env=cell.system.env, capacity=1) for i in range(capacity // 2)
+            )
+            self.pre_unload_positions = tuple(
+                Position(name=f"PreUnloadPosition{i}", env=cell.system.env, capacity=1) for i in range(capacity // 2)
+            )
+        else:
+            self.unload_positions = tuple(
+                Position(name=f"UnloadPosition{i}", env=cell.system.env, capacity=1) for i in range(capacity)
+            )
+            self.pre_unload_positions = tuple()
 
     def append(self, feeding_operation: FeedingOperation) -> None:
         super().append(feeding_operation)

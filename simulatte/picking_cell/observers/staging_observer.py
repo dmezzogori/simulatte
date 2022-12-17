@@ -17,6 +17,24 @@ class StagingObserver(Observer[StagingArea]):
         )
         return min(feeding_operations, default=None)
 
+    def _can_enter(self, *, feeding_operation: FeedingOperation) -> bool:
+        """
+        Check if the feeding operation can enter the staging area.
+
+        The feeding operation can enter the staging area if the staging area is not full and the feeding operation is in
+        front of the staging area.
+        """
+
+        is_first_ever_feeding_operation = self.cell.internal_area.last_entered is None and feeding_operation is min(
+            self.cell.feeding_operations
+        )
+        is_next_useful_feeding_operation = (
+            self.cell.internal_area.last_entered is not None
+            and feeding_operation.relative_id == self.cell.internal_area.last_entered.relative_id + 1
+        )
+
+        return is_first_ever_feeding_operation or is_next_useful_feeding_operation
+
     def _main_process(self):
         """
         Manage the entering processes of a picking cell.
@@ -38,14 +56,7 @@ class StagingObserver(Observer[StagingArea]):
             and not self.cell.staging_area.is_full
             and (feeding_operation := self.next()) is not None
         ):
-            if (
-                self.cell.internal_area.last_entered is None and feeding_operation is min(self.cell.feeding_operations)
-            ) or (
-                (
-                    self.cell.internal_area.last_entered is not None
-                    and feeding_operation.id == self.cell.internal_area.last_entered.id + 1
-                )
-            ):
+            if self._can_enter(feeding_operation=feeding_operation):
                 # Remove the FeedingOperation from the FeedingArea
                 self.cell.feeding_area.remove(feeding_operation)
 

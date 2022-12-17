@@ -7,11 +7,18 @@ from .base_observer import Observer
 
 if TYPE_CHECKING:
     from simulatte.operations import FeedingOperation
+    from simulatte.picking_cell.areas.position import Position
 
 
 class InternalObserver(Observer[InternalArea]):
     def next(self) -> FeedingOperation | None:
         return min(self.observable_area.cell.staging_area, default=None)
+
+    def _can_enter(self, *, feeding_operation: FeedingOperation) -> tuple[bool, Position | None, Position | None]:
+        for unload_position in self.cell.internal_area.unload_positions:
+            if not unload_position.busy:
+                return True, None, unload_position
+        return False, None, None
 
     def _main_process(self) -> None:
         """
@@ -33,13 +40,21 @@ class InternalObserver(Observer[InternalArea]):
             and not self.cell.internal_area.is_full
             and (feeding_operation := self.next()) is not None
         ):
-            # Remove the FeedingOperation from the StagingArea
-            self.cell.staging_area.remove(feeding_operation)
 
-            # Register the FeedingOperation into the InternalArea
-            self.cell.internal_area.append(feeding_operation)
+            can_enter, pre_unload_position, unload_position = self._can_enter(feeding_operation=feeding_operation)
 
-            feeding_operation.ant.enter_internal_area()
+            if can_enter:
 
-            # Start moving the ant to the unloading position
-            self.cell.let_ant_in(feeding_operation=feeding_operation)
+                feeding_operation.pre_unload_position = pre_unload_position
+                feeding_operation.unload_position = unload_position
+
+                # Remove the FeedingOperation from the StagingArea
+                self.cell.staging_area.remove(feeding_operation)
+
+                # Register the FeedingOperation into the InternalArea
+                self.cell.internal_area.append(feeding_operation)
+
+                feeding_operation.ant.enter_internal_area()
+
+                # Start moving the ant to the unloading position
+                self.cell.let_ant_in(feeding_operation=feeding_operation)

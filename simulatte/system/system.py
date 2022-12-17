@@ -41,7 +41,8 @@ class System:
     def get_store_by_cell(self, *, cell: PickingCell | None = None) -> WarehouseStore:
         raise NotImplementedError
 
-    def assign_to_cell(self, *, cell: PickingCell, pallet_request: PalletRequest) -> Process:
+    @staticmethod
+    def assign_to_cell(*, cell: PickingCell, pallet_request: PalletRequest) -> Process:
         raise NotImplementedError
 
     def retrieve_from_cell(self, *, cell: PickingCell, pallet_request: PalletRequest) -> Process:

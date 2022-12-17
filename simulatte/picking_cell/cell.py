@@ -18,9 +18,10 @@ from simulatte.utils.utils import as_process
 
 if TYPE_CHECKING:
     import simpy
+
     from simulatte.requests import Request
-    from simulatte.system import System
     from simulatte.resources.store import Store
+    from simulatte.system import System
     from simulatte.typings import ProcessGenerator
 
 
@@ -40,9 +41,9 @@ class PickingCell:
         self.system = system
         self.system.cells_manager(self)
 
-        self.input_location = Location(name="PickingCell Input")
+        self.input_location = Location(name=f"{self.__class__.__name__} Input")
         self.input_queue = input_queue
-        self.output_location = Location(name="PickingCell Output")
+        self.output_location = Location(name=f"{self.__class__.__name__} Output")
         self.output_queue = output_queue
         self.building_point = building_point
 
@@ -63,8 +64,8 @@ class PickingCell:
 
         self.current_pallet_request: PalletRequest | None = None
 
-        self.staging_location = Location(name="StagingAreaLocation")
-        self.internal_location = Location(name="InternalAreaLocation")
+        self.staging_location = Location(name=f"{self.__class__.__name__} StagingAreaLocation")
+        self.internal_location = Location(name=f"{self.__class__.__name__} InternalAreaLocation")
 
         self._productivity_history: list[tuple[float, float]] = []
 
@@ -124,26 +125,46 @@ class PickingCell:
         Manage the internal physical movements of an Ant which moves from the StagingArea to the InternalArea.
         """
 
-        # Find which position to take in the InternalArea
-        position = None
-        while position is None:
-            for unload_position in self.internal_area.unload_positions:
-                if not unload_position.busy:
-                    position = unload_position
-                    break
-            yield self.system.env.timeout(0.1)
-
-        # Wait for the InternalArea PhysicalPosition to be free
-        position_request = position.request(operation=feeding_operation)
-        yield position_request
+        # If necessary, wait for the assigned InternalArea PreUnloadPosition to be free
+        pre_unload_position_request = None
+        if feeding_operation.pre_unload_position is not None:
+            pre_unload_position_request = feeding_operation.pre_unload_position.request(operation=feeding_operation)
+            yield pre_unload_position_request
 
         # Move the Ant from the StagingArea to the InternalArea
         yield feeding_operation.ant.move_to(system=self.system, location=self.internal_location)
 
+        # Wait for the assigned InternalArea UnloadPosition to be free
+        unload_position_request = feeding_operation.unload_position.request(operation=feeding_operation)
+        yield unload_position_request
+
+        if pre_unload_position_request is not None:
+            # Release the assigned InternalArea PreUnloadPosition
+            feeding_operation.pre_unload_position.release(pre_unload_position_request)
+
         # Housekeeping
-        feeding_operation.unload_position = position
         feeding_operation.ready_for_unload()
         feeding_operation.ant.waiting_to_be_unloaded()
+
+    @as_process
+    def let_ant_out(self, *, feeding_operation: FeedingOperation) -> ProcessGenerator:
+        from simulatte.ant import ant_rest_location
+
+        feeding_operation.ant.picking_ends()
+
+        # free the UnloadPosition associated to the FeedingOperation
+        feeding_operation.unload_position.release_current()
+
+        self.internal_area.remove(feeding_operation)
+
+        # move the Ant to the rest location
+        yield feeding_operation.ant.move_to(system=self.system, location=ant_rest_location)
+        yield feeding_operation.ant.unload()
+        feeding_operation.ant.idle()
+
+        # release the Ant associated to the FeedingOperation
+        feeding_operation.ant.release_current()
+        feeding_operation.ant.mission_ended()
 
     @as_process
     def put(self, *, pallet_request: PalletRequest) -> ProcessGenerator:

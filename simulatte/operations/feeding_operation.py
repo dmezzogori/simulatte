@@ -18,10 +18,12 @@ if TYPE_CHECKING:
 @total_ordering
 class FeedingOperation(metaclass=Identifiable):
     """
-    Represents a feeding operation assigned by the WMS to an ant.
+    Represents a feeding operation assigned by the System to an ant.
     The ant is responsible for retrieving a unit load from a specific store, according to the
     picking request, and then to bring it to the assigned picking cell.
     """
+
+    id: int
 
     def __init__(
         self,
@@ -33,19 +35,9 @@ class FeedingOperation(metaclass=Identifiable):
         location,
         unit_load: Pallet,
     ) -> None:
-        """
-        Initialize.
-        :param wms: the WMS instance
-        :param cell: The LayerCell for which the FeedingOperation has been generated.
-        :param ant: The ant that takes care of the feeding operation
-        :param store: The storage area where the unit load of interest is taken
-        :param picking_request: The picking request that triggered the feeding operation
 
-        :attr states: The steps each FeedingOperation should pass through
-        :attr side: The side where the ant is going once inside the layer picking cell.
-        :attr ready: The event triggered when the operation is ready for an unload by the robot.
-        """
         self.cell = cell
+        self.relative_id = len(self.cell.feeding_operations)
         self.cell.feeding_operations.append(self)
 
         self.ant = ant
@@ -54,15 +46,19 @@ class FeedingOperation(metaclass=Identifiable):
         self.unit_load = unit_load
         self.picking_request = picking_request
         self.picking_request.feeding_operations.append(self)
+        self.pre_unload_position: Position | None = None
         self.unload_position: Position | None = None
 
         self.status = {"arrived": False, "staging": False, "inside": False, "ready": False, "done": False}
         self.ready = LoggedEvent(env=self.cell.system.env)
 
-    def __lt__(self, other: FeedingOperation):
+    def __repr__(self):
+        return f"FeedingOperation{self.id}"
+
+    def __lt__(self, other: FeedingOperation) -> bool:
         return self.id < other.id
 
-    def __eq__(self, other: FeedingOperation):
+    def __eq__(self, other: FeedingOperation) -> bool:
         return self.id == other.id
 
     @property

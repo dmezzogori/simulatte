@@ -32,6 +32,13 @@ class Position(Resource):
     # Method to release the position
     release = BoundClass(Release)
 
+    def __init__(self, name: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.name = name
+
+    def __repr__(self) -> str:
+        return self.name
+
     @property
     def busy(self):
         return len(self.users) > 0

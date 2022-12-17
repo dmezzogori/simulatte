@@ -62,6 +62,12 @@ class Pallet(CaseContainer):
         """
         self.upper_layer.n_cases -= 1
 
+    def remove_layer(self) -> None:
+        """
+        Removes the most accessible layer from the unit load.
+        """
+        self.layers.pop()
+
     def add_layer(self, *, product: Product, n_cases: int) -> None:
         """
         Adds a layer to the unit load.
