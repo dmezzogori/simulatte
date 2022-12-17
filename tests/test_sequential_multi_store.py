@@ -12,16 +12,6 @@ if TYPE_CHECKING:
     from simpy import Environment
 
 
-def putter(env, s, items):
-    yield s.put(items)
-    print(f"{env.now} putted {items}")
-
-
-def getter(env, s, item):
-    yield s.get(functools.partial(operator.eq, item))
-    print(f"{env.now} getted {item}")
-
-
 @pytest.fixture(scope="function")
 def sequential_multi_store(env: Environment):
     return SequentialMultiStore(env, capacity=5)

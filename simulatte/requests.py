@@ -127,7 +127,7 @@ class PalletRequest(Request, metaclass=Identifiable):
             yield from layer_request.products
 
     @property
-    def for_layer_picking_cell(self) -> bool:
+    def is_for_layer_picking_cell(self) -> bool:
         """
         Returns True if the PalletRequest has to be processed *ONLY* by a LayerPickingCell.
         (all LayerRequests are composed of **one** ProductRequest)
@@ -135,7 +135,7 @@ class PalletRequest(Request, metaclass=Identifiable):
         return all(layer_request.has_single_product_request for layer_request in self.sub_requests)
 
     @property
-    def for_case_picking_cell(self) -> bool:
+    def is_for_case_picking_cell(self) -> bool:
         """
         Returns True if the PalletRequest has to be processed *ONLY* by a CasePickingCell.
         (all LayerRequests are composed of **more than one** ProductRequest)
