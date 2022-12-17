@@ -104,7 +104,9 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         once it is available from the Output Conveyor.
         """
         yield self.env.timeout(self.load_time)
-        yield self.output_conveyor.get(lambda i: i.unitload == feeding_operation.unit_load)
+        yield self.output_conveyor.get(
+            lambda output_operation: output_operation.unit_load == feeding_operation.unit_load
+        )
         yield feeding_operation.ant.load(unit_load=feeding_operation.unit_load)
         return feeding_operation.unit_load
 

@@ -1,58 +1,44 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import simulatte
-from simulatte.stores.warehouse_location import WarehouseLocation
-from simulatte.unitload import Pallet
+
+if TYPE_CHECKING:
+    from simulatte.stores.warehouse_location import WarehouseLocation
+    from simulatte.unitload import Pallet
 
 
 class Operation:
-    """
-    An instance of this class represents an operation the
-    AVS/RS should take care of.
-    """
-
-    def __init__(self, env, unit_load: Pallet, location: WarehouseLocation, priority):
-        """
-        Inittialise.
-
-        :param env: The simulation environment.
-        :param unit_load: The unitload moved.
-        :param location: The location where the unitload will be stored or taken.
-        :param buffer: The buffer where the interchange between lift and shuttle is made.
-        :param priority: The priority of the operation.
-        """
-        self.unitload = unit_load
+    def __init__(self, *, unit_load: Pallet, location: WarehouseLocation, priority: int) -> None:
+        self.env = simulatte.Environment()
+        self.unit_load = unit_load
         self.location = location
         self.priority = priority
 
     @property
-    def position(self):
+    def position(self) -> int:
         return self.location.x
 
     @property
-    def floor(self):
+    def floor(self) -> int:
         return self.location.y
 
-    def __eq__(self, other):
-        return self.unitload == other.unitload
+    def __eq__(self, other) -> bool:
+        return self.unit_load == other.unit_load
 
 
 class InputOperation(Operation):
-    """An instance of this class represents an input operation"""
+    """Warehouse input operation"""
 
-    def __init__(self, unit_load, location, priority):
-        """
-        Initialise.
-
-        :attr lift_process: The process through which the unitload is moved by the input lift.
-        :attr lifted: An event triggered when the operation can be taken by the shuttle.
-        """
-        self.env = simulatte.Environment()
-        super().__init__(self.env, unit_load, location, priority)
+    def __init__(self, *, unit_load: Pallet, location: WarehouseLocation, priority: int) -> None:
+        super().__init__(unit_load=unit_load, location=location, priority=priority)
         self.lift_process = None
         self.lifted_flag = False
         self.lifted = self.env.event()
 
 
 class OutputOperation(Operation):
-    """An instance of this class represents an output operation."""
+    """Warehouse output operation"""
 
     pass
