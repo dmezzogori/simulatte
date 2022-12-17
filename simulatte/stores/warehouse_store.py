@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, Iterable, TypeVar
+import random
+from typing import TYPE_CHECKING, Generic, Iterable, Literal, TypeVar
 
 import simulatte
 from simulatte.stores import InputOperation, WarehouseLocation, WarehouseLocationSide
 
-from ..unitload import CaseContainer
+from ..unitload import CaseContainer, Pallet, Tray
 from ..utils import Identifiable, as_process
 from .warehouse_location import distance
 
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
 
     from simulatte.ant import Ant
     from simulatte.operations import FeedingOperation
-    from simulatte.products import Product
+    from simulatte.products import Product, ProductsGenerator
     from simulatte.service_point import ServicePoint
     from simulatte.simpy_extension import MultiStore, SequentialStore
 
@@ -77,7 +78,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         self._input_operations = []
 
     @property
-    def locations(self) -> tuple[WarehouseLocation]:
+    def locations(self):
         return self._locations
 
     @property
@@ -147,3 +148,46 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
     def _put(self, *args, **kwargs):
         raise NotImplementedError
+
+    def warmup(
+        self,
+        *,
+        products_generator: ProductsGenerator,
+        filling: float = 0.5,
+        locations: Literal["products", "random"],
+        products: Literal["linear", "random"],
+    ):
+        if locations == "products":
+            for i, product in enumerate(products_generator.products):
+                location = self.locations[i]
+                unit_load = Pallet(
+                    Tray(
+                        product=product,
+                        n_cases=product.cases_per_layer,
+                    )
+                )
+                location.freeze(unit_load=unit_load)
+                location.put(unit_load=unit_load)
+        elif locations == "random":
+            i = 0
+            for location in self.locations:
+                if random.random() < filling and i < len(products_generator.products):
+                    if products == "random":
+                        product = products_generator.choose_one()
+                    elif products == "linear":
+                        product = products_generator.products[i]
+                        i += 1
+                    else:
+                        raise ValueError(f"Unknown products warmup policy: {products}")
+
+                    for _ in range(location.depth):
+                        unit_load = Pallet(
+                            Tray(
+                                product=product,
+                                n_cases=product.cases_per_layer,
+                            )
+                        )
+                        location.freeze(unit_load=unit_load)
+                        location.put(unit_load=unit_load)
+        else:
+            raise ValueError(f"Unknown locations warmup policy {locations}")
