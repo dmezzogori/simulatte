@@ -14,6 +14,8 @@ from simulatte.picking_cell import PickingCell
 from simulatte.requests import PalletRequest
 from simulatte.stores import WarehouseStore
 from simulatte.system.managers import AntsManager, StoresManager
+from simulatte.system.managers.cells_manager import CellsManager
+from simulatte.system.managers.distance_manager import DistanceManager
 
 
 class System:
@@ -28,6 +30,9 @@ class System:
 
     def __init__(self, env: Environment) -> None:
         self.env = env
+        self.cells_manager = CellsManager(system=self)
+        self.distance_manager = DistanceManager(system=self, DistanceClass=Distance)
+
         self.logger = Logger()
 
     def distance(self, from_: Location, to: Location) -> Distance:
