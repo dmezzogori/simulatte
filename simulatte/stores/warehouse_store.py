@@ -79,7 +79,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
         self._input_operations = []
         self._replenishment_processes = defaultdict(list)
-        self._product_location_map = defaultdict(list)
+        self._product_location_map = defaultdict(set)
 
     @property
     def locations(self):
@@ -95,9 +95,6 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
     def filter_locations(self, *, product: Product) -> Iterable[WarehouseLocation]:
         yield from self._product_location_map[product.id]
-        # for location in self.locations:
-        #    if location.product == product:
-        #        yield location
 
     def create_input_operation(self, *, unit_load: T, location: WarehouseLocation, priority: int) -> InputOperation:
         input_operation = InputOperation(unit_load=unit_load, location=location, priority=priority)
@@ -178,8 +175,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
     def book_location(self, *, location: WarehouseLocation, unit_load: Tray | Pallet) -> None:
         location.freeze(unit_load=unit_load)
-        if location not in self._product_location_map[unit_load.product.id]:
-            self._product_location_map[unit_load.product.id].append(location)
+        self._product_location_map[unit_load.product.id].add(location)
 
     def unbook_location(self, *, location: WarehouseLocation) -> None:
         if location.is_half_full:
