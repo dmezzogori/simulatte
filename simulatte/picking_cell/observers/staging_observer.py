@@ -51,10 +51,13 @@ class StagingObserver(Observer[StagingArea]):
         5. Signal the internal area that a new feeding operation has entered the staging area.
         """
 
+        from eagle_trays.layer_picking_cell import LayerPickingCell
+
+        feeding_operation = self.next()
         if (
             not self.cell.feeding_area.is_empty
             and not self.cell.staging_area.is_full
-            and (feeding_operation := self.next()) is not None
+            and (feeding_operation) is not None
         ):
             if self._can_enter(feeding_operation=feeding_operation):
                 # Remove the FeedingOperation from the FeedingArea
@@ -71,3 +74,9 @@ class StagingObserver(Observer[StagingArea]):
                     event="ACTIVATING INTERNAL AREA SIGNAL", type=0, value={"type": 0, "operation": feeding_operation}
                 )
                 self.cell.internal_area.trigger_signal_event(payload=payload)
+                return
+
+        if isinstance(self.cell, LayerPickingCell):
+            print(
+                f"ops: {self.cell.feeding_area.is_empty}, {self.cell.staging_area.is_full}, {len(self.cell.staging_area)}, {feeding_operation}"
+            )

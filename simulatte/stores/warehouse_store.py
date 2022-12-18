@@ -79,19 +79,25 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
         self._input_operations = []
         self._replenishment_processes = defaultdict(list)
+        self._product_location_map = defaultdict(list)
 
     @property
     def locations(self):
         return self._locations
 
     @property
+    def n_locations(self) -> int:
+        return len(self.locations)
+
+    @property
     def name(self) -> str:
         return f"{self.__class__.__name__}_{self.id}"
 
     def filter_locations(self, *, product: Product) -> Iterable[WarehouseLocation]:
-        for location in self.locations:
-            if location.product == product:
-                yield location
+        yield from self._product_location_map[product.id]
+        # for location in self.locations:
+        #    if location.product == product:
+        #        yield location
 
     def create_input_operation(self, *, unit_load: T, location: WarehouseLocation, priority: int) -> InputOperation:
         input_operation = InputOperation(unit_load=unit_load, location=location, priority=priority)
@@ -170,13 +176,21 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
     def replenishment_started(self, *, product: Product, process) -> None:
         self._replenishment_processes[product.id].append(process)
 
+    def book_location(self, *, location: WarehouseLocation, unit_load: Tray | Pallet) -> None:
+        location.freeze(unit_load=unit_load)
+        self._product_location_map[unit_load.product.id].append(location)
+
+    def unbook_location(self, *, location: WarehouseLocation) -> None:
+        if location.is_half_full:
+            self._product_location_map[location.product.id].remove(location)
+
     def warmup(
         self,
         *,
         products_generator: ProductsGenerator,
-        filling: float = 0.5,
+        filling: float | None = 0.5,
         locations: Literal["products", "random"],
-        products: Literal["linear", "random"],
+        products: Literal["linear", "random"] | None,
     ):
         if locations == "products":
             for i, product in enumerate(products_generator.products):
@@ -187,7 +201,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
                         n_cases=product.cases_per_layer,
                     )
                 )
-                location.freeze(unit_load=unit_load)
+                self.book_location(location=location, unit_load=unit_load)
                 location.put(unit_load=unit_load)
         elif locations == "random":
             i = 0

@@ -1169,6 +1169,17 @@ pure-eval = "*"
 tests = ["cython", "littleutils", "pygments", "pytest", "typeguard"]
 
 [[package]]
+name = "tabulate"
+version = "0.9.0"
+description = "Pretty-print tabular data"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.extras]
+widechars = ["wcwidth"]
+
+[[package]]
 name = "terminado"
 version = "0.16.0"
 description = "Tornado websocket backend for the Xterm.js Javascript terminal emulator library."
@@ -1286,7 +1297,7 @@ python-versions = ">=3.7"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "0803e588ce5d118c692baaf54cc4ad966f18fbb2207da025fca10e60ce387784"
+content-hash = "eba24d14af78139734b6af27b1bf2bcb115b463a8d26de240d491acf55e9060b"
 
 [metadata.files]
 appnope = [
@@ -2315,6 +2326,10 @@ soupsieve = [
 stack-data = [
     {file = "stack_data-0.5.1-py3-none-any.whl", hash = "sha256:5120731a18ba4c82cefcf84a945f6f3e62319ef413bfc210e32aca3a69310ba2"},
     {file = "stack_data-0.5.1.tar.gz", hash = "sha256:95eb784942e861a3d80efd549ff9af6cf847d88343a12eb681d7157cfcb6e32b"},
+]
+tabulate = [
+    {file = "tabulate-0.9.0-py3-none-any.whl", hash = "sha256:024ca478df22e9340661486f85298cff5f6dcdba14f3813e8830015b9ed1948f"},
+    {file = "tabulate-0.9.0.tar.gz", hash = "sha256:0095b12bf5966de529c0feb1fa08671671b3368eec77d7ef7ab114be2c068b3c"},
 ]
 terminado = [
     {file = "terminado-0.16.0-py3-none-any.whl", hash = "sha256:3e995072a7178a104c41134548ce9b03e4e7f0a538e9c29df4f1fbc81c7cfc75"},

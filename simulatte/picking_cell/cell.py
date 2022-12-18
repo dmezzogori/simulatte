@@ -3,7 +3,9 @@ from __future__ import annotations
 import collections
 from typing import TYPE_CHECKING, Iterable
 
+from IPython.display import Markdown, display
 from simpy import Process
+from tabulate import tabulate
 
 from simulatte.location import Location
 from simulatte.logger.logger import EventPayload
@@ -69,6 +71,7 @@ class PickingCell:
 
         self._productivity_history: list[tuple[float, float]] = []
 
+        self.pallet_requests_assigned: list[PalletRequest] = []
         self.pallet_requests_done: list[PalletRequest] = []
 
         self._main: Process | None = None
@@ -175,7 +178,7 @@ class PickingCell:
         which are placed in the picking requests queue.
         Eventually, the FeedingArea signal event is triggered.
         """
-
+        self.pallet_requests_assigned.append(pallet_request)
         yield self.input_queue.put(pallet_request)
         self.picking_requests_queue.extend(self.iter_pallet_request(pallet_request=pallet_request))
 
@@ -247,3 +250,21 @@ class PickingCell:
 
                 # Ask the System to handle the retrieval of the finished PalletRequest
                 self.system.retrieve_from_cell(cell=self, pallet_request=pallet_request)
+
+    def summary(self):
+        display(Markdown("## Performance Summary"))
+
+        headers = ["KPI", "Valore", "U.M."]
+        table = [
+            ["Ore simulate", f"{self.system.env.now / 60 / 60:.2f}", "h"],
+            ["Produttività Cella", f"{self.productivity * 60 * 60:.2f}", "[PalletRequest/h]"],
+            ["Produttività Cella", f"{self.productivity * 60 * 60 * 4 * 10:.2f}", "[Cases/h]"],
+            ["Produttività Robot", f"{self.robot.productivity * 60 * 60:.2f}", "[Cases/h]"],
+        ]
+        print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
+        display(Markdown("## Robot"))
+        self.robot.plot()
+        display(Markdown("## Aree logiche/fisiche"))
+        self.feeding_area.plot()
+        self.staging_area.plot()
+        self.internal_area.plot()

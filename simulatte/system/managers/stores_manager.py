@@ -48,7 +48,7 @@ class StoresManager:
         being placed in the same location.
         """
         location = self.find_location_for_product(store=store, product=unit_load.product)
-        location.freeze(unit_load=unit_load)
+        store.book_location(location=location, unit_load=unit_load)
         return location
 
     def get_unit_load(
@@ -66,6 +66,7 @@ class StoresManager:
         location = self._unit_load_policy(store=store, product=product, quantity=quantity)
         if location is None and raise_on_none:
             raise ValueError(f"Location not found for product {product}.")
+        store.unbook_location(location=location)
         return location
 
     @staticmethod
