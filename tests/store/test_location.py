@@ -13,12 +13,28 @@ def location() -> WarehouseLocation:
 
 @pytest.fixture(scope="function")
 def product_a() -> Product:
-    return Product(probability=1, cases_per_layer=1, max_case_per_pallet=10, min_case_per_pallet=10, lp_enabled=True)
+    return Product(
+        probability=1,
+        cases_per_layer=1,
+        max_case_per_pallet=10,
+        min_case_per_pallet=10,
+        lp_enabled=True,
+        layers_per_pallet=10,
+        reorder_level=10,
+    )
 
 
 @pytest.fixture(scope="function")
 def product_b() -> Product:
-    return Product(probability=1, cases_per_layer=1, max_case_per_pallet=10, min_case_per_pallet=10, lp_enabled=True)
+    return Product(
+        probability=1,
+        cases_per_layer=1,
+        max_case_per_pallet=10,
+        min_case_per_pallet=10,
+        lp_enabled=True,
+        layers_per_pallet=10,
+        reorder_level=10,
+    )
 
 
 def test_location_01(location: WarehouseLocation, product_a: Product, product_b: Product) -> None:

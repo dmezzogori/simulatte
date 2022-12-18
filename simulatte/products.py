@@ -12,20 +12,26 @@ DistributionCallable = Callable[[], T]
 
 
 class Product(metaclass=Identifiable):
+    id: int
+
     def __init__(
         self,
         *,
         probability: float,
         cases_per_layer: int,
+        layers_per_pallet: int,
         max_case_per_pallet: int,
         min_case_per_pallet: int,
         lp_enabled: bool,
+        reorder_level: int,
     ) -> None:
         self.probability = probability
         self.cases_per_layer = cases_per_layer
+        self.layers_per_pallet = layers_per_pallet
         self.max_case_per_pallet = max_case_per_pallet
         self.min_case_per_pallet = min_case_per_pallet
         self.lp_enabled = lp_enabled
+        self.reorder_level = reorder_level
 
     def __repr__(self) -> str:
         return f"Product(id={self.id})"
@@ -38,18 +44,22 @@ class ProductsGenerator:
         n_products: int,
         probabilities: Optional[DistributionCallable[list[float]]] = None,
         cases_per_layers: Optional[DistributionCallable[int]] = None,
+        layers_per_pallet: Optional[DistributionCallable[int]] = None,
         min_case_per_pallet: Optional[DistributionCallable[int]] = None,
         max_case_per_pallet: Optional[DistributionCallable[int]] = None,
         lp_enable: Optional[DistributionCallable[bool]] = None,
+        reorder_level: Optional[DistributionCallable[int]] = None,
     ) -> None:
 
         self.probabilities: list[float] = (
             probabilities() if probabilities is not None else [1 / n_products for _ in range(n_products)]
         )
         self.cases_per_layers: DistributionCallable[int] = cases_per_layers or (lambda: 10)
+        self.layers_per_pallet: DistributionCallable[int] = layers_per_pallet or (lambda: 4)
         self.min_case_per_pallet: DistributionCallable[int] = min_case_per_pallet or (lambda: 60)
         self.max_case_per_pallet: DistributionCallable[int] = max_case_per_pallet or (lambda: 60)
         self.lp_enable: DistributionCallable[bool] = lp_enable or (lambda: True)
+        self.reorder_level: DistributionCallable[int] = reorder_level or (lambda: 4)
 
         self._products: list[Product] | None = None
 
@@ -60,9 +70,11 @@ class ProductsGenerator:
                 Product(
                     probability=probability,
                     cases_per_layer=self.cases_per_layers(),
+                    layers_per_pallet=self.layers_per_pallet(),
                     max_case_per_pallet=self.max_case_per_pallet(),
                     min_case_per_pallet=self.min_case_per_pallet(),
                     lp_enabled=self.lp_enable(),
+                    reorder_level=self.reorder_level(),
                 )
                 for probability in self.probabilities
             ]

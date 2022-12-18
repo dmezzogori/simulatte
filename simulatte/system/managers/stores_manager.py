@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING
 
 from simulatte.products import Product
 from simulatte.stores import WarehouseStore
+from simulatte.stores.inventory_position import Stock
 from simulatte.system.policies import LocationPolicy, UnitLoadPolicy
 from simulatte.unitload import Pallet
 
@@ -33,10 +34,6 @@ class StoresManager:
     @staticmethod
     def freeze(location: WarehouseLocation, unit_load: Pallet) -> None:
         location.freeze(unit_load=unit_load)
-
-    @staticmethod
-    def stock(*, store: WarehouseStore, product: Product) -> int:
-        return sum(location.n_cases for location in store.filter_locations(product=product))
 
     def find_location_for_product(self, *, store: WarehouseStore, product: Product) -> WarehouseLocation:
         return self._location_policy(store=store, product=product)
@@ -68,3 +65,9 @@ class StoresManager:
         if location is None and raise_on_none:
             raise ValueError(f"Location not found for product {product}.")
         return location
+
+    @staticmethod
+    def need_replenishment(*, store: WarehouseStore, product: Product) -> bool:
+        on_hand = store.on_hand(product=product)
+        on_order = store.on_order(product=product)
+        return on_hand.n_layers + on_order.n_layers < product.reorder_level

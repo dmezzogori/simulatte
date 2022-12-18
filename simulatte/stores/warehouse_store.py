@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+from collections import defaultdict
 from typing import TYPE_CHECKING, Generic, Iterable, Literal, TypeVar
 
 import simulatte
@@ -8,6 +9,7 @@ from simulatte.stores import InputOperation, WarehouseLocation, WarehouseLocatio
 
 from ..unitload import CaseContainer, Pallet, Tray
 from ..utils import Identifiable, as_process
+from .inventory_position import OnHand, OnOrder
 from .warehouse_location import distance
 
 if TYPE_CHECKING:
@@ -76,6 +78,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         )
 
         self._input_operations = []
+        self._replenishment_processes = defaultdict(list)
 
     @property
     def locations(self):
@@ -150,6 +153,22 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
     def _put(self, *args, **kwargs):
         raise NotImplementedError
+
+    def on_hand(self, *, product: Product) -> OnHand:
+        n_cases = sum(location.n_cases for location in self.filter_locations(product=product))
+        return OnHand(product=product, n_cases=n_cases)
+
+    def on_order(self, *, product: Product) -> OnOrder:
+        product_replenishment_processes = self._replenishment_processes[product.id]
+        n_cases = (
+            sum((not p.processed for p in product_replenishment_processes))
+            * product.layers_per_pallet
+            * product.cases_per_layer
+        )
+        return OnOrder(product=product, n_cases=n_cases)
+
+    def replenishment_started(self, *, product: Product, process) -> None:
+        self._replenishment_processes[product.id].append(process)
 
     def warmup(
         self,
