@@ -25,7 +25,10 @@ class StoresManager:
         self._stores.append(store)
 
     def __getattr__(self, item) -> WarehouseStore | None:
-        return next(store for store in self._stores if item in store.name.lower())
+        try:
+            return next(store for store in self._stores if item in store.name.lower())
+        except StopIteration:
+            raise AttributeError(f"Store {item} not found.")
 
     @property
     def stores(self) -> list[WarehouseStore]:
