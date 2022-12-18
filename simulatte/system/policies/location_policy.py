@@ -16,10 +16,8 @@ class LocationPolicy:
 
 class ClosestLocationPolicy(LocationPolicy):
     def __call__(self, *, store: WarehouseStore, product: Product) -> WarehouseLocation | None:
-        locations = (location for location in store.locations)
-
         sorted_locations = sorted(
-            locations,
+            store.locations,
             key=lambda location: location.affinity(product=product),
         )
         if sorted_locations:

@@ -71,7 +71,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
                     )
                     for x in range(self.n_positions)
                     for y in range(self.n_floors)
-                    for side in WarehouseLocationSide
+                    for side in [WarehouseLocationSide.LEFT, WarehouseLocationSide.RIGHT]
                 ),
                 key=lambda location: distance.euclidean(location, self._location_origin),
             )
@@ -178,7 +178,8 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
     def book_location(self, *, location: WarehouseLocation, unit_load: Tray | Pallet) -> None:
         location.freeze(unit_load=unit_load)
-        self._product_location_map[unit_load.product.id].append(location)
+        if location not in self._product_location_map[unit_load.product.id]:
+            self._product_location_map[unit_load.product.id].append(location)
 
     def unbook_location(self, *, location: WarehouseLocation) -> None:
         if location.is_half_full:
