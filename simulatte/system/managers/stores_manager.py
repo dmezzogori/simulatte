@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 
 from simulatte.products import Product
 from simulatte.stores import WarehouseStore
-from simulatte.stores.inventory_position import Stock
 from simulatte.system.policies import LocationPolicy, UnitLoadPolicy
 from simulatte.unitload import Pallet
 
