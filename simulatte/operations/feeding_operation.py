@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from simulatte.picking_cell import PickingCell
     from simulatte.picking_cell.areas.position import Position
     from simulatte.requests import PickingRequest
-    from simulatte.stores import WarehouseStore
+    from simulatte.stores import WarehouseStore, WarehouseLocation
 
 
 @total_ordering
@@ -42,14 +42,22 @@ class FeedingOperation(metaclass=Identifiable):
 
         self.ant = ant
         self.store = store
-        self.location = location
+        self.location: WarehouseLocation = location
         self.unit_load = unit_load
         self.picking_request = picking_request
+        self.picking_request.flag_fasullo = self.relative_id == 390
+
         self.picking_request.feeding_operations.append(self)
         self.pre_unload_position: Position | None = None
         self.unload_position: Position | None = None
 
-        self.status = {"arrived": False, "staging": False, "inside": False, "ready": False, "done": False}
+        self.status = {
+            "arrived": False,
+            "staging": False,
+            "inside": False,
+            "ready": False,
+            "done": False,
+        }
         self.ready = LoggedEvent(env=self.cell.system.env)
 
     def __repr__(self):
@@ -105,6 +113,8 @@ class FeedingOperation(metaclass=Identifiable):
         self.status["inside"] = True
 
     def ready_for_unload(self) -> None:
+        if self.relative_id == 390:
+            pass
         self.status["ready"] = True
         self.ready.succeed(value={"type": 0, "operation": self})
 

@@ -71,9 +71,12 @@ class Ant(PriorityResource, metaclass=Identifiable):
 
     id: int
 
-    def __init__(self, env: Environment, load_timeout=0, unload_timeout=0) -> None:
+    def __init__(
+        self, env: Environment, kind: str, load_timeout=0, unload_timeout=0
+    ) -> None:
         super().__init__(env, capacity=1)
         self.env = env
+        self.kind = kind
         self._case_container: CaseContainer | None = None
         self.load_timeout = load_timeout
         self.unload_timeout = unload_timeout
@@ -134,7 +137,9 @@ class Ant(PriorityResource, metaclass=Identifiable):
     @unit_load.setter
     def unit_load(self, value: CaseContainer | None) -> None:
         if self._case_container is not None and value is not None:
-            raise RuntimeError(f"Ant [{self.id}] cannot carry two unit loads at the same time.")
+            raise RuntimeError(
+                f"Ant [{self.id}] cannot carry two unit loads at the same time."
+            )
         self._case_container = value
 
     def idle(self) -> None:
@@ -154,18 +159,24 @@ class Ant(PriorityResource, metaclass=Identifiable):
         self._waiting_to_enter_staging_area = self.env.now
 
     def enter_staging_area(self) -> None:
-        self.feeding_area_waiting_times.append(self.env.now - self._waiting_to_enter_staging_area)
+        self.feeding_area_waiting_times.append(
+            self.env.now - self._waiting_to_enter_staging_area
+        )
         self._waiting_to_enter_staging_area = None
         self._waiting_to_enter_internal_area = self.env.now
 
     def enter_internal_area(self):
-        self.staging_area_waiting_times.append(self.env.now - self._waiting_to_enter_internal_area)
+        self.staging_area_waiting_times.append(
+            self.env.now - self._waiting_to_enter_internal_area
+        )
         self._waiting_to_enter_internal_area = None
         self._waiting_to_be_unloaded = self.env.now
 
     def picking_begins(self):
         if self._waiting_to_be_unloaded is not None:
-            self.unloading_waiting_times.append(self.env.now - self._waiting_to_be_unloaded)
+            self.unloading_waiting_times.append(
+                self.env.now - self._waiting_to_be_unloaded
+            )
         self._waiting_to_be_unloaded = None
         self._waiting_picking_to_end = self.env.now
 
@@ -178,7 +189,9 @@ class Ant(PriorityResource, metaclass=Identifiable):
         self.unit_load = unit_load
         yield self.env.timeout(self.load_timeout)
         if self.loading_waiting_time_start is not None:
-            self.loading_waiting_times.append(self.env.now - self.loading_waiting_time_start)
+            self.loading_waiting_times.append(
+                self.env.now - self.loading_waiting_time_start
+            )
         self.loading_waiting_time_start = None
         self.status = AntStatus.WAITING_LOADED
 
@@ -192,7 +205,9 @@ class Ant(PriorityResource, metaclass=Identifiable):
 
     @as_process
     def move_to(self, *, system: System, location: Location):
-        mission = AntMission(ant=self, start_location=self.current_location, end_location=location)
+        mission = AntMission(
+            ant=self, start_location=self.current_location, end_location=location
+        )
 
         timeout = system.distance(self.current_location, location).as_time
 

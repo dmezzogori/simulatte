@@ -52,13 +52,19 @@ class PickingCell:
         self.feeding_operations: list[FeedingOperation] = []
 
         self.feeding_area = FeedingArea(cell=self, capacity=feeding_area_capacity)
-        self.feeding_observer = FeedingObserver(system=self.system, observable_area=self.feeding_area)
+        self.feeding_observer = FeedingObserver(
+            system=self.system, observable_area=self.feeding_area
+        )
 
         self.staging_area = StagingArea(cell=self, capacity=staging_area_capacity)
-        self.staging_observer = StagingObserver(system=self.system, observable_area=self.staging_area)
+        self.staging_observer = StagingObserver(
+            system=self.system, observable_area=self.staging_area
+        )
 
         self.internal_area = InternalArea(cell=self, capacity=internal_area_capacity)
-        self.internal_observer = InternalObserver(system=self.system, observable_area=self.internal_area)
+        self.internal_observer = InternalObserver(
+            system=self.system, observable_area=self.internal_area
+        )
 
         self.picking_requests_queue: collections.deque[Request] = collections.deque()
 
@@ -66,8 +72,12 @@ class PickingCell:
 
         self.current_pallet_request: PalletRequest | None = None
 
-        self.staging_location = Location(name=f"{self.__class__.__name__} StagingAreaLocation")
-        self.internal_location = Location(name=f"{self.__class__.__name__} InternalAreaLocation")
+        self.staging_location = Location(
+            name=f"{self.__class__.__name__} StagingAreaLocation"
+        )
+        self.internal_location = Location(
+            name=f"{self.__class__.__name__} InternalAreaLocation"
+        )
 
         self._productivity_history: list[tuple[float, float]] = []
 
@@ -89,18 +99,24 @@ class PickingCell:
         """
         return len(self.pallet_requests_done) / self.system.env.now
 
-    def register_feeding_operation(self, *, feeding_operation: FeedingOperation) -> None:
+    def register_feeding_operation(
+        self, *, feeding_operation: FeedingOperation
+    ) -> None:
         """
         Register a FeedingOperation into the PickingCell.
 
         Updates the FeedingOperationMap, which maps which FeedingOperation is associated to which ProductRequest.
         It also adds the FeedingOperation to the FeedingArea.
         """
-        self.feeding_operation_map[feeding_operation.picking_request] = feeding_operation
+        self.feeding_operation_map[
+            feeding_operation.picking_request
+        ] = feeding_operation
         self.feeding_area.append(feeding_operation)
 
     @as_process
-    def _retrieve_feeding_operation(self, picking_request: Request) -> ProcessGenerator[FeedingOperation]:
+    def _retrieve_feeding_operation(
+        self, picking_request: Request
+    ) -> ProcessGenerator[FeedingOperation]:
         """
         FIXME: PORCATA COLOSSALE!!!
         Tocca usare un processo con attesa per evitare che ci sia una race-condition tra il momento in cui
@@ -131,19 +147,25 @@ class PickingCell:
         # If necessary, wait for the assigned InternalArea PreUnloadPosition to be free
         pre_unload_position_request = None
         if feeding_operation.pre_unload_position is not None:
-            pre_unload_position_request = feeding_operation.pre_unload_position.request(operation=feeding_operation)
+            pre_unload_position_request = feeding_operation.pre_unload_position.request(
+                operation=feeding_operation
+            )
             yield pre_unload_position_request
 
-        # Move the Ant from the StagingArea to the InternalArea
-        yield feeding_operation.ant.move_to(system=self.system, location=self.internal_location)
-
         # Wait for the assigned InternalArea UnloadPosition to be free
-        unload_position_request = feeding_operation.unload_position.request(operation=feeding_operation)
+        unload_position_request = feeding_operation.unload_position.request(
+            operation=feeding_operation
+        )
         yield unload_position_request
 
         if pre_unload_position_request is not None:
             # Release the assigned InternalArea PreUnloadPosition
             feeding_operation.pre_unload_position.release(pre_unload_position_request)
+
+        # Move the Ant from the StagingArea to the InternalArea
+        yield feeding_operation.ant.move_to(
+            system=self.system, location=self.internal_location
+        )
 
         # Housekeeping
         feeding_operation.ready_for_unload()
@@ -151,7 +173,6 @@ class PickingCell:
 
     @as_process
     def let_ant_out(self, *, feeding_operation: FeedingOperation) -> ProcessGenerator:
-        from simulatte.ant import ant_rest_location
 
         feeding_operation.ant.picking_ends()
 
@@ -160,13 +181,26 @@ class PickingCell:
 
         self.internal_area.remove(feeding_operation)
 
-        # move the Ant to the rest location
-        yield feeding_operation.ant.move_to(system=self.system, location=ant_rest_location)
-        yield feeding_operation.ant.unload()
+        # if the UnitLoad has some n_cases remaining, then load it back into the Store
+        if feeding_operation.unit_load.n_cases > 0:
+            store = feeding_operation.store
+            ant = feeding_operation.ant
+            yield ant.move_to(system=self.system, location=store.input_location)
+
+            yield self.system.stores_manager.load(store=store, ant=ant)
+        else:
+            from simulatte.ant import ant_rest_location
+
+            # otherwise, move the Ant to the rest location
+            yield feeding_operation.ant.move_to(
+                system=self.system, location=ant_rest_location
+            )
+            yield feeding_operation.ant.unload()
+            feeding_operation.ant.release_current()
         feeding_operation.ant.idle()
 
         # release the Ant associated to the FeedingOperation
-        feeding_operation.ant.release_current()
+        # feeding_operation.ant.release_current()
         feeding_operation.ant.mission_ended()
 
     @as_process
@@ -180,13 +214,17 @@ class PickingCell:
         """
         self.pallet_requests_assigned.append(pallet_request)
         yield self.input_queue.put(pallet_request)
-        self.picking_requests_queue.extend(self.iter_pallet_request(pallet_request=pallet_request))
+        self.picking_requests_queue.extend(
+            self.iter_pallet_request(pallet_request=pallet_request)
+        )
 
         # Triggers the feeding area signal event
         # until the feeding area is full or there are no more picking requests to be processed
         while not self.feeding_area.is_full and len(self.picking_requests_queue) > 0:
             payload = EventPayload(
-                event="ACTIVATING FEEDING AREA SIGNAL", type=0, value={"type": 0}  # type=0 => qualcosa può entrare
+                event="ACTIVATING FEEDING AREA SIGNAL",
+                type=0,
+                value={"type": 0},  # type=0 => qualcosa può entrare
             )
             self.feeding_area.trigger_signal_event(payload=payload)
             yield self.system.env.timeout(0)
@@ -200,7 +238,9 @@ class PickingCell:
         return pallet_request
 
     @staticmethod
-    def iter_pallet_request(*, pallet_request: PalletRequest) -> Iterable[ProductRequest]:
+    def iter_pallet_request(
+        *, pallet_request: PalletRequest
+    ) -> Iterable[ProductRequest]:
         """
         Iterates over the  ProductRequest of a PalletRequest.
         """
@@ -230,15 +270,27 @@ class PickingCell:
             with self.building_point.request() as building_point_request:
                 # Wait for the availability of the BuildingPoint
                 yield building_point_request
+                self.building_point.current_pallet_request = pallet_request
 
-                # Generate a handling process for each ProductRequest to be handled within the PalletRequest
-                procs: list[simpy.Process] = [
-                    self._process_product_request(product_request=product_request, pallet_request=pallet_request)
-                    for product_request in self.iter_pallet_request(pallet_request=pallet_request)
-                ]
+                # # Generate a handling process for each ProductRequest to be handled within the PalletRequest
+                # procs: list[simpy.Process] = [
+                #     self._process_product_request(
+                #         product_request=product_request, pallet_request=pallet_request
+                #     )
+                #     for product_request in self.iter_pallet_request(
+                #         pallet_request=pallet_request
+                #     )
+                # ]
+                #
+                # # Wait for the processing of all ProductRequest
+                # yield self.system.env.all_of(procs)
 
-                # Wait for the processing of all ProductRequest
-                yield self.system.env.all_of(procs)
+                for product_request in self.iter_pallet_request(
+                    pallet_request=pallet_request
+                ):
+                    yield self._process_product_request(
+                        product_request=product_request, pallet_request=pallet_request
+                    )
 
                 # Once finished, positions the completed PalletRequest in the output queue of the cell
                 yield self.output_queue.put(pallet_request)
@@ -246,7 +298,9 @@ class PickingCell:
                 # Housekeeping
                 self.pallet_requests_done.append(pallet_request)
                 pallet_request.completed(time=self.system.env.now)
-                self._productivity_history.append((self.system.env.now, self.productivity))
+                self._productivity_history.append(
+                    (self.system.env.now, self.productivity)
+                )
 
                 # Ask the System to handle the retrieval of the finished PalletRequest
                 self.system.retrieve_from_cell(cell=self, pallet_request=pallet_request)
@@ -257,9 +311,21 @@ class PickingCell:
         headers = ["KPI", "Valore", "U.M."]
         table = [
             ["Ore simulate", f"{self.system.env.now / 60 / 60:.2f}", "h"],
-            ["Produttività Cella", f"{self.productivity * 60 * 60:.2f}", "[PalletRequest/h]"],
-            ["Produttività Cella", f"{self.productivity * 60 * 60 * 4 * 10:.2f}", "[Cases/h]"],
-            ["Produttività Robot", f"{self.robot.productivity * 60 * 60:.2f}", "[Cases/h]"],
+            [
+                "Produttività Cella",
+                f"{self.productivity * 60 * 60:.2f}",
+                "[PalletRequest/h]",
+            ],
+            [
+                "Produttività Cella",
+                f"{self.productivity * 60 * 60 * 4 * 10:.2f}",
+                "[Cases/h]",
+            ],
+            [
+                "Produttività Robot",
+                f"{self.robot.productivity * 60 * 60:.2f}",
+                "[Cases/h]",
+            ],
         ]
         print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
         display(Markdown("## Robot"))

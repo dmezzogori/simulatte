@@ -29,7 +29,14 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
     id: int
 
     def __init__(
-        self, *, x: int, y: int, side: WarehouseLocationSide, depth: int = 2, width: float, height: float
+        self,
+        *,
+        x: int,
+        y: int,
+        side: WarehouseLocationSide,
+        depth: int = 2,
+        width: float,
+        height: float,
     ) -> None:
         """
         :param x: The discrete x-coordinate of the location (x-axis).
@@ -45,7 +52,9 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         self.side = side.value
 
         if depth not in (1, 2):
-            raise ValueError("The depth of the location must be positive and cannot be greater than 2.")
+            raise ValueError(
+                "The depth of the location must be positive and cannot be greater than 2."
+            )
         self.depth = depth
 
         self.width = width
@@ -53,9 +62,12 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
 
         self.first_position = PhysicalPosition()
         self.second_position = PhysicalPosition()
-        self.frozen = False
-        self.future_unit_loads: list[T] = []
-        self.booked_pickups: list[T] = []
+        self.future_unit_loads: list[
+            T
+        ] = []  # Unit loads that will be stored in the future
+        self.booked_pickups: list[
+            T
+        ] = []  # Unit loads that will be picked up in the future
 
     def __repr__(self) -> str:
         return (
@@ -77,6 +89,12 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         return True
 
     def book_pickup(self, unit_load: T) -> None:
+        if unit_load not in (
+            self.first_position.unit_load,
+            self.second_position.unit_load,
+        ):
+            raise RuntimeError("Unit load not available for pickup")
+
         if self.fully_booked:
             raise ValueError(f"Cannot book more than {self.depth} pickups")
 
@@ -87,6 +105,19 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
 
     @property
     def fully_booked(self) -> bool:
+
+        # first_position = self.first_position
+        # second_position = self.second_position
+        #
+        # if first_position.free and second_position.free:
+        #     return False
+        #
+        # for position in (self.first_position, self.second_position):
+        #     if position.unit_load is not None:
+        #         if position.unit_load not in self.booked_pickups:
+        #             return False
+        # return True
+
         return len(self.booked_pickups) == self.depth
 
     def freeze(self, *, unit_load: T) -> None:
@@ -103,14 +134,15 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
                 )
         elif self.is_half_full:
             if len(self.future_unit_loads) >= 1:
-                raise ValueError("Cannot freeze a location with one busy position, and one future unit load")
+                raise ValueError(
+                    "Cannot freeze a location with one busy position, and one future unit load"
+                )
         else:
             raise ValueError("Cannot freeze a location with two busy positions")
 
         if not self.is_empty:
             self.check_product_compatibility(unit_load)
 
-        self.frozen = True
         self.future_unit_loads.append(unit_load)
 
     def unfreeze(self, unit_load: T) -> None:
@@ -118,9 +150,6 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
             raise ValueError("Unit load not found in the future unit loads")
 
         self.future_unit_loads.remove(unit_load)
-
-        if len(self.future_unit_loads) == 0:
-            self.frozen = False
 
     @property
     def product(self) -> Product | None:
@@ -201,9 +230,10 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         If the location is full, an exception will be raised.
         """
         if self.is_empty:
+            # TODO: gestire singola profondità
             physical_position = self.second_position
         elif self.is_half_full:
-            existing_product = self.first_available_unit_load.product
+            existing_product = self.second_position.unit_load.product
             if unit_load.product != existing_product:
                 raise IncompatibleUnitLoad(unit_load, self)
             physical_position = self.first_position
@@ -213,18 +243,36 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         physical_position.put(unit_load=unit_load)
         self.unfreeze(unit_load=unit_load)
 
-    def get(self) -> T:
+    def get(self, unit_load) -> T:
         if len(self.booked_pickups) == 0:
             raise ValueError("Cannot get a unit load without booking it first")
 
-        if self.is_half_full:
-            physical_position = self.second_position
-        elif self.is_full:
+        # if self.is_half_full:
+        #     physical_position = self.second_position
+        # elif self.is_full:
+        #     physical_position = self.first_position
+        # else:
+        #     raise LocationEmpty(self)
+        if self.is_empty:
+            raise LocationEmpty(self)
+
+        if unit_load is self.first_position.unit_load:
+            physical_position = self.first_position
+        elif unit_load is self.second_position.unit_load:
+            # TODO: swap positions
+            self.first_position.unit_load, self.second_position.unit_load = (
+                self.second_position.unit_load,
+                self.first_position.unit_load,
+            )
             physical_position = self.first_position
         else:
-            raise LocationEmpty(self)
+            raise ValueError
+
         unit_load = physical_position.get()
-        self.booked_pickups.remove(unit_load)
+        try:
+            self.booked_pickups.remove(unit_load)
+        except ValueError:
+            raise ValueError("Cannot get a unit load without booking it first")
         return unit_load
 
     def affinity(self, product: Product) -> float:
@@ -233,11 +281,17 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         The lower the number, the better is the location for the product.
         """
 
+        if len(self.future_unit_loads) + self.n_unit_loads == self.depth:
+            # la locazione è completamente occupata
+            return float("inf")
+
         if self.product == product:
-            if len(self.future_unit_loads) + self.n_unit_loads == self.depth:
-                return float("inf")
+            # la locazione contiene/conterrà il prodotto
             return 0
         if self.product is None:
+            # la locazione è vuota
             return 1
+
         if self.product != product:
+            # la locazione contiene un prodotto diverso
             return float("inf")

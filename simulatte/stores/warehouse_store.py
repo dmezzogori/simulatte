@@ -10,7 +10,7 @@ from simulatte.stores import InputOperation, WarehouseLocation, WarehouseLocatio
 from ..unitload import CaseContainer, Pallet, Tray
 from ..utils import Identifiable, as_process
 from .inventory_position import OnHand, OnOrder
-from .warehouse_location import distance
+from .warehouse_location import distance, LocationEmpty, IncompatibleUnitLoad
 
 if TYPE_CHECKING:
     from simpy.resources.store import Store
@@ -45,8 +45,12 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         conveyor_capacity: int = 5,
     ):
         self.env = simulatte.Environment()
-        self.input_location = simulatte.location.Location(name=f"{self.__class__.__name__} Input")
-        self.output_location = simulatte.location.Location(name=f"{self.__class__.__name__} Output")
+        self.input_location = simulatte.location.Location(
+            name=f"{self.__class__.__name__} Input"
+        )
+        self.output_location = simulatte.location.Location(
+            name=f"{self.__class__.__name__} Output"
+        )
         self.location_width = location_width
         self.location_height = location_height
         self.depth = depth
@@ -54,6 +58,8 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         self.n_floors = n_floors
         self.load_time = load_time
         self.conveyor_capacity = conveyor_capacity
+
+        self.queue_stats = []
 
         self._location_origin = WarehouseLocation(
             x=0,
@@ -67,13 +73,23 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
             sorted(
                 (
                     WarehouseLocation(
-                        x=x, y=y, side=side, depth=self.depth, width=self.location_width, height=self.location_height
+                        x=x,
+                        y=y,
+                        side=side,
+                        depth=self.depth,
+                        width=self.location_width,
+                        height=self.location_height,
                     )
                     for x in range(self.n_positions)
                     for y in range(self.n_floors)
-                    for side in [WarehouseLocationSide.LEFT, WarehouseLocationSide.RIGHT]
+                    for side in [
+                        WarehouseLocationSide.LEFT,
+                        WarehouseLocationSide.RIGHT,
+                    ]
                 ),
-                key=lambda location: distance.euclidean(location, self._location_origin),
+                key=lambda location: distance.euclidean(
+                    location, self._location_origin
+                ),
             )
         )
 
@@ -93,11 +109,31 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
     def name(self) -> str:
         return f"{self.__class__.__name__}_{self.id}"
 
-    def filter_locations(self, *, product: Product) -> Iterable[WarehouseLocation]:
-        yield from self._product_location_map[product.id]
+    # def filter_locations(self, *, product: Product) -> Iterable[WarehouseLocation]:
+    #    yield from self._product_location_map[product.id]
 
-    def create_input_operation(self, *, unit_load: T, location: WarehouseLocation, priority: int) -> InputOperation:
-        input_operation = InputOperation(unit_load=unit_load, location=location, priority=priority)
+    def first_available_location(self) -> WarehouseLocation:
+        """
+        Cerchiamo la locazione in cui mettere la unit lod.
+        Consideriamo solo le locazioni vuote e senza future unit load.
+        """
+        for location in self.locations:
+            if location.is_empty and len(location.future_unit_loads) == 0:
+                return location
+
+    def first_available_location_for_warmup(self, unit_load):
+        for location in self.locations:
+            if location.is_empty:
+                return location
+            if location.is_half_full and location.product == unit_load.product:
+                return location
+
+    def create_input_operation(
+        self, *, unit_load: T, location: WarehouseLocation, priority: int
+    ) -> InputOperation:
+        input_operation = InputOperation(
+            unit_load=unit_load, location=location, priority=priority
+        )
         self._input_operations.append(input_operation)
         return input_operation
 
@@ -111,7 +147,8 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         """
         yield self.env.timeout(self.load_time)
         yield self.output_conveyor.get(
-            lambda output_operation: output_operation.unit_load == feeding_operation.unit_load
+            lambda output_operation: output_operation.unit_load
+            == feeding_operation.unit_load
         )
         yield feeding_operation.ant.load(unit_load=feeding_operation.unit_load)
         return feeding_operation.unit_load
@@ -124,15 +161,20 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         Given an Ant and an InputOperation, unload the unit load from the ant and put it on the input conveyor,
         once it is available.
         """
+
         with self.input_service_point.request(
             priority=input_operation.priority, preempt=False
         ) as input_service_point_request:
+            self.queue_stats.append((self.env.now, len(self.input_service_point.queue)))
             yield input_service_point_request
-            yield self.env.timeout(self.load_time)
             yield self.input_conveyor.put((input_operation,))
+            yield self.env.timeout(self.load_time)
             yield ant.unload()
+            ant.release_current()
 
-    def get(self, *, feeding_operation: FeedingOperation) -> simulatte.typings.ProcessGenerator:
+    def get(
+        self, *, feeding_operation: FeedingOperation
+    ) -> simulatte.typings.ProcessGenerator:
         """
         Warehouse Main internal retrieval process.
 
@@ -157,69 +199,10 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
     def _put(self, *args, **kwargs):
         raise NotImplementedError
 
-    def on_hand(self, *, product: Product) -> OnHand:
-        n_cases = sum(location.n_cases for location in self.filter_locations(product=product))
-        return OnHand(product=product, n_cases=n_cases)
-
-    def on_order(self, *, product: Product) -> OnOrder:
-        product_replenishment_processes = self._replenishment_processes[product.id]
-        n_cases = (
-            sum((not p.processed for p in product_replenishment_processes))
-            * product.layers_per_pallet
-            * product.cases_per_layer
-        )
-        return OnOrder(product=product, n_cases=n_cases)
-
     def replenishment_started(self, *, product: Product, process) -> None:
         self._replenishment_processes[product.id].append(process)
 
-    def book_location(self, *, location: WarehouseLocation, unit_load: Tray | Pallet) -> None:
+    def book_location(
+        self, *, location: WarehouseLocation, unit_load: Tray | Pallet
+    ) -> None:
         location.freeze(unit_load=unit_load)
-        self._product_location_map[unit_load.product.id].add(location)
-
-    def unbook_location(self, *, location: WarehouseLocation) -> None:
-        if location.is_half_full:
-            self._product_location_map[location.product.id].remove(location)
-
-    def warmup(
-        self,
-        *,
-        products_generator: ProductsGenerator,
-        filling: float | None = 0.5,
-        locations: Literal["products", "random"],
-        products: Literal["linear", "random"] | None,
-    ):
-        if locations == "products":
-            for i, product in enumerate(products_generator.products):
-                location = self.locations[i]
-                unit_load = Pallet(
-                    Tray(
-                        product=product,
-                        n_cases=product.cases_per_layer,
-                    )
-                )
-                self.book_location(location=location, unit_load=unit_load)
-                location.put(unit_load=unit_load)
-        elif locations == "random":
-            i = 0
-            for location in self.locations:
-                if random.random() < filling and i < len(products_generator.products):
-                    if products == "random":
-                        product = products_generator.choose_one()
-                    elif products == "linear":
-                        product = products_generator.products[i]
-                        i += 1
-                    else:
-                        raise ValueError(f"Unknown products warmup policy: {products}")
-
-                    for _ in range(location.depth):
-                        unit_load = Pallet(
-                            Tray(
-                                product=product,
-                                n_cases=product.cases_per_layer,
-                            )
-                        )
-                        location.freeze(unit_load=unit_load)
-                        location.put(unit_load=unit_load)
-        else:
-            raise ValueError(f"Unknown locations warmup policy {locations}")

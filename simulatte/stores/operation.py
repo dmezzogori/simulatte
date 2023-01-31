@@ -10,7 +10,9 @@ if TYPE_CHECKING:
 
 
 class Operation:
-    def __init__(self, *, unit_load: Pallet, location: WarehouseLocation, priority: int) -> None:
+    def __init__(
+        self, *, unit_load: Pallet, location: WarehouseLocation, priority: int
+    ) -> None:
         self.env = simulatte.Environment()
         self.unit_load = unit_load
         self.location = location
@@ -31,10 +33,11 @@ class Operation:
 class InputOperation(Operation):
     """Warehouse input operation"""
 
-    def __init__(self, *, unit_load: Pallet, location: WarehouseLocation, priority: int) -> None:
+    def __init__(
+        self, *, unit_load: Pallet, location: WarehouseLocation, priority: int
+    ) -> None:
         super().__init__(unit_load=unit_load, location=location, priority=priority)
         self.lift_process = None
-        self.lifted_flag = False
         self.lifted = self.env.event()
 
 

@@ -14,16 +14,32 @@ if TYPE_CHECKING:
 
 
 class AntsManager:
-    def __init__(self, ants: Sequence[Ant], ant_selection_policy: AntSelectionPolicy) -> None:
+    def __init__(
+        self, ants: Sequence[Ant], ant_selection_policy: AntSelectionPolicy
+    ) -> None:
         self.ants = ants
         self._ant_selection_policy = ant_selection_policy
 
-    def get_best_ant(self) -> Ant:
-        return self._ant_selection_policy(ants=self.ants)
+    @property
+    def feeding_ants(self) -> tuple[Ant]:
+        return tuple(ant for ant in self.ants if ant.kind == "feeding")
+
+    @property
+    def replenishment_ants(self) -> tuple[Ant]:
+        return tuple(ant for ant in self.ants if ant.kind == "replenishment")
+
+    def get_best_ant(self, exceptions: Sequence[Ant] | None = None) -> Ant:
+        return self._ant_selection_policy(ants=self.ants, exceptions=exceptions)
 
     def export_mission_logs_csv(self, path: str) -> None:
         with open(path, "w") as csvfile:
-            fieldnames = ["ant_id", "start_timestamp", "start_location", "end_timestamp", "end_location"]
+            fieldnames = [
+                "ant_id",
+                "start_timestamp",
+                "start_location",
+                "end_timestamp",
+                "end_location",
+            ]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
 
@@ -57,15 +73,9 @@ class AntsManager:
             saturation = f"{ant.saturation * 100:.2f}"
             total_waiting_time = f"{ant.waiting_time / 60:.2f}"
             waiting_at_avsrs = f"{(mean(ant.loading_waiting_times) if ant.loading_waiting_times else 0) / 60:.2f}"
-            waiting_in_feeding_area = (
-                f"{(mean(ant.feeding_area_waiting_times) if ant.feeding_area_waiting_times else 0) / 60:.2f}"
-            )
-            waiting_in_staging_area = (
-                f"{(mean(ant.staging_area_waiting_times) if ant.staging_area_waiting_times else 0) / 60:.2f}"
-            )
-            waiting_in_internal_area = (
-                f"{(mean(ant.unloading_waiting_times) if ant.unloading_waiting_times else 0) / 60:.2f}"
-            )
+            waiting_in_feeding_area = f"{(mean(ant.feeding_area_waiting_times) if ant.feeding_area_waiting_times else 0) / 60:.2f}"
+            waiting_in_staging_area = f"{(mean(ant.staging_area_waiting_times) if ant.staging_area_waiting_times else 0) / 60:.2f}"
+            waiting_in_internal_area = f"{(mean(ant.unloading_waiting_times) if ant.unloading_waiting_times else 0) / 60:.2f}"
             waiting_at_picking = f"{(mean(ant.picking_waiting_times) if ant.picking_waiting_times else 0) / 60:.2f}"
 
             table.append(
