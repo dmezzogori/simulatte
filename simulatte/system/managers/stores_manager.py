@@ -19,14 +19,10 @@ if TYPE_CHECKING:
 
 
 class StoresManager:
-    def __init__(
-        self, *, unit_load_policy: UnitLoadPolicy, location_policy: LocationPolicy
-    ):
+    def __init__(self, *, unit_load_policy: UnitLoadPolicy, location_policy: LocationPolicy):
         self._stores: list[WarehouseStore] = []
         self._unit_load_policy = unit_load_policy
-        self._location_policy = (
-            location_policy  # to be used to find locations for storing of products
-        )
+        self._location_policy = location_policy  # to be used to find locations for storing of products
 
         # {
         #     product_id: {
@@ -85,15 +81,12 @@ class StoresManager:
 
         self._stock[product.id][case_container][inventory] += n_cases
 
-    def inventory_position(
-        self, *, product: Product, case_container: Literal["pallet", "tray"]
-    ) -> int:
+    def inventory_position(self, *, product: Product, case_container: Literal["pallet", "tray"]) -> int:
         """
         Return the inventory position of a product.
         """
         return (
-            self._stock[product.id][case_container]["on_hand"]
-            + self._stock[product.id][case_container]["on_transit"]
+            self._stock[product.id][case_container]["on_hand"] + self._stock[product.id][case_container]["on_transit"]
         )
 
     @simulatte.as_process
@@ -135,13 +128,9 @@ class StoresManager:
             n_cases=ant.unit_load.n_cases,
         )
 
-        yield store.load(
-            unit_load=ant.unit_load, location=location, ant=ant, priority=10
-        )
+        yield store.load(unit_load=ant.unit_load, location=location, ant=ant, priority=10)
 
-    def unload(
-        self, *, store: WarehouseStore, picking_request: Request
-    ) -> tuple[WarehouseLocation, PhysicalPosition]:
+    def unload(self, *, store: WarehouseStore, picking_request: Request) -> tuple[WarehouseLocation, PhysicalPosition]:
         """
         Used to centralize the unloading of unitloads from the stores.
         Needed to keep trace of the on hand quantity of each product.
@@ -217,9 +206,7 @@ class StoresManager:
         )
 
         # controlliamo necessità di replenishment
-        self.check_replenishment(
-            product=picking_request.product, case_container=case_container
-        )
+        self.check_replenishment(product=picking_request.product, case_container=case_container)
 
         return location, position
 
@@ -235,9 +222,7 @@ class StoresManager:
         Used both in the unload method and in the
         periodic replenishment process.
         """
-        inventory_position = self.inventory_position(
-            product=product, case_container=case_container
-        )
+        inventory_position = self.inventory_position(product=product, case_container=case_container)
         s_max = product.s_max[case_container]
         s_min = product.s_min[case_container]
 
@@ -289,14 +274,10 @@ class StoresManager:
                         periodic_check=True,
                     )
 
-    def find_location_for_product(
-        self, *, store: WarehouseStore, product: Product
-    ) -> WarehouseLocation:
+    def find_location_for_product(self, *, store: WarehouseStore, product: Product) -> WarehouseLocation:
         return self._location_policy(store=store, product=product)
 
-    def get_location_for_unit_load(
-        self, *, store: WarehouseStore, unit_load: Pallet
-    ) -> WarehouseLocation:
+    def get_location_for_unit_load(self, *, store: WarehouseStore, unit_load: Pallet) -> WarehouseLocation:
         """
         FOR INPUT.
 
@@ -305,9 +286,7 @@ class StoresManager:
         Then freeze the location to prevent other unit loads from
         being placed in the same location.
         """
-        location = self.find_location_for_product(
-            store=store, product=unit_load.product
-        )
+        location = self.find_location_for_product(store=store, product=unit_load.product)
         try:
             store.book_location(location=location, unit_load=unit_load)
         except:
@@ -329,9 +308,7 @@ class StoresManager:
         Get a unit load from a store.
         Get the unit load accordingly to the UnitLoadPolicy set.
         """
-        location, position = self._unit_load_policy(
-            store=store, product=product, quantity=quantity
-        )
+        location, position = self._unit_load_policy(store=store, product=product, quantity=quantity)
         if location is None and raise_on_none:
             raise ValueError(f"Location not found for product {product}.")
         return location, position
@@ -364,9 +341,7 @@ class StoresManager:
                 for _ in range(n_pallet):
                     if case_container == "pallet":
                         unit_load = Pallet.by_product(product=product)
-                        location = store.first_available_location_for_warmup(
-                            unit_load=unit_load
-                        )
+                        location = store.first_available_location_for_warmup(unit_load=unit_load)
                         store.book_location(location=location, unit_load=unit_load)
                         location.put(unit_load=unit_load)
 
@@ -385,9 +360,7 @@ class StoresManager:
                                     n_cases=product.cases_per_layer,
                                 )
                             )
-                            location = store.first_available_location_for_warmup(
-                                unit_load=unit_load
-                            )
+                            location = store.first_available_location_for_warmup(unit_load=unit_load)
                             store.book_location(location=location, unit_load=unit_load)
                             location.put(unit_load=unit_load)
 

@@ -52,9 +52,7 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         self.side = side.value
 
         if depth not in (1, 2):
-            raise ValueError(
-                "The depth of the location must be positive and cannot be greater than 2."
-            )
+            raise ValueError("The depth of the location must be positive and cannot be greater than 2.")
         self.depth = depth
 
         self.width = width
@@ -62,12 +60,8 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
 
         self.first_position = PhysicalPosition()
         self.second_position = PhysicalPosition()
-        self.future_unit_loads: list[
-            T
-        ] = []  # Unit loads that will be stored in the future
-        self.booked_pickups: list[
-            T
-        ] = []  # Unit loads that will be picked up in the future
+        self.future_unit_loads: list[T] = []  # Unit loads that will be stored in the future
+        self.booked_pickups: list[T] = []  # Unit loads that will be picked up in the future
 
     def __repr__(self) -> str:
         return (
@@ -134,9 +128,7 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
                 )
         elif self.is_half_full:
             if len(self.future_unit_loads) >= 1:
-                raise ValueError(
-                    "Cannot freeze a location with one busy position, and one future unit load"
-                )
+                raise ValueError("Cannot freeze a location with one busy position, and one future unit load")
         else:
             raise ValueError("Cannot freeze a location with two busy positions")
 

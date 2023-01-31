@@ -64,25 +64,13 @@ class ProductsGenerator:
     ) -> None:
 
         self.probabilities: list[float] = (
-            probabilities()
-            if probabilities is not None
-            else [1 / n_products for _ in range(n_products)]
+            probabilities() if probabilities is not None else [1 / n_products for _ in range(n_products)]
         )
-        self.families: list[str] = (
-            families() if families is not None else ["A"] * n_products
-        )
-        self.cases_per_layers: DistributionCallable[int] = cases_per_layers or (
-            lambda: 10
-        )
-        self.layers_per_pallet: DistributionCallable[int] = layers_per_pallet or (
-            lambda: 4
-        )
-        self.min_case_per_pallet: DistributionCallable[int] = min_case_per_pallet or (
-            lambda: 60
-        )
-        self.max_case_per_pallet: DistributionCallable[int] = max_case_per_pallet or (
-            lambda: 60
-        )
+        self.families: list[str] = families() if families is not None else ["A"] * n_products
+        self.cases_per_layers: DistributionCallable[int] = cases_per_layers or (lambda: 10)
+        self.layers_per_pallet: DistributionCallable[int] = layers_per_pallet or (lambda: 4)
+        self.min_case_per_pallet: DistributionCallable[int] = min_case_per_pallet or (lambda: 60)
+        self.max_case_per_pallet: DistributionCallable[int] = max_case_per_pallet or (lambda: 60)
         self.lp_enable: DistributionCallable[bool] = lp_enable or (lambda: True)
 
         self._products: list[Product] | None = None
@@ -114,9 +102,7 @@ class ProductsGenerator:
             if fn is not None:
                 product = fn(self.products)
             else:
-                product: Product = random.choices(
-                    self.products, weights=self.probabilities, k=1
-                )[0]
+                product: Product = random.choices(self.products, weights=self.probabilities, k=1)[0]
 
             return product
 
@@ -143,8 +129,6 @@ class ProductsGenerator:
         if fn is not None:
             products = list(fn(self.products) for _ in range(n))
         else:
-            products: list[Product] = np.random.choice(
-                self.products, n, replace=replace, p=self.probabilities
-            )
+            products: list[Product] = np.random.choice(self.products, n, replace=replace, p=self.probabilities)
 
         return products

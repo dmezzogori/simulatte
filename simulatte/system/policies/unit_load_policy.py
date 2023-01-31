@@ -34,9 +34,7 @@ class ClosestUnitLoadPolicy(UnitLoadPolicy):
             (
                 location
                 for location in store.locations
-                if not location.is_empty
-                and not location.fully_booked
-                and location.product == product
+                if not location.is_empty and not location.fully_booked and location.product == product
             ),
             key=lambda l: (l.n_unit_loads, l.first_available_unit_load.n_cases),
         )

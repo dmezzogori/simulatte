@@ -45,12 +45,8 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         conveyor_capacity: int = 5,
     ):
         self.env = simulatte.Environment()
-        self.input_location = simulatte.location.Location(
-            name=f"{self.__class__.__name__} Input"
-        )
-        self.output_location = simulatte.location.Location(
-            name=f"{self.__class__.__name__} Output"
-        )
+        self.input_location = simulatte.location.Location(name=f"{self.__class__.__name__} Input")
+        self.output_location = simulatte.location.Location(name=f"{self.__class__.__name__} Output")
         self.location_width = location_width
         self.location_height = location_height
         self.depth = depth
@@ -87,9 +83,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
                         WarehouseLocationSide.RIGHT,
                     ]
                 ),
-                key=lambda location: distance.euclidean(
-                    location, self._location_origin
-                ),
+                key=lambda location: distance.euclidean(location, self._location_origin),
             )
         )
 
@@ -128,12 +122,8 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
             if location.is_half_full and location.product == unit_load.product:
                 return location
 
-    def create_input_operation(
-        self, *, unit_load: T, location: WarehouseLocation, priority: int
-    ) -> InputOperation:
-        input_operation = InputOperation(
-            unit_load=unit_load, location=location, priority=priority
-        )
+    def create_input_operation(self, *, unit_load: T, location: WarehouseLocation, priority: int) -> InputOperation:
+        input_operation = InputOperation(unit_load=unit_load, location=location, priority=priority)
         self._input_operations.append(input_operation)
         return input_operation
 
@@ -147,8 +137,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         """
         yield self.env.timeout(self.load_time)
         yield self.output_conveyor.get(
-            lambda output_operation: output_operation.unit_load
-            == feeding_operation.unit_load
+            lambda output_operation: output_operation.unit_load == feeding_operation.unit_load
         )
         yield feeding_operation.ant.load(unit_load=feeding_operation.unit_load)
         return feeding_operation.unit_load
@@ -172,9 +161,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
             yield ant.unload()
             ant.release_current()
 
-    def get(
-        self, *, feeding_operation: FeedingOperation
-    ) -> simulatte.typings.ProcessGenerator:
+    def get(self, *, feeding_operation: FeedingOperation) -> simulatte.typings.ProcessGenerator:
         """
         Warehouse Main internal retrieval process.
 
@@ -202,7 +189,5 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
     def replenishment_started(self, *, product: Product, process) -> None:
         self._replenishment_processes[product.id].append(process)
 
-    def book_location(
-        self, *, location: WarehouseLocation, unit_load: Tray | Pallet
-    ) -> None:
+    def book_location(self, *, location: WarehouseLocation, unit_load: Tray | Pallet) -> None:
         location.freeze(unit_load=unit_load)

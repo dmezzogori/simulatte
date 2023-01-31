@@ -14,9 +14,7 @@ if TYPE_CHECKING:
 
 
 class AntsManager:
-    def __init__(
-        self, ants: Sequence[Ant], ant_selection_policy: AntSelectionPolicy
-    ) -> None:
+    def __init__(self, ants: Sequence[Ant], ant_selection_policy: AntSelectionPolicy) -> None:
         self.ants = ants
         self._ant_selection_policy = ant_selection_policy
 
@@ -73,9 +71,15 @@ class AntsManager:
             saturation = f"{ant.saturation * 100:.2f}"
             total_waiting_time = f"{ant.waiting_time / 60:.2f}"
             waiting_at_avsrs = f"{(mean(ant.loading_waiting_times) if ant.loading_waiting_times else 0) / 60:.2f}"
-            waiting_in_feeding_area = f"{(mean(ant.feeding_area_waiting_times) if ant.feeding_area_waiting_times else 0) / 60:.2f}"
-            waiting_in_staging_area = f"{(mean(ant.staging_area_waiting_times) if ant.staging_area_waiting_times else 0) / 60:.2f}"
-            waiting_in_internal_area = f"{(mean(ant.unloading_waiting_times) if ant.unloading_waiting_times else 0) / 60:.2f}"
+            waiting_in_feeding_area = (
+                f"{(mean(ant.feeding_area_waiting_times) if ant.feeding_area_waiting_times else 0) / 60:.2f}"
+            )
+            waiting_in_staging_area = (
+                f"{(mean(ant.staging_area_waiting_times) if ant.staging_area_waiting_times else 0) / 60:.2f}"
+            )
+            waiting_in_internal_area = (
+                f"{(mean(ant.unloading_waiting_times) if ant.unloading_waiting_times else 0) / 60:.2f}"
+            )
             waiting_at_picking = f"{(mean(ant.picking_waiting_times) if ant.picking_waiting_times else 0) / 60:.2f}"
 
             table.append(
