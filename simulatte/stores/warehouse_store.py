@@ -1,23 +1,20 @@
 from __future__ import annotations
 
-import random
 from collections import defaultdict
-from typing import TYPE_CHECKING, Generic, Iterable, Literal, TypeVar
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 import simulatte
 from simulatte.stores import InputOperation, WarehouseLocation, WarehouseLocationSide
-
+from .warehouse_location import distance
 from ..unitload import CaseContainer, Pallet, Tray
 from ..utils import Identifiable, as_process
-from .inventory_position import OnHand, OnOrder
-from .warehouse_location import distance, LocationEmpty, IncompatibleUnitLoad
 
 if TYPE_CHECKING:
     from simpy.resources.store import Store
 
     from simulatte.ant import Ant
     from simulatte.operations import FeedingOperation
-    from simulatte.products import Product, ProductsGenerator
+    from simulatte.products import Product
     from simulatte.service_point import ServicePoint
     from simulatte.simpy_extension import MultiStore, SequentialStore
 
@@ -90,6 +87,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         self._input_operations = []
         self._replenishment_processes = defaultdict(list)
         self._product_location_map = defaultdict(set)
+        self._saturation_history = []
 
     @property
     def locations(self):
@@ -102,9 +100,6 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
     @property
     def name(self) -> str:
         return f"{self.__class__.__name__}_{self.id}"
-
-    # def filter_locations(self, *, product: Product) -> Iterable[WarehouseLocation]:
-    #    yield from self._product_location_map[product.id]
 
     def first_available_location(self) -> WarehouseLocation:
         """
@@ -135,12 +130,20 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         Given a FeedingOperation, load the ant with the required unit load,
         once it is available from the Output Conveyor.
         """
+
+        n_non_empty_locations = sum(not location.is_empty for location in self.locations)
+        # n_non_empty_locations = sum(location.n_cases for location in self.locations)
+        self._saturation_history.append((self.env.now, n_non_empty_locations / self.n_locations))
+
         yield self.env.timeout(self.load_time)
-        yield self.output_conveyor.get(
+
+        output_operation = yield self.output_conveyor.get(
             lambda output_operation: output_operation.unit_load == feeding_operation.unit_load
         )
+        if output_operation.unit_load != feeding_operation.unit_load:
+            raise ValueError("Unit load mismatch")
+
         yield feeding_operation.ant.load(unit_load=feeding_operation.unit_load)
-        return feeding_operation.unit_load
 
     @as_process
     def unload_ant(self, *, ant: Ant, input_operation: InputOperation):
@@ -150,6 +153,10 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         Given an Ant and an InputOperation, unload the unit load from the ant and put it on the input conveyor,
         once it is available.
         """
+
+        n_non_empty_locations = sum(not location.is_empty for location in self.locations)
+        # n_non_empty_locations = sum(location.n_cases for location in self.locations)
+        self._saturation_history.append((self.env.now, n_non_empty_locations / self.n_locations))
 
         with self.input_service_point.request(
             priority=input_operation.priority, preempt=False

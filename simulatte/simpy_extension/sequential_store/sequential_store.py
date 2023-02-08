@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Generic, Sequence, TypeVar
+from typing import TYPE_CHECKING, Callable, Generic, Sequence, TypeVar
 
 from simpy.resources.store import FilterStore, Store
+
+import simulatte
 
 if TYPE_CHECKING:
     from simpy import Environment
@@ -23,7 +25,6 @@ class SequentialStore(Generic[T]):
     """
 
     def __init__(self, env: Environment, capacity: int = float("inf")) -> None:
-
         if capacity <= 1:
             raise ValueError("Capacity of SequentialStore must be grater than 1.")
 
@@ -49,19 +50,18 @@ class SequentialStore(Generic[T]):
         return self.internal_store_level + self.output_level
 
     @property
-    def items(self) -> Sequence:
+    def items(self) -> Sequence[T]:
         return self._output.items + self._internal_store.items
 
-    def _do_put(self, item: Any):
+    @simulatte.as_process
+    def put(self, item: T):
         if self.output_level == 0:
             yield self._output.put(item)
         else:
             yield self._internal_store.put(item)
 
-    def put(self, item):
-        return self.env.process(self._do_put(item))
-
-    def _do_get(self, filter_: Callable):
+    @simulatte.as_process
+    def get(self, filter_: Callable) -> T:
         # Get the item from the output position
         item = yield self._output.get(filter_)
 
@@ -72,6 +72,3 @@ class SequentialStore(Generic[T]):
 
         # return retrieved item
         return item
-
-    def get(self, filter_: Callable):
-        return self.env.process(self._do_get(filter_))

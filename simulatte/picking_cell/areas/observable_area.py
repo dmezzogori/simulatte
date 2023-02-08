@@ -17,7 +17,5 @@ class ObservableArea(Area[T], Observable):
 
     def remove(self, item: T) -> None:
         Area.remove(self, item)
-        payload = EventPayload(
-            event=f"ACTIVATING {self.__class__.__name__} SIGNAL", type=1, value={"type": 1, "operation": item}
-        )
+        payload = EventPayload(event=f"ACTIVATING {self.__class__.__name__} SIGNAL", type=1)
         self.trigger_signal_event(payload=payload)

@@ -2,6 +2,8 @@ from typing import TypeVar, Generator
 
 from simpy import Event
 
-T = TypeVar("T")
+ProcessReturn = TypeVar("ProcessReturn")
+ProcessGenerator = Generator[Event, None, ProcessReturn | None]
 
-ProcessGenerator = Generator[Event, None, T | None]
+HistoryValue = TypeVar("HistoryValue")
+History = list[tuple[float, HistoryValue]]

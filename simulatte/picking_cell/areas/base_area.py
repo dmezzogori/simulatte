@@ -25,14 +25,17 @@ class Area(list, Generic[T]):
         self.capacity = capacity
         self._history = []
         self.last_entered: T = None
+        self.last_gone: T = None
 
     def pop(self, index: int = -1) -> T:
         item = super().pop(index)
+        self.last_gone = item
         self._history.append((self.env.now, len(self)))
         return item
 
     def remove(self, item: T) -> None:
         super().remove(item)
+        self.last_gone = item
         self._history.append((self.env.now, len(self)))
 
     @property

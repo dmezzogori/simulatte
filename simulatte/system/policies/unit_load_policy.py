@@ -14,7 +14,7 @@ class UnitLoadPolicy:
     def __call__(
         self,
         *,
-        store: WarehouseStore,
+        stores: list[WarehouseStore],
         product: Product,
         quantity: int,
     ) -> WarehouseLocation | None:

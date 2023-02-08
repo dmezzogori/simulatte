@@ -7,6 +7,7 @@ from IPython.display import Markdown, display
 from simpy import Process
 from tabulate import tabulate
 
+from eagle_trays.avsrs import AVSRS
 from simulatte.location import Location
 from simulatte.logger.logger import EventPayload
 from simulatte.operations import FeedingOperation
@@ -19,8 +20,6 @@ from simulatte.simpy_extension import SequentialStore
 from simulatte.utils.utils import as_process
 
 if TYPE_CHECKING:
-    import simpy
-
     from simulatte.requests import Request
     from simulatte.resources.store import Store
     from simulatte.system import System
@@ -93,14 +92,15 @@ class PickingCell:
         """
         Register a FeedingOperation into the PickingCell.
 
-        Updates the FeedingOperationMap, which maps which FeedingOperation is associated to which ProductRequest.
+        Updates the PickingCell.feeding_operation_map,
+        which maps which FeedingOperation is associated to which ProductRequest.
         It also adds the FeedingOperation to the FeedingArea.
         """
         self.feeding_operation_map[feeding_operation.picking_request] = feeding_operation
         self.feeding_area.append(feeding_operation)
 
     @as_process
-    def _retrieve_feeding_operation(self, picking_request: Request) -> ProcessGenerator[FeedingOperation]:
+    def _retrieve_feeding_operation(self, picking_request: Request) -> FeedingOperation:
         """
         FIXME: PORCATA COLOSSALE!!!
         Tocca usare un processo con attesa per evitare che ci sia una race-condition tra il momento in cui
@@ -151,7 +151,6 @@ class PickingCell:
 
     @as_process
     def let_ant_out(self, *, feeding_operation: FeedingOperation) -> ProcessGenerator:
-
         feeding_operation.ant.picking_ends()
 
         # free the UnloadPosition associated to the FeedingOperation
@@ -159,12 +158,39 @@ class PickingCell:
 
         self.internal_area.remove(feeding_operation)
 
+        magic = hasattr(feeding_operation.ant.unit_load, "magic")
+
         # if the UnitLoad has some n_cases remaining, then load it back into the Store
-        if feeding_operation.unit_load.n_cases > 0:
+        # useful_leftover = feeding_operation.unit_load.n_cases > 0 and not magic
+
+        to_kill = False
+        if hasattr(feeding_operation.store, "shuttles"):
+            if not magic:
+                remaining_perc = (
+                    feeding_operation.unit_load.n_cases / feeding_operation.picking_request.product.cases_per_layer
+                )
+                useful_leftover = 0.3
+                if remaining_perc < useful_leftover:
+                    stores_manager = self.system.stores_manager
+                    stores_manager.update_stock(
+                        product=feeding_operation.picking_request.product,
+                        case_container="tray",
+                        inventory="on_transit",
+                        n_cases=-feeding_operation.unit_load.n_cases,
+                    )
+                    to_kill = True
+
+        if magic:
+            to_kill = True
+
+        if feeding_operation.unit_load.n_cases == 0:
+            to_kill = True
+
+        if not to_kill:
+            # if feeding_operation.unit_load.n_cases > 0 and not magic:
             store = feeding_operation.store
             ant = feeding_operation.ant
             yield ant.move_to(system=self.system, location=store.input_location)
-
             yield self.system.stores_manager.load(store=store, ant=ant)
         else:
             from simulatte.ant import ant_rest_location
@@ -173,10 +199,8 @@ class PickingCell:
             yield feeding_operation.ant.move_to(system=self.system, location=ant_rest_location)
             yield feeding_operation.ant.unload()
             feeding_operation.ant.release_current()
-        feeding_operation.ant.idle()
 
-        # release the Ant associated to the FeedingOperation
-        # feeding_operation.ant.release_current()
+        feeding_operation.ant.idle()
         feeding_operation.ant.mission_ended()
 
     @as_process
@@ -195,11 +219,7 @@ class PickingCell:
         # Triggers the feeding area signal event
         # until the feeding area is full or there are no more picking requests to be processed
         while not self.feeding_area.is_full and len(self.picking_requests_queue) > 0:
-            payload = EventPayload(
-                event="ACTIVATING FEEDING AREA SIGNAL",
-                type=0,
-                value={"type": 0},  # type=0 => qualcosa può entrare
-            )
+            payload = EventPayload(event="ACTIVATING FEEDING AREA SIGNAL", type=0)
             self.feeding_area.trigger_signal_event(payload=payload)
             yield self.system.env.timeout(0)
 

@@ -144,6 +144,18 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         self.future_unit_loads.remove(unit_load)
 
     @property
+    def physically_available_product(self) -> Product | None:
+        """
+        Returns the product that is stored in the location.
+        A product can be stored in the location in the following cases:
+        - The location is empty.
+        - The location is half full and the product is compatible with the one already stored.
+        """
+        if self.is_empty:
+            return None
+        return self.first_available_unit_load.product
+
+    @property
     def product(self) -> Product | None:
         """
         Returns the product associated with the location.
@@ -239,12 +251,6 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         if len(self.booked_pickups) == 0:
             raise ValueError("Cannot get a unit load without booking it first")
 
-        # if self.is_half_full:
-        #     physical_position = self.second_position
-        # elif self.is_full:
-        #     physical_position = self.first_position
-        # else:
-        #     raise LocationEmpty(self)
         if self.is_empty:
             raise LocationEmpty(self)
 
@@ -277,13 +283,15 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
             # la locazione è completamente occupata
             return float("inf")
 
-        if self.product == product:
+        product_stored = self.product
+
+        if product_stored == product:
             # la locazione contiene/conterrà il prodotto
             return 0
-        if self.product is None:
+        if product_stored is None:
             # la locazione è vuota
             return 1
 
-        if self.product != product:
+        if product_stored != product:
             # la locazione contiene un prodotto diverso
             return float("inf")

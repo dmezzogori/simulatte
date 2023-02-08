@@ -9,8 +9,8 @@ if TYPE_CHECKING:
 
 
 class Tray(CaseContainer):
-    def __init__(self, *, product: Product, n_cases: int) -> None:
-        if n_cases > product.cases_per_layer:
+    def __init__(self, *, product: Product, n_cases: int, exceed=False) -> None:
+        if n_cases > product.cases_per_layer and not exceed:
             raise ValueError(
                 f"A Tray cannot hold n_cases={n_cases} [product.cases_per_layer={product.cases_per_layer}]"
             )

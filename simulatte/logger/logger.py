@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pprint
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Optional, TypedDict
+from typing import TYPE_CHECKING, Optional, TypedDict
 
 import pandas as pd
 
@@ -18,7 +18,6 @@ class EventPayload(TypedDict, total=False):
     event: str
     type: int
     operation: Optional[FeedingOperation]
-    value: Any | None  # TODO: remove this
 
 
 class Logger(metaclass=simulatte.utils.Singleton):

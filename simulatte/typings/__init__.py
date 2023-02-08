@@ -1,1 +1,1 @@
-from .typings import ProcessGenerator
+from .typings import ProcessGenerator, History

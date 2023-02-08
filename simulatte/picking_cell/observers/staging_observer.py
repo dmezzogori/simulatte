@@ -67,8 +67,6 @@ class StagingObserver(Observer[StagingArea]):
                 feeding_operation.ant.move_to(system=self.system, location=self.cell.staging_location)
 
                 # Trigger the InternalArea signal event since a new FeedingOperation is available in the StagingArea
-                payload = EventPayload(
-                    event="ACTIVATING INTERNAL AREA SIGNAL", type=0, value={"type": 0, "operation": feeding_operation}
-                )
+                payload = EventPayload(event="ACTIVATING INTERNAL AREA SIGNAL", type=0)
                 self.cell.internal_area.trigger_signal_event(payload=payload)
                 return
