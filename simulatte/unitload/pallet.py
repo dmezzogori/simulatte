@@ -17,6 +17,7 @@ class Pallet(CaseContainer):
             self.layers = deque((WoodBoard(), *layers))
         else:
             self.layers = deque(layers)
+        self.location = None
 
     @classmethod
     def by_product(cls, *, product: Product) -> Pallet:

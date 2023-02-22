@@ -163,31 +163,31 @@ class PickingCell:
         # if the UnitLoad has some n_cases remaining, then load it back into the Store
         # useful_leftover = feeding_operation.unit_load.n_cases > 0 and not magic
 
-        to_kill = False
-        if hasattr(feeding_operation.store, "shuttles"):
-            if not magic:
-                remaining_perc = (
-                    feeding_operation.unit_load.n_cases / feeding_operation.picking_request.product.cases_per_layer
-                )
-                useful_leftover = 0.3
-                if remaining_perc < useful_leftover:
-                    stores_manager = self.system.stores_manager
-                    stores_manager.update_stock(
-                        product=feeding_operation.picking_request.product,
-                        case_container="tray",
-                        inventory="on_transit",
-                        n_cases=-feeding_operation.unit_load.n_cases,
-                    )
-                    to_kill = True
+        # to_kill = False
+        # if hasattr(feeding_operation.store, "shuttles"):
+        #     if not magic:
+        #         remaining_perc = (
+        #             feeding_operation.unit_load.n_cases / feeding_operation.picking_request.product.cases_per_layer
+        #         )
+        #         useful_leftover = 0.3
+        #         if remaining_perc < useful_leftover:
+        #             stores_manager = self.system.stores_manager
+        #             stores_manager.update_stock(
+        #                 product=feeding_operation.picking_request.product,
+        #                 case_container="tray",
+        #                 inventory="on_transit",
+        #                 n_cases=-feeding_operation.unit_load.n_cases,
+        #             )
+        #             to_kill = True
+        #
+        # if magic:
+        #     to_kill = True
+        #
+        # if feeding_operation.unit_load.n_cases == 0:
+        #     to_kill = True
 
-        if magic:
-            to_kill = True
-
-        if feeding_operation.unit_load.n_cases == 0:
-            to_kill = True
-
-        if not to_kill:
-            # if feeding_operation.unit_load.n_cases > 0 and not magic:
+        # if not to_kill:
+        if feeding_operation.unit_load.n_cases > 0 and not magic:
             store = feeding_operation.store
             ant = feeding_operation.ant
             yield ant.move_to(system=self.system, location=store.input_location)
@@ -221,7 +221,7 @@ class PickingCell:
         while not self.feeding_area.is_full and len(self.picking_requests_queue) > 0:
             payload = EventPayload(event="ACTIVATING FEEDING AREA SIGNAL", type=0)
             self.feeding_area.trigger_signal_event(payload=payload)
-            yield self.system.env.timeout(0)
+            yield self.system.env.timeout(0.001)
 
     @as_process
     def get(self, pallet_request: PalletRequest) -> ProcessGenerator[PalletRequest]:
@@ -253,7 +253,6 @@ class PickingCell:
         and asks the System to handle the retrieval of the finished PalletRequest.
         """
         while True:
-
             # Wait for a PalletRequest to be handled
             pallet_request: PalletRequest = yield self.input_queue.get()
             pallet_request.assigned(time=self.system.env.now)

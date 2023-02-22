@@ -3,6 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, Generic, TypeVar
 
+
 from ...unitload import CaseContainer
 from ...utils import Identifiable
 from .exceptions import IncompatibleUnitLoad, LocationBusy, LocationEmpty
@@ -10,6 +11,7 @@ from .physical_position import PhysicalPosition
 
 if TYPE_CHECKING:
     from simulatte.products import Product
+    from .. import WarehouseStore
 
 
 class WarehouseLocationSide(Enum):
@@ -31,6 +33,7 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
     def __init__(
         self,
         *,
+        store: WarehouseStore[T],
         x: int,
         y: int,
         side: WarehouseLocationSide,
@@ -44,6 +47,7 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         :param side: 'left' or 'rigth'.
         :param depth: The depth of the storage location.
         """
+        self.store = store
         self.x = x
         self.y = y
 
@@ -93,13 +97,12 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
             raise ValueError(f"Cannot book more than {self.depth} pickups")
 
         if unit_load in self.booked_pickups:
-            raise RuntimeError("Unit load already booked")
+            raise ValueError("Unit load already booked")
 
         self.booked_pickups.append(unit_load)
 
     @property
     def fully_booked(self) -> bool:
-
         # first_position = self.first_position
         # second_position = self.second_position
         #
@@ -222,6 +225,21 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         if self.is_half_full:
             return self.second_position.unit_load
 
+    @property
+    def first_available_position(self) -> PhysicalPosition:
+        """
+        Returns the first available unit load.
+        If the first position is busy, the unit load in second position is not available.
+        """
+        if self.is_empty:
+            raise LocationEmpty(self)
+
+        if self.is_full:
+            return self.first_position
+
+        if self.is_half_full:
+            return self.second_position
+
     def put(self, unit_load: T) -> None:
         """
         Stores a unit load into the location.
@@ -245,6 +263,7 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
             raise LocationBusy(self)
 
         physical_position.put(unit_load=unit_load)
+        unit_load.location = self
         self.unfreeze(unit_load=unit_load)
 
     def get(self, unit_load) -> T:
@@ -271,6 +290,7 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
             self.booked_pickups.remove(unit_load)
         except ValueError:
             raise ValueError("Cannot get a unit load without booking it first")
+        unit_load.location = None
         return unit_load
 
     def affinity(self, product: Product) -> float:

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 import simulatte
 from simulatte.stores import InputOperation, WarehouseLocation, WarehouseLocationSide
 from .warehouse_location import distance
+
 from ..unitload import CaseContainer, Pallet, Tray
 from ..utils import Identifiable, as_process
 
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
     from simulatte.products import Product
     from simulatte.service_point import ServicePoint
     from simulatte.simpy_extension import MultiStore, SequentialStore
+    from ..system.managers import StoresManager
 
 
 T = TypeVar("T", bound=CaseContainer)
@@ -33,6 +35,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
     def __init__(
         self,
         *,
+        stores_manager: StoresManager,
         n_positions: int = 20,
         n_floors: int = 8,
         location_width: float = 1,
@@ -42,6 +45,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         conveyor_capacity: int = 5,
     ):
         self.env = simulatte.Environment()
+        self.stores_manager = stores_manager
         self.input_location = simulatte.location.Location(name=f"{self.__class__.__name__} Input")
         self.output_location = simulatte.location.Location(name=f"{self.__class__.__name__} Output")
         self.location_width = location_width
@@ -55,6 +59,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         self.queue_stats = []
 
         self._location_origin = WarehouseLocation(
+            store=self,
             x=0,
             y=0,
             width=self.location_width,
@@ -66,6 +71,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
             sorted(
                 (
                     WarehouseLocation(
+                        store=self,
                         x=x,
                         y=y,
                         side=side,

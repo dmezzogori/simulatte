@@ -27,7 +27,6 @@ def location_sorter(location: WarehouseLocation):
 
 
 def defrag(stores: list[WarehouseStore], product: Product, quantity: int):
-
     store_locations = []
     for store in stores:
         n_cases = 0
@@ -105,21 +104,24 @@ class StoresManager:
         tray_on_hand = 0
         tray_on_transit = 0
 
-        for product_id in [0]:
-            pallet_on_hand += self._stock[product_id]["pallet"]["on_hand"]
-            pallet_on_transit += self._stock[product_id]["pallet"]["on_transit"]
-            tray_on_hand += self._stock[product_id]["tray"]["on_hand"]
-            tray_on_transit += self._stock[product_id]["tray"]["on_transit"]
+        for product_id in [81]:
+            try:
+                pallet_on_hand += self._stock[product_id]["pallet"]["on_hand"]
+                pallet_on_transit += self._stock[product_id]["pallet"]["on_transit"]
+                tray_on_hand += self._stock[product_id]["tray"]["on_hand"]
+                tray_on_transit += self._stock[product_id]["tray"]["on_transit"]
 
-            self._ip_history.append(
-                {
-                    "time": self.system.env.now,
-                    "pallet_on_hand": pallet_on_hand,
-                    "pallet_on_transit": pallet_on_transit,
-                    "tray_on_hand": tray_on_hand,
-                    "tray_on_transit": tray_on_transit,
-                }
-            )
+                self._ip_history.append(
+                    {
+                        "time": self.system.env.now,
+                        "pallet_on_hand": pallet_on_hand,
+                        "pallet_on_transit": pallet_on_transit,
+                        "tray_on_hand": tray_on_hand,
+                        "tray_on_transit": tray_on_transit,
+                    }
+                )
+            except KeyError:
+                pass
 
     def inventory_position(self, *, product: Product, case_container: Literal["pallet", "tray"]) -> int:
         """
@@ -206,8 +208,7 @@ class StoresManager:
             quantity=picking_request.n_cases,
             raise_on_none=False,
         )
-        if location is None:
-
+        if False:  # location is None:
             # se non troviamo un singolo pallet/vassoio utile
 
             if type_of_stores is ASRS:
@@ -388,7 +389,6 @@ class StoresManager:
         s_min = product.s_min[case_container]
 
         if periodic_check or inventory_position <= s_min:
-
             # calcoliamo quanti cases ci servono per arrivare a S_max
             n_cases = s_max - inventory_position
             n_cases = max(0, n_cases)
