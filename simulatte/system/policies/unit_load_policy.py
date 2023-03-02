@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from simulatte.exceptions import OutOfStockError
 from simulatte.products import Product
 from simulatte.stores import WarehouseStore
 from simulatte.stores.warehouse_location import PhysicalPosition
@@ -17,7 +18,7 @@ class UnitLoadPolicy:
         stores: list[WarehouseStore],
         product: Product,
         quantity: int,
-    ) -> WarehouseLocation | None:
+    ) -> tuple[tuple[WarehouseStore, WarehouseLocation, PhysicalPosition],...]:
         raise NotImplementedError
 
 
@@ -76,9 +77,10 @@ class MultiStoreLocationPolicy(UnitLoadPolicy):
         stores: list[WarehouseStore],
         product: Product,
         quantity: int,  # [cases]
-    ) -> tuple[WarehouseStore, WarehouseLocation, PhysicalPosition] | tuple[None, None, None]:
-        from eagle_trays.asrs import ASRS
+    ) -> tuple[tuple[WarehouseStore, WarehouseLocation, PhysicalPosition],...]:
 
+        # individuiamo le location di tutti gli store che contengono il prodotto richiesto
+        # e che non sono completamente prenotate
         locations = [
             location
             for store in stores
@@ -86,6 +88,7 @@ class MultiStoreLocationPolicy(UnitLoadPolicy):
             if not location.is_empty and not location.fully_booked and location.product == product
         ]
 
+        # separiamo le unit load che sono in posizione seconda e quelle che sono in posizione prima
         unit_loads_from_half_empty_locations = [
             location.second_position.unit_load
             for location in locations
@@ -107,7 +110,7 @@ class MultiStoreLocationPolicy(UnitLoadPolicy):
             key=lambda u: u.n_cases,
         )
 
-        def returner(unit_load):
+        def returner(unit_load) -> tuple[WarehouseStore, WarehouseLocation, PhysicalPosition]:
             position = (
                 unit_load.location.first_position
                 if unit_load == unit_load.location.first_position.unit_load
@@ -115,20 +118,17 @@ class MultiStoreLocationPolicy(UnitLoadPolicy):
             )
             if unit_load in unit_load.location.booked_pickups:
                 raise ValueError("unit load is booked for pickup")
-            return unit_load.location.store, unit_load.location, position
+            return (unit_load.location.store, unit_load.location, position)
 
         # best case: ritorniamo la prima unit load che soddisfa esattamente la quantità richiesta
         for unit_load in unit_loads:
             if unit_load.upper_layer.n_cases == quantity:
                 self.counter["best_case"] += 1
-                return returner(unit_load)
+                return (returner(unit_load),)
 
-        try:
-            first_unit_load = unit_loads[0]
-        except IndexError:
-            raise
+        first_unit_load = unit_loads[0]
         if first_unit_load.n_cases >= quantity:
-            return returner(first_unit_load)
+            return (returner(first_unit_load),)
 
         second_unit_load = None
         for other_unit_load in unit_loads[1:]:
@@ -143,47 +143,6 @@ class MultiStoreLocationPolicy(UnitLoadPolicy):
                 second_unit_load = last_unit_load
 
         if second_unit_load is not None:
-            if isinstance(first_unit_load.location.store, ASRS):
-                # accorpiamo i pallet
-                first_unit_load.layers.extend(second_unit_load.layers)
-            else:
-                # accorpiamo i vassoi
-                first_unit_load.upper_layer.n_cases += second_unit_load.upper_layer.n_cases
+            return returner(first_unit_load), returner(second_unit_load)
 
-            # rimuoviamo la seconda unit load
-            second_unit_load.location.book_pickup(second_unit_load)
-            second_unit_load.location.get(second_unit_load)
-            return returner(first_unit_load)
-        else:
-            # magie nere
-            self.counter["magic"] += 1
-            _env = first_unit_load.location.store.system.env
-            print(f"[{_env.now}] MAGIA {first_unit_load.location.store.name} {product} {product.family} {quantity}")
-
-            second_unit_load = unit_loads[-1]
-            delta = quantity - (first_unit_load.n_cases + second_unit_load.n_cases)
-            if isinstance(first_unit_load.location.store, ASRS):
-                case_container = "pallet"
-                # accorpiamo i pallet
-                first_unit_load.layers.extend(second_unit_load.layers)
-                extra_layers = delta // product.cases_per_layer
-                for _ in range(extra_layers):
-                    first_unit_load.add_layer(product=product, n_cases=product.cases_per_layer)
-            else:
-                case_container = "tray"
-                # accorpiamo i vassoi
-                first_unit_load.upper_layer.n_cases += second_unit_load.upper_layer.n_cases + delta
-
-            # rimuoviamo la seconda unit load
-            second_unit_load.location.book_pickup(second_unit_load)
-            second_unit_load.location.get(second_unit_load)
-
-            first_unit_load.store.stores_manager.update_stock(
-                product=product,
-                case_container=case_container,
-                inventory="on_hand",
-                n_cases=delta,
-            )
-            first_unit_load.magic = True
-
-            return returner(first_unit_load)
+        raise OutOfStockError(f"no unit load found for {quantity} cases of {product}")

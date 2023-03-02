@@ -7,7 +7,6 @@ from IPython.display import Markdown, display
 from simpy import Process
 from tabulate import tabulate
 
-from eagle_trays.avsrs import AVSRS
 from simulatte.location import Location
 from simulatte.logger.logger import EventPayload
 from simulatte.operations import FeedingOperation
@@ -61,7 +60,7 @@ class PickingCell:
 
         self.picking_requests_queue: collections.deque[Request] = collections.deque()
 
-        self.feeding_operation_map: dict[Request, FeedingOperation] = {}
+        self.feeding_operation_map: dict[Request, list[FeedingOperation]] = collections.defaultdict(list)
 
         self.current_pallet_request: PalletRequest | None = None
 
@@ -96,8 +95,8 @@ class PickingCell:
         which maps which FeedingOperation is associated to which ProductRequest.
         It also adds the FeedingOperation to the FeedingArea.
         """
-        self.feeding_operation_map[feeding_operation.picking_request] = feeding_operation
-        self.feeding_area.append(feeding_operation)
+        self.feeding_operation_map[feeding_operation.picking_request].append(feeding_operation)
+        self.feeding_area.append(feeding_operation, exceed=True)
 
     @as_process
     def _retrieve_feeding_operation(self, picking_request: Request) -> FeedingOperation:
@@ -158,36 +157,7 @@ class PickingCell:
 
         self.internal_area.remove(feeding_operation)
 
-        magic = hasattr(feeding_operation.ant.unit_load, "magic")
-
-        # if the UnitLoad has some n_cases remaining, then load it back into the Store
-        # useful_leftover = feeding_operation.unit_load.n_cases > 0 and not magic
-
-        # to_kill = False
-        # if hasattr(feeding_operation.store, "shuttles"):
-        #     if not magic:
-        #         remaining_perc = (
-        #             feeding_operation.unit_load.n_cases / feeding_operation.picking_request.product.cases_per_layer
-        #         )
-        #         useful_leftover = 0.3
-        #         if remaining_perc < useful_leftover:
-        #             stores_manager = self.system.stores_manager
-        #             stores_manager.update_stock(
-        #                 product=feeding_operation.picking_request.product,
-        #                 case_container="tray",
-        #                 inventory="on_transit",
-        #                 n_cases=-feeding_operation.unit_load.n_cases,
-        #             )
-        #             to_kill = True
-        #
-        # if magic:
-        #     to_kill = True
-        #
-        # if feeding_operation.unit_load.n_cases == 0:
-        #     to_kill = True
-
-        # if not to_kill:
-        if feeding_operation.unit_load.n_cases > 0 and not magic:
+        if feeding_operation.unit_load.n_cases > 0:
             store = feeding_operation.store
             ant = feeding_operation.ant
             yield ant.move_to(system=self.system, location=store.input_location)
@@ -262,19 +232,6 @@ class PickingCell:
                 # Wait for the availability of the BuildingPoint
                 yield building_point_request
                 self.building_point.current_pallet_request = pallet_request
-
-                # # Generate a handling process for each ProductRequest to be handled within the PalletRequest
-                # procs: list[simpy.Process] = [
-                #     self._process_product_request(
-                #         product_request=product_request, pallet_request=pallet_request
-                #     )
-                #     for product_request in self.iter_pallet_request(
-                #         pallet_request=pallet_request
-                #     )
-                # ]
-                #
-                # # Wait for the processing of all ProductRequest
-                # yield self.system.env.all_of(procs)
 
                 for product_request in self.iter_pallet_request(pallet_request=pallet_request):
                     yield self._process_product_request(product_request=product_request, pallet_request=pallet_request)

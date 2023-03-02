@@ -40,7 +40,7 @@ class Area(list, Generic[T]):
 
     @property
     def is_full(self) -> bool:
-        return len(self) == self.capacity
+        return len(self) >= self.capacity
 
     @property
     def is_empty(self) -> bool:
@@ -50,8 +50,8 @@ class Area(list, Generic[T]):
     def free_space(self) -> int:
         return self.capacity - len(self)
 
-    def append(self, item: T) -> None:
-        if self.is_full:
+    def append(self, item: T, exceed=False) -> None:
+        if self.is_full and not exceed:
             raise ValueError("Area is full.")
 
         super().append(item)

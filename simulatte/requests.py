@@ -16,6 +16,11 @@ class Request:
 
     def __init__(self) -> None:
         self.feeding_operations: list[FeedingOperation] = []
+        self.picked_n_cases = 0
+
+    @property
+    def remaining_to_pick_n_cases(self) -> int:
+        return self.n_cases - self.picked_n_cases
 
 
 class CaseRequest(Request):
