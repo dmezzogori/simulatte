@@ -73,24 +73,23 @@ class StoresManager:
         tray_on_hand = 0
         tray_on_transit = 0
 
-        for product_id in [81]:
+        for product_id in [0,1,2,3,4]:
             try:
                 pallet_on_hand += self._stock[product_id]["pallet"]["on_hand"]
                 pallet_on_transit += self._stock[product_id]["pallet"]["on_transit"]
                 tray_on_hand += self._stock[product_id]["tray"]["on_hand"]
                 tray_on_transit += self._stock[product_id]["tray"]["on_transit"]
-
-                self._ip_history.append(
-                    {
-                        "time": self.system.env.now,
-                        "pallet_on_hand": pallet_on_hand,
-                        "pallet_on_transit": pallet_on_transit,
-                        "tray_on_hand": tray_on_hand,
-                        "tray_on_transit": tray_on_transit,
-                    }
-                )
             except KeyError:
                 pass
+        self._ip_history.append(
+            {
+                "time": self.system.env.now,
+                "pallet_on_hand": pallet_on_hand,
+                "pallet_on_transit": pallet_on_transit,
+                "tray_on_hand": tray_on_hand,
+                "tray_on_transit": tray_on_transit,
+            }
+        )
 
     def inventory_position(self, *, product: Product, case_container: Literal["pallet", "tray"]) -> int:
         """
@@ -176,27 +175,28 @@ class StoresManager:
         )
 
         for (store, location, position) in stores_and_locations:
-
             location.book_pickup(position.unit_load)
 
-            # aumentiamo l'on_transit
-            self.update_stock(
-                product=picking_request.product,
-                case_container=case_container,
-                inventory="on_transit",
-                n_cases=max(0, position.unit_load.n_cases - picking_request.n_cases),
-            )
+        n_cases_tot = sum(position.unit_load.n_cases for (_, _, position) in stores_and_locations)
 
-            # riduciamo l'on_hand
-            self.update_stock(
-                product=picking_request.product,
-                case_container=case_container,
-                inventory="on_hand",
-                n_cases=-position.unit_load.n_cases,
-            )
+        # aumentiamo l'on_transit
+        self.update_stock(
+            product=picking_request.product,
+            case_container=case_container,
+            inventory="on_transit",
+            n_cases=n_cases_tot - picking_request.n_cases,
+        )
 
-            # controlliamo necessità di replenishment
-            self.check_replenishment(product=picking_request.product, case_container=case_container)
+        # riduciamo l'on_hand
+        self.update_stock(
+            product=picking_request.product,
+            case_container=case_container,
+            inventory="on_hand",
+            n_cases=-n_cases_tot,
+        )
+
+        # controlliamo necessità di replenishment
+        self.check_replenishment(product=picking_request.product, case_container=case_container)
 
         return stores_and_locations
 

@@ -71,13 +71,14 @@ class Ant(PriorityResource, metaclass=Identifiable):
 
     id: int
 
-    def __init__(self, env: Environment, kind: str, load_timeout=0, unload_timeout=0) -> None:
+    def __init__(self, env: Environment, kind: str, load_timeout=0, unload_timeout=0, speed=0.5) -> None:
         super().__init__(env, capacity=1)
         self.env = env
         self.kind = kind
         self._case_container: CaseContainer | None = None
         self.load_timeout = load_timeout
         self.unload_timeout = unload_timeout
+        self.speed = speed
         self._status = AntStatus.IDLE
         self.current_location: Location = ant_rest_location
         self._travel_time = 0
@@ -195,7 +196,13 @@ class Ant(PriorityResource, metaclass=Identifiable):
     def move_to(self, *, system: System, location: Location):
         mission = AntMission(ant=self, start_location=self.current_location, end_location=location)
 
-        timeout = system.distance(self.current_location, location).as_time
+        traveling = self.status in (AntStatus.TRAVELING_LOADED, AntStatus.TRAVELING_UNLOADED)
+        while traveling:
+            yield self.env.timeout(1)
+            traveling = self.status in (AntStatus.TRAVELING_LOADED, AntStatus.TRAVELING_UNLOADED)
+
+        distance = system.distance(self.current_location, location).as_distance
+        timeout = distance / self.speed
 
         if self.unit_load is not None:
             self.status = AntStatus.TRAVELING_LOADED
