@@ -44,6 +44,7 @@ class FeedingOperation(metaclass=Identifiable):
         self.store = store
         self.location: WarehouseLocation = location
         self.unit_load = unit_load
+        self.unit_load.feeding_operation = self
         self.picking_request = picking_request
 
         self.picking_request.feeding_operations.append(self)

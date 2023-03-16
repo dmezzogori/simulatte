@@ -12,12 +12,16 @@ if TYPE_CHECKING:
 
 
 class Pallet(CaseContainer):
+    id_counter = 0
     def __init__(self, *layers: Tray, wood_board=False) -> None:
         if wood_board:
             self.layers = deque((WoodBoard(), *layers))
         else:
             self.layers = deque(layers)
         self.location = None
+        self.feeding_operation = None
+        self.id_ = Pallet.id_counter
+        Pallet.id_counter += 1
 
     @classmethod
     def by_product(cls, *, product: Product) -> Pallet:

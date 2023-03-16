@@ -103,18 +103,6 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
 
     @property
     def fully_booked(self) -> bool:
-        # first_position = self.first_position
-        # second_position = self.second_position
-        #
-        # if first_position.free and second_position.free:
-        #     return False
-        #
-        # for position in (self.first_position, self.second_position):
-        #     if position.unit_load is not None:
-        #         if position.unit_load not in self.booked_pickups:
-        #             return False
-        # return True
-
         return len(self.booked_pickups) == self.depth
 
     def freeze(self, *, unit_load: T) -> None:

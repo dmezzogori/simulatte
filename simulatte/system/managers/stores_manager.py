@@ -73,7 +73,7 @@ class StoresManager:
         tray_on_hand = 0
         tray_on_transit = 0
 
-        for product_id in [0,1,2,3,4]:
+        for product_id in [0, 1, 2, 3, 4]:
             try:
                 pallet_on_hand += self._stock[product_id]["pallet"]["on_hand"]
                 pallet_on_transit += self._stock[product_id]["pallet"]["on_transit"]
@@ -174,10 +174,10 @@ class StoresManager:
             raise_on_none=False,
         )
 
-        for (store, location, position) in stores_and_locations:
-            location.book_pickup(position.unit_load)
+        for (store, location, unit_load) in stores_and_locations:
+            location.book_pickup(unit_load)
 
-        n_cases_tot = sum(position.unit_load.n_cases for (_, _, position) in stores_and_locations)
+        n_cases_tot = sum(unit_load.n_cases for (_, _, unit_load) in stores_and_locations)
 
         # aumentiamo l'on_transit
         self.update_stock(
@@ -276,7 +276,7 @@ class StoresManager:
         product: Product,
         quantity: int,
         raise_on_none: bool = False,
-    ) -> tuple[tuple[WarehouseStore, WarehouseLocation, PhysicalPosition],...]:
+    ) -> tuple[tuple[WarehouseStore, WarehouseLocation, Pallet],...]:
         """
         FOR OUTPUT.
 
@@ -315,20 +315,30 @@ class StoresManager:
                     #    n_pallet -= 1
                     n_pallet = max(1, n_pallet)
 
-                    def iter_stores():
+                    def iter_stores(product: Product):
                         i = 0
                         while True:
                             try:
-                                yield stores[i]
+                                store = stores[i]
+                                n_available = sum(
+                                    1
+                                    for location in store.locations
+                                    if location.is_empty or (location.is_half_full and location.product == product)
+                                )
+                                if n_available > 0:
+                                    yield store
                                 i += 1
                             except IndexError:
                                 i = 0
 
                     if case_container == "pallet":
-                        for _, store in zip(range(n_pallet), iter_stores()):
+                        for _, store in zip(range(n_pallet), iter_stores(product)):
                             unit_load = Pallet.by_product(product=product)
                             location = store.first_available_location_for_warmup(unit_load=unit_load)
-                            store.book_location(location=location, unit_load=unit_load)
+                            try:
+                                store.book_location(location=location, unit_load=unit_load)
+                            except:
+                                raise
                             location.put(unit_load=unit_load)
 
                             # aumentiamo l'on_hand
@@ -340,7 +350,7 @@ class StoresManager:
                             )
                     else:
                         for _ in range(n_pallet):
-                            for _, store in zip(range(product.layers_per_pallet), iter_stores()):
+                            for _, store in zip(range(product.layers_per_pallet), iter_stores(product)):
                                 unit_load = Pallet(
                                     Tray(
                                         product=product,

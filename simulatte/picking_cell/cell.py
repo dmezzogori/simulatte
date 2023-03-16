@@ -160,6 +160,7 @@ class PickingCell:
         if feeding_operation.unit_load.n_cases > 0:
             store = feeding_operation.store
             ant = feeding_operation.ant
+            feeding_operation.unit_load.feeding_operation = None
             yield ant.move_to(system=self.system, location=store.input_location)
             yield self.system.stores_manager.load(store=store, ant=ant)
         else:
