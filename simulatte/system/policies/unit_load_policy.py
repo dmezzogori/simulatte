@@ -64,6 +64,7 @@ class ClosestUnitLoadPolicy(UnitLoadPolicy):
 
 class MultiStoreLocationPolicy(UnitLoadPolicy):
     def __init__(self, *args, **kwargs):
+        self.ASRS_FLAG = kwargs.pop("ASRS_FLAG")
         super().__init__(*args, **kwargs)
         self.counter = {
             "best_case": 0,
@@ -73,25 +74,22 @@ class MultiStoreLocationPolicy(UnitLoadPolicy):
             "magic_poos": 0,
         }
 
-    def __call__(
-        self,
-        *,
-        stores: list[WarehouseStore],
-        product: Product,
-        quantity: int,  # [cases]
-    ) -> tuple[tuple[WarehouseStore, WarehouseLocation, Pallet],...]:
-
-        # individuiamo le location di tutti gli store che contengono il prodotto richiesto
-        # e che non sono completamente prenotate
-        locations = [
+    @staticmethod
+    def get_locations_for_product(stores: list[WarehouseStore], product: Product) -> list[WarehouseLocation]:
+        """
+        Individuiamo le location di tutti gli store che contengono il prodotto richiesto
+        e che non sono completamente prenotate
+        """
+        return [
             location
             for store in stores
             for location in store.locations
             if not location.is_empty and not location.fully_booked and location.product == product
         ]
 
-        # separiamo le unit load che sono in posizione seconda e quelle che sono in posizione prima
-        unit_loads_from_half_empty_locations = [
+    @staticmethod
+    def get_unit_loads_from_half_empty_locations(locations: list[WarehouseLocation]) -> list[Pallet]:
+        return [
             location.second_position.unit_load
             for location in locations
             if location.is_half_full
@@ -99,7 +97,10 @@ class MultiStoreLocationPolicy(UnitLoadPolicy):
             and location.second_position.unit_load not in location.booked_pickups
             and not hasattr(location.second_position.unit_load, 'magic')
         ]
-        unit_loads_from_full_locations = [
+
+    @staticmethod
+    def get_unit_loads_from_full_locations(locations: list[WarehouseLocation]) -> list[Pallet]:
+        return [
             location.first_position.unit_load
             if location.first_position.unit_load is not None
             and location.first_position.unit_load not in location.booked_pickups
@@ -109,15 +110,59 @@ class MultiStoreLocationPolicy(UnitLoadPolicy):
             and all(not hasattr(position.unit_load, 'magic') for position in (location.first_position, location.second_position))
         ]
 
-        unit_loads = sorted(
-            unit_loads_from_half_empty_locations + unit_loads_from_full_locations,
-            key=lambda u: u.n_cases,
-        )
+    def __call__(
+        self,
+        *,
+        stores: list[WarehouseStore],
+        product: Product,
+        quantity: int,  # [cases]
+    ) -> tuple[tuple[WarehouseStore, WarehouseLocation, Pallet],...]:
 
         def returner(ul) -> tuple[WarehouseStore, WarehouseLocation, Pallet]:
             if ul in ul.location.booked_pickups:
                 raise ValueError("unit load is booked for pickup")
             return (ul.location.store, ul.location, ul)
+
+        if self.ASRS_FLAG and 'ASRS' in stores[0].name:
+            try:
+                def store_sorter(store: WarehouseStore):
+                    input_queue = len(store.input_service_point.queue)
+                    output_queue = store.get_queue
+                    total_queue = input_queue + output_queue
+                    return total_queue
+
+                stores = sorted(stores, key=store_sorter)
+                for store in stores:
+                    locations = self.get_locations_for_product([store], product)
+                    unit_loads_from_half_empty_locations = self.get_unit_loads_from_half_empty_locations(locations)
+                    unit_loads_from_full_locations = self.get_unit_loads_from_full_locations(locations)
+                    unit_loads = sorted(
+                        unit_loads_from_half_empty_locations + unit_loads_from_full_locations,
+                        key=lambda u: u.n_cases,
+                    )
+                    for unit_load in unit_loads:
+                        if unit_load.n_cases >= quantity:
+                            return (returner(unit_load),)
+
+                raise OutOfStockError(f"no unit load found for {quantity} cases of {product}")
+            except OutOfStockError:
+                n_layers = quantity // product.cases_per_layer
+                unit_load = Pallet(*[Tray(product=product, n_cases=product.cases_per_layer) for _ in range(n_layers)])
+                unit_load.magic = True
+                store = stores[0]
+                location = store.first_available_location()
+                position = location.second_position
+                unit_load.location = location
+                position.put(unit_load=unit_load)
+                return (returner(unit_load),)
+
+        locations = self.get_locations_for_product(stores, product)
+        unit_loads_from_half_empty_locations = self.get_unit_loads_from_half_empty_locations(locations)
+        unit_loads_from_full_locations = self.get_unit_loads_from_full_locations(locations)
+        unit_loads = sorted(
+            unit_loads_from_half_empty_locations + unit_loads_from_full_locations,
+            key=lambda u: u.n_cases,
+        )
 
         # best case: ritorniamo la prima unit load che soddisfa esattamente la quantità richiesta
         for unit_load in unit_loads:
