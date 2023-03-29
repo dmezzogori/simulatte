@@ -144,7 +144,7 @@ class StoresManager:
         yield store.load(unit_load=ant.unit_load, location=location, ant=ant, priority=10)
 
     def unload(
-        self, *, type_of_stores: Type[WarehouseStore], picking_request: Request
+        self, *, type_of_stores: Type[WarehouseStore], product: Product, n_cases: int
     ) -> tuple[tuple[WarehouseStore, WarehouseLocation, PhysicalPosition],...]:
         """
         Used to centralize the unloading of unitloads from the stores.
@@ -169,34 +169,38 @@ class StoresManager:
         stores = self.stores[type_of_stores]
         stores_and_locations = self.find_stores_locations_for_output(
             stores=stores,
-            product=picking_request.product,
-            quantity=picking_request.n_cases,
-            raise_on_none=False,
+            product=product,
+            quantity=n_cases,
+            raise_on_none=True,
         )
 
         for (store, location, unit_load) in stores_and_locations:
             location.book_pickup(unit_load)
 
-        n_cases_tot = sum(unit_load.n_cases for (_, _, unit_load) in stores_and_locations)
+        n_cases_tot = sum(
+            unit_load.n_cases
+            for (_, _, unit_load) in stores_and_locations
+            if not hasattr(unit_load, "magic")
+        )
 
         # aumentiamo l'on_transit
         self.update_stock(
-            product=picking_request.product,
+            product=product,
             case_container=case_container,
             inventory="on_transit",
-            n_cases=n_cases_tot - picking_request.n_cases,
+            n_cases=n_cases_tot - n_cases,
         )
 
         # riduciamo l'on_hand
         self.update_stock(
-            product=picking_request.product,
+            product=product,
             case_container=case_container,
             inventory="on_hand",
             n_cases=-n_cases_tot,
         )
 
         # controlliamo necessità di replenishment
-        self.check_replenishment(product=picking_request.product, case_container=case_container)
+        self.check_replenishment(product=product, case_container=case_container)
 
         return stores_and_locations
 
@@ -311,8 +315,6 @@ class StoresManager:
                     s_max = product.s_max[case_container]  # [cases]
                     n_pallet = math.ceil(s_max / product.case_per_pallet)
 
-                    # if product.family in ("B", "C"):
-                    #    n_pallet -= 1
                     n_pallet = max(1, n_pallet)
 
                     def iter_stores(product: Product):
@@ -335,10 +337,7 @@ class StoresManager:
                         for _, store in zip(range(n_pallet), iter_stores(product)):
                             unit_load = Pallet.by_product(product=product)
                             location = store.first_available_location_for_warmup(unit_load=unit_load)
-                            try:
-                                store.book_location(location=location, unit_load=unit_load)
-                            except:
-                                raise
+                            store.book_location(location=location, unit_load=unit_load)
                             location.put(unit_load=unit_load)
 
                             # aumentiamo l'on_hand

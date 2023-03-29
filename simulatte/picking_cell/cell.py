@@ -95,7 +95,8 @@ class PickingCell:
         which maps which FeedingOperation is associated to which ProductRequest.
         It also adds the FeedingOperation to the FeedingArea.
         """
-        self.feeding_operation_map[feeding_operation.picking_request].append(feeding_operation)
+        for picking_request in feeding_operation.picking_requests:
+            self.feeding_operation_map[picking_request].append(feeding_operation)
         self.feeding_area.append(feeding_operation, exceed=True)
 
     @as_process

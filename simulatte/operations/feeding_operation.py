@@ -31,8 +31,8 @@ class FeedingOperation(metaclass=Identifiable):
         cell: PickingCell,
         ant: Ant,
         store: WarehouseStore,
-        picking_request: PickingRequest,
-        location,
+        picking_requests: list[PickingRequest],
+        location: WarehouseLocation,
         unit_load: Pallet,
     ) -> None:
 
@@ -42,12 +42,13 @@ class FeedingOperation(metaclass=Identifiable):
 
         self.ant = ant
         self.store = store
-        self.location: WarehouseLocation = location
+        self.location = location
         self.unit_load = unit_load
         self.unit_load.feeding_operation = self
-        self.picking_request = picking_request
+        self.picking_requests = picking_requests
+        for picking_request in self.picking_requests:
+            picking_request.feeding_operations.append(self)
 
-        self.picking_request.feeding_operations.append(self)
         self.pre_unload_position: Position | None = None
         self.unload_position: Position | None = None
 
