@@ -32,6 +32,7 @@ class SequentialStore(Generic[T]):
         self._capacity = capacity
         self._internal_store = Store(env, capacity=capacity - 1)
         self._output = FilterStore(env, capacity=1)
+        self.get_queue = 0
 
     @property
     def capacity(self) -> int:

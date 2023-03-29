@@ -57,6 +57,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         self.conveyor_capacity = conveyor_capacity
 
         self.queue_stats = []
+        self.get_queue = 0
 
         self._location_origin = WarehouseLocation(
             store=self,
@@ -136,12 +137,9 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         Given a FeedingOperation, load the ant with the required unit load,
         once it is available from the Output Conveyor.
         """
-
         n_non_empty_locations = sum(not location.is_empty for location in self.locations)
         # n_non_empty_locations = sum(location.n_cases for location in self.locations)
         self._saturation_history.append((self.env.now, n_non_empty_locations / self.n_locations))
-
-        yield self.env.timeout(self.load_time)
 
         output_operation = yield self.output_conveyor.get(
             lambda output_operation: output_operation.unit_load == feeding_operation.unit_load
@@ -149,7 +147,11 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         if output_operation.unit_load != feeding_operation.unit_load:
             raise ValueError("Unit load mismatch")
 
+        yield self.env.timeout(self.load_time)
+
         yield feeding_operation.ant.load(unit_load=feeding_operation.unit_load)
+
+        self.get_queue -= 1
 
     @as_process
     def unload_ant(self, *, ant: Ant, input_operation: InputOperation):
