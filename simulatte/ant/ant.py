@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Iterable, Type
 
 import matplotlib.pyplot as plt
 from simpy import PriorityResource
 
 from simulatte.location import Location
+from simulatte.picking_cell import PickingCell
 from simulatte.typings import ProcessGenerator
 from simulatte.unitload import CaseContainer
 from simulatte.utils import Identifiable, as_process
@@ -71,10 +72,11 @@ class Ant(PriorityResource, metaclass=Identifiable):
 
     id: int
 
-    def __init__(self, env: Environment, kind: str, load_timeout=0, unload_timeout=0, speed=0.5) -> None:
+    def __init__(self, env: Environment, kind: str, picking_cell: Type[PickingCell] | None = None, load_timeout=0, unload_timeout=0, speed=0.5) -> None:
         super().__init__(env, capacity=1)
         self.env = env
         self.kind = kind
+        self.picking_cell = picking_cell
         self._case_container: CaseContainer | None = None
         self.load_timeout = load_timeout
         self.unload_timeout = unload_timeout
