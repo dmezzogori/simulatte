@@ -102,6 +102,8 @@ class Ant(PriorityResource, metaclass=Identifiable):
         self._waiting_picking_to_end: float | None = None
         self.picking_waiting_times = []
 
+        self.resource_requested_timestamp = 0
+
     @property
     def status(self) -> AntStatus:
         return self._status
@@ -241,3 +243,7 @@ class Ant(PriorityResource, metaclass=Identifiable):
         plt.plot([(end - start) / 60 for start, end in self.missions], "o-")
         plt.title(f"Ant [{self.id}] mission duration [min]")
         plt.show()
+
+    def request(self, *args, **kwargs):
+        self.resource_requested_timestamp = self.env.now
+        return super().request(*args, **kwargs)

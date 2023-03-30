@@ -26,6 +26,10 @@ class AntsManager:
     def replenishment_ants(self) -> tuple[Ant]:
         return tuple(ant for ant in self.ants if ant.kind == "replenishment")
 
+    @property
+    def output_ants(self) -> tuple[Ant]:
+        return tuple(ant for ant in self.ants if ant.kind == "output")
+
     def get_best_ant(self, exceptions: Sequence[Ant] | None = None) -> Ant:
         return self._ant_selection_policy(ants=self.ants, exceptions=exceptions)
 

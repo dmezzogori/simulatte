@@ -13,9 +13,11 @@ class AntSelectionPolicy:
 
 class MinorWorkloadAntsPolicy(AntSelectionPolicy):
     @staticmethod
-    def sorter(ant: Ant) -> tuple[int, int]:
-        return len(ant.users), len(ant.queue)
+    def sorter(ant: Ant) -> tuple[int, int, int]:
+        return len(ant.users), len(ant.queue), ant.resource_requested_timestamp
 
     def __call__(self, *, ants: Sequence[Ant], exceptions: Sequence[Ant] | None = None) -> Ant | None:
         exceptions = exceptions or set()
-        return min((ant for ant in ants if ant not in exceptions), key=self.sorter, default=None)
+        sorted_ants = sorted((ant for ant in ants if ant not in exceptions), key=self.sorter)
+        best_ant = sorted_ants[0] if sorted_ants else None
+        return best_ant
