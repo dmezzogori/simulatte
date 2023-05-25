@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from typing import TYPE_CHECKING, Any
 
 from simulatte.exceptions import OutOfStockError
@@ -161,7 +162,7 @@ class MultiStoreLocationPolicy(UnitLoadPolicy):
         unit_loads_from_full_locations = self.get_unit_loads_from_full_locations(locations)
         unit_loads = sorted(
             unit_loads_from_half_empty_locations + unit_loads_from_full_locations,
-            key=lambda u: u.n_cases,
+            key=lambda u: (u.n_cases, random.random())
         )
 
         # best case: ritorniamo la prima unit load che soddisfa esattamente la quantità richiesta

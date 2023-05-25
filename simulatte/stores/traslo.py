@@ -42,7 +42,7 @@ class Traslo(simpy.PriorityResource, Generic[T]):
 
     @property
     def saturation(self) -> float:
-        return self._handling_time / self.env.now
+        return self._handling_time / (self.env.now + 1e-6)
 
     @property
     def unit_load(self) -> T | None:

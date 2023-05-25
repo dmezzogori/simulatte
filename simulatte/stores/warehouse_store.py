@@ -32,6 +32,11 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
     input_service_point: ServicePoint
 
+    total_get_queue_stats = {}
+    total_put_queue_stats = {}
+    total_get_queue = 0
+    total_put_queue = 0
+
     def __init__(
         self,
         *,
@@ -57,7 +62,11 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         self.conveyor_capacity = conveyor_capacity
 
         self.queue_stats = []
-        self.get_queue = 0
+        self._get_queue = 0
+        self._put_queue = 0
+
+        self.get_queue_stats = []
+        self.put_queue_stats = []
 
         self._location_origin = WarehouseLocation(
             store=self,
@@ -95,6 +104,29 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         self._replenishment_processes = defaultdict(list)
         self._product_location_map = defaultdict(set)
         self._saturation_history = []
+
+    @property
+    def get_queue(self) -> int:
+        return self._get_queue
+
+    @get_queue.setter
+    def get_queue(self, value: int):
+        self._get_queue = value
+        WarehouseStore.total_get_queue = value
+        self.get_queue_stats.append((self.env.now, self._get_queue))
+        WarehouseStore.total_get_queue_stats.setdefault(self.__class__.__name__, []).append((self.env.now, WarehouseStore.total_get_queue))
+
+    @property
+    def put_queue(self) -> int:
+        return self._put_queue
+
+    @put_queue.setter
+    def put_queue(self, value: int):
+        self._put_queue = value
+        WarehouseStore.total_put_queue = value
+        self.put_queue_stats.append((self.env.now, self._put_queue))
+        WarehouseStore.total_put_queue_stats.setdefault(self.__class__.__name__, []).append(
+            (self.env.now, WarehouseStore.total_put_queue))
 
     @property
     def locations(self):
@@ -176,6 +208,8 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
             yield ant.unload()
             ant.release_current()
 
+        self.put_queue -= 1
+
     def get(self, *, feeding_operation: FeedingOperation) -> simulatte.typings.ProcessGenerator:
         """
         Warehouse Main internal retrieval process.
@@ -206,3 +240,42 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
     def book_location(self, *, location: WarehouseLocation, unit_load: Tray | Pallet) -> None:
         location.freeze(unit_load=unit_load)
+
+    def plot(self, *, window=300, queue_stats, title: str):
+        import statistics
+        import matplotlib.pyplot as plt
+
+        def iter_timestamps(x: list[int], start: int, step: int):
+            ret = []
+            i = 0
+            while i <= len(x):
+                idxs = []
+                e = x[i]
+                while start <= e <= (start + step):
+                    idxs.append(i)
+                    i += 1
+                    try:
+                        e = x[i]
+                    except IndexError:
+                        ret.append(idxs)
+                        return ret
+                ret.append(idxs)
+                start += step
+
+        timestamps = [t for t, _ in queue_stats]
+        get_queues = [s for _, s in queue_stats]
+
+        y = [statistics.mean([get_queues[i] for i in idxs]) if idxs else 0 for idxs in iter_timestamps(timestamps, 0, window)]
+        x = [i / 3600 for i in range(0, self.env.now, window)]
+
+        plt.plot(x, y, label=f"{self.name}")
+        plt.xlabel("Time [h]")
+        plt.ylabel(f"Queue [# ant]")
+        plt.title(title)
+        # plt.show()
+
+    def plot_output_queue(self, window=300):
+        self.plot(window=window, queue_stats=self.get_queue_stats, title=f"{self.__class__.__name__} Output Queue")
+
+    def plot_input_queue(self, window=300):
+        self.plot(window=window, queue_stats=self.put_queue_stats, title=f"{self.__class__.__name__} Input Queue")

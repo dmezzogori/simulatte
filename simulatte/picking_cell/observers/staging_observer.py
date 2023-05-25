@@ -6,6 +6,13 @@ from .base_observer import Observer
 
 
 class StagingObserver(Observer[StagingArea]):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.out_of_sequence = 0
+        self.out_of_sequence_timestamp = None
+        self.out_of_sequence_timestamps = []
+
     def next(self) -> FeedingOperation | None:
         """
         Select the FeedingOperation allowed to exit the FeedingArea and enter the StagingArea.
@@ -57,6 +64,10 @@ class StagingObserver(Observer[StagingArea]):
             and (feeding_operation := self.next()) is not None
         ):
             if self._can_enter(feeding_operation=feeding_operation):
+                if self.out_of_sequence_timestamp is not None:
+                    self.out_of_sequence_timestamps.append(self.system.env.now - self.out_of_sequence_timestamp)
+                    self.out_of_sequence_timestamp = None
+
                 # Remove the FeedingOperation from the FeedingArea
                 self.cell.feeding_area.remove(feeding_operation)
 
@@ -69,4 +80,9 @@ class StagingObserver(Observer[StagingArea]):
                 # Trigger the InternalArea signal event since a new FeedingOperation is available in the StagingArea
                 payload = EventPayload(event="ACTIVATING INTERNAL AREA SIGNAL", type=0)
                 self.cell.internal_area.trigger_signal_event(payload=payload)
+                return
+            else:
+                self.out_of_sequence += 1
+                if self.out_of_sequence_timestamp is None:
+                    self.out_of_sequence_timestamp = self.system.env.now
                 return

@@ -27,6 +27,10 @@ class AntsManager:
         return tuple(ant for ant in self.ants if ant.kind == "replenishment")
 
     @property
+    def input_ants(self) -> tuple[Ant]:
+        return tuple(ant for ant in self.ants if ant.kind == "input")
+
+    @property
     def output_ants(self) -> tuple[Ant]:
         return tuple(ant for ant in self.ants if ant.kind == "output")
 
