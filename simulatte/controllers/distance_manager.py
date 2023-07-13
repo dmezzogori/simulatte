@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Type
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from simulatte import System
+    from simulatte import SystemController
     from simulatte.distance import Distance
     from simulatte.location import Location
 
 
-class DistanceManager:
-    def __init__(self, *, system: System, DistanceClass: Type[Distance]) -> None:
+class DistanceController:
+    def __init__(self, *, system: SystemController, DistanceClass: type[Distance]) -> None:
         self.system = system
         self.DistanceClass = DistanceClass
 

@@ -5,11 +5,10 @@ from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import simpy
-
 from simulatte.typings import ProcessGenerator
 
 if TYPE_CHECKING:
-    from simulatte.system import System
+    from simulatte.system import SystemController
 
 
 class ArmPosition(enum.Enum):
@@ -18,7 +17,9 @@ class ArmPosition(enum.Enum):
 
 
 class Robot(simpy.Resource):
-    def __init__(self, *, system: System, pick_timeout: float, place_timeout: float, rotation_timeout: float) -> None:
+    def __init__(
+        self, *, system: SystemController, pick_timeout: float, place_timeout: float, rotation_timeout: float
+    ) -> None:
         super().__init__(env=system.env, capacity=1)
 
         self.env = system.env
@@ -88,7 +89,7 @@ class Robot(simpy.Resource):
         y = [s * 100 for _, s in self._saturation_history]
         plt.plot(x, y)
         plt.xlabel("Time [h]")
-        plt.ylabel(f"Saturation [%]")
+        plt.ylabel("Saturation [%]")
         plt.title("Robot Productivity")
         plt.ylim([0, 100])
         plt.show()

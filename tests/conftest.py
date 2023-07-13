@@ -1,5 +1,6 @@
-import pytest
+from __future__ import annotations
 
+import pytest
 import simulatte
 
 
@@ -11,5 +12,5 @@ def env() -> simulatte.Environment:
 
 
 @pytest.fixture(scope="function")
-def system(env: simulatte.Environment) -> simulatte.System:
-    return simulatte.System(env=env)
+def system(env: simulatte.Environment) -> simulatte.SystemController:
+    return simulatte.SystemController(env=env)

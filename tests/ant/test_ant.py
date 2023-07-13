@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import pytest
-
 import simulatte.system
-from simulatte.ant import Ant
-from simulatte.ant.ant import AntStatus
+from simulatte.agv import AGVStatus
 from simulatte.distance import Distance
 from simulatte.environment import Environment
 from simulatte.location import Location
 from simulatte.unitload import CaseContainer
+
+from eagle_trays.agv.ant import Ant
 
 
 @pytest.fixture(scope="function")
@@ -22,7 +22,7 @@ class DistanceMock(Distance):
         return 10
 
 
-class SystemMock(simulatte.system.System):
+class SystemMock(simulatte.system.SystemController):
     def distance(self, from_: Location, to: Location) -> DistanceMock:
         return DistanceMock(system=self, from_=from_, to=to)
 
@@ -63,57 +63,57 @@ def test_release_free(env: Environment, ant: Ant):
 def test_timings_and_status(env: Environment, ant: Ant):
     def test():
         system = SystemMock(env)
-        assert ant.status == AntStatus.IDLE
+        assert ant.status == AGVStatus.IDLE
 
         yield env.timeout(100)
 
         ant_request = ant.request()
         yield ant_request
 
-        assert ant.status == AntStatus.IDLE
+        assert ant.status == AGVStatus.IDLE
         mission_start_time = env.now
         ant.mission_started()
-        assert ant.status == AntStatus.WAITING_UNLOADED
+        assert ant.status == AGVStatus.WAITING_UNLOADED
         assert ant._mission_history == [mission_start_time]
 
-        # Mock the ant moving to a location
+        # Mock the agv moving to a location
         destination = Location(name="store")
         ant_move_proc = ant.move_to(system=system, location=destination)
-        # Check the status during the ant travel
+        # Check the status during the agv travel
         yield env.timeout(5)
-        assert ant.status == AntStatus.TRAVELING_UNLOADED
-        # Wait for the ant to arrive
+        assert ant.status == AGVStatus.TRAVELING_UNLOADED
+        # Wait for the agv to arrive
         yield ant_move_proc
-        # Check the status after the ant arrived
-        assert ant.status == AntStatus.WAITING_UNLOADED
+        # Check the status after the agv arrived
+        assert ant.status == AGVStatus.WAITING_UNLOADED
         # Check the travel time and current location
         assert ant.current_location == destination
         assert ant._travel_time == 10
 
-        # Mock the ant waiting to be loaded at a store
+        # Mock the agv waiting to be loaded at a store
         ant.waiting_to_be_loaded()
         start = env.now
         # Check that the timestamp of the start of the waiting time is correct
         assert ant.loading_waiting_time_start == start
-        # Mimic the ant waiting for 5 seconds at the store
+        # Mimic the agv waiting for 5 seconds at the store
         yield env.timeout(5)
-        # Wait for the ant to be loaded
+        # Wait for the agv to be loaded
         yield ant.load(unit_load=CaseContainer())
-        # Check the status after the ant was loaded
+        # Check the status after the agv was loaded
         assert env.now == start + 5 + ant.load_timeout
         assert ant.loading_waiting_times == [5 + ant.load_timeout]
-        assert ant.status == AntStatus.WAITING_LOADED
+        assert ant.status == AGVStatus.WAITING_LOADED
 
-        # Mock the ant moving to a PickingCell
+        # Mock the agv moving to a PickingCell
         destination = Location(name="cell")
         ant_move_proc = ant.move_to(system=system, location=destination)
-        # Check the status during the ant travel
+        # Check the status during the agv travel
         yield env.timeout(5)
-        assert ant.status == AntStatus.TRAVELING_LOADED
-        # Wait for the ant to arrive
+        assert ant.status == AGVStatus.TRAVELING_LOADED
+        # Wait for the agv to arrive
         yield ant_move_proc
-        # Check the status after the ant arrived
-        assert ant.status == AntStatus.WAITING_LOADED
+        # Check the status after the agv arrived
+        assert ant.status == AGVStatus.WAITING_LOADED
         # Check the travel time and current location
         assert ant.current_location == destination
         assert ant._travel_time == 20
@@ -144,23 +144,23 @@ def test_timings_and_status(env: Environment, ant: Ant):
 
         destination = Location(name="rest")
         ant_move_proc = ant.move_to(system=system, location=destination)
-        # Check the status during the ant travel
+        # Check the status during the agv travel
         yield env.timeout(5)
-        assert ant.status == AntStatus.TRAVELING_LOADED
-        # Wait for the ant to arrive
+        assert ant.status == AGVStatus.TRAVELING_LOADED
+        # Wait for the agv to arrive
         yield ant_move_proc
-        # Check the status after the ant arrived
-        assert ant.status == AntStatus.WAITING_LOADED
+        # Check the status after the agv arrived
+        assert ant.status == AGVStatus.WAITING_LOADED
         # Check the travel time and current location
         assert ant.current_location == destination
         assert ant._travel_time == 30
 
         yield ant.unload()
-        assert ant.status == AntStatus.WAITING_LOADED
+        assert ant.status == AGVStatus.WAITING_LOADED
 
         ant.mission_ended()
         mission_end_time = env.now
-        assert ant.status == AntStatus.IDLE
+        assert ant.status == AGVStatus.IDLE
         assert ant._mission_history == [mission_start_time, mission_end_time]
 
         assert ant.mission_time == 58
@@ -170,11 +170,11 @@ def test_timings_and_status(env: Environment, ant: Ant):
         assert ant.waiting_time == 58 - 30
 
         # assert (
-        #     sum(ant.loading_waiting_times)
-        #     + sum(ant.feeding_area_waiting_times)
-        #     + sum(ant.staging_area_waiting_times)
-        #     + sum(ant.unloading_waiting_times)
-        #     + sum(ant.picking_waiting_times)
+        #     sum(agv.loading_waiting_times)
+        #     + sum(agv.feeding_area_waiting_times)
+        #     + sum(agv.staging_area_waiting_times)
+        #     + sum(agv.unloading_waiting_times)
+        #     + sum(agv.picking_waiting_times)
         #     == 58 - 30
         # )
 

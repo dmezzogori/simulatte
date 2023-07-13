@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from simulatte.ant import Ant
+    from eagle_trays.agv.ant import Ant
 
 
-class AntSelectionPolicy:
+class AGVSelectionPolicy:
     def __call__(self, *, ants: Sequence[Ant], exceptions: Sequence[Ant] | None = None) -> Ant:
         raise NotImplementedError
 
 
-class MinorWorkloadAntsPolicy(AntSelectionPolicy):
+class MinorWorkloadAntsPolicy(AGVSelectionPolicy):
     @staticmethod
     def sorter(ant: Ant) -> tuple[int, int, int]:
         return len(ant.users), len(ant.queue), ant.resource_requested_timestamp

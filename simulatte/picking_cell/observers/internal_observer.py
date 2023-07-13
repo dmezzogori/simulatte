@@ -40,11 +40,9 @@ class InternalObserver(Observer[InternalArea]):
             and not self.cell.internal_area.is_full
             and (feeding_operation := self.next()) is not None
         ):
-
             can_enter, pre_unload_position, unload_position = self._can_enter(feeding_operation=feeding_operation)
 
             if can_enter:
-
                 feeding_operation.pre_unload_position = pre_unload_position
                 feeding_operation.unload_position = unload_position
 
@@ -56,5 +54,5 @@ class InternalObserver(Observer[InternalArea]):
 
                 feeding_operation.ant.enter_internal_area()
 
-                # Start moving the ant to the unloading position
+                # Start moving the agv to the unloading position
                 self.cell.let_ant_in(feeding_operation=feeding_operation)

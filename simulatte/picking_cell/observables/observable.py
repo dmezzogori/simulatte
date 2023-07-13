@@ -4,10 +4,9 @@ from typing import TYPE_CHECKING
 
 from simulatte.events.logged_event import LoggedEvent
 
-
 if TYPE_CHECKING:
-    from simulatte.system import System
     from simulatte.logger.logger import EventPayload
+    from simulatte.system import SystemController
 
 
 class Observable:
@@ -18,7 +17,7 @@ class Observable:
     The observer uses the observable signal event to act accordingly.
     """
 
-    def __init__(self, *, system: System) -> None:
+    def __init__(self, *, system: SystemController) -> None:
         self.system = system
         self.signal_event = self._init_signal_event()
 

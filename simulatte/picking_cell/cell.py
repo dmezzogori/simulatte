@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import collections
-from typing import TYPE_CHECKING, Iterable
+from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 from IPython.display import Markdown, display
 from simpy import Process
-from tabulate import tabulate
-
 from simulatte.location import Location
 from simulatte.logger.logger import EventPayload
 from simulatte.operations import FeedingOperation
@@ -17,11 +16,12 @@ from simulatte.requests import PalletRequest, ProductRequest
 from simulatte.resources import MonitoredResource
 from simulatte.simpy_extension import SequentialStore
 from simulatte.utils.utils import as_process
+from tabulate import tabulate
 
 if TYPE_CHECKING:
     from simulatte.requests import Request
     from simulatte.resources.store import Store
-    from simulatte.system import System
+    from simulatte.system import SystemController
     from simulatte.typings import ProcessGenerator
 
 
@@ -29,7 +29,7 @@ class PickingCell:
     def __init__(
         self,
         *,
-        system: System,
+        system: SystemController,
         input_queue: Store[PalletRequest],
         output_queue: SequentialStore[PalletRequest],
         building_point: MonitoredResource,
@@ -39,7 +39,7 @@ class PickingCell:
         register_main_process: bool = True,
     ):
         self.system = system
-        self.system.cells_manager(self)
+        self.system.cells_controller(self)
 
         self.input_location = Location(name=f"{self.__class__.__name__} Input")
         self.input_queue = input_queue
@@ -163,9 +163,9 @@ class PickingCell:
             ant = feeding_operation.ant
             feeding_operation.unit_load.feeding_operation = None
             yield ant.move_to(system=self.system, location=store.input_location)
-            yield self.system.stores_manager.load(store=store, ant=ant)
+            yield self.system.stores_controller.load(store=store, ant=ant)
         else:
-            from simulatte.ant import ant_rest_location
+            from eagle_trays.agv.ant import ant_rest_location
 
             # otherwise, move the Ant to the rest location
             yield feeding_operation.ant.move_to(system=self.system, location=ant_rest_location)

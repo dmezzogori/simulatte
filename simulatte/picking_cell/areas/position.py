@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from simpy.core import BoundClass
 from simpy.resources.resource import Release, Request, Resource
 
@@ -7,23 +9,23 @@ class OccupationRequest(Request):
     An instance of this request is a request made to a position
     with an associated FeedingOperation.
 
-    It is instantiated when an ant wants to occupy a Position.
+    It is instantiated when an agv wants to occupy a Position.
     """
 
     def __init__(self, resource, operation):
         """
         Initialize.
 
-        :param ant: The ant that wants to occupy the resource
+        :param agv: The agv that wants to occupy the resource
         :param priority: The priority of the request
         """
         self.operation = operation
-        super(OccupationRequest, self).__init__(resource)
+        super().__init__(resource)
 
 
 class Position(Resource):
     """
-    An instance of this class represents a position that can be booked and occupied by an ant inside the picking cell.
+    An instance of this class represents a position that can be booked and occupied by an agv inside the picking cell.
     """
 
     # Method to require the position

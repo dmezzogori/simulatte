@@ -4,10 +4,9 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 
 from simulatte.picking_cell.areas import ObservableArea
 
-
 if TYPE_CHECKING:
-    from simulatte.system import System
     from simulatte.picking_cell import PickingCell
+    from simulatte.system import SystemController
 
 
 T = TypeVar("T", bound=ObservableArea)
@@ -21,7 +20,7 @@ class Observer(Generic[T]):
     the need to notify the observer about the availability of the observed area.
     """
 
-    def __init__(self, *, system: System, observable_area: T, register_main_process: bool = True) -> None:
+    def __init__(self, *, system: SystemController, observable_area: T, register_main_process: bool = True) -> None:
         self.system = system
         self.observable_area = observable_area
         if register_main_process:

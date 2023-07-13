@@ -8,18 +8,19 @@ from simulatte.unitload import Pallet
 from simulatte.utils import Identifiable
 
 if TYPE_CHECKING:
-    from simulatte.ant import Ant
     from simulatte.picking_cell import PickingCell
     from simulatte.picking_cell.areas.position import Position
     from simulatte.requests import PickingRequest
-    from simulatte.stores import WarehouseStore, WarehouseLocation
+    from simulatte.stores import WarehouseLocation, WarehouseStore
+
+    from eagle_trays.agv.ant import Ant
 
 
 @total_ordering
 class FeedingOperation(metaclass=Identifiable):
     """
-    Represents a feeding operation assigned by the System to an ant.
-    The ant is responsible for retrieving a unit load from a specific store, according to the
+    Represents a feeding operation assigned by the System to an agv.
+    The agv is responsible for retrieving a unit load from a specific store, according to the
     picking request, and then to bring it to the assigned picking cell.
     """
 
@@ -35,7 +36,6 @@ class FeedingOperation(metaclass=Identifiable):
         location: WarehouseLocation,
         unit_load: Pallet,
     ) -> None:
-
         self.cell = cell
         self.relative_id = len(self.cell.feeding_operations)
         self.cell.feeding_operations.append(self)

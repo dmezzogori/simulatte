@@ -1,41 +1,61 @@
 from __future__ import annotations
 
 import csv
+from collections.abc import Sequence
 from statistics import mean
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 from IPython.display import Markdown, display
+from simulatte.agv import AGVKind
+from simulatte.policies import AGVSelectionPolicy
 from tabulate import tabulate
 
-from simulatte.system.policies import AntSelectionPolicy
-
 if TYPE_CHECKING:
-    from simulatte.ant import Ant
+    from eagle_trays.agv.ant import Ant
 
 
-class AntsManager:
-    def __init__(self, ants: Sequence[Ant], ant_selection_policy: AntSelectionPolicy) -> None:
-        self.ants = ants
+class AGVController:
+    def __init__(self, *, agvs: Sequence[Ant], ant_selection_policy: AGVSelectionPolicy):
+        self.agvs = agvs
         self._ant_selection_policy = ant_selection_policy
+        self._feeding_agvs: tuple[Ant, ...] | None = None
+        self._replenishment_agvs: tuple[Ant, ...] | None = None
+        self._input_agvs: tuple[Ant, ...] | None = None
+        self._output_agvs: tuple[Ant, ...] | None = None
 
     @property
-    def feeding_ants(self) -> tuple[Ant]:
-        return tuple(ant for ant in self.ants if ant.kind == "feeding")
+    def feeding_agvs(self) -> tuple[Ant, ...]:
+        if self._feeding_agvs is None:
+            self._feeding_agvs = tuple(ant for ant in self.agvs if ant.kind == AGVKind.FEEDING)
+        return self._feeding_agvs
 
     @property
-    def replenishment_ants(self) -> tuple[Ant]:
-        return tuple(ant for ant in self.ants if ant.kind == "replenishment")
+    def replenishment_agvs(self) -> tuple[Ant, ...]:
+        if self._replenishment_agvs is None:
+            self._replenishment_agvs = tuple(ant for ant in self.agvs if ant.kind == AGVKind.REPLENISHMENT)
+        return self._replenishment_agvs
 
     @property
-    def input_ants(self) -> tuple[Ant]:
-        return tuple(ant for ant in self.ants if ant.kind == "input")
+    def input_agvs(self) -> tuple[Ant, ...]:
+        if self._input_agvs is None:
+            self._input_agvs = tuple(ant for ant in self.agvs if ant.kind == AGVKind.INPUT)
+        return self._input_agvs
 
     @property
-    def output_ants(self) -> tuple[Ant]:
-        return tuple(ant for ant in self.ants if ant.kind == "output")
+    def output_agvs(self) -> tuple[Ant, ...]:
+        if self._output_agvs is None:
+            self._output_agvs = tuple(ant for ant in self.agvs if ant.kind == AGVKind.OUTPUT)
+        return self._output_agvs
 
     def get_best_ant(self, exceptions: Sequence[Ant] | None = None) -> Ant:
-        return self._ant_selection_policy(ants=self.ants, exceptions=exceptions)
+        return self._ant_selection_policy(ants=self.agvs, exceptions=exceptions)
+
+    def get_best_retrieval_agv(self, exceptions: Sequence[Ant] | None = None) -> Ant:
+        return self._ant_selection_policy(ants=self.output_agvs, exceptions=exceptions)
+
+    def assign_mission(self, *, agv: AGV):
+        with agv.mission():
+            pass
 
     def export_mission_logs_csv(self, path: str) -> None:
         with open(path, "w") as csvfile:
@@ -49,8 +69,8 @@ class AntsManager:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
 
-            for ant in self.ants:
-                for mission in ant.mission_logs:
+            for ant in self.agvs:
+                for mission in ant.trips:
                     writer.writerow(
                         {
                             "ant_id": ant.id,
@@ -75,7 +95,7 @@ class AntsManager:
             "WAIT@PICKING\nAVG [min]",
         ]
         table = []
-        for ant in self.ants:
+        for ant in self.agvs:
             saturation = f"{ant.saturation * 100:.2f}"
             total_waiting_time = f"{ant.waiting_time / 60:.2f}"
             waiting_at_avsrs = f"{(mean(ant.loading_waiting_times) if ant.loading_waiting_times else 0) / 60:.2f}"
@@ -116,7 +136,7 @@ class AntsManager:
             "SUM\n[min]",
         ]
         table = []
-        for ant in self.ants:
+        for ant in self.agvs:
             saturation = f"{ant.saturation * 100:.2f}%"
             total_waiting_time = f"{ant.waiting_time / 60:.2f}"
             waiting_at_avsrs = f"{sum(ant.loading_waiting_times) / 60:.2f}"

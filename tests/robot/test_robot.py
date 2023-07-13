@@ -1,15 +1,16 @@
-import pytest
+from __future__ import annotations
 
+import pytest
 from simulatte.picking_cell.robot import Robot
-from simulatte.system import System
+from simulatte.system import SystemController
 
 
 @pytest.fixture(scope="function")
-def robot(system: System) -> Robot:
+def robot(system: SystemController) -> Robot:
     return Robot(system=system, pick_timeout=5, place_timeout=5, rotation_timeout=10)
 
 
-def test_robot_timings(system: System, robot: Robot):
+def test_robot_timings(system: SystemController, robot: Robot):
     def test():
         yield robot.pick()
         yield robot.place()

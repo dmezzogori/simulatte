@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from simpy.resources.store import Store
-
 import simulatte
-from simulatte import System
+from simpy.resources.store import Store
+from simulatte import SystemController
 from simulatte.demand.generators import fixed_sequence
 from simulatte.picking_cell import PickingCell
 from simulatte.products import Product
@@ -25,8 +24,8 @@ def products() -> list[Product]:
 
 
 @pytest.fixture(scope="function")
-def system(env) -> System:
-    return simulatte.System(env=env)
+def system(env) -> SystemController:
+    return simulatte.SystemController(env=env)
 
 
 @pytest.fixture(scope="function")
@@ -45,7 +44,7 @@ def picking_cell(system) -> PickingCell:
 
 # TODO: fixme
 def _test_case_picking_cell_assign_pallet_request(
-    system: System, products: list[Product], picking_cell: PickingCell
+    system: SystemController, products: list[Product], picking_cell: PickingCell
 ) -> None:
     """
     Test the correct assignment of a PalletRequest to a PickingCell.

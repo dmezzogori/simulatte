@@ -5,20 +5,20 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 
 import simulatte
 from simulatte.stores import InputOperation, WarehouseLocation, WarehouseLocationSide
-from .warehouse_location import distance
 
 from ..unitload import CaseContainer, Pallet, Tray
 from ..utils import Identifiable, as_process
+from .warehouse_location import distance
 
 if TYPE_CHECKING:
     from simpy.resources.store import Store
-
-    from simulatte.ant import Ant
+    from simulatte.controllers import StoresManager
     from simulatte.operations import FeedingOperation
     from simulatte.products import Product
     from simulatte.service_point import ServicePoint
     from simulatte.simpy_extension import MultiStore, SequentialStore
-    from ..system.managers import StoresManager
+
+    from eagle_trays.agv.ant import Ant
 
 
 T = TypeVar("T", bound=CaseContainer)
@@ -114,7 +114,9 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         self._get_queue = value
         WarehouseStore.total_get_queue = value
         self.get_queue_stats.append((self.env.now, self._get_queue))
-        WarehouseStore.total_get_queue_stats.setdefault(self.__class__.__name__, []).append((self.env.now, WarehouseStore.total_get_queue))
+        WarehouseStore.total_get_queue_stats.setdefault(self.__class__.__name__, []).append(
+            (self.env.now, WarehouseStore.total_get_queue)
+        )
 
     @property
     def put_queue(self) -> int:
@@ -126,7 +128,8 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         WarehouseStore.total_put_queue = value
         self.put_queue_stats.append((self.env.now, self._put_queue))
         WarehouseStore.total_put_queue_stats.setdefault(self.__class__.__name__, []).append(
-            (self.env.now, WarehouseStore.total_put_queue))
+            (self.env.now, WarehouseStore.total_put_queue)
+        )
 
     @property
     def locations(self):
@@ -166,7 +169,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         """
         Warehouse Output Process.
 
-        Given a FeedingOperation, load the ant with the required unit load,
+        Given a FeedingOperation, load the agv with the required unit load,
         once it is available from the Output Conveyor.
         """
         n_non_empty_locations = sum(not location.is_empty for location in self.locations)
@@ -190,7 +193,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         """
         Warehouse Input Process.
 
-        Given an Ant and an InputOperation, unload the unit load from the ant and put it on the input conveyor,
+        Given an Ant and an InputOperation, unload the unit load from the agv and put it on the input conveyor,
         once it is available.
         """
 
@@ -243,6 +246,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
     def plot(self, *, window=300, queue_stats, title: str):
         import statistics
+
         import matplotlib.pyplot as plt
 
         def iter_timestamps(x: list[int], start: int, step: int):
@@ -265,12 +269,15 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         timestamps = [t for t, _ in queue_stats]
         get_queues = [s for _, s in queue_stats]
 
-        y = [statistics.mean([get_queues[i] for i in idxs]) if idxs else 0 for idxs in iter_timestamps(timestamps, 0, window)]
+        y = [
+            statistics.mean([get_queues[i] for i in idxs]) if idxs else 0
+            for idxs in iter_timestamps(timestamps, 0, window)
+        ]
         x = [i / 3600 for i in range(0, self.env.now, window)]
 
         plt.plot(x, y, label=f"{self.name}")
         plt.xlabel("Time [h]")
-        plt.ylabel(f"Queue [# ant]")
+        plt.ylabel("Queue [# agv]")
         plt.title(title)
         # plt.show()
 

@@ -4,11 +4,11 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from simulatte.location import Location
-    from simulatte.system import System
+    from simulatte.system import SystemController
 
 
 class Distance:
-    def __init__(self, system: System, from_: Location, to: Location) -> None:
+    def __init__(self, system: SystemController, from_: Location, to: Location) -> None:
         self.system = system
         self.from_ = from_
         self.to = to
