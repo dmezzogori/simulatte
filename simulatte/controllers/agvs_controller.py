@@ -1,170 +1,128 @@
 from __future__ import annotations
 
-import csv
-from collections.abc import Sequence
-from statistics import mean
+from collections.abc import Collection, Generator
 from typing import TYPE_CHECKING
 
-from IPython.display import Markdown, display
 from simulatte.agv import AGVKind
-from simulatte.policies import AGVSelectionPolicy
-from tabulate import tabulate
 
 if TYPE_CHECKING:
-    from eagle_trays.agv.ant import Ant
+    from simulatte.agv import AGV, AGVMission
+    from simulatte.policies import AGVSelectionPolicy
 
 
 class AGVController:
-    def __init__(self, *, agvs: Sequence[Ant], ant_selection_policy: AGVSelectionPolicy):
+    """
+    Represent a controller for a group of agvs.
+    The controller holds a reference to all the agvs and is responsible for managing their missions.
+    The controller is responsible for selecting the best agv for a given mission, according to the set selection policy.
+    """
+
+    __slots__ = ("agvs", "_agv_selection_policy", "_feeding_agvs", "_replenishment_agvs", "_input_agvs", "_output_agvs")
+
+    def __init__(self, *, agvs: Collection[AGV], agv_selection_policy: AGVSelectionPolicy):
         self.agvs = agvs
-        self._ant_selection_policy = ant_selection_policy
-        self._feeding_agvs: tuple[Ant, ...] | None = None
-        self._replenishment_agvs: tuple[Ant, ...] | None = None
-        self._input_agvs: tuple[Ant, ...] | None = None
-        self._output_agvs: tuple[Ant, ...] | None = None
+        self._agv_selection_policy = agv_selection_policy
+        self._feeding_agvs: tuple[AGV, ...] | None = None
+        self._replenishment_agvs: tuple[AGV, ...] | None = None
+        self._input_agvs: tuple[AGV, ...] | None = None
+        self._output_agvs: tuple[AGV, ...] | None = None
 
     @property
-    def feeding_agvs(self) -> tuple[Ant, ...]:
+    def feeding_agvs(self):
+        """
+        Return a tuple of all the feeding AGVs.
+        Feeding AGVs are those used to feed the picking cells.
+        """
+
+        # Lazy initialization
         if self._feeding_agvs is None:
-            self._feeding_agvs = tuple(ant for ant in self.agvs if ant.kind == AGVKind.FEEDING)
+            self._feeding_agvs = tuple(agv for agv in self.agvs if agv.kind == AGVKind.FEEDING)
+
         return self._feeding_agvs
 
     @property
-    def replenishment_agvs(self) -> tuple[Ant, ...]:
+    def replenishment_agvs(self):
+        """
+        Return a tuple of all the replenishment AGVs.
+        Replenishment AGVs are those used for replenishment operations.
+        """
+
+        # Lazy initialization
         if self._replenishment_agvs is None:
-            self._replenishment_agvs = tuple(ant for ant in self.agvs if ant.kind == AGVKind.REPLENISHMENT)
+            self._replenishment_agvs = tuple(agv for agv in self.agvs if agv.kind == AGVKind.REPLENISHMENT)
+
         return self._replenishment_agvs
 
     @property
-    def input_agvs(self) -> tuple[Ant, ...]:
+    def input_agvs(self):
+        """
+        Return a tuple of all the input AGVs.
+        Input AGVs are those used for input operations to the system.
+        """
+
+        # Lazy initialization
         if self._input_agvs is None:
-            self._input_agvs = tuple(ant for ant in self.agvs if ant.kind == AGVKind.INPUT)
+            self._input_agvs = tuple(agv for agv in self.agvs if agv.kind == AGVKind.INPUT)
+
         return self._input_agvs
 
     @property
-    def output_agvs(self) -> tuple[Ant, ...]:
+    def output_agvs(self):
+        """
+        Return a tuple of all the output AGVs.
+        Output AGVs are those used for retrieving the output of picking cells.
+        """
+
+        # Lazy initialization
         if self._output_agvs is None:
-            self._output_agvs = tuple(ant for ant in self.agvs if ant.kind == AGVKind.OUTPUT)
+            self._output_agvs = tuple(agv for agv in self.agvs if agv.kind == AGVKind.OUTPUT)
+
         return self._output_agvs
 
-    def get_best_ant(self, exceptions: Sequence[Ant] | None = None) -> Ant:
-        return self._ant_selection_policy(ants=self.agvs, exceptions=exceptions)
+    def agvs_missions(self, *, agvs: Collection[AGV] | None = None) -> Generator[AGVMission, None, None]:
+        """
+        Return a generator of all the missions of the given agvs.
+        If no agvs are given, return a generator of all the missions of all the agvs.
+        """
 
-    def get_best_retrieval_agv(self, exceptions: Sequence[Ant] | None = None) -> Ant:
-        return self._ant_selection_policy(ants=self.output_agvs, exceptions=exceptions)
+        if agvs is None:
+            agvs = self.agvs
+        return (mission for agv in agvs for mission in agv.missions)
 
-    def assign_mission(self, *, agv: AGV):
-        with agv.mission():
-            pass
+    def best_agv(self, *, agvs: Collection[AGV] | None = None, exceptions: Collection[AGV] | None = None) -> AGV:
+        """
+        Return the best AGV according to the set selection policy.
+        """
 
-    def export_mission_logs_csv(self, path: str) -> None:
-        with open(path, "w") as csvfile:
-            fieldnames = [
-                "ant_id",
-                "start_timestamp",
-                "start_location",
-                "end_timestamp",
-                "end_location",
-            ]
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
+        if agvs is None:
+            agvs = self.agvs
 
-            for ant in self.agvs:
-                for mission in ant.trips:
-                    writer.writerow(
-                        {
-                            "ant_id": ant.id,
-                            "start_timestamp": mission.start_time,
-                            "start_location": mission.start_location.name,
-                            "end_timestamp": mission.end_time,
-                            "end_location": mission.end_location.name,
-                        }
-                    )
+        return self._agv_selection_policy(agvs=agvs, exceptions=exceptions)
 
-    def summary(self) -> None:
-        display(Markdown("## Ant fleet"))
+    def best_feeding_agv(self, exceptions: Collection[AGV] | None = None) -> AGV:
+        """
+        Return the best feeding AGV according to the set selection policy.
+        """
 
-        headers = [
-            "ANT",
-            "SAT\n[%]",
-            "TOT WAIT\n[min]",
-            "WAIT@AVSRS\nAVG [min]",
-            "WAIT@FEED\nAVG [min]",
-            "WAIT@STAG\nAVG [min]",
-            "WAIT@INT\nAVG [min]",
-            "WAIT@PICKING\nAVG [min]",
-        ]
-        table = []
-        for ant in self.agvs:
-            saturation = f"{ant.saturation * 100:.2f}"
-            total_waiting_time = f"{ant.waiting_time / 60:.2f}"
-            waiting_at_avsrs = f"{(mean(ant.loading_waiting_times) if ant.loading_waiting_times else 0) / 60:.2f}"
-            waiting_in_feeding_area = (
-                f"{(mean(ant.feeding_area_waiting_times) if ant.feeding_area_waiting_times else 0) / 60:.2f}"
-            )
-            waiting_in_staging_area = (
-                f"{(mean(ant.staging_area_waiting_times) if ant.staging_area_waiting_times else 0) / 60:.2f}"
-            )
-            waiting_in_internal_area = (
-                f"{(mean(ant.unloading_waiting_times) if ant.unloading_waiting_times else 0) / 60:.2f}"
-            )
-            waiting_at_picking = f"{(mean(ant.picking_waiting_times) if ant.picking_waiting_times else 0) / 60:.2f}"
+        return self.best_agv(agvs=self.feeding_agvs, exceptions=exceptions)
 
-            table.append(
-                [
-                    ant.id,
-                    saturation,
-                    total_waiting_time,
-                    waiting_at_avsrs,
-                    waiting_in_feeding_area,
-                    waiting_in_staging_area,
-                    waiting_in_internal_area,
-                    waiting_at_picking,
-                ]
-            )
-        print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
+    def best_replenishment_agv(self, exceptions: Collection[AGV] | None = None) -> AGV:
+        """
+        Return the best replenishment AGV according to the set selection policy.
+        """
 
-        headers = [
-            "ANT",
-            "SAT\n[%]",
-            "TOT WAIT\n[min]",
-            "WAIT@AVSRS\nTOT [min]",
-            "WAIT@FEED\nTOT [min]",
-            "WAIT@STAG\nTOT [min]",
-            "WAIT@INT\nTOT [min]",
-            "WAIT@PICKING\nTOT [min]",
-            "SUM\n[min]",
-        ]
-        table = []
-        for ant in self.agvs:
-            saturation = f"{ant.saturation * 100:.2f}%"
-            total_waiting_time = f"{ant.waiting_time / 60:.2f}"
-            waiting_at_avsrs = f"{sum(ant.loading_waiting_times) / 60:.2f}"
-            waiting_in_feeding_area = f"{sum(ant.feeding_area_waiting_times) / 60:.2f}"
-            waiting_in_staging_area = f"{sum(ant.staging_area_waiting_times) / 60:.2f}"
-            waiting_in_internal_area = f"{sum(ant.unloading_waiting_times) / 60:.2f}"
-            waiting_at_picking = f"{sum(ant.picking_waiting_times) / 60:.2f}"
+        return self.best_agv(agvs=self.replenishment_agvs, exceptions=exceptions)
 
-            tot = (
-                sum(ant.loading_waiting_times)
-                + sum(ant.feeding_area_waiting_times)
-                + sum(ant.staging_area_waiting_times)
-                + sum(ant.unloading_waiting_times)
-                + sum(ant.picking_waiting_times)
-            )
-            tot = f"{tot / 60:.2f}"
+    def best_input_agv(self, exceptions: Collection[AGV] | None = None) -> AGV:
+        """
+        Return the best input AGV according to the set selection policy.
+        """
 
-            table.append(
-                [
-                    ant.id,
-                    saturation,
-                    total_waiting_time,
-                    waiting_at_avsrs,
-                    waiting_in_feeding_area,
-                    waiting_in_staging_area,
-                    waiting_in_internal_area,
-                    waiting_at_picking,
-                    tot,
-                ]
-            )
-        print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
+        return self.best_agv(agvs=self.input_agvs, exceptions=exceptions)
+
+    def best_output_agv(self, exceptions: Collection[AGV] | None = None) -> AGV:
+        """
+        Return the best output AGV according to the set selection policy.
+        """
+
+        return self.best_agv(agvs=self.output_agvs, exceptions=exceptions)

@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 from simulatte.picking_cell.areas import ObservableArea
 
 if TYPE_CHECKING:
+    from simulatte.controllers import SystemController
     from simulatte.picking_cell import PickingCell
-    from simulatte.system import SystemController
 
 
 T = TypeVar("T", bound=ObservableArea)

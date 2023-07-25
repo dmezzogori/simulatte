@@ -6,7 +6,12 @@ from typing import TYPE_CHECKING
 
 from IPython.display import Markdown, display
 from simpy import Process
-from simulatte.location import Location
+from simulatte.location import (
+    InputLocation,
+    InternalLocation,
+    OutputLocation,
+    StagingLocation,
+)
 from simulatte.logger.logger import EventPayload
 from simulatte.operations import FeedingOperation
 from simulatte.picking_cell.areas import FeedingArea, InternalArea, StagingArea
@@ -19,9 +24,9 @@ from simulatte.utils.utils import as_process
 from tabulate import tabulate
 
 if TYPE_CHECKING:
+    from simulatte.controllers import SystemController
     from simulatte.requests import Request
     from simulatte.resources.store import Store
-    from simulatte.system import SystemController
     from simulatte.typings import ProcessGenerator
 
 
@@ -39,11 +44,10 @@ class PickingCell:
         register_main_process: bool = True,
     ):
         self.system = system
-        self.system.cells_controller(self)
 
-        self.input_location = Location(name=f"{self.__class__.__name__} Input")
+        self.input_location = InputLocation(self)
         self.input_queue = input_queue
-        self.output_location = Location(name=f"{self.__class__.__name__} Output")
+        self.output_location = OutputLocation(self)
         self.output_queue = output_queue
         self.building_point = building_point
 
@@ -64,8 +68,8 @@ class PickingCell:
 
         self.current_pallet_request: PalletRequest | None = None
 
-        self.staging_location = Location(name=f"{self.__class__.__name__} StagingAreaLocation")
-        self.internal_location = Location(name=f"{self.__class__.__name__} InternalAreaLocation")
+        self.staging_location = StagingLocation(self)
+        self.internal_location = InternalLocation(self)
 
         self._productivity_history: list[tuple[float, float]] = []
 
@@ -143,37 +147,13 @@ class PickingCell:
             feeding_operation.pre_unload_position.release(pre_unload_position_request)
 
         # Move the Ant from the StagingArea to the InternalArea
-        yield feeding_operation.ant.move_to(system=self.system, location=self.internal_location)
+        yield feeding_operation.agv.move_to(system=self.system, location=self.internal_location)
 
         # Housekeeping
         feeding_operation.ready_for_unload()
-        feeding_operation.ant.waiting_to_be_unloaded()
 
-    @as_process
-    def let_ant_out(self, *, feeding_operation: FeedingOperation) -> ProcessGenerator:
-        feeding_operation.ant.picking_ends()
-
-        # free the UnloadPosition associated to the FeedingOperation
-        feeding_operation.unload_position.release_current()
-
-        self.internal_area.remove(feeding_operation)
-
-        if feeding_operation.unit_load.n_cases > 0:
-            store = feeding_operation.store
-            ant = feeding_operation.ant
-            feeding_operation.unit_load.feeding_operation = None
-            yield ant.move_to(system=self.system, location=store.input_location)
-            yield self.system.stores_controller.load(store=store, ant=ant)
-        else:
-            from eagle_trays.agv.ant import ant_rest_location
-
-            # otherwise, move the Ant to the rest location
-            yield feeding_operation.ant.move_to(system=self.system, location=ant_rest_location)
-            yield feeding_operation.ant.unload()
-            feeding_operation.ant.release_current()
-
-        feeding_operation.ant.idle()
-        feeding_operation.ant.mission_ended()
+    def let_ant_out(self, *, feeding_operation: FeedingOperation):
+        return self.system.end_feeding_operation(feeding_operation=feeding_operation)
 
     @as_process
     def put(self, *, pallet_request: PalletRequest) -> ProcessGenerator:

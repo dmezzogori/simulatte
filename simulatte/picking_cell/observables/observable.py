@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 from simulatte.events.logged_event import LoggedEvent
 
 if TYPE_CHECKING:
+    from simulatte.controllers import SystemController
     from simulatte.logger.logger import EventPayload
-    from simulatte.system import SystemController
 
 
 class Observable:

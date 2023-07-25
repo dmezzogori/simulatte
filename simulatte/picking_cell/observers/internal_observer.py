@@ -52,7 +52,7 @@ class InternalObserver(Observer[InternalArea]):
                 # Register the FeedingOperation into the InternalArea
                 self.cell.internal_area.append(feeding_operation)
 
-                feeding_operation.ant.enter_internal_area()
+                feeding_operation.agv.enter_internal_area()
 
                 # Start moving the agv to the unloading position
                 self.cell.let_ant_in(feeding_operation=feeding_operation)

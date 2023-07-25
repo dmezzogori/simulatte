@@ -8,12 +8,11 @@ from simulatte.unitload import Pallet
 from simulatte.utils import Identifiable
 
 if TYPE_CHECKING:
+    from simulatte.agv import AGV
     from simulatte.picking_cell import PickingCell
     from simulatte.picking_cell.areas.position import Position
     from simulatte.requests import PickingRequest
     from simulatte.stores import WarehouseLocation, WarehouseStore
-
-    from eagle_trays.agv.ant import Ant
 
 
 @total_ordering
@@ -24,13 +23,28 @@ class FeedingOperation(metaclass=Identifiable):
     picking request, and then to bring it to the assigned picking cell.
     """
 
+    __slots__ = (
+        "id",
+        "cell",
+        "relative_id",
+        "agv",
+        "store",
+        "location",
+        "unit_load",
+        "picking_requests",
+        "pre_unload_position",
+        "unload_position",
+        "status",
+        "ready",
+    )
+
     id: int
 
     def __init__(
         self,
         *,
         cell: PickingCell,
-        ant: Ant,
+        agv: AGV,
         store: WarehouseStore,
         picking_requests: list[PickingRequest],
         location: WarehouseLocation,
@@ -40,7 +54,7 @@ class FeedingOperation(metaclass=Identifiable):
         self.relative_id = len(self.cell.feeding_operations)
         self.cell.feeding_operations.append(self)
 
-        self.ant = ant
+        self.agv = agv
         self.store = store
         self.location = location
         self.unit_load = unit_load
@@ -105,6 +119,9 @@ class FeedingOperation(metaclass=Identifiable):
         return self._check_status("arrived", "staging", "inside", "ready", "done")
 
     def knock_staging_area(self) -> None:
+        """
+        Mark the operation as arrived in front of the picking cell, waiting to enter the staging area.
+        """
         self.status["arrived"] = True
 
     def enter_staging_area(self) -> None:

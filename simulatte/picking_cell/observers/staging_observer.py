@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from simulatte.logger.logger import EventPayload
 from simulatte.operations import FeedingOperation
 
@@ -6,7 +8,6 @@ from .base_observer import Observer
 
 
 class StagingObserver(Observer[StagingArea]):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.out_of_sequence = 0
@@ -74,8 +75,8 @@ class StagingObserver(Observer[StagingArea]):
                 # The FeedingOperation enters the StagingArea
                 self.cell.staging_area.append(feeding_operation)
 
-                feeding_operation.ant.enter_staging_area()
-                feeding_operation.ant.move_to(system=self.system, location=self.cell.staging_location)
+                feeding_operation.agv.enter_staging_area()
+                feeding_operation.agv.move_to(system=self.system, location=self.cell.staging_location)
 
                 # Trigger the InternalArea signal event since a new FeedingOperation is available in the StagingArea
                 payload = EventPayload(event="ACTIVATING INTERNAL AREA SIGNAL", type=0)

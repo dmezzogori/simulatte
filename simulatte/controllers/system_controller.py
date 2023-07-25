@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from simulatte import as_process
+from simulatte.location import AGVRechargeLocation, InputLocation, OutputLocation
 from simulatte.logger import Logger
 
 if TYPE_CHECKING:
@@ -22,9 +23,24 @@ if TYPE_CHECKING:
     from simulatte.products import Product
     from simulatte.requests import PalletRequest
     from simulatte.stores import WarehouseStore
+    from simulatte.typings import ProcessGenerator
 
 
 class SystemController:
+    """
+    Base class for a system controller.
+
+    The system controller is responsible for managing the system.
+    Coordinates the actions of the different controllers and the different entities in the system.
+
+    The system controller is responsible for:
+        - Assigning pallet requests to picking cells.
+        - Assigning replenishment operations to replenishment AGVs.
+        - Assigning feeding operations to feeding AGVs.
+        - Assigning input operations to input AGVs.
+        - Assigning output operations to output AGVs.
+    """
+
     def __init__(
         self,
         *,
@@ -48,8 +64,9 @@ class SystemController:
 
         self.picking_cell_store_mapping: dict[PickingCell, type[WarehouseStore]] = {}
 
-        self.input_pallet_location = Location(name="SystemInputPalletLocation")
-        self.system_output_location = Location(name="SystemOutputLocation")
+        self.input_pallet_location = InputLocation(self)
+        self.system_output_location = OutputLocation(self)
+        self.agv_recharge_location = AGVRechargeLocation(self)
 
         self.logger = Logger()
 
@@ -65,6 +82,10 @@ class SystemController:
             yield cell.output_location
             yield cell.staging_location
             yield cell.internal_location
+
+        yield self.input_pallet_location
+        yield self.system_output_location
+        yield self.agv_recharge_location
 
     def assign_to_cell(self, *, pallet_request: PalletRequest, cell: PickingCell | None = None) -> Process:
         """
@@ -91,17 +112,30 @@ class SystemController:
     def retrieve_from_cell(self, *, cell: PickingCell, pallet_request: PalletRequest) -> Process:
         """
         Retrieve a pallet request from a picking cell.
+
+        The pallet request is retrieved by an agv at the output location of the picking cell.
+        Then the agv moves to the system output location and unloads the pallet request.
         """
-        ant = self.agv_controller.get_best_retrieval_agv()
-        with ant.request() as ant_request:
-            yield ant_request
-            ant.mission_started()
-            yield ant.move_to(system=self, location=cell.output_location)
+
+        agv = self.agv_controller.best_output_agv()
+        with agv.request() as request:
+            # Wait for the agv to be available
+            yield request
+
+            # Move the agv to the output location of the picking cell
+            yield agv.move_to(system=self, location=cell.output_location)
+
+            # Wait for the pallet request to be loaded on the agv
             yield cell.get(pallet_request=pallet_request)
-            yield ant.load(unit_load=pallet_request.unit_load)
-            yield ant.move_to(system=self, location=self.system_output_location)
-            yield ant.unload()
-            ant.mission_ended()
+            yield agv.load(unit_load=pallet_request.unit_load)
+
+            # Move the agv to the system output location
+            yield agv.move_to(system=self, location=self.system_output_location)
+
+            # Wait for the pallet request to be unloaded from the agv
+            yield agv.unload()
+
+            # Store the pallet request as finished
             self._finished_pallet_requests.append(pallet_request)
 
     def get_store_by_cell(self, *, cell: PickingCell | None = None) -> WarehouseStore:
@@ -112,3 +146,23 @@ class SystemController:
 
     def feed(self, *, feeding_operation: FeedingOperation, ant_request: PriorityRequest):
         raise NotImplementedError
+
+    @as_process
+    def end_feeding_operation(self, *, feeding_operation: FeedingOperation) -> ProcessGenerator:
+        # free the UnloadPosition associated to the FeedingOperation
+        feeding_operation.unload_position.release_current()
+
+        # remove the FeedingOperation from the list of active feeding operations
+        feeding_operation.cell.internal_area.remove(feeding_operation)
+
+        if feeding_operation.unit_load.n_cases > 0:
+            store = feeding_operation.store
+            agv = feeding_operation.agv
+            feeding_operation.unit_load.feeding_operation = None
+            yield agv.move_to(system=self.system, location=store.input_location)
+            yield self.system.stores_controller.load(store=store, ant=agv)
+        else:
+            # otherwise, move the Ant to the rest location
+            yield feeding_operation.agv.move_to(system=self.system, location=self.system.agv_recharge_location)
+            yield feeding_operation.agv.unload()
+            feeding_operation.agv.release_current()

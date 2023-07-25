@@ -73,7 +73,7 @@ def test_timings_and_status(env: Environment, ant: Ant):
         assert ant.status == AGVStatus.IDLE
         mission_start_time = env.now
         ant.mission_started()
-        assert ant.status == AGVStatus.WAITING_UNLOADED
+        assert ant.status == AGVStatus.WAITING_TO_BE_LOADED
         assert ant._mission_history == [mission_start_time]
 
         # Mock the agv moving to a location
@@ -85,7 +85,7 @@ def test_timings_and_status(env: Environment, ant: Ant):
         # Wait for the agv to arrive
         yield ant_move_proc
         # Check the status after the agv arrived
-        assert ant.status == AGVStatus.WAITING_UNLOADED
+        assert ant.status == AGVStatus.WAITING_TO_BE_LOADED
         # Check the travel time and current location
         assert ant.current_location == destination
         assert ant._travel_time == 10
@@ -94,15 +94,15 @@ def test_timings_and_status(env: Environment, ant: Ant):
         ant.waiting_to_be_loaded()
         start = env.now
         # Check that the timestamp of the start of the waiting time is correct
-        assert ant.loading_waiting_time_start == start
+        assert ant._loading_waiting_time_start == start
         # Mimic the agv waiting for 5 seconds at the store
         yield env.timeout(5)
         # Wait for the agv to be loaded
         yield ant.load(unit_load=CaseContainer())
         # Check the status after the agv was loaded
         assert env.now == start + 5 + ant.load_timeout
-        assert ant.loading_waiting_times == [5 + ant.load_timeout]
-        assert ant.status == AGVStatus.WAITING_LOADED
+        assert ant._loading_waiting_times == [5 + ant.load_timeout]
+        assert ant.status == AGVStatus.WAITING_TO_BE_UNLOADED
 
         # Mock the agv moving to a PickingCell
         destination = Location(name="cell")
@@ -113,7 +113,7 @@ def test_timings_and_status(env: Environment, ant: Ant):
         # Wait for the agv to arrive
         yield ant_move_proc
         # Check the status after the agv arrived
-        assert ant.status == AGVStatus.WAITING_LOADED
+        assert ant.status == AGVStatus.WAITING_TO_BE_UNLOADED
         # Check the travel time and current location
         assert ant.current_location == destination
         assert ant._travel_time == 20
@@ -150,13 +150,13 @@ def test_timings_and_status(env: Environment, ant: Ant):
         # Wait for the agv to arrive
         yield ant_move_proc
         # Check the status after the agv arrived
-        assert ant.status == AGVStatus.WAITING_LOADED
+        assert ant.status == AGVStatus.WAITING_TO_BE_UNLOADED
         # Check the travel time and current location
         assert ant.current_location == destination
         assert ant._travel_time == 30
 
         yield ant.unload()
-        assert ant.status == AGVStatus.WAITING_LOADED
+        assert ant.status == AGVStatus.WAITING_TO_BE_UNLOADED
 
         ant.mission_ended()
         mission_end_time = env.now

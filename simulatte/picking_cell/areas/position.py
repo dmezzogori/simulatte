@@ -74,4 +74,4 @@ class Position(Resource):
     def ant(self):
         if len(self.users) == 0:
             return None
-        return self.users[0].operation.ant
+        return self.users[0].operation.agv

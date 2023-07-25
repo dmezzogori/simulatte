@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Generator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from simpy import PriorityResource
-from simulatte.agv import AGVKind, AGVMission, AGVPlotter, AGVStatus, AGVTrip
+from simulatte.agv import AGVMission, AGVPlotter, AGVStatus, AGVTrip
+from simulatte.controllers import SystemController
 from simulatte.utils import Identifiable
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
-
     from simulatte import Environment, as_process
+    from simulatte.agv import AGVKind
     from simulatte.location import Location
     from simulatte.typings import ProcessGenerator
     from simulatte.unitload import CaseContainer
@@ -35,6 +36,32 @@ class AGV(PriorityResource, metaclass=Identifiable):
     +-----------------+-----------------+
     """
 
+    __slots__ = (
+        "env",
+        "kind",
+        "load_timeout",
+        "unload_timeout",
+        "speed",
+        "_status",
+        "_case_container",
+        "current_location",
+        "_travel_time",
+        "_travel_distance",
+        "trips",
+        "_missions",
+        "_loading_waiting_times",
+        "_loading_waiting_time_start",
+        "_waiting_to_enter_staging_area",
+        "feeding_area_waiting_times",
+        "_waiting_to_enter_internal_area",
+        "staging_area_waiting_times",
+        "_waiting_to_be_unloaded",
+        "unloading_waiting_times",
+        "_waiting_picking_to_end",
+        "picking_waiting_times",
+        "plotter",
+    )
+
     def __init__(
         self,
         *,
@@ -43,24 +70,30 @@ class AGV(PriorityResource, metaclass=Identifiable):
         load_timeout: float,
         unload_timeout: float,
         speed: float,
+        system_controller: SystemController,
     ):
         super().__init__(env, capacity=1)
         self.env = env
+
+        # Parameters
         self.kind = kind
         self.load_timeout = load_timeout
         self.unload_timeout = unload_timeout
         self.speed = speed
+
+        # Initial state
         self._status = AGVStatus.IDLE
 
         self._case_container: CaseContainer | None = None
-        self.current_location: Location = ant_rest_location
+        self.current_location = system_controller.agv_recharge_location
         self._travel_time = 0
-        self._mission_history: list[float] = []
+        self._travel_distance = 0
+
         self.trips: list[AGVTrip] = []
         self._missions: list[AGVMission] = []
 
-        self.loading_waiting_times = []
-        self.loading_waiting_time_start: float | None = None
+        self._loading_waiting_times = []
+        self._loading_waiting_time_start: float | None = None
 
         self._waiting_to_enter_staging_area: float | None = None
         self.feeding_area_waiting_times = []
@@ -74,9 +107,15 @@ class AGV(PriorityResource, metaclass=Identifiable):
         self._waiting_picking_to_end: float | None = None
         self.picking_waiting_times = []
 
-        self.resource_requested_timestamp = 0
-
         self.plotter = AGVPlotter(agv=self)
+
+    @property
+    def n_users(self) -> int:
+        return len(self.users)
+
+    @property
+    def n_queue(self) -> int:
+        return len(self.queue)
 
     @property
     def status(self):
@@ -84,29 +123,88 @@ class AGV(PriorityResource, metaclass=Identifiable):
 
     @status.setter
     def status(self, value: AGVStatus):
+        # If the new status is WAITING_TO_BE_LOADED, record the start of the loading waiting time
+        if value == AGVStatus.WAITING_TO_BE_LOADED:
+            if self.unit_load is not None:
+                raise ValueError("AGV cannot wait to be loaded when already loaded.")
+
+            self._loading_waiting_time_start = self.env.now
+
+        # If the new status is WAITING_TO_BE_UNLOADED, record the end of the loading waiting time
+        if value == AGVStatus.WAITING_TO_BE_UNLOADED:
+            if self.unit_load is None:
+                raise ValueError("AGV cannot wait to be unloaded when already unloaded.")
+
+            if self._loading_waiting_time_start is not None:
+                self._loading_waiting_times.append(self.env.now - self._loading_waiting_time_start)
+
+            self._loading_waiting_time_start = None
+
         self._status = value
 
+    @property
+    def missions(self):
+        return self._missions
+
+    @property
+    def current_mission(self) -> AGVMission | None:
+        """
+        Return the current mission the agv is taking care of.
+        The current mission is the last mission in the mission history
+        that has not ended yet.
+        """
+
+        last_mission = self._missions[-1] if self._missions else None
+        if last_mission is not None and last_mission.end_time is None:
+            return last_mission
+
+    @property
+    def total_mission_duration(self) -> float:
+        """
+        Return the total duration of the missions the agv has taken care of.
+        """
+
+        return sum(mission.duration for mission in self.missions)
+
     def request(self, *args, **kwargs):
-        self.resource_requested_timestamp = self.env.now
-        self.status = AGVStatus.WAITING_UNLOADED if self._case_container is None else AGVStatus.WAITING_LOADED
-        self._mission_history.append(self.env.now)
-        req = super().request(*args, **kwargs)
-        self._missions.append(AGVMission(agv=self, request=req))
-        return req
+        """
+        Override the request method to keep track of the mission history.
+        """
+
+        # Perform the request
+        request = super().request(*args, **kwargs)
+
+        # Init the mission
+        self._missions.append(AGVMission(agv=self, request=request))
+
+        return request
 
     def release(self, *args, **kwargs):
-        self._missions[-1].end_time = self.env.now
+        """
+        Override the release method to keep track of the mission history.
+
+        The release method is called when the agv is done with the current mission.
+        It sets the end_time of the current mission to the current `env.now` and releases the request.
+        It also sets the status of the agv to IDLE.
+        """
+
+        self.current_mission.end_time = self.env.now
+        self.set_idle()
         return self.release(args, **kwargs)
 
     def release_current(self):
-        """Release the current request the agv is taking care of"""
+        """
+        Release the current request the agv is taking care of.
+
+        The release_current method should be called when the agv is done with a mission.
+        """
 
         if len(self.users) == 0:
             raise ValueError("AGV cannot release non-existent request.")
         return self.release(self.users[0])
 
     @contextmanager
-    def trip(self, *, destination: Location):
+    def trip(self, *, destination: Location) -> Generator[AGVTrip, None, None]:
         """
         Perform an AGV trip to the destination location.
 
@@ -122,30 +220,27 @@ class AGV(PriorityResource, metaclass=Identifiable):
         The yield returns the duration of the trip.
 
         After the trip:
-            - The AGVTrip end_time is set to the current env.now
+            - The AGVTrip end_time is set to the current `env.now`
             - The travel time is updated
             - The current location is updated
-            - The AGVTrip is appended to the mission_logs
+            - The AGVTrip is appended to the trip history
         """
 
         # Initialize the trip
-        trip = AGVTrip(
-            agv=self, start_location=self.current_location, end_location=destination, start_time=self.env.now
-        )
+        trip = AGVTrip(agv=self, destination=destination)
 
-        # Get the distance from the current location to the destination
-        distance = self.system.distance(self.current_location, destination).as_distance
+        start_status, end_status = trip.define_agv_status()
+        self.status = start_status
 
-        # Calculate the duration of the trip
-        duration = distance / self.speed
+        yield trip
 
-        yield duration
-
-        # Update the end time of the trip
-        trip.end_time = self.env.now
+        self.status = end_status
 
         # Update the travel time
-        self._travel_time += duration
+        self._travel_time += trip.duration
+
+        # Update the travel distance
+        self._travel_distance += trip.distance
 
         # Update the current location
         self.current_location = destination
@@ -155,35 +250,42 @@ class AGV(PriorityResource, metaclass=Identifiable):
 
     @as_process
     def move_to(self, *, location: Location):
-        with self.trip(destination=location) as duration:
-            # Update the status of the AGV based on the load
-            self.status = AGVStatus.TRAVELING_UNLOADED if self.unit_load is None else AGVStatus.TRAVELING_LOADED
-
+        with self.trip(destination=location) as trip:
             # Wait for the duration of the trip
-            yield self.env.timeout(duration)
-
-            # Update the status of the AGV based on the load
-            self.status = AGVStatus.WAITING_UNLOADED if self.unit_load is None else AGVStatus.WAITING_LOADED
+            yield self.env.timeout(trip.duration)
 
     @property
     def idle_time(self) -> float:
-        return self.env.now - self.mission_time
+        """
+        Return the total idle time of the agv.
+        The idle time is the time the agv has spent without a mission.
+
+        The idle time is calculated as the difference between the current simulation time
+        and the total mission duration.
+        """
+
+        return self.env.now - self.total_mission_duration
 
     @property
     def saturation(self) -> float:
-        return self.mission_time / self.env.now
+        """
+        Return the saturation of the agv.
+        The saturation is the ratio between the total mission duration and the current simulation time.
+        """
 
-    @property
-    def missions(self) -> Iterable[tuple[float, float]]:
-        yield from zip(self._mission_history[::2], self._mission_history[1::2])
-
-    @property
-    def mission_time(self) -> float:
-        return sum(end - start for start, end in self.missions)
+        return self.total_mission_duration / self.env.now
 
     @property
     def waiting_time(self) -> float:
-        return self.mission_time - self._travel_time
+        """
+        Return the total waiting time of the agv.
+        The waiting time is the time the agv has spent waiting while performing a mission.
+
+        The waiting time is calculated as the difference between the total mission duration
+        and the travel time.
+        """
+
+        return self.total_mission_duration - self._travel_time
 
     @property
     def unit_load(self) -> CaseContainer | None:
@@ -195,18 +297,64 @@ class AGV(PriorityResource, metaclass=Identifiable):
             raise RuntimeError(f"AGV [{self.id}] cannot carry two unit loads at the same time.")
         self._case_container = value
 
-    def idle(self) -> None:
+    @as_process
+    def load(self, *, unit_load: CaseContainer) -> ProcessGenerator:
+        """
+        AGV loading process.
+
+        The load process is a process that loads a unit load on the agv.
+        The load process waits for the load timeout before loading the unit load.
+        After the load timeout, the unit load is loaded on the agv and the status is set to waiting loaded.
+        """
+
+        if self.status != AGVStatus.WAITING_TO_BE_LOADED:
+            raise ValueError(f"Wrong status: cannot load unit load while in status {self.status}.")
+
+        # Wait for the load timeout
+        yield self.env.timeout(self.load_timeout)
+
+        # Load the unit load
+        self.unit_load = unit_load
+
+    @as_process
+    def unload(self) -> ProcessGenerator:
+        """
+        AGV unloading process.
+
+        The unload process is a process that unloads the current unit load from the agv.
+        The unload process waits for the unload timeout before unloading the unit load.
+        After the unload timeout, the unit load is unloaded from the agv and the status is set to waiting unloaded.
+
+        Raises:
+         - `ValueError`: If the agv does not have a unit load to unload.
+        """
+
+        # Check if the agv has a unit load to unload
+        if self.unit_load is None:
+            raise ValueError("Ant cannot unload non-existent unit load.")
+
+        # Wait for the unload timeout
+        yield self.env.timeout(self.unload_timeout)
+
+        # Remove the unit load
+        self.unit_load = None
+
+    def set_idle(self) -> None:
         """Set the agv to idle status"""
         self.status = AGVStatus.IDLE
 
-    def waiting_to_be_loaded(self) -> None:
-        """Set the agv to waiting status"""
-        self.status = AGVStatus.WAITING_UNLOADED
-        self.loading_waiting_time_start = self.env.now
+    def set_waiting_to_be_unloaded(self) -> None:
+        """
+        Set the agv to waiting status while loaded (unit load on board).
 
-    def waiting_to_be_unloaded(self) -> None:
-        """Set the agv to waiting status"""
-        self.status = AGVStatus.WAITING_LOADED
+        To be used in the following cases:
+         - Feeding AGVs: when waiting to be unloaded at the input location of a warehouse.
+         - Replenishment AGVs: when waiting to be unloaded at the input location of a warehouse.
+         - Input AGVs: when waiting to be unloaded at the input location of a depal.
+         - Output AGVs: when waiting to be unloaded at the output location of the system.
+        """
+
+        self.status = AGVStatus.WAITING_TO_BE_UNLOADED
 
     def waiting_to_enter_staging_area(self) -> None:
         self._waiting_to_enter_staging_area = self.env.now
@@ -226,28 +374,3 @@ class AGV(PriorityResource, metaclass=Identifiable):
             self.unloading_waiting_times.append(self.env.now - self._waiting_to_be_unloaded)
         self._waiting_to_be_unloaded = None
         self._waiting_picking_to_end = self.env.now
-
-    def picking_ends(self):
-        self.picking_waiting_times.append(self.env.now - self._waiting_picking_to_end)
-        self._waiting_picking_to_end = None
-
-    @as_process
-    def load(self, *, unit_load: CaseContainer) -> ProcessGenerator:
-        self.unit_load = unit_load
-        yield self.env.timeout(self.load_timeout)
-        if self.loading_waiting_time_start is not None:
-            self.loading_waiting_times.append(self.env.now - self.loading_waiting_time_start)
-        self.loading_waiting_time_start = None
-        self.status = AGVStatus.WAITING_LOADED
-
-    @as_process
-    def unload(self) -> ProcessGenerator:
-        if self.unit_load is None:
-            raise ValueError("Ant cannot unload non-existent unit load.")
-        yield self.env.timeout(self.unload_timeout)
-        self.unit_load = None
-        self.status = AGVStatus.WAITING_LOADED
-
-    def mission_ended(self) -> None:
-        self._mission_history.append(self.env.now)
-        self.status = AGVStatus.IDLE

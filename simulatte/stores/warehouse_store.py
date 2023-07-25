@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 import simulatte
 from simulatte.stores import InputOperation, WarehouseLocation, WarehouseLocationSide
 
+from ..location import InputLocation, OutputLocation
 from ..unitload import CaseContainer, Pallet, Tray
 from ..utils import Identifiable, as_process
 from .warehouse_location import distance
@@ -51,8 +52,8 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
     ):
         self.env = simulatte.Environment()
         self.stores_manager = stores_manager
-        self.input_location = simulatte.location.Location(name=f"{self.__class__.__name__} Input")
-        self.output_location = simulatte.location.Location(name=f"{self.__class__.__name__} Output")
+        self.input_location = InputLocation(self)
+        self.output_location = OutputLocation(self)
         self.location_width = location_width
         self.location_height = location_height
         self.depth = depth
@@ -184,7 +185,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
         yield self.env.timeout(self.load_time)
 
-        yield feeding_operation.ant.load(unit_load=feeding_operation.unit_load)
+        yield feeding_operation.agv.load(unit_load=feeding_operation.unit_load)
 
         self.get_queue -= 1
 
