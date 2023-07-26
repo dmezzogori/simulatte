@@ -4,8 +4,11 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from simulatte import as_process
+from simulatte.agv import AGV
 from simulatte.location import AGVRechargeLocation, InputLocation, OutputLocation
 from simulatte.logger import Logger
+from simulatte.observables.area import ObservableArea
+from simulatte.observables.observer import Observer
 
 if TYPE_CHECKING:
     from simpy import Process
@@ -24,6 +27,32 @@ if TYPE_CHECKING:
     from simulatte.requests import PalletRequest
     from simulatte.stores import WarehouseStore
     from simulatte.typings import ProcessGenerator
+
+
+class IdleFeedingAGVs(ObservableArea[AGV]):
+    pass
+
+
+class FeedingAGVsObserver(Observer[IdleFeedingAGVs]):
+    def next(self) -> AGV:
+        """
+        Return the next AGV from the observable area.
+        """
+
+        return self.observable_area[0]
+
+    def _main_process(self):
+        """
+        The main process of the observer.
+        Get the next AGV from the observable area and delegate to the system controller
+        to start a feeding operation with the AGV.
+        """
+
+        agv = self.next()
+        if agv is None:
+            return
+
+        self.system.start_feeding_operation(agv=agv)
 
 
 class SystemController:
@@ -67,6 +96,9 @@ class SystemController:
         self.input_pallet_location = InputLocation(self)
         self.system_output_location = OutputLocation(self)
         self.agv_recharge_location = AGVRechargeLocation(self)
+
+        self.idle_feeding_agvs = IdleFeedingAGVs(system_controller=self, signal_at="append")
+        self.feeding_agvs_observer = FeedingAGVsObserver(system=self, observable_area=self.idle_feeding_agvs)
 
         self.logger = Logger()
 
@@ -141,7 +173,7 @@ class SystemController:
     def get_store_by_cell(self, *, cell: PickingCell | None = None) -> WarehouseStore:
         raise NotImplementedError
 
-    def start_feeding_operation(self, *, cell: PickingCell) -> None:
+    def start_feeding_operation(self, *, agv: AGV) -> None:
         raise NotImplementedError
 
     def feed(self, *, feeding_operation: FeedingOperation, ant_request: PriorityRequest):
