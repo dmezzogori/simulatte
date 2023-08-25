@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import random
-from typing import Callable, Optional, TypeVar
+from collections.abc import Callable
+from typing import TypedDict, TypeVar
 
 import numpy as np
-
 from simulatte.utils import Identifiable
 
 T = TypeVar("T")
@@ -49,19 +49,27 @@ class Product(metaclass=Identifiable):
         return self.cases_per_layer * self.layers_per_pallet
 
 
+class ProductsGeneratorConfig(TypedDict):
+    n_products: int
+    probabilities: DistributionCallable[list[float]] | None
+    families: DistributionCallable[list[str]] | None
+    cases_per_layers: DistributionCallable[int] | None
+    layers_per_pallet: DistributionCallable[int] | None
+    min_case_per_pallet: DistributionCallable[int] | None
+    max_case_per_pallet: DistributionCallable[int] | None
+    lp_enable: DistributionCallable[bool] | None
+
+
 class ProductsGenerator:
-    def __init__(
-        self,
-        *,
-        n_products: int,
-        probabilities: Optional[DistributionCallable[list[float]]] = None,
-        families: Optional[DistributionCallable[list[str]]] = None,
-        cases_per_layers: Optional[DistributionCallable[int]] = None,
-        layers_per_pallet: Optional[DistributionCallable[int]] = None,
-        min_case_per_pallet: Optional[DistributionCallable[int]] = None,
-        max_case_per_pallet: Optional[DistributionCallable[int]] = None,
-        lp_enable: Optional[DistributionCallable[bool]] = None,
-    ) -> None:
+    def __init__(self, *, config: ProductsGeneratorConfig) -> None:
+        n_products = config["n_products"]
+        probabilities = config["probabilities"]
+        families = config["families"]
+        cases_per_layers = config["cases_per_layers"]
+        layers_per_pallet = config["layers_per_pallet"]
+        min_case_per_pallet = config["min_case_per_pallet"]
+        max_case_per_pallet = config["max_case_per_pallet"]
+        lp_enable = config["lp_enable"]
 
         self.probabilities: list[float] = (
             probabilities() if probabilities is not None else [1 / n_products for _ in range(n_products)]
@@ -96,7 +104,7 @@ class ProductsGenerator:
         self,
         *,
         exclude: set[Product] | None = None,
-        fn: Optional[Callable[[list[Product]], Product]] = None,
+        fn: Callable[[list[Product]], Product] | None = None,
     ) -> Product:
         def choose():
             if fn is not None:
@@ -121,7 +129,7 @@ class ProductsGenerator:
         *,
         n: int = 1,
         replace=False,
-        fn: Optional[Callable[[list[Product]], Product]] = None,
+        fn: Callable[[list[Product]], Product] | None = None,
     ) -> list[Product]:
         if n > len(self.products):
             raise ValueError("Cannot generate a sample larger than the population")

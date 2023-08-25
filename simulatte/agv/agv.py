@@ -5,12 +5,15 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from simpy import PriorityResource
-from simulatte.agv import AGVMission, AGVPlotter, AGVStatus, AGVTrip
-from simulatte.controllers import SystemController
+from simulatte import as_process
 from simulatte.utils import Identifiable
 
+from .agv_plotter import AGVPlotter
+from .agv_status import AGVStatus
+from .agv_trip import AGVMission, AGVTrip
+
 if TYPE_CHECKING:
-    from simulatte import Environment, as_process
+    from simulatte import Environment
     from simulatte.agv import AGVKind
     from simulatte.location import Location
     from simulatte.typings import ProcessGenerator
@@ -70,7 +73,6 @@ class AGV(PriorityResource, metaclass=Identifiable):
         load_timeout: float,
         unload_timeout: float,
         speed: float,
-        system_controller: SystemController,
     ):
         super().__init__(env, capacity=1)
         self.env = env
@@ -85,7 +87,7 @@ class AGV(PriorityResource, metaclass=Identifiable):
         self._status = AGVStatus.IDLE
 
         self._case_container: CaseContainer | None = None
-        self.current_location = system_controller.agv_recharge_location
+        self.current_location = None
         self._travel_time = 0
         self._travel_distance = 0
 

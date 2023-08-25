@@ -7,6 +7,7 @@ from simulatte.agv import AGVKind
 
 if TYPE_CHECKING:
     from simulatte.agv import AGV, AGVMission
+    from simulatte.controllers import SystemController
     from simulatte.policies import AGVSelectionPolicy
 
 
@@ -17,9 +18,18 @@ class AGVController:
     The controller is responsible for selecting the best agv for a given mission, according to the set selection policy.
     """
 
-    __slots__ = ("agvs", "_agv_selection_policy", "_feeding_agvs", "_replenishment_agvs", "_input_agvs", "_output_agvs")
+    __slots__ = (
+        "agvs",
+        "_agv_selection_policy",
+        "_feeding_agvs",
+        "_replenishment_agvs",
+        "_input_agvs",
+        "_output_agvs",
+        "system_controller",
+    )
 
     def __init__(self, *, agvs: Collection[AGV], agv_selection_policy: AGVSelectionPolicy):
+        self.system_controller = None
         self.agvs = agvs
         self._agv_selection_policy = agv_selection_policy
         self._feeding_agvs: tuple[AGV, ...] | None = None
@@ -78,6 +88,13 @@ class AGVController:
             self._output_agvs = tuple(agv for agv in self.agvs if agv.kind == AGVKind.OUTPUT)
 
         return self._output_agvs
+
+    def register_system(self, system: SystemController):
+        """
+        Register the system controller.
+        """
+
+        self.system_controller = system
 
     def agvs_missions(self, *, agvs: Collection[AGV] | None = None) -> Generator[AGVMission, None, None]:
         """

@@ -34,14 +34,17 @@ class CellsController(Protocol):
                           argument filters cells by type.
     """
 
-    def __init__(self, system_controller: SystemController, cell_selection_policy: CellSelectionPolicy):
-        self.system_controller = system_controller
+    def __init__(self, *, cell_selection_policy: CellSelectionPolicy):
+        self.system_controller = None
         self._cell_selection_policy = cell_selection_policy
         self._picking_cells: set[PickingCell] = set()
 
     @property
     def picking_cells(self):
         return self.picking_cells
+
+    def register_system(self, system: SystemController):
+        self.system_controller = system
 
     def register_cell(self, picking_cell: PickingCell):
         """

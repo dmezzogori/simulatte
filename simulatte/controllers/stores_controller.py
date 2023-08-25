@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Literal, TypedDict
 
 import simulatte
 from simulatte.exceptions import OutOfStockError
-from simulatte.policies import ReplenishmentPolicy, RetrievalPolicy, StoringPolicy
+from simulatte.policies import RetrievalPolicy, StoringPolicy
 from simulatte.products import Product, ProductsGenerator
 from simulatte.stores import WarehouseStore
 from simulatte.stores.warehouse_location import PhysicalPosition
@@ -26,6 +26,11 @@ class ProductStock(TypedDict):
 Stock = dict[Product, dict[type[CaseContainer], ProductStock]]
 
 
+class StoresControllerConfig(TypedDict):
+    retrieval_policy: RetrievalPolicy
+    storing_policy: StoringPolicy
+
+
 class BaseStoresController:
     """
     Base class for the StoresController.
@@ -43,16 +48,9 @@ class BaseStoresController:
     - a location policy to be used to find locations for storing of products
     """
 
-    def __init__(
-        self,
-        *,
-        retrieval_policy: RetrievalPolicy,
-        storing_policy: StoringPolicy,
-        replenishment_policy: ReplenishmentPolicy,
-    ) -> None:
-        self._retrieval_policy = retrieval_policy
-        self._storing_policy = storing_policy
-        self._replenishment_policy = replenishment_policy
+    def __init__(self, *, config: StoresControllerConfig) -> None:
+        self._retrieval_policy = config["retrieval_policy"]
+        self._storing_policy = config["storing_policy"]
 
         self._stores: dict[type[WarehouseStore], set] = {}
         self._stock: Stock = {}

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from simulatte.controllers import SystemController
 from simulatte.location import (
     AGVRechargeLocation,
     InputLocation,
@@ -49,6 +48,8 @@ class AGVTrip:
         """
         Return the initial and end status of the AGV for this trip.
         """
+
+        from simulatte.controllers import SystemController
 
         from eagle_trays.depal import Depal
 

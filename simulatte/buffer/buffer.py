@@ -1,8 +1,7 @@
-from typing import Type
+from __future__ import annotations
 
+import simulatte.utils
 from simpy.resources.store import Store
-
-import simulatte
 from simulatte.unitload import PaperSheet, WoodBoard
 
 
@@ -15,7 +14,7 @@ class EOQBuffer:
     def __init__(
         self,
         *,
-        items_type: Type[PaperSheet | WoodBoard],
+        items_type: type[PaperSheet | WoodBoard],
         reorder_level: int,
         eoq: int,
         get_time: int,
@@ -54,7 +53,7 @@ class EOQBuffer:
         """
         return self.level < self.reorder_level
 
-    @simulatte.as_process
+    @simulatte.utils.as_process
     def get(self):
         """
         A process to retrieve an item from the buffer.
@@ -63,7 +62,7 @@ class EOQBuffer:
         yield self.env.timeout(self.get_time)
         return item
 
-    @simulatte.as_process
+    @simulatte.utils.as_process
     def put(self, *, items):
         """
         A process to store some items into the buffer.

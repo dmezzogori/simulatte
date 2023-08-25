@@ -81,10 +81,18 @@ class SystemController:
         products: list[Product],
     ):
         self.env = env
+
         self.agv_controller = agv_controller
+        self.agv_controller.register_system(system=self)
+
         self.cells_controller = cells_controller
+        self.cells_controller.register_system(system=self)
+
         self.stores_controller = stores_controller
+        self.stores_controller.register_system(system=self)
+
         self.distance_controller = distance_controller
+        self.distance_controller.register_system(system=self)
 
         self.products = products
 

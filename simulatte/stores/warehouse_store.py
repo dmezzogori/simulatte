@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, Generic, TypedDict, TypeVar
 
 import simulatte
 from simulatte.stores import InputOperation, WarehouseLocation, WarehouseLocationSide
@@ -13,7 +13,6 @@ from .warehouse_location import distance
 
 if TYPE_CHECKING:
     from simpy.resources.store import Store
-    from simulatte.controllers import StoresManager
     from simulatte.operations import FeedingOperation
     from simulatte.products import Product
     from simulatte.service_point import ServicePoint
@@ -23,6 +22,20 @@ if TYPE_CHECKING:
 
 
 T = TypeVar("T", bound=CaseContainer)
+
+
+class WarehouseStoreConfig(TypedDict):
+    """
+    Configuration of a WarehouseStore.
+    """
+
+    n_positions: int
+    n_floors: int
+    location_width: float
+    location_height: float
+    depth: int
+    load_time: int
+    conveyor_capacity: int
 
 
 class WarehouseStore(Generic[T], metaclass=Identifiable):
@@ -41,26 +54,18 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
     def __init__(
         self,
         *,
-        stores_manager: StoresManager,
-        n_positions: int = 20,
-        n_floors: int = 8,
-        location_width: float = 1,
-        location_height: float = 1,
-        depth: int = 2,
-        load_time: int = 20,
-        conveyor_capacity: int = 5,
+        config: WarehouseStoreConfig,
     ):
         self.env = simulatte.Environment()
-        self.stores_manager = stores_manager
         self.input_location = InputLocation(self)
         self.output_location = OutputLocation(self)
-        self.location_width = location_width
-        self.location_height = location_height
-        self.depth = depth
-        self.n_positions = n_positions
-        self.n_floors = n_floors
-        self.load_time = load_time
-        self.conveyor_capacity = conveyor_capacity
+        self.location_width = config["location_width"]
+        self.location_height = config["location_height"]
+        self.depth = config["depth"]
+        self.n_positions = config["n_positions"]
+        self.n_floors = config["n_floors"]
+        self.load_time = config["load_time"]
+        self.conveyor_capacity = config["conveyor_capacity"]
 
         self.queue_stats = []
         self._get_queue = 0

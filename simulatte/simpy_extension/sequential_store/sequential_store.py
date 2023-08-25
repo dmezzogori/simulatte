@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Generic, Sequence, TypeVar
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Generic, TypeVar
 
+import simulatte.utils
 from simpy.resources.store import FilterStore, Store
-
-import simulatte
 
 if TYPE_CHECKING:
     from simpy import Environment
@@ -54,14 +54,14 @@ class SequentialStore(Generic[T]):
     def items(self) -> Sequence[T]:
         return self._output.items + self._internal_store.items
 
-    @simulatte.as_process
+    @simulatte.utils.as_process
     def put(self, item: T):
         if self.output_level == 0:
             yield self._output.put(item)
         else:
             yield self._internal_store.put(item)
 
-    @simulatte.as_process
+    @simulatte.utils.as_process
     def get(self, filter_: Callable) -> T:
         # Get the item from the output position
         item = yield self._output.get(filter_)

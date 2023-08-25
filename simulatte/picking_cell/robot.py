@@ -8,7 +8,7 @@ import simpy
 from simulatte.typings import ProcessGenerator
 
 if TYPE_CHECKING:
-    from simulatte.system import SystemController
+    from simulatte import Environment
 
 
 class ArmPosition(enum.Enum):
@@ -17,12 +17,10 @@ class ArmPosition(enum.Enum):
 
 
 class Robot(simpy.Resource):
-    def __init__(
-        self, *, system: SystemController, pick_timeout: float, place_timeout: float, rotation_timeout: float
-    ) -> None:
-        super().__init__(env=system.env, capacity=1)
+    def __init__(self, *, env: Environment, pick_timeout: float, place_timeout: float, rotation_timeout: float) -> None:
+        super().__init__(env=env, capacity=1)
 
-        self.env = system.env
+        self.env = env
         self.pick_timeout = pick_timeout
         self.place_timeout = place_timeout
         self.rotation_timeout = rotation_timeout
