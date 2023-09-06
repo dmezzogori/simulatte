@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterable
+from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 from simulatte.products import Product
 from simulatte.unitload import Pallet
@@ -108,10 +109,12 @@ class PalletRequest(Request, metaclass=Identifiable):
         self.sub_requests = list(layer_requests)
         self.unit_load = Pallet(wood_board=wood_board)
 
+        self.workload: int = 0
         for layer_request in self.sub_requests:
             layer_request.pallet_request = self
             for product_request in layer_request.sub_requests:
                 product_request.pallet_request = self
+                self.workload += 1
 
         self._start_time = None
         self._end_time = None
