@@ -29,7 +29,7 @@ class WarehouseStoreConfig(TypedDict):
     Configuration of a WarehouseStore.
     """
 
-    n_positions: int
+    n_positions: int | None
     n_floors: int
     location_width: float
     location_height: float
