@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from simulatte import as_process
 from simulatte.agv import AGV
+from simulatte.demand.generators.base import CustomerOrdersGenerator
 from simulatte.location import AGVRechargeLocation, InputLocation, OutputLocation
 from simulatte.logger import Logger
 from simulatte.observables.area import ObservableArea
@@ -79,6 +80,7 @@ class SystemController:
         stores_controller: BaseStoresController,
         distance_controller: DistanceController,
         products: list[Product],
+        orders_generator: CustomerOrdersGenerator,
     ):
         self.env = env
 
@@ -95,6 +97,10 @@ class SystemController:
         self.distance_controller.register_system(system=self)
 
         self.products = products
+        self.orders_generator = orders_generator
+        self.psp: list[PalletRequest] = []
+        self.process_requests()
+        self.check_workload()
 
         self.feeding_operations: list[FeedingOperation] = []
         self._finished_pallet_requests: list[PalletRequest] = []
@@ -126,6 +132,18 @@ class SystemController:
         yield self.input_pallet_location
         yield self.system_output_location
         yield self.agv_recharge_location
+
+    @as_process
+    def process_requests(self):
+        shifts = iter(list(self.orders_generator()))
+        while True:
+            shift = next(shifts)
+            self.psp.extend(shift.pallet_requests)
+            yield self.env.timeout(60 * 60 * 8)  # todo: parametrize
+
+    @as_process
+    def check_workload(self):
+        raise NotImplementedError
 
     def assign_to_cell(self, *, pallet_request: PalletRequest, cell: PickingCell | None = None) -> Process:
         """
