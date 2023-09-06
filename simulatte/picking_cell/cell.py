@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import collections
 from collections.abc import Iterable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from IPython.display import Markdown, display
 from simpy import Process
@@ -90,6 +90,19 @@ class PickingCell:
         Return the productivity of the PickingCell, expressed as number of PalletRequest completed per unit of time.
         """
         return len(self.pallet_requests_done) / self.system.env.now
+
+    def remaining_workload(self, what: Literal["layers", "cases"]) -> int:
+        """
+        Returns the remaining workload of the PickingCell.
+
+        The unit of measure can be layers or cases.
+        If the workload is expressed in terms of layers, the workload is equal
+        to the number of layers remaining to pick in the PalletRequest.
+        If the workload is expressed in terms of cases, the workload is equal
+        to the number of cases remaining to pick in the PalletRequest.
+        """
+
+        return sum(pallet_request.remaining_workload(what=what) for pallet_request in self.input_queue.items)
 
     def register_feeding_operation(self, *, feeding_operation: FeedingOperation) -> None:
         """
