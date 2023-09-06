@@ -60,8 +60,6 @@ class FeedingOperation(metaclass=Identifiable):
         self.unit_load = unit_load
         self.unit_load.feeding_operation = self
         self.picking_requests = picking_requests
-        for picking_request in self.picking_requests:
-            picking_request.feeding_operations.append(self)
 
         self.pre_unload_position: Position | None = None
         self.unload_position: Position | None = None
