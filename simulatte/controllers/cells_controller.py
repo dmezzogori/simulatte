@@ -41,7 +41,7 @@ class CellsController(Protocol):
 
     @property
     def picking_cells(self):
-        return self.picking_cells
+        return self._picking_cells
 
     def register_system(self, system: SystemController):
         self.system_controller = system
