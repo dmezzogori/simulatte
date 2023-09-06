@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Literal, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 import simulatte
 from simulatte.exceptions import OutOfStockError
@@ -26,9 +26,17 @@ class ProductStock(TypedDict):
 Stock = dict[Product, dict[type[CaseContainer], ProductStock]]
 
 
+class StoresConfig(TypedDict):
+    cls: type[WarehouseStore]
+    n: int
+    extra_capacity: float
+    config: dict[str, Any]
+
+
 class StoresControllerConfig(TypedDict):
     retrieval_policy: RetrievalPolicy
     storing_policy: StoringPolicy
+    stores_config: list[StoresConfig]
 
 
 class BaseStoresController:
