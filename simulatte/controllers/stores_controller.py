@@ -11,7 +11,7 @@ from simulatte.stores import WarehouseStore
 from simulatte.stores.warehouse_location import PhysicalPosition
 from simulatte.unitload import CaseContainer, Pallet
 
-from eagle_trays.agv.ant import Ant
+from ..agv.agv import AGV
 
 if TYPE_CHECKING:
     from simulatte.controllers import SystemController
@@ -60,7 +60,7 @@ class BaseStoresController:
         self._retrieval_policy = config["retrieval_policy"]
         self._storing_policy = config["storing_policy"]
 
-        self._stores: dict[type[WarehouseStore], set] = {}
+        self._stores: dict[type[WarehouseStore], list] = {}
         self._stock: Stock = {}
         self.system: SystemController | None = None
 
@@ -76,7 +76,9 @@ class BaseStoresController:
         Register a store to be managed by the stores' controller.
         """
 
-        self._stores.setdefault(type(store), set()).add(store)
+        stores = self._stores.setdefault(type(store), [])
+        if store not in stores:
+            stores.append(store)
 
     @property
     def stores(self):
@@ -122,9 +124,9 @@ class BaseStoresController:
 
         return on_hand + on_transit
 
-    def load(self, *, store: WarehouseStore, ant: Ant) -> None:
+    def load(self, *, store: WarehouseStore, agv: AGV) -> None:
         """
-        Used to centralize the loading of unitloads into the stores.
+        Used to centralize the loading of unit loads into the stores.
         Needed to keep trace of the on hand quantity of each product,
         to trigger replenishment when needed.
 

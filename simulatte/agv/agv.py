@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Generator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from simpy import PriorityResource
-from simulatte import as_process
+from simulatte import Environment, as_process
 from simulatte.utils import Identifiable
 
 from .agv_plotter import AGVPlotter
@@ -13,11 +12,14 @@ from .agv_status import AGVStatus
 from .agv_trip import AGVMission, AGVTrip
 
 if TYPE_CHECKING:
-    from simulatte import Environment
+    from collections.abc import Generator
+
     from simulatte.agv import AGVKind
     from simulatte.location import Location
     from simulatte.typings import ProcessGenerator
     from simulatte.unitload import CaseContainer
+
+    from ..picking_cell import PickingCell
 
 
 class AGV(PriorityResource, metaclass=Identifiable):
@@ -45,6 +47,7 @@ class AGV(PriorityResource, metaclass=Identifiable):
         "load_timeout",
         "unload_timeout",
         "speed",
+        "picking_cell",
         "_status",
         "_case_container",
         "current_location",
@@ -68,12 +71,13 @@ class AGV(PriorityResource, metaclass=Identifiable):
     def __init__(
         self,
         *,
-        env: Environment,
         kind: AGVKind,
         load_timeout: float,
         unload_timeout: float,
         speed: float,
+        picking_cell: type[PickingCell] | None = None,
     ):
+        env = Environment()
         super().__init__(env, capacity=1)
         self.env = env
 
@@ -82,49 +86,75 @@ class AGV(PriorityResource, metaclass=Identifiable):
         self.load_timeout = load_timeout
         self.unload_timeout = unload_timeout
         self.speed = speed
+        self.picking_cell = picking_cell
 
         # Initial state
         self._status = AGVStatus.IDLE
-
-        self._case_container: CaseContainer | None = None
-        self.current_location = None
         self._travel_time = 0
         self._travel_distance = 0
 
+        # Keep track of the unit load on board
+        self._case_container: CaseContainer | None = None
+
+        # Keep track of the current location
+        self.current_location = None
+
+        # History of the trips
         self.trips: list[AGVTrip] = []
+
+        # History of the missions
         self._missions: list[AGVMission] = []
 
+        # Keep track of the waiting times while waiting to be loaded
         self._loading_waiting_times = []
         self._loading_waiting_time_start: float | None = None
 
-        self._waiting_to_enter_staging_area: float | None = None
-        self.feeding_area_waiting_times = []
-
-        self._waiting_to_enter_internal_area: float | None = None
-        self.staging_area_waiting_times = []
-
-        self._waiting_to_be_unloaded: float | None = None
+        # Keep track of the waiting times while waiting to be unloaded
         self.unloading_waiting_times = []
+        self._waiting_to_be_unloaded: float | None = None
 
-        self._waiting_picking_to_end: float | None = None
+        # Keep track of the waiting times while waiting to enter a staging area
+        self.feeding_area_waiting_times = []
+        self._waiting_to_enter_staging_area: float | None = None
+
+        # Keep track of the waiting times while waiting to enter an internal area
+        self.staging_area_waiting_times = []
+        self._waiting_to_enter_internal_area: float | None = None
+
+        # Keep track of the waiting times while waiting for picking to end
         self.picking_waiting_times = []
+        self._waiting_picking_to_end: float | None = None
 
         self.plotter = AGVPlotter(agv=self)
 
     @property
     def n_users(self) -> int:
+        """
+        Return the number of users of the agv.
+        """
         return len(self.users)
 
     @property
     def n_queue(self) -> int:
+        """
+        Return the number of requests in the queue of the agv.
+        """
         return len(self.queue)
 
     @property
     def status(self):
+        """
+        Return the status of the agv.
+        """
+
         return self._status
 
     @status.setter
     def status(self, value: AGVStatus):
+        """
+        Set the status of the agv.
+        """
+
         # If the new status is WAITING_TO_BE_LOADED, record the start of the loading waiting time
         if value == AGVStatus.WAITING_TO_BE_LOADED:
             if self.unit_load is not None:

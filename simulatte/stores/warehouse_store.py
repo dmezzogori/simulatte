@@ -97,10 +97,10 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
                     )
                     for x in range(self.n_positions)
                     for y in range(self.n_floors)
-                    for side in [
+                    for side in (
                         WarehouseLocationSide.LEFT,
                         WarehouseLocationSide.RIGHT,
-                    ]
+                    )
                 ),
                 key=lambda location: distance.euclidean(location, self._location_origin),
             )

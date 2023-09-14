@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Collection, Generator
 from typing import TYPE_CHECKING
 
-from simulatte.agv import AGVKind
+from ..agv.agv_kind import AGVKind
 
 if TYPE_CHECKING:
     from simulatte.agv import AGV, AGVMission

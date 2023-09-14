@@ -62,7 +62,7 @@ def test_release_free(env: Environment, ant: Ant):
 
 def test_timings_and_status(env: Environment, ant: Ant):
     def test():
-        system = SystemMock(env)
+        SystemMock(env)
         assert ant.status == AGVStatus.IDLE
 
         yield env.timeout(100)
@@ -78,7 +78,7 @@ def test_timings_and_status(env: Environment, ant: Ant):
 
         # Mock the agv moving to a location
         destination = Location(name="store")
-        ant_move_proc = ant.move_to(system=system, location=destination)
+        ant_move_proc = ant.move_to(location=destination)
         # Check the status during the agv travel
         yield env.timeout(5)
         assert ant.status == AGVStatus.TRAVELING_UNLOADED
@@ -106,7 +106,7 @@ def test_timings_and_status(env: Environment, ant: Ant):
 
         # Mock the agv moving to a PickingCell
         destination = Location(name="cell")
-        ant_move_proc = ant.move_to(system=system, location=destination)
+        ant_move_proc = ant.move_to(location=destination)
         # Check the status during the agv travel
         yield env.timeout(5)
         assert ant.status == AGVStatus.TRAVELING_LOADED
@@ -143,7 +143,7 @@ def test_timings_and_status(env: Environment, ant: Ant):
         assert ant.picking_waiting_times == [2]
 
         destination = Location(name="rest")
-        ant_move_proc = ant.move_to(system=system, location=destination)
+        ant_move_proc = ant.move_to(location=destination)
         # Check the status during the agv travel
         yield env.timeout(5)
         assert ant.status == AGVStatus.TRAVELING_LOADED

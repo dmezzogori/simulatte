@@ -29,6 +29,7 @@ class Observer(Generic[T]):
         Each observer waits for the signal event to be triggered from the assigned observable area.
         Once triggered, the observer will execute its main process.
         """
+
         while True:
             yield self.observable_area.signal_event
             self._main_process()

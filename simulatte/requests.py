@@ -107,7 +107,7 @@ class LayerRequest(Request):
 
         return len(self.sub_requests) == 1
 
-    def total_workload(self, what: Literal["layers", "cases"]):
+    def total_workload(self, unit: Literal["layers", "cases"]):
         """
         Returns the total workload of the LayerRequest.
 
@@ -117,14 +117,14 @@ class LayerRequest(Request):
         to the number of cases in the LayerRequest.
         """
 
-        if what == "layers":
+        if unit == "layers":
             return 1
-        elif what == "cases":
+        elif unit == "cases":
             return self.n_cases
         else:
-            raise ValueError(f"Invalid workload type: {what}")
+            raise ValueError(f"Invalid workload type: {unit}")
 
-    def remaining_workload(self, what: Literal["layers", "cases"]):
+    def remaining_workload(self, unit: Literal["layers", "cases"]):
         """
         Returns the remaining workload of the LayerRequest.
 
@@ -134,12 +134,12 @@ class LayerRequest(Request):
         to the number of cases remaining to pick in the LayerRequest.
         """
 
-        if what == "layers":
+        if unit == "layers":
             return self.total_workload("layers") - int(self.processed)
-        elif what == "cases":
+        elif unit == "cases":
             return self.total_workload("cases") - self.picked_n_cases
         else:
-            raise ValueError(f"Invalid workload type: {what}")
+            raise ValueError(f"Invalid workload type: {unit}")
 
 
 class PalletRequest(Request, metaclass=Identifiable):
@@ -195,7 +195,7 @@ class PalletRequest(Request, metaclass=Identifiable):
         if self._start_time is not None and self._end_time is not None:
             return self._end_time - self._start_time
 
-    def total_workload(self, what: Literal["layers", "cases"]) -> int:
+    def total_workload(self, unit: Literal["layers", "cases"]) -> int:
         """
         Returns the total workload of the PalletRequest.
 
@@ -206,14 +206,14 @@ class PalletRequest(Request, metaclass=Identifiable):
         to the number of cases in the PalletRequest.
         """
 
-        if what == "layer":
+        if unit == "layers":
             return sum(layer_request.total_workload("layers") for layer_request in self.sub_requests)
-        elif what == "cases":
+        elif unit == "cases":
             return sum(layer_request.total_workload("cases") for layer_request in self.sub_requests)
         else:
-            raise ValueError(f"Invalid workload type: {what}")
+            raise ValueError(f"Invalid workload type: {unit}")
 
-    def remaining_workload(self, what: Literal["layers", "cases"]) -> int:
+    def remaining_workload(self, unit: Literal["layers", "cases"]) -> int:
         """
         Returns the remaining workload of the PalletRequest.
 
@@ -224,12 +224,12 @@ class PalletRequest(Request, metaclass=Identifiable):
         to the number of cases remaining to pick in the PalletRequest.
         """
 
-        if what == "layers":
+        if unit == "layers":
             return sum(layer_request.remaining_workload("layers") for layer_request in self.sub_requests)
-        elif what == "cases":
+        elif unit == "cases":
             return sum(layer_request.remaining_workload("cases") for layer_request in self.sub_requests)
         else:
-            raise ValueError(f"Invalid workload type: {what}")
+            raise ValueError(f"Invalid workload type: {unit}")
 
     def assigned(self, time: int) -> None:
         self._start_time = time

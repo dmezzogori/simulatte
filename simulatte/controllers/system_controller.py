@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 from simulatte import as_process
 from simulatte.agv import AGV
-from simulatte.demand.generators.base import CustomerOrdersGenerator
 from simulatte.location import AGVRechargeLocation, InputLocation, OutputLocation
 from simulatte.logger import Logger
 from simulatte.observables.area import ObservableArea
@@ -20,6 +19,7 @@ if TYPE_CHECKING:
         CellsController,
         DistanceController,
     )
+    from simulatte.demand.generators.base import CustomerOrdersGenerator
     from simulatte.environment import Environment
     from simulatte.location import Location
     from simulatte.operations import FeedingOperation
@@ -99,8 +99,6 @@ class SystemController:
         self.products = products
         self.orders_generator = orders_generator
         self.psp: list[PalletRequest] = []
-        self.process_requests()
-        self.check_workload()
 
         self.feeding_operations: list[FeedingOperation] = []
         self._finished_pallet_requests: list[PalletRequest] = []
@@ -113,6 +111,9 @@ class SystemController:
 
         self.idle_feeding_agvs = IdleFeedingAGVs(system_controller=self, signal_at="append")
         self.feeding_agvs_observer = FeedingAGVsObserver(system=self, observable_area=self.idle_feeding_agvs)
+
+        self.iter_shifts()
+        self.pallet_requests_release()
 
         self.logger = Logger()
 
@@ -134,15 +135,36 @@ class SystemController:
         yield self.agv_recharge_location
 
     @as_process
-    def process_requests(self):
-        shifts = iter(list(self.orders_generator()))
+    def iter_shifts(self):
+        """
+        Process the pallet requests from the orders generator.
+
+        The pallet requests are processed in a FIFO fashion.
+        At fixed intervals, a new shift is requested from the orders' generator.
+
+        The pallet requests are then put into the PSP (Pre-Shop Pool),
+        for further consideration by the `check_workload` process.
+        """
+
+        for feeding_agv in self.agv_controller.feeding_agvs:
+            self.idle_feeding_agvs.append(feeding_agv)
+
+        # Eternal process
         while True:
-            shift = next(shifts)
-            self.psp.extend(shift.pallet_requests)
-            yield self.env.timeout(60 * 60 * 8)  # todo: parametrize
+            # Iter over the shifts
+            for shift in self.orders_generator():
+                # Add all the pallet requests of the new shift to the PSP
+                self.psp.extend(shift.pallet_requests)
+
+                # Wait for the next shift
+                yield self.env.timeout(60 * 60 * 8)  # 8 hours
 
     @as_process
-    def check_workload(self):
+    def pallet_requests_release(self):
+        """
+        Abstract method for releasing pallet requests from the PSP to the picking cells.
+        """
+
         raise NotImplementedError
 
     def assign_to_cell(self, *, pallet_request: PalletRequest, cell: PickingCell | None = None) -> Process:
@@ -181,14 +203,14 @@ class SystemController:
             yield request
 
             # Move the agv to the output location of the picking cell
-            yield agv.move_to(system=self, location=cell.output_location)
+            yield agv.move_to(location=cell.output_location)
 
             # Wait for the pallet request to be loaded on the agv
             yield cell.get(pallet_request=pallet_request)
             yield agv.load(unit_load=pallet_request.unit_load)
 
             # Move the agv to the system output location
-            yield agv.move_to(system=self, location=self.system_output_location)
+            yield agv.move_to(location=self.system_output_location)
 
             # Wait for the pallet request to be unloaded from the agv
             yield agv.unload()
@@ -217,10 +239,18 @@ class SystemController:
             store = feeding_operation.store
             agv = feeding_operation.agv
             feeding_operation.unit_load.feeding_operation = None
-            yield agv.move_to(system=self.system, location=store.input_location)
-            yield self.system.stores_controller.load(store=store, ant=agv)
+
+            # Signal that the AGV has finished the feeding operation
+            # self.signal_agv_ready_for_next_feeding_operation
+
+            # Move the AGV to the input location of the same store where the unit load was retrieved
+            yield agv.move_to(location=store.input_location)
+
+            # When the AGV is in front of the store, trigger the loading process of the store
+            yield self.stores_controller.load(store=store, agv=agv)
+
         else:
             # otherwise, move the Ant to the rest location
-            yield feeding_operation.agv.move_to(system=self.system, location=self.system.agv_recharge_location)
+            yield feeding_operation.agv.move_to(location=self.agv_recharge_location)
             yield feeding_operation.agv.unload()
             feeding_operation.agv.release_current()

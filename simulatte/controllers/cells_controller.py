@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
@@ -40,8 +41,12 @@ class CellsController(Protocol):
         self._picking_cells: set[PickingCell] = set()
 
     @property
-    def picking_cells(self):
+    def picking_cells(self) -> set[PickingCell]:
         return self._picking_cells
+
+    @lru_cache(maxsize=128)
+    def get_cells_by_type(self, type_: type[PickingCell]) -> tuple[PickingCell]:
+        return tuple(c for c in self._picking_cells if isinstance(c, type_))
 
     def register_system(self, system: SystemController):
         self.system_controller = system

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from simulatte.controllers import SystemController
 from simulatte.location import (
     AGVRechargeLocation,
     InputLocation,
@@ -40,7 +41,7 @@ class AGVTrip:
         self.end_location = destination
         self.start_time = agv.env.now
 
-        self.distance: float = agv.system.distance(self.start_location, self.end_location).as_distance
+        self.distance: float = SystemController.distance(self.start_location, self.end_location).as_distance
         self.duration: float = self.distance / agv.speed
         self.end_time: float = self.start_time + self.duration
 

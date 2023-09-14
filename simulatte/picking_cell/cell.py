@@ -12,7 +12,6 @@ from simulatte.location import (
     OutputLocation,
     StagingLocation,
 )
-from simulatte.logger.logger import EventPayload
 from simulatte.operations import FeedingOperation
 from simulatte.picking_cell.areas import FeedingArea, InternalArea, StagingArea
 from simulatte.picking_cell.observers import FeedingObserver, StagingObserver
@@ -91,7 +90,7 @@ class PickingCell:
         """
         return len(self.pallet_requests_done) / self.system.env.now
 
-    def remaining_workload(self, what: Literal["layers", "cases"]) -> int:
+    def remaining_workload(self, unit: Literal["layers", "cases"]) -> int:
         """
         Returns the remaining workload of the PickingCell.
 
@@ -102,7 +101,7 @@ class PickingCell:
         to the number of cases remaining to pick in the PalletRequest.
         """
 
-        return sum(pallet_request.remaining_workload(what=what) for pallet_request in self.input_queue.items)
+        return sum(pallet_request.remaining_workload(unit=unit) for pallet_request in self.input_queue.items)
 
     def register_feeding_operation(self, *, feeding_operation: FeedingOperation) -> None:
         """
@@ -160,7 +159,7 @@ class PickingCell:
             feeding_operation.pre_unload_position.release(pre_unload_position_request)
 
         # Move the Ant from the StagingArea to the InternalArea
-        yield feeding_operation.agv.move_to(system=self.system, location=self.internal_location)
+        yield feeding_operation.agv.move_to(location=self.internal_location)
 
         # Housekeeping
         feeding_operation.ready_for_unload()
@@ -178,15 +177,15 @@ class PickingCell:
         Eventually, the FeedingArea signal event is triggered.
         """
         self.pallet_requests_assigned.append(pallet_request)
-        yield self.input_queue.put(pallet_request)
         self.picking_requests_queue.extend(self.iter_pallet_request(pallet_request=pallet_request))
+        yield self.input_queue.put(pallet_request)
 
-        # Triggers the feeding area signal event
-        # until the feeding area is full or there are no more picking requests to be processed
-        while not self.feeding_area.is_full and len(self.picking_requests_queue) > 0:
-            payload = EventPayload(event="ACTIVATING FEEDING AREA SIGNAL", type=0)
-            self.feeding_area.trigger_signal_event(payload=payload)
-            yield self.system.env.timeout(0.001)
+        # # Triggers the feeding area signal event
+        # # until the feeding area is full or there are no more picking requests to be processed
+        # while not self.feeding_area.is_full and len(self.picking_requests_queue) > 0:
+        #     payload = EventPayload(event="ACTIVATING FEEDING AREA SIGNAL", type=0)
+        #     self.feeding_area.trigger_signal_event(payload=payload)
+        #     yield self.system.env.timeout(0.001)
 
     @as_process
     def get(self, pallet_request: PalletRequest) -> ProcessGenerator[PalletRequest]:
