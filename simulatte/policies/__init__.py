@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from .agv_selection_policy import AGVSelectionPolicy, WorkloadAGVSelectionPolicy
+from .agv_selection_policy.base import AGVSelectionPolicy
+from .agv_selection_policy.workload_selection_policy import WorkloadAGVSelectionPolicy
 from .cell_selection_policy import CellSelectionPolicy
 from .replenishment_policy import ReplenishmentPolicy
 from .retrieval_policy import RetrievalPolicy

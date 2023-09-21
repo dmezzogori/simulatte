@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
-from simulatte.logger.logger import EventPayload
-
-from ..observable import Observable
-from .base_area import Area, T
-
-if TYPE_CHECKING:
-    from ...controllers import SystemController
+from simulatte.logger.event_payload import EventPayload
+from simulatte.observables.area.base import Area, Item, Owner
+from simulatte.observables.observable.base import Observable
 
 
-class ObservableArea(Area[T], Observable):
+class ObservableArea(Area[Item, Owner], Observable):
     """
     Implement an observable area.
     Extends Area to add the observer/observable pattern.
@@ -20,21 +16,21 @@ class ObservableArea(Area[T], Observable):
     def __init__(
         self,
         *,
-        system_controller: SystemController,
         capacity: int = float("inf"),
+        owner: Owner | None = None,
         signal_at: Literal["append", "remove"],
     ):
-        Area.__init__(self, system_controller=system_controller, capacity=capacity)
-        Observable.__init__(self, system_controller=system_controller)
+        Area.__init__(self, capacity=capacity, owner=owner)
+        Observable.__init__(self)
         self.signal_at = signal_at
 
-    def append(self, item: T, exceed=False):
+    def append(self, item: Item, exceed=False):
         super().append(item=item, exceed=exceed)
         if self.signal_at == "append":
             payload = EventPayload(event=f"ACTIVATING {self.__class__.__name__} SIGNAL", type=1)
             self.trigger_signal_event(payload=payload)
 
-    def remove(self, item: T) -> None:
+    def remove(self, item: Item) -> None:
         super().remove(item)
         if self.signal_at == "remove":
             payload = EventPayload(event=f"ACTIVATING {self.__class__.__name__} SIGNAL", type=1)

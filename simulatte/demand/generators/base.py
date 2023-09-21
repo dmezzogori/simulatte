@@ -2,19 +2,19 @@ from __future__ import annotations
 
 import csv
 import random
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from itertools import groupby
-from typing import Callable, Iterable
 
-from eagle_trays.demand.customer_order import CustomerOrder
-from eagle_trays.demand.shift import Shift
+from simulatte.demand.customer_order import CustomerOrder
+from simulatte.demand.shift import Shift
 from simulatte.products import Product, ProductsGenerator
 from simulatte.requests import LayerRequest, PalletRequest, ProductRequest
 
 
 @dataclass
 class CustomerOrdersGenerator:
-    """Abstract factory for the generation of CustomerOrder for a simulation.
+    """Abstract factory for the generation of CustomerOrders for a simulation.
 
     :param n_days: number of days to be generated
     :param n_shift_per_day: number of shifts in each day
@@ -85,8 +85,7 @@ class CustomerOrdersGenerator:
 
                     self._shifts.append(Shift(day=n_day, shift=n_shift, customer_orders=customer_orders))
 
-        for shift in self._shifts:
-            yield shift
+        yield from self._shifts
 
     def export(self, filename: str) -> None:
         """Export the generated shifts to a file"""
@@ -149,14 +148,12 @@ class CustomerOrdersGenerator:
 
     @property
     def shift_per_day(self) -> Iterable[int, Iterable[Shift]]:
-        for day, shifts_in_day in groupby(self(), lambda shift: shift.day):
-            yield day, shifts_in_day
+        yield from groupby(self(), lambda shift: shift.day)
 
     def stats(self):
         products_demand = {}  # {product: {'layer': [], 'pallet': []}}
 
         for day, shifts_in_day in self.shift_per_day:
-
             product_daily_demand = {}  # {product: (layer, pallet)}
 
             for shift in shifts_in_day:

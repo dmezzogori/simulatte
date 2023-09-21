@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence, Any
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
+
+from simpy.resources.base import Put
 
 if TYPE_CHECKING:
     from .multi_store import MultiStore
-
-from simpy.resources.base import Put
 
 
 class MultiStorePut(Put):

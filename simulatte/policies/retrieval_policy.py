@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from typing import TYPE_CHECKING
 
-from simulatte.products import Product
-from simulatte.stores import WarehouseStore
 from simulatte.stores.warehouse_location.warehouse_location import WarehouseLocation
-from simulatte.unitload import Pallet
+from simulatte.stores.warehouse_store import WarehouseStore
+from simulatte.unitload.pallet import Pallet
+
+if TYPE_CHECKING:
+    from simulatte.products import Product
+
 
 CasesQuantity = int
 RetrievalPolicyResult = tuple[tuple[WarehouseStore, WarehouseLocation, Pallet], ...]
 
 
-class RetrievalPolicy(Callable):
+class RetrievalPolicy:
     """
     RetrievalPolicy defines the interface for implementing policies for determine
     which unit load to retrieve, and from which store to retrieve it, in order to satisfy a request.

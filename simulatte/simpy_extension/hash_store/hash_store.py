@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 from simpy.core import BoundClass
 from simpy.resources.store import Store
-
-from .hash_store_get import HashStoreGet
-from .hash_store_put import HashStorePut
+from simulatte.simpy_extension.hash_store.hash_store_get import HashStoreGet
+from simulatte.simpy_extension.hash_store.hash_store_put import HashStorePut
 
 
 class HashStore(Store):

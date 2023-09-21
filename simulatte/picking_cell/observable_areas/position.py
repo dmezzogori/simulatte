@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from simpy.core import BoundClass
 from simpy.resources.resource import Release, Request, Resource
+from simulatte.environment import Environment
 
 
 class OccupationRequest(Request):
@@ -35,7 +36,7 @@ class Position(Resource):
     release = BoundClass(Release)
 
     def __init__(self, name: str, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs, env=Environment())
         self.name = name
 
     def __repr__(self) -> str:

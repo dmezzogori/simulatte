@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
-
-if TYPE_CHECKING:
-    from .filter_multi_store import FilterMultiStore
+from typing import TYPE_CHECKING
 
 from simpy.resources.base import Get
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from .filter_multi_store import FilterMultiStore
 
 
 class FilterMultiStoreGet(Get):

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Collection, Generator
 from typing import TYPE_CHECKING
 
-from ..agv.agv_kind import AGVKind
+from simulatte.agv.agv_kind import AGVKind
 
 if TYPE_CHECKING:
+    from collections.abc import Collection, Generator
+
     from simulatte.agv import AGV, AGVMission
     from simulatte.controllers import SystemController
     from simulatte.policies import AGVSelectionPolicy

@@ -1,10 +1,11 @@
-import pytest
+from __future__ import annotations
 
-from simulatte.stores.warehouse_location import PhysicalPosition
-from simulatte.stores.warehouse_location.exceptions import (
+import pytest
+from simulatte.exceptions.physical_position import (
     PhysicalPositionBusy,
     PhysicalPositionEmpty,
 )
+from simulatte.stores.warehouse_location import PhysicalPosition
 from simulatte.unitload import Pallet
 
 

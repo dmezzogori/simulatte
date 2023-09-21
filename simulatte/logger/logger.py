@@ -1,26 +1,15 @@
 from __future__ import annotations
 
 import pprint
-from datetime import datetime
-from typing import TYPE_CHECKING, Optional, TypedDict
+from typing import TYPE_CHECKING
 
-import pandas as pd
-
-import simulatte
+from simulatte.utils.singleton import Singleton
 
 if TYPE_CHECKING:
-    from simulatte.picking_cell import FeedingOperation, PickingCell
+    from simulatte.logger.event_payload import EventPayload
 
 
-class EventPayload(TypedDict, total=False):
-    time: float
-    cell: PickingCell
-    event: str
-    type: int
-    operation: Optional[FeedingOperation]
-
-
-class Logger(metaclass=simulatte.utils.Singleton):
+class Logger(metaclass=Singleton):
     """
     Used to register events during a simulation.
     """
@@ -35,6 +24,10 @@ class Logger(metaclass=simulatte.utils.Singleton):
         self.logs = []
 
     def export(self, *, filename: str | None = None) -> None:
+        from datetime import datetime
+
+        import pandas as pd
+
         df = pd.DataFrame(self.logs)
         filename = filename or f"{datetime.now()}.csv"
         df.to_csv(f"./export_data/{filename}.csv")

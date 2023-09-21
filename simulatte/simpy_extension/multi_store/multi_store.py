@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from simpy import Environment
-
 from simpy.core import BoundClass
 from simpy.resources.base import BaseResource
+from simulatte.simpy_extension.multi_store.multi_store_get import MultiStoreGet
+from simulatte.simpy_extension.multi_store.multi_store_put import MultiStorePut
 
-from .multi_store_get import MultiStoreGet
-from .multi_store_put import MultiStorePut
+if TYPE_CHECKING:
+    from simulatte.environment import Environment
 
 
 class MultiStore(BaseResource):

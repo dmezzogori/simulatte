@@ -4,9 +4,9 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from simulatte.controllers import SystemController
-    from simulatte.picking_cell import PickingCell
-    from simulatte.policies import CellSelectionPolicy
+    from simulatte.controllers.system_controller import SystemController
+    from simulatte.picking_cell.cell import PickingCell
+    from simulatte.policies.cell_selection_policy import CellSelectionPolicy
     from simulatte.requests import PalletRequest
 
 

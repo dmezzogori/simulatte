@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence, Callable, Any
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING
+
+from simulatte.simpy_extension.multi_store.multi_store import MultiStore
+from simulatte.simpy_extension.sequential_store.sequential_store import SequentialStore
 
 if TYPE_CHECKING:
     from simpy import Environment
-
-from ..sequential_store import SequentialStore
-from ..multi_store import MultiStore
 
 
 class SequentialMultiStore(SequentialStore):

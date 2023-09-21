@@ -2,21 +2,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from simulatte.controllers import SystemController
-from simulatte.location import (
-    AGVRechargeLocation,
-    InputLocation,
-    InternalLocation,
-    Location,
-    OutputLocation,
-    StagingLocation,
-)
-from simulatte.picking_cell import PickingCell
-from simulatte.stores import WarehouseStore
+from simulatte.agv.agv_status import AGVStatus
 
 if TYPE_CHECKING:
     from simpy.resources.resource import PriorityRequest
-    from simulatte.agv import AGV, AGVStatus
+    from simulatte.agv.agv import AGV
+    from simulatte.location import Location
 
 
 class AGVTrip:
@@ -36,12 +27,14 @@ class AGVTrip:
     )
 
     def __init__(self, agv: AGV, destination: Location):
+        from eagle_trays.controllers import SystemController
+
         self.agv = agv
         self.start_location = agv.current_location
         self.end_location = destination
         self.start_time = agv.env.now
 
-        self.distance: float = SystemController.distance(self.start_location, self.end_location).as_distance
+        self.distance: float = SystemController().distance(from_=self.start_location, to=self.end_location).as_distance
         self.duration: float = self.distance / agv.speed
         self.end_time: float = self.start_time + self.duration
 
@@ -51,6 +44,15 @@ class AGVTrip:
         """
 
         from simulatte.controllers import SystemController
+        from simulatte.location import (
+            AGVRechargeLocation,
+            InputLocation,
+            InternalLocation,
+            OutputLocation,
+            StagingLocation,
+        )
+        from simulatte.picking_cell import PickingCell
+        from simulatte.stores import WarehouseStore
 
         from eagle_trays.depal import Depal
 
@@ -131,6 +133,10 @@ class AGVTrip:
             #   to the output location of a picking cell
             case [OutputLocation(SystemController()), OutputLocation(PickingCell())]:
                 return AGVStatus.TRAVELING_UNLOADED, AGVStatus.WAITING_TO_BE_LOADED
+
+            case [InputLocation(PickingCell()), InternalLocation(PickingCell())]:
+                # todo: is this possible?
+                return AGVStatus.TRAVELING_LOADED, AGVStatus.WAITING_TO_BE_UNLOADED
 
             case _:
                 raise ValueError

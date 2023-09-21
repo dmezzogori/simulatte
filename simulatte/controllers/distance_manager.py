@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from simulatte.controllers import SystemController
-    from simulatte.distance import Distance
+    from simulatte.controllers.system_controller import SystemController
+    from simulatte.distance.distance import Distance
     from simulatte.location import Location
 
 

@@ -1,19 +1,17 @@
 from __future__ import annotations
 
 import pytest
-import simulatte.system
-from simulatte.agv import AGVStatus
+import simulatte.controllers
+from simulatte.agv import AGV, AGVStatus
 from simulatte.distance import Distance
 from simulatte.environment import Environment
 from simulatte.location import Location
 from simulatte.unitload import CaseContainer
 
-from eagle_trays.agv.ant import Ant
-
 
 @pytest.fixture(scope="function")
-def ant(env: Environment) -> Ant:
-    return Ant(env, load_timeout=3, unload_timeout=3)
+def ant(env: Environment) -> AGV:
+    return AGV(env, load_timeout=3, unload_timeout=3)
 
 
 class DistanceMock(Distance):
@@ -27,7 +25,7 @@ class SystemMock(simulatte.system.SystemController):
         return DistanceMock(system=self, from_=from_, to=to)
 
 
-def test_load(env: Environment, ant: Ant):
+def test_load(env: Environment, ant: AGV):
     def test():
         assert ant.unit_load is None
 
@@ -39,7 +37,7 @@ def test_load(env: Environment, ant: Ant):
     env.run()
 
 
-def test_double_load(env: Environment, ant: Ant):
+def test_double_load(env: Environment, ant: AGV):
     def test():
         unit_load = CaseContainer()
         yield ant.load(unit_load=unit_load)
@@ -51,7 +49,7 @@ def test_double_load(env: Environment, ant: Ant):
     env.run()
 
 
-def test_release_free(env: Environment, ant: Ant):
+def test_release_free(env: Environment, ant: AGV):
     def test():
         with pytest.raises(ValueError):
             yield ant.release_current()
@@ -60,7 +58,7 @@ def test_release_free(env: Environment, ant: Ant):
     env.run()
 
 
-def test_timings_and_status(env: Environment, ant: Ant):
+def test_timings_and_status(env: Environment, ant: AGV):
     def test():
         SystemMock(env)
         assert ant.status == AGVStatus.IDLE

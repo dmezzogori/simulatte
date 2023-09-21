@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from simpy.core import BoundClass
-
-from .filter_multi_store_get import FilterMultiStoreGet
-from ..multi_store import MultiStore
+from simulatte.simpy_extension.filter_multi_store.filter_multi_store_get import (
+    FilterMultiStoreGet,
+)
+from simulatte.simpy_extension.multi_store.multi_store import MultiStore
 
 
 class FilterMultiStore(MultiStore):

@@ -4,22 +4,20 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from simpy import PriorityResource
-from simulatte import Environment, as_process
-from simulatte.utils import Identifiable
-
-from .agv_plotter import AGVPlotter
-from .agv_status import AGVStatus
-from .agv_trip import AGVMission, AGVTrip
+from simulatte.agv.agv_plotter import AGVPlotter
+from simulatte.agv.agv_status import AGVStatus
+from simulatte.agv.agv_trip import AGVMission, AGVTrip
+from simulatte.environment import Environment
+from simulatte.utils import Identifiable, as_process
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
     from simulatte.agv import AGVKind
     from simulatte.location import Location
+    from simulatte.picking_cell import PickingCell
     from simulatte.typings import ProcessGenerator
     from simulatte.unitload import CaseContainer
-
-    from ..picking_cell import PickingCell
 
 
 class AGV(PriorityResource, metaclass=Identifiable):

@@ -1,33 +1,33 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from simulatte import as_process
 from simulatte.agv import AGV
 from simulatte.location import AGVRechargeLocation, InputLocation, OutputLocation
-from simulatte.logger import Logger
-from simulatte.observables.area import ObservableArea
-from simulatte.observables.observer import Observer
+from simulatte.logger.logger import Logger
+from simulatte.observables.observable_area.base import ObservableArea
+from simulatte.observables.observer.base import Observer
+from simulatte.utils.singleton import Singleton
+from simulatte.utils.utils import as_process
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from simpy import Process
     from simpy.resources.resource import PriorityRequest
-    from simulatte.controllers import (
-        AGVController,
-        BaseStoresController,
-        CellsController,
-        DistanceController,
-    )
+    from simulatte.controllers.agvs_controller import AGVController
+    from simulatte.controllers.cells_controller import CellsController
+    from simulatte.controllers.distance_manager import DistanceController
+    from simulatte.controllers.stores_controller import BaseStoresController
     from simulatte.demand.generators.base import CustomerOrdersGenerator
     from simulatte.environment import Environment
     from simulatte.location import Location
-    from simulatte.operations import FeedingOperation
-    from simulatte.picking_cell import PickingCell
+    from simulatte.operations.feeding_operation import FeedingOperation
+    from simulatte.picking_cell.cell import PickingCell
     from simulatte.products import Product
     from simulatte.requests import PalletRequest
-    from simulatte.stores import WarehouseStore
-    from simulatte.typings import ProcessGenerator
+    from simulatte.stores.warehouse_store import WarehouseStore
+    from simulatte.typings.typings import ProcessGenerator
 
 
 class IdleFeedingAGVs(ObservableArea[AGV]):
@@ -53,10 +53,10 @@ class FeedingAGVsObserver(Observer[IdleFeedingAGVs]):
         if agv is None:
             return
 
-        self.system.start_feeding_operation(agv=agv)
+        self.observable_area.owner.start_feeding_operation(agv=agv)
 
 
-class SystemController:
+class SystemController(metaclass=Singleton):
     """
     Base class for a system controller.
 
@@ -109,8 +109,8 @@ class SystemController:
         self.system_output_location = OutputLocation(self)
         self.agv_recharge_location = AGVRechargeLocation(self)
 
-        self.idle_feeding_agvs = IdleFeedingAGVs(system_controller=self, signal_at="append")
-        self.feeding_agvs_observer = FeedingAGVsObserver(system=self, observable_area=self.idle_feeding_agvs)
+        self.idle_feeding_agvs = IdleFeedingAGVs(signal_at="append", owner=self)
+        self.feeding_agvs_observer = FeedingAGVsObserver(observable_area=self.idle_feeding_agvs)
 
         self.iter_shifts()
         self.pallet_requests_release()

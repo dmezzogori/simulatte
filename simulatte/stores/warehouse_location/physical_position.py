@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .exceptions import PhysicalPositionBusy, PhysicalPositionEmpty
+from simulatte.exceptions.physical_position import (
+    PhysicalPositionBusy,
+    PhysicalPositionEmpty,
+)
 
 if TYPE_CHECKING:
-    from simulatte.unitload import Pallet
+    from simulatte.unitload.pallet import Pallet
 
 
 class PhysicalPosition:

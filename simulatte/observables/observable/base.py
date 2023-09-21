@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from simulatte.environment import Environment
 from simulatte.events.logged_event import LoggedEvent
 
 if TYPE_CHECKING:
-    from simulatte.controllers import SystemController
-    from simulatte.logger.logger import EventPayload
+    from simulatte.logger.event_payload import EventPayload
 
 
 class Observable:
@@ -17,15 +17,15 @@ class Observable:
     The observer uses the observable signal event to act accordingly.
     """
 
-    def __init__(self, *, system_controller: SystemController) -> None:
-        self.system_controller = system_controller
+    def __init__(self) -> None:
+        self.env = Environment()
         self.signal_event = self._init_signal_event()
 
     def _init_signal_event(self) -> LoggedEvent:
         """
         Initialize the observable signal event.
         """
-        return LoggedEvent(env=self.system_controller.env)
+        return LoggedEvent(env=self.env)
 
     @property
     def _logged_event_title(self) -> str:
@@ -36,7 +36,7 @@ class Observable:
         Trigger the observer signal event and then reset it.
         """
 
-        payload["time"] = self.system_controller.env.now
+        payload["time"] = self.env.now
         if hasattr(self, "cell"):
             payload["cell"] = self.cell.name
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from simulatte.unitload import CaseContainer
+from simulatte.unitload.case_container import CaseContainer
 
 if TYPE_CHECKING:
     from simulatte.products import Product

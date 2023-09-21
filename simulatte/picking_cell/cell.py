@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import collections
-from collections.abc import Iterable
+from collections import defaultdict, deque
 from typing import TYPE_CHECKING, Literal
 
 from IPython.display import Markdown, display
@@ -12,21 +11,25 @@ from simulatte.location import (
     OutputLocation,
     StagingLocation,
 )
-from simulatte.operations import FeedingOperation
-from simulatte.picking_cell.areas import FeedingArea, InternalArea, StagingArea
-from simulatte.picking_cell.observers import FeedingObserver, StagingObserver
+from simulatte.operations.feeding_operation import FeedingOperation
+from simulatte.picking_cell.areas.feeding_area import FeedingArea
+from simulatte.picking_cell.observable_areas.internal_area import InternalArea
+from simulatte.picking_cell.observable_areas.staging_area import StagingArea
 from simulatte.picking_cell.observers.internal_observer import InternalObserver
+from simulatte.picking_cell.observers.staging_observer import StagingObserver
 from simulatte.requests import PalletRequest, ProductRequest
-from simulatte.resources import MonitoredResource
-from simulatte.simpy_extension import SequentialStore
+from simulatte.resources.monitored_resource import MonitoredResource
+from simulatte.simpy_extension.sequential_store.sequential_store import SequentialStore
 from simulatte.utils.utils import as_process
 from tabulate import tabulate
 
 if TYPE_CHECKING:
-    from simulatte.controllers import SystemController
+    from collections.abc import Iterable
+
+    from simulatte.controllers.system_controller import SystemController
     from simulatte.requests import Request
     from simulatte.resources.store import Store
-    from simulatte.typings import ProcessGenerator
+    from simulatte.typings.typings import ProcessGenerator
 
 
 class PickingCell:
@@ -52,18 +55,21 @@ class PickingCell:
 
         self.feeding_operations: list[FeedingOperation] = []
 
-        self.feeding_area = FeedingArea(cell=self, capacity=feeding_area_capacity)
-        self.feeding_observer = FeedingObserver(system=self.system, observable_area=self.feeding_area)
+        self.feeding_area = FeedingArea[FeedingOperation, PickingCell](capacity=feeding_area_capacity, owner=self)
 
-        self.staging_area = StagingArea(cell=self, capacity=staging_area_capacity)
-        self.staging_observer = StagingObserver(system=self.system, observable_area=self.staging_area)
+        self.staging_area = StagingArea[FeedingOperation, PickingCell](
+            capacity=staging_area_capacity, owner=self, signal_at="remove"
+        )
+        self.staging_observer = StagingObserver(observable_area=self.staging_area)
 
-        self.internal_area = InternalArea(cell=self, capacity=internal_area_capacity)
-        self.internal_observer = InternalObserver(system=self.system, observable_area=self.internal_area)
+        self.internal_area = InternalArea[FeedingOperation, PickingCell](
+            capacity=internal_area_capacity, owner=self, signal_at="remove"
+        )
+        self.internal_observer = InternalObserver(observable_area=self.internal_area)
 
-        self.picking_requests_queue: collections.deque[Request] = collections.deque()
+        self.picking_requests_queue: deque[Request] = deque()
 
-        self.feeding_operation_map: dict[Request, list[FeedingOperation]] = collections.defaultdict(list)
+        self.feeding_operation_map: dict[Request, list[FeedingOperation]] = defaultdict(list)
 
         self.current_pallet_request: PalletRequest | None = None
 

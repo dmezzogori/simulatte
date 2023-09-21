@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from simpy.resources.base import Get
+
 if TYPE_CHECKING:
     from .multi_store import MultiStore
-
-from simpy.resources.base import Get
 
 
 class MultiStoreGet(Get):

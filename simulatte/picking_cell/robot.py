@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import simpy
-from simulatte.typings import ProcessGenerator
+from simulatte.environment import Environment
 
 if TYPE_CHECKING:
-    from simulatte import Environment
+    from simulatte.typings import ProcessGenerator
 
 
 class ArmPosition(enum.Enum):
@@ -17,10 +17,10 @@ class ArmPosition(enum.Enum):
 
 
 class Robot(simpy.Resource):
-    def __init__(self, *, env: Environment, pick_timeout: float, place_timeout: float, rotation_timeout: float) -> None:
-        super().__init__(env=env, capacity=1)
+    def __init__(self, *, pick_timeout: float, place_timeout: float, rotation_timeout: float) -> None:
+        self.env = Environment()
+        super().__init__(env=self.env, capacity=1)
 
-        self.env = env
         self.pick_timeout = pick_timeout
         self.place_timeout = place_timeout
         self.rotation_timeout = rotation_timeout

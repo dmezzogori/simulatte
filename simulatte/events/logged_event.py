@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from simpy.events import Event
+from typing import TYPE_CHECKING
 
-from simulatte.logger.logger import EventPayload, Logger
+from simpy.events import Event
+from simulatte.logger.logger import Logger
+
+if TYPE_CHECKING:
+    from simulatte.logger.logger import EventPayload
 
 
 class LoggedEvent(Event):

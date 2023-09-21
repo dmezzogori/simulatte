@@ -2,6 +2,9 @@ from __future__ import annotations
 
 
 class Location:
+    __slots__ = ("element",)
+    __match_args__ = ("element",)
+
     def __init__(self, element=None):
         self.element = element
 
@@ -10,7 +13,9 @@ class Location:
 
     @property
     def name(self):
-        return f"{self.__class__.__name__}_{self.element.name}"
+        if self.element is None:
+            return self.__class__.__name__
+        return f"{self.element.__class__.__name__} {self.__class__.__name__}"
 
 
 class InputLocation(Location):

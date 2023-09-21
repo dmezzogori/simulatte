@@ -1,23 +1,25 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, Generic
+from typing import TYPE_CHECKING, Generic, TypeVar
 
-import matplotlib.pyplot as plt
 import simpy
-
-import simulatte
+from simulatte.environment import Environment
+from simulatte.typings.typings import History
+from simulatte.unitload.case_container import CaseContainer
+from simulatte.utils.utils import as_process
 
 if TYPE_CHECKING:
-    from simulatte.stores import WarehouseLocation, WarehouseStore
+    from simulatte.stores.warehouse_location.warehouse_location import WarehouseLocation
+    from simulatte.stores.warehouse_store import WarehouseStore
 
-T = TypeVar("T", bound=simulatte.unitload.CaseContainer)
+T = TypeVar("T", bound=CaseContainer)
 
 
 class Traslo(simpy.PriorityResource, Generic[T]):
     def __init__(
         self, *, store: WarehouseStore, x: int, y: int, speed_x: float, speed_y: float, load_time: float
     ) -> None:
-        self.env = simulatte.Environment()
+        self.env = Environment()
         super().__init__(self.env, capacity=1)
 
         self.store = store
@@ -28,7 +30,7 @@ class Traslo(simpy.PriorityResource, Generic[T]):
         self.load_time = load_time
 
         self._handling_time = 0
-        self._saturation_history: simulatte.typings.History[float] = [(0, 0)]
+        self._saturation_history: History[float] = [(0, 0)]
         self._unit_load: T | None = None
 
     @property
@@ -58,7 +60,7 @@ class Traslo(simpy.PriorityResource, Generic[T]):
 
         self._unit_load = unit_load
 
-    @simulatte.as_process
+    @as_process
     def move(self, *, location: WarehouseLocation) -> None:
         time_x = abs(self.x - location.x) * location.width / self.speed_x
         time_y = abs(self.y - location.y) * location.height / self.speed_y
@@ -67,24 +69,26 @@ class Traslo(simpy.PriorityResource, Generic[T]):
         self.handling_time += t
         self.x, self.y = location.x, location.y
 
-    @simulatte.as_process
+    @as_process
     def load(self, *, unit_load: T) -> None:
         self.unit_load = unit_load
         yield self.env.timeout(self.load_time)
         self.handling_time += self.load_time
 
-    @simulatte.as_process
+    @as_process
     def unload(self) -> None:
         self.unit_load = None
         yield self.env.timeout(self.load_time)
         self.handling_time += self.load_time
 
     def plot(self) -> None:
+        import matplotlib.pyplot as plt
+
         x = [t / 3600 for t, _ in self._saturation_history]
         y = [s * 100 for _, s in self._saturation_history]
         plt.plot(x, y)
         plt.xlabel("Time [h]")
-        plt.ylabel(f"Saturation [%]")
+        plt.ylabel("Saturation [%]")
         plt.title(f"{self.store.name} {self.__class__.__name__} Productivity")
         plt.ylim([0, 100])
         plt.show()

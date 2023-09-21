@@ -3,19 +3,21 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
-import simulatte
-from simulatte.exceptions import OutOfStockError
-from simulatte.policies import RetrievalPolicy, StoringPolicy
-from simulatte.products import Product, ProductsGenerator
-from simulatte.stores import WarehouseStore
-from simulatte.stores.warehouse_location import PhysicalPosition
-from simulatte.unitload import CaseContainer, Pallet
-
-from ..agv.agv import AGV
+from simulatte.exceptions.store import OutOfStockError
+from simulatte.products import Product
+from simulatte.unitload.case_container import CaseContainer
+from simulatte.utils.utils import as_process
 
 if TYPE_CHECKING:
+    from simulatte.agv.agv import AGV
     from simulatte.controllers import SystemController
+    from simulatte.policies.retrieval_policy import RetrievalPolicy
+    from simulatte.policies.storing_policy import StoringPolicy
+    from simulatte.products import ProductsGenerator
+    from simulatte.stores.warehouse_location import PhysicalPosition
     from simulatte.stores.warehouse_location.warehouse_location import WarehouseLocation
+    from simulatte.stores.warehouse_store import WarehouseStore
+    from simulatte.unitload.pallet import Pallet
 
 
 class ProductStock(TypedDict):
@@ -189,7 +191,7 @@ class BaseStoresController:
                     case_container=case_container,
                 )
 
-    @simulatte.as_process
+    @as_process
     def periodic_store_replenishment(self):
         """
         Periodically checks if there is need for replenishment operations.

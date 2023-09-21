@@ -3,16 +3,17 @@ from __future__ import annotations
 from functools import total_ordering
 from typing import TYPE_CHECKING
 
-from simulatte.events import LoggedEvent
-from simulatte.unitload import Pallet
-from simulatte.utils import Identifiable
+from simulatte.events.logged_event import LoggedEvent
+from simulatte.utils.identifiable import Identifiable
 
 if TYPE_CHECKING:
-    from simulatte.agv import AGV
-    from simulatte.picking_cell import PickingCell
-    from simulatte.picking_cell.areas.position import Position
-    from simulatte.requests import PickingRequest
-    from simulatte.stores import WarehouseLocation, WarehouseStore
+    from simulatte.agv.agv import AGV
+    from simulatte.picking_cell.cell import PickingCell
+    from simulatte.picking_cell.observable_areas.position import Position
+    from simulatte.requests import Request
+    from simulatte.stores.warehouse_location.warehouse_location import WarehouseLocation
+    from simulatte.stores.warehouse_store import WarehouseStore
+    from simulatte.unitload.pallet import Pallet
 
 
 @total_ordering
@@ -46,7 +47,7 @@ class FeedingOperation(metaclass=Identifiable):
         cell: PickingCell,
         agv: AGV,
         store: WarehouseStore,
-        picking_requests: list[PickingRequest],
+        picking_requests: list[Request],
         location: WarehouseLocation,
         unit_load: Pallet,
     ) -> None:

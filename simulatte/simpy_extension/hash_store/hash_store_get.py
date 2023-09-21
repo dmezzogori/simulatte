@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Hashable
-
-if TYPE_CHECKING:
-    from simpy.resources.store import Store
+from typing import TYPE_CHECKING
 
 from simpy.resources.store import StoreGet
+
+if TYPE_CHECKING:
+    from collections.abc import Hashable
+
+    from simpy.resources.store import Store
 
 
 class HashStoreGet(StoreGet):

@@ -1,6 +1,7 @@
-import simpy
+from __future__ import annotations
 
-import simulatte
+import simpy
+from simulatte.environment import Environment
 from simulatte.location import Location
 
 
@@ -17,6 +18,6 @@ class ServicePoint(simpy.PriorityResource):
         :param env: The simulation environment
         :param loc: The node where the service point is placed.
         """
-        self.env = simulatte.Environment()
+        self.env = Environment()
         self.location = location
         super().__init__(self.env, capacity=capacity)

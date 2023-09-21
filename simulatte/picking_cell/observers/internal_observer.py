@@ -2,20 +2,20 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ..areas import InternalArea
-from .base_observer import Observer
+from simulatte.observables.observer.base import Observer
+from simulatte.picking_cell.observable_areas.internal_area import InternalArea
 
 if TYPE_CHECKING:
-    from simulatte.operations import FeedingOperation
-    from simulatte.picking_cell.areas.position import Position
+    from simulatte.operations.feeding_operation import FeedingOperation
+    from simulatte.picking_cell.observable_areas.position import Position
 
 
 class InternalObserver(Observer[InternalArea]):
     def next(self) -> FeedingOperation | None:
-        return min(self.observable_area.cell.staging_area, default=None)
+        return min(self.observable_area.owner.staging_area, default=None)
 
-    def _can_enter(self, *, feeding_operation: FeedingOperation) -> tuple[bool, Position | None, Position | None]:
-        for unload_position in self.cell.internal_area.unload_positions:
+    def _can_enter(self) -> tuple[bool, Position | None, Position | None]:
+        for unload_position in self.observable_area.owner.internal_area.unload_positions:
             if not unload_position.busy:
                 return True, None, unload_position
         return False, None, None
@@ -35,24 +35,26 @@ class InternalObserver(Observer[InternalArea]):
         4. Initialize the process that will take care of the Ant logistic movements.
         """
 
+        cell = self.observable_area.owner
+
         if (
-            not self.cell.staging_area.is_empty
-            and not self.cell.internal_area.is_full
+            not cell.staging_area.is_empty
+            and not cell.internal_area.is_full
             and (feeding_operation := self.next()) is not None
         ):
-            can_enter, pre_unload_position, unload_position = self._can_enter(feeding_operation=feeding_operation)
+            can_enter, pre_unload_position, unload_position = self._can_enter()
 
             if can_enter:
                 feeding_operation.pre_unload_position = pre_unload_position
                 feeding_operation.unload_position = unload_position
 
                 # Remove the FeedingOperation from the StagingArea
-                self.cell.staging_area.remove(feeding_operation)
+                cell.staging_area.remove(feeding_operation)
 
                 # Register the FeedingOperation into the InternalArea
-                self.cell.internal_area.append(feeding_operation)
+                cell.internal_area.append(feeding_operation)
 
                 feeding_operation.agv.enter_internal_area()
 
                 # Start moving the agv to the unloading position
-                self.cell.let_ant_in(feeding_operation=feeding_operation)
+                cell.let_ant_in(feeding_operation=feeding_operation)

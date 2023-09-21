@@ -3,22 +3,31 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING, Generic, TypedDict, TypeVar
 
-import simulatte
-from simulatte.stores import InputOperation, WarehouseLocation, WarehouseLocationSide
-
-from ..location import InputLocation, OutputLocation
-from ..unitload import CaseContainer, Pallet, Tray
-from ..utils import Identifiable, as_process
-from .warehouse_location import distance
+from simulatte.environment import Environment
+from simulatte.location import InputLocation, OutputLocation
+from simulatte.stores.operation import InputOperation
+from simulatte.stores.warehouse_location import distance
+from simulatte.stores.warehouse_location.warehouse_location import (
+    WarehouseLocation,
+    WarehouseLocationSide,
+)
+from simulatte.unitload.case_container import CaseContainer
+from simulatte.unitload.pallet import Pallet
+from simulatte.unitload.tray import Tray
+from simulatte.utils.identifiable import Identifiable
+from simulatte.utils.utils import as_process
 
 if TYPE_CHECKING:
     from simpy.resources.store import Store
-    from simulatte.operations import FeedingOperation
+    from simulatte.agv.agv import AGV
+    from simulatte.operations.feeding_operation import FeedingOperation
     from simulatte.products import Product
-    from simulatte.service_point import ServicePoint
-    from simulatte.simpy_extension import MultiStore, SequentialStore
-
-    from eagle_trays.agv.ant import Ant
+    from simulatte.service_point.service_point import ServicePoint
+    from simulatte.simpy_extension.multi_store.multi_store import MultiStore
+    from simulatte.simpy_extension.sequential_store.sequential_store import (
+        SequentialStore,
+    )
+    from simulatte.typings.typings import ProcessGenerator
 
 
 T = TypeVar("T", bound=CaseContainer)
@@ -56,7 +65,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         *,
         config: WarehouseStoreConfig,
     ):
-        self.env = simulatte.Environment()
+        self.env = Environment()
         self.input_location = InputLocation(self)
         self.output_location = OutputLocation(self)
         self.location_width = config["location_width"]
@@ -195,7 +204,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         self.get_queue -= 1
 
     @as_process
-    def unload_ant(self, *, ant: Ant, input_operation: InputOperation):
+    def unload_ant(self, *, ant: AGV, input_operation: InputOperation):
         """
         Warehouse Input Process.
 
@@ -219,7 +228,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
         self.put_queue -= 1
 
-    def get(self, *, feeding_operation: FeedingOperation) -> simulatte.typings.ProcessGenerator:
+    def get(self, *, feeding_operation: FeedingOperation) -> ProcessGenerator:
         """
         Warehouse Main internal retrieval process.
 
@@ -229,9 +238,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         """
         raise NotImplementedError
 
-    def load(
-        self, *, unit_load: T, location: WarehouseLocation, ant: Ant, priority: int
-    ) -> simulatte.typings.ProcessGenerator:
+    def load(self, *, unit_load: T, location: WarehouseLocation, ant: AGV, priority: int) -> ProcessGenerator:
         """
         Warehouse Main internal loading process.
 
@@ -285,7 +292,6 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         plt.xlabel("Time [h]")
         plt.ylabel("Queue [# agv]")
         plt.title(title)
-        # plt.show()
 
     def plot_output_queue(self, window=300):
         self.plot(window=window, queue_stats=self.get_queue_stats, title=f"{self.__class__.__name__} Output Queue")

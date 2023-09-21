@@ -3,9 +3,9 @@ from __future__ import annotations
 from collections import deque
 from typing import TYPE_CHECKING
 
-from .case_container import CaseContainer
-from .tray import Tray
-from .wood_board import WoodBoard
+from simulatte.unitload.case_container import CaseContainer
+from simulatte.unitload.tray import Tray
+from simulatte.unitload.wood_board import WoodBoard
 
 if TYPE_CHECKING:
     from simulatte.products import Product
@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 class Pallet(CaseContainer):
     id_counter = 0
+
     def __init__(self, *layers: Tray, wood_board=False) -> None:
         if wood_board:
             self.layers = deque((WoodBoard(), *layers))

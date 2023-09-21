@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterable
+from collections.abc import Iterable
+from typing import TYPE_CHECKING
+
+from simulatte.requests import LayerRequest, PalletRequest, ProductRequest
 
 if TYPE_CHECKING:
     from simulatte.products import Product
-
-from simulatte.requests import LayerRequest, PalletRequest, ProductRequest
 
 
 def fixed_sequence(products: list[Product], n_pallet_requests: int, n_layers: int) -> Iterable[PalletRequest]:

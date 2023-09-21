@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from .unitload import Pallet
-from .utils import Identifiable
+from simulatte.unitload.pallet import Pallet
+from simulatte.utils.identifiable import Identifiable
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from simulatte.logger.logger import EventPayload
-from simulatte.operations import FeedingOperation
-
-from ..areas import StagingArea
-from .base_observer import Observer
+from simulatte.environment import Environment
+from simulatte.logger.event_payload import EventPayload
+from simulatte.observables.observer.base import Observer
+from simulatte.operations.feeding_operation import FeedingOperation
+from simulatte.picking_cell.observable_areas.staging_area import StagingArea
 
 
 class StagingObserver(Observer[StagingArea]):
@@ -18,9 +18,10 @@ class StagingObserver(Observer[StagingArea]):
         """
         Select the FeedingOperation allowed to exit the FeedingArea and enter the StagingArea.
         """
+
         feeding_operations = (
             feeding_operation
-            for feeding_operation in self.observable_area.cell.feeding_area
+            for feeding_operation in self.observable_area.owner.feeding_area
             if feeding_operation.is_in_front_of_staging_area
         )
         return min(feeding_operations, default=None)
@@ -33,12 +34,14 @@ class StagingObserver(Observer[StagingArea]):
         front of the staging area.
         """
 
-        is_first_ever_feeding_operation = self.cell.internal_area.last_entered is None and feeding_operation is min(
-            self.cell.feeding_operations
+        cell = self.observable_area.owner
+
+        is_first_ever_feeding_operation = cell.internal_area.last_in is None and feeding_operation is min(
+            cell.feeding_operations
         )
         is_next_useful_feeding_operation = (
-            self.cell.internal_area.last_entered is not None
-            and feeding_operation.relative_id == self.cell.internal_area.last_entered.relative_id + 1
+            cell.internal_area.last_in is not None
+            and feeding_operation.relative_id == cell.internal_area.last_in.relative_id + 1
         )
 
         return is_first_ever_feeding_operation or is_next_useful_feeding_operation
@@ -59,31 +62,33 @@ class StagingObserver(Observer[StagingArea]):
         5. Signal the internal area that a new feeding operation has entered the staging area.
         """
 
+        cell = self.observable_area.owner
+
         if (
-            not self.cell.feeding_area.is_empty
-            and not self.cell.staging_area.is_full
+            not cell.feeding_area.is_empty
+            and not cell.staging_area.is_full
             and (feeding_operation := self.next()) is not None
         ):
             if self._can_enter(feeding_operation=feeding_operation):
                 if self.out_of_sequence_timestamp is not None:
-                    self.out_of_sequence_timestamps.append(self.system.env.now - self.out_of_sequence_timestamp)
+                    self.out_of_sequence_timestamps.append(Environment().now - self.out_of_sequence_timestamp)
                     self.out_of_sequence_timestamp = None
 
                 # Remove the FeedingOperation from the FeedingArea
-                self.cell.feeding_area.remove(feeding_operation)
+                cell.feeding_area.remove(feeding_operation)
 
                 # The FeedingOperation enters the StagingArea
-                self.cell.staging_area.append(feeding_operation)
+                cell.staging_area.append(feeding_operation)
 
                 feeding_operation.agv.enter_staging_area()
-                feeding_operation.agv.move_to(location=self.cell.staging_location)
+                feeding_operation.agv.move_to(location=cell.staging_location)
 
                 # Trigger the InternalArea signal event since a new FeedingOperation is available in the StagingArea
                 payload = EventPayload(event="ACTIVATING INTERNAL AREA SIGNAL", type=0)
-                self.cell.internal_area.trigger_signal_event(payload=payload)
+                cell.internal_area.trigger_signal_event(payload=payload)
                 return
             else:
                 self.out_of_sequence += 1
                 if self.out_of_sequence_timestamp is None:
-                    self.out_of_sequence_timestamp = self.system.env.now
+                    self.out_of_sequence_timestamp = Environment().now
                 return

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .cage import Cage
 from .case_container import CaseContainer
 from .pallet import Pallet

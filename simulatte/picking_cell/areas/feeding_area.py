@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from .observable_area import ObservableArea
-from ...operations import FeedingOperation
+from simulatte.observables.area.base import Area
 
 
-class FeedingArea(ObservableArea[FeedingOperation]):
+class FeedingArea(Area):
     """
-    Represent the logical area of feeding ants currently serving a picking cell.
+    Represent the logical area of Feeding Operations currently associated to a picking cell.
     """
 
     pass
