@@ -104,6 +104,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         self._replenishment_processes = defaultdict(list)
         self._product_location_map = defaultdict(set)
         self._saturation_history = []
+        self._unit_load_history = []
 
     @property
     def get_queue(self) -> int:
@@ -171,6 +172,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         """
         n_non_empty_locations = sum(not location.is_empty for location in self.locations)
         # n_non_empty_locations = sum(location.n_cases for location in self.locations)
+        self._update_unit_loads_history()
         self._saturation_history.append((self.env.now, n_non_empty_locations / self.n_locations))
 
         output_operation = yield self.output_conveyor.get(
@@ -185,6 +187,28 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
         self.get_queue -= 1
 
+    def _update_unit_loads_history(self):
+        full_unit_loads = 0
+        used_unit_loads = 0
+        for location in self.locations:
+            for unit_load in [location.first_position.unit_load, location.second_position.unit_load]:
+                if unit_load is not None:
+                    if self.__class__.__name__ == "AVSRS":
+                        if unit_load.n_cases == unit_load.product.cases_per_layer:
+                            full_unit_loads += 1
+                        else:
+                            used_unit_loads += 1
+                    else:
+                        if unit_load.n_cases == unit_load.product.case_per_pallet:
+                            full_unit_loads += 1
+                        else:
+                            used_unit_loads += 1
+
+        full_unit_loads /= (full_unit_loads + used_unit_loads)
+        used_unit_loads /= (full_unit_loads + used_unit_loads)
+
+        self._unit_load_history.append((self.env.now, full_unit_loads, used_unit_loads))
+
     @as_process
     def unload_ant(self, *, ant: Ant, input_operation: InputOperation):
         """
@@ -195,7 +219,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         """
 
         n_non_empty_locations = sum(not location.is_empty for location in self.locations)
-        # n_non_empty_locations = sum(location.n_cases for location in self.locations)
+        self._update_unit_loads_history()
         self._saturation_history.append((self.env.now, n_non_empty_locations / self.n_locations))
 
         with self.input_service_point.request(
