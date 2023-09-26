@@ -279,10 +279,14 @@ class AGV(PriorityResource, metaclass=Identifiable):
         self.trips.append(trip)
 
     @as_process
-    def move_to(self, *, location: Location):
+    def move_to(self, *, location: Location, callbacks: list[callable] | None = None) -> ProcessGenerator:
         with self.trip(destination=location) as trip:
             # Wait for the duration of the trip
             yield self.env.timeout(trip.duration)
+
+        if callbacks is not None:
+            for callback in callbacks:
+                callback()
 
     @property
     def idle_time(self) -> float:

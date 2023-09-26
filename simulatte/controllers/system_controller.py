@@ -245,12 +245,16 @@ class SystemController(metaclass=Singleton):
 
             # Move the AGV to the input location of the same store where the unit load was retrieved
             yield agv.move_to(location=store.input_location)
+            self.idle_feeding_agvs.append(agv)
 
             # When the AGV is in front of the store, trigger the loading process of the store
             yield self.stores_controller.load(store=store, agv=agv)
 
         else:
             # otherwise, move the Ant to the rest location
-            yield feeding_operation.agv.move_to(location=self.agv_recharge_location)
+            yield feeding_operation.agv.move_to(
+                location=self.agv_recharge_location,
+                callbacks=[lambda: self.idle_feeding_agvs.append(feeding_operation.agv)],
+            )
             yield feeding_operation.agv.unload()
             feeding_operation.agv.release_current()
