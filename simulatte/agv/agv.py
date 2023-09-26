@@ -220,7 +220,7 @@ class AGV(PriorityResource, metaclass=Identifiable):
 
         self.current_mission.end_time = self.env.now
         self.set_idle()
-        return self.release(args, **kwargs)
+        return super().release(args, **kwargs)
 
     def release_current(self):
         """
