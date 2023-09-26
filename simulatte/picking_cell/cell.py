@@ -247,7 +247,7 @@ class PickingCell:
                 # Ask the System to handle the retrieval of the finished PalletRequest
                 self.system.retrieve_from_cell(cell=self, pallet_request=pallet_request)
 
-    def summary(self):
+    def summary(self, plot=True):
         display(Markdown("## Performance Summary"))
 
         headers = ["KPI", "Valore", "U.M."]
@@ -270,9 +270,11 @@ class PickingCell:
             ],
         ]
         print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
-        display(Markdown("## Robot"))
-        self.robot.plot()
-        display(Markdown("## Aree logiche/fisiche"))
-        self.feeding_area.plot()
-        self.staging_area.plot()
-        self.internal_area.plot()
+
+        if plot:
+            display(Markdown("## Robot"))
+            self.robot.plot()
+            display(Markdown("## Aree logiche/fisiche"))
+            self.feeding_area.plot()
+            self.staging_area.plot()
+            self.internal_area.plot()
