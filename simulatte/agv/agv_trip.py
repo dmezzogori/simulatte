@@ -134,9 +134,12 @@ class AGVTrip:
             case [OutputLocation(SystemController()), OutputLocation(PickingCell())]:
                 return AGVStatus.TRAVELING_UNLOADED, AGVStatus.WAITING_TO_BE_LOADED
 
-            case [InputLocation(PickingCell()), InternalLocation(PickingCell())]:
-                # todo: is this possible?
-                return AGVStatus.TRAVELING_LOADED, AGVStatus.WAITING_TO_BE_UNLOADED
+            case [InternalLocation(PickingCell()), AGVRechargeLocation()]:
+                return AGVStatus.TRAVELING_UNLOADED, AGVStatus.IDLE
+
+            # case [InputLocation(PickingCell()), InternalLocation(PickingCell())]:
+            #     # todo: is this possible?
+            #     return AGVStatus.TRAVELING_LOADED, AGVStatus.WAITING_TO_BE_UNLOADED
 
             case _:
                 raise ValueError
