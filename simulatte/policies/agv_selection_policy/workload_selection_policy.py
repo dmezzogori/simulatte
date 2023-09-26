@@ -23,7 +23,7 @@ class WorkloadAGVSelectionPolicy(AGVSelectionPolicy):
         and the start time of the current mission.
         """
 
-        return agv.n_users, agv.n_queue, agv.current_mission.start_time
+        return agv.n_users, agv.n_queue  # , agv.current_mission.start_time
 
     def __call__(self, *, agvs, exceptions=None) -> AGV:
         """
