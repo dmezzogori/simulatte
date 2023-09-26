@@ -204,10 +204,10 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
                         else:
                             used_unit_loads += 1
 
-        full_unit_loads /= (full_unit_loads + used_unit_loads)
-        used_unit_loads /= (full_unit_loads + used_unit_loads)
+        full_unit_loads_perc = full_unit_loads / (full_unit_loads + used_unit_loads)
+        used_unit_loads_perc = used_unit_loads / (full_unit_loads + used_unit_loads)
 
-        self._unit_load_history.append((self.env.now, full_unit_loads, used_unit_loads))
+        self._unit_load_history.append((self.env.now, full_unit_loads_perc, used_unit_loads_perc))
 
     @as_process
     def unload_ant(self, *, ant: Ant, input_operation: InputOperation):
