@@ -199,7 +199,7 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
                         else:
                             used_unit_loads += 1
                     else:
-                        if unit_load.n_cases == unit_load.product.case_per_pallet:
+                        if unit_load.n_cases == (unit_load.product.cases_per_layer * 6):
                             full_unit_loads += 1
                         else:
                             used_unit_loads += 1
