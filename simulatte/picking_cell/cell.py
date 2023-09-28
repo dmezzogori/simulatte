@@ -250,18 +250,33 @@ class PickingCell:
     def summary(self, plot=True):
         display(Markdown("## Performance Summary"))
 
+        hourly_cell_productivity = self.productivity * 60 * 60
+        hourly_cases_productivity = sum(pallet_request.n_cases for pallet_request in self.pallet_requests_done) / (
+            self.system.env.now / 60 / 60
+        )
+        hourly_layers_productivity = sum(
+            len(pallet_request.sub_requests) for pallet_request in self.pallet_requests_done
+        ) / (self.system.env.now / 60 / 60)
+
         headers = ["KPI", "Valore", "U.M."]
         table = [
             ["Ore simulate", f"{self.system.env.now / 60 / 60:.2f}", "h"],
+            ["PalletRequest in coda", f"{len(self.input_queue.items)}", "PalletRequest"],
+            ["PalletRequest completate", f"{len(self.pallet_requests_done)}", "PalletRequest"],
             [
                 "Produttività Cella",
-                f"{self.productivity * 60 * 60:.2f}",
+                f"{hourly_cell_productivity:.2f}",
                 "[PalletRequest/h]",
             ],
             [
                 "Produttività Cella",
-                f"{self.productivity * 60 * 60 * 4 * 10:.2f}",
+                f"{hourly_cases_productivity:.2f}",
                 "[Cases/h]",
+            ],
+            [
+                "Produttività Cella",
+                f"{hourly_layers_productivity:.2f}",
+                "[Layers/h]",
             ],
             [
                 "Produttività Robot",
