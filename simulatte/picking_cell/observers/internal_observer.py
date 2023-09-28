@@ -14,7 +14,7 @@ class InternalObserver(Observer[InternalArea]):
     def next(self) -> FeedingOperation | None:
         return min(self.observable_area.owner.staging_area, default=None)
 
-    def _can_enter(self) -> tuple[bool, Position | None, Position | None]:
+    def _can_enter(self, *, feeding_operation: FeedingOperation) -> tuple[bool, Position | None, Position | None]:
         for unload_position in self.observable_area.owner.internal_area.unload_positions:
             if not unload_position.busy:
                 return True, None, unload_position
@@ -42,7 +42,7 @@ class InternalObserver(Observer[InternalArea]):
             and not cell.internal_area.is_full
             and (feeding_operation := self.next()) is not None
         ):
-            can_enter, pre_unload_position, unload_position = self._can_enter()
+            can_enter, pre_unload_position, unload_position = self._can_enter(feeding_operation=feeding_operation)
 
             if can_enter:
                 feeding_operation.pre_unload_position = pre_unload_position
