@@ -3,8 +3,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from simulatte.agv import AGV
+from simulatte.events.event_payload import EventPayload
 from simulatte.location import AGVRechargeLocation, InputLocation, OutputLocation
-from simulatte.logger.logger import Logger
+from simulatte.logger import logger
 from simulatte.observables.observable_area.base import ObservableArea
 from simulatte.observables.observer.base import Observer
 from simulatte.utils.singleton import Singleton
@@ -35,14 +36,21 @@ class IdleFeedingAGVs(ObservableArea[AGV]):
 
 
 class FeedingAGVsObserver(Observer[IdleFeedingAGVs]):
-    def next(self) -> AGV:
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not kwargs["register_main_process"]:
+            self.observable_area.callbacks = [self._main_process]
+
+    def next(self) -> AGV | None:
         """
         Return the next AGV from the observable area.
         """
 
-        return self.observable_area[0]
+        if self.observable_area:
+            return self.observable_area[-1]
+        return None
 
-    def _main_process(self):
+    def _main_process(self, *args, **kwargs):
         """
         The main process of the observer.
         Get the next AGV from the observable area and delegate to the system controller
@@ -52,8 +60,8 @@ class FeedingAGVsObserver(Observer[IdleFeedingAGVs]):
         agv = self.next()
         if agv is None:
             return
-
-        self.observable_area.owner.start_feeding_operation(agv=agv)
+        logger.debug(f"FeedingAGVsObserver - Detected {agv} as idle.")
+        self.observable_area.owner.start_feeding_operation(picking_cell=agv.picking_cell)
 
 
 class SystemController(metaclass=Singleton):
@@ -109,13 +117,16 @@ class SystemController(metaclass=Singleton):
         self.system_output_location = OutputLocation(self)
         self.agv_recharge_location = AGVRechargeLocation(self)
 
-        self.idle_feeding_agvs = IdleFeedingAGVs(signal_at="append", owner=self)
-        self.feeding_agvs_observer = FeedingAGVsObserver(observable_area=self.idle_feeding_agvs)
+        self.idle_feeding_agvs = IdleFeedingAGVs(signal_at=("append", "remove"), owner=self)
+        self.feeding_agvs_observer = FeedingAGVsObserver(
+            observable_area=self.idle_feeding_agvs, register_main_process=True
+        )
 
         self.iter_shifts()
         self.pallet_requests_release()
 
-        self.logger = Logger()
+    def __str__(self):
+        return self.__class__.__name__
 
     @property
     def agv_locations(self) -> Sequence[Location]:
@@ -147,7 +158,11 @@ class SystemController(metaclass=Singleton):
         """
 
         for feeding_agv in self.agv_controller.feeding_agvs:
-            self.idle_feeding_agvs.append(feeding_agv)
+            self.idle_feeding_agvs.append(feeding_agv, skip_signal=True)
+
+        self.idle_feeding_agvs.trigger_signal_event(
+            payload=EventPayload(message="Init trigger signal of IdleFeedingAGVsArea")
+        )
 
         # Eternal process
         while True:
@@ -232,29 +247,7 @@ class SystemController(metaclass=Singleton):
         # free the UnloadPosition associated to the FeedingOperation
         feeding_operation.unload_position.release_current()
 
-        # remove the FeedingOperation from the list of active feeding operations
-        feeding_operation.cell.internal_area.remove(feeding_operation)
-
         if feeding_operation.unit_load.n_cases > 0:
-            store = feeding_operation.store
-            agv = feeding_operation.agv
-            feeding_operation.unit_load.feeding_operation = None
-
-            # Signal that the AGV has finished the feeding operation
-            # self.signal_agv_ready_for_next_feeding_operation
-
-            # Move the AGV to the input location of the same store where the unit load was retrieved
-            yield agv.move_to(location=store.input_location)
-            self.idle_feeding_agvs.append(agv)
-
-            # When the AGV is in front of the store, trigger the loading process of the store
-            yield self.stores_controller.load(store=store, agv=agv)
-
+            yield feeding_operation.return_to_store()
         else:
-            # otherwise, move the Ant to the rest location
-            yield feeding_operation.agv.move_to(
-                location=self.agv_recharge_location,
-                callbacks=[lambda: self.idle_feeding_agvs.append(feeding_operation.agv)],
-            )
-            yield feeding_operation.agv.unload()
-            feeding_operation.agv.release_current()
+            yield feeding_operation.drop()

@@ -1,18 +1,20 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from simpy.events import Event
-from simulatte.logger.logger import Logger
-
-if TYPE_CHECKING:
-    from simulatte.logger.logger import EventPayload
+from simulatte.environment import Environment
+from simulatte.events.event_payload import EventPayload
+from simulatte.logger import logger
 
 
 class LoggedEvent(Event):
+    def __init__(self):
+        super().__init__(env=Environment())
+
     def succeed(self, value: EventPayload | None = None):
-        self.timestamp = self.env.now
-        payload = value or {}
-        if payload:
-            Logger().log(payload=payload)
-        return super().succeed(value=payload.get("value"))
+        if value is not None:
+            if isinstance(value, dict):
+                logger.debug(value["message"])
+            else:
+                logger.debug(value)
+
+        return super().succeed(value=value)

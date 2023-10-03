@@ -151,11 +151,12 @@ class AGVMission:
     An AGV mission start when a request is made and ends when the request is completed.
     """
 
-    __slots__ = ("agv", "request", "end_time")
+    __slots__ = ("agv", "request", "end_time", "operation")
 
-    def __init__(self, agv: AGV, request: PriorityRequest):
+    def __init__(self, agv: AGV, request: PriorityRequest, operation=None):
         self.agv = agv
         self.request = request
+        self.operation = operation
         self.end_time: float | None = None
 
     @property

@@ -120,6 +120,9 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         self._product_location_map = defaultdict(set)
         self._saturation_history = []
 
+    def __str__(self):
+        return self.name
+
     @property
     def get_queue(self) -> int:
         return self._get_queue

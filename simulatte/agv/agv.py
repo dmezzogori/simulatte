@@ -8,6 +8,7 @@ from simulatte.agv.agv_plotter import AGVPlotter
 from simulatte.agv.agv_status import AGVStatus
 from simulatte.agv.agv_trip import AGVMission, AGVTrip
 from simulatte.environment import Environment
+from simulatte.logger import logger
 from simulatte.utils import Identifiable, as_process
 
 if TYPE_CHECKING:
@@ -40,6 +41,7 @@ class AGV(PriorityResource, metaclass=Identifiable):
     """
 
     __slots__ = (
+        "id",
         "env",
         "kind",
         "load_timeout",
@@ -125,6 +127,9 @@ class AGV(PriorityResource, metaclass=Identifiable):
 
         self.plotter = AGVPlotter(agv=self)
 
+    def __str__(self):
+        return f"AGV{self.id}"
+
     @property
     def n_users(self) -> int:
         """
@@ -196,7 +201,7 @@ class AGV(PriorityResource, metaclass=Identifiable):
 
         return sum(mission.duration for mission in self.missions)
 
-    def request(self, *args, **kwargs):
+    def request(self, *args, operation=None, **kwargs):
         """
         Override the request method to keep track of the mission history.
         """
@@ -205,7 +210,7 @@ class AGV(PriorityResource, metaclass=Identifiable):
         request = super().request(*args, **kwargs)
 
         # Init the mission
-        self._missions.append(AGVMission(agv=self, request=request))
+        self._missions.append(AGVMission(agv=self, request=request, operation=operation))
 
         return request
 
@@ -220,7 +225,9 @@ class AGV(PriorityResource, metaclass=Identifiable):
 
         self.current_mission.end_time = self.env.now
         self.set_idle()
-        return super().release(args, **kwargs)
+        ret = super().release(args, **kwargs)
+        logger.debug(f"{self} - released")
+        return ret
 
     def release_current(self):
         """

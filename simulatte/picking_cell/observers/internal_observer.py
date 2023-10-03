@@ -48,13 +48,4 @@ class InternalObserver(Observer[InternalArea]):
                 feeding_operation.pre_unload_position = pre_unload_position
                 feeding_operation.unload_position = unload_position
 
-                # Remove the FeedingOperation from the StagingArea
-                cell.staging_area.remove(feeding_operation)
-
-                # Register the FeedingOperation into the InternalArea
-                cell.internal_area.append(feeding_operation)
-
-                feeding_operation.agv.enter_internal_area()
-
-                # Start moving the agv to the unloading position
-                cell.let_ant_in(feeding_operation=feeding_operation)
+                feeding_operation.move_into_internal_area()

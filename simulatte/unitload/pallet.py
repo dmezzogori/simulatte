@@ -6,14 +6,13 @@ from typing import TYPE_CHECKING
 from simulatte.unitload.case_container import CaseContainer
 from simulatte.unitload.tray import Tray
 from simulatte.unitload.wood_board import WoodBoard
+from simulatte.utils import Identifiable
 
 if TYPE_CHECKING:
     from simulatte.products import Product
 
 
-class Pallet(CaseContainer):
-    id_counter = 0
-
+class Pallet(CaseContainer, metaclass=Identifiable):
     def __init__(self, *layers: Tray, wood_board=False) -> None:
         if wood_board:
             self.layers = deque((WoodBoard(), *layers))
@@ -21,8 +20,6 @@ class Pallet(CaseContainer):
             self.layers = deque(layers)
         self.location = None
         self.feeding_operation = None
-        self.id_ = Pallet.id_counter
-        Pallet.id_counter += 1
 
     @classmethod
     def by_product(cls, *, product: Product) -> Pallet:

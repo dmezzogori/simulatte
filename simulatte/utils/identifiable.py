@@ -11,6 +11,11 @@ class Identifiable(type):
     id: int
     classes: set = set()
 
+    def __new__(cls, name, bases, attrs):
+        attrs["__str__"] = lambda self: f"{name}[{self.id}]"
+
+        return super().__new__(cls, name, bases, attrs)
+
     def __call__(cls, *args, **kwargs):
         """
         Assigns a unique id to each instance of a class.

@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from simulatte.environment import Environment
 from simulatte.events.logged_event import LoggedEvent
 
 if TYPE_CHECKING:
-    from simulatte.logger.event_payload import EventPayload
+    from simulatte.events.event_payload import EventPayload
 
 
 class Observable:
@@ -18,32 +17,33 @@ class Observable:
     """
 
     def __init__(self) -> None:
-        self.env = Environment()
+        self._callbacks = []
+        self.signal_event = self._init_signal_event()
+
+    @property
+    def callbacks(self):
+        return self._callbacks
+
+    @callbacks.setter
+    def callbacks(self, callbacks):
+        self._callbacks = callbacks
         self.signal_event = self._init_signal_event()
 
     def _init_signal_event(self) -> LoggedEvent:
         """
         Initialize the observable signal event.
         """
-        return LoggedEvent(env=self.env)
+        event = LoggedEvent()
+        if self.callbacks:
+            event.callbacks.extend(self.callbacks)
 
-    @property
-    def _logged_event_title(self) -> str:
-        return self.__class__.__name__
+        return event
 
-    def trigger_signal_event(self, *, payload: EventPayload, event: LoggedEvent | None = None) -> LoggedEvent:
+    def trigger_signal_event(self, *, payload: EventPayload) -> LoggedEvent:
         """
-        Trigger the observer signal event and then reset it.
+        Trigger the signal event observed by the observer and then reset it.
         """
 
-        payload["time"] = self.env.now
-        if hasattr(self, "cell"):
-            payload["cell"] = self.cell.name
-
-        if event is None:
-            self.signal_event.succeed(value=payload)
-            self.signal_event = self._init_signal_event()
-            return self.signal_event
-        else:
-            event.succeed(value=payload)
-            return self._init_signal_event()
+        self.signal_event.succeed(value=payload)
+        self.signal_event = self._init_signal_event()
+        return self.signal_event

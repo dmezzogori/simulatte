@@ -17,6 +17,7 @@ class Observer(Generic[T]):
     def __init__(self, *, observable_area: T, register_main_process: bool = True) -> None:
         self.env = Environment()
         self.observable_area = observable_area
+        self._main = None
         if register_main_process:
             self._main = self.env.process(self.run())
 
@@ -26,7 +27,6 @@ class Observer(Generic[T]):
         Each observer waits for the signal event to be triggered from the assigned observable area.
         Once triggered, the observer will execute its main process.
         """
-
         while True:
             yield self.observable_area.signal_event
             self._main_process()
@@ -37,7 +37,7 @@ class Observer(Generic[T]):
         """
         raise NotImplementedError
 
-    def _main_process(self):
+    def _main_process(self, *args, **kwargs):
         """
         The main process of the observer.
         """

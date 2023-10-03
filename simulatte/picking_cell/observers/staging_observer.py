@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from simulatte.environment import Environment
-from simulatte.logger.event_payload import EventPayload
 from simulatte.observables.observer.base import Observer
 from simulatte.operations.feeding_operation import FeedingOperation
 from simulatte.picking_cell.observable_areas.staging_area import StagingArea
@@ -74,21 +73,7 @@ class StagingObserver(Observer[StagingArea]):
                     self.out_of_sequence_timestamps.append(Environment().now - self.out_of_sequence_timestamp)
                     self.out_of_sequence_timestamp = None
 
-                # Remove the FeedingOperation from the FeedingArea
-                cell.feeding_area.remove(feeding_operation)
-
-                # The FeedingOperation enters the StagingArea
-                cell.staging_area.append(feeding_operation)
-
-                feeding_operation.agv.enter_staging_area()
-                feeding_operation.agv.move_to(
-                    location=cell.staging_location,
-                    callbacks=[
-                        lambda: cell.internal_area.trigger_signal_event(
-                            payload=EventPayload(event="ACTIVATING INTERNAL AREA SIGNAL", type=0)
-                        )
-                    ],
-                )
+                feeding_operation.move_into_staging_area()
 
                 return
             else:

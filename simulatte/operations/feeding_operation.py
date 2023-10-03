@@ -3,7 +3,10 @@ from __future__ import annotations
 from functools import total_ordering
 from typing import TYPE_CHECKING
 
+from simulatte.events.event_payload import EventPayload
 from simulatte.events.logged_event import LoggedEvent
+from simulatte.logger import logger
+from simulatte.utils import as_process
 from simulatte.utils.identifiable import Identifiable
 
 if TYPE_CHECKING:
@@ -72,9 +75,9 @@ class FeedingOperation(metaclass=Identifiable):
             "ready": False,
             "done": False,
         }
-        self.ready = LoggedEvent(env=self.cell.system.env)
+        self.ready = LoggedEvent()
 
-    def __repr__(self):
+    def __str__(self):
         return f"FeedingOperation{self.id}"
 
     def __lt__(self, other: FeedingOperation) -> bool:
@@ -122,6 +125,11 @@ class FeedingOperation(metaclass=Identifiable):
         Mark the operation as arrived in front of the picking cell, waiting to enter the staging area.
         """
         self.status["arrived"] = True
+        self.agv.waiting_to_enter_staging_area()
+        # Signal the cell staging area that the feeding operation is ready to enter the cell
+        self.cell.staging_area.trigger_signal_event(
+            payload=EventPayload(message=f"{self} - In front of the staging area of {self.cell}")
+        )
 
     def enter_staging_area(self) -> None:
         self.status["staging"] = True
@@ -131,7 +139,167 @@ class FeedingOperation(metaclass=Identifiable):
 
     def ready_for_unload(self) -> None:
         self.status["ready"] = True
-        self.ready.succeed(value={"type": 0, "operation": self})
+        self.ready.succeed(value=EventPayload(operation=self, message=f"{self} - Ready for unload"))
 
     def unloaded(self) -> None:
         self.status["done"] = True
+
+    @as_process
+    def start_retrieval_process(self):
+        """
+        Start the retrieval process of the unit load
+        associated to the FeedingOperation
+        from the store.
+        """
+
+        logger.debug(f"{self} - Starting the retrieval process from {self.store}")
+        yield self.store.get(feeding_operation=self)
+        logger.debug(f"{self} - Finished the retrieval process from {self.store}")
+
+    @as_process
+    def move_agv_to_store(self):
+        """
+        Move the agv to the store associated to the FeedingOperation.
+        """
+
+        logger.debug(f"{self} - Starting the retrieval agv trip using {self.agv} to {self.store}")
+        yield self.agv.move_to(location=self.store.output_location)
+        logger.debug(f"{self} - Finished the retrieval agv trip using {self.agv} to {self.store}")
+
+    @as_process
+    def load_agv(self):
+        """
+        Load the unit load associated to the FeedingOperation
+        on the agv.
+        """
+
+        logger.debug(f"{self} - Loading {self.unit_load} on {self.agv}")
+        yield self.store.load_ant(feeding_operation=self)
+        logger.debug(f"{self} - Finished loading {self.unit_load} on {self.agv}")
+
+    @as_process
+    def move_agv_to_cell(self):
+        """
+        Move the agv to the picking cell associated to the FeedingOperation.
+        """
+
+        logger.debug(f"{self} - Starting the agv trip using {self.agv} to {self.cell}")
+        yield self.agv.move_to(location=self.cell.input_location)
+        logger.debug(f"{self} - Finished the agv trip using {self.agv} to {self.cell}")
+
+        self.knock_staging_area()
+
+    def move_into_staging_area(self):
+        """
+        Move the FeedingOperation from the feeding area of the picking cell
+        into the staging area of the picking cell.
+
+        Move the agv associated to the FeedingOperation
+        into the staging area of the picking cell.
+        """
+
+        logger.debug(f"{self} - Moving into {self.cell} staging area")
+
+        # Remove the FeedingOperation from the FeedingArea
+        self.cell.feeding_area.remove(self)
+
+        # The FeedingOperation enters the StagingArea
+        self.cell.staging_area.append(self)
+        self.agv.enter_staging_area()
+        self.agv.move_to(
+            location=self.cell.staging_location,
+            callbacks=[
+                lambda: self.cell.internal_area.trigger_signal_event(
+                    payload=EventPayload(message=f"{self} - Triggering the signal event {self.cell} internal area")
+                )
+            ],
+        )
+
+        logger.debug(f"{self} - Finished moving into {self.cell} staging area")
+
+    @as_process
+    def move_into_internal_area(self):
+        """
+        Move the FeedingOperation from the staging area of the picking cell
+        into the internal area of the picking cell.
+
+        Move the agv associated to the FeedingOperation
+        into the internal area of the picking cell.
+        """
+
+        logger.debug(f"{self} - Moving into {self.cell} internal area")
+
+        # Remove the FeedingOperation from the StagingArea
+        self.cell.staging_area.remove(self)
+
+        # The FeedingOperation enters the InternalArea
+        self.cell.internal_area.append(self)
+        self.agv.enter_internal_area()
+
+        # Start moving the agv to the unloading position
+        yield self.cell.let_ant_in(feeding_operation=self)
+
+        logger.debug(f"{self} - Finished moving into {self.cell} internal area")
+
+        # Housekeeping
+        self.ready_for_unload()
+
+    @as_process
+    def return_to_store(self):
+        """
+        Move the FeedingOperation from the internal area of the picking cell
+        back to the store.
+
+        Move the agv associated to the FeedingOperation
+        to the InputLocation of the store.
+        """
+
+        logger.debug(f"{self} - Initiating backflow to {self.store}")
+
+        # remove the FeedingOperation from the cell internal area
+        self.cell.internal_area.remove(self)
+
+        # de-register the FeedingOperation from the unit load
+        self.unit_load.feeding_operation = None
+
+        # Signal that the AGV is ready to receive the next FeedingOperation
+        self.cell.system.idle_feeding_agvs.append(self.agv)
+
+        # Move the AGV to the input location of the store
+        logger.debug(f"{self} - Moving {self.agv} to {self.store} input location")
+        yield self.agv.move_to(location=self.store.input_location)
+        logger.debug(f"{self} - Finished moving {self.agv} to {self.store} input location")
+
+        # When the AGV is in front of the store, trigger the loading process of the store
+        logger.debug(f"{self} - Starting unloading in {self.store}")
+        yield self.cell.system.stores_controller.load(store=self.store, agv=self.agv)
+        logger.debug(f"{self} - Finished backflow to {self.store}")
+
+    @as_process
+    def drop(self):
+        """
+        Alternative to the return_to_store method.
+        The FeedingOperation unit load is totally consumed,
+        so the FeedingOperation is dropped.
+
+        The AGV is sent to the recharge location.
+        """
+
+        logger.debug(f"{self} - Dropping, moving {self.agv} to recharge location")
+
+        # remove the FeedingOperation from the cell internal area
+        self.cell.internal_area.remove(self)
+
+        # Move the AGV to the recharge location
+        yield self.agv.move_to(
+            location=self.cell.system.agv_recharge_location,
+            callbacks=[
+                lambda: self.cell.system.idle_feeding_agvs.append(self.agv),
+            ],
+        )
+
+        logger.debug(f"{self} - Finished dropping, moved {self.agv} to recharge location")
+
+        # Unload the unit load from the AGV
+        yield self.agv.unload()
+        self.agv.release_current()

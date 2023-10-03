@@ -20,6 +20,7 @@ from simulatte.picking_cell.observers.staging_observer import StagingObserver
 from simulatte.requests import PalletRequest, ProductRequest
 from simulatte.resources.monitored_resource import MonitoredResource
 from simulatte.simpy_extension.sequential_store.sequential_store import SequentialStore
+from simulatte.utils import Identifiable
 from simulatte.utils.utils import as_process
 from tabulate import tabulate
 
@@ -32,7 +33,9 @@ if TYPE_CHECKING:
     from simulatte.typings.typings import ProcessGenerator
 
 
-class PickingCell:
+class PickingCell(metaclass=Identifiable):
+    id: int
+
     def __init__(
         self,
         *,
@@ -166,9 +169,6 @@ class PickingCell:
 
         # Move the Ant from the StagingArea to the InternalArea
         yield feeding_operation.agv.move_to(location=self.internal_location)
-
-        # Housekeeping
-        feeding_operation.ready_for_unload()
 
     def let_ant_out(self, *, feeding_operation: FeedingOperation):
         return self.system.end_feeding_operation(feeding_operation=feeding_operation)

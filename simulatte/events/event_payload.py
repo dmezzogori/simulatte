@@ -8,8 +8,6 @@ if TYPE_CHECKING:
 
 
 class EventPayload(TypedDict, total=False):
-    time: float
     cell: PickingCell
-    event: str
-    type: int
+    message: str
     operation: FeedingOperation | None
