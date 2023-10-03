@@ -66,7 +66,9 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
         self._put_queue = 0
 
         self.get_queue_stats = []
+        self._get_queue_counter = 0
         self.put_queue_stats = []
+        self._put_queue_counter = 0
 
         self._location_origin = WarehouseLocation(
             store=self,
@@ -112,6 +114,9 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
     @get_queue.setter
     def get_queue(self, value: int):
+        if value > self._get_queue:
+            self._get_queue_counter += 1
+
         self._get_queue = value
         WarehouseStore.total_get_queue = value
         self.get_queue_stats.append((self.env.now, self._get_queue))
@@ -123,6 +128,9 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
 
     @put_queue.setter
     def put_queue(self, value: int):
+        if value > self._put_queue:
+            self._put_queue_counter += 1
+
         self._put_queue = value
         WarehouseStore.total_put_queue = value
         self.put_queue_stats.append((self.env.now, self._put_queue))

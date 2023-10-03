@@ -103,6 +103,7 @@ class Ant(PriorityResource, metaclass=Identifiable):
         self.picking_waiting_times = []
 
         self.resource_requested_timestamp = 0
+        self.feeding_operations = []
 
     @property
     def status(self) -> AntStatus:

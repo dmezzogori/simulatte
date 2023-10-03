@@ -41,6 +41,8 @@ class FeedingOperation(metaclass=Identifiable):
         self.cell.feeding_operations.append(self)
 
         self.ant = ant
+        self.ant.feeding_operations.append(self)
+
         self.store = store
         self.location = location
         self.unit_load = unit_load
