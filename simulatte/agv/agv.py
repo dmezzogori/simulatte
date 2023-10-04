@@ -220,6 +220,9 @@ class AGV(PriorityResource, metaclass=Identifiable):
         """
 
         self.current_mission.end_time = self.env.now
+        logger.debug(
+            f"{self} - released from mission {self.current_mission} for operation {self.current_mission.operation}"
+        )
         self.current_mission = None
         self.set_idle()
         return super().release(*args, **kwargs)
@@ -233,6 +236,8 @@ class AGV(PriorityResource, metaclass=Identifiable):
 
         if len(self.users) == 0:
             raise ValueError("AGV cannot release non-existent request.")
+
+        logger.debug(f"{self} - releasing from request {self.users[0]}")
         return self.release(self.users[0])
 
     @contextmanager
