@@ -103,6 +103,7 @@ class AGV(PriorityResource, metaclass=Identifiable):
         self.trips: list[AGVTrip] = []
 
         # History of the missions
+        self.current_mission: AGVMission | None = None
         self._missions: list[AGVMission] = []
 
         # Keep track of the waiting times while waiting to be loaded
@@ -182,18 +183,6 @@ class AGV(PriorityResource, metaclass=Identifiable):
         return self._missions
 
     @property
-    def current_mission(self) -> AGVMission | None:
-        """
-        Return the current mission the agv is taking care of.
-        The current mission is the last mission in the mission history
-        that has not ended yet.
-        """
-
-        last_mission = self._missions[-1] if self._missions else None
-        if last_mission is not None and last_mission.end_time is None:
-            return last_mission
-
-    @property
     def total_mission_duration(self) -> float:
         """
         Return the total duration of the missions the agv has taken care of.
@@ -206,11 +195,18 @@ class AGV(PriorityResource, metaclass=Identifiable):
         Override the request method to keep track of the mission history.
         """
 
+        def request_callback(_):
+            logger.debug(f"{self} - acquired for mission {mission} for operation {operation}")
+            self.current_mission = mission
+
         # Perform the request
         request = super().request(*args, **kwargs)
+        logger.debug(f"{self} - created request {request}")
+        mission = AGVMission(agv=self, request=request, operation=operation)
+        request.callbacks.append(request_callback)
 
         # Init the mission
-        self._missions.append(AGVMission(agv=self, request=request, operation=operation))
+        self._missions.append(mission)
 
         return request
 
@@ -224,6 +220,7 @@ class AGV(PriorityResource, metaclass=Identifiable):
         """
 
         self.current_mission.end_time = self.env.now
+        self.current_mission = None
         self.set_idle()
         ret = super().release(args, **kwargs)
         logger.debug(f"{self} - released")
