@@ -18,6 +18,7 @@ class AGVTrip:
 
     __slots__ = (
         "agv",
+        "mission",
         "start_location",
         "end_location",
         "start_time",
@@ -30,6 +31,7 @@ class AGVTrip:
         from eagle_trays.controllers import SystemController
 
         self.agv = agv
+        self.mission = agv.current_mission
         self.start_location = agv.current_location
         self.end_location = destination
         self.start_time = agv.env.now
