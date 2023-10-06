@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Generic, TypeVar
 
+import simpy
 from simulatte.environment import Environment
 from simulatte.observables.observable_area.base import ObservableArea
 
@@ -28,8 +29,11 @@ class Observer(Generic[T]):
         Once triggered, the observer will execute its main process.
         """
         while True:
-            yield self.observable_area.signal_event
-            self._main_process()
+            try:
+                yield self.observable_area.signal_event
+                self._main_process()
+            except simpy.Interrupt:
+                break
 
     def next(self):
         """
