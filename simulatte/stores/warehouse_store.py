@@ -289,15 +289,16 @@ class WarehouseStore(Generic[T], metaclass=Identifiable):
             statistics.mean([get_queues[i] for i in idxs]) if idxs else 0
             for idxs in iter_timestamps(timestamps, 0, window)
         ]
-        x = [i / 3600 for i in range(0, self.env.now, window)]
+        x = [i / 3600 for i in range(0, self.env.now, window)][: len(y)]
 
         plt.plot(x, y, label=f"{self.name}")
         plt.xlabel("Time [h]")
         plt.ylabel("Queue [# agv]")
         plt.title(title)
+        plt.show()
 
     def plot_output_queue(self, window=300):
-        self.plot(window=window, queue_stats=self.get_queue_stats, title=f"{self.__class__.__name__} Output Queue")
+        self.plot(window=window, queue_stats=self.get_queue_stats, title=f"{self.name} Output Queue")
 
     def plot_input_queue(self, window=300):
-        self.plot(window=window, queue_stats=self.put_queue_stats, title=f"{self.__class__.__name__} Input Queue")
+        self.plot(window=window, queue_stats=self.put_queue_stats, title=f"{self.name} Input Queue")
