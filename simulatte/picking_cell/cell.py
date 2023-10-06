@@ -46,6 +46,7 @@ class PickingCell(metaclass=Identifiable):
         feeding_area_capacity: int,
         staging_area_capacity: int,
         internal_area_capacity: int,
+        workload_unit: Literal["cases", "layers"],
         register_main_process: bool = True,
     ):
         self.system = system
@@ -84,6 +85,9 @@ class PickingCell(metaclass=Identifiable):
         self.pallet_requests_assigned: list[PalletRequest] = []
         self.pallet_requests_done: list[PalletRequest] = []
 
+        self.remaining_workload: float = 0
+        self.workload_unit = workload_unit
+
         self._main: Process | None = None
         if register_main_process:
             self._main = self.main()
@@ -99,19 +103,6 @@ class PickingCell(metaclass=Identifiable):
         """
         return len(self.pallet_requests_done) / self.system.env.now
 
-    def remaining_workload(self, unit: Literal["layers", "cases"]) -> int:
-        """
-        Returns the remaining workload of the PickingCell.
-
-        The unit of measure can be layers or cases.
-        If the workload is expressed in terms of layers, the workload is equal
-        to the number of layers remaining to pick in the PalletRequest.
-        If the workload is expressed in terms of cases, the workload is equal
-        to the number of cases remaining to pick in the PalletRequest.
-        """
-
-        return sum(pallet_request.remaining_workload(unit=unit) for pallet_request in self.input_queue.items)
-
     def register_feeding_operation(self, *, feeding_operation: FeedingOperation) -> None:
         """
         Register a FeedingOperation into the PickingCell.
@@ -120,6 +111,7 @@ class PickingCell(metaclass=Identifiable):
         which maps which FeedingOperation is associated to which ProductRequest.
         It also adds the FeedingOperation to the FeedingArea.
         """
+
         for picking_request in feeding_operation.picking_requests:
             self.feeding_operation_map[picking_request].append(feeding_operation)
         self.feeding_area.append(feeding_operation, exceed=True)
@@ -168,7 +160,7 @@ class PickingCell(metaclass=Identifiable):
             feeding_operation.pre_unload_position.release(pre_unload_position_request)
 
         # Move the Ant from the StagingArea to the InternalArea
-        yield feeding_operation.agv.move_to(location=self.internal_location)
+        yield feeding_operation.move_agv(location=self.internal_location)
 
     def let_ant_out(self, *, feeding_operation: FeedingOperation):
         return self.system.end_feeding_operation(feeding_operation=feeding_operation)
@@ -182,6 +174,9 @@ class PickingCell(metaclass=Identifiable):
         which are placed in the picking requests queue.
         Eventually, the FeedingArea signal event is triggered.
         """
+
+        self.remaining_workload += pallet_request.total_workload[self.workload_unit]
+
         self.pallet_requests_assigned.append(pallet_request)
         self.picking_requests_queue.extend(self.iter_pallet_request(pallet_request=pallet_request))
         yield self.input_queue.put(pallet_request)
@@ -241,6 +236,9 @@ class PickingCell(metaclass=Identifiable):
 
                 # Housekeeping
                 self.pallet_requests_done.append(pallet_request)
+
+                self.remaining_workload -= pallet_request.total_workload[self.workload_unit]
+
                 pallet_request.completed(time=self.system.env.now)
                 self._productivity_history.append((self.system.env.now, self.productivity))
 
@@ -248,7 +246,10 @@ class PickingCell(metaclass=Identifiable):
                 self.system.retrieve_from_cell(cell=self, pallet_request=pallet_request)
 
     def summary(self, plot=True):
-        display(Markdown("## Performance Summary"))
+        if hasattr(__builtins__, "__IPYTHON__"):
+            display(Markdown(f"## Performance Summary of {self.name}"))
+        else:
+            print(f"## Performance Summary of {self.name}")
 
         hourly_cell_productivity = self.productivity * 60 * 60
         hourly_cases_productivity = sum(pallet_request.n_cases for pallet_request in self.pallet_requests_done) / (
@@ -260,9 +261,9 @@ class PickingCell(metaclass=Identifiable):
 
         headers = ["KPI", "Valore", "U.M."]
         table = [
-            ["Ore simulate", f"{self.system.env.now / 60 / 60:.2f}", "h"],
-            ["PalletRequest in coda", f"{len(self.input_queue.items)}", "PalletRequest"],
-            ["PalletRequest completate", f"{len(self.pallet_requests_done)}", "PalletRequest"],
+            ["Ore simulate", f"{self.system.env.now / 60 / 60:.2f}", "[h]"],
+            ["PalletRequest in coda", f"{len(self.input_queue.items)}", "[PalletRequest]"],
+            ["PalletRequest completate", f"{len(self.pallet_requests_done)}", "[PalletRequest]"],
             [
                 "Produttività Cella",
                 f"{hourly_cell_productivity:.2f}",
@@ -282,6 +283,21 @@ class PickingCell(metaclass=Identifiable):
                 "Produttività Robot",
                 f"{self.robot.productivity * 60 * 60:.2f}",
                 "[Cases/h]",
+            ],
+            [
+                "Tempo idle Robot",
+                f"{self.robot.idle_time / 3600:.2f}",
+                "[h]",
+            ],
+            [
+                "Tempo idle Robot",
+                f"{(self.robot.idle_time / self.system.env.now) * 100:.2f}",
+                "[%]",
+            ],
+            [
+                "Out of Sequence",
+                f"{(self.staging_observer.out_of_sequence / len(self.feeding_operations)) * 100:.2f}",
+                "[%]",
             ],
         ]
         print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
