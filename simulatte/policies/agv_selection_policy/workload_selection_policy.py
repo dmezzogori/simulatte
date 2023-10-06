@@ -19,11 +19,11 @@ class WorkloadAGVSelectionPolicy(AGVSelectionPolicy):
     @staticmethod
     def sorter(agv: AGV):
         """
-        Return a tuple of the number of users, the number of missions in the queue
-        and the start time of the current mission.
+        Return a tuple of the number of users and the number of processes in queue for the AGV.
+        Used to sort the AGVs from the least busy to the most busy.
         """
 
-        return agv.n_users, agv.n_queue  # , agv.current_mission.start_time
+        return agv.n_users, agv.n_queue
 
     def __call__(self, *, agvs, exceptions=None) -> AGV:
         """
