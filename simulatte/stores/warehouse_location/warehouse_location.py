@@ -30,6 +30,22 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
 
     id: int
 
+    __slots__ = (
+        "id",
+        "store",
+        "x",
+        "y",
+        "side",
+        "depth",
+        "width",
+        "height",
+        "first_position",
+        "second_position",
+        "future_unit_loads",
+        "booked_pickups",
+        "product",
+    )
+
     def __init__(
         self,
         *,
@@ -67,6 +83,8 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         self.future_unit_loads: list[T] = []  # Unit loads that will be stored in the future
         self.booked_pickups: list[T] = []  # Unit loads that will be picked up in the future
 
+        self.product: Product | None = None
+
     def __repr__(self) -> str:
         return (
             f"Location ({self.x}, {self.y}, {self.side}) reserved for {self.product} "
@@ -81,58 +99,9 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         """
         return self.x * self.width, self.y * self.height
 
-    def check_product_compatibility(self, unit_load: T) -> bool:
-        if unit_load.product != self.first_available_unit_load.product:
-            raise IncompatibleUnitLoad(unit_load, self)
-        return True
-
-    def book_pickup(self, unit_load: T) -> None:
-        if unit_load not in (
-            self.first_position.unit_load,
-            self.second_position.unit_load,
-        ):
-            raise RuntimeError("Unit load not available for pickup")
-
-        if self.fully_booked:
-            raise ValueError(f"Cannot book more than {self.depth} pickups")
-
-        if unit_load in self.booked_pickups:
-            raise ValueError("Unit load already booked")
-
-        self.booked_pickups.append(unit_load)
-
     @property
     def fully_booked(self) -> bool:
         return len(self.booked_pickups) == self.depth
-
-    def freeze(self, *, unit_load: T) -> None:
-        """
-        Freeze the location for a certain unit load.
-
-        If the location is not empty, first it checks that the unit load is compatible
-        (same product as the one already stored).
-        """
-        if self.is_empty:
-            if len(self.future_unit_loads) == self.depth:
-                raise ValueError(
-                    f"Cannot freeze a location with empty positions, but with {self.depth} future unit loads"
-                )
-        elif self.is_half_full:
-            if len(self.future_unit_loads) >= 1:
-                raise ValueError("Cannot freeze a location with one busy position, and one future unit load")
-        else:
-            raise ValueError("Cannot freeze a location with two busy positions")
-
-        if not self.is_empty:
-            self.check_product_compatibility(unit_load)
-
-        self.future_unit_loads.append(unit_load)
-
-    def unfreeze(self, unit_load: T) -> None:
-        if unit_load not in self.future_unit_loads:
-            raise ValueError("Unit load not found in the future unit loads")
-
-        self.future_unit_loads.remove(unit_load)
 
     @property
     def physically_available_product(self) -> Product | None:
@@ -147,24 +116,6 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         return self.first_available_unit_load.product
 
     @property
-    def product(self) -> Product | None:
-        """
-        Returns the product associated with the location.
-        A product is associated with the location in the following cases:
-        - The location is not empty.
-        - The location is empty, but it is frozen for a certain incoming product.
-        """
-        if self.is_empty:
-            if len(self.future_unit_loads) == 0:
-                # No unit load is stored in the location and no unit load is planned to be stored
-                return None
-            else:
-                # No unit load is stored in the location but a unit load is planned to be stored
-                return self.future_unit_loads[0].product
-        else:
-            return self.first_available_unit_load.product
-
-    @property
     def n_cases(self) -> int:
         """
         Returns the number of cases stored in the location.
@@ -174,9 +125,6 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
             + self.second_position.n_cases
             + sum(unit_load.n_cases for unit_load in self.future_unit_loads)
         )
-
-    def deals_with_products(self, product: Product) -> bool:
-        return self.product == product
 
     @property
     def is_empty(self) -> bool:
@@ -204,14 +152,8 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         Returns the first available unit load.
         If the first position is busy, the unit load in second position is not available.
         """
-        if self.is_empty:
-            raise LocationEmpty(self)
 
-        if self.is_full:
-            return self.first_position.unit_load
-
-        if self.is_half_full:
-            return self.second_position.unit_load
+        return self.first_available_position.unit_load
 
     @property
     def first_available_position(self) -> PhysicalPosition:
@@ -228,6 +170,63 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         if self.is_half_full:
             return self.second_position
 
+    def check_product_compatibility(self, unit_load: T) -> bool:
+        if self.product is not None and unit_load.product != self.product:
+            raise IncompatibleUnitLoad
+        return True
+
+    def book_pickup(self, unit_load: T) -> None:
+        if unit_load not in (
+            self.first_position.unit_load,
+            self.second_position.unit_load,
+        ):
+            raise RuntimeError("Unit load not available for pickup")
+
+        if self.fully_booked:
+            raise ValueError(f"Cannot book more than {self.depth} pickups")
+
+        if unit_load in self.booked_pickups:
+            raise ValueError("Unit load already booked")
+
+        self.booked_pickups.append(unit_load)
+
+    def freeze(self, *, unit_load: T) -> None:
+        """
+        Freeze the location for a certain unit load.
+
+        If the location is not empty, first it checks that the unit load is compatible
+        (same product as the one already stored).
+        """
+        if self.is_empty:
+            if len(self.future_unit_loads) == self.depth:
+                raise ValueError(
+                    f"Cannot freeze a location with empty positions, but with {self.depth} future unit loads"
+                )
+        elif self.is_half_full:
+            if len(self.future_unit_loads) >= 1:
+                raise ValueError("Cannot freeze a location with one busy position, and one future unit load")
+            self.check_product_compatibility(unit_load)
+        else:
+            raise ValueError("Cannot freeze a location with two busy positions")
+
+        # If the location is empty
+        if self.first_position.free and self.second_position.free:
+            # and there are no future unit loads
+            if len(self.future_unit_loads) == 0:
+                # then the location is associated with the product of the unit load
+                self.product = unit_load.product
+
+        self.future_unit_loads.append(unit_load)
+
+    def unfreeze(self, unit_load: T) -> None:
+        if unit_load not in self.future_unit_loads:
+            raise ValueError("Unit load not found in the future unit loads")
+
+        self.future_unit_loads.remove(unit_load)
+
+    def deals_with_products(self, product: Product) -> bool:
+        return self.product == product
+
     def put(self, unit_load: T) -> None:
         """
         Stores a unit load into the location.
@@ -239,13 +238,16 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
 
         If the location is full, an exception will be raised.
         """
+
+        if self.product is not None:
+            if unit_load.product != self.product:
+                raise IncompatibleUnitLoad
+        else:
+            self.product = unit_load.product
+
         if self.is_empty:
-            # TODO: gestire singola profondità
             physical_position = self.second_position
         elif self.is_half_full:
-            existing_product = self.second_position.unit_load.product
-            if unit_load.product != existing_product:
-                raise IncompatibleUnitLoad(unit_load, self)
             physical_position = self.first_position
         else:
             raise LocationBusy(self)
@@ -264,11 +266,11 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         if unit_load is self.first_position.unit_load:
             physical_position = self.first_position
         elif unit_load is self.second_position.unit_load:
-            # TODO: swap positions
-            self.first_position.unit_load, self.second_position.unit_load = (
-                self.second_position.unit_load,
-                self.first_position.unit_load,
-            )
+            # self.first_position.unit_load, self.second_position.unit_load = (
+            #     self.second_position.unit_load,
+            #     self.first_position.unit_load,
+            # )
+            self.first_position, self.second_position = self.second_position, self.first_position
             physical_position = self.first_position
         else:
             raise ValueError
@@ -278,6 +280,14 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
             self.booked_pickups.remove(unit_load)
         except ValueError:
             raise ValueError("Cannot get a unit load without booking it first")
+
+        # If the location is empty
+        if self.first_position.free and self.second_position.free:
+            # and there are no future unit loads
+            if len(self.future_unit_loads) == 0:
+                # then the location is not associated with any product
+                self.product = None
+
         unit_load.location = None
         return unit_load
 
