@@ -155,6 +155,11 @@ class PalletRequest(Request, metaclass=Identifiable):
         self._start_time = None
         self._end_time = None
 
+        self.total_workload = {
+            "cases": sum(layer_request.total_workload("cases") for layer_request in self.sub_requests),
+            "layers": sum(layer_request.total_workload("layers") for layer_request in self.sub_requests),
+        }
+
     def __repr__(self):
         return f"PalletRequest(id={self.id})"
 
@@ -194,24 +199,6 @@ class PalletRequest(Request, metaclass=Identifiable):
     def lead_time(self) -> float | None:
         if self._start_time is not None and self._end_time is not None:
             return self._end_time - self._start_time
-
-    def total_workload(self, unit: Literal["layers", "cases"]) -> int:
-        """
-        Returns the total workload of the PalletRequest.
-
-        The unit of measure can be layers or cases.
-        If the workload is expressed in terms of layers, the workload is equal
-        to the number of layers in the PalletRequest.
-        If the workload is expressed in terms of cases, the workload is equal
-        to the number of cases in the PalletRequest.
-        """
-
-        if unit == "layers":
-            return sum(layer_request.total_workload("layers") for layer_request in self.sub_requests)
-        elif unit == "cases":
-            return sum(layer_request.total_workload("cases") for layer_request in self.sub_requests)
-        else:
-            raise ValueError(f"Invalid workload type: {unit}")
 
     def remaining_workload(self, unit: Literal["layers", "cases"]) -> int:
         """
