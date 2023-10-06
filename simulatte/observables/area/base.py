@@ -101,7 +101,7 @@ class Area(list, Generic[Item, Owner]):
         # Record the content history.
         self._history.append((self.env.now, len(self)))
 
-        return super().remove(item)
+        super().remove(item)
 
     def plot(self):
         """

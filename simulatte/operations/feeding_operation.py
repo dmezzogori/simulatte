@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from simulatte.events.event_payload import EventPayload
 from simulatte.events.logged_event import LoggedEvent
+from simulatte.location import InternalLocation, Location
 from simulatte.logger import logger
 from simulatte.utils import as_process
 from simulatte.utils.identifiable import Identifiable
@@ -43,6 +44,7 @@ class FeedingOperation(metaclass=Identifiable):
     )
 
     id: int
+    agv_position_signal: type[Location] = InternalLocation
 
     def __init__(
         self,
@@ -86,10 +88,6 @@ class FeedingOperation(metaclass=Identifiable):
     def __eq__(self, other: FeedingOperation) -> bool:
         return self.id == other.id
 
-    @property
-    def is_in_feeding_area(self) -> bool:
-        return sum(self.status.values()) == 0
-
     def _check_status(self, *status_to_be_true) -> bool:
         for status in self.status:
             if status in status_to_be_true:
@@ -120,17 +118,6 @@ class FeedingOperation(metaclass=Identifiable):
     def is_done(self) -> bool:
         return self._check_status("arrived", "staging", "inside", "ready", "done")
 
-    def knock_staging_area(self) -> None:
-        """
-        Mark the operation as arrived in front of the picking cell, waiting to enter the staging area.
-        """
-        self.status["arrived"] = True
-        self.agv.waiting_to_enter_staging_area()
-        # Signal the cell staging area that the feeding operation is ready to enter the cell
-        self.cell.staging_area.trigger_signal_event(
-            payload=EventPayload(message=f"{self} - In front of the staging area of {self.cell}")
-        )
-
     def enter_staging_area(self) -> None:
         self.status["staging"] = True
 
@@ -143,6 +130,15 @@ class FeedingOperation(metaclass=Identifiable):
 
     def unloaded(self) -> None:
         self.status["done"] = True
+
+    def move_agv(self, location):
+        if isinstance(self.agv.current_location, self.agv_position_signal) and isinstance(
+            self.agv.current_location.element, self.agv.picking_cell
+        ):
+            # Signal that the AGV is ready to receive the next FeedingOperation
+            logger.debug(f"{self} - Signaling {self.agv} is ready to receive the next FeedingOperation")
+            self.cell.system.idle_feeding_agvs.append(self.agv)
+        return self.agv.move_to(location=location)
 
     @as_process
     def start_retrieval_process(self):
@@ -163,7 +159,7 @@ class FeedingOperation(metaclass=Identifiable):
         """
 
         logger.debug(f"{self} - Starting the retrieval agv trip using {self.agv} to {self.store}")
-        yield self.agv.move_to(location=self.store.output_location)
+        yield self.move_agv(location=self.store.output_location)
         logger.debug(f"{self} - Finished the retrieval agv trip using {self.agv} to {self.store}")
 
     @as_process
@@ -183,12 +179,23 @@ class FeedingOperation(metaclass=Identifiable):
         Move the agv to the picking cell associated to the FeedingOperation.
         """
 
+        def knock(_):
+            # Knock on the door of the picking cell
+            self.status["arrived"] = True
+            self.agv.waiting_to_enter_staging_area()
+            # Signal the cell staging area that the feeding operation is ready to enter the cell
+            self.cell.staging_area.trigger_signal_event(
+                payload=EventPayload(message=f"{self} - In front of the staging area of {self.cell}")
+            )
+
         logger.debug(f"{self} - Starting the agv trip using {self.agv} to {self.cell}")
-        yield self.agv.move_to(location=self.cell.input_location)
+        proc = self.move_agv(location=self.cell.input_location)
+        proc.callbacks.append(knock)
+
+        yield proc
         logger.debug(f"{self} - Finished the agv trip using {self.agv} to {self.cell}")
 
-        self.knock_staging_area()
-
+    @as_process
     def move_into_staging_area(self):
         """
         Move the FeedingOperation from the feeding area of the picking cell
@@ -198,24 +205,21 @@ class FeedingOperation(metaclass=Identifiable):
         into the staging area of the picking cell.
         """
 
-        logger.debug(f"{self} - Moving into {self.cell} staging area")
-
         # Remove the FeedingOperation from the FeedingArea
         self.cell.feeding_area.remove(self)
 
         # The FeedingOperation enters the StagingArea
+        logger.debug(f"{self} - Moving into {self.cell} staging area")
+        yield self.move_agv(location=self.cell.staging_location)
+        logger.debug(f"{self} - Finished moving into {self.cell} staging area")
+
         self.cell.staging_area.append(self)
         self.agv.enter_staging_area()
-        self.agv.move_to(
-            location=self.cell.staging_location,
-            callbacks=[
-                lambda: self.cell.internal_area.trigger_signal_event(
-                    payload=EventPayload(message=f"{self} - Triggering the signal event {self.cell} internal area")
-                )
-            ],
-        )
 
-        logger.debug(f"{self} - Finished moving into {self.cell} staging area")
+        # Knock on internal area
+        self.cell.internal_area.trigger_signal_event(
+            payload=EventPayload(message=f"{self} - Triggering the signal event {self.cell} internal area")
+        )
 
     @as_process
     def move_into_internal_area(self):
@@ -262,12 +266,9 @@ class FeedingOperation(metaclass=Identifiable):
         # de-register the FeedingOperation from the unit load
         self.unit_load.feeding_operation = None
 
-        # Signal that the AGV is ready to receive the next FeedingOperation
-        self.cell.system.idle_feeding_agvs.append(self.agv)
-
         # Move the AGV to the input location of the store
         logger.debug(f"{self} - Moving {self.agv} to {self.store} input location")
-        yield self.agv.move_to(location=self.store.input_location)
+        yield self.move_agv(location=self.store.input_location)
         logger.debug(f"{self} - Finished moving {self.agv} to {self.store} input location")
 
         # When the AGV is in front of the store, trigger the loading process of the store
@@ -291,12 +292,7 @@ class FeedingOperation(metaclass=Identifiable):
         self.cell.internal_area.remove(self)
 
         # Move the AGV to the recharge location
-        yield self.agv.move_to(
-            location=self.cell.system.agv_recharge_location,
-            callbacks=[
-                lambda: self.cell.system.idle_feeding_agvs.append(self.agv),
-            ],
-        )
+        yield self.move_agv(location=self.cell.system.agv_recharge_location)
 
         logger.debug(f"{self} - Finished dropping, moved {self.agv} to recharge location")
 

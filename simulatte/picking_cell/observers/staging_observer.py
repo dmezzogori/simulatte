@@ -74,10 +74,7 @@ class StagingObserver(Observer[StagingArea]):
                     self.out_of_sequence_timestamp = None
 
                 feeding_operation.move_into_staging_area()
-
-                return
             else:
                 self.out_of_sequence += 1
                 if self.out_of_sequence_timestamp is None:
                     self.out_of_sequence_timestamp = Environment().now
-                return

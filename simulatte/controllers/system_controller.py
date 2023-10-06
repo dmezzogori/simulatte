@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from simulatte.agv import AGV
-from simulatte.events.event_payload import EventPayload
 from simulatte.location import AGVRechargeLocation, InputLocation, OutputLocation
 from simulatte.logger import logger
 from simulatte.observables.observable_area.base import ObservableArea
@@ -12,8 +11,6 @@ from simulatte.utils.singleton import Singleton
 from simulatte.utils.utils import as_process
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
     from simpy import Process
     from simpy.resources.resource import PriorityRequest
     from simulatte.controllers.agvs_controller import AGVController
@@ -25,6 +22,10 @@ if TYPE_CHECKING:
     from simulatte.location import Location
     from simulatte.operations.feeding_operation import FeedingOperation
     from simulatte.picking_cell.cell import PickingCell
+    from simulatte.policies.agv_selection_policy.idle_feeding_selection_policy import (
+        IdleFeedingSelectionPolicy,
+    )
+    from simulatte.policies.picking_requests_policy import PickingRequestSelectionPolicy
     from simulatte.products import Product
     from simulatte.requests import PalletRequest
     from simulatte.stores.warehouse_store import WarehouseStore
@@ -89,6 +90,8 @@ class SystemController(metaclass=Singleton):
         distance_controller: DistanceController,
         products: list[Product],
         orders_generator: CustomerOrdersGenerator,
+        picking_request_selection_policy: PickingRequestSelectionPolicy,
+        idle_feeding_agvs_selection_policy: IdleFeedingSelectionPolicy,
     ):
         self.env = env
 
@@ -108,6 +111,9 @@ class SystemController(metaclass=Singleton):
         self.orders_generator = orders_generator
         self.psp: list[PalletRequest] = []
 
+        self.picking_request_selection_policy = picking_request_selection_policy
+        self.idle_feeding_agvs_selection_policy = idle_feeding_agvs_selection_policy
+
         self.feeding_operations: list[FeedingOperation] = []
         self._finished_pallet_requests: list[PalletRequest] = []
 
@@ -117,7 +123,7 @@ class SystemController(metaclass=Singleton):
         self.system_output_location = OutputLocation(self)
         self.agv_recharge_location = AGVRechargeLocation(self)
 
-        self.idle_feeding_agvs = IdleFeedingAGVs(signal_at=("append", "remove"), owner=self)
+        self.idle_feeding_agvs = IdleFeedingAGVs(signal_at="append", owner=self)
         self.feeding_agvs_observer = FeedingAGVsObserver(
             observable_area=self.idle_feeding_agvs, register_main_process=True
         )
@@ -127,23 +133,6 @@ class SystemController(metaclass=Singleton):
 
     def __str__(self):
         return self.__class__.__name__
-
-    @property
-    def agv_locations(self) -> Sequence[Location]:
-        for _, stores in self.stores_controller.stores:
-            for store in stores:
-                yield store.input_location
-                yield store.output_location
-
-        for cell in self.cells_controller.picking_cells:
-            yield cell.input_location
-            yield cell.output_location
-            yield cell.staging_location
-            yield cell.internal_location
-
-        yield self.input_pallet_location
-        yield self.system_output_location
-        yield self.agv_recharge_location
 
     @as_process
     def iter_shifts(self):
@@ -157,12 +146,11 @@ class SystemController(metaclass=Singleton):
         for further consideration by the `check_workload` process.
         """
 
-        for feeding_agv in self.agv_controller.feeding_agvs:
-            self.idle_feeding_agvs.append(feeding_agv, skip_signal=True)
-
-        self.idle_feeding_agvs.trigger_signal_event(
-            payload=EventPayload(message="Init trigger signal of IdleFeedingAGVsArea")
-        )
+        # self.idle_feeding_agvs.extend(self.agv_controller.feeding_agvs)
+        #
+        # self.idle_feeding_agvs.trigger_signal_event(
+        #     payload=EventPayload(message="Init trigger signal of IdleFeedingAGVsArea")
+        # )
 
         # Eternal process
         while True:
@@ -173,26 +161,6 @@ class SystemController(metaclass=Singleton):
 
                 # Wait for the next shift
                 yield self.env.timeout(60 * 60 * 8)  # 8 hours
-
-    @as_process
-    def pallet_requests_release(self):
-        """
-        Abstract method for releasing pallet requests from the PSP to the picking cells.
-        """
-
-        raise NotImplementedError
-
-    def assign_to_cell(self, *, pallet_request: PalletRequest, cell: PickingCell | None = None) -> Process:
-        """
-        Assign a pallet request to a picking cell.
-        """
-
-        if cell is None:
-            picking_cell_cls = self.cells_controller.filter_picking_cell_type_for_pallet_request(
-                pallet_request=pallet_request
-            )
-            cell = self.cells_controller.get_best_picking_cell(cls=picking_cell_cls)
-        return cell.put(pallet_request=pallet_request)
 
     def get_type_of_store_by_cell(self, *, cell: PickingCell | None = None) -> type[WarehouseStore]:
         return self.picking_cell_store_mapping[type(cell)]
@@ -233,15 +201,6 @@ class SystemController(metaclass=Singleton):
             # Store the pallet request as finished
             self._finished_pallet_requests.append(pallet_request)
 
-    def get_store_by_cell(self, *, cell: PickingCell | None = None) -> WarehouseStore:
-        raise NotImplementedError
-
-    def start_feeding_operation(self, *, agv: AGV) -> None:
-        raise NotImplementedError
-
-    def feed(self, *, feeding_operation: FeedingOperation, ant_request: PriorityRequest):
-        raise NotImplementedError
-
     @as_process
     def end_feeding_operation(self, *, feeding_operation: FeedingOperation) -> ProcessGenerator:
         # free the UnloadPosition associated to the FeedingOperation
@@ -251,3 +210,19 @@ class SystemController(metaclass=Singleton):
             yield feeding_operation.return_to_store()
         else:
             yield feeding_operation.drop()
+
+    def get_store_by_cell(self, *, cell: PickingCell | None = None) -> WarehouseStore:
+        raise NotImplementedError
+
+    def start_feeding_operation(self, *, agv: AGV) -> None:
+        raise NotImplementedError
+
+    def feed(self, *, feeding_operation: FeedingOperation, ant_request: PriorityRequest):
+        raise NotImplementedError
+
+    def pallet_requests_release(self):
+        """
+        Abstract method for releasing pallet requests from the PSP to the picking cells.
+        """
+
+        raise NotImplementedError

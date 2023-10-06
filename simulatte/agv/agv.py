@@ -188,7 +188,7 @@ class AGV(PriorityResource, metaclass=Identifiable):
         Return the total duration of the missions the agv has taken care of.
         """
 
-        return sum(mission.duration for mission in self.missions)
+        return sum(mission.duration for mission in self.missions if mission.duration is not None)
 
     def request(self, *args, operation=None, **kwargs):
         """
@@ -197,15 +197,21 @@ class AGV(PriorityResource, metaclass=Identifiable):
 
         def request_callback(_):
             logger.debug(f"{self} - acquired for mission {mission} for operation {operation}")
+
+            # Set the start time of the mission
+            mission.start_time = self.env.now
+
+            # Set the current mission of the agv
             self.current_mission = mission
 
         # Perform the request
         request = super().request(*args, **kwargs)
-        logger.debug(f"{self} - created request {request}")
-        mission = AGVMission(agv=self, request=request, operation=operation)
         request.callbacks.append(request_callback)
 
+        logger.debug(f"{self} - created request {request}")
+
         # Init the mission
+        mission = AGVMission(agv=self, request=request, operation=operation)
         self._missions.append(mission)
 
         return request
@@ -219,12 +225,19 @@ class AGV(PriorityResource, metaclass=Identifiable):
         It also sets the status of the agv to IDLE.
         """
 
-        self.current_mission.end_time = self.env.now
         logger.debug(
             f"{self} - released from mission {self.current_mission} for operation {self.current_mission.operation}"
         )
+
+        # Set the end time of the mission
+        self.current_mission.end_time = self.env.now
+
+        # Set the current mission of the agv to None
         self.current_mission = None
+
+        # Set the status of the agv to IDLE
         self.set_idle()
+
         return super().release(*args, **kwargs)
 
     def release_current(self):
@@ -286,14 +299,10 @@ class AGV(PriorityResource, metaclass=Identifiable):
         self.trips.append(trip)
 
     @as_process
-    def move_to(self, *, location: Location, callbacks: list[callable] | None = None) -> ProcessGenerator:
+    def move_to(self, *, location: Location) -> ProcessGenerator:
         with self.trip(destination=location) as trip:
             # Wait for the duration of the trip
             yield self.env.timeout(trip.duration)
-
-        if callbacks is not None:
-            for callback in callbacks:
-                callback()
 
     @property
     def idle_time(self) -> float:

@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import statistics
 from typing import TYPE_CHECKING
 
+from IPython.core.display import Markdown
+from IPython.core.display_functions import display
 from simulatte.agv.agv_kind import AGVKind
+from simulatte.environment import Environment
+from tabulate import tabulate
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Generator
@@ -144,3 +149,60 @@ class AGVController:
         """
 
         return self.best_agv(agvs=self.output_agvs, exceptions=exceptions)
+
+    def summary(self):
+        if hasattr(__builtins__, "__IPYTHON__"):
+            display(Markdown("## Performance Summary of AGVs fleet"))
+        else:
+            print("## Performance Summary of AGVs fleet")
+
+        headers = ["KPI", "Valore", "U.M."]
+        table = [
+            ["Ore simulate", f"{Environment().now / 3600:.2f}", "[h]"],
+            ["Numero di AGV", len(self.agvs), "[n]"],
+            ["Numero di FeedingAGV", len(self.feeding_agvs), "[n]"],
+            ["Numero di ReplenishmentAGV", len(self.replenishment_agvs), "[n]"],
+            ["Numero di InputAGV", len(self.input_agvs), "[n]"],
+            ["Numero di OutputAGV", len(self.output_agvs), "[n]"],
+            ["Numero di missioni", len(tuple(self.agvs_missions())), "[n]"],
+            ["Numero di missioni FeedingAGV", len(tuple(self.agvs_missions(agvs=self.feeding_agvs))), "[n]"],
+            [
+                "Numero di missioni ReplenishmentAGV",
+                len(tuple(self.agvs_missions(agvs=self.replenishment_agvs))),
+                "[n]",
+            ],
+            ["Numero di missioni InputAGV", len(tuple(self.agvs_missions(agvs=self.input_agvs))), "[n]"],
+            ["Numero di missioni OutputAGV", len(tuple(self.agvs_missions(agvs=self.output_agvs))), "[n]"],
+        ]
+
+        feeding_agvs_stats = {}
+        for agv in self.feeding_agvs:
+            d = feeding_agvs_stats.setdefault(
+                agv.picking_cell, {"idle_times": [], "waiting_times": [], "travel_times": []}
+            )
+            d["idle_times"].append(agv.idle_time / 3600)
+            d["waiting_times"].append(agv.waiting_time / 3600)
+            d["travel_times"].append(agv._travel_time / 3600)
+
+        for picking_cell, stats in feeding_agvs_stats.items():
+            table.extend(
+                [
+                    [
+                        f"Tempo medio di idle - FeedingAGV {picking_cell.__name__}",
+                        statistics.mean(stats["idle_times"]),
+                        "[h]",
+                    ],
+                    [
+                        f"Tempo medio di attesa - FeedingAGV {picking_cell.__name__}",
+                        statistics.mean(stats["waiting_times"]),
+                        "[h]",
+                    ],
+                    [
+                        f"Tempo medio di viaggio - FeedingAGV {picking_cell.__name__}",
+                        statistics.mean(stats["travel_times"]),
+                        "[h]",
+                    ],
+                ]
+            )
+
+        print(tabulate(table, headers=headers, tablefmt="fancy_grid"))

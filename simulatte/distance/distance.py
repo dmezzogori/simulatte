@@ -16,7 +16,3 @@ class Distance:
     @property
     def as_distance(self) -> float:
         raise NotImplementedError
-
-    @property
-    def as_time(self) -> float:
-        raise NotImplementedError
