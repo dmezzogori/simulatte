@@ -91,6 +91,15 @@ class PickingCell(metaclass=Identifiable):
         self._main: Process | None = None
         if register_main_process:
             self._main = self.main()
+            self.starvation_check()
+
+    @as_process
+    def starvation_check(self):
+        yield self.system.env.timeout(60 * 60 * 3)
+        while True:
+            yield self.system.env.timeout(60 * 5)
+            if not self.feeding_area and not self.staging_area and not self.internal_area:
+                self.system.start_feeding_operation(picking_cell=type(self))
 
     @property
     def name(self) -> str:
@@ -273,7 +282,7 @@ class PickingCell(metaclass=Identifiable):
             ],
             [
                 "Out of Sequence",
-                f"{(self.staging_observer.out_of_sequence / len(self.feeding_operations)) * 100:.2f}",
+                f"{(len(self.staging_observer.out_of_sequence) / len(self.feeding_operations)) * 100:.2f}",
                 "[%]",
             ],
         ]
