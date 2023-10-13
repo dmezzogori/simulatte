@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Generator
 from functools import total_ordering
 from typing import TYPE_CHECKING
 
+from simulatte.environment import Environment
 from simulatte.events.event_payload import EventPayload
 from simulatte.events.logged_event import LoggedEvent
 from simulatte.location import InternalLocation, Location
@@ -21,6 +23,88 @@ if TYPE_CHECKING:
 
 
 @total_ordering
+class FeedingOperationLog:
+    def __init__(self, feeding_operation: FeedingOperation, created: float):
+        self.feeding_operation = feeding_operation
+        self.created = created
+        self.started_retrieval: float | None = None
+        self.finished_retrieval: float | None = None
+        self.started_agv_trip_to_store: float | None = None
+        self.finished_agv_trip_to_store: float | None = None
+        self.started_loading: float | None = None
+        self.finished_loading: float | None = None
+        self.started_agv_trip_to_cell: float | None = None
+        self.finished_agv_trip_to_cell: float | None = None
+        self.started_agv_trip_to_staging_area: float | None = None
+        self.finished_agv_trip_to_staging_area: float | None = None
+        self.started_agv_trip_to_internal_area: float | None = None
+        self.finished_agv_trip_to_internal_area: float | None = None
+        self.started_agv_return_trip_to_store: float | None = None
+        self.finished_agv_return_trip_to_store: float | None = None
+        self.started_agv_unloading_for_return_trip_to_store: float | None = None
+        self.finished_agv_unloading_for_return_trip_to_store: float | None = None
+        self.started_agv_return_trip_to_recharge: float | None = None
+        self.finished_agv_return_trip_to_recharge: float | None = None
+
+    def __lt__(self, other: FeedingOperationLog) -> bool:
+        return self.created < other.created
+
+    def __eq__(self, other: FeedingOperationLog) -> bool:
+        return self.created == other.created
+
+    def to_tuple(self):
+        return (
+            (self.created, "created", self.feeding_operation),
+            (self.started_retrieval, "started_retrieval", self.feeding_operation),
+            (self.finished_retrieval, "finished_retrieval", self.feeding_operation),
+            (self.started_agv_trip_to_store, "started_agv_trip_to_store", self.feeding_operation),
+            (self.finished_agv_trip_to_store, "finished_agv_trip_to_store", self.feeding_operation),
+            (self.started_loading, "started_loading", self.feeding_operation),
+            (self.finished_loading, "finished_loading", self.feeding_operation),
+            (self.started_agv_trip_to_cell, "started_agv_trip_to_cell", self.feeding_operation),
+            (self.finished_agv_trip_to_cell, "finished_agv_trip_to_cell", self.feeding_operation),
+            (self.started_agv_trip_to_staging_area, "started_agv_trip_to_staging_area", self.feeding_operation),
+            (self.finished_agv_trip_to_staging_area, "finished_agv_trip_to_staging_area", self.feeding_operation),
+            (self.started_agv_trip_to_internal_area, "started_agv_trip_to_internal_area", self.feeding_operation),
+            (self.finished_agv_trip_to_internal_area, "finished_agv_trip_to_internal_area", self.feeding_operation),
+            (self.started_agv_return_trip_to_store, "started_agv_return_trip_to_store", self.feeding_operation),
+            (self.finished_agv_return_trip_to_store, "finished_agv_return_trip_to_store", self.feeding_operation),
+            (
+                self.started_agv_unloading_for_return_trip_to_store,
+                "started_agv_unloading_for_return_trip_to_store",
+                self.feeding_operation,
+            ),
+            (
+                self.finished_agv_unloading_for_return_trip_to_store,
+                "finished_agv_unloading_for_return_trip_to_store",
+                self.feeding_operation,
+            ),
+            (self.started_agv_return_trip_to_recharge, "started_agv_return_trip_to_recharge", self.feeding_operation),
+            (self.finished_agv_return_trip_to_recharge, "finished_agv_return_trip_to_recharge", self.feeding_operation),
+        )
+
+    def check(self):
+        if self.finished_retrieval <= self.started_retrieval:
+            raise ValueError("Retrieval process not consistent")
+        if self.finished_agv_trip_to_store <= self.started_agv_trip_to_store:
+            raise ValueError("AGV trip to store not consistent")
+        if self.finished_loading <= self.started_loading:
+            raise ValueError("Loading process not consistent")
+        if self.finished_agv_trip_to_cell <= self.started_agv_trip_to_cell:
+            raise ValueError("AGV trip to cell not consistent")
+        if self.finished_agv_trip_to_staging_area <= self.started_agv_trip_to_staging_area:
+            raise ValueError("AGV trip to staging area not consistent")
+        if self.finished_agv_trip_to_internal_area <= self.started_agv_trip_to_internal_area:
+            raise ValueError("AGV trip to internal area not consistent")
+        if self.finished_agv_return_trip_to_store <= self.started_agv_return_trip_to_store:
+            raise ValueError("AGV return trip to store not consistent")
+        if self.finished_agv_unloading_for_return_trip_to_store <= self.started_agv_unloading_for_return_trip_to_store:
+            raise ValueError("AGV unloading for return trip to store not consistent")
+        if self.finished_agv_return_trip_to_recharge <= self.started_agv_return_trip_to_recharge:
+            raise ValueError("AGV return trip to recharge not consistent")
+
+
+@total_ordering
 class FeedingOperation(metaclass=Identifiable):
     """
     Represents a feeding operation assigned by the System to an agv.
@@ -30,6 +114,7 @@ class FeedingOperation(metaclass=Identifiable):
 
     __slots__ = (
         "id",
+        "env",
         "cell",
         "relative_id",
         "agv",
@@ -41,6 +126,8 @@ class FeedingOperation(metaclass=Identifiable):
         "unload_position",
         "status",
         "ready",
+        "whosthere",
+        "log",
     )
 
     id: int
@@ -56,6 +143,7 @@ class FeedingOperation(metaclass=Identifiable):
         location: WarehouseLocation,
         unit_load: Pallet,
     ) -> None:
+        self.env = Environment()
         self.cell = cell
         self.relative_id = len(self.cell.feeding_operations)
         self.cell.feeding_operations.append(self)
@@ -79,6 +167,10 @@ class FeedingOperation(metaclass=Identifiable):
         }
         self.ready = LoggedEvent()
 
+        self.whosthere = []
+        self.log = FeedingOperationLog(self, self.env.now)
+        self.cell.system.idle_feeding_agvs.remove(self.agv)
+
     def __str__(self):
         return f"FeedingOperation{self.id}"
 
@@ -87,6 +179,22 @@ class FeedingOperation(metaclass=Identifiable):
 
     def __eq__(self, other: FeedingOperation) -> bool:
         return self.id == other.id
+
+    @property
+    def pallet_requests(self) -> set[Request]:
+        """
+        Return the set of pallet requests associated to the FeedingOperation.
+        """
+        return {picking_request.pallet_request for picking_request in self.picking_requests}
+
+    @property
+    def chain(self) -> Generator[FeedingOperation]:
+        """
+        Return the chain of feeding operations that are associated to the same pallet requests.
+        """
+        for feeding_operation in self.cell.feeding_operations:
+            if feeding_operation.pallet_requests.intersection(self.pallet_requests):
+                yield feeding_operation
 
     def _check_status(self, *status_to_be_true) -> bool:
         for status in self.status:
@@ -149,7 +257,9 @@ class FeedingOperation(metaclass=Identifiable):
         """
 
         logger.debug(f"{self} - Starting the retrieval process from {self.store}")
+        self.log.started_retrieval = self.env.now
         yield self.store.get(feeding_operation=self)
+        self.log.finished_retrieval = self.env.now
         logger.debug(f"{self} - Finished the retrieval process from {self.store}")
 
     @as_process
@@ -159,7 +269,9 @@ class FeedingOperation(metaclass=Identifiable):
         """
 
         logger.debug(f"{self} - Starting the retrieval agv trip using {self.agv} to {self.store}")
+        self.log.started_agv_trip_to_store = self.env.now
         yield self.move_agv(location=self.store.output_location)
+        self.log.finished_agv_trip_to_store = self.env.now
         logger.debug(f"{self} - Finished the retrieval agv trip using {self.agv} to {self.store}")
 
     @as_process
@@ -170,7 +282,9 @@ class FeedingOperation(metaclass=Identifiable):
         """
 
         logger.debug(f"{self} - Loading {self.unit_load} on {self.agv}")
+        self.log.started_loading = self.env.now
         yield self.store.load_ant(feeding_operation=self)
+        self.log.finished_loading = self.env.now
         logger.debug(f"{self} - Finished loading {self.unit_load} on {self.agv}")
 
     @as_process
@@ -179,20 +293,20 @@ class FeedingOperation(metaclass=Identifiable):
         Move the agv to the picking cell associated to the FeedingOperation.
         """
 
-        def knock(_):
-            # Knock on the door of the picking cell
-            self.status["arrived"] = True
-            self.agv.waiting_to_enter_staging_area()
-            # Signal the cell staging area that the feeding operation is ready to enter the cell
-            self.cell.staging_area.trigger_signal_event(
-                payload=EventPayload(message=f"{self} - In front of the staging area of {self.cell}")
-            )
-
         logger.debug(f"{self} - Starting the agv trip using {self.agv} to {self.cell}")
-        proc = self.move_agv(location=self.cell.input_location)
-        proc.callbacks.append(knock)
+        self.log.started_agv_trip_to_cell = self.env.now
+        yield self.move_agv(location=self.cell.input_location)
+        self.log.finished_agv_trip_to_cell = self.env.now
 
-        yield proc
+        # Knock on the door of the picking cell
+        self.status["arrived"] = True
+        self.agv.waiting_to_enter_staging_area()
+        # Signal the cell staging area that the feeding operation is ready to enter the cell
+        self.cell.staging_area.trigger_signal_event(
+            payload=EventPayload(message=f"{self} - In front of the staging area of {self.cell}")
+        )
+        self.whosthere = [fo for fo in self.cell.staging_area]
+
         logger.debug(f"{self} - Finished the agv trip using {self.agv} to {self.cell}")
 
     @as_process
@@ -210,10 +324,12 @@ class FeedingOperation(metaclass=Identifiable):
 
         # The FeedingOperation enters the StagingArea
         logger.debug(f"{self} - Moving into {self.cell} staging area")
+        self.log.started_agv_trip_to_staging_area = self.env.now
         yield self.move_agv(location=self.cell.staging_location)
+        self.log.finished_agv_trip_to_staging_area = self.env.now
         logger.debug(f"{self} - Finished moving into {self.cell} staging area")
 
-        self.cell.staging_area.append(self)
+        self.cell.staging_area.append(self, exceed=True)
         self.agv.enter_staging_area()
 
         # Knock on internal area
@@ -236,14 +352,42 @@ class FeedingOperation(metaclass=Identifiable):
         # Remove the FeedingOperation from the StagingArea
         self.cell.staging_area.remove(self)
 
-        # The FeedingOperation enters the InternalArea
-        self.cell.internal_area.append(self)
-        self.agv.enter_internal_area()
+        if self.pre_unload_position is not None:
+            pre_unload_position_request = self.pre_unload_position.request(operation=self)
+            logger.debug(f"{self} - Waiting for pre-unload position request")
+            yield pre_unload_position_request
+            logger.debug(f"{self} - Pre-unload position request granted")
 
-        # Start moving the agv to the unloading position
-        yield self.cell.let_ant_in(feeding_operation=self)
+            # Move the Ant from the StagingArea to the InternalArea
+            self.log.started_agv_trip_to_internal_area = self.env.now
+            yield self.move_agv(location=self.cell.internal_location)
+            self.log.finished_agv_trip_to_internal_area = self.env.now
+            # The FeedingOperation enters the InternalArea
+            self.cell.internal_area.append(self)
+            self.agv.enter_internal_area()
+            logger.debug(f"{self} - Finished moving into {self.cell} internal area")
 
-        logger.debug(f"{self} - Finished moving into {self.cell} internal area")
+            # Wait for the assigned InternalArea UnloadPosition to be free
+            unload_position_request = self.unload_position.request(operation=self)
+            logger.debug(f"{self} - Waiting for unload position request")
+            yield unload_position_request
+            logger.debug(f"{self} - Unload position request granted")
+
+            self.pre_unload_position.release(pre_unload_position_request)
+        else:
+            unload_position_request = self.unload_position.request(operation=self)
+            logger.debug(f"{self} - Waiting for unload position request")
+            yield unload_position_request
+            logger.debug(f"{self} - Unload position request granted")
+
+            # Move the Ant from the StagingArea to the InternalArea
+            self.log.started_agv_trip_to_internal_area = self.env.now
+            yield self.move_agv(location=self.cell.internal_location)
+            self.log.finished_agv_trip_to_internal_area = self.env.now
+            # The FeedingOperation enters the InternalArea
+            self.cell.internal_area.append(self)
+            self.agv.enter_internal_area()
+            logger.debug(f"{self} - Finished moving into {self.cell} internal area")
 
         # Housekeeping
         self.ready_for_unload()
@@ -268,12 +412,16 @@ class FeedingOperation(metaclass=Identifiable):
 
         # Move the AGV to the input location of the store
         logger.debug(f"{self} - Moving {self.agv} to {self.store} input location")
+        self.log.started_agv_return_trip_to_store = self.env.now
         yield self.move_agv(location=self.store.input_location)
+        self.log.finished_agv_return_trip_to_store = self.env.now
         logger.debug(f"{self} - Finished moving {self.agv} to {self.store} input location")
 
         # When the AGV is in front of the store, trigger the loading process of the store
         logger.debug(f"{self} - Starting unloading in {self.store}")
+        self.log.started_agv_unloading_for_return_trip_to_store = self.env.now
         yield self.cell.system.stores_controller.load(store=self.store, agv=self.agv)
+        self.log.finished_agv_unloading_for_return_trip_to_store = self.env.now
         logger.debug(f"{self} - Finished backflow to {self.store}")
 
     @as_process
@@ -292,7 +440,9 @@ class FeedingOperation(metaclass=Identifiable):
         self.cell.internal_area.remove(self)
 
         # Move the AGV to the recharge location
-        yield self.move_agv(location=self.cell.system.agv_recharge_location)
+        self.log.started_agv_return_trip_to_recharge = self.env.now
+        yield self.move_agv(location=self.store.input_location)
+        self.log.finished_agv_return_trip_to_recharge = self.env.now
 
         logger.debug(f"{self} - Finished dropping, moved {self.agv} to recharge location")
 
