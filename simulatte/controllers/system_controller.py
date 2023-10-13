@@ -146,12 +146,6 @@ class SystemController(metaclass=Singleton):
         for further consideration by the `check_workload` process.
         """
 
-        # self.idle_feeding_agvs.extend(self.agv_controller.feeding_agvs)
-        #
-        # self.idle_feeding_agvs.trigger_signal_event(
-        #     payload=EventPayload(message="Init trigger signal of IdleFeedingAGVsArea")
-        # )
-
         # Eternal process
         while True:
             # Iter over the shifts
@@ -214,7 +208,7 @@ class SystemController(metaclass=Singleton):
     def get_store_by_cell(self, *, cell: PickingCell | None = None) -> WarehouseStore:
         raise NotImplementedError
 
-    def start_feeding_operation(self, *, agv: AGV) -> None:
+    def start_feeding_operation(self, *, picking_cell: type[PickingCell]) -> None:
         raise NotImplementedError
 
     def feed(self, *, feeding_operation: FeedingOperation, ant_request: PriorityRequest):
