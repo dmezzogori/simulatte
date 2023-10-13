@@ -139,29 +139,6 @@ class PickingCell(metaclass=Identifiable):
         """
         raise NotImplementedError
 
-    @as_process
-    def let_ant_in(self, *, feeding_operation: FeedingOperation) -> ProcessGenerator:
-        """
-        Manage the internal physical movements of an Ant which moves from the StagingArea to the InternalArea.
-        """
-
-        # If necessary, wait for the assigned InternalArea PreUnloadPosition to be free
-        pre_unload_position_request = None
-        if feeding_operation.pre_unload_position is not None:
-            pre_unload_position_request = feeding_operation.pre_unload_position.request(operation=feeding_operation)
-            yield pre_unload_position_request
-
-        # Wait for the assigned InternalArea UnloadPosition to be free
-        unload_position_request = feeding_operation.unload_position.request(operation=feeding_operation)
-        yield unload_position_request
-
-        if pre_unload_position_request is not None:
-            # Release the assigned InternalArea PreUnloadPosition
-            feeding_operation.pre_unload_position.release(pre_unload_position_request)
-
-        # Move the Ant from the StagingArea to the InternalArea
-        yield feeding_operation.move_agv(location=self.internal_location)
-
     def let_ant_out(self, *, feeding_operation: FeedingOperation):
         return self.system.end_feeding_operation(feeding_operation=feeding_operation)
 
