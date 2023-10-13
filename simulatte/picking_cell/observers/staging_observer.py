@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from simulatte.environment import Environment
 from simulatte.observables.observer.base import Observer
 from simulatte.operations.feeding_operation import FeedingOperation
 from simulatte.picking_cell.observable_areas.staging_area import StagingArea
@@ -9,9 +8,7 @@ from simulatte.picking_cell.observable_areas.staging_area import StagingArea
 class StagingObserver(Observer[StagingArea]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.out_of_sequence = 0
-        self.out_of_sequence_timestamp = None
-        self.out_of_sequence_timestamps = []
+        self.out_of_sequence = set()
 
     def next(self) -> FeedingOperation | None:
         """
@@ -69,12 +66,6 @@ class StagingObserver(Observer[StagingArea]):
             and (feeding_operation := self.next()) is not None
         ):
             if self._can_enter(feeding_operation=feeding_operation):
-                if self.out_of_sequence_timestamp is not None:
-                    self.out_of_sequence_timestamps.append(Environment().now - self.out_of_sequence_timestamp)
-                    self.out_of_sequence_timestamp = None
-
                 feeding_operation.move_into_staging_area()
             else:
-                self.out_of_sequence += 1
-                if self.out_of_sequence_timestamp is None:
-                    self.out_of_sequence_timestamp = Environment().now
+                self.out_of_sequence.add(feeding_operation.id)
