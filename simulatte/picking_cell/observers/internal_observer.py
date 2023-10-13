@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from simulatte.events.event_payload import EventPayload
 from simulatte.observables.observer.base import Observer
 from simulatte.picking_cell.observable_areas.internal_area import InternalArea
 
@@ -37,15 +38,19 @@ class InternalObserver(Observer[InternalArea]):
 
         cell = self.observable_area.owner
 
-        if (
-            not cell.staging_area.is_empty
-            and not cell.internal_area.is_full
-            and (feeding_operation := self.next()) is not None
-        ):
-            can_enter, pre_unload_position, unload_position = self._can_enter(feeding_operation=feeding_operation)
+        if not cell.internal_area.is_full:
+            if not cell.staging_area.is_empty and (feeding_operation := self.next()) is not None:
+                can_enter, pre_unload_position, unload_position = self._can_enter(feeding_operation=feeding_operation)
 
-            if can_enter:
-                feeding_operation.pre_unload_position = pre_unload_position
-                feeding_operation.unload_position = unload_position
+                if can_enter:
+                    feeding_operation.pre_unload_position = pre_unload_position
+                    feeding_operation.unload_position = unload_position
 
-                feeding_operation.move_into_internal_area()
+                    feeding_operation.move_into_internal_area()
+
+            else:
+                self.observable_area.owner.staging_area.trigger_signal_event(
+                    payload=EventPayload(
+                        message="TRIGGERING STAGING AREA SIGNAL EVENT FROM INTERNAL OBSERVER",
+                    )
+                )
