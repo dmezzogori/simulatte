@@ -24,6 +24,7 @@ class Singleton(type):
     """
 
     _instances = {}
+    classes: set = set()
 
     def __call__(cls, *args, **kwargs):
         """
@@ -44,13 +45,15 @@ class Singleton(type):
         """
 
         if cls not in cls._instances:
+            Singleton.classes.add(cls)
             cls._instances[cls] = super().__call__(*args, **kwargs)
         return cls._instances[cls]
 
     def __getattr__(self, item):
         return getattr(self._instances[self], item)
 
-    def clear(cls):
+    @staticmethod
+    def clear():
         """
         The clear method allows removing the instance for a given class
         from the _instances dict.
@@ -63,5 +66,5 @@ class Singleton(type):
         forcing a new one to be created on next access.
         """
 
-        if cls in cls._instances:
-            cls._instances.pop(cls)
+        for cls in Singleton.classes:
+            cls._instances = {}
