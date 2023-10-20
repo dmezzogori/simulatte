@@ -24,6 +24,29 @@ if TYPE_CHECKING:
 
 @total_ordering
 class FeedingOperationLog:
+    __slots__ = (
+        "feeding_operation",
+        "created",
+        "started_retrieval",
+        "finished_retrieval",
+        "started_agv_trip_to_store",
+        "finished_agv_trip_to_store",
+        "started_loading",
+        "finished_loading",
+        "started_agv_trip_to_cell",
+        "finished_agv_trip_to_cell",
+        "started_agv_trip_to_staging_area",
+        "finished_agv_trip_to_staging_area",
+        "started_agv_trip_to_internal_area",
+        "finished_agv_trip_to_internal_area",
+        "started_agv_return_trip_to_store",
+        "finished_agv_return_trip_to_store",
+        "started_agv_unloading_for_return_trip_to_store",
+        "finished_agv_unloading_for_return_trip_to_store",
+        "started_agv_return_trip_to_recharge",
+        "finished_agv_return_trip_to_recharge",
+    )
+
     def __init__(self, feeding_operation: FeedingOperation, created: float):
         self.feeding_operation = feeding_operation
         self.created = created
