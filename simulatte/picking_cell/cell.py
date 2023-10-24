@@ -167,13 +167,6 @@ class PickingCell(metaclass=Identifiable):
         self.picking_requests_queue.extend(self.iter_pallet_request(pallet_request=pallet_request))
         yield self.input_queue.put(pallet_request)
 
-        # # Triggers the feeding area signal event
-        # # until the feeding area is full or there are no more picking requests to be processed
-        # while not self.feeding_area.is_full and len(self.picking_requests_queue) > 0:
-        #     payload = EventPayload(event="ACTIVATING FEEDING AREA SIGNAL", type=0)
-        #     self.feeding_area.trigger_signal_event(payload=payload)
-        #     yield self.system.env.timeout(0.001)
-
     @as_process
     def get(self, pallet_request: PalletRequest) -> ProcessGenerator[PalletRequest]:
         """

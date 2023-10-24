@@ -192,7 +192,6 @@ class FeedingOperation(metaclass=Identifiable):
 
         self.whosthere = []
         self.log = FeedingOperationLog(self, self.env.now)
-        self.cell.system.idle_feeding_agvs.remove(self.agv)
 
     def __str__(self):
         return f"FeedingOperation{self.id}"
