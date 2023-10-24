@@ -99,7 +99,7 @@ class PickingCell(metaclass=Identifiable):
         while True:
             yield self.system.env.timeout(60 * 5)
             if not self.feeding_area and not self.staging_area and not self.internal_area:
-                self.system.start_feeding_operation(picking_cell=type(self))
+                self.system.setup_feeding_operation(picking_cell=type(self))
 
     @property
     def name(self) -> str:

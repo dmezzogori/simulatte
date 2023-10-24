@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from simulatte.agv import AGV
+from simulatte.environment import Environment
 from simulatte.location import AGVRechargeLocation, InputLocation, OutputLocation
 from simulatte.logger import logger
 from simulatte.observables.observable_area.base import ObservableArea
@@ -18,7 +19,6 @@ if TYPE_CHECKING:
     from simulatte.controllers.distance_manager import DistanceController
     from simulatte.controllers.stores_controller import BaseStoresController
     from simulatte.demand.generators.base import CustomerOrdersGenerator
-    from simulatte.environment import Environment
     from simulatte.location import Location
     from simulatte.operations.feeding_operation import FeedingOperation
     from simulatte.picking_cell.cell import PickingCell
@@ -62,7 +62,7 @@ class FeedingAGVsObserver(Observer[IdleFeedingAGVs]):
         if agv is None:
             return
         logger.debug(f"FeedingAGVsObserver - Detected {agv} as idle.")
-        self.observable_area.owner.start_feeding_operation(picking_cell=agv.picking_cell)
+        self.observable_area.owner.setup_feeding_operation(picking_cell=agv.picking_cell)
 
 
 class SystemController(metaclass=Singleton):
@@ -83,7 +83,6 @@ class SystemController(metaclass=Singleton):
     def __init__(
         self,
         *,
-        env: Environment,
         agv_controller: AGVController,
         cells_controller: CellsController,
         stores_controller: BaseStoresController,
@@ -93,7 +92,7 @@ class SystemController(metaclass=Singleton):
         picking_request_selection_policy: PickingRequestSelectionPolicy,
         idle_feeding_agvs_selection_policy: IdleFeedingSelectionPolicy,
     ):
-        self.env = env
+        self.env = Environment()
 
         self.agv_controller = agv_controller
         self.agv_controller.register_system(system=self)
@@ -156,9 +155,6 @@ class SystemController(metaclass=Singleton):
                 # Wait for the next shift
                 yield self.env.timeout(60 * 60 * 8)  # 8 hours
 
-    def get_type_of_store_by_cell(self, *, cell: PickingCell | None = None) -> type[WarehouseStore]:
-        return self.picking_cell_store_mapping[type(cell)]
-
     def distance(self, from_: Location, to: Location):
         """
         Return the distance between two locations.
@@ -208,10 +204,25 @@ class SystemController(metaclass=Singleton):
     def get_store_by_cell(self, *, cell: PickingCell | None = None) -> WarehouseStore:
         raise NotImplementedError
 
-    def start_feeding_operation(self, *, picking_cell: type[PickingCell]) -> None:
+    def setup_feeding_operation(self, *, picking_cell: type[PickingCell]):
+        """
+        Abstract method for setting up a feeding operation.
+
+        Args:
+            picking_cell (PickingCell): The picking cell to setup the feeding operation for.
+        """
+
         raise NotImplementedError
 
-    def feed(self, *, feeding_operation: FeedingOperation, ant_request: PriorityRequest):
+    def handle_feeding_operation(self, *, feeding_operation: FeedingOperation, agv_request: PriorityRequest):
+        """
+        Abstract method for handling a feeding operation.
+
+        Args:
+            feeding_operation (FeedingOperation): The feeding operation to handle.
+            agv_request (PriorityRequest): The request of the agv to handle the feeding operation.
+        """
+
         raise NotImplementedError
 
     def pallet_requests_release(self):
