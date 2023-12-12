@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 from simulatte.policies.agv_selection_policy.base import MultiAGVSelectionPolicy
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+
     from simulatte.agv.agv import AGV
 
 
@@ -22,7 +24,7 @@ class IdleFeedingSelectionPolicy(MultiAGVSelectionPolicy):
 
         return agv.n_users, agv.n_queue, timestamp
 
-    def __call__(self, *, agvs, exceptions=None):
+    def __call__(self, *, agvs: Iterable[AGV], exceptions: Iterable[AGV] | None = None) -> Sequence[AGV]:
         """
         Selection policy for feeding operations.
         """

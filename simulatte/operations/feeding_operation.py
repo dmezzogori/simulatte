@@ -50,22 +50,31 @@ class FeedingOperationLog:
     def __init__(self, feeding_operation: FeedingOperation, created: float):
         self.feeding_operation = feeding_operation
         self.created = created
+
         self.started_retrieval: float | None = None
         self.finished_retrieval: float | None = None
+
         self.started_agv_trip_to_store: float | None = None
         self.finished_agv_trip_to_store: float | None = None
+
         self.started_loading: float | None = None
         self.finished_loading: float | None = None
+
         self.started_agv_trip_to_cell: float | None = None
         self.finished_agv_trip_to_cell: float | None = None
+
         self.started_agv_trip_to_staging_area: float | None = None
         self.finished_agv_trip_to_staging_area: float | None = None
+
         self.started_agv_trip_to_internal_area: float | None = None
         self.finished_agv_trip_to_internal_area: float | None = None
+
         self.started_agv_return_trip_to_store: float | None = None
         self.finished_agv_return_trip_to_store: float | None = None
+
         self.started_agv_unloading_for_return_trip_to_store: float | None = None
         self.finished_agv_unloading_for_return_trip_to_store: float | None = None
+
         self.started_agv_return_trip_to_recharge: float | None = None
         self.finished_agv_return_trip_to_recharge: float | None = None
 
