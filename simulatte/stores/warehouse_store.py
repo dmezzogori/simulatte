@@ -71,6 +71,11 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
         self.storage_jobs_counter = 0
         self.storage_jobs_history = []
 
+        self.input_agvs_queue = 0
+        self.input_agvs_queue_history = []
+        self.output_agvs_queue = 0
+        self.output_agvs_queue_history = []
+
     def get(self, *, feeding_operation: FeedingOperation) -> ProcessGenerator:
         """
         To be implemented by the specific store.
@@ -80,9 +85,24 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
 
     @as_process
     def load_agv(self, *, feeding_operation: FeedingOperation):
+        """
+        Load an AGV with a unit load from the output conveyor, as requested by a feeding operation.
+        """
+
+        # Update the output AGVs queue
+        self.output_agvs_queue += 1
+        self.output_agvs_queue_history.append((self.env.now, self.retrieval_jobs_counter))
+
+        # Get the unit load from the output conveyor
         yield self.output_conveyor.get(lambda x: x.unit_load == feeding_operation.unit_load)
+
+        # Unload the unit load from the output conveyor
         yield self.env.timeout(self.load_time)
         yield feeding_operation.agv.load(unit_load=feeding_operation.unit_load)
+
+        # Update the output AGVs queue
+        self.output_agvs_queue -= 1
+        self.output_agvs_queue_history.append((self.env.now, self.retrieval_jobs_counter))
 
     def create_input_operation(
         self, *, unit_load: CaseContainer, location: WarehouseLocation, priority: int
@@ -91,14 +111,35 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
 
     @as_process
     def unload_agv(self, *, agv: AGV, input_operation: InputOperation):
+        """
+        Unload the unit load carried by an AGV in the input conveyor, as requested by an input operation.
+        """
+
+        # Update the input AGVs queue
+        self.input_agvs_queue += 1
+        self.input_agvs_queue_history.append((self.env.now, self.storage_jobs_counter))
+
+        # Wait for the input service point to be available
         with self.input_service_point.request(
             priority=input_operation.priority, preempt=False
         ) as input_service_point_request:
             yield input_service_point_request
+
+            # Put the input operation in the input conveyor
             yield self.input_conveyor.put((input_operation,))
+
+            # Wait for the loading
             yield self.env.timeout(self.load_time)
+
+            # Wait for the AGV to be unloaded
             yield agv.unload()
+
+            # Release the AGV
             agv.release_current()
+
+        # Update the input AGVs queue
+        self.input_agvs_queue -= 1
+        self.input_agvs_queue_history.append((self.env.now, self.storage_jobs_counter))
 
     def put(
         self, *, unit_load: CaseContainer, location: WarehouseLocation, agv: AGV, priority: int
