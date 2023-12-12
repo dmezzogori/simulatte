@@ -4,12 +4,15 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from simpy import PriorityResource
+
+from simulatte.agv.agv_mission import AGVMission
 from simulatte.agv.agv_plotter import AGVPlotter
 from simulatte.agv.agv_status import AGVStatus
-from simulatte.agv.agv_trip import AGVMission, AGVTrip
-from simulatte.environment import Environment
+from simulatte.agv.agv_trip import AGVTrip
 from simulatte.logger import logger
-from simulatte.utils import Identifiable, as_process
+from simulatte.protocols.has_env import HasEnv
+from simulatte.protocols.identifiable import Identifiable
+from simulatte.utils import EnvMixin, IdentifiableMixin, as_process
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -21,7 +24,7 @@ if TYPE_CHECKING:
     from simulatte.unitload import CaseContainer
 
 
-class AGV(PriorityResource, metaclass=Identifiable):
+class AGV(IdentifiableMixin, EnvMixin, PriorityResource, Identifiable, HasEnv):
     """
     Represent a generic AGV.
 
@@ -55,16 +58,6 @@ class AGV(PriorityResource, metaclass=Identifiable):
         "_travel_distance",
         "trips",
         "_missions",
-        "_loading_waiting_times",
-        "_loading_waiting_time_start",
-        "_waiting_to_enter_staging_area",
-        "feeding_area_waiting_times",
-        "_waiting_to_enter_internal_area",
-        "staging_area_waiting_times",
-        "_waiting_to_be_unloaded",
-        "unloading_waiting_times",
-        "_waiting_picking_to_end",
-        "picking_waiting_times",
         "plotter",
     )
 
@@ -77,9 +70,9 @@ class AGV(PriorityResource, metaclass=Identifiable):
         speed: float,
         picking_cell: type[PickingCell] | None = None,
     ):
-        env = Environment()
-        super().__init__(env, capacity=1)
-        self.env = env
+        IdentifiableMixin.__init__(self)
+        EnvMixin.__init__(self)
+        PriorityResource.__init__(self, self.env, capacity=1)
 
         # Parameters
         self.kind = kind
@@ -90,14 +83,14 @@ class AGV(PriorityResource, metaclass=Identifiable):
 
         # Initial state
         self._status = AGVStatus.IDLE
-        self._travel_time = 0
-        self._travel_distance = 0
+        self._travel_time: float = 0
+        self._travel_distance: float = 0
 
         # Keep track of the unit load on board
         self._case_container: CaseContainer | None = None
 
         # Keep track of the current location
-        self.current_location = None
+        self.current_location: Location | None = None
 
         # History of the trips
         self.trips: list[AGVTrip] = []
@@ -106,30 +99,7 @@ class AGV(PriorityResource, metaclass=Identifiable):
         self.current_mission: AGVMission | None = None
         self._missions: list[AGVMission] = []
 
-        # Keep track of the waiting times while waiting to be loaded
-        self._loading_waiting_times = []
-        self._loading_waiting_time_start: float | None = None
-
-        # Keep track of the waiting times while waiting to be unloaded
-        self.unloading_waiting_times = []
-        self._waiting_to_be_unloaded: float | None = None
-
-        # Keep track of the waiting times while waiting to enter a staging area
-        self.feeding_area_waiting_times = []
-        self._waiting_to_enter_staging_area: float | None = None
-
-        # Keep track of the waiting times while waiting to enter an internal area
-        self.staging_area_waiting_times = []
-        self._waiting_to_enter_internal_area: float | None = None
-
-        # Keep track of the waiting times while waiting for picking to end
-        self.picking_waiting_times = []
-        self._waiting_picking_to_end: float | None = None
-
         self.plotter = AGVPlotter(agv=self)
-
-    def __str__(self):
-        return f"AGV{self.id}"
 
     @property
     def n_users(self) -> int:
@@ -164,17 +134,10 @@ class AGV(PriorityResource, metaclass=Identifiable):
             if self.unit_load is not None:
                 raise ValueError("AGV cannot wait to be loaded when already loaded.")
 
-            self._loading_waiting_time_start = self.env.now
-
         # If the new status is WAITING_TO_BE_UNLOADED, record the end of the loading waiting time
         if value == AGVStatus.WAITING_TO_BE_UNLOADED:
             if self.unit_load is None:
                 raise ValueError("AGV cannot wait to be unloaded when already unloaded.")
-
-            if self._loading_waiting_time_start is not None:
-                self._loading_waiting_times.append(self.env.now - self._loading_waiting_time_start)
-
-            self._loading_waiting_time_start = None
 
         self._status = value
 
@@ -206,13 +169,14 @@ class AGV(PriorityResource, metaclass=Identifiable):
 
         # Perform the request
         request = super().request(*args, **kwargs)
-        request.callbacks.append(request_callback)
-
-        logger.debug(f"{self} - created request {request}")
 
         # Init the mission
         mission = AGVMission(agv=self, request=request, operation=operation)
         self._missions.append(mission)
+
+        request.callbacks.append(request_callback)
+
+        logger.debug(f"{self} - created request {request}")
 
         return request
 
@@ -253,6 +217,16 @@ class AGV(PriorityResource, metaclass=Identifiable):
         logger.debug(f"{self} - releasing from request {self.users[0]}")
         return self.release(self.users[0])
 
+    def _init_trip(self, destination) -> AGVTrip:
+        """
+        Initialize a trip to the destination location.
+        """
+
+        # Initialize the trip
+        trip = AGVTrip(agv=self, destination=destination)
+
+        return trip
+
     @contextmanager
     def trip(self, *, destination: Location) -> Generator[AGVTrip, None, None]:
         """
@@ -277,7 +251,7 @@ class AGV(PriorityResource, metaclass=Identifiable):
         """
 
         # Initialize the trip
-        trip = AGVTrip(agv=self, destination=destination)
+        trip = self._init_trip(destination=destination)
 
         start_status, end_status = trip.define_agv_status()
         self.status = start_status
@@ -303,6 +277,8 @@ class AGV(PriorityResource, metaclass=Identifiable):
         with self.trip(destination=location) as trip:
             # Wait for the duration of the trip
             yield self.env.timeout(trip.duration)
+
+        return None
 
     @property
     def idle_time(self) -> float:
@@ -366,6 +342,8 @@ class AGV(PriorityResource, metaclass=Identifiable):
         # Load the unit load
         self.unit_load = unit_load
 
+        return None
+
     @as_process
     def unload(self) -> ProcessGenerator:
         """
@@ -389,6 +367,8 @@ class AGV(PriorityResource, metaclass=Identifiable):
         # Remove the unit load
         self.unit_load = None
 
+        return None
+
     def set_idle(self) -> None:
         """Set the agv to idle status"""
         self.status = AGVStatus.IDLE
@@ -405,22 +385,3 @@ class AGV(PriorityResource, metaclass=Identifiable):
         """
 
         self.status = AGVStatus.WAITING_TO_BE_UNLOADED
-
-    def waiting_to_enter_staging_area(self) -> None:
-        self._waiting_to_enter_staging_area = self.env.now
-
-    def enter_staging_area(self) -> None:
-        self.feeding_area_waiting_times.append(self.env.now - self._waiting_to_enter_staging_area)
-        self._waiting_to_enter_staging_area = None
-        self._waiting_to_enter_internal_area = self.env.now
-
-    def enter_internal_area(self):
-        self.staging_area_waiting_times.append(self.env.now - self._waiting_to_enter_internal_area)
-        self._waiting_to_enter_internal_area = None
-        self._waiting_to_be_unloaded = self.env.now
-
-    def picking_begins(self):
-        if self._waiting_to_be_unloaded is not None:
-            self.unloading_waiting_times.append(self.env.now - self._waiting_to_be_unloaded)
-        self._waiting_to_be_unloaded = None
-        self._waiting_picking_to_end = self.env.now

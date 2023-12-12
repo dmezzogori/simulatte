@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from collections import defaultdict, deque
-from typing import TYPE_CHECKING, Literal
+from collections import deque
+from typing import TYPE_CHECKING, Literal, cast
 
 from IPython.display import Markdown, display
 from simpy import Process
+from tabulate import tabulate
+
 from simulatte.location import (
     InputLocation,
     InternalLocation,
@@ -17,75 +19,85 @@ from simulatte.picking_cell.observable_areas.internal_area import InternalArea
 from simulatte.picking_cell.observable_areas.staging_area import StagingArea
 from simulatte.picking_cell.observers.internal_observer import InternalObserver
 from simulatte.picking_cell.observers.staging_observer import StagingObserver
-from simulatte.requests import PalletRequest, ProductRequest
+from simulatte.protocols.job import Job
+from simulatte.protocols.request import PalletRequest, ProductRequest
 from simulatte.resources.monitored_resource import MonitoredResource
 from simulatte.simpy_extension.sequential_store.sequential_store import SequentialStore
-from simulatte.utils import Identifiable
-from simulatte.utils.utils import as_process
-from tabulate import tabulate
+from simulatte.utils import IdentifiableMixin, as_process
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
-
     from simulatte.controllers.system_controller import SystemController
-    from simulatte.requests import Request
     from simulatte.resources.store import Store
+    from simulatte.robot import Robot
     from simulatte.typings.typings import ProcessGenerator
 
 
-class PickingCell(metaclass=Identifiable):
-    id: int
-
+class PickingCell(IdentifiableMixin):
     def __init__(
         self,
         *,
         system: SystemController,
-        input_queue: Store[PalletRequest],
-        output_queue: SequentialStore[PalletRequest],
+        input_queue: Store,
+        output_queue: SequentialStore,
         building_point: MonitoredResource,
+        robot: Robot,
         feeding_area_capacity: int,
         staging_area_capacity: int,
         internal_area_capacity: int,
         workload_unit: Literal["cases", "layers"],
         register_main_process: bool = True,
     ):
+        super().__init__()
+
         self.system = system
 
+        # Locations
         self.input_location = InputLocation(self)
-        self.input_queue = input_queue
-        self.output_location = OutputLocation(self)
-        self.output_queue = output_queue
-        self.building_point = building_point
-
-        self.feeding_operations: list[FeedingOperation] = []
-
-        self.feeding_area = FeedingArea[FeedingOperation, PickingCell](capacity=feeding_area_capacity, owner=self)
-
-        self.staging_area = StagingArea[FeedingOperation, PickingCell](
-            capacity=staging_area_capacity, owner=self, signal_at="remove"
-        )
-        self.staging_observer = StagingObserver(observable_area=self.staging_area)
-
-        self.internal_area = InternalArea[FeedingOperation, PickingCell](
-            capacity=internal_area_capacity, owner=self, signal_at="remove"
-        )
-        self.internal_observer = InternalObserver(observable_area=self.internal_area)
-
-        self.picking_requests_queue: deque[Request] = deque()
-
-        self.feeding_operation_map: dict[Request, list[FeedingOperation]] = defaultdict(list)
-
-        self.current_pallet_request: PalletRequest | None = None
-
         self.staging_location = StagingLocation(self)
         self.internal_location = InternalLocation(self)
+        self.output_location = OutputLocation(self)
+
+        # Input and Output queues
+        self.input_queue = input_queue
+        self.output_queue = output_queue
+
+        # Resource representing the availability of space needed to build a pallet
+        self.building_point = building_point
+
+        # Robot assigned to the PickingCell
+        self.robot = robot
+
+        # List of FeedingOperation created to feed the PickingCell
+        self.feeding_operations: list[FeedingOperation] = []
+
+        # List of FeedingOperation which are still to enter the PickingCell
+        self.feeding_area = FeedingArea(capacity=feeding_area_capacity, owner=self)
+
+        # List of FeedingOperation which are currently in the staging area of the PickingCell
+        self.staging_area = StagingArea(capacity=staging_area_capacity, owner=self, signal_at="remove")
+        # Observer of the staging area
+        self.staging_observer = StagingObserver(observable_area=self.staging_area)
+
+        # List of FeedingOperation which are currently in the internal area of the PickingCell
+        self.internal_area = InternalArea(capacity=internal_area_capacity, owner=self, signal_at="remove")
+        # Observer of the internal area
+        self.internal_observer = InternalObserver(observable_area=self.internal_area)
+
+        # List of PalletRequest to be handled by the PickingCell
+        self.pallet_requests_assigned: list[PalletRequest] = []
+
+        # List of PalletRequest completed by the PickingCell
+        self.pallet_requests_done: list[PalletRequest] = []
+
+        # Current PalletRequest being processed by the PickingCell
+        self.current_pallet_request: PalletRequest | None = None
+
+        # Queues of ProductRequests to be requested by the PickingCell to satisfy the PalletRequests
+        self.product_requests_queue: deque[ProductRequest] = deque()
 
         self._productivity_history: list[tuple[float, float]] = []
 
-        self.pallet_requests_assigned: list[PalletRequest] = []
-        self.pallet_requests_done: list[PalletRequest] = []
-
-        self.remaining_workload: float = 0
+        self.workload: float = 0
         self.workload_unit = workload_unit
 
         self._main: Process | None = None
@@ -102,10 +114,6 @@ class PickingCell(metaclass=Identifiable):
                 self.system.setup_feeding_operation(picking_cell=type(self))
 
     @property
-    def name(self) -> str:
-        return self.__class__.__name__
-
-    @property
     def productivity(self) -> float:
         """
         Return the productivity of the PickingCell, expressed as number of PalletRequest completed per unit of time.
@@ -114,75 +122,85 @@ class PickingCell(metaclass=Identifiable):
 
     def register_feeding_operation(self, *, feeding_operation: FeedingOperation) -> None:
         """
-        Register a FeedingOperation into the PickingCell.
+        Register a FeedingOperation created to feed a PickingCell.
 
-        Updates the PickingCell.feeding_operation_map,
-        which maps which FeedingOperation is associated to which ProductRequest.
-        It also adds the FeedingOperation to the FeedingArea.
+        Adds the FeedingOperation to the FeedingArea.
+
+        Args:
+            feeding_operation (FeedingOperation): FeedingOperation to be registered.
         """
 
-        for picking_request in feeding_operation.picking_requests:
-            self.feeding_operation_map[picking_request].append(feeding_operation)
         self.feeding_area.append(feeding_operation, exceed=True)
 
-    @as_process
-    def _retrieve_feeding_operation(self, picking_request: Request) -> FeedingOperation:
+    def register_pallet_request(self, *, pallet_request: PalletRequest) -> None:
         """
-        FIXME: PORCATA COLOSSALE!!!
-        Tocca usare un processo con attesa per evitare che ci sia una race-condition tra il momento in cui
-        si registra l'associazione tra feeding_operation e picking_request e il momento in cui si
-        interroga l'associazione per recuperare la feeding_operation.
-        """
-        while picking_request not in self.feeding_operation_map:
-            yield self.system.env.timeout(0.1)
-        return self.feeding_operation_map[picking_request]
+        Register a PalletRequest to be handled by the PickingCell.
 
-    @as_process
-    def _process_product_request(
-        self, *, product_request: ProductRequest, pallet_request: PalletRequest
-    ) -> ProcessGenerator:
+        Adds the PalletRequest to the assigned PalletRequests.
+        Chains the ProductRequests of the PalletRequest to the PickingRequests queue.
         """
-        Main process which manages the handling of a ProductRequest.
 
-        To be concretely implemented in a subclass.
+        # Add the PalletRequest to the assigned PalletRequests
+        self.pallet_requests_assigned.append(pallet_request)
+
+        # Chain the ProductRequests of the PalletRequest to the PickingRequests queue
+        last_product_request: ProductRequest | None = (
+            self.product_requests_queue[-1] if self.product_requests_queue else None
+        )
+        for layer_request in pallet_request:
+            for product_request in layer_request:
+                product_request.prev = last_product_request
+                if last_product_request is not None:
+                    last_product_request.next = product_request
+                last_product_request = product_request
+                self.product_requests_queue.append(product_request)
+
+    def add_workload(self, *, job: PalletRequest) -> None:
+        """
+        Add the workload of the PalletRequest to the total workload of the PickingCell
         """
         raise NotImplementedError
 
-    def let_ant_out(self, *, feeding_operation: FeedingOperation):
-        return self.system.end_feeding_operation(feeding_operation=feeding_operation)
+    def remove_workload(self, *, job: PalletRequest) -> None:
+        """
+        Subtract the workload of the PalletRequest to the total workload of the PickingCell
+        """
+        raise NotImplementedError
 
     @as_process
     def put(self, *, pallet_request: PalletRequest) -> ProcessGenerator:
         """
-        Assigns a PalletRequest to the PickingCell.
-        The PalletRequest is stored within the input queue.
-        Moreover, the PalletRequest is then decomposed in picking requests,
-        which are placed in the picking requests queue.
-        Eventually, the FeedingArea signal event is triggered.
+        Manage the assignment of a PalletRequest to the PickingCell.
+
+        Adds the workload of the PalletRequest to the workload of the PickingCell.
+        Registers the PalletRequest in the PickingCell.
+        Stores the PalletRequest in the input queue for later processing.
+
+        Args:
+            pallet_request (PalletRequest): PalletRequest to be handled by the PickingCell.
         """
 
-        self.remaining_workload += pallet_request.total_workload[self.workload_unit]
+        self.add_workload(job=pallet_request)
 
-        self.pallet_requests_assigned.append(pallet_request)
-        self.picking_requests_queue.extend(self.iter_pallet_request(pallet_request=pallet_request))
+        # Register the PalletRequest in the PickingCell
+        self.register_pallet_request(pallet_request=pallet_request)
+
+        # Store the PalletRequest in the input queue for later processing
         yield self.input_queue.put(pallet_request)
 
+        return None
+
     @as_process
-    def get(self, pallet_request: PalletRequest) -> ProcessGenerator[PalletRequest]:
+    def get(self, pallet_request: PalletRequest) -> ProcessGenerator:
         """
         Retrieves a completed PalletRequest.
         """
-        pallet_request = yield self.output_queue.get(lambda e: e == pallet_request)
+
+        yield self.output_queue.get(lambda pr: pr is pallet_request)
         return pallet_request
 
-    @staticmethod
-    def iter_pallet_request(*, pallet_request: PalletRequest) -> Iterable[ProductRequest]:
-        """
-        Iterates over the  ProductRequest of a PalletRequest.
-        """
-        for layer_request in pallet_request.sub_requests:
-            for product_request in layer_request.sub_requests:
-                yield product_request
+    def process_job(self, job: Job) -> ProcessGenerator:
+        raise NotImplementedError
 
     @as_process
     def main(self) -> ProcessGenerator:
@@ -196,19 +214,20 @@ class PickingCell(metaclass=Identifiable):
         Once finished, positions the completed PalletRequest in the output queue of the cell,
         and asks the System to handle the retrieval of the finished PalletRequest.
         """
+
+        # Eternal process
         while True:
             # Wait for a PalletRequest to be handled
-            pallet_request: PalletRequest = yield self.input_queue.get()
-            pallet_request.assigned(time=self.system.env.now)
+            pallet_request = cast(PalletRequest, (yield self.input_queue.get()))
+            pallet_request.started()
             self.current_pallet_request = pallet_request
 
             with self.building_point.request() as building_point_request:
                 # Wait for the availability of the BuildingPoint
                 yield building_point_request
-                self.building_point.current_pallet_request = pallet_request
 
-                for product_request in self.iter_pallet_request(pallet_request=pallet_request):
-                    yield self._process_product_request(product_request=product_request, pallet_request=pallet_request)
+                # Process the PalletRequest
+                yield self.process_job(pallet_request)
 
                 # Once finished, positions the completed PalletRequest in the output queue of the cell
                 yield self.output_queue.put(pallet_request)
@@ -216,9 +235,9 @@ class PickingCell(metaclass=Identifiable):
                 # Housekeeping
                 self.pallet_requests_done.append(pallet_request)
 
-                self.remaining_workload -= pallet_request.total_workload[self.workload_unit]
+                self.remove_workload(job=pallet_request)
 
-                pallet_request.completed(time=self.system.env.now)
+                pallet_request.completed()
                 self._productivity_history.append((self.system.env.now, self.productivity))
 
                 # Ask the System to handle the retrieval of the finished PalletRequest
@@ -226,16 +245,16 @@ class PickingCell(metaclass=Identifiable):
 
     def summary(self, plot=True):
         if hasattr(__builtins__, "__IPYTHON__"):
-            display(Markdown(f"## Performance Summary of {self.name}"))
+            display(Markdown(f"## Performance Summary of {self}"))
         else:
-            print(f"## Performance Summary of {self.name}")
+            print(f"## Performance Summary of {self}")
 
         hourly_cell_productivity = self.productivity * 60 * 60
         hourly_cases_productivity = sum(pallet_request.n_cases for pallet_request in self.pallet_requests_done) / (
             self.system.env.now / 60 / 60
         )
         hourly_layers_productivity = sum(
-            len(pallet_request.sub_requests) for pallet_request in self.pallet_requests_done
+            len(pallet_request.sub_jobs) for pallet_request in self.pallet_requests_done
         ) / (self.system.env.now / 60 / 60)
 
         headers = ["KPI", "Valore", "U.M."]

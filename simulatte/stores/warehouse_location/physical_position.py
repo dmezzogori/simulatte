@@ -6,6 +6,7 @@ from simulatte.exceptions.physical_position import (
     PhysicalPositionBusy,
     PhysicalPositionEmpty,
 )
+from simulatte.unitload import CaseContainer
 
 if TYPE_CHECKING:
     from simulatte.unitload.pallet import Pallet
@@ -24,7 +25,7 @@ class PhysicalPosition:
         self.free = unit_load is None
         self.busy = not self.free
 
-    def put(self, *, unit_load: Pallet) -> None:
+    def put(self, *, unit_load: CaseContainer) -> None:
         """
         Load a unit load into the physical position.
         """

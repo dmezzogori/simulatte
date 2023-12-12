@@ -4,16 +4,13 @@ import random
 from collections.abc import Callable
 from typing import TypedDict, TypeVar
 
-import numpy as np
-from simulatte.utils import Identifiable
+from simulatte.utils import IdentifiableMixin
 
 T = TypeVar("T")
 DistributionCallable = Callable[[], T]
 
 
-class Product(metaclass=Identifiable):
-    id: int
-
+class Product(IdentifiableMixin):
     def __init__(
         self,
         *,
@@ -25,6 +22,7 @@ class Product(metaclass=Identifiable):
         min_case_per_pallet: int,
         lp_enabled: bool,
     ) -> None:
+        super().__init__()
         self.probability = probability
         self.family = family
         self.cases_per_layer = cases_per_layer
@@ -123,20 +121,3 @@ class ProductsGenerator:
             exclude.add(product)
 
         return product
-
-    def choose_some(
-        self,
-        *,
-        n: int = 1,
-        replace=False,
-        fn: Callable[[list[Product]], Product] | None = None,
-    ) -> list[Product]:
-        if n > len(self.products):
-            raise ValueError("Cannot generate a sample larger than the population")
-
-        if fn is not None:
-            products = list(fn(self.products) for _ in range(n))
-        else:
-            products: list[Product] = np.random.choice(self.products, n, replace=replace, p=self.probabilities)
-
-        return products

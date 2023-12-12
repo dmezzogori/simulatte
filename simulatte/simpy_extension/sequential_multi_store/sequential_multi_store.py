@@ -7,7 +7,7 @@ from simulatte.simpy_extension.multi_store.multi_store import MultiStore
 from simulatte.simpy_extension.sequential_store.sequential_store import SequentialStore
 
 if TYPE_CHECKING:
-    from simpy import Environment
+    pass
 
 
 class SequentialMultiStore(SequentialStore):
@@ -19,10 +19,10 @@ class SequentialMultiStore(SequentialStore):
     one-piece-flow sequence must be respected.
     """
 
-    def __init__(self, env: Environment, capacity: int = float("inf")):
-        super().__init__(env, capacity)
+    def __init__(self, capacity: int = float("inf")):
+        super().__init__(capacity)
         # Overwrite the store with a MultiStore instance
-        self._internal_store = MultiStore(env, capacity - 1)
+        self._internal_store = MultiStore(capacity - 1)
 
     def _do_put(self, items: Sequence):
         if len(items) >= self.capacity:

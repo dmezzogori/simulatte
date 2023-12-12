@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import simpy
-from simulatte.environment import Environment
+
+from simulatte.utils import EnvMixin
 
 if TYPE_CHECKING:
     from simulatte.typings import ProcessGenerator
@@ -16,10 +17,10 @@ class ArmPosition(enum.Enum):
     AT_RELEASE = 1
 
 
-class Robot(simpy.Resource):
+class Robot(simpy.Resource, EnvMixin):
     def __init__(self, *, pick_timeout: float, place_timeout: float, rotation_timeout: float) -> None:
-        self.env = Environment()
-        super().__init__(env=self.env, capacity=1)
+        EnvMixin.__init__(self)
+        simpy.Resource.__init__(self, env=self.env, capacity=1)
 
         self.pick_timeout = pick_timeout
         self.place_timeout = place_timeout
@@ -31,12 +32,12 @@ class Robot(simpy.Resource):
         self._productivity_history: list[tuple[float, float]] = [(0, 0)]
 
     @property
-    def worked_time(self) -> int:
-        return self._worked_time
-
-    @property
     def productivity(self) -> float:
         return self._movements / self.env.now
+
+    @property
+    def worked_time(self) -> int:
+        return self._worked_time
 
     @worked_time.setter
     def worked_time(self, value: int) -> None:

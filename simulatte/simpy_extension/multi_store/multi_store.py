@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from simpy.core import BoundClass
 from simpy.resources.base import BaseResource
+
 from simulatte.simpy_extension.multi_store.multi_store_get import MultiStoreGet
 from simulatte.simpy_extension.multi_store.multi_store_put import MultiStorePut
-
-if TYPE_CHECKING:
-    from simulatte.environment import Environment
+from simulatte.utils import EnvMixin
 
 
-class MultiStore(BaseResource):
+class MultiStore(BaseResource, EnvMixin):
     """
     The MultiStore works like a 'simpy.resources.store.Store',
     but allows the storage and retrieval of more elements at the same time.
@@ -24,11 +21,13 @@ class MultiStore(BaseResource):
 
     get = BoundClass(MultiStoreGet)
 
-    def __init__(self, env: Environment, capacity: int = float("inf")) -> None:
+    def __init__(self, capacity: int = float("inf")) -> None:
         if capacity <= 0:
             raise ValueError("capacity must be > 0.")
 
-        super().__init__(env, capacity)
+        EnvMixin.__init__(self)
+        BaseResource.__init__(self, self.env, capacity)
+
         self.items = []
 
     def _do_put(self, event: MultiStorePut) -> None:

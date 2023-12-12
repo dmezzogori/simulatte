@@ -8,6 +8,7 @@ from typing import Generic, TypeVar
 
 import numpy as np
 from simpy import Event
+
 from simulatte.environment import Environment
 from simulatte.logger import logger
 
@@ -36,10 +37,10 @@ class Simulation(abc.ABC, Generic[SimulationConfig]):
         Returns:
             None
         """
-        from simulatte.utils import Identifiable, Singleton
+        from simulatte.utils import IdentifiableMixin, Singleton
 
-        Identifiable.reset()
         Singleton.clear()
+        IdentifiableMixin.clear()
 
         self.config = config
         self.seed = seed

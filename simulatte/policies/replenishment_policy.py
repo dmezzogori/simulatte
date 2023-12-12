@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from simulatte.products import Product
-from simulatte.unitload.case_container import CaseContainer
+from simulatte.protocols import WarehouseStoreProtocol
 
 
 class ReplenishmentPolicy(Protocol):
@@ -14,5 +14,8 @@ class ReplenishmentPolicy(Protocol):
 
     """
 
-    def __call__(self, *, product: Product, case_container: type[CaseContainer], **kwargs) -> None:
+    def __call__(self, *, store_type: type[WarehouseStoreProtocol], product: Product, **kwargs) -> None:
+        ...
+
+    def periodic_store_replenishment(self):
         ...

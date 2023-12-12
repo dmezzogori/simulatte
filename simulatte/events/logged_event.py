@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 from simpy.events import Event
-from simulatte.environment import Environment
+
 from simulatte.events.event_payload import EventPayload
 from simulatte.logger import logger
+from simulatte.utils import EnvMixin
 
 
-class LoggedEvent(Event):
+class LoggedEvent(Event, EnvMixin):
     def __init__(self):
-        super().__init__(env=Environment())
+        EnvMixin.__init__(self)
+        Event.__init__(self, env=self.env)
 
     def succeed(self, value: EventPayload | None = None):
         if value is not None:

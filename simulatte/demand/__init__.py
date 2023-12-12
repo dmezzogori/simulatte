@@ -1,5 +1,5 @@
 from __future__ import annotations
 
 from .customer_order import CustomerOrder
-from .generators import CustomerOrdersGenerator, fixed_sequence
+from .jobs_generator import JobsGenerator
 from .shift import Shift

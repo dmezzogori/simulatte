@@ -1,25 +1,25 @@
 from __future__ import annotations
 
-from collections.abc import Generator
+from collections.abc import Iterable, Sequence
 from functools import total_ordering
 from typing import TYPE_CHECKING
 
-from simulatte.environment import Environment
 from simulatte.events.event_payload import EventPayload
 from simulatte.events.logged_event import LoggedEvent
 from simulatte.location import InternalLocation, Location
 from simulatte.logger import logger
-from simulatte.utils import as_process
-from simulatte.utils.identifiable import Identifiable
+from simulatte.unitload import PalletSingleProduct
+from simulatte.utils.as_process import as_process
+from simulatte.utils.env_mixin import EnvMixin
+from simulatte.utils.identifiable_mixin import IdentifiableMixin
 
 if TYPE_CHECKING:
     from simulatte.agv.agv import AGV
     from simulatte.picking_cell.cell import PickingCell
     from simulatte.picking_cell.observable_areas.position import Position
-    from simulatte.requests import Request
+    from simulatte.protocols.warehouse_store import WarehouseStoreProtocol
+    from simulatte.requests import PalletRequest, ProductRequest
     from simulatte.stores.warehouse_location.warehouse_location import WarehouseLocation
-    from simulatte.stores.warehouse_store import WarehouseStore
-    from simulatte.unitload.pallet import Pallet
 
 
 @total_ordering
@@ -69,10 +69,14 @@ class FeedingOperationLog:
         self.started_agv_return_trip_to_recharge: float | None = None
         self.finished_agv_return_trip_to_recharge: float | None = None
 
-    def __lt__(self, other: FeedingOperationLog) -> bool:
+    def __lt__(self, other) -> bool:
+        if not isinstance(other, FeedingOperationLog):
+            return NotImplemented
         return self.created < other.created
 
-    def __eq__(self, other: FeedingOperationLog) -> bool:
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, FeedingOperationLog):
+            return NotImplemented
         return self.created == other.created
 
     def to_tuple(self):
@@ -128,7 +132,7 @@ class FeedingOperationLog:
 
 
 @total_ordering
-class FeedingOperation(metaclass=Identifiable):
+class FeedingOperation(IdentifiableMixin, EnvMixin):
     """
     Represents a feeding operation assigned by the System to an agv.
     The agv is responsible for retrieving a unit load from a specific store, according to the
@@ -144,16 +148,14 @@ class FeedingOperation(metaclass=Identifiable):
         "store",
         "location",
         "unit_load",
-        "picking_requests",
+        "product_requests",
         "pre_unload_position",
         "unload_position",
         "status",
         "ready",
-        "whosthere",
         "log",
     )
 
-    id: int
     agv_position_signal: type[Location] = InternalLocation
 
     def __init__(
@@ -161,12 +163,14 @@ class FeedingOperation(metaclass=Identifiable):
         *,
         cell: PickingCell,
         agv: AGV,
-        store: WarehouseStore,
-        picking_requests: list[Request],
+        store: WarehouseStoreProtocol,
+        product_requests: Sequence[ProductRequest],
         location: WarehouseLocation,
-        unit_load: Pallet,
+        unit_load: PalletSingleProduct,
     ) -> None:
-        self.env = Environment()
+        IdentifiableMixin.__init__(self)
+        EnvMixin.__init__(self)
+
         self.cell = cell
         self.relative_id = len(self.cell.feeding_operations)
         self.cell.feeding_operations.append(self)
@@ -176,7 +180,9 @@ class FeedingOperation(metaclass=Identifiable):
         self.location = location
         self.unit_load = unit_load
         self.unit_load.feeding_operation = self
-        self.picking_requests = picking_requests
+        self.product_requests = product_requests
+        for product_request in self.product_requests:
+            product_request.feeding_operations.append(self)
 
         self.pre_unload_position: Position | None = None
         self.unload_position: Position | None = None
@@ -190,27 +196,27 @@ class FeedingOperation(metaclass=Identifiable):
         }
         self.ready = LoggedEvent()
 
-        self.whosthere = []
         self.log = FeedingOperationLog(self, self.env.now)
 
-    def __str__(self):
-        return f"FeedingOperation{self.id}"
-
-    def __lt__(self, other: FeedingOperation) -> bool:
+    def __lt__(self, other) -> bool:
+        if not isinstance(other, FeedingOperation):
+            return NotImplemented
         return self.id < other.id
 
-    def __eq__(self, other: FeedingOperation) -> bool:
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, FeedingOperation):
+            return NotImplemented
         return self.id == other.id
 
     @property
-    def pallet_requests(self) -> set[Request]:
+    def pallet_requests(self) -> set[PalletRequest]:
         """
         Return the set of pallet requests associated to the FeedingOperation.
         """
-        return {picking_request.pallet_request for picking_request in self.picking_requests}
+        return {product_request.parent.parent for product_request in self.product_requests}
 
     @property
-    def chain(self) -> Generator[FeedingOperation]:
+    def chain(self) -> Iterable[FeedingOperation]:
         """
         Return the chain of feeding operations that are associated to the same pallet requests.
         """
@@ -227,6 +233,12 @@ class FeedingOperation(metaclass=Identifiable):
                 if self.status[status]:
                     return False
         return True
+
+    def release_unload_position(self) -> None:
+        if self.unload_position is None:
+            raise ValueError("Unload position not assigned")
+
+        self.unload_position.release_current()
 
     @property
     def is_in_front_of_staging_area(self) -> bool:
@@ -305,7 +317,7 @@ class FeedingOperation(metaclass=Identifiable):
 
         logger.debug(f"{self} - Loading {self.unit_load} on {self.agv}")
         self.log.started_loading = self.env.now
-        yield self.store.load_ant(feeding_operation=self)
+        yield self.store.load_agv(feeding_operation=self)
         self.log.finished_loading = self.env.now
         logger.debug(f"{self} - Finished loading {self.unit_load} on {self.agv}")
 
@@ -322,12 +334,10 @@ class FeedingOperation(metaclass=Identifiable):
 
         # Knock on the door of the picking cell
         self.status["arrived"] = True
-        self.agv.waiting_to_enter_staging_area()
         # Signal the cell staging area that the feeding operation is ready to enter the cell
         self.cell.staging_area.trigger_signal_event(
             payload=EventPayload(message=f"{self} - In front of the staging area of {self.cell}")
         )
-        self.whosthere = [fo for fo in self.cell.staging_area]
 
         logger.debug(f"{self} - Finished the agv trip using {self.agv} to {self.cell}")
 
@@ -352,7 +362,6 @@ class FeedingOperation(metaclass=Identifiable):
         logger.debug(f"{self} - Finished moving into {self.cell} staging area")
 
         self.cell.staging_area.append(self, exceed=True)
-        self.agv.enter_staging_area()
 
         # Knock on internal area
         self.cell.internal_area.trigger_signal_event(
@@ -386,7 +395,6 @@ class FeedingOperation(metaclass=Identifiable):
             self.log.finished_agv_trip_to_internal_area = self.env.now
             # The FeedingOperation enters the InternalArea
             self.cell.internal_area.append(self)
-            self.agv.enter_internal_area()
             logger.debug(f"{self} - Finished moving into {self.cell} internal area")
 
             # Wait for the assigned InternalArea UnloadPosition to be free
@@ -408,7 +416,6 @@ class FeedingOperation(metaclass=Identifiable):
             self.log.finished_agv_trip_to_internal_area = self.env.now
             # The FeedingOperation enters the InternalArea
             self.cell.internal_area.append(self)
-            self.agv.enter_internal_area()
             logger.debug(f"{self} - Finished moving into {self.cell} internal area")
 
         # Housekeeping
@@ -423,7 +430,6 @@ class FeedingOperation(metaclass=Identifiable):
         Move the agv associated to the FeedingOperation
         to the InputLocation of the store.
         """
-
         logger.debug(f"{self} - Initiating backflow to {self.store}")
 
         # remove the FeedingOperation from the cell internal area

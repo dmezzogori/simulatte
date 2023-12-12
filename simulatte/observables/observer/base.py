@@ -3,20 +3,22 @@ from __future__ import annotations
 from typing import Generic, TypeVar
 
 import simpy
-from simulatte.environment import Environment
+
 from simulatte.observables.observable_area.base import ObservableArea
+from simulatte.utils import EnvMixin
 
 T = TypeVar("T", bound=ObservableArea)
 
 
-class Observer(Generic[T]):
+class Observer(EnvMixin, Generic[T]):
     """
     An observer is in charge of observing an observable area of an element of the simulation.
     When the observable area signal event is triggered, the observer will execute its main process.
     """
 
     def __init__(self, *, observable_area: T, register_main_process: bool = True) -> None:
-        self.env = Environment()
+        EnvMixin.__init__(self)
+
         self.observable_area = observable_area
         self._main = None
         if register_main_process:

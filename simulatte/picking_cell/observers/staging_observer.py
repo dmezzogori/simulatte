@@ -15,9 +15,13 @@ class StagingObserver(Observer[StagingArea]):
         Select the FeedingOperation allowed to exit the FeedingArea and enter the StagingArea.
         """
 
+        # from simulatte.picking_cell import PickingCell
+
+        picking_cell = self.observable_area.owner
+
         feeding_operations = (
             feeding_operation
-            for feeding_operation in self.observable_area.owner.feeding_area
+            for feeding_operation in picking_cell.feeding_area
             if feeding_operation.is_in_front_of_staging_area
         )
         return min(feeding_operations, default=None)

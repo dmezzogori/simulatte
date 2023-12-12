@@ -7,4 +7,4 @@ from .warehouse_location.warehouse_location import (
     WarehouseLocation,
     WarehouseLocationSide,
 )
-from .warehouse_store import WarehouseStore, WarehouseStoreConfig
+from .warehouse_store import WarehouseStore

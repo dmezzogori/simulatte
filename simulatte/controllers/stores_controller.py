@@ -1,23 +1,19 @@
 from __future__ import annotations
 
-import math
+import abc
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
-from simulatte.exceptions.store import OutOfStockError
-from simulatte.products import Product
+from simulatte.agv import AGV
+from simulatte.products import Product, ProductsGenerator
+from simulatte.protocols.warehouse_store import WarehouseStoreProtocol
 from simulatte.unitload.case_container import CaseContainer
-from simulatte.utils.utils import as_process
+from simulatte.utils.as_process import as_process
+from simulatte.utils.env_mixin import EnvMixin
 
 if TYPE_CHECKING:
-    from simulatte.agv.agv import AGV
-    from simulatte.controllers import SystemController
     from simulatte.policies.retrieval_policy import RetrievalPolicy
     from simulatte.policies.storing_policy import StoringPolicy
-    from simulatte.products import ProductsGenerator
-    from simulatte.stores.warehouse_location import PhysicalPosition
     from simulatte.stores.warehouse_location.warehouse_location import WarehouseLocation
-    from simulatte.stores.warehouse_store import WarehouseStore
-    from simulatte.unitload.pallet import Pallet
 
 
 class ProductStock(TypedDict):
@@ -25,11 +21,11 @@ class ProductStock(TypedDict):
     on_transit: int
 
 
-Stock = dict[Product, dict[type[CaseContainer], ProductStock]]
+Stock = dict[Product, dict[type[WarehouseStoreProtocol], ProductStock]]
 
 
 class StoresConfig(TypedDict):
-    cls: type[WarehouseStore]
+    cls: type[WarehouseStoreProtocol]
     n: int
     extra_capacity: float
     config: dict[str, Any]
@@ -41,11 +37,10 @@ class StoresControllerConfig(TypedDict):
     stores_config: list[StoresConfig]
 
 
-class BaseStoresController:
+class StoresController(abc.ABC, EnvMixin):
     """
-    Base class for the StoresController.
+    StoresController is responsible for managing the stores within a simulation.
 
-    The StoresController is responsible for managing the stores of the controllers.
     It is responsible for:
     - keeping track of the stock of each product
     - triggering replenishment requests when needed
@@ -54,26 +49,37 @@ class BaseStoresController:
     - keeping track of the on hand and on transit quantities of each product
 
     Requires:
-    - a unit load policy to be used to find the best unit load to be loaded into the store
-    - a location policy to be used to find locations for storing of products
+    - a retrieval policy to be used to find the best unit load to output
+    - a storing policy to be used to find the best locations for products' storage
     """
 
     def __init__(self, *, config: StoresControllerConfig) -> None:
-        self._retrieval_policy = config["retrieval_policy"]
-        self._storing_policy = config["storing_policy"]
+        EnvMixin.__init__(self)
 
-        self._stores: dict[type[WarehouseStore], list] = {}
+        self._retrieval_policy: RetrievalPolicy = config["retrieval_policy"]
+        self._storing_policy: StoringPolicy = config["storing_policy"]
+        self._stores: dict[type[WarehouseStoreProtocol], list] = {}
         self._stock: Stock = {}
-        self.system: SystemController | None = None
 
-    def register_system(self, system: SystemController):
+    @property
+    def stores(self) -> dict[type[WarehouseStoreProtocol], list]:
         """
-        Register the controllers to which the stores' controller belongs.
+        Return the stores managed by the StoresManager.
         """
 
-        self.system = system
+        return self._stores
 
-    def register_store(self, store: WarehouseStore):
+    @staticmethod
+    def freeze(location: WarehouseLocation, unit_load: CaseContainer) -> None:
+        """
+        Freeze a location.
+
+        Used to make sure that a unit load is not picked from another process.
+        """
+
+        location.freeze(unit_load=unit_load)
+
+    def register_store(self, store: WarehouseStoreProtocol) -> None:
         """
         Register a store to be managed by the stores' controller.
         """
@@ -82,177 +88,123 @@ class BaseStoresController:
         if store not in stores:
             stores.append(store)
 
-    @property
-    def stores(self):
-        """
-        Return the stores managed by the StoresManager.
-        """
-
-        return self._stores
-
-    @staticmethod
-    def freeze(location: WarehouseLocation, unit_load: Pallet):
-        """
-        Freeze a location.
-
-        This method is used to make sure that a unit load is not picked from another process.
-        """
-
-        return location.freeze(unit_load=unit_load)
-
     def update_stock(
         self,
         *,
-        product: Product,
-        case_container: type[CaseContainer],
+        store_type: type[WarehouseStoreProtocol],
         inventory: Literal["on_hand", "on_transit"],
+        product: Product,
         n_cases: int,
     ) -> None:
         """
         Keep track of the number of cases (on hand or on transit) of a product.
+
+        Parameters:
+            - product: the product to be updated
+            - store_type: the type of store to be updated
+            - inventory: the inventory to be updated
+            - n_cases: the number of cases to be added or removed
         """
 
-        product_stock = self._stock.setdefault(product, {}).setdefault(case_container, {"on_hand": 0, "on_transit": 0})
+        product_stock = self._stock.setdefault(product, {}).setdefault(store_type, {"on_hand": 0, "on_transit": 0})
         product_stock[inventory] += n_cases
 
-    def inventory_position(self, *, product: Product, case_container: type[CaseContainer]) -> int:
+    def inventory_position(self, *, product: Product, store_type: type[WarehouseStoreProtocol]) -> int:
         """
         Return the inventory position of a product, filtered in pallets of trays.
         """
 
-        product_stock = self._stock[product][case_container]
+        product_stock = self._stock[product][store_type]
         on_hand = product_stock["on_hand"]
         on_transit = product_stock["on_transit"]
 
         return on_hand + on_transit
 
-    def load(self, *, store: WarehouseStore, agv: AGV) -> None:
+    @abc.abstractmethod
+    def warmup(self, *, products_generator: ProductsGenerator) -> None:
         """
-        Used to centralize the loading of unit loads into the stores.
-        Needed to keep trace of the on hand quantity of each product,
-        to trigger replenishment when needed.
-
-        This method must be called when the agv is in front of the store, waiting to be
-        unloaded by the store.
-
-        It triggers the loading process of the store.
+        Warmup warehouse(s) based on a products' generator.
         """
 
-        raise NotImplementedError
-
-    def unload(
-        self, *, type_of_stores: type[WarehouseStore], product: Product, n_cases: int
-    ) -> tuple[tuple[WarehouseStore, WarehouseLocation, PhysicalPosition], ...]:
-        """
-        Used to centralize the unloading of unitloads from the stores.
-        Needed to keep trace of the on hand quantity of each product.
-        It does not trigger replenishment operations.
-
-        This method should be called when the controllers is organizing the feeding operation.
-        It does NOT trigger the unloading process of the store.
-        """
-
-        raise NotImplementedError
-
-    def check_replenishment(
-        self,
-        *,
-        product: Product,
-        case_container: type[CaseContainer],
-        periodic_check=False,
-    ):
-        """
-        Checks if there is need for replenishment operations.
-        Used both in the unload method and in the
-        periodic replenishment process.
-        """
-
-        inventory_position = self.inventory_position(product=product, case_container=case_container)
-        s_max = product.s_max[case_container]
-        s_min = product.s_min[case_container]
-
-        if periodic_check or inventory_position <= s_min:
-            # calcoliamo quanti cases ci servono per arrivare a S_max
-            n_cases = s_max - inventory_position
-            n_cases = max(0, n_cases)
-            n_pallet = math.ceil(n_cases / product.case_per_pallet)
-
-            # aumentiamo l'on_transit
-            self.update_stock(
-                product=product,
-                case_container=case_container,
-                inventory="on_transit",
-                n_cases=n_pallet * product.case_per_pallet,
-            )
-
-            for _ in range(n_pallet):
-                self.system.store_replenishment(
-                    product=product,
-                    case_container=case_container,
-                )
+        ...
 
     @as_process
-    def periodic_store_replenishment(self):
+    def load(self, *, store: WarehouseStoreProtocol, agv: AGV) -> None:
         """
-        Periodically checks if there is need for replenishment operations.
-        """
-        while True:
-            yield self.system.env.timeout(60 * 60 * 8)  # TODO: mettere come parametro
+        Orchestrate the loading of a unit load carried by an AGV into a store.
 
-            for product in self.system.products:
-                for case_container in ("pallet", "tray"):
-                    self.check_replenishment(
-                        product=product,
-                        case_container=case_container,
-                        periodic_check=True,
-                    )
-
-    def find_location_for_product(self, *, store: WarehouseStore, product: Product) -> WarehouseLocation:
-        return self._storing_policy(store=store, product=product)
-
-    def get_location_for_unit_load(self, *, store: WarehouseStore, unit_load: Pallet) -> WarehouseLocation:
-        """
-        FOR INPUT.
-
-        Find a location for a unit load in a store.
-        Find the location accordingly to the LocationPolicy set.
-        Then freeze the location to prevent other unit loads from
-        being placed in the same location.
+        Update the on hand and on transit quantities, accordingly.
+        Finally, trigger the loading process of the store.
         """
 
-        location = self.find_location_for_product(store=store, product=unit_load.product)
-        store.book_location(location=location, unit_load=unit_load)
-        return location
+        # Find a WarehouseLocation for the unit load
+        location = self._storing_policy(store=store, product=agv.unit_load.product)
 
-    def find_stores_locations_for_output(
-        self,
-        *,
-        stores: list[WarehouseStore],
-        product: Product,
-        quantity: int,
-        raise_on_none: bool = False,
-    ) -> tuple[tuple[WarehouseStore, WarehouseLocation, Pallet], ...]:
+        # If no location is found, raise an error
+        if location is None:
+            raise ValueError(f"No location found for {agv.unit_load} in {store}")
+
+        # Book the location to prevent other non-compatible unit loads from being placed in the same location
+        store.book_location(location=location, unit_load=agv.unit_load)
+
+        # riduciamo l'on_transit
+        self.update_stock(
+            store_type=type(store),
+            inventory="on_transit",
+            product=agv.unit_load.product,
+            n_cases=-agv.unit_load.n_cases,
+        )
+
+        # alziamo l'on_hand
+        self.update_stock(
+            store_type=type(store),
+            inventory="on_hand",
+            product=agv.unit_load.product,
+            n_cases=agv.unit_load.n_cases,
+        )
+
+        yield store.put(unit_load=agv.unit_load, location=location, agv=agv, priority=10)
+
+    def organize_retrieval(
+        self, *, type_of_store: type[WarehouseStoreProtocol], product: Product, n_cases: int
+    ) -> tuple[tuple[WarehouseStoreProtocol, WarehouseLocation, CaseContainer], ...]:
         """
-        FOR OUTPUT.
+        Used to organize the retrieval of unit load(s) from one or more stores.
 
-        Get a tuple of stores and locations from which to pickup a product.
+        Delegates to the retrieval policy to find the best store(s) to retrieve the unit load(s) from.
+        Updates the on hand and on transit quantities.
+
+        Parameters:
+            - type_of_store: the type of store to be retrieved from
+            - product: the product to be retrieved
+            - n_cases: the number of cases to be retrieved
+
+        Returns:
+            - a tuple of tuples containing the store, the location, and the unit load
         """
 
-        try:
-            stores_and_locations = self._retrieval_policy(stores=stores, product=product, quantity=quantity)
-            return stores_and_locations
-        except OutOfStockError as e:
-            if raise_on_none:
-                raise e
+        # Get possible stores based on the type of store
+        stores = self.stores[type_of_store]
 
-    def warmup(
-        self,
-        *,
-        products_generator: ProductsGenerator,
-        **kwargs,
-    ):
-        """
-        Warmup the warehouse with a given products' generator.
-        """
+        # Find stores, locations, and unit loads using the RetrievalPolicy
+        stores_and_locations = self._retrieval_policy(stores=stores, product=product, quantity=n_cases)
 
-        raise NotImplementedError
+        # Loop over the stores, locations, and unit loads
+        for store, location, unit_load in stores_and_locations:
+            # Book the unit load at the store's location to prevent other processes from picking it up
+            location.book_pickup(unit_load=unit_load)
+
+            # Update "on transit"
+            # If the number of cases to be picked up is less than the number of cases in the unit load,
+            # we pick up only the number of cases needed
+            on_transit = min(unit_load.n_cases, n_cases)
+            n_cases -= on_transit
+            self.update_stock(store_type=type_of_store, inventory="on_transit", product=product, n_cases=on_transit)
+
+            # Reduce "on hand"
+            if not hasattr(unit_load, "magic"):
+                self.update_stock(
+                    store_type=type_of_store, inventory="on_hand", product=product, n_cases=-unit_load.n_cases
+                )
+
+        return stores_and_locations

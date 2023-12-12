@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from simulatte.products import Product
+    from simulatte.protocols.warehouse_store import WarehouseStoreProtocol
     from simulatte.stores.warehouse_location.warehouse_location import WarehouseLocation
-    from simulatte.stores.warehouse_store import WarehouseStore
 
 
 class StoringPolicy(Protocol):
@@ -26,5 +26,5 @@ class StoringPolicy(Protocol):
     storing the given product in the given warehouse store.
     """
 
-    def __call__(self, *, store: WarehouseStore, product: Product) -> WarehouseLocation | None:
+    def __call__(self, *, store: WarehouseStoreProtocol, product: Product) -> WarehouseLocation | None:
         ...

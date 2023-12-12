@@ -3,18 +3,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Generic, TypeVar
 
 from simpy.resources.store import FilterStore, Store
-from simulatte.utils.utils import as_process
+
+from simulatte.utils import EnvMixin
+from simulatte.utils.as_process import as_process
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
-
-    from simulatte.environment import Environment
 
 
 T = TypeVar("T")
 
 
-class SequentialStore(Generic[T]):
+class SequentialStore(EnvMixin, Generic[T]):
     """
     The SequentialStore implements a FIFO queue (items are stored in the order in which they are put).
 
@@ -25,14 +25,15 @@ class SequentialStore(Generic[T]):
     The retrieved element must satisfy the filter function applied to the FilterStore.
     """
 
-    def __init__(self, env: Environment, capacity: int = float("inf")) -> None:
+    def __init__(self, capacity: int = float("inf")) -> None:
+        EnvMixin.__init__(self)
+
         if capacity <= 1:
             raise ValueError("Capacity of SequentialStore must be grater than 1.")
 
-        self.env = env
         self._capacity = capacity
-        self._internal_store = Store(env, capacity=capacity - 1)
-        self._output = FilterStore(env, capacity=1)
+        self._internal_store = Store(self.env, capacity=capacity - 1)
+        self._output = FilterStore(self.env, capacity=1)
         self.get_queue = 0
 
     @property

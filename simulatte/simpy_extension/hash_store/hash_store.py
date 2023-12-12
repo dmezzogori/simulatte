@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Hashable
+from typing import Any
+
 from simpy.core import BoundClass
 from simpy.resources.store import Store
+
 from simulatte.simpy_extension.hash_store.hash_store_get import HashStoreGet
 from simulatte.simpy_extension.hash_store.hash_store_put import HashStorePut
 
@@ -15,16 +19,15 @@ class HashStore(Store):
     but allows the storage and retrieval of an item based on efficient mapping.
     """
 
-    get = BoundClass(HashStoreGet)
-
-    put = BoundClass(HashStorePut)
+    get = BoundClass(HashStoreGet)  # type: ignore
+    put = BoundClass(HashStorePut)  # type: ignore
 
     def __init__(self, env, capacity=float("inf")) -> None:
         if capacity <= 0:
             raise ValueError("capacity must be > 0.")
 
         super().__init__(env, capacity)
-        self.items = {}
+        self.items: dict[Hashable, Any] = {}  # type: ignore
 
     def _do_put(self, event: HashStorePut) -> None:
         """

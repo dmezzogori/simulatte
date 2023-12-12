@@ -16,10 +16,10 @@ class ObservableArea(Area[Item, Owner], Observable):
     def __init__(
         self,
         *,
-        capacity: int = float("inf"),
-        owner: Owner | None = None,
+        capacity: float = float("inf"),
+        owner: Owner,
         signal_at: Literal["append", "remove"] | tuple[Literal["append", "remove"], ...],
-    ):
+    ) -> None:
         Area.__init__(self, capacity=capacity, owner=owner)
         Observable.__init__(self)
 

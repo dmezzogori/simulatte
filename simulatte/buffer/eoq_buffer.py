@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from simpy.resources.store import Store
-from simulatte.environment import Environment
+
 from simulatte.unitload import PaperSheet, WoodBoard
-from simulatte.utils import as_process
+from simulatte.utils import EnvMixin, as_process
 
 
-class EOQBuffer:
+class EOQBuffer(EnvMixin):
     """
     An instance of this class represents a buffer which is managed
     using a reorder level inventory policy.
@@ -20,10 +20,11 @@ class EOQBuffer:
         eoq: int,
         get_time: int,
         put_time: int,
-        capacity: int = float("inf"),
+        capacity: float = float("inf"),
         init: int = 0,
     ):
-        self.env = Environment()
+        EnvMixin.__init__(self)
+
         self.items_type = items_type
         self.reorder_level = reorder_level
         self.eoq = eoq
@@ -43,7 +44,7 @@ class EOQBuffer:
         return len(self.store.items)
 
     @property
-    def capacity(self) -> int:
+    def capacity(self) -> float:
         return self.store.capacity
 
     @property

@@ -5,37 +5,28 @@ from typing import TYPE_CHECKING
 
 from IPython.core.display import Markdown
 from IPython.core.display_functions import display
-from simulatte.agv.agv_kind import AGVKind
-from simulatte.environment import Environment
 from tabulate import tabulate
+
+from simulatte.agv.agv_kind import AGVKind
+from simulatte.utils import EnvMixin
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Generator
 
     from simulatte.agv import AGV, AGVMission
-    from simulatte.controllers import SystemController
     from simulatte.policies import AGVSelectionPolicy
 
 
-class AGVController:
+class AGVController(EnvMixin):
     """
     Represent a controller for a group of agvs.
     The controller holds a reference to all the agvs and is responsible for managing their missions.
     The controller is responsible for selecting the best agv for a given mission, according to the set selection policy.
     """
 
-    __slots__ = (
-        "agvs",
-        "_agv_selection_policy",
-        "_feeding_agvs",
-        "_replenishment_agvs",
-        "_input_agvs",
-        "_output_agvs",
-        "system_controller",
-    )
-
     def __init__(self, *, agvs: Collection[AGV], agv_selection_policy: AGVSelectionPolicy):
-        self.system_controller = None
+        EnvMixin.__init__(self)
+
         self.agvs = agvs
         self._agv_selection_policy = agv_selection_policy
         self._feeding_agvs: tuple[AGV, ...] | None = None
@@ -95,13 +86,6 @@ class AGVController:
 
         return self._output_agvs
 
-    def register_system(self, system: SystemController):
-        """
-        Register the system controller.
-        """
-
-        self.system_controller = system
-
     def agvs_missions(self, *, agvs: Collection[AGV] | None = None) -> Generator[AGVMission, None, None]:
         """
         Return a generator of all the missions of the given agvs.
@@ -158,7 +142,7 @@ class AGVController:
 
         headers = ["KPI", "Valore", "U.M."]
         table = [
-            ["Ore simulate", f"{Environment().now / 3600:.2f}", "[h]"],
+            ["Ore simulate", f"{self.env.now / 3600:.2f}", "[h]"],
             ["Numero di AGV", len(self.agvs), "[n]"],
             ["Numero di FeedingAGV", len(self.feeding_agvs), "[n]"],
             ["Numero di ReplenishmentAGV", len(self.replenishment_agvs), "[n]"],

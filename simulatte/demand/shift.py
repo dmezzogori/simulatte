@@ -1,33 +1,28 @@
 from __future__ import annotations
 
-import statistics
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 
 from simulatte.demand.customer_order import CustomerOrder
-from simulatte.requests import LayerRequest, PalletRequest
+from simulatte.protocols import Job
 
 
 @dataclass
 class Shift:
     """
     Represent a shift, during which a given set of customer orders must be satisfied.
+
+    Attributes:
+        day: an integer representing the day of the shift
+        shift: an integer representing the number of the shift
+        customer_orders: a collection of customer orders to be satisfied during the shift
     """
 
     day: int
     shift: int
-    customer_orders: list[CustomerOrder]
+    customer_orders: Collection[CustomerOrder]
 
     @property
-    def pallet_requests(self) -> Iterable[PalletRequest]:
+    def jobs(self) -> Iterable[Job]:
         for customer_order in self.customer_orders:
-            yield from customer_order.pallet_requests
-
-    @property
-    def layer_requests(self) -> Iterable[LayerRequest]:
-        for pallet_request in self.pallet_requests:
-            yield from pallet_request.sub_requests
-
-    @property
-    def perc_mono_sku_layers(self) -> float:
-        return statistics.mean(layer.has_single_product_request for layer in self.layer_requests)
+            yield from customer_order.jobs

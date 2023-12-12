@@ -1,23 +1,19 @@
 from __future__ import annotations
 
 import simpy
-from simulatte.environment import Environment
+
 from simulatte.location import Location
+from simulatte.utils import EnvMixin
 
 
-class ServicePoint(simpy.PriorityResource):
+class ServicePoint(simpy.PriorityResource, EnvMixin):
     """
     An instance of this class represents a ServicePoint: a position
     where ants go to be served.
     """
 
     def __init__(self, *, location: Location, capacity=1):
-        """
-        Initialise.
+        EnvMixin.__init__(self)
+        simpy.PriorityResource.__init__(self, self.env, capacity=capacity)
 
-        :param env: The simulation environment
-        :param loc: The node where the service point is placed.
-        """
-        self.env = Environment()
         self.location = location
-        super().__init__(self.env, capacity=capacity)

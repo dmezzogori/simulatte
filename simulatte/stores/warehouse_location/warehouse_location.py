@@ -7,11 +7,11 @@ from simulatte.exceptions.location import LocationBusy, LocationEmpty
 from simulatte.exceptions.unitload import IncompatibleUnitLoad
 from simulatte.stores.warehouse_location.physical_position import PhysicalPosition
 from simulatte.unitload.case_container import CaseContainer
-from simulatte.utils.identifiable import Identifiable
+from simulatte.utils import IdentifiableMixin
 
 if TYPE_CHECKING:
     from simulatte.products import Product
-    from simulatte.stores.warehouse_store import WarehouseStore
+    from simulatte.protocols.warehouse_store import WarehouseStoreProtocol
 
 
 class WarehouseLocationSide(Enum):
@@ -23,12 +23,10 @@ class WarehouseLocationSide(Enum):
 T = TypeVar("T", bound=CaseContainer)
 
 
-class WarehouseLocation(Generic[T], metaclass=Identifiable):
+class WarehouseLocation(IdentifiableMixin, Generic[T]):
     """
     Warehouse physical storage location, where the unit loads are stored.
     """
-
-    id: int
 
     __slots__ = (
         "id",
@@ -49,7 +47,7 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
     def __init__(
         self,
         *,
-        store: WarehouseStore[T],
+        store: WarehouseStoreProtocol,
         x: int,
         y: int,
         side: WarehouseLocationSide,
@@ -63,6 +61,8 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         :param side: 'left' or 'rigth'.
         :param depth: The depth of the storage location.
         """
+
+        IdentifiableMixin.__init__(self)
 
         self.store = store
         self.x = x
@@ -81,8 +81,8 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
 
         self.first_position = PhysicalPosition()
         self.second_position = PhysicalPosition()
-        self.future_unit_loads: list[T] = []  # Unit loads that will be stored in the future
-        self.booked_pickups: list[T] = []  # Unit loads that will be picked up in the future
+        self.future_unit_loads: list[CaseContainer] = []  # Unit loads that will be stored in the future
+        self.booked_pickups: list[CaseContainer] = []  # Unit loads that will be picked up in the future
 
         self.product: Product | None = None
 
@@ -150,7 +150,7 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         return int(self.first_position.busy) + int(self.second_position.busy)
 
     @property
-    def first_available_unit_load(self) -> T:
+    def first_available_unit_load(self) -> CaseContainer:
         """
         Returns the first available unit load.
         If the first position is busy, the unit load in second position is not available.
@@ -221,7 +221,7 @@ class WarehouseLocation(Generic[T], metaclass=Identifiable):
         self.product = unit_load.product
         self.future_unit_loads.append(unit_load)
 
-    def put(self, unit_load: T) -> None:
+    def put(self, unit_load: CaseContainer) -> None:
         """
         Stores a unit load into the location.
 

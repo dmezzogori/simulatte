@@ -3,36 +3,34 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from simulatte.agv import AGV
-from simulatte.environment import Environment
 from simulatte.location import AGVRechargeLocation, InputLocation, OutputLocation
 from simulatte.logger import logger
 from simulatte.observables.observable_area.base import ObservableArea
 from simulatte.observables.observer.base import Observer
-from simulatte.utils.singleton import Singleton
-from simulatte.utils.utils import as_process
+from simulatte.protocols import Job
+from simulatte.utils import EnvMixin
+from simulatte.utils.as_process import as_process
 
 if TYPE_CHECKING:
-    from simpy import Process
     from simpy.resources.resource import PriorityRequest
+
     from simulatte.controllers.agvs_controller import AGVController
     from simulatte.controllers.cells_controller import CellsController
-    from simulatte.controllers.distance_manager import DistanceController
-    from simulatte.controllers.stores_controller import BaseStoresController
-    from simulatte.demand.generators.base import CustomerOrdersGenerator
-    from simulatte.location import Location
+    from simulatte.controllers.stores_controller import StoresController
+    from simulatte.demand.jobs_generator import JobsGenerator
     from simulatte.operations.feeding_operation import FeedingOperation
     from simulatte.picking_cell.cell import PickingCell
     from simulatte.policies.agv_selection_policy.idle_feeding_selection_policy import (
         IdleFeedingSelectionPolicy,
     )
-    from simulatte.policies.picking_requests_policy import PickingRequestSelectionPolicy
+    from simulatte.policies.product_requests_policy import ProductRequestSelectionPolicy
     from simulatte.products import Product
-    from simulatte.requests import PalletRequest
-    from simulatte.stores.warehouse_store import WarehouseStore
+    from simulatte.protocols.request import PalletRequest
+    from simulatte.protocols.warehouse_store import WarehouseStoreProtocol
     from simulatte.typings.typings import ProcessGenerator
 
 
-class IdleFeedingAGVs(ObservableArea[AGV]):
+class IdleFeedingAGVs(ObservableArea[AGV, "SystemController"]):
     pass
 
 
@@ -65,7 +63,7 @@ class FeedingAGVsObserver(Observer[IdleFeedingAGVs]):
         self.observable_area.owner.setup_feeding_operation(picking_cell=agv.picking_cell)
 
 
-class SystemController(metaclass=Singleton):
+class SystemController(EnvMixin):
     """
     Base class for a system controller.
 
@@ -85,38 +83,30 @@ class SystemController(metaclass=Singleton):
         *,
         agv_controller: AGVController,
         cells_controller: CellsController,
-        stores_controller: BaseStoresController,
-        distance_controller: DistanceController,
+        stores_controller: StoresController,
         products: list[Product],
-        orders_generator: CustomerOrdersGenerator,
-        picking_request_selection_policy: PickingRequestSelectionPolicy,
+        jobs_generator: JobsGenerator,
+        product_requests_selection_policy: ProductRequestSelectionPolicy,
         idle_feeding_agvs_selection_policy: IdleFeedingSelectionPolicy,
     ):
-        self.env = Environment()
+        EnvMixin.__init__(self)
 
         self.agv_controller = agv_controller
-        self.agv_controller.register_system(system=self)
 
         self.cells_controller = cells_controller
         self.cells_controller.register_system(system=self)
 
         self.stores_controller = stores_controller
-        self.stores_controller.register_system(system=self)
-
-        self.distance_controller = distance_controller
-        self.distance_controller.register_system(system=self)
 
         self.products = products
-        self.orders_generator = orders_generator
-        self.psp: list[PalletRequest] = []
+        self.jobs_generator = jobs_generator
+        self.psp: list[Job] = []
 
-        self.picking_request_selection_policy = picking_request_selection_policy
+        self.product_requests_selection_policy = product_requests_selection_policy
         self.idle_feeding_agvs_selection_policy = idle_feeding_agvs_selection_policy
 
         self.feeding_operations: list[FeedingOperation] = []
         self._finished_pallet_requests: list[PalletRequest] = []
-
-        self.picking_cell_store_mapping: dict[PickingCell, type[WarehouseStore]] = {}
 
         self.input_pallet_location = InputLocation(self)
         self.system_output_location = OutputLocation(self)
@@ -127,18 +117,18 @@ class SystemController(metaclass=Singleton):
             observable_area=self.idle_feeding_agvs, register_main_process=True
         )
 
-        self.iter_shifts()
+        self.process_jobs()
         self.pallet_requests_release()
 
     def __str__(self):
         return self.__class__.__name__
 
     @as_process
-    def iter_shifts(self):
+    def process_jobs(self):
         """
-        Process the pallet requests from the orders generator.
+        Process the jobs generated.
 
-        The pallet requests are processed in a FIFO fashion.
+        The jobs are processed in a FIFO fashion.
         At fixed intervals, a new shift is requested from the orders' generator.
 
         The pallet requests are then put into the PSP (Pre-Shop Pool),
@@ -148,21 +138,15 @@ class SystemController(metaclass=Singleton):
         # Eternal process
         while True:
             # Iter over the shifts
-            for shift in self.orders_generator():
+            for shift in self.jobs_generator:
                 # Add all the pallet requests of the new shift to the PSP
-                self.psp.extend(shift.pallet_requests)
+                self.psp.extend(shift.jobs)
 
                 # Wait for the next shift
                 yield self.env.timeout(60 * 60 * 8)  # 8 hours
 
-    def distance(self, from_: Location, to: Location):
-        """
-        Return the distance between two locations.
-        """
-        return self.distance_controller(from_=from_, to=to)
-
     @as_process
-    def retrieve_from_cell(self, *, cell: PickingCell, pallet_request: PalletRequest) -> Process:
+    def retrieve_from_cell(self, *, cell: PickingCell, pallet_request: PalletRequest) -> ProcessGenerator:
         """
         Retrieve a pallet request from a picking cell.
 
@@ -191,17 +175,12 @@ class SystemController(metaclass=Singleton):
             # Store the pallet request as finished
             self._finished_pallet_requests.append(pallet_request)
 
-    @as_process
-    def end_feeding_operation(self, *, feeding_operation: FeedingOperation) -> ProcessGenerator:
-        # free the UnloadPosition associated to the FeedingOperation
-        feeding_operation.unload_position.release_current()
+        return None
 
-        if feeding_operation.unit_load.n_cases > 0:
-            yield feeding_operation.return_to_store()
-        else:
-            yield feeding_operation.drop()
+    def end_feeding_operation(self, *, feeding_operation: FeedingOperation):
+        raise NotImplementedError
 
-    def get_store_by_cell(self, *, cell: PickingCell | None = None) -> WarehouseStore:
+    def get_store_by_cell(self, *, cell: PickingCell | None = None) -> WarehouseStoreProtocol:
         raise NotImplementedError
 
     def setup_feeding_operation(self, *, picking_cell: type[PickingCell]):

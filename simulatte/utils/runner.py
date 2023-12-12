@@ -3,15 +3,15 @@ from __future__ import annotations
 import random
 from collections.abc import Callable
 from multiprocessing import Pool
-from typing import Self, TypeVar
+from typing import Generic, Self, TypeVar
 
 import numpy as np
 
-Results = TypeVar("Results")
-Worker = Callable[[tuple[int, int]], Results]
+Result = TypeVar("Result")
+Worker = TypeVar("Worker", bound=Callable[[tuple[int, int]], Result])
 
 
-class Runner:
+class Runner(Generic[Worker, Result]):
     """
     Utility class to run a function in parallel or sequentially.
     Useful for running multiple simulations in parallel.
@@ -58,7 +58,7 @@ class Runner:
         self.n_jobs = n_jobs
         self.seeds: list[int] = []
         self.i = 0
-        self.results = []
+        self.results: list[Result] = []
 
         if seed is not None:
             random.seed(seed)
@@ -95,7 +95,7 @@ class Runner:
         self.i += 1
         return i, seed
 
-    def _parallel(self, worker: Worker) -> Results:
+    def _parallel(self, worker: Worker) -> list[Result]:
         """
         Run the worker function in parallel.
 
@@ -103,7 +103,7 @@ class Runner:
             worker: The function to run.
         """
 
-        results = []
+        results: list[Result] = []
         with Pool(processes=4) as pool:
             multiple_results = pool.map_async(worker, self, callback=results.extend)
             multiple_results.wait()
@@ -111,7 +111,7 @@ class Runner:
         multiple_results.get()
         return results
 
-    def _sequential(self, worker: Worker) -> Results:
+    def _sequential(self, worker: Worker) -> list[Result]:
         """
         Run the worker function sequentially.
 

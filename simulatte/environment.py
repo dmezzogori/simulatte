@@ -1,17 +1,24 @@
 from __future__ import annotations
 
-from simpy import Environment as SimpyEnvironment
-from simpy.core import StopSimulation
+import simpy
+
 from simulatte.utils.singleton import Singleton
 
 
-class Environment(SimpyEnvironment, metaclass=Singleton):
+class Environment(simpy.Environment, metaclass=Singleton):
     """
     Singleton class for the simulation environment.
     """
 
-    def step(self):
+    def step(self) -> None:
+        """
+        Process the next event in the queue.
+
+        If user interrupts the simulation via KeyboardInterrupt
+        raise a StopSimulation exception to gently pause the simulation.
+        """
+
         try:
             super().step()
         except KeyboardInterrupt:
-            raise StopSimulation("KeyboardInterrupt")
+            raise simpy.core.StopSimulation("KeyboardInterrupt")

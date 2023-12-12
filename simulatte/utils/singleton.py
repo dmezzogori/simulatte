@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from typing import Generic, TypeVar
 
-class Singleton(type):
+_T = TypeVar("_T")
+
+
+class Singleton(type, Generic[_T]):
     """
     Singleton is a metaclass that implements the singleton design pattern.
 
@@ -23,8 +27,7 @@ class Singleton(type):
     will return the same instance.
     """
 
-    _instances = {}
-    classes: set = set()
+    _instances: dict[type[_T], _T] = {}
 
     def __call__(cls, *args, **kwargs):
         """
@@ -44,13 +47,9 @@ class Singleton(type):
         This ensures only one instance will ever be created for this class.
         """
 
-        if cls not in cls._instances:
-            Singleton.classes.add(cls)
-            cls._instances[cls] = super().__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-    def __getattr__(self, item):
-        return getattr(self._instances[self], item)
+        if cls not in Singleton._instances:
+            Singleton._instances[cls] = super().__call__(*args, **kwargs)
+        return Singleton._instances[cls]
 
     @staticmethod
     def clear():
@@ -66,5 +65,7 @@ class Singleton(type):
         forcing a new one to be created on next access.
         """
 
-        for cls in Singleton.classes:
-            cls._instances = {}
+        classes = tuple(Singleton._instances.keys())
+        for cls in classes:
+            instance = Singleton._instances.pop(cls)
+            del instance

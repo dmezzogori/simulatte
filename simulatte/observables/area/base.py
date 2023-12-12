@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Generic, TypeVar
 
-from simulatte.environment import Environment
+from simulatte.typings import History
+from simulatte.utils import EnvMixin
 
 if TYPE_CHECKING:
     pass
@@ -12,7 +13,7 @@ Item = TypeVar("Item")
 Owner = TypeVar("Owner")
 
 
-class Area(list, Generic[Item, Owner]):
+class Area(list, EnvMixin, Generic[Item, Owner]):
     """
     Implement a virtual area.
     Extends list to add (optional) finite capacity.
@@ -21,15 +22,16 @@ class Area(list, Generic[Item, Owner]):
 
     __slots__ = ("env", "capacity", "_history", "last_in", "last_out")
 
-    def __init__(self, *, capacity: int = float("inf"), owner: Owner | None = None) -> None:
-        super().__init__()
-        self.env = Environment()
+    def __init__(self, *, capacity: float = float("inf"), owner: Owner) -> None:
+        EnvMixin.__init__(self)
+        list.__init__(self)
+
         self.capacity = capacity
         self.owner = owner
 
-        self._history: list[tuple[float, int]] = []
-        self.last_in: Item = None
-        self.last_out: Item = None
+        self._history: History[int] = []
+        self.last_in: Item | None = None
+        self.last_out: Item | None = None
 
     @property
     def is_full(self) -> bool:
@@ -48,7 +50,7 @@ class Area(list, Generic[Item, Owner]):
         return len(self) == 0
 
     @property
-    def free_space(self) -> int:
+    def free_space(self) -> float:
         """
         Return the free available space in the area.
         """
@@ -74,7 +76,7 @@ class Area(list, Generic[Item, Owner]):
 
         return super().append(item)
 
-    def pop(self, index: int = -1) -> Item:
+    def pop(self, index=-1) -> Item:
         """
         Override the list pop method to record the content history, and update the last removed item.
         """

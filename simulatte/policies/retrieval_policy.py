@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
+from simulatte.protocols.warehouse_store import WarehouseStoreProtocol
 from simulatte.stores.warehouse_location.warehouse_location import WarehouseLocation
-from simulatte.stores.warehouse_store import WarehouseStore
-from simulatte.unitload.pallet import Pallet
+from simulatte.unitload import CaseContainer
 
 if TYPE_CHECKING:
     from simulatte.products import Product
 
 
 CasesQuantity = int
-RetrievalPolicyResult = tuple[tuple[WarehouseStore, WarehouseLocation, Pallet], ...]
+RetrievalPolicyResult = tuple[tuple[WarehouseStoreProtocol, WarehouseLocation, CaseContainer], ...]
 
 
-class RetrievalPolicy:
+class RetrievalPolicy(Protocol):
     """
     RetrievalPolicy defines the interface for implementing policies for determine
     which unit load to retrieve, and from which store to retrieve it, in order to satisfy a request.
@@ -42,8 +42,8 @@ class RetrievalPolicy:
     def __call__(
         self,
         *,
-        stores: list[WarehouseStore],
+        stores: list[WarehouseStoreProtocol],
         product: Product,
         quantity: CasesQuantity,
     ) -> RetrievalPolicyResult:
-        pass
+        ...

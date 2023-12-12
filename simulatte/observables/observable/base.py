@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from simulatte.events.logged_event import LoggedEvent
@@ -17,7 +18,7 @@ class Observable:
     """
 
     def __init__(self) -> None:
-        self._callbacks = []
+        self._callbacks: list[Callable] = []
         self.signal_event = self._init_signal_event()
 
     @property

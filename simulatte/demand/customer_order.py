@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
 
-from simulatte.requests import PalletRequest
+from simulatte.protocols import Job
 
 
 @dataclass
 class CustomerOrder:
     """
-    Represent a client order.
+    Represents a customer order.
+
+    Attributes:
+        day: an integer representing the day in which the order should be processed
+        shift: an integer representing the shift number within the day in which the order should be processed
+        jobs: a collection of jobs to be processed to satisfy the order
     """
 
     day: int
     shift: int
-    pallet_requests: list[PalletRequest]
+    jobs: Collection[Job]

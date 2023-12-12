@@ -1,66 +1,22 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from simulatte.unitload.case_container import CaseContainer
-from simulatte.unitload.tray import Tray
-from simulatte.unitload.wood_board import WoodBoard
-from simulatte.utils import Identifiable
+from simulatte.unitload.layer import LayerMultiProduct, LayerSingleProduct
 
 if TYPE_CHECKING:
     from simulatte.products import Product
 
 
-class Pallet(CaseContainer, metaclass=Identifiable):
-    def __init__(self, *layers: Tray, wood_board=False) -> None:
-        if wood_board:
-            self.layers = deque((WoodBoard(), *layers))
-        else:
-            self.layers = deque(layers)
-        self.location = None
-        self.feeding_operation = None
-
-    @classmethod
-    def by_product(cls, *, product: Product) -> Pallet:
-        return cls(
-            *(Tray(product=product, n_cases=product.cases_per_layer) for _ in range(product.layers_per_pallet)),
-        )
-
-    def __repr__(self) -> str:
-        return f"Pallet(*{self.layers})"
-
-    @classmethod
-    def single_tray(cls, *, product: Product, n_cases: int | None = None) -> Pallet:
-        return Pallet(*[Tray(product=product, n_cases=n_cases if n_cases is not None else product.cases_per_layer)])
+class Pallet(CaseContainer, Protocol):
+    layers: deque[CaseContainer]
 
     @property
-    def upper_layer(self) -> Tray | None:
-        if self.n_layers > 0:
+    def upper_layer(self) -> CaseContainer | None:
+        if self.layers:
             return self.layers[-1]
-
-    @property
-    def product(self) -> Product | None:
-        """The product accessible on the unit load --i.e., the product on the last layer."""
-        if self.upper_layer is not None:
-            return self.upper_layer.product
-
-    @property
-    def n_cases(self) -> int:
-        """The number of cases on the unit load"""
-        trays = (layer for layer in self.layers if isinstance(layer, Tray))
-        return sum(tray.n_cases for tray in trays)
-
-    @property
-    def n_layers(self) -> int:
-        """The number of Trays on the unit load"""
-        return sum(isinstance(layer, Tray) for layer in self.layers)
-
-    def remove_case(self) -> None:
-        """
-        Removes a single case from the most accessible layer
-        """
-        self.upper_layer.n_cases -= 1
 
     def remove_layer(self) -> None:
         """
@@ -68,8 +24,63 @@ class Pallet(CaseContainer, metaclass=Identifiable):
         """
         self.layers.pop()
 
-    def add_layer(self, *, product: Product, n_cases: int) -> None:
-        """
-        Adds a layer to the unit load.
-        """
-        self.layers.append(Tray(product=product, n_cases=n_cases))
+
+class PalletSingleProduct(Pallet):
+    layers: deque[LayerSingleProduct]
+
+    def __init__(self, *layers: LayerSingleProduct) -> None:
+        self.layers = deque(layers)
+        if self.layers:
+            self.product = self.layers[0].product
+            self.n_cases = sum(layer.n_cases for layer in self.layers)
+
+    @property
+    def upper_layer(self) -> LayerSingleProduct | None:
+        if self.layers:
+            return self.layers[-1]
+
+    @staticmethod
+    def by_product(product: Product) -> PalletSingleProduct:
+        return PalletSingleProduct(
+            *(
+                LayerSingleProduct(product=product, n_cases=product.cases_per_layer)
+                for _ in range(product.layers_per_pallet)
+            ),
+        )
+
+
+class PalletMultiProduct(Pallet):
+    def __init__(self, *layers: LayerMultiProduct | LayerSingleProduct) -> None:
+        self.layers: deque[LayerMultiProduct | LayerSingleProduct] = deque(layers)
+        self.products = tuple(set(product for layer in self.layers for product in layer.products))
+        self.n_cases = {
+            product: sum(layer.n_cases.get(product, 0) for layer in self.layers) for product in self.products
+        }
+
+    @property
+    def upper_layer(self) -> LayerSingleProduct | LayerMultiProduct | None:
+        if self.layers:
+            return self.layers[-1]
+
+    def add_product(self, *, product: Product, n_cases: int) -> None:
+        single_product_layer = product.cases_per_layer == n_cases
+
+        # If the number of cases is equal to the number of cases per layer of the product,
+        # we can add a single product layer
+        if single_product_layer:
+            self.layers.append(LayerSingleProduct(product=product, n_cases=n_cases))
+        else:
+            if self.upper_layer is None or isinstance(self.upper_layer, LayerSingleProduct):
+                # If the upper layer is None or a single product layer, we create a new multi product layer
+                layer = LayerMultiProduct()
+                layer.add_product(product=product, n_cases=n_cases)
+                self.layers.append(layer)
+            else:
+                # If the upper layer is a multi product layer, we add the product to the layer
+                self.upper_layer.add_product(product=product, n_cases=n_cases)
+
+        self.products = (*self.products, product)
+        if product in self.n_cases:
+            self.n_cases[product] += n_cases
+        else:
+            self.n_cases[product] = n_cases

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from simpy.core import BoundClass
 from simpy.resources.resource import Release, Request, Resource
-from simulatte.environment import Environment
+
+from simulatte.utils import EnvMixin
 
 
 class OccupationRequest(Request):
@@ -24,19 +25,21 @@ class OccupationRequest(Request):
         super().__init__(resource)
 
 
-class Position(Resource):
+class Position(Resource, EnvMixin):
     """
     An instance of this class represents a position that can be booked and occupied by an agv inside the picking cell.
     """
 
     # Method to require the position
-    request = BoundClass(OccupationRequest)
+    request = BoundClass(OccupationRequest)  # type: ignore
 
     # Method to release the position
-    release = BoundClass(Release)
+    release = BoundClass(Release)  # type: ignore
 
     def __init__(self, name: str, *args, **kwargs):
-        super().__init__(*args, **kwargs, env=Environment())
+        EnvMixin.__init__(self)
+        Resource.__init__(self, *args, env=self.env, **kwargs)
+
         self.name = name
 
     def __repr__(self) -> str:

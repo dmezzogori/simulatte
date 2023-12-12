@@ -3,24 +3,26 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Generic, TypeVar
 
 import simpy
-from simulatte.environment import Environment
+
+from simulatte.protocols.has_env import HasEnv
 from simulatte.typings.typings import History
 from simulatte.unitload.case_container import CaseContainer
-from simulatte.utils.utils import as_process
+from simulatte.utils import EnvMixin
+from simulatte.utils.as_process import as_process
 
 if TYPE_CHECKING:
+    from simulatte.protocols.warehouse_store import WarehouseStoreProtocol
     from simulatte.stores.warehouse_location.warehouse_location import WarehouseLocation
-    from simulatte.stores.warehouse_store import WarehouseStore
 
 T = TypeVar("T", bound=CaseContainer)
 
 
-class Traslo(simpy.PriorityResource, Generic[T]):
+class Traslo(simpy.PriorityResource, EnvMixin, HasEnv, Generic[T]):
     def __init__(
-        self, *, store: WarehouseStore, x: int, y: int, speed_x: float, speed_y: float, load_time: float
+        self, *, store: WarehouseStoreProtocol, x: int, y: int, speed_x: float, speed_y: float, load_time: float
     ) -> None:
-        self.env = Environment()
-        super().__init__(self.env, capacity=1)
+        EnvMixin.__init__(self)
+        simpy.PriorityResource.__init__(self, self.env, capacity=1)
 
         self.store = store
         self.x = x
@@ -89,6 +91,6 @@ class Traslo(simpy.PriorityResource, Generic[T]):
         plt.plot(x, y)
         plt.xlabel("Time [h]")
         plt.ylabel("Saturation [%]")
-        plt.title(f"{self.store.name} {self.__class__.__name__} Productivity")
+        plt.title(f"{self.store} {self.__class__.__name__} Productivity")
         plt.ylim([0, 100])
         plt.show()
