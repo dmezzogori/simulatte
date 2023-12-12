@@ -13,6 +13,9 @@ if TYPE_CHECKING:
 class Pallet(CaseContainer, Protocol):
     layers: deque[CaseContainer]
 
+    def __str__(self):
+        return f"{self.__class__.__name__}[{self.product}]"
+
     @property
     def upper_layer(self) -> CaseContainer | None:
         if self.layers:
