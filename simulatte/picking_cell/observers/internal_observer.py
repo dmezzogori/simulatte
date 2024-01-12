@@ -8,18 +8,37 @@ from simulatte.picking_cell.observable_areas.internal_area import InternalArea
 
 if TYPE_CHECKING:
     from simulatte.operations.feeding_operation import FeedingOperation
-    from simulatte.picking_cell.observable_areas.position import Position
 
 
 class InternalObserver(Observer[InternalArea]):
     def next(self) -> FeedingOperation | None:
-        return min(self.observable_area.owner.staging_area, default=None)
+        picking_cell = self.observable_area.owner
 
-    def _can_enter(self, *, feeding_operation: FeedingOperation) -> tuple[bool, Position | None, Position | None]:
-        for unload_position in self.observable_area.owner.internal_area.unload_positions:
-            if not unload_position.busy:
-                return True, None, unload_position
-        return False, None, None
+        feeding_operations = (
+            feeding_operation
+            for feeding_operation in picking_cell.staging_area
+            if feeding_operation.is_inside_staging_area and self._can_enter(feeding_operation=feeding_operation)
+        )
+
+        return min(feeding_operations, default=None)
+
+    def _can_enter(self, *, feeding_operation: FeedingOperation) -> bool:
+        last_in: FeedingOperation = self.observable_area.last_in
+
+        is_first_ever_feeding_operation = last_in is None
+        if is_first_ever_feeding_operation:
+            return True
+
+        next_useful_product_requests = {product_request.next for product_request in last_in.product_requests}
+        for product_request in feeding_operation.product_requests:
+            if product_request in next_useful_product_requests:
+                return True
+
+        common_product_requests = set(last_in.product_requests).intersection(set(feeding_operation.product_requests))
+        if common_product_requests:
+            return True
+
+        return False
 
     def _main_process(self) -> None:
         """
@@ -38,19 +57,27 @@ class InternalObserver(Observer[InternalArea]):
 
         cell = self.observable_area.owner
 
-        if not cell.internal_area.is_full:
-            if not cell.staging_area.is_empty and (feeding_operation := self.next()) is not None:
-                can_enter, pre_unload_position, unload_position = self._can_enter(feeding_operation=feeding_operation)
+        if cell.internal_area.is_full or cell.staging_area.is_empty:
+            return
 
-                if can_enter:
-                    feeding_operation.pre_unload_position = pre_unload_position
-                    feeding_operation.unload_position = unload_position
+        for unload_position in self.observable_area.unload_positions:
+            if not unload_position.busy:
+                free_unload_position = unload_position
+                break
+        else:
+            return
 
-                    feeding_operation.move_into_internal_area()
+        next_feeding_operation = self.next()
 
-            else:
-                self.observable_area.owner.staging_area.trigger_signal_event(
-                    payload=EventPayload(
-                        message="TRIGGERING STAGING AREA SIGNAL EVENT FROM INTERNAL OBSERVER",
-                    )
+        if next_feeding_operation is not None:
+            next_feeding_operation.pre_unload_position = None
+            next_feeding_operation.unload_position = free_unload_position
+
+            next_feeding_operation.move_into_internal_area()
+
+        else:
+            self.observable_area.owner.staging_area.trigger_signal_event(
+                payload=EventPayload(
+                    message="TRIGGERING STAGING AREA SIGNAL EVENT FROM INTERNAL OBSERVER",
                 )
+            )

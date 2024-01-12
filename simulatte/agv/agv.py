@@ -190,11 +190,13 @@ class AGV(IdentifiableMixin, EnvMixin, PriorityResource, Identifiable, HasEnv):
         """
 
         logger.debug(
-            f"{self} - released from mission {self.current_mission} for operation {self.current_mission.operation}"
+            f"{self} - released from mission {self.current_mission} "
+            f"for operation {self.current_mission.operation if self.current_mission else None}"
         )
 
-        # Set the end time of the mission
-        self.current_mission.end_time = self.env.now
+        if self.current_mission is not None:
+            # Set the end time of the mission
+            self.current_mission.end_time = self.env.now
 
         # Set the current mission of the agv to None
         self.current_mission = None

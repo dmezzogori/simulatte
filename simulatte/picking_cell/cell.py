@@ -144,9 +144,10 @@ class PickingCell(IdentifiableMixin):
         self.pallet_requests_assigned.append(pallet_request)
 
         # Chain the ProductRequests of the PalletRequest to the PickingRequests queue
-        last_product_request: ProductRequest | None = (
-            self.product_requests_queue[-1] if self.product_requests_queue else None
-        )
+        last_product_request = None
+        if len(self.pallet_requests_assigned) > 1:
+            last_product_request = self.pallet_requests_assigned[-2].sub_jobs[-1].sub_jobs[-1]
+
         for layer_request in pallet_request:
             for product_request in layer_request:
                 product_request.prev = last_product_request
