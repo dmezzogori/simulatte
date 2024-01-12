@@ -282,9 +282,11 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
     def unloaded(self) -> None:
         self.status["done"] = True
 
-    def move_agv(self, location):
-        if isinstance(self.agv.current_location, self.agv_position_signal) and isinstance(
-            self.agv.current_location.element, self.agv.picking_cell
+    def move_agv(self, location, skip_idle_signal=False):
+        if (
+            isinstance(self.agv.current_location, self.agv_position_signal)
+            and isinstance(self.agv.current_location.element, self.agv.picking_cell)
+            and not skip_idle_signal
         ):
             # Signal that the AGV is ready to receive the next FeedingOperation
             logger.debug(f"{self} - Signaling {self.agv} is ready to receive the next FeedingOperation")
@@ -331,14 +333,14 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         logger.debug(f"{self} - Finished loading {self.unit_load} on {self.agv}")
 
     @as_process
-    def move_agv_to_cell(self):
+    def move_agv_to_cell(self, skip_idle_signal=False):
         """
         Move the agv to the picking cell associated to the FeedingOperation.
         """
 
         logger.debug(f"{self} - Starting the agv trip using {self.agv} to {self.cell}")
         self.log.started_agv_trip_to_cell = self.env.now
-        yield self.move_agv(location=self.cell.input_location)
+        yield self.move_agv(location=self.cell.input_location, skip_idle_signal=skip_idle_signal)
         self.log.finished_agv_trip_to_cell = self.env.now
 
         # Knock on the door of the picking cell

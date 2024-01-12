@@ -118,5 +118,5 @@ class Area(list, EnvMixin, Generic[Item, Owner]):
         plt.yticks(range(0, max(y) + 1))
         plt.xlabel("Time [h]")
         plt.ylabel("Queue [#items]")
-        plt.title(f"{self.__class__.__name__} queue")
+        plt.title(f"{self.owner} {self.__class__.__name__} queue")
         plt.show()

@@ -15,14 +15,12 @@ class StagingObserver(Observer[StagingArea]):
         Select the FeedingOperation allowed to exit the FeedingArea and enter the StagingArea.
         """
 
-        # from simulatte.picking_cell import PickingCell
-
         picking_cell = self.observable_area.owner
 
         feeding_operations = (
             feeding_operation
             for feeding_operation in picking_cell.feeding_area
-            if feeding_operation.is_in_front_of_staging_area
+            if feeding_operation.is_in_front_of_staging_area and self._can_enter(feeding_operation=feeding_operation)
         )
         return min(feeding_operations, default=None)
 
@@ -34,17 +32,22 @@ class StagingObserver(Observer[StagingArea]):
         front of the staging area.
         """
 
-        cell = self.observable_area.owner
+        last_in: FeedingOperation = self.observable_area.last_in
 
-        is_first_ever_feeding_operation = cell.internal_area.last_in is None and feeding_operation is min(
-            cell.feeding_operations
-        )
-        is_next_useful_feeding_operation = (
-            cell.internal_area.last_in is not None
-            and feeding_operation.relative_id == cell.internal_area.last_in.relative_id + 1
-        )
+        is_first_ever_feeding_operation = last_in is None
+        if is_first_ever_feeding_operation:
+            return True
 
-        return is_first_ever_feeding_operation or is_next_useful_feeding_operation
+        next_useful_product_requests = {product_request.next for product_request in last_in.product_requests}
+        for product_request in feeding_operation.product_requests:
+            if product_request in next_useful_product_requests:
+                return True
+
+        common_product_requests = set(last_in.product_requests).intersection(set(feeding_operation.product_requests))
+        if common_product_requests:
+            return True
+
+        return False
 
     def _main_process(self):
         """
@@ -64,12 +67,12 @@ class StagingObserver(Observer[StagingArea]):
 
         cell = self.observable_area.owner
 
-        if (
-            not cell.feeding_area.is_empty
-            and not cell.staging_area.is_full
-            and (feeding_operation := self.next()) is not None
-        ):
-            if self._can_enter(feeding_operation=feeding_operation):
-                feeding_operation.move_into_staging_area()
-            else:
-                self.out_of_sequence.add(feeding_operation.id)
+        if cell.feeding_area.is_empty or cell.staging_area.is_full:
+            return
+
+        next_feeding_operation = self.next()
+
+        if next_feeding_operation is not None:
+            next_feeding_operation.move_into_staging_area()
+        else:
+            self.out_of_sequence.add(self.observable_area.owner.feeding_area.last_in.id)
