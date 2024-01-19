@@ -180,3 +180,7 @@ class PalletRequest(PickingRequestMixin):
     @property
     def all_layers_multi_product(self) -> bool:
         return all(isinstance(layer_request, LayerRequirementMultiProduct) for layer_request in self.sub_jobs)
+
+    @property
+    def is_top_off(self) -> bool:
+        return not self.all_layers_single_product and not self.all_layers_multi_product
