@@ -60,7 +60,8 @@ class FeedingAGVsObserver(Observer[IdleFeedingAGVs]):
         if agv is None:
             return
         logger.debug(f"FeedingAGVsObserver - Detected {agv} as idle.")
-        self.observable_area.owner.setup_feeding_operation(picking_cell=agv.picking_cell)
+        system_controller: SystemController = self.observable_area.owner
+        system_controller.setup_feeding_operation(picking_cell=agv.picking_cell)
 
 
 class SystemController(EnvMixin):
