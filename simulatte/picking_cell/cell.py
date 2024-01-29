@@ -107,18 +107,7 @@ class PickingCell(IdentifiableMixin):
 
     @as_process
     def starvation_check(self):
-        # Wait for 3 hours to start the starvation check
-        yield self.system.env.timeout(60 * 60 * 3)
-
-        while True:
-            # Every 60 seconds
-            yield self.system.env.timeout(60)
-
-            totally_empty = not self.feeding_area and not self.staging_area and not self.internal_area
-            low_feeding_area = len(self.feeding_area) <= self.feeding_area.capacity * 0.2
-
-            if totally_empty or low_feeding_area:
-                self.system.setup_feeding_operation(picking_cell=type(self))
+        raise NotImplementedError
 
     @property
     def productivity(self) -> float:

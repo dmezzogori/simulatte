@@ -2,11 +2,13 @@ from __future__ import annotations
 
 
 class Location:
-    __slots__ = ("element",)
+    __slots__ = ("element", "x", "y")
     __match_args__ = ("element",)
 
     def __init__(self, element=None):
         self.element = element
+        self.x: int | None = None
+        self.y: int | None = None
 
     def __str__(self) -> str:
         return self.name
