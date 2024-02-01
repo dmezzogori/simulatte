@@ -9,6 +9,8 @@ class StagingObserver(Observer[StagingArea]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.out_of_sequence = set()
+        self.first_fo_entered = False
+        self.waiting_fos = []
 
     def next(self) -> FeedingOperation | None:
         """
@@ -31,6 +33,14 @@ class StagingObserver(Observer[StagingArea]):
         The feeding operation can enter the staging area if the staging area is not full and the feeding operation is in
         front of the staging area.
         """
+
+        if not self.first_fo_entered:
+            entered = self.observable_area.owner.feeding_area[0] == feeding_operation
+            if entered:
+                self.first_fo_entered = True
+                return True
+            else:
+                return False
 
         last_in: FeedingOperation = self.observable_area.last_in
 
@@ -69,6 +79,9 @@ class StagingObserver(Observer[StagingArea]):
 
         if cell.feeding_area.is_empty or cell.staging_area.is_full:
             return
+
+        waiting_fos = sum(fo.is_in_front_of_staging_area for fo in cell.feeding_area)
+        self.waiting_fos.append(waiting_fos)
 
         next_feeding_operation = self.next()
 

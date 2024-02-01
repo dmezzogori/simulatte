@@ -88,6 +88,12 @@ class FeedingOperationLog:
             return NotImplemented
         return self.created == other.created
 
+    @property
+    def agv_waiting_at_store(self) -> float | None:
+        if self.started_agv_trip_to_store is None:
+            return None
+        return self.finished_loading - self.finished_agv_trip_to_store
+
     def to_tuple(self):
         return (
             (self.created, "created", self.feeding_operation),
@@ -188,6 +194,11 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         self.store = store
         self.location = location
         self.unit_load = unit_load
+        self.has_partial_unit_load = False
+        if len(self.unit_load.layers) == 1:
+            self.has_partial_unit_load = self.unit_load.upper_layer.n_cases < self.unit_load.product.cases_per_layer
+        else:
+            self.has_partial_unit_load = len(self.unit_load.layers) < self.unit_load.product.layers_per_pallet
         self.unit_load.feeding_operation = self
         self.product_requests = product_requests
         for product_request in self.product_requests:
@@ -206,6 +217,8 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         self.ready = LoggedEvent()
 
         self.log = FeedingOperationLog(self, self.env.now)
+
+        self.opportunistic = False
 
     def __lt__(self, other) -> bool:
         if not isinstance(other, FeedingOperation):
