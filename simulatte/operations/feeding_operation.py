@@ -89,10 +89,62 @@ class FeedingOperationLog:
         return self.created == other.created
 
     @property
-    def agv_waiting_at_store(self) -> float | None:
+    def feeding_operation_starts(self):
         if self.started_agv_trip_to_store is None:
             return None
-        return self.finished_loading - self.finished_agv_trip_to_store
+        return self.started_agv_trip_to_store - self.created
+
+    @property
+    def agv_move_to_store(self):
+        if self.finished_agv_trip_to_store is None:
+            return None
+        return self.finished_agv_trip_to_store - self.started_agv_trip_to_store
+
+    @property
+    def agv_waiting_at_store(self) -> float | None:
+        if self.started_loading is None:
+            return None
+        return self.started_loading - self.finished_agv_trip_to_store
+
+    @property
+    def agv_move_from_store_to_cell(self):
+        if self.finished_agv_trip_to_cell is None:
+            return None
+        return self.finished_agv_trip_to_cell - self.started_agv_trip_to_cell
+
+    @property
+    def agv_waiting_at_cell(self):
+        if self.started_agv_trip_to_staging_area is None:
+            return None
+        return self.started_agv_trip_to_staging_area - self.finished_agv_trip_to_cell
+
+    @property
+    def agv_waiting_at_staging(self):
+        if self.started_agv_trip_to_internal_area is None:
+            return None
+        return self.started_agv_trip_to_internal_area - self.finished_agv_trip_to_staging_area
+
+    @property
+    def agv_move_from_staging_to_internal(self):
+        if self.finished_agv_trip_to_internal_area is None:
+            return None
+        return self.finished_agv_trip_to_internal_area - self.started_agv_trip_to_internal_area
+
+    @property
+    def agv_waiting_at_internal(self):
+        if self.started_agv_return_trip_to_store is not None:
+            return self.started_agv_return_trip_to_store - self.finished_agv_trip_to_internal_area
+        if self.started_agv_return_trip_to_recharge is None:
+            return None
+        return self.started_agv_return_trip_to_recharge - self.finished_agv_trip_to_internal_area
+
+    @property
+    def feeding_operation_life_time(self):
+        if self.finished_agv_unloading_for_return_trip_to_store is not None:
+            return self.finished_agv_unloading_for_return_trip_to_store - self.created
+        if self.finished_agv_return_trip_to_recharge is None:
+            return None
+        return self.started_agv_return_trip_to_recharge - self.created
 
     def to_tuple(self):
         return (
