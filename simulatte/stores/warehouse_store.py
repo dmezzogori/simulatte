@@ -96,13 +96,6 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
         Load an AGV with a unit load from the output conveyor, as requested by a feeding operation.
         """
 
-        # Update the output AGVs queue
-        self.output_agvs_queue += 1
-        self.output_agvs_queue_history.append((self.env.now, self.output_agvs_queue))
-
-        self.retrieval_jobs_counter += 1
-        self.retrieval_jobs_history.append((self.env.now, self.retrieval_jobs_counter))
-
         # Get the unit load from the output conveyor
         yield self.output_conveyor.get(lambda x: x.unit_load == feeding_operation.unit_load)
         self._saturation -= 1
@@ -125,10 +118,6 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
             (self.env.now, self.full_unit_loads / n_locations, self.partial_unit_loads / n_locations)
         )
 
-        # Update the output AGVs queue
-        self.output_agvs_queue -= 1
-        self.output_agvs_queue_history.append((self.env.now, self.output_agvs_queue))
-
     def create_input_operation(
         self, *, unit_load: CaseContainer, location: WarehouseLocation, priority: int
     ) -> InputOperation:
@@ -139,13 +128,6 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
         """
         Unload the unit load carried by an AGV in the input conveyor, as requested by an input operation.
         """
-
-        # Update the input AGVs queue
-        self.input_agvs_queue += 1
-        self.input_agvs_queue_history.append((self.env.now, self.input_agvs_queue))
-
-        self.storage_jobs_counter += 1
-        self.storage_jobs_history.append((self.env.now, self.storage_jobs_counter))
 
         # Wait for the input service point to be available
         with self.input_service_point.request(
@@ -179,10 +161,6 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
         self._unit_load_history.append(
             (self.env.now, self.full_unit_loads / n_locations, self.partial_unit_loads / n_locations)
         )
-
-        # Update the input AGVs queue
-        self.input_agvs_queue -= 1
-        self.input_agvs_queue_history.append((self.env.now, self.input_agvs_queue))
 
     def put(
         self, *, unit_load: CaseContainer, location: WarehouseLocation, agv: AGV, priority: int

@@ -304,3 +304,4 @@ class PickingCell(IdentifiableMixin):
             self.feeding_area.plot()
             self.staging_area.plot()
             self.internal_area.plot()
+            self.staging_observer.waiting_fos.plot()

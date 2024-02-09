@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from simulatte.observables import Area
 from simulatte.observables.observer.base import Observer
 from simulatte.operations.feeding_operation import FeedingOperation
 from simulatte.picking_cell.observable_areas.staging_area import StagingArea
+
+
+class WaitingAGVsArea(Area):
+    pass
 
 
 class StagingObserver(Observer[StagingArea]):
@@ -10,7 +15,7 @@ class StagingObserver(Observer[StagingArea]):
         super().__init__(*args, **kwargs)
         self.out_of_sequence = set()
         self.first_fo_entered = False
-        self.waiting_fos = []
+        self.waiting_fos = WaitingAGVsArea(owner=self.observable_area.owner)
 
     def next(self) -> FeedingOperation | None:
         """
@@ -80,8 +85,10 @@ class StagingObserver(Observer[StagingArea]):
         if cell.feeding_area.is_empty or cell.staging_area.is_full:
             return
 
-        waiting_fos = sum(fo.is_in_front_of_staging_area for fo in cell.feeding_area)
-        self.waiting_fos.append(waiting_fos)
+        self.waiting_fos.clear()
+        for fo in cell.feeding_area:
+            if sum(fo.status.values()) == 1:
+                self.waiting_fos.append(fo)
 
         next_feeding_operation = self.next()
 

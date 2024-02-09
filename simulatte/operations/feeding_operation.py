@@ -329,6 +329,8 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         logger.debug(f"{self} - Starting the retrieval agv trip using {self.agv} to {self.store}")
         self.log.started_agv_trip_to_store = self.env.now
         yield self.move_agv(location=self.store.output_location)
+        self.store.output_agvs_queue += 1
+        self.store.output_agvs_queue_history.append((self.env.now, self.store.output_agvs_queue))
         self.log.finished_agv_trip_to_store = self.env.now
         logger.debug(f"{self} - Finished the retrieval agv trip using {self.agv} to {self.store}")
 
@@ -342,6 +344,9 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         logger.debug(f"{self} - Loading {self.unit_load} on {self.agv}")
         self.log.started_loading = self.env.now
         yield self.store.load_agv(feeding_operation=self)
+        # Update the output AGVs queue
+        self.store.output_agvs_queue -= 1
+        self.store.output_agvs_queue_history.append((self.env.now, self.store.output_agvs_queue))
         self.log.finished_loading = self.env.now
         logger.debug(f"{self} - Finished loading {self.unit_load} on {self.agv}")
 
@@ -466,6 +471,8 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         logger.debug(f"{self} - Moving {self.agv} to {self.store} input location")
         self.log.started_agv_return_trip_to_store = self.env.now
         yield self.move_agv(location=self.store.input_location)
+        self.store.input_agvs_queue += 1
+        self.store.input_agvs_queue_history.append((self.env.now, self.store.input_agvs_queue))
         self.log.finished_agv_return_trip_to_store = self.env.now
         logger.debug(f"{self} - Finished moving {self.agv} to {self.store} input location")
 
@@ -473,6 +480,8 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         logger.debug(f"{self} - Starting unloading in {self.store}")
         self.log.started_agv_unloading_for_return_trip_to_store = self.env.now
         yield self.cell.system.stores_controller.load(store=self.store, agv=self.agv)
+        self.store.input_agvs_queue -= 1
+        self.store.input_agvs_queue_history.append((self.env.now, self.store.input_agvs_queue))
         self.log.finished_agv_unloading_for_return_trip_to_store = self.env.now
         logger.debug(f"{self} - Finished backflow to {self.store}")
 
