@@ -174,6 +174,20 @@ class PalletRequest(PickingRequestMixin):
         )
 
     @property
+    def oos_delay(self):
+        fos = self.feeding_operations
+        delay = 0
+        i = 1
+        j = 0
+        while i < len(fos):
+            t1, t2 = fos[j].log.finished_agv_trip_to_cell, fos[i].log.finished_agv_trip_to_cell
+            if t2 is not None and t1 is not None and t2 < t1:
+                delay += t1 - t2
+            i += 1
+            j += 1
+        return delay
+
+    @property
     def all_layers_single_product(self) -> bool:
         return all(isinstance(layer_request, LayerRequestSingleProduct) for layer_request in self.sub_jobs)
 

@@ -254,6 +254,10 @@ class PickingCell(IdentifiableMixin):
             len(pallet_request.sub_jobs) for pallet_request in self.pallet_requests_done
         ) / (self.system.env.now / 60 / 60)
 
+        oos_delays = [
+            pallet_request.oos_delay for pallet_request in self.pallet_requests_assigned if pallet_request.oos_delay > 0
+        ]
+
         headers = ["KPI", "Valore", "U.M."]
         table = [
             ["Ore simulate", f"{self.system.env.now / 60 / 60:.2f}", "[h]"],
@@ -294,10 +298,17 @@ class PickingCell(IdentifiableMixin):
                 f"{(len(self.staging_observer.out_of_sequence) / len(self.feeding_operations)) * 100:.2f}",
                 "[%]",
             ],
+            [
+                "Out of Sequence Delay",
+                f"{sum(oos_delays) / 3600:.2f}",
+                "[h]",
+            ],
         ]
         print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
         if plot:
+            import matplotlib.pyplot as plt
+
             display(Markdown("## Robot"))
             self.robot.plot()
             display(Markdown("## Aree logiche/fisiche"))
@@ -305,3 +316,9 @@ class PickingCell(IdentifiableMixin):
             self.staging_area.plot()
             self.internal_area.plot()
             self.staging_observer.waiting_fos.plot()
+            plt.plot(oos_delays)
+            plt.title(f"Out of Sequence Delays [s] {self}")
+            plt.show()
+            plt.hist(oos_delays)
+            plt.title(f"Out of Sequence Delays distribution [s] {self}")
+            plt.show()
