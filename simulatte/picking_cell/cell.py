@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from itertools import groupby
 from typing import TYPE_CHECKING, Literal, cast
 
 from IPython.display import Markdown, display
@@ -315,7 +316,17 @@ class PickingCell(IdentifiableMixin):
             self.feeding_area.plot()
             self.staging_area.plot()
             self.internal_area.plot()
-            self.staging_observer.waiting_fos.plot()
+
+            q = [
+                (t, max(q for _, q in qs))
+                for t, qs in groupby(self.staging_observer.waiting_fos._history, key=lambda x: x[0])
+            ]
+            x = [t / 3600 for t, _ in q]
+            y = [p for _, p in q]
+            plt.plot(x, y)
+            plt.title(f"Waiting FOs {self}")
+            plt.show()
+
             plt.plot(oos_delays)
             plt.title(f"Out of Sequence Delays [s] {self}")
             plt.show()
