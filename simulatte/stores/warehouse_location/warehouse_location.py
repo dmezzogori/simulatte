@@ -41,7 +41,6 @@ class WarehouseLocation(IdentifiableMixin, Generic[T]):
         "second_position",
         "future_unit_loads",
         "booked_pickups",
-        "product",
     )
 
     def __init__(
@@ -84,14 +83,20 @@ class WarehouseLocation(IdentifiableMixin, Generic[T]):
         self.future_unit_loads: list[CaseContainer] = []  # Unit loads that will be stored in the future
         self.booked_pickups: list[CaseContainer] = []  # Unit loads that will be picked up in the future
 
-        self.product: Product | None = None
-
     def __repr__(self) -> str:
         return (
             f"Location ({self.x}, {self.y}, {self.side}) reserved for {self.product} "
             f"[{len(self.future_unit_loads)}, {self.n_unit_loads}, "
             f"{self.is_empty}, {self.is_half_full}, {self.is_full}]"
         )
+
+    @property
+    def product(self) -> Product | None:
+        if self.is_empty:
+            if len(self.future_unit_loads) == 0:
+                return None
+            return self.future_unit_loads[0].product
+        return self.first_available_unit_load.product
 
     @property
     def coordinates(self) -> tuple[float, float]:
@@ -218,7 +223,6 @@ class WarehouseLocation(IdentifiableMixin, Generic[T]):
             raise ValueError("Cannot freeze a location with two busy positions")
 
         self.check_product_compatibility(unit_load)
-        self.product = unit_load.product
         self.future_unit_loads.append(unit_load)
 
     def put(self, unit_load: CaseContainer) -> None:
@@ -237,7 +241,6 @@ class WarehouseLocation(IdentifiableMixin, Generic[T]):
             raise ValueError("Unit load not found in the future unit loads")
 
         self.check_product_compatibility(unit_load)
-        self.product = unit_load.product
 
         if self.is_empty:
             physical_position = self.second_position
@@ -270,11 +273,6 @@ class WarehouseLocation(IdentifiableMixin, Generic[T]):
         unit_load.location = None
         self.booked_pickups.remove(unit_load)
 
-        # If the location is empty # and there are no future unit loads
-        if self.is_empty and len(self.future_unit_loads) == 0:
-            # then the location is not associated with any product
-            self.product = None
-
         return unit_load
 
     def affinity(self, product: Product) -> float:
@@ -290,6 +288,7 @@ class WarehouseLocation(IdentifiableMixin, Generic[T]):
         if self.product == product:
             # la locazione contiene/conterrà il prodotto
             return 0
+
         if self.product is None:
             # la locazione è vuota
             return 1

@@ -30,6 +30,21 @@ class Robot(simpy.Resource, EnvMixin):
         self._movements = 0
         self._saturation_history: list[tuple[float, float]] = [(0, 0)]
         self._productivity_history: list[tuple[float, float]] = [(0, 0)]
+        self._history: list[tuple[float, float]] = []
+        self._request_timestamps = {}
+
+    def request(self, *args, **kwargs) -> simpy.Request:
+        def request_callback(request):
+            self._request_timestamps[request] = self.env.now
+
+        req = super().request(*args, **kwargs)
+        req.callbacks.append(request_callback)
+        return req
+
+    def release(self, request, *args, **kwargs) -> simpy.Request:
+        super().release(request, *args, **kwargs)
+        self._history.append((self._request_timestamps[request], self.env.now))
+        return request
 
     @property
     def productivity(self) -> float:

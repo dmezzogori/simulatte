@@ -503,7 +503,7 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         self.ready_for_unload()
 
     @as_process
-    def return_to_store(self):
+    def return_to_store(self, store, location, priority: int):
         """
         Move the FeedingOperation from the internal area of the picking cell
         back to the store.
@@ -522,20 +522,20 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         # Move the AGV to the input location of the store
         logger.debug(f"{self} - Moving {self.agv} to {self.store} input location")
         self.log.started_agv_return_trip_to_store = self.env.now
-        yield self.move_agv(location=self.store.input_location)
-        self.store.input_agvs_queue += 1
-        self.store.input_agvs_queue_history.append((self.env.now, self.store.input_agvs_queue))
+        yield self.move_agv(location=store.input_location)
+        store.input_agvs_queue += 1
+        store.input_agvs_queue_history.append((self.env.now, store.input_agvs_queue))
         self.log.finished_agv_return_trip_to_store = self.env.now
-        logger.debug(f"{self} - Finished moving {self.agv} to {self.store} input location")
+        logger.debug(f"{self} - Finished moving {self.agv} to {store} input location")
 
         # When the AGV is in front of the store, trigger the loading process of the store
-        logger.debug(f"{self} - Starting unloading in {self.store}")
+        logger.debug(f"{self} - Starting unloading in {store}")
         self.log.started_agv_unloading_for_return_trip_to_store = self.env.now
-        yield self.cell.system.stores_controller.load(store=self.store, agv=self.agv)
-        self.store.input_agvs_queue -= 1
-        self.store.input_agvs_queue_history.append((self.env.now, self.store.input_agvs_queue))
+        yield store.put(unit_load=self.agv.unit_load, location=location, agv=self.agv, priority=priority)
+        store.input_agvs_queue -= 1
+        store.input_agvs_queue_history.append((self.env.now, store.input_agvs_queue))
         self.log.finished_agv_unloading_for_return_trip_to_store = self.env.now
-        logger.debug(f"{self} - Finished backflow to {self.store}")
+        logger.debug(f"{self} - Finished backflow to {store}")
 
     @as_process
     def drop(self):

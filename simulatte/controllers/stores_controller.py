@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import abc
+import random
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from simulatte.agv import AGV
+from simulatte.exceptions.base import SimulationError
 from simulatte.products import Product, ProductsGenerator
 from simulatte.protocols.warehouse_store import WarehouseStoreProtocol
 from simulatte.unitload.case_container import CaseContainer
-from simulatte.utils.as_process import as_process
 from simulatte.utils.env_mixin import EnvMixin
 
 if TYPE_CHECKING:
@@ -128,8 +129,7 @@ class StoresController(abc.ABC, EnvMixin):
 
         ...
 
-    @as_process
-    def load(self, *, store: WarehouseStoreProtocol, agv: AGV) -> None:
+    def load(self, *, stores: list[WarehouseStoreProtocol], agv: AGV):
         """
         Orchestrate the loading of a unit load carried by an AGV into a store.
 
@@ -137,12 +137,31 @@ class StoresController(abc.ABC, EnvMixin):
         Finally, trigger the loading process of the store.
         """
 
-        # Find a WarehouseLocation for the unit load
-        location = self._storing_policy(store=store, product=agv.unit_load.product)
+        def store_sorter(store):
+            product_locations = sum(location.product == agv.unit_load.product for location in store.locations)
+            n_remaining_space = sum(
+                location.is_empty and len(location.future_unit_loads) == 0 for location in store.locations
+            )
+            return store.input_agvs_queue, -n_remaining_space, product_locations, random.random()
+
+        possible_locations = tuple(
+            (store, location)
+            for store in sorted(stores, key=store_sorter)
+            if (
+                location := self._storing_policy(
+                    store=store, product=agv.unit_load.product, n_cases=agv.unit_load.n_cases
+                )
+            )
+            is not None
+        )
+        if len(possible_locations) == 0:
+            raise SimulationError(f"No location found for {agv.unit_load} in {stores}")
+
+        store, location = possible_locations[0]
 
         # If no location is found, raise an error
         if location is None:
-            raise ValueError(f"No location found for {agv.unit_load} in {store}")
+            raise SimulationError(f"No location found for {agv.unit_load} in {store} [n_cases={agv.unit_load.n_cases}]")
 
         # Book the location to prevent other non-compatible unit loads from being placed in the same location
         store.book_location(location=location, unit_load=agv.unit_load)
@@ -162,8 +181,7 @@ class StoresController(abc.ABC, EnvMixin):
             product=agv.unit_load.product,
             n_cases=agv.unit_load.n_cases,
         )
-
-        yield store.put(unit_load=agv.unit_load, location=location, agv=agv, priority=10)
+        return store, location
 
     def organize_retrieval(
         self, *, type_of_store: type[WarehouseStoreProtocol], product: Product, n_cases: int

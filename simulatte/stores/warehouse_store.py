@@ -83,6 +83,8 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
         self.output_agvs_queue = 0
         self.output_agvs_queue_history = []
 
+        self.unit_loads = set()
+
     def get(self, *, feeding_operation: FeedingOperation) -> ProcessGenerator:
         """
         To be implemented by the specific store.
@@ -100,6 +102,9 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
         yield self.output_conveyor.get(lambda x: x.unit_load == feeding_operation.unit_load)
         self._saturation -= 1
         self._saturation_history.append((self.env.now, self._saturation))
+
+        self.unit_loads.add(feeding_operation.unit_load)
+        feeding_operation.unit_load.counter += 1
 
         # Unload the unit load from the output conveyor
         yield self.env.timeout(self.load_time)
@@ -224,12 +229,23 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
             statistics.mean([get_queues[i] for i in idxs]) if idxs else 0
             for idxs in iter_timestamps(timestamps, 0, window)
         ]
-        x = [i / 3600 for i in range(0, self.env.now, window)][: len(y)]
+        x = [i / 3600 for i in range(0, int(self.env.now), window)][: len(y)]
 
         plt.plot(x, y, label=f"{self}")
         plt.xlabel("Time [h]")
         plt.ylabel("Queue [# agv]")
         plt.title(title)
+        plt.show()
+
+    def _utilizzo_unit_load(self):
+        import matplotlib.pyplot as plt
+
+        utilizzo_unit_load = [unit_load.counter for unit_load in self.unit_loads]
+
+        plt.hist(utilizzo_unit_load, bins=range(min(utilizzo_unit_load), max(utilizzo_unit_load) + 1))
+        plt.title(f"Distribuzione di utilizzo di unit_load {self}")
+        plt.xlabel("Conteggio")
+        plt.ylabel("Frequenza")
         plt.show()
 
     def plot_output_queue(self, window=300) -> None:

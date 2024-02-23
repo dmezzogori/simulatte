@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 
 from simpy.resources.store import FilterStore, Store
 
+from simulatte.typings import History
 from simulatte.utils import EnvMixin
 from simulatte.utils.as_process import as_process
 
@@ -35,6 +36,7 @@ class SequentialStore(EnvMixin, Generic[T]):
         self._internal_store = Store(self.env, capacity=capacity - 1)
         self._output = FilterStore(self.env, capacity=1)
         self.get_queue = 0
+        self._history: History[int] = []
 
     @property
     def capacity(self) -> int:
@@ -63,6 +65,8 @@ class SequentialStore(EnvMixin, Generic[T]):
         else:
             yield self._internal_store.put(item)
 
+        self._history.append((self.env.now, self.level))
+
     @as_process
     def get(self, filter_: Callable) -> T:
         # Get the item from the output position
@@ -73,5 +77,13 @@ class SequentialStore(EnvMixin, Generic[T]):
             next_item = yield self._internal_store.get()
             yield self._output.put(next_item)
 
+        self._history.append((self.env.now, self.level))
+
         # return retrieved item
         return item
+
+    def plot(self):
+        import matplotlib.pyplot as plt
+
+        plt.plot(*zip(*self._history))
+        plt.show()
