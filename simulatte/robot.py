@@ -65,7 +65,7 @@ class Robot(simpy.Resource, EnvMixin):
 
     @property
     def idle_time(self) -> int:
-        return self.env.now - self.worked_time
+        return self.env.now - self.worked_time - self._history[0][0]
 
     def _pick_process(self) -> ProcessGenerator:
         if self.arm_position == ArmPosition.AT_RELEASE:

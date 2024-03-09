@@ -34,6 +34,7 @@ class PalletSingleProduct(Pallet):
     def __init__(self, *layers: LayerSingleProduct) -> None:
         self.layers = deque(layers)
         self.counter = 0
+        self.counter_pr = []
         if self.layers:
             self.product = self.layers[0].product
             self.n_cases = sum(layer.n_cases for layer in self.layers)

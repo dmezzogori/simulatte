@@ -105,6 +105,7 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
 
         self.unit_loads.add(feeding_operation.unit_load)
         feeding_operation.unit_load.counter += 1
+        feeding_operation.unit_load.counter_pr.append(feeding_operation.product_requests)
 
         # Unload the unit load from the output conveyor
         yield self.env.timeout(self.load_time)

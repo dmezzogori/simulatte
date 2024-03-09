@@ -60,7 +60,7 @@ class SequentialStore(EnvMixin, Generic[T]):
 
     @as_process
     def put(self, item: T):
-        if self.output_level == 0:
+        if self.output_level == 0 and self.internal_store_level == 0:
             yield self._output.put(item)
         else:
             yield self._internal_store.put(item)
@@ -79,7 +79,6 @@ class SequentialStore(EnvMixin, Generic[T]):
 
         self._history.append((self.env.now, self.level))
 
-        # return retrieved item
         return item
 
     def plot(self):
