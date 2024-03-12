@@ -24,12 +24,26 @@ class InternalObserver(Observer[InternalArea]):
 
     def _can_enter(self, *, feeding_operation: FeedingOperation) -> bool:
         last_in: FeedingOperation = self.observable_area.last_in
+        last_out: FeedingOperation = self.observable_area.last_out
 
         is_first_ever_feeding_operation = last_in is None
         if is_first_ever_feeding_operation:
             return True
 
-        next_useful_product_requests = {product_request.next for product_request in last_in.product_requests}
+        next_useful_product_requests_from_last_in = {
+            product_request.next for product_request in last_in.product_requests
+        }
+
+        next_useful_product_requests_from_last_out = set()
+        if last_out is not None:
+            next_useful_product_requests_from_last_out = {
+                product_request.next for product_request in last_out.product_requests
+            }
+
+        next_useful_product_requests = next_useful_product_requests_from_last_in.union(
+            next_useful_product_requests_from_last_out
+        )
+
         for product_request in feeding_operation.product_requests:
             if product_request in next_useful_product_requests:
                 return True
