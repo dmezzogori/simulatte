@@ -174,6 +174,9 @@ class StoresController(abc.ABC, EnvMixin):
             n_cases=-agv.unit_load.n_cases,
         )
 
+        if self._stock[agv.unit_load.product][type(store)]["on_transit"] < 0:
+            raise SimulationError(f"Negative on_transit for {agv.unit_load.product} in {type(store)}")
+
         # alziamo l'on_hand
         self.update_stock(
             store_type=type(store),
@@ -181,6 +184,10 @@ class StoresController(abc.ABC, EnvMixin):
             product=agv.unit_load.product,
             n_cases=agv.unit_load.n_cases,
         )
+
+        if self._stock[agv.unit_load.product][type(store)]["on_hand"] < 0:
+            raise SimulationError(f"Negative on_hand for {agv.unit_load.product} in {type(store)}")
+
         return store, location
 
     def organize_retrieval(
@@ -215,8 +222,16 @@ class StoresController(abc.ABC, EnvMixin):
             # Update "on transit"
             # If the number of cases to be picked up is less than the number of cases in the unit load,
             # we pick up only the number of cases needed
-            on_transit = min(unit_load.n_cases, n_cases)
-            n_cases -= on_transit
+            if n_cases <= 0:
+                raise SimulationError(f"Null n_cases for {product} in {type_of_store}")
+
+            if unit_load.n_cases <= n_cases:
+                on_transit = 0
+                n_cases -= unit_load.n_cases
+            else:
+                on_transit = unit_load.n_cases - n_cases
+                n_cases = 0
+
             self.update_stock(store_type=type_of_store, inventory="on_transit", product=product, n_cases=on_transit)
 
             # Reduce "on hand"
