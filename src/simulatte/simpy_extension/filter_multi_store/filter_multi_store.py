@@ -17,7 +17,7 @@ class FilterMultiStore(MultiStore):
     def _do_get(self, event: MultiStoreGet) -> None:
         to_retrieve = []
         filter_fn = getattr(event, "filter", None)
-        for item in self.items:
+        for item in list(self.items):
             if filter_fn is None or filter_fn(item):
                 self.items.remove(item)
                 to_retrieve.append(item)
