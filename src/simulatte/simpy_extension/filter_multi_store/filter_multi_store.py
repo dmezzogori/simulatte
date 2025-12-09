@@ -1,26 +1,36 @@
 from __future__ import annotations
 
-from simpy.core import BoundClass
-from simulatte.simpy_extension.filter_multi_store.filter_multi_store_get import FilterMultiStoreGet
-from simulatte.simpy_extension.multi_store.multi_store import MultiStore
-from simulatte.simpy_extension.multi_store.multi_store_get import MultiStoreGet
+from collections.abc import Callable
+from typing import Any
+
+from simulatte.environment import Environment
+from simulatte.typings import ProcessGenerator
+from simulatte.utils import as_process
+from simulatte.simpy_extension.multi_store import MultiStore
 
 
 class FilterMultiStore(MultiStore):
     """
-    The FilterMultiStore is an extension to the MultiStore which allows the
-    storage and retrieval of multiple items at once based on a 'filter' callable.
+    Variant of MultiStore that can return items matching a predicate.
+    If no filter is provided, all items are returned.
     """
 
-    get = BoundClass(FilterMultiStoreGet)
+    def __init__(self, *, env: Environment, capacity: float = float("inf")) -> None:
+        super().__init__(env=env, capacity=capacity)
 
-    def _do_get(self, event: MultiStoreGet) -> None:
-        to_retrieve = []
-        filter_fn = getattr(event, "filter", None)
-        for item in list(self.items):
-            if filter_fn is None or filter_fn(item):
-                self.items.remove(item)
-                to_retrieve.append(item)
+    @as_process
+    def get(self, filter: Callable[[Any], bool] | None = None) -> ProcessGenerator[list[Any]]:
+        if filter is None:
+            selected = list(self.items)
+            self.items.clear()
+            yield self.env.timeout(0)
+            return selected
 
-        if len(to_retrieve) > 0:
-            event.succeed(to_retrieve)
+        selected: list[Any] = []
+        remaining: list[Any] = []
+        for item in self.items:
+            (selected if filter(item) else remaining).append(item)
+
+        self.items = remaining
+        yield self.env.timeout(0)
+        return selected

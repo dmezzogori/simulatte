@@ -10,6 +10,7 @@ from simulatte.events.logged_event import LoggedEvent
 from simulatte.location import InternalLocation, Location
 from simulatte.logger import logger
 from simulatte.products import Product
+from simulatte.requests import OrderLine, PalletRequest
 from simulatte.unitload import LayerSingleProduct, PalletSingleProduct
 from simulatte.utils.as_process import as_process
 from simulatte.utils.env_mixin import EnvMixin
@@ -17,7 +18,6 @@ from simulatte.utils.identifiable_mixin import IdentifiableMixin
 
 if TYPE_CHECKING:
     from simulatte.picking_cell.observable_areas.position import Position
-    from simulatte.requests import PalletRequest, ProductRequest
 
 
 @total_ordering
@@ -239,12 +239,14 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         "store",
         "location",
         "unit_load",
-        "product_requests",
+        "order_lines",
         "pre_unload_position",
         "unload_position",
         "status",
         "ready",
         "log",
+        "has_partial_unit_load",
+        "opportunistic",
     )
 
     agv_position_signal: type[Location] = InternalLocation
@@ -255,7 +257,7 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         cell: Any,
         agv: Any,
         store: Any,
-        product_requests: Sequence[ProductRequest],
+        order_lines: Sequence[OrderLine],
         location: Any,
         unit_load: PalletSingleProduct,
         env: Environment,
@@ -280,9 +282,9 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
             else:
                 self.has_partial_unit_load = len(self.unit_load.layers) < product.layers_per_pallet
         self.unit_load.feeding_operation = self
-        self.product_requests = product_requests
-        for product_request in self.product_requests:
-            product_request.feeding_operations.append(self)
+        self.order_lines = tuple(order_lines)
+        for line in self.order_lines:
+            line.feeding_operations.append(self)
 
         self.pre_unload_position: Position | None = None
         self.unload_position: Position | None = None
@@ -315,7 +317,13 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         """
         Return the set of pallet requests associated to the FeedingOperation.
         """
-        return {product_request.parent.parent for product_request in self.product_requests}
+        return {line.parent for line in self.order_lines if line.parent is not None}
+
+    @property
+    def product_requests(self) -> Sequence[OrderLine]:
+        """Compatibility alias used by observers/controllers."""
+
+        return self.order_lines
 
     @property
     def chain(self) -> Iterable[FeedingOperation]:

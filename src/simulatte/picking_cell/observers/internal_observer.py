@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from simulatte.events.event_payload import EventPayload
 from simulatte.observables.observer.base import Observer
@@ -14,45 +14,10 @@ class InternalObserver(Observer[InternalArea]):
     def next(self) -> FeedingOperation | None:
         picking_cell = self.observable_area.owner
 
-        feeding_operations = (
-            feeding_operation
-            for feeding_operation in picking_cell.staging_area
-            if feeding_operation.is_inside_staging_area and self._can_enter(feeding_operation=feeding_operation)
-        )
-
-        return min(feeding_operations, default=None)
-
-    def _can_enter(self, *, feeding_operation: FeedingOperation) -> bool:
-        last_in: FeedingOperation | None = cast(FeedingOperation | None, self.observable_area.last_in)
-        last_out: FeedingOperation | None = cast(FeedingOperation | None, self.observable_area.last_out)
-
-        if last_in is None:
-            return True
-        assert isinstance(last_in, FeedingOperation)
-
-        next_useful_product_requests_from_last_in = {
-            product_request.next for product_request in last_in.product_requests
-        }
-
-        next_useful_product_requests_from_last_out = set()
-        if last_out is not None:
-            next_useful_product_requests_from_last_out = {
-                product_request.next for product_request in last_out.product_requests
-            }
-
-        next_useful_product_requests = next_useful_product_requests_from_last_in.union(
-            next_useful_product_requests_from_last_out
-        )
-
-        for product_request in feeding_operation.product_requests:
-            if product_request in next_useful_product_requests:
-                return True
-
-        common_product_requests = set(last_in.product_requests).intersection(set(feeding_operation.product_requests))
-        if common_product_requests:
-            return True
-
-        return False
+        for feeding_operation in picking_cell.staging_area:
+            if feeding_operation.is_inside_staging_area:
+                return feeding_operation
+        return None
 
     def _main_process(self) -> None:
         """

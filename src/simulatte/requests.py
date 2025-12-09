@@ -1,189 +1,118 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, TypeVar
+from collections.abc import Iterator, Sequence
+from typing import TYPE_CHECKING, cast
 
 from simulatte.environment import Environment
-from simulatte.operations import FeedingOperation
-from simulatte.unitload.pallet import PalletMultiProduct
+from simulatte.products import Product
 from simulatte.typings import ProcessGenerator
+from simulatte.unitload.pallet import PalletMultiProduct
 from simulatte.utils import EnvMixin, IdentifiableMixin, as_process
 
 if TYPE_CHECKING:
-    from simulatte.products import Product
+    from simulatte.operations import FeedingOperation
 
 
-class PickingRequestMixin(IdentifiableMixin, EnvMixin):
-    feeding_operations: list[FeedingOperation]
+class TimedMixin:
+    """Shared helpers for start/end timestamps."""
 
     def __init__(self, *, env: Environment) -> None:
-        IdentifiableMixin.__init__(self)
-        EnvMixin.__init__(self, env=env)
-
-        # Track lifecycle timestamps
         self._start_time: float = 0.0
         self._end_time: float | None = None
-
-        self.sub_jobs = []
-        self.parent = None
-        self.prev = None
-        self.next = None
-
-        self.workload = 0
-        self.remaining_workload = 0
-        self.n_cases = 0
-
-    def __iter__(self):
-        return iter(self.sub_jobs)
-
-    def __enter__(self) -> PickingRequestMixin:
-        self.started()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.completed()
-        self.remaining_workload -= self.workload
+        self.env = env
 
     @property
     def lead_time(self) -> float | None:
-        if self._end_time is not None:
-            return self._end_time - self._start_time
-        return None
-
-    def _register_sub_jobs(self, *sub_jobs: PickingRequestMixin) -> None:
-        self.sub_jobs = tuple(sub_jobs)
-        for sub_job in self.sub_jobs:
-            sub_job.parent = self
+        if self._end_time is None:
+            return None
+        return self._end_time - self._start_time
 
     def started(self) -> None:
-        """Mark as started"""
-
         self._start_time = float(self.env.now)
 
     def completed(self) -> None:
-        """Mark as completed"""
-
         self._end_time = float(self.env.now)
 
 
-class CaseRequest(PickingRequestMixin):
-    parent: ProductRequest
-    sub_jobs: None
+class OrderLine(IdentifiableMixin, EnvMixin, TimedMixin):
+    """
+    Smallest unit of demand: a product with a number of cases.
 
-    def __init__(self, product: Product, *, env: Environment) -> None:
-        super().__init__(env=env)
-        self.sub_jobs = None
-
-        self.product = product
-
-        self.workload = 1
-        self.remaining_workload = 1
-        self.n_cases = 1
-
-        self.feeding_operations: list[FeedingOperation] = []
-
-
-class ProductRequest(PickingRequestMixin):
-    parent: LayerRequest
-    sub_jobs: tuple[CaseRequest, ...]
-    product: Product
+    The previous hierarchy (Case -> Product -> Layer -> Pallet) is collapsed
+    into this flat structure. Each line knows its parent pallet and any
+    feeding operations assigned to it.
+    """
 
     def __init__(self, product: Product, n_cases: int, *, env: Environment) -> None:
-        if n_cases > product.cases_per_layer:
-            raise ValueError("A ProductRequest cannot exceed the product cases per layer")
+        if n_cases < 1:
+            raise ValueError("OrderLine requires at least one case")
 
-        super().__init__(env=env)
+        IdentifiableMixin.__init__(self)
+        EnvMixin.__init__(self, env=env)
+        TimedMixin.__init__(self, env=env)
+
         self.product = product
         self.n_cases = n_cases
-
-        self.sub_jobs = tuple(CaseRequest(product=product, env=env) for _ in range(n_cases))
-        for case_request in self.sub_jobs:
-            case_request.parent = self
-
-        self.workload = n_cases
-        self.remaining_workload = n_cases
-
         self.feeding_operations: list[FeedingOperation] = []
+        self.parent: PalletRequest | None = None
 
     @as_process
-    def iter_feeding_operations(self) -> ProcessGenerator[list[FeedingOperation]]:
+    def wait_for_feeding_operations(self) -> ProcessGenerator[list[FeedingOperation]]:
+        """Yield until at least one feeding operation is attached."""
+
         while not self.feeding_operations:
             yield self.env.timeout(1)
-
         return self.feeding_operations
 
 
-class LayerRequest(PickingRequestMixin):
-    parent: PalletRequest
-    sub_jobs: tuple[ProductRequest, ...]
+class PalletOrder(IdentifiableMixin, EnvMixin, TimedMixin):
+    """
+    Flat pallet request made of OrderLines. Preserves timing info and exposes
+    aggregated feeding operations.
+    """
 
-    def __init__(self, *product_requests: ProductRequest, env: Environment) -> None:
-        super().__init__(env=env)
+    def __init__(self, order_lines: Sequence[OrderLine | tuple[Product, int]], *, env: Environment) -> None:
+        if not order_lines:
+            raise ValueError("PalletOrder requires at least one OrderLine")
 
-        self.sub_jobs = tuple(product_requests)
-        for product_request in self.sub_jobs:
-            product_request.parent = self
+        IdentifiableMixin.__init__(self)
+        EnvMixin.__init__(self, env=env)
+        TimedMixin.__init__(self, env=env)
 
-        self.n_cases = sum(product_request.n_cases for product_request in self.sub_jobs)
-        self.workload = 1
-        self.remaining_workload = 1
+        normalized: list[OrderLine] = []
+        for line in order_lines:
+            if isinstance(line, OrderLine):
+                normalized.append(line)
+            else:
+                product, n_cases = cast(tuple[Product, int], line)
+                normalized.append(OrderLine(product=product, n_cases=n_cases, env=env))
 
+        self.order_lines: tuple[OrderLine, ...] = tuple(normalized)
+        for line in self.order_lines:
+            line.parent = self
 
-class LayerRequestSingleProduct(LayerRequest):
-    parent: PalletRequest
-    sub_jobs: tuple[ProductRequest]
-    product: Product
-
-    def __init__(self, *products_requests: ProductRequest, env: Environment) -> None:
-        super().__init__(*products_requests, env=env)
-        self.product = self.sub_jobs[0].product
-
-
-class LayerRequirementMultiProduct(LayerRequest):
-    parent: PalletRequest
-    sub_jobs: tuple[ProductRequest, ...]
-    products: Sequence[Product]
-
-    def __init__(self, *products_requests: ProductRequest, env: Environment) -> None:
-        super().__init__(*products_requests, env=env)
-        self.products = tuple(product_request.product for product_request in self.sub_jobs)
-
-
-_L = TypeVar("_L", bound=LayerRequest)
-
-
-class PalletRequest(PickingRequestMixin):
-    parent: None
-    unit_load: PalletMultiProduct
-    sub_jobs: tuple[LayerRequest, ...]
-
-    def __init__(self, *layer_requests: _L, env: Environment) -> None:
-        super().__init__(env=env)
-        self._register_sub_jobs(*layer_requests)
-
-        self.n_cases = sum(layer_request.n_cases for layer_request in self.sub_jobs)
         self.unit_load = PalletMultiProduct()
 
-        self.workload = len(self.sub_jobs)
-        self.remaining_workload = len(self.sub_jobs)
+    def __iter__(self) -> Iterator[OrderLine]:
+        return iter(self.order_lines)
+
+    @property
+    def n_cases(self) -> int:
+        return sum(line.n_cases for line in self.order_lines)
 
     @property
     def feeding_operations(self) -> tuple[FeedingOperation, ...]:
-        return tuple(
-            feeding_operation
-            for layer_request in self.sub_jobs
-            for product_request in layer_request.sub_jobs
-            for feeding_operation in product_request.feeding_operations
-        )
+        return tuple(fo for line in self.order_lines for fo in line.feeding_operations)
 
     @property
-    def oos_delay(self):
+    def oos_delay(self) -> float:
         fos = self.feeding_operations
-        delay = 0
+        delay = 0.0
         i = 1
         j = 0
         while i < len(fos):
-            t1, t2 = fos[j].log.finished_agv_trip_to_cell, fos[i].log.finished_agv_trip_to_cell
+            t1 = getattr(fos[j].log, "finished_agv_trip_to_cell", None)
+            t2 = getattr(fos[i].log, "finished_agv_trip_to_cell", None)
             if t2 is not None and t1 is not None and t2 < t1:
                 delay += t1 - t2
             i += 1
@@ -191,13 +120,14 @@ class PalletRequest(PickingRequestMixin):
         return delay
 
     @property
-    def all_layers_single_product(self) -> bool:
-        return all(isinstance(layer_request, LayerRequestSingleProduct) for layer_request in self.sub_jobs)
+    def workload(self) -> int:
+        """Basic workload estimate; count lines."""
 
-    @property
-    def all_layers_multi_product(self) -> bool:
-        return all(isinstance(layer_request, LayerRequirementMultiProduct) for layer_request in self.sub_jobs)
+        return len(self.order_lines)
 
-    @property
-    def is_top_off(self) -> bool:
-        return not self.all_layers_single_product and not self.all_layers_multi_product
+
+# Backwards-compatible aliases so controllers/tests need minimal touch
+PalletRequest = PalletOrder
+ProductRequest = OrderLine
+
+__all__ = ["OrderLine", "PalletOrder", "PalletRequest", "ProductRequest"]

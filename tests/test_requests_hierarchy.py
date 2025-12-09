@@ -1,17 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import cast
 
 import pytest
 
-from simulatte.products import Product
 from simulatte.operations import FeedingOperation
-from simulatte.requests import (
-    CaseRequest,
-    LayerRequestSingleProduct,
-    PalletRequest,
-    ProductRequest,
-)
+from simulatte.products import Product
+from simulatte.requests import OrderLine, PalletOrder
 
 
 def make_product(family="F", cases_per_layer=3):
@@ -26,48 +22,42 @@ def make_product(family="F", cases_per_layer=3):
     )
 
 
-def test_product_request_structure_and_lead_time_context(env):
+def test_order_line_tracks_lead_time(env):
     product = make_product()
-    request = ProductRequest(product=product, n_cases=2, env=env)
-    assert isinstance(request.sub_jobs[0], CaseRequest)
-    assert request.n_cases == 2
-    assert request.remaining_workload == 2
+    line = OrderLine(product=product, n_cases=2, env=env)
+    line.started()
+    env.timeout(3)
+    env.run()
+    line.completed()
 
-    with request:
-        pass
-    assert request.lead_time == request.env.now - request._start_time
-    assert request.remaining_workload == 0
+    assert line.lead_time == pytest.approx(3.0)
 
 
-def test_layer_and_pallet_requests_flags(env):
-    product = make_product()
-    product_request = ProductRequest(product=product, n_cases=1, env=env)
-    layer = LayerRequestSingleProduct(product_request, env=env)
-    pallet = PalletRequest(layer, env=env)
+def test_pallet_order_flattens_lines_and_counts_cases(env):
+    p1 = make_product()
+    p2 = make_product(family="G")
+    lines: Sequence[OrderLine | tuple[Product, int]] = (OrderLine(product=p1, n_cases=2, env=env), (p2, 1))
+    order = PalletOrder(lines, env=env)
 
-    assert pallet.all_layers_single_product
-    assert not pallet.all_layers_multi_product
-    assert not pallet.is_top_off
-    assert pallet.n_cases == 1
-    assert pallet.unit_load is not None
+    assert len(order.order_lines) == 2
+    assert order.n_cases == 3
+    assert all(line.parent is order for line in order)
 
 
-def test_iter_feeding_operations_waits_until_available(env):
-    product = make_product()
-    request = ProductRequest(product=product, n_cases=1, env=env)
+def test_order_line_waits_for_feeding_operations(env):
+    line = OrderLine(product=make_product(), n_cases=1, env=env)
 
-    def add_ops():
-        yield request.env.timeout(2)
-        request.feeding_operations.append(cast(FeedingOperation, "op"))
+    def attach():
+        yield env.timeout(2)
+        line.feeding_operations.append(cast(FeedingOperation, "op"))
 
-    consumer = request.iter_feeding_operations()
-    request.env.process(add_ops())
-    request.env.run()
+    consumer = line.wait_for_feeding_operations()
+    env.process(attach())
+    env.run()
 
     assert consumer.value == ["op"]
 
 
-def test_product_request_validation_against_cases_per_layer(env):
-    product = make_product(cases_per_layer=1)
+def test_order_line_validation(env):
     with pytest.raises(ValueError):
-        ProductRequest(product=product, n_cases=2, env=env)
+        OrderLine(product=make_product(), n_cases=0, env=env)

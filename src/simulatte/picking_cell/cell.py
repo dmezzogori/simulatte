@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import deque
 from itertools import groupby
 from typing import TYPE_CHECKING, Literal, cast
 
@@ -20,7 +19,7 @@ from simulatte.picking_cell.observable_areas.staging_area import StagingArea
 from simulatte.picking_cell.observers.internal_observer import InternalObserver
 from simulatte.picking_cell.observers.staging_observer import StagingObserver
 from simulatte.protocols.job import Job
-from simulatte.requests import PalletRequest, ProductRequest
+from simulatte.requests import PalletRequest
 from simulatte.resources.monitored_resource import MonitoredResource
 from simulatte.simpy_extension.sequential_store.sequential_store import SequentialStore
 from simulatte.utils import IdentifiableMixin, as_process
@@ -97,9 +96,6 @@ class PickingCell(IdentifiableMixin):
         # Current PalletRequest being processed by the PickingCell
         self.current_pallet_request: PalletRequest | None = None
 
-        # Queues of ProductRequests to be requested by the PickingCell to satisfy the PalletRequests
-        self.product_requests_queue: deque[ProductRequest] = deque()
-
         self._productivity_history: list[tuple[float, float]] = []
 
         self.workload: float = 0
@@ -138,36 +134,28 @@ class PickingCell(IdentifiableMixin):
         Register a PalletRequest to be handled by the PickingCell.
 
         Adds the PalletRequest to the assigned PalletRequests.
-        Chains the ProductRequests of the PalletRequest to the PickingRequests queue.
         """
 
         # Add the PalletRequest to the assigned PalletRequests
         self.pallet_requests_assigned.append(pallet_request)
 
-        # Chain the ProductRequests of the PalletRequest to the PickingRequests queue
-        last_product_request = None
-        if len(self.pallet_requests_assigned) > 1:
-            last_product_request = self.pallet_requests_assigned[-2].sub_jobs[-1].sub_jobs[-1]
-
-        for layer_request in pallet_request:
-            for product_request in layer_request:
-                product_request.prev = last_product_request
-                if last_product_request is not None:
-                    last_product_request.next = product_request
-                last_product_request = product_request
-                self.product_requests_queue.append(product_request)
-
     def add_workload(self, *, job: PalletRequest) -> None:
         """
         Add the workload of the PalletRequest to the total workload of the PickingCell
         """
-        raise NotImplementedError
+        if self.workload_unit == "cases":
+            self.workload += job.n_cases
+        else:
+            self.workload += job.workload
 
     def remove_workload(self, *, job: PalletRequest) -> None:
         """
         Subtract the workload of the PalletRequest to the total workload of the PickingCell
         """
-        raise NotImplementedError
+        if self.workload_unit == "cases":
+            self.workload -= job.n_cases
+        else:
+            self.workload -= job.workload
 
     @as_process
     def put(self, *, pallet_request: PalletRequest) -> ProcessGenerator:
@@ -252,8 +240,8 @@ class PickingCell(IdentifiableMixin):
         hourly_cases_productivity = sum(pallet_request.n_cases for pallet_request in self.pallet_requests_done) / (
             self.system.env.now / 60 / 60
         )
-        hourly_layers_productivity = sum(
-            len(pallet_request.sub_jobs) for pallet_request in self.pallet_requests_done
+        hourly_lines_productivity = sum(
+            len(pallet_request.order_lines) for pallet_request in self.pallet_requests_done
         ) / (self.system.env.now / 60 / 60)
 
         oos_delays = [
@@ -275,11 +263,7 @@ class PickingCell(IdentifiableMixin):
                 f"{hourly_cases_productivity:.2f}",
                 "[Cases/h]",
             ],
-            [
-                "Produttività Cella",
-                f"{hourly_layers_productivity:.2f}",
-                "[Layers/h]",
-            ],
+            ["Produttività Cella", f"{hourly_lines_productivity:.2f}", "[OrderLines/h]"],
             [
                 "Produttività Robot",
                 f"{self.robot.productivity * 60 * 60:.2f}",

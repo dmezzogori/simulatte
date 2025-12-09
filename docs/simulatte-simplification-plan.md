@@ -36,8 +36,8 @@
 ## Done / In‑flight
 - [x] Write high-level plan (this file)
 - [x] Phase 1: environment explicitness (explicit env required end-to-end; tests updated; jobshop left untouched)
-- [ ] Phase 2: lean data model
-- [ ] Phase 3: slim SimPy wrappers
+- [x] Phase 2: lean data model (requests collapsed to OrderLine/PalletOrder aliases; protocols now re-export concretes; picking cell no longer chains prev/next)
+- [x] Phase 3: slim SimPy wrappers (custom stores replaced with lightweight list-backed helpers; sequential/multi/filter/hash stores simplified)
 - [ ] Phase 4: control layer cleanup
 - [ ] Phase 5: observability/reporting split
 - [ ] Phase 6: tests aligned

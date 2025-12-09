@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import cast
-
 from simulatte.observables import Area
 from simulatte.observables.observer.base import Observer
 from simulatte.operations.feeding_operation import FeedingOperation
@@ -16,7 +14,6 @@ class StagingObserver(Observer[StagingArea]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.out_of_sequence = set()
-        self.first_fo_entered = False
         self.waiting_fos = WaitingAGVsArea(owner=self.observable_area.owner, env=self.env)
 
     def next(self) -> FeedingOperation | None:
@@ -24,47 +21,14 @@ class StagingObserver(Observer[StagingArea]):
         Select the FeedingOperation allowed to exit the FeedingArea and enter the StagingArea.
         """
 
-        picking_cell = self.observable_area.owner
-
-        feeding_operations = (
-            feeding_operation
-            for feeding_operation in picking_cell.feeding_area
-            if feeding_operation.is_in_front_of_staging_area and self._can_enter(feeding_operation=feeding_operation)
-        )
-        return min(feeding_operations, default=None)
+        cell = self.observable_area.owner
+        for feeding_operation in cell.feeding_area:
+            if feeding_operation.is_in_front_of_staging_area:
+                return feeding_operation
+        return None
 
     def _can_enter(self, *, feeding_operation: FeedingOperation) -> bool:
-        """
-        Check if the feeding operation can enter the staging area.
-
-        The feeding operation can enter the staging area if the staging area is not full and the feeding operation is in
-        front of the staging area.
-        """
-
-        if not self.first_fo_entered:
-            entered = self.observable_area.owner.feeding_area[0] == feeding_operation
-            if entered:
-                self.first_fo_entered = True
-                return True
-            else:
-                return False
-
-        last_in: FeedingOperation | None = cast(FeedingOperation | None, self.observable_area.last_in)
-
-        if last_in is None:
-            return True
-        assert isinstance(last_in, FeedingOperation)
-
-        next_useful_product_requests = {product_request.next for product_request in last_in.product_requests}
-        for product_request in feeding_operation.product_requests:
-            if product_request in next_useful_product_requests:
-                return True
-
-        common_product_requests = set(last_in.product_requests).intersection(set(feeding_operation.product_requests))
-        if common_product_requests:
-            return True
-
-        return False
+        return feeding_operation.is_in_front_of_staging_area
 
     def _main_process(self):
         """
@@ -96,7 +60,3 @@ class StagingObserver(Observer[StagingArea]):
 
         if next_feeding_operation is not None:
             next_feeding_operation.move_into_staging_area()
-        else:
-            last_in = self.observable_area.owner.feeding_area.last_in
-            if last_in is not None and hasattr(last_in, "id"):
-                self.out_of_sequence.add(last_in.id)

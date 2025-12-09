@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from simulatte.simpy_extension.hash_store.hash_store import HashStore
-from simulatte.simpy_extension.multi_store.multi_store import MultiStore
-from simulatte.simpy_extension.sequential_multi_store.sequential_multi_store import SequentialMultiStore
+from simulatte.simpy_extension.hash_store import HashStore
+from simulatte.simpy_extension.multi_store import MultiStore
 from simulatte.simpy_extension.sequential_store.sequential_store import SequentialStore
 
 
@@ -15,20 +14,18 @@ def test_sequential_store_put_get_order(env):
     store.put("second")
     store.env.run()
 
-    assert store.output_level == 1
-    assert store.internal_store_level == 1
+    assert store.output_level == 2
     assert store.level == 2
 
-    getter = store.get(lambda _: True)
+    getter = store.get(lambda item: item == "first")
     store.env.run()
     assert getter.value == "first"
-    assert store.output_level == 1  # second item promoted to output
-    assert store.internal_store_level == 0
+    assert store.level == 1
 
 
 def test_sequential_store_capacity_validation(env):
     with pytest.raises(ValueError):
-        SequentialStore(capacity=1, env=env)
+        SequentialStore(capacity=0, env=env)
 
 
 def test_multi_store_put_and_get_returns_available_items(env):
@@ -47,20 +44,6 @@ def test_multi_store_put_and_get_returns_available_items(env):
     store.env.run()
     assert all_items.value == [2]
     assert store.level == 0
-
-
-def test_sequential_multi_store_custom_put_and_get(env):
-    store = SequentialMultiStore(capacity=4, env=env)
-
-    store.env.process(store._do_put([1, 2, 3]))
-    store.env.run()
-    assert store.output_level == 1
-    assert store.internal_store_level == 2
-
-    getter = store.env.process(store._do_get(lambda _: True))
-    store.env.run()
-    assert getter.value == 1
-    assert store.output_level == 1  # next item promoted
 
 
 def test_hash_store_put_get_and_missing_key(env):

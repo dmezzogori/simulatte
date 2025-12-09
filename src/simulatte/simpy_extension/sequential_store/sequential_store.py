@@ -1,89 +1,59 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar
-
-from simpy.resources.store import FilterStore, Store
+from collections.abc import Callable
+from typing import Any
 
 from simulatte.environment import Environment
-from simulatte.typings import History, ProcessGenerator
-from simulatte.utils import EnvMixin
-from simulatte.utils.as_process import as_process
-
-if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+from simulatte.typings import ProcessGenerator
+from simulatte.utils import EnvMixin, as_process
 
 
-T = TypeVar("T")
-
-
-class SequentialStore[T](EnvMixin):
+class SequentialStore(EnvMixin):
     """
-    The SequentialStore implements a FIFO queue (items are stored in the order in which they are put).
-
-    The SequentialStore is implemented as a combination of a FilterStore and a Store.
-    The FilterStore is used to store the next item to be yielded,
-    while the Store is used to store the remaining items.
-
-    The retrieved element must satisfy the filter function applied to the FilterStore.
+    Thin FIFO queue. Optional filter on ``get`` picks the first matching item.
     """
 
     def __init__(self, *, env: Environment, capacity: float = float("inf")) -> None:
+        if capacity < 1:
+            raise ValueError("Capacity of SequentialStore must be at least 1.")
+
         EnvMixin.__init__(self, env=env)
-
-        if capacity <= 1:
-            raise ValueError("Capacity of SequentialStore must be grater than 1.")
-
-        self._capacity = capacity
-        self._internal_store = Store(self.env, capacity=capacity - 1)
-        self._output = FilterStore(self.env, capacity=1)
-        self.get_queue = 0
-        self._history: History[int] = []
-
-    @property
-    def capacity(self) -> float:
-        return self._capacity
+        self.capacity = capacity
+        self.items: list[Any] = []
 
     @property
     def internal_store_level(self) -> int:
-        return len(self._internal_store.items)
+        return 0
 
     @property
     def output_level(self) -> int:
-        return len(self._output.items)
+        return len(self.items)
 
     @property
     def level(self) -> int:
-        return self.internal_store_level + self.output_level
-
-    @property
-    def items(self) -> Sequence[T]:
-        return self._output.items + self._internal_store.items
+        return len(self.items)
 
     @as_process
-    def put(self, item: T) -> ProcessGenerator[None]:
-        if self.output_level == 0 and self.internal_store_level == 0:
-            yield self._output.put(item)
+    def put(self, item: Any) -> ProcessGenerator[None]:
+        if len(self.items) >= self.capacity:
+            raise RuntimeError("SequentialStore capacity exceeded")
+        self.items.append(item)
+        yield self.env.timeout(0)
+
+    @as_process
+    def get(self, filter_: Callable[[Any], bool] | None = None) -> ProcessGenerator[Any]:
+        if not self.items:
+            yield self.env.timeout(0)
+            return None
+
+        if filter_ is None:
+            item = self.items.pop(0)
         else:
-            yield self._internal_store.put(item)
-
-        self._history.append((self.env.now, self.level))
-
-    @as_process
-    def get(self, filter_: Callable) -> ProcessGenerator[T]:
-        # Get the item from the output position
-        item = yield self._output.get(filter_)
-
-        # Eventually move the next item in the internal store to the output position
-        if self.internal_store_level > 0:
-            next_item = yield self._internal_store.get()
-            yield self._output.put(next_item)
-
-        self._history.append((self.env.now, self.level))
-
+            for idx, candidate in enumerate(self.items):
+                if filter_(candidate):
+                    item = self.items.pop(idx)
+                    break
+            else:
+                item = None
+        yield self.env.timeout(0)
         return item
-
-    def plot(self):
-        import matplotlib.pyplot as plt
-
-        plt.plot(*zip(*self._history))
-        plt.show()

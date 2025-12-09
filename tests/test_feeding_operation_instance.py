@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from simulatte.operations.feeding_operation import FeedingOperation
 from simulatte.products import Product
-from simulatte.requests import ProductRequest
+from simulatte.requests import OrderLine
 from simulatte.unitload.layer import LayerSingleProduct
 from simulatte.unitload.pallet import PalletSingleProduct
 
@@ -84,7 +84,7 @@ def test_feeding_operation_initial_state_and_status_flags(env):
         min_case_per_pallet=4,
         lp_enabled=True,
     )
-    request = ProductRequest(product=product, n_cases=1, env=env)
+    request = OrderLine(product=product, n_cases=1, env=env)
     pallet = make_partial_pallet(product)
 
     cell = DummyCell()
@@ -94,7 +94,7 @@ def test_feeding_operation_initial_state_and_status_flags(env):
         cell=cell,
         agv=agv,
         store=store,
-        product_requests=[request],
+        order_lines=[request],
         location=object(),
         unit_load=pallet,
         env=env,
