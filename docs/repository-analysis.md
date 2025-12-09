@@ -1,8 +1,8 @@
 # Simulatte Repository Analysis
 
-**Analysis Date**: December 2024
-**Repository Version**: 0.1.2
-**Branch Analyzed**: feature/claude
+**Analysis Date**: December 2025 (post-simplification)
+**Repository Version**: head
+**Branch Analyzed**: feature/merge
 
 ---
 
@@ -46,9 +46,9 @@ The project demonstrates **strong architectural foundations** with clear separat
 Simulatte follows a modular, protocol-based architecture that separates simulation concerns into distinct, composable layers. The design emphasizes:
 
 - **Domain-Driven Design**: Core concepts (AGVs, Cells, Stores) are modeled as rich domain objects
-- **Policy-Based Extensibility**: Behavior customization through swappable policy implementations
+- **Small Strategy Callables**: Selection logic provided via lightweight callables on controllers (no policy class layer)
 - **Event-Driven Coordination**: Leverages SimPy's discrete-event simulation paradigm
-- **Observable State Management**: Reactive monitoring through the Observer pattern
+- **Direct Area Flow**: Picking cells move feeding ops through areas without the Observer pattern
 
 ### Module Structure
 
@@ -68,12 +68,11 @@ simulatte/
 │
 ├── Control Layer
 │   ├── controllers/           # System orchestration
-│   ├── policies/              # Decision-making strategies
 │   └── operations/            # Operational workflows
 │
 ├── Infrastructure
 │   ├── simpy_extension/       # Custom SimPy stores
-│   ├── observables/           # Observer pattern impl.
+│   ├── observables/           # Basic Area wrapper (no observer layer)
 │   ├── resources/             # Resource monitoring
 │   └── utils/                 # Utilities and mixins
 │
@@ -88,7 +87,7 @@ simulatte/
 | Pattern | Usage | Location |
 |---------|-------|----------|
 | **Singleton** | Global environment access | `environment.py`, `IdentifiableMixin` |
-| **Observer** | Area state monitoring | `observables/`, `picking_cell/observers/` |
+| **(Removed) Observer** | Replaced by direct area flow helpers | — |
 | **Factory** | Entity generation | `ProductsGenerator`, `JobsGenerator` |
 | **Protocol/Interface** | Type contracts | `protocols/` module |
 | **Mixin** | Code reuse | `EnvMixin`, `IdentifiableMixin` |
@@ -195,20 +194,15 @@ simulatte/
 - Multi-product and single-product variants
 - Factory pattern for product generation
 
-### 3.6 Policy System
+### 3.6 Selection/Policy Surface
 
-**AGV Selection Policies**
-- Idle feeding selection
-- Workload-based selection
-- Reverse selection strategies
-- Multi-AGV selection support
+**Controller Selection Helpers**
+- AGV picking via callables (`least_busy_agv`, `idle_feeding_order`)
+- Cell choice via small functions (default: first available)
 
-**Request Handling Policies**
-- Product request selection
-- Cell selection for routing
-- Retrieval location selection
-- Storage placement strategies
-- Replenishment triggering
+**Store Decisions (still pluggable)**
+- Retrieval location selection (`retrieval_policy`)
+- Storage placement strategies (`storing_policy`)
 
 ### 3.7 SimPy Extensions
 
@@ -402,7 +396,7 @@ Despite the gaps identified above, the repository demonstrates several notable s
 
 - **Clear module boundaries**: Each module has a well-defined responsibility
 - **Separation of concerns**: Domain logic, control logic, and infrastructure are cleanly separated
-- **Extensibility points**: Policy interfaces allow behavior customization without modifying core code
+- **Extensibility points**: Simple strategy callables on controllers; store retrieval/storing remain pluggable
 - **Protocol-based design**: Use of Python Protocols for structural typing
 
 ### Code Style and Formatting
@@ -414,7 +408,6 @@ Despite the gaps identified above, the repository demonstrates several notable s
 
 ### Design Pattern Usage
 
-- **Observer pattern**: Well-implemented for area state monitoring
 - **Singleton pattern**: Appropriate use for environment and identifiers
 - **Factory pattern**: Clean entity generation
 - **Context managers**: Proper resource lifecycle management
