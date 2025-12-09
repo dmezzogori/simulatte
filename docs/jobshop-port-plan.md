@@ -52,8 +52,13 @@
 - DRACO policy optional later; start with base/LUMS-COR/SLAR + starvation avoidance.
 
 ## Progress log
-- [ ] Create package skeleton and environment alias.  
-- [ ] Port Job/Server/ShopFloor.  
-- [ ] Add PSP/Router/policies/distributions/builders/runner.  
-- [ ] Add/tests for core flow.  
+- [x] Create package skeleton and environment alias.  
+- [x] Port Job/Server/ShopFloor.  
+- [x] Add PSP/Router/policies/distributions/builders/runner.  
+- [x] Add/tests for core flow.  
 - [ ] Final doc update + commit.
+
+**Current status (Dec 9, 2025)**  
+- Jobshop package scaffolded with core flow objects, PSP/policies, router, builders, runner.  
+- Added jobshop-focused pytest suite (`tests/jobshop/`) passing locally.  
+- No changes made to `rl-ppc` repository.
