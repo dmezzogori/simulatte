@@ -41,3 +41,4 @@
 - [x] Phase 4: control layer cleanup (AGV/cell selection now simple callables on controllers; policy classes no longer required)
 - [x] Phase 5: observability/reporting split (observer pattern dropped from picking cell; direct pipeline helpers + tiny `reporting.render_table`)
 - [x] Phase 6: tests aligned (suite passes with jobshop excluded: `pytest -q --ignore=tests/jobshop`)
+- [x] Pruning: removed unused policy classes (AGV/cell/product/replenishment) and legacy observer/observable modules to reduce surface area.
