@@ -19,8 +19,9 @@ class PickingRequestMixin(IdentifiableMixin, EnvMixin):
         IdentifiableMixin.__init__(self)
         EnvMixin.__init__(self)
 
+        # Track lifecycle timestamps
         self._start_time: float = 0.0
-        self._end_time: float = 0.0
+        self._end_time: float | None = None
 
         self.sub_jobs = []
         self.parent = None
@@ -44,7 +45,7 @@ class PickingRequestMixin(IdentifiableMixin, EnvMixin):
 
     @property
     def lead_time(self) -> float | None:
-        if self._start_time and self._end_time:
+        if self._end_time is not None:
             return self._end_time - self._start_time
         return None
 
