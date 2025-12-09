@@ -22,5 +22,4 @@ class CellSelectionPolicy(Protocol):
     on the required policy, such as distributing workload evenly.
     """
 
-    def __call__(self, picking_cells: set[PickingCell]) -> PickingCell | None:
-        ...
+    def __call__(self, picking_cells: set[PickingCell]) -> PickingCell | None: ...

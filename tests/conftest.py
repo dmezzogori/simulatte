@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture(autouse=True)
-def clear_global_state() -> Generator[None, Any, None]:
+def clear_global_state() -> Generator[None, Any]:
     """Clear singleton and identifiable state before and after each test.
 
     This fixture ensures test isolation by:

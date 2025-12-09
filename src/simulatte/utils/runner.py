@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from collections.abc import Callable
 from multiprocessing import Pool
-from typing import Generic, Self, TypeVar
+from typing import Self, TypeVar
 
 import numpy as np
 
@@ -11,7 +11,7 @@ Result = TypeVar("Result")
 Worker = TypeVar("Worker", bound=Callable[[tuple[int, int]], Result])
 
 
-class Runner(Generic[Worker, Result]):
+class Runner[Worker, Result]:
     """
     Utility class to run a function in parallel or sequentially.
     Useful for running multiple simulations in parallel.
@@ -80,7 +80,7 @@ class Runner(Generic[Worker, Result]):
         Initialize the iterator, generating the seeds for the jobs.
         """
 
-        self.seeds = [random.randint(1, int(1000)) for _ in range(self.n_jobs)]
+        self.seeds = [random.randint(1, 1000) for _ in range(self.n_jobs)]
         self.i = 0
         return self
 

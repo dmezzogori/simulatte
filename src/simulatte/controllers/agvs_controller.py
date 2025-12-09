@@ -84,7 +84,7 @@ class AGVController(EnvMixin):
 
         return self._output_agvs
 
-    def agvs_missions(self, *, agvs: Collection[AGV] | None = None) -> Generator[AGVMission, None, None]:
+    def agvs_missions(self, *, agvs: Collection[AGV] | None = None) -> Generator[AGVMission]:
         """
         Return a generator of all the missions of the given agvs.
         If no agvs are given, return a generator of all the missions of all the agvs.

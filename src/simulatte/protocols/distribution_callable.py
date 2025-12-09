@@ -6,5 +6,4 @@ T = TypeVar("T", covariant=True)
 
 
 class DistributionCallable(Protocol[T]):
-    def __call__(self) -> T:
-        ...
+    def __call__(self) -> T: ...

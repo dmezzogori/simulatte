@@ -10,5 +10,4 @@ class SupportsInput(Protocol):
     retrieval_jobs_counter: int
     retrieval_jobs_history: History[int]
 
-    def get(self, *, feeding_operation: FeedingOperation):
-        ...
+    def get(self, *, feeding_operation: FeedingOperation): ...

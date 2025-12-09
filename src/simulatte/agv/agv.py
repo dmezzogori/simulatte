@@ -230,7 +230,7 @@ class AGV(IdentifiableMixin, EnvMixin, PriorityResource, Identifiable, HasEnv):
         return trip
 
     @contextmanager
-    def trip(self, *, destination: Location) -> Generator[AGVTrip, None, None]:
+    def trip(self, *, destination: Location) -> Generator[AGVTrip]:
         """
         Perform an AGV trip to the destination location.
 

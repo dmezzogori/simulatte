@@ -9,5 +9,4 @@ if TYPE_CHECKING:
 
 
 class ProductRequestSelectionPolicy(Protocol):
-    def __call__(self, product_requests: Sequence[ProductRequest]) -> Sequence[ProductRequest]:
-        ...
+    def __call__(self, product_requests: Sequence[ProductRequest]) -> Sequence[ProductRequest]: ...

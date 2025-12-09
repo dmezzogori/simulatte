@@ -20,7 +20,7 @@ class TestAsProcess:
         """Decorated function should return a SimPy Process."""
 
         @as_process
-        def my_generator() -> Generator[simpy.Event, None, None]:
+        def my_generator() -> Generator[simpy.Event]:
             env = Environment()
             yield env.timeout(1)
 
@@ -33,7 +33,7 @@ class TestAsProcess:
         results = []
 
         @as_process
-        def my_generator() -> Generator[simpy.Event, None, None]:
+        def my_generator() -> Generator[simpy.Event]:
             env = Environment()
             results.append("started")
             yield env.timeout(1)
@@ -48,7 +48,7 @@ class TestAsProcess:
         """Decorator should preserve the original function name."""
 
         @as_process
-        def my_special_process() -> Generator[simpy.Event, None, None]:
+        def my_special_process() -> Generator[simpy.Event]:
             env = Environment()
             yield env.timeout(1)
 
@@ -80,7 +80,7 @@ class TestAsProcess:
                 self.value = value
 
             @as_process
-            def my_method(self) -> Generator[simpy.Event, None, None]:
+            def my_method(self) -> Generator[simpy.Event]:
                 env = Environment()
                 yield env.timeout(1)
                 results.append(self.value)
@@ -96,7 +96,7 @@ class TestAsProcess:
         results = []
 
         @as_process
-        def my_generator(value: int) -> Generator[simpy.Event, None, None]:
+        def my_generator(value: int) -> Generator[simpy.Event]:
             env = Environment()
             yield env.timeout(value)
             results.append(value)

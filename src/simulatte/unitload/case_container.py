@@ -15,8 +15,7 @@ class CaseContainer(Protocol):
     warehouse_location: WarehouseLocation | None = None
     feeding_operation: FeedingOperation | None = None
 
-    def remove_case(self, product: Product | None = None) -> None:
-        ...
+    def remove_case(self, product: Product | None = None) -> None: ...
 
 
 class CaseContainerSingleProduct(CaseContainer, Protocol):
@@ -24,8 +23,7 @@ class CaseContainerSingleProduct(CaseContainer, Protocol):
     n_cases: int = 0
 
     @staticmethod
-    def by_product(cls, product) -> CaseContainerSingleProduct:
-        ...
+    def by_product(cls, product) -> CaseContainerSingleProduct: ...
 
 
 class CaseContainerMultiProduct(CaseContainer, Protocol):
@@ -33,5 +31,4 @@ class CaseContainerMultiProduct(CaseContainer, Protocol):
     n_cases: dict[Product, int]
 
     @classmethod
-    def by_products(cls, *products) -> CaseContainerMultiProduct:
-        ...
+    def by_products(cls, *products) -> CaseContainerMultiProduct: ...

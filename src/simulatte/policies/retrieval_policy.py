@@ -45,5 +45,4 @@ class RetrievalPolicy(Protocol):
         stores: list[WarehouseStoreProtocol],
         product: Product,
         quantity: CasesQuantity,
-    ) -> RetrievalPolicyResult:
-        ...
+    ) -> RetrievalPolicyResult: ...

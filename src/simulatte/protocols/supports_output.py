@@ -9,5 +9,4 @@ class SupportsOutput(Protocol):
     storage_jobs_counter: int
     storage_jobs_history: History[int]
 
-    def put(self, **kwargs: Any) -> Any:
-        ...
+    def put(self, **kwargs: Any) -> Any: ...

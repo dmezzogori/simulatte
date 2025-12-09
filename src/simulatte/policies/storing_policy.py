@@ -26,5 +26,4 @@ class StoringPolicy(Protocol):
     storing the given product in the given warehouse store.
     """
 
-    def __call__(self, *, store: WarehouseStoreProtocol, product: Product) -> WarehouseLocation | None:
-        ...
+    def __call__(self, *, store: WarehouseStoreProtocol, product: Product) -> WarehouseLocation | None: ...
