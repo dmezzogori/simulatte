@@ -28,19 +28,19 @@ class ObservableArea(Area[Item, Owner], Observable):
         else:
             self.signal_at = set(signal_at)
 
-    def append(self, item) -> None:
-        super().append(item=item)
+    def append(self, item: object, /) -> None:  # type: ignore[override]
+        super().append(item)
         if "append" in self.signal_at:
             payload = EventPayload(message=f"{self.owner} {self.__class__.__name__} - appending {item}")
             self.trigger_signal_event(payload=payload)
 
-    def append_exceed(self, item) -> None:
-        super().append_exceed(item=item)
+    def append_exceed(self, item: object, /) -> None:
+        super().append_exceed(item)
         if "append" in self.signal_at:
             payload = EventPayload(message=f"{self.owner} {self.__class__.__name__} - appending {item}")
             self.trigger_signal_event(payload=payload)
 
-    def remove(self, item) -> None:
+    def remove(self, item: object, /) -> None:  # type: ignore[override]
         super().remove(item)
         if "remove" in self.signal_at:
             payload = EventPayload(message=f"{self.owner} {self.__class__.__name__} - removing {item}")

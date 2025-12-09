@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, TypeVar
 
 from simulatte.operations import FeedingOperation
 from simulatte.unitload.pallet import PalletMultiProduct
+from simulatte.typings import ProcessGenerator
 from simulatte.utils import EnvMixin, IdentifiableMixin, as_process
 
 if TYPE_CHECKING:
@@ -77,7 +78,7 @@ class CaseRequest(PickingRequestMixin):
         self.remaining_workload = 1
         self.n_cases = 1
 
-        self.feeding_operations: list[object] = []
+        self.feeding_operations: list[FeedingOperation] = []
 
 
 class ProductRequest(PickingRequestMixin):
@@ -100,10 +101,10 @@ class ProductRequest(PickingRequestMixin):
         self.workload = n_cases
         self.remaining_workload = n_cases
 
-        self.feeding_operations: list[object] = []
+        self.feeding_operations: list[FeedingOperation] = []
 
     @as_process
-    def iter_feeding_operations(self) -> Iterable[FeedingOperation]:
+    def iter_feeding_operations(self) -> ProcessGenerator[list[FeedingOperation]]:
         while not self.feeding_operations:
             yield self.env.timeout(1)
 

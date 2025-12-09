@@ -8,7 +8,8 @@ from simulatte.events.event_payload import EventPayload
 from simulatte.events.logged_event import LoggedEvent
 from simulatte.location import InternalLocation, Location
 from simulatte.logger import logger
-from simulatte.unitload import PalletSingleProduct
+from simulatte.products import Product
+from simulatte.unitload import LayerSingleProduct, PalletSingleProduct
 from simulatte.utils.as_process import as_process
 from simulatte.utils.env_mixin import EnvMixin
 from simulatte.utils.identifiable_mixin import IdentifiableMixin
@@ -128,6 +129,8 @@ class FeedingOperationLog:
 
     @property
     def agv_waiting_at_internal(self):
+        if self.finished_agv_trip_to_internal_area is None:
+            return None
         if self.started_agv_return_trip_to_store is not None:
             return self.started_agv_return_trip_to_store - self.finished_agv_trip_to_internal_area
         if self.started_agv_return_trip_to_recharge is None:
@@ -136,9 +139,14 @@ class FeedingOperationLog:
 
     @property
     def feeding_operation_life_time(self):
+        if (
+            self.started_agv_return_trip_to_recharge is None
+            and self.finished_agv_unloading_for_return_trip_to_store is None
+        ):
+            return None
         if self.finished_agv_unloading_for_return_trip_to_store is not None:
             return self.finished_agv_unloading_for_return_trip_to_store - self.created
-        if self.finished_agv_return_trip_to_recharge is None:
+        if self.started_agv_return_trip_to_recharge is None:
             return None
         return self.started_agv_return_trip_to_recharge - self.created
 
@@ -262,10 +270,13 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         self.location = location
         self.unit_load = unit_load
         self.has_partial_unit_load = False
-        if len(self.unit_load.layers) == 1:
-            self.has_partial_unit_load = self.unit_load.upper_layer.n_cases < self.unit_load.product.cases_per_layer
-        else:
-            self.has_partial_unit_load = len(self.unit_load.layers) < self.unit_load.product.layers_per_pallet
+        upper_layer = self.unit_load.upper_layer
+        product = getattr(self.unit_load, "product", None)
+        if isinstance(product, Product):
+            if len(self.unit_load.layers) == 1 and isinstance(upper_layer, LayerSingleProduct):
+                self.has_partial_unit_load = upper_layer.n_cases < product.cases_per_layer
+            else:
+                self.has_partial_unit_load = len(self.unit_load.layers) < product.layers_per_pallet
         self.unit_load.feeding_operation = self
         self.product_requests = product_requests
         for product_request in self.product_requests:
@@ -478,6 +489,9 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
 
         # Remove the FeedingOperation from the StagingArea
         self.cell.staging_area.remove(self)
+
+        if self.unload_position is None:
+            raise RuntimeError("Unload position must be assigned before entering internal area.")
 
         if self.pre_unload_position is not None:
             pre_unload_position_request = self.pre_unload_position.request(operation=self)

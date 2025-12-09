@@ -13,7 +13,6 @@ from simulatte.protocols import (
 if TYPE_CHECKING:
     from simpy.resources.store import Store
 
-    from simulatte.agv.agv import AGV
     from simulatte.location import InputLocation, OutputLocation
     from simulatte.operations.feeding_operation import FeedingOperation
     from simulatte.service_point.service_point import ServicePoint
@@ -122,7 +121,7 @@ class WarehouseStoreProtocol(Identifiable, HasEnv, SupportsInput, SupportsOutput
         """
         ...
 
-    def unload_agv(self, *, agv: AGV, input_operation: InputOperation) -> ProcessGenerator:
+    def unload_agv(self, **kwargs) -> ProcessGenerator:
         """
         Unit load AGV unloading process.
 
@@ -133,9 +132,7 @@ class WarehouseStoreProtocol(Identifiable, HasEnv, SupportsInput, SupportsOutput
         """
         ...
 
-    def put(
-        self, *, unit_load: CaseContainer, location: WarehouseLocation, agv: AGV, priority: int
-    ) -> ProcessGenerator:
+    def put(self, **kwargs) -> ProcessGenerator:
         """
         WarehouseStore main internal storage process.
 

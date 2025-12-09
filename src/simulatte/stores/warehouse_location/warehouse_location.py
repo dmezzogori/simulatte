@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from simulatte.exceptions.location import LocationBusy, LocationEmpty
 from simulatte.exceptions.unitload import IncompatibleUnitLoad
@@ -89,11 +89,14 @@ class WarehouseLocation(IdentifiableMixin):
 
     @property
     def product(self) -> Product | None:
+        candidate: Product | None = None
         if self.is_empty:
             if len(self.future_unit_loads) == 0:
                 return None
-            return self.future_unit_loads[0].product
-        return self.first_available_unit_load.product
+            candidate = self._product_from_unit_load(self.future_unit_loads[0])
+        else:
+            candidate = self._product_from_unit_load(self.first_available_unit_load)
+        return candidate
 
     @property
     def coordinates(self) -> tuple[float, float]:
@@ -117,7 +120,7 @@ class WarehouseLocation(IdentifiableMixin):
 
         if self.is_empty:
             return None
-        return self.first_available_unit_load.product
+        return self._product_from_unit_load(self.first_available_unit_load)
 
     @property
     def n_cases(self) -> int:
@@ -128,7 +131,7 @@ class WarehouseLocation(IdentifiableMixin):
         return (
             self.first_position.n_cases
             + self.second_position.n_cases
-            + sum(unit_load.n_cases for unit_load in self.future_unit_loads)
+            + sum(self._n_cases_value(unit_load) for unit_load in self.future_unit_loads)
         )
 
     @property
@@ -158,7 +161,11 @@ class WarehouseLocation(IdentifiableMixin):
         If the first position is busy, the unit load in second position is not available.
         """
 
-        return self.first_available_position.unit_load
+        unit_load = self.first_available_position.unit_load
+        unit_load = cast(CaseContainer | None, unit_load)
+        if unit_load is None:
+            raise LocationEmpty(self)
+        return unit_load
 
     @property
     def first_available_position(self) -> PhysicalPosition:
@@ -174,6 +181,8 @@ class WarehouseLocation(IdentifiableMixin):
 
         if self.is_half_full:
             return self.second_position
+
+        return self.first_position
 
     def check_product_compatibility(self, unit_load: CaseContainer) -> bool:
         if self.product is not None and unit_load.product != self.product:
@@ -266,8 +275,9 @@ class WarehouseLocation(IdentifiableMixin):
         else:
             raise ValueError
 
-        unit_load = physical_position.get()
-        unit_load.location = None
+        unit_load_obj = physical_position.get()
+        unit_load = cast(CaseContainer, unit_load_obj)
+        unit_load.location = None  # type: ignore[assignment]
         self.booked_pickups.remove(unit_load)
 
         return unit_load
@@ -293,3 +303,25 @@ class WarehouseLocation(IdentifiableMixin):
         if self.product != product:
             # la locazione contiene un prodotto diverso
             return float("inf")
+
+        return float("inf")
+
+    @staticmethod
+    def _product_from_unit_load(unit_load: CaseContainer | None) -> Product | None:
+        if unit_load is None:
+            return None
+        candidate = getattr(unit_load, "product", None)
+        from simulatte.products import Product as ProductType
+
+        if isinstance(candidate, ProductType):
+            return candidate
+        return None
+
+    @staticmethod
+    def _n_cases_value(unit_load: object | None) -> int:
+        if unit_load is None:
+            return 0
+        n_cases = getattr(unit_load, "n_cases", 0)
+        if isinstance(n_cases, dict):
+            return sum(int(v) for v in n_cases.values())
+        return int(n_cases)

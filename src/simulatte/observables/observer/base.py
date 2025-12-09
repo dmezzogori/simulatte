@@ -32,7 +32,7 @@ class Observer[T](EnvMixin):
         """
         while True:
             try:
-                yield self.observable_area.signal_event
+                yield self.observable_area.signal_event  # type: ignore[attr-defined]
                 self._main_process()
             except simpy.Interrupt:
                 break

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from simpy.core import BoundClass
 from simpy.resources.resource import Release, Request, Resource
 
@@ -38,7 +40,8 @@ class Position(Resource, EnvMixin):
 
     def __init__(self, name: str, *args, **kwargs):
         EnvMixin.__init__(self)
-        Resource.__init__(self, *args, env=self.env, **kwargs)
+        kwargs.setdefault("env", self.env)
+        Resource.__init__(self, *args, **kwargs)
 
         self.name = name
 
@@ -67,7 +70,7 @@ class Position(Resource, EnvMixin):
     def operation(self):
         if len(self.users) == 0:
             return None
-        return self.users[0].operation
+        return cast(OccupationRequest, self.users[0]).operation
 
     @property
     def product(self):
@@ -78,4 +81,4 @@ class Position(Resource, EnvMixin):
     def ant(self):
         if len(self.users) == 0:
             return None
-        return self.users[0].operation.agv
+        return cast(OccupationRequest, self.users[0]).operation.agv

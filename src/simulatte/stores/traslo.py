@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, TypeVar
 import simpy
 
 from simulatte.protocols.has_env import HasEnv
-from simulatte.typings.typings import History
+from simulatte.typings import History, ProcessGenerator
 from simulatte.unitload.case_container import CaseContainer
 from simulatte.utils import EnvMixin
 from simulatte.utils.as_process import as_process
@@ -63,7 +63,7 @@ class Traslo[T](simpy.PriorityResource, EnvMixin, HasEnv):
         self._unit_load = unit_load
 
     @as_process
-    def move(self, *, location: WarehouseLocation) -> None:
+    def move(self, *, location: WarehouseLocation) -> ProcessGenerator[None]:
         time_x = abs(self.x - location.x) * location.width / self.speed_x
         time_y = abs(self.y - location.y) * location.height / self.speed_y
         t = max(time_x, time_y)
@@ -72,13 +72,13 @@ class Traslo[T](simpy.PriorityResource, EnvMixin, HasEnv):
         self.x, self.y = location.x, location.y
 
     @as_process
-    def load(self, *, unit_load: T) -> None:
+    def load(self, *, unit_load: T) -> ProcessGenerator[None]:
         self.unit_load = unit_load
         yield self.env.timeout(self.load_time)
         self.handling_time += self.load_time
 
     @as_process
-    def unload(self) -> None:
+    def unload(self) -> ProcessGenerator[None]:
         self.unit_load = None
         yield self.env.timeout(self.load_time)
         self.handling_time += self.load_time

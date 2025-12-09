@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 
 from simulatte.agv import AGVKind
@@ -8,6 +10,7 @@ from simulatte.agv.agv_mission import AGVMission
 from simulatte.agv.agv_status import AGVStatus
 from simulatte.agv.agv_trip import AGVTrip
 from simulatte.location import Location
+from simulatte.unitload.case_container import CaseContainer
 
 
 class FakeTrip(AGVTrip):
@@ -52,7 +55,7 @@ def test_load_and_unload_require_proper_status_and_unit_load():
     agv = make_agv()
     agv.status = AGVStatus.WAITING_TO_BE_LOADED
 
-    loader = agv.load(unit_load="payload")
+    loader = agv.load(unit_load=cast(CaseContainer, "payload"))
     agv.env.run()
     assert agv.unit_load == "payload"
     assert loader.value is None
@@ -62,7 +65,7 @@ def test_load_and_unload_require_proper_status_and_unit_load():
         agv.unload()
         agv.env.run()
 
-    agv.unit_load = "payload"
+    agv.unit_load = cast(CaseContainer, "payload")
     agv.status = AGVStatus.WAITING_TO_BE_UNLOADED
     unloader = agv.unload()
     agv.env.run()

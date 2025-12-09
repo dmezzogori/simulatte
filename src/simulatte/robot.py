@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import simpy
+from simpy.resources.resource import Release, Request
 
 from simulatte.utils import EnvMixin
 
@@ -33,7 +34,7 @@ class Robot(simpy.Resource, EnvMixin):
         self._history: list[tuple[float, float]] = []
         self._request_timestamps = {}
 
-    def request(self, *args, **kwargs) -> simpy.Request:
+    def request(self, *args, **kwargs) -> Request:
         def request_callback(request):
             self._request_timestamps[request] = self.env.now
 
@@ -41,21 +42,21 @@ class Robot(simpy.Resource, EnvMixin):
         req.callbacks.append(request_callback)
         return req
 
-    def release(self, request, *args, **kwargs) -> simpy.Request:
-        super().release(request, *args, **kwargs)
+    def release(self, request, *args, **kwargs) -> Release:
+        release_event = super().release(request, *args, **kwargs)
         self._history.append((self._request_timestamps[request], self.env.now))
-        return request
+        return release_event
 
     @property
     def productivity(self) -> float:
         return self._movements / self.env.now
 
     @property
-    def worked_time(self) -> int:
+    def worked_time(self) -> float:
         return self._worked_time
 
     @worked_time.setter
-    def worked_time(self, value: int) -> None:
+    def worked_time(self, value: float) -> None:
         self._worked_time = value
         self._saturation_history.append((self.env.now, self.saturation))
 
@@ -64,7 +65,7 @@ class Robot(simpy.Resource, EnvMixin):
         return self._worked_time / self.env.now
 
     @property
-    def idle_time(self) -> int:
+    def idle_time(self) -> float:
         return self.env.now - self.worked_time - self._history[0][0]
 
     def _pick_process(self) -> ProcessGenerator:

@@ -67,7 +67,7 @@ class PalletMultiProduct(Pallet):
         for layer in self.layers:
             if isinstance(layer, LayerSingleProduct):
                 products_set.add(layer.product)
-                counts[layer.product] = counts.get(layer.product, 0) + layer.n_cases
+                counts[layer.product] = counts.get(layer.product, 0) + int(layer.n_cases)
             else:
                 products_set.update(layer.products)
                 for product, n_cases in layer.n_cases.items():

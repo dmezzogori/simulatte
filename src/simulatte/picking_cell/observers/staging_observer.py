@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from simulatte.observables import Area
 from simulatte.observables.observer.base import Observer
 from simulatte.operations.feeding_operation import FeedingOperation
@@ -47,11 +49,11 @@ class StagingObserver(Observer[StagingArea]):
             else:
                 return False
 
-        last_in: FeedingOperation = self.observable_area.last_in
+        last_in: FeedingOperation | None = cast(FeedingOperation | None, self.observable_area.last_in)
 
-        is_first_ever_feeding_operation = last_in is None
-        if is_first_ever_feeding_operation:
+        if last_in is None:
             return True
+        assert isinstance(last_in, FeedingOperation)
 
         next_useful_product_requests = {product_request.next for product_request in last_in.product_requests}
         for product_request in feeding_operation.product_requests:
@@ -95,4 +97,6 @@ class StagingObserver(Observer[StagingArea]):
         if next_feeding_operation is not None:
             next_feeding_operation.move_into_staging_area()
         else:
-            self.out_of_sequence.add(self.observable_area.owner.feeding_area.last_in.id)
+            last_in = self.observable_area.owner.feeding_area.last_in
+            if last_in is not None and hasattr(last_in, "id"):
+                self.out_of_sequence.add(last_in.id)

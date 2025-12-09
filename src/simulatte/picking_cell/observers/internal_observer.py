@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from simulatte.events.event_payload import EventPayload
 from simulatte.observables.observer.base import Observer
@@ -23,12 +23,12 @@ class InternalObserver(Observer[InternalArea]):
         return min(feeding_operations, default=None)
 
     def _can_enter(self, *, feeding_operation: FeedingOperation) -> bool:
-        last_in: FeedingOperation = self.observable_area.last_in
-        last_out: FeedingOperation = self.observable_area.last_out
+        last_in: FeedingOperation | None = cast(FeedingOperation | None, self.observable_area.last_in)
+        last_out: FeedingOperation | None = cast(FeedingOperation | None, self.observable_area.last_out)
 
-        is_first_ever_feeding_operation = last_in is None
-        if is_first_ever_feeding_operation:
+        if last_in is None:
             return True
+        assert isinstance(last_in, FeedingOperation)
 
         next_useful_product_requests_from_last_in = {
             product_request.next for product_request in last_in.product_requests

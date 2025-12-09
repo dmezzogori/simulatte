@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from simulatte.observables.observable_area.base import ObservableArea
 from simulatte.picking_cell.observable_areas.position import Position
@@ -28,10 +28,12 @@ class InternalArea(ObservableArea):
             self.unload_positions = tuple(Position(name=f"UnloadPosition{i}", capacity=1) for i in range(capacity))
             self.pre_unload_positions = tuple()
 
-    def append(self, feeding_operation: FeedingOperation):
-        feeding_operation.enter_internal_area()
-        return super().append(feeding_operation)
+    def append(self, feeding_operation: object, /):  # type: ignore[override]
+        fo = cast(FeedingOperation, feeding_operation)
+        fo.enter_internal_area()
+        return super().append(fo)
 
-    def remove(self, feeding_operation: FeedingOperation):
-        feeding_operation.unloaded()
-        return super().remove(feeding_operation)
+    def remove(self, feeding_operation: object, /):  # type: ignore[override]
+        fo = cast(FeedingOperation, feeding_operation)
+        fo.unloaded()
+        return super().remove(fo)

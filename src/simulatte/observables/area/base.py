@@ -13,7 +13,7 @@ Item = TypeVar("Item")
 Owner = TypeVar("Owner")
 
 
-class Area[Item, Owner](list, EnvMixin):
+class Area[Item, Owner](list[Item], EnvMixin):
     """
     Implement a virtual area.
     Extends list to add (optional) finite capacity.
@@ -30,8 +30,8 @@ class Area[Item, Owner](list, EnvMixin):
         self.owner = owner
 
         self._history: History[int] = []
-        self.last_in: Item | None = None
-        self.last_out: Item | None = None
+        self.last_in: object | None = None
+        self.last_out: object | None = None
 
     @property
     def is_full(self) -> bool:
@@ -57,7 +57,7 @@ class Area[Item, Owner](list, EnvMixin):
 
         return self.capacity - len(self)
 
-    def append(self, item) -> None:
+    def append(self, item: object, /) -> None:  # type: ignore[override]
         """Append respecting capacity; record history."""
 
         if self.is_full:
@@ -68,7 +68,7 @@ class Area[Item, Owner](list, EnvMixin):
 
         super().append(item)
 
-    def append_exceed(self, item) -> None:
+    def append_exceed(self, item: object, /) -> None:
         """Append ignoring capacity limits; record history."""
 
         self.last_in = item
@@ -92,7 +92,7 @@ class Area[Item, Owner](list, EnvMixin):
 
         return item
 
-    def remove(self, item) -> None:
+    def remove(self, item: object, /) -> None:  # type: ignore[override]
         """Remove item; record history."""
 
         self.last_out = item

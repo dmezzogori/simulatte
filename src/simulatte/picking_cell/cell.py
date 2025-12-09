@@ -20,7 +20,7 @@ from simulatte.picking_cell.observable_areas.staging_area import StagingArea
 from simulatte.picking_cell.observers.internal_observer import InternalObserver
 from simulatte.picking_cell.observers.staging_observer import StagingObserver
 from simulatte.protocols.job import Job
-from simulatte.protocols.request import PalletRequest, ProductRequest
+from simulatte.requests import PalletRequest, ProductRequest
 from simulatte.resources.monitored_resource import MonitoredResource
 from simulatte.simpy_extension.sequential_store.sequential_store import SequentialStore
 from simulatte.utils import IdentifiableMixin, as_process
@@ -196,7 +196,7 @@ class PickingCell(IdentifiableMixin):
         yield self.output_queue.get(lambda pr: pr is pallet_request)
         return pallet_request
 
-    def process_job(self, job: Job) -> ProcessGenerator:
+    def process_job(self, job: Job | PalletRequest) -> ProcessGenerator:
         raise NotImplementedError
 
     @as_process

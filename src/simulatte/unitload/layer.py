@@ -9,6 +9,9 @@ from simulatte.utils import IdentifiableMixin
 
 
 class LayerSingleProduct(IdentifiableMixin, CaseContainerSingleProduct):
+    n_cases: int
+    product: Product
+
     def __init__(self, *, product: Product, n_cases: int) -> None:
         IdentifiableMixin.__init__(self)
 
@@ -25,6 +28,9 @@ class LayerSingleProduct(IdentifiableMixin, CaseContainerSingleProduct):
 
 
 class LayerMultiProduct(IdentifiableMixin, CaseContainerMultiProduct):
+    products: list[Product]
+    n_cases: dict[Product, int]
+
     def __init__(self) -> None:
         IdentifiableMixin.__init__(self)
 

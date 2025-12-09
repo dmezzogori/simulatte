@@ -45,6 +45,7 @@ def test_pallet_single_product_by_product_and_upper_layer():
     product = make_product()
     pallet = PalletSingleProduct.by_product(product)
     assert pallet.product is product
+    assert pallet.upper_layer is not None
     assert pallet.upper_layer.product is product
     assert pallet.n_cases == product.case_per_pallet
     assert len(pallet.layers) == product.layers_per_pallet
@@ -56,6 +57,7 @@ def test_pallet_multi_product_adds_layers_and_case_counts():
     pallet = PalletMultiProduct()
 
     pallet.add_product(product=p1, n_cases=p1.cases_per_layer)  # single-product layer
+    assert pallet.upper_layer is not None
     assert pallet.upper_layer.product is p1
     assert pallet.n_cases[p1] == p1.cases_per_layer
 

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 
 from simulatte.products import Product
+from simulatte.operations import FeedingOperation
 from simulatte.requests import (
     CaseRequest,
     LayerRequestSingleProduct,
@@ -55,7 +58,7 @@ def test_iter_feeding_operations_waits_until_available():
 
     def add_ops():
         yield request.env.timeout(2)
-        request.feeding_operations.append("op")
+        request.feeding_operations.append(cast(FeedingOperation, "op"))
 
     consumer = request.iter_feeding_operations()
     request.env.process(add_ops())

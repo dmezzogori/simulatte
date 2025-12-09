@@ -19,7 +19,7 @@ class SequentialMultiStore(SequentialStore):
     one-piece-flow sequence must be respected.
     """
 
-    def __init__(self, capacity: int = float("inf")):
+    def __init__(self, capacity: float = float("inf")):
         super().__init__(capacity)
         # Overwrite the store with a MultiStore instance
         self._internal_store = MultiStore(capacity - 1)

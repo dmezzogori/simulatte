@@ -139,8 +139,9 @@ class StoresController(abc.ABC, EnvMixin):
         """
 
         unit_load = self._require_single_product_unit_load(agv.unit_load)
-        product: Product = cast(Product, unit_load.product)
-        n_cases: int = cast(int, unit_load.n_cases)
+        product: Product = unit_load.product
+        n_cases_raw = unit_load.n_cases
+        n_cases: int = n_cases_raw if isinstance(n_cases_raw, int) else sum(n_cases_raw.values())
 
         def store_sorter(store):
             product_locations = sum(location.product == product for location in store.locations)
@@ -217,7 +218,8 @@ class StoresController(abc.ABC, EnvMixin):
         # Loop over the stores, locations, and unit loads
         for store, location, unit_load in stores_and_locations:
             unit_load = self._require_single_product_unit_load(unit_load)
-            unit_load_cases: int = unit_load.n_cases
+            n_cases_raw = unit_load.n_cases
+            unit_load_cases: int = n_cases_raw if isinstance(n_cases_raw, int) else sum(n_cases_raw.values())
             # Book the unit load at the store's location to prevent other processes from picking it up
             location.book_pickup(unit_load=unit_load)
 

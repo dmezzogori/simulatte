@@ -4,7 +4,7 @@ from collections.abc import Hashable
 from typing import Any
 
 from simpy.core import BoundClass
-from simpy.resources.store import Store
+from simpy.resources.store import Store, StoreGet, StorePut
 
 from simulatte.simpy_extension.hash_store.hash_store_get import HashStoreGet
 from simulatte.simpy_extension.hash_store.hash_store_put import HashStorePut
@@ -29,17 +29,20 @@ class HashStore(Store):
         super().__init__(env, capacity)
         self.items: dict[Hashable, Any] = {}  # type: ignore
 
-    def _do_put(self, event: HashStorePut) -> None:
+    def _do_put(self, event: StorePut) -> bool | None:
         """
         Put an item into the store, if there is enough space.
         The storage of the item is based on the key passed in the 'event.key' attribute.
         """
         if self.level < self._capacity:
-            self.items[event.key] = event.item
+            key = getattr(event, "key", None)
+            if key is None:
+                return None
+            self.items[key] = event.item
             event.succeed()
         return None
 
-    def _do_get(self, event: HashStoreGet) -> None:
+    def _do_get(self, event: StoreGet) -> bool | None:
         """
         Get an item from the store.
         The retrieval of the item is based on the key passed in the 'event.key' attribute.
@@ -47,10 +50,10 @@ class HashStore(Store):
         Optionally, a KeyError can be raised if the key is not found.
         """
         try:
-            item = self.items.pop(event.key)
+            item = self.items.pop(getattr(event, "key"))
             event.succeed(item)
         except KeyError as e:
-            if event.raise_missing:
+            if getattr(event, "raise_missing", False):
                 raise e
             else:
                 return None

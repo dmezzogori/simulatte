@@ -24,7 +24,7 @@ class PriorityQueue:
     """
 
     def __init__(self, items=None, maxlen=float("inf")):
-        self.items = items
+        self.items: list[tuple[object, object]] = []
         self.maxlen = maxlen
         if items is not None:
             self.items = [(i.priority, i) for i in items]
@@ -45,5 +45,5 @@ class PriorityQueue:
 
     def pushpop(self, item):
         heap_item = (item.priority, item)
-        to_return = heapq.heappushpop(heap_item)
+        to_return = heapq.heappushpop(self.items, heap_item)
         return to_return[1]

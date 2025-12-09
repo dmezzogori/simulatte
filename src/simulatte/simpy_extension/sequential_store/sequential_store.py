@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, TypeVar
 
 from simpy.resources.store import FilterStore, Store
 
-from simulatte.typings import History
+from simulatte.typings import History, ProcessGenerator
 from simulatte.utils import EnvMixin
 from simulatte.utils.as_process import as_process
 
@@ -26,7 +26,7 @@ class SequentialStore[T](EnvMixin):
     The retrieved element must satisfy the filter function applied to the FilterStore.
     """
 
-    def __init__(self, capacity: int = float("inf")) -> None:
+    def __init__(self, capacity: float = float("inf")) -> None:
         EnvMixin.__init__(self)
 
         if capacity <= 1:
@@ -39,7 +39,7 @@ class SequentialStore[T](EnvMixin):
         self._history: History[int] = []
 
     @property
-    def capacity(self) -> int:
+    def capacity(self) -> float:
         return self._capacity
 
     @property
@@ -59,7 +59,7 @@ class SequentialStore[T](EnvMixin):
         return self._output.items + self._internal_store.items
 
     @as_process
-    def put(self, item: T):
+    def put(self, item: T) -> ProcessGenerator[None]:
         if self.output_level == 0 and self.internal_store_level == 0:
             yield self._output.put(item)
         else:
@@ -68,7 +68,7 @@ class SequentialStore[T](EnvMixin):
         self._history.append((self.env.now, self.level))
 
     @as_process
-    def get(self, filter_: Callable) -> T:
+    def get(self, filter_: Callable) -> ProcessGenerator[T]:
         # Get the item from the output position
         item = yield self._output.get(filter_)
 

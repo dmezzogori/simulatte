@@ -156,11 +156,12 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
         self._saturation += 1
         self._saturation_history.append((self.env.now, self._saturation))
 
-        if (
-            input_operation.unit_load.n_cases
-            == input_operation.unit_load.product.cases_per_layer * input_operation.unit_load.product.layers_per_pallet
-        ):
-            self.full_unit_loads += 1
+        product = getattr(input_operation.unit_load, "product", None)
+        if hasattr(product, "cases_per_layer") and hasattr(product, "layers_per_pallet"):
+            if input_operation.unit_load.n_cases == product.cases_per_layer * product.layers_per_pallet:
+                self.full_unit_loads += 1
+            else:
+                self.partial_unit_loads += 1
         else:
             self.partial_unit_loads += 1
         n_locations = len(self.locations) * 2

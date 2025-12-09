@@ -316,11 +316,11 @@ class AGV(IdentifiableMixin, EnvMixin, PriorityResource, Identifiable, HasEnv):
         return self.total_mission_duration - self._travel_time
 
     @property
-    def unit_load(self) -> object | None:
+    def unit_load(self) -> CaseContainer | None:
         return self._case_container
 
     @unit_load.setter
-    def unit_load(self, value: object | None) -> None:
+    def unit_load(self, value: CaseContainer | None) -> None:
         if self._case_container is not None and value is not None:
             raise RuntimeError(f"AGV [{self.id}] cannot carry two unit loads at the same time.")
         self._case_container = value

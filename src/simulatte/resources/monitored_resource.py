@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import TracebackType
+
 from simpy.resources.base import BoundClass
 from simpy.resources.resource import PriorityRequest, PriorityResource, Release
 
@@ -20,7 +22,12 @@ class MonitoredRequest(PriorityRequest):
         self.start_time = self.env.now
         return super().__enter__()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(  # type: ignore[override]
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         end_time = self.env.now
         self.resource.worked_time += end_time - self.start_time
         return super().__exit__(exc_type, exc_val, exc_tb)
@@ -37,16 +44,16 @@ class MonitoredResource(PriorityResource):
         self._saturation_history = []
 
     @property
-    def worked_time(self) -> int:
+    def worked_time(self) -> float:
         return self._worked_time
 
     @worked_time.setter
-    def worked_time(self, value: int) -> None:
+    def worked_time(self, value: float) -> None:
         self._worked_time = value
         self._saturation_history.append((self._env.now, self.saturation))
 
     @property
-    def idle_time(self) -> int:
+    def idle_time(self) -> float:
         return self._env.now - self._worked_time
 
     @property
