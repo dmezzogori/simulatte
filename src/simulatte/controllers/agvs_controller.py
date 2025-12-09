@@ -19,8 +19,8 @@ class AGVController(EnvMixin):
     The controller is responsible for selecting the best agv for a given mission, according to the set selection policy.
     """
 
-    def __init__(self, *, agvs, agv_selection_policy) -> None:
-        EnvMixin.__init__(self)
+    def __init__(self, *, agvs, agv_selection_policy, env=None) -> None:
+        EnvMixin.__init__(self, env=env)
 
         self.agvs = agvs
         self._agv_selection_policy = agv_selection_policy

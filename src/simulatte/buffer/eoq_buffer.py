@@ -22,8 +22,9 @@ class EOQBuffer(EnvMixin):
         put_time: int,
         capacity: float = float("inf"),
         init: int = 0,
+        env=None,
     ):
-        EnvMixin.__init__(self)
+        EnvMixin.__init__(self, env=env)
 
         self.items_type = items_type
         self.reorder_level = reorder_level

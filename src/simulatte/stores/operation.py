@@ -11,8 +11,8 @@ if TYPE_CHECKING:
 
 
 class Operation(EnvMixin, HasEnv):
-    def __init__(self, *, unit_load: CaseContainer, location: WarehouseLocation, priority: int = 0) -> None:
-        EnvMixin.__init__(self)
+    def __init__(self, *, unit_load: CaseContainer, location: WarehouseLocation, priority: int = 0, env=None) -> None:
+        EnvMixin.__init__(self, env=env)
 
         self.unit_load = unit_load
         self.location = location

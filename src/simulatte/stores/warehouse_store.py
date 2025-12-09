@@ -20,9 +20,9 @@ if TYPE_CHECKING:
 
 
 class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStoreProtocol):
-    def __init__(self, *, config: warehouse_store.WarehouseStoreConfig):
+    def __init__(self, *, config: warehouse_store.WarehouseStoreConfig, env=None):
         IdentifiableMixin.__init__(self)
-        EnvMixin.__init__(self)
+        EnvMixin.__init__(self, env=env)
 
         self.input_location = InputLocation(self)
         self.output_location = OutputLocation(self)

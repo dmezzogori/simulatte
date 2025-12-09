@@ -19,8 +19,8 @@ class ArmPosition(enum.Enum):
 
 
 class Robot(simpy.Resource, EnvMixin):
-    def __init__(self, *, pick_timeout: float, place_timeout: float, rotation_timeout: float) -> None:
-        EnvMixin.__init__(self)
+    def __init__(self, *, pick_timeout: float, place_timeout: float, rotation_timeout: float, env=None) -> None:
+        EnvMixin.__init__(self, env=env)
         simpy.Resource.__init__(self, env=self.env, capacity=1)
 
         self.pick_timeout = pick_timeout

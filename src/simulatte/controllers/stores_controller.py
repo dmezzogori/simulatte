@@ -55,8 +55,8 @@ class StoresController(abc.ABC, EnvMixin):
     - a storing policy to be used to find the best locations for products' storage
     """
 
-    def __init__(self, *, config: StoresControllerConfig) -> None:
-        EnvMixin.__init__(self)
+    def __init__(self, *, config: StoresControllerConfig, env=None) -> None:
+        EnvMixin.__init__(self, env=env)
 
         self._retrieval_policy: RetrievalPolicy = config["retrieval_policy"]
         self._storing_policy: StoringPolicy = config["storing_policy"]

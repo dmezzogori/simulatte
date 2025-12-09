@@ -12,8 +12,8 @@ class ServicePoint(simpy.PriorityResource, EnvMixin):
     where ants go to be served.
     """
 
-    def __init__(self, *, location: Location, capacity=1):
-        EnvMixin.__init__(self)
+    def __init__(self, *, location: Location, capacity=1, env=None):
+        EnvMixin.__init__(self, env=env)
         simpy.PriorityResource.__init__(self, self.env, capacity=capacity)
 
         self.location = location

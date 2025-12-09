@@ -69,9 +69,10 @@ class AGV(IdentifiableMixin, EnvMixin, PriorityResource, Identifiable, HasEnv):
         unload_timeout: float,
         speed: float,
         picking_cell: type[PickingCell] | None = None,
+        env=None,
     ):
         IdentifiableMixin.__init__(self)
-        EnvMixin.__init__(self)
+        EnvMixin.__init__(self, env=env)
         PriorityResource.__init__(self, self.env, capacity=1)
 
         # Parameters
@@ -344,6 +345,10 @@ class AGV(IdentifiableMixin, EnvMixin, PriorityResource, Identifiable, HasEnv):
         # Load the unit load
         self.unit_load = unit_load
 
+        # When loaded, mark status accordingly if still waiting
+        if self.status == AGVStatus.WAITING_TO_BE_LOADED:
+            self.status = AGVStatus.WAITING_TO_BE_UNLOADED
+
         return None
 
     @as_process
@@ -368,6 +373,10 @@ class AGV(IdentifiableMixin, EnvMixin, PriorityResource, Identifiable, HasEnv):
 
         # Remove the unit load
         self.unit_load = None
+
+        # After unload set status back to waiting for assignment
+        if self.status == AGVStatus.WAITING_TO_BE_UNLOADED:
+            self.status = AGVStatus.IDLE
 
         return None
 

@@ -90,8 +90,9 @@ class SystemController(EnvMixin):
         jobs_generator: JobsGenerator,
         product_requests_selection_policy: ProductRequestSelectionPolicy,
         idle_feeding_agvs_selection_policy: IdleFeedingSelectionPolicy,
+        env=None,
     ):
-        EnvMixin.__init__(self)
+        EnvMixin.__init__(self, env=env)
 
         self.agv_controller = agv_controller
 

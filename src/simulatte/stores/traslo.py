@@ -19,9 +19,17 @@ T = TypeVar("T", bound=CaseContainer)
 
 class Traslo[T](simpy.PriorityResource, EnvMixin, HasEnv):
     def __init__(
-        self, *, store: WarehouseStoreProtocol, x: int, y: int, speed_x: float, speed_y: float, load_time: float
+        self,
+        *,
+        store: WarehouseStoreProtocol,
+        x: int,
+        y: int,
+        speed_x: float,
+        speed_y: float,
+        load_time: float,
+        env=None,
     ) -> None:
-        EnvMixin.__init__(self)
+        EnvMixin.__init__(self, env=env)
         simpy.PriorityResource.__init__(self, self.env, capacity=1)
 
         self.store = store

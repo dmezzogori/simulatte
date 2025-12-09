@@ -15,9 +15,9 @@ if TYPE_CHECKING:
 class PickingRequestMixin(IdentifiableMixin, EnvMixin):
     feeding_operations: list[FeedingOperation]
 
-    def __init__(self) -> None:
+    def __init__(self, *, env=None) -> None:
         IdentifiableMixin.__init__(self)
-        EnvMixin.__init__(self)
+        EnvMixin.__init__(self, env=env)
 
         # Track lifecycle timestamps
         self._start_time: float = 0.0
@@ -69,8 +69,8 @@ class CaseRequest(PickingRequestMixin):
     parent: ProductRequest
     sub_jobs: None
 
-    def __init__(self, product: Product) -> None:
-        super().__init__()
+    def __init__(self, product: Product, *, env=None) -> None:
+        super().__init__(env=env)
         self.sub_jobs = None
 
         self.product = product
@@ -87,11 +87,11 @@ class ProductRequest(PickingRequestMixin):
     sub_jobs: tuple[CaseRequest, ...]
     product: Product
 
-    def __init__(self, product: Product, n_cases: int) -> None:
+    def __init__(self, product: Product, n_cases: int, *, env=None) -> None:
         if n_cases > product.cases_per_layer:
             raise ValueError("A ProductRequest cannot exceed the product cases per layer")
 
-        super().__init__()
+        super().__init__(env=env)
         self.product = product
         self.n_cases = n_cases
 
@@ -116,8 +116,8 @@ class LayerRequest(PickingRequestMixin):
     parent: PalletRequest
     sub_jobs: tuple[ProductRequest, ...]
 
-    def __init__(self, *product_requests: ProductRequest) -> None:
-        super().__init__()
+    def __init__(self, *product_requests: ProductRequest, env=None) -> None:
+        super().__init__(env=env)
 
         self.sub_jobs = tuple(product_requests)
         for product_request in self.sub_jobs:
@@ -133,8 +133,8 @@ class LayerRequestSingleProduct(LayerRequest):
     sub_jobs: tuple[ProductRequest]
     product: Product
 
-    def __init__(self, *products_requests: ProductRequest) -> None:
-        super().__init__(*products_requests)
+    def __init__(self, *products_requests: ProductRequest, env=None) -> None:
+        super().__init__(*products_requests, env=env)
         self.product = self.sub_jobs[0].product
 
 
@@ -143,8 +143,8 @@ class LayerRequirementMultiProduct(LayerRequest):
     sub_jobs: tuple[ProductRequest, ...]
     products: Sequence[Product]
 
-    def __init__(self, *products_requests: ProductRequest) -> None:
-        super().__init__(*products_requests)
+    def __init__(self, *products_requests: ProductRequest, env=None) -> None:
+        super().__init__(*products_requests, env=env)
         self.products = tuple(product_request.product for product_request in self.sub_jobs)
 
 
@@ -156,8 +156,8 @@ class PalletRequest(PickingRequestMixin):
     unit_load: PalletMultiProduct
     sub_jobs: tuple[LayerRequest, ...]
 
-    def __init__(self, *layer_requests: _L) -> None:
-        super().__init__()
+    def __init__(self, *layer_requests: _L, env=None) -> None:
+        super().__init__(env=env)
         self._register_sub_jobs(*layer_requests)
 
         self.n_cases = sum(layer_request.n_cases for layer_request in self.sub_jobs)

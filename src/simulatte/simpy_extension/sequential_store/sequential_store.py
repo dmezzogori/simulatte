@@ -26,8 +26,8 @@ class SequentialStore[T](EnvMixin):
     The retrieved element must satisfy the filter function applied to the FilterStore.
     """
 
-    def __init__(self, capacity: float = float("inf")) -> None:
-        EnvMixin.__init__(self)
+    def __init__(self, capacity: float = float("inf"), env=None) -> None:
+        EnvMixin.__init__(self, env=env)
 
         if capacity <= 1:
             raise ValueError("Capacity of SequentialStore must be grater than 1.")

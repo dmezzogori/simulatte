@@ -11,7 +11,7 @@
    - Remove `Singleton` + `EnvMixin` reliance; constructors take `env: simpy.Environment`.
    - `Simulation` owns/creates env and passes it down; allow injecting a custom env for tests.
    - Stop global ID resets coupled to env creation.
-   - Status: Environment no longer a singleton; `EnvMixin` now takes optional `env` with replaceable default; `Simulation` accepts injected env and no longer clears singletons. Next: propagate explicit env through AGVs/controllers/operations and drop remaining implicit uses.
+   - Status: Environment no longer a singleton; `EnvMixin` now takes optional `env` with replaceable default; `Simulation` accepts injected env and sets default env; AGVs/controllers/robot/picking cell/stores/buffer/ops now take explicit env; next: finish threading env through remaining store ops/observers if any and prune default-env fallbacks.
 
 2) **Lean data model**
    - Flatten requests to `PalletOrder` with `OrderLine`s (product, cases); drop prev/next links.
@@ -35,7 +35,7 @@
 
 ## Done / In‑flight
 - [x] Write high-level plan (this file)
-- [~] Phase 1: environment explicitness (detached `Environment` singleton, updated `EnvMixin`, `Simulation`; pending class propagation)
+- [~] Phase 1: environment explicitness (most classes now accept injected env; default-env fallback still in use for legacy paths)
 - [ ] Phase 2: lean data model
 - [ ] Phase 3: slim SimPy wrappers
 - [ ] Phase 4: control layer cleanup

@@ -38,8 +38,8 @@ class Position(Resource, EnvMixin):
     # Method to release the position
     release = BoundClass(Release)  # type: ignore
 
-    def __init__(self, name: str, *args, **kwargs):
-        EnvMixin.__init__(self)
+    def __init__(self, name: str, *args, env=None, **kwargs):
+        EnvMixin.__init__(self, env=env)
         kwargs.setdefault("env", self.env)
         Resource.__init__(self, *args, **kwargs)
 

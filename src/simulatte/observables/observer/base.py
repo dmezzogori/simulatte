@@ -16,8 +16,8 @@ class Observer[T](EnvMixin):
     When the observable area signal event is triggered, the observer will execute its main process.
     """
 
-    def __init__(self, *, observable_area: T, register_main_process: bool = True) -> None:
-        EnvMixin.__init__(self)
+    def __init__(self, *, observable_area: T, register_main_process: bool = True, env=None) -> None:
+        EnvMixin.__init__(self, env=env)
 
         self.observable_area = observable_area
         self._main = None

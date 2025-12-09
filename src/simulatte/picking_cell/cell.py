@@ -46,10 +46,15 @@ class PickingCell(IdentifiableMixin):
         internal_area_capacity: int,
         workload_unit: Literal["cases", "layers"],
         register_main_process: bool = True,
+        env=None,
     ):
         super().__init__()
 
         self.system = system
+        # keep picking cell env aligned with system env
+        if env is None:
+            env = system.env
+        self.env = env
 
         # Locations
         self.input_location = InputLocation(self)

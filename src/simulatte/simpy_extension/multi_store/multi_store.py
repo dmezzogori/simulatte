@@ -21,11 +21,11 @@ class MultiStore(BaseResource, EnvMixin):
 
     get = BoundClass(MultiStoreGet)
 
-    def __init__(self, capacity: float = float("inf")) -> None:
+    def __init__(self, capacity: float = float("inf"), env=None) -> None:
         if capacity <= 0:
             raise ValueError("capacity must be > 0.")
 
-        EnvMixin.__init__(self)
+        EnvMixin.__init__(self, env=env)
         BaseResource.__init__(self, self.env, capacity)
 
         self.items = []

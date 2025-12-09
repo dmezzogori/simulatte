@@ -22,8 +22,8 @@ class Area[Item, Owner](list[Item], EnvMixin):
 
     __slots__ = ("env", "capacity", "_history", "last_in", "last_out")
 
-    def __init__(self, *, capacity: float = float("inf"), owner: Owner) -> None:
-        EnvMixin.__init__(self)
+    def __init__(self, *, capacity: float = float("inf"), owner: Owner, env=None) -> None:
+        EnvMixin.__init__(self, env=env)
         list.__init__(self)
 
         self.capacity = capacity

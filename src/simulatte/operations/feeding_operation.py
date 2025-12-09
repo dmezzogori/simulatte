@@ -257,9 +257,10 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         product_requests: Sequence[ProductRequest],
         location: Any,
         unit_load: PalletSingleProduct,
+        env=None,
     ) -> None:
         IdentifiableMixin.__init__(self)
-        EnvMixin.__init__(self)
+        EnvMixin.__init__(self, env=env)
 
         self.cell = cell
         self.relative_id = len(self.cell.feeding_operations)
