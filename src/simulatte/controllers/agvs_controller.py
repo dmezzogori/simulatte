@@ -1,30 +1,65 @@
 from __future__ import annotations
 
 import statistics
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any
-
-from tabulate import tabulate
 
 from simulatte.agv.agv_kind import AGVKind
 from simulatte.environment import Environment
+from simulatte.reporting import render_table
 from simulatte.utils import EnvMixin
 
 if TYPE_CHECKING:
-    pass
+    from simulatte.agv.agv import AGV
+
+
+def least_busy_agv(*, agvs: Iterable[Any], exceptions: Iterable[Any] | None = None) -> Any:
+    """
+    Pick the AGV with the fewest users/queued missions.
+    """
+
+    pool = [agv for agv in agvs if exceptions is None or agv not in exceptions]
+    if not pool:
+        raise ValueError("No AGVs available for selection")
+    return min(pool, key=lambda agv: (agv.n_users, agv.n_queue))
+
+
+def idle_feeding_order(*, agvs: Iterable[Any], exceptions: Iterable[Any] | None = None) -> list[Any]:
+    """
+    Return feeding AGVs ordered from least to most loaded.
+    """
+
+    pool = [agv for agv in agvs if exceptions is None or agv not in exceptions]
+
+    def sorter(agv: AGV):
+        timestamp = 0
+        mission = getattr(agv, "current_mission", None)
+        if mission is not None:
+            timestamp = mission.start_time or mission.request.time
+        return agv.n_users, agv.n_queue, timestamp
+
+    return sorted(pool, key=sorter)
 
 
 class AGVController(EnvMixin):
     """
-    Represent a controller for a group of agvs.
-    The controller holds a reference to all the agvs and is responsible for managing their missions.
-    The controller is responsible for selecting the best agv for a given mission, according to the set selection policy.
+    Controller for a group of AGVs.
+    Selection is now just a pair of callables instead of bespoke policy classes.
     """
 
-    def __init__(self, *, agvs, agv_selection_policy, env: Environment) -> None:
+    def __init__(
+        self,
+        *,
+        agvs,
+        select_agv: Callable[..., Any] = least_busy_agv,
+        order_idle: Callable[..., list[Any]] = idle_feeding_order,
+        env: Environment,
+    ) -> None:
         EnvMixin.__init__(self, env=env)
 
         self.agvs = agvs
-        self._agv_selection_policy = agv_selection_policy
+        self._select_agv = select_agv
+        self._order_idle = order_idle
         self._feeding_agvs: tuple[Any, ...] | None = None
         self._replenishment_agvs: tuple[Any, ...] | None = None
         self._input_agvs: tuple[Any, ...] | None = None
@@ -94,13 +129,13 @@ class AGVController(EnvMixin):
 
     def best_agv(self, *, agvs=None, exceptions=None):
         """
-        Return the best AGV according to the set selection policy.
+        Return the best AGV according to the selection strategy.
         """
 
         if agvs is None:
             agvs = self.agvs
 
-        return self._agv_selection_policy(agvs=agvs, exceptions=exceptions)
+        return self._select_agv(agvs=agvs, exceptions=exceptions)
 
     def best_feeding_agv(self, exceptions=None):
         """
@@ -130,9 +165,14 @@ class AGVController(EnvMixin):
 
         return self.best_agv(agvs=self.output_agvs, exceptions=exceptions)
 
-    def summary(self):
-        print("## Performance Summary of AGVs fleet")
+    def ordered_idle_feeding_agvs(self, exceptions=None) -> list[Any]:
+        """
+        Ordered list of feeding AGVs, useful when we need more than one candidate.
+        """
 
+        return self._order_idle(agvs=self.feeding_agvs, exceptions=exceptions)
+
+    def summary(self, *, render: bool = True):
         headers = ["KPI", "Valore", "U.M."]
         table = [
             ["Ore simulate", f"{self.env.now / 3600:.2f}", "[h]"],
@@ -182,4 +222,7 @@ class AGVController(EnvMixin):
                 ]
             )
 
-        print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
+        if render:
+            render_table("Performance Summary of AGVs fleet", headers, table)
+
+        return {"headers": headers, "rows": table}

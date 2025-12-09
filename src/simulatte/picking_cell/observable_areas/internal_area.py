@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from simulatte.environment import Environment
-from simulatte.observables.observable_area.base import ObservableArea
+from simulatte.observables.area.base import Area
 from simulatte.picking_cell.observable_areas.position import Position
 
 if TYPE_CHECKING:
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from simulatte.picking_cell.cell import PickingCell
 
 
-class InternalArea(ObservableArea):
+class InternalArea(Area):
     """
     Represent the area inside a picking cell, where AGVs are placed to be picked from.
     Manage both unloading and pre-unloading positions.
@@ -22,11 +22,10 @@ class InternalArea(ObservableArea):
         *,
         capacity: int,
         owner: PickingCell,
-        signal_at,
         pre_unload: bool = False,
         env: Environment,
     ) -> None:
-        super().__init__(capacity=capacity, owner=owner, signal_at=signal_at, env=env)
+        super().__init__(capacity=capacity, owner=owner, env=env)
 
         if pre_unload:
             self.unload_positions = tuple(

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from simulatte.environment import Environment
-from simulatte.observables.observable_area.base import ObservableArea
+from simulatte.observables.area.base import Area
 
 if TYPE_CHECKING:
     from simulatte.operations.feeding_operation import FeedingOperation
@@ -16,13 +16,13 @@ else:
         ...
 
 
-class StagingArea(ObservableArea["FeedingOperation", "PickingCell"]):
+class StagingArea(Area["FeedingOperation", "PickingCell"]):
     """
     Represent the logical area inside a picking cell where AGVs wait to be processed.
     """
 
-    def __init__(self, *, capacity: int, owner: PickingCell, signal_at, env: Environment):
-        super().__init__(capacity=capacity, owner=owner, signal_at=signal_at, env=env)
+    def __init__(self, *, capacity: int, owner: PickingCell, env: Environment):
+        super().__init__(capacity=capacity, owner=owner, env=env)
 
     def append(self, item, /):  # type: ignore[override]
         fo = cast("FeedingOperation", item)

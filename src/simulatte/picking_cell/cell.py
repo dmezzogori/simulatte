@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from itertools import groupby
 from typing import TYPE_CHECKING, Literal, cast
 
 from simpy import Process
-from tabulate import tabulate
 
 from simulatte.location import (
     InputLocation,
@@ -16,9 +14,8 @@ from simulatte.operations.feeding_operation import FeedingOperation
 from simulatte.picking_cell.areas.feeding_area import FeedingArea
 from simulatte.picking_cell.observable_areas.internal_area import InternalArea
 from simulatte.picking_cell.observable_areas.staging_area import StagingArea
-from simulatte.picking_cell.observers.internal_observer import InternalObserver
-from simulatte.picking_cell.observers.staging_observer import StagingObserver
 from simulatte.protocols.job import Job
+from simulatte.reporting import render_table
 from simulatte.requests import PalletRequest
 from simulatte.resources.monitored_resource import MonitoredResource
 from simulatte.simpy_extension.sequential_store.sequential_store import SequentialStore
@@ -78,14 +75,10 @@ class PickingCell(IdentifiableMixin):
         self.feeding_area = FeedingArea(capacity=feeding_area_capacity, owner=self, env=self.env)
 
         # List of FeedingOperation which are currently in the staging area of the PickingCell
-        self.staging_area = StagingArea(capacity=staging_area_capacity, owner=self, signal_at="remove", env=self.env)
-        # Observer of the staging area
-        self.staging_observer = StagingObserver(observable_area=self.staging_area, env=self.env)
+        self.staging_area = StagingArea(capacity=staging_area_capacity, owner=self, env=self.env)
 
         # List of FeedingOperation which are currently in the internal area of the PickingCell
-        self.internal_area = InternalArea(capacity=internal_area_capacity, owner=self, signal_at="remove", env=self.env)
-        # Observer of the internal area
-        self.internal_observer = InternalObserver(observable_area=self.internal_area, env=self.env)
+        self.internal_area = InternalArea(capacity=internal_area_capacity, owner=self, env=self.env)
 
         # List of PalletRequest to be handled by the PickingCell
         self.pallet_requests_assigned: list[PalletRequest] = []
@@ -105,6 +98,64 @@ class PickingCell(IdentifiableMixin):
         if register_main_process:
             self._main = self.main()
             self.starvation_check()
+
+    # --- Lightweight flow control helpers -------------------------------------------------
+    def on_feeding_arrival(self, feeding_operation: FeedingOperation) -> None:
+        """
+        Called when an AGV reaches the cell. Ensures the operation is tracked
+        and tries to move it through staging/internal areas if space is available.
+        """
+
+        if feeding_operation not in self.feeding_area:
+            self.feeding_area.append_exceed(feeding_operation)
+        self._pump_feeding_pipeline()
+
+    def on_internal_exit(self) -> None:
+        """
+        Called when an operation leaves the internal area (drop/return).
+        """
+
+        self._pump_feeding_pipeline()
+
+    def _pump_feeding_pipeline(self) -> None:
+        """
+        Try to admit operations into staging and then internal areas until blocked.
+        """
+
+        self._shift_feeding_to_staging()
+        self._shift_staging_to_internal()
+
+    def _shift_feeding_to_staging(self) -> None:
+        if self.staging_area.is_full or self.feeding_area.is_empty:
+            return
+
+        candidate = None
+        for fo in self.feeding_area:
+            if getattr(fo, "is_in_front_of_staging_area", False):
+                candidate = fo
+                break
+        if candidate is None:
+            candidate = self.feeding_area[0]
+
+        candidate.move_into_staging_area()
+
+    def _shift_staging_to_internal(self) -> None:
+        if self.internal_area.is_full or self.staging_area.is_empty:
+            return
+
+        free_unload_position = next((p for p in self.internal_area.unload_positions if not p.busy), None)
+        if free_unload_position is None:
+            return
+
+        next_feeding_operation = next(
+            (fo for fo in self.staging_area if getattr(fo, "is_inside_staging_area", False)), None
+        )
+        if next_feeding_operation is None:
+            return
+
+        next_feeding_operation.pre_unload_position = None
+        next_feeding_operation.unload_position = free_unload_position
+        next_feeding_operation.move_into_internal_area()
 
     @as_process
     def starvation_check(self):
@@ -128,6 +179,7 @@ class PickingCell(IdentifiableMixin):
         """
 
         self.feeding_area.append_exceed(feeding_operation)
+        self._pump_feeding_pipeline()
 
     def register_pallet_request(self, *, pallet_request: PalletRequest) -> None:
         """
@@ -233,9 +285,7 @@ class PickingCell(IdentifiableMixin):
                 # Ask the System to handle the retrieval of the finished PalletRequest
                 self.system.retrieve_from_cell(cell=self, pallet_request=pallet_request)
 
-    def summary(self, plot=True):
-        print(f"## Performance Summary of {self}")
-
+    def summary(self, *, plot=True, render=True):
         hourly_cell_productivity = self.productivity * 60 * 60
         hourly_cases_productivity = sum(pallet_request.n_cases for pallet_request in self.pallet_requests_done) / (
             self.system.env.now / 60 / 60
@@ -243,10 +293,6 @@ class PickingCell(IdentifiableMixin):
         hourly_lines_productivity = sum(
             len(pallet_request.order_lines) for pallet_request in self.pallet_requests_done
         ) / (self.system.env.now / 60 / 60)
-
-        oos_delays = [
-            pallet_request.oos_delay for pallet_request in self.pallet_requests_assigned if pallet_request.oos_delay > 0
-        ]
 
         headers = ["KPI", "Valore", "U.M."]
         table = [
@@ -279,18 +325,9 @@ class PickingCell(IdentifiableMixin):
                 f"{(self.robot.idle_time / self.system.env.now) * 100:.2f}",
                 "[%]",
             ],
-            [
-                "Out of Sequence",
-                f"{(len(self.staging_observer.out_of_sequence) / len(self.feeding_operations)) * 100:.2f}",
-                "[%]",
-            ],
-            [
-                "Out of Sequence Delay",
-                f"{sum(oos_delays) / 3600:.2f}",
-                "[h]",
-            ],
         ]
-        print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
+        if render:
+            render_table(f"Performance Summary of {self}", headers, table)
 
         if plot:
             import matplotlib.pyplot as plt
@@ -301,20 +338,6 @@ class PickingCell(IdentifiableMixin):
             self.feeding_area.plot()
             self.staging_area.plot()
             self.internal_area.plot()
-
-            q = [
-                (t, max(q for _, q in qs))
-                for t, qs in groupby(self.staging_observer.waiting_fos._history, key=lambda x: x[0])
-            ]
-            x = [t / 3600 for t, _ in q]
-            y = [p for _, p in q]
-            plt.plot(x, y)
-            plt.title(f"Waiting FOs {self}")
             plt.show()
 
-            plt.plot(oos_delays)
-            plt.title(f"Out of Sequence Delays [s] {self}")
-            plt.show()
-            plt.hist(oos_delays)
-            plt.title(f"Out of Sequence Delays distribution [s] {self}")
-            plt.show()
+        return {"headers": headers, "rows": table}

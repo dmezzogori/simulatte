@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import pytest
-
 from simulatte.environment import Environment
-from simulatte.policies.agv_selection_policy.base import AGVSelectionPolicy, MultiAGVSelectionPolicy
 from simulatte.protocols.timed import Timed
 from simulatte.protocols.job import Job
 from simulatte.utils import EnvMixin
@@ -26,16 +23,6 @@ class ConcreteJob(Job, DummyTimed):
         self.parent = None
         self.prev = None
         self.next = None
-
-
-def test_agv_selection_policy_not_implemented():
-    policy = AGVSelectionPolicy()
-    with pytest.raises(NotImplementedError):
-        policy(agvs=[])
-
-    multi_policy = MultiAGVSelectionPolicy()
-    with pytest.raises(NotImplementedError):
-        multi_policy(agvs=[])
 
 
 def test_timed_lead_time_and_job_context_manager(env):

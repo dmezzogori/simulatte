@@ -4,9 +4,6 @@ from typing import TYPE_CHECKING
 
 from simulatte.agv import AGV
 from simulatte.location import AGVRechargeLocation, InputLocation, OutputLocation
-from simulatte.logger import logger
-from simulatte.observables.observable_area.base import ObservableArea
-from simulatte.observables.observer.base import Observer
 from simulatte.protocols import Job
 from simulatte.environment import Environment
 from simulatte.utils import EnvMixin
@@ -21,64 +18,17 @@ if TYPE_CHECKING:
     from simulatte.demand.jobs_generator import JobsGenerator
     from simulatte.operations.feeding_operation import FeedingOperation
     from simulatte.picking_cell.cell import PickingCell
-    from simulatte.policies.agv_selection_policy.idle_feeding_selection_policy import (
-        IdleFeedingSelectionPolicy,
-    )
-    from simulatte.policies.product_requests_policy import ProductRequestSelectionPolicy
     from simulatte.products import Product
     from simulatte.protocols.request import PalletRequest
     from simulatte.protocols.warehouse_store import WarehouseStoreProtocol
     from simulatte.typings.typings import ProcessGenerator
 
 
-class IdleFeedingAGVs(ObservableArea[AGV, "SystemController"]):
-    pass
-
-
-class FeedingAGVsObserver(Observer[IdleFeedingAGVs]):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if not kwargs["register_main_process"]:
-            self.observable_area.callbacks = [self._main_process]
-
-    def next(self) -> AGV | None:
-        """
-        Return the next AGV from the observable area.
-        """
-
-        if self.observable_area:
-            return self.observable_area[-1]
-        return None
-
-    def _main_process(self, *args, **kwargs):
-        """
-        The main process of the observer.
-        Get the next AGV from the observable area and delegate to the system controller
-        to start a feeding operation with the AGV.
-        """
-
-        agv = self.next()
-        if agv is None:
-            return
-        logger.debug(f"FeedingAGVsObserver - Detected {agv} as idle.")
-        system_controller: SystemController = self.observable_area.owner
-        if agv.picking_cell is not None:
-            system_controller.setup_feeding_operation(picking_cell=agv.picking_cell)
-
-
 class SystemController(EnvMixin):
     """
-    Base class for a system controller.
-
-    The system controller is responsible for managing the system.
-    Coordinates the actions of the different controllers and the different entities in the system.
-
-    The system controller is responsible for:
-        - Assigning pallet requests to picking cells.
-        - Assigning replenishment operations to replenishment AGVs.
-        - Assigning feeding operations to feeding AGVs.
-        - Assigning input operations to input AGVs.
-        - Assigning output operations to output AGVs.
+    Coordinates high level system actions (assigning pallet requests, feeding/retrieval).
+    Previously this relied on observer/policy indirection; now it just keeps a few lists
+    and leaves concrete strategies to simple callables on the injected controllers.
     """
 
     def __init__(
@@ -89,8 +39,6 @@ class SystemController(EnvMixin):
         stores_controller: StoresController,
         products: list[Product],
         jobs_generator: JobsGenerator,
-        product_requests_selection_policy: ProductRequestSelectionPolicy,
-        idle_feeding_agvs_selection_policy: IdleFeedingSelectionPolicy,
         env: Environment,
     ):
         EnvMixin.__init__(self, env=env)
@@ -106,9 +54,6 @@ class SystemController(EnvMixin):
         self.jobs_generator = jobs_generator
         self.psp: list[Job] = []
 
-        self.product_requests_selection_policy = product_requests_selection_policy
-        self.idle_feeding_agvs_selection_policy = idle_feeding_agvs_selection_policy
-
         self.feeding_operations: list[FeedingOperation] = []
         self._finished_pallet_requests: list[PalletRequest] = []
 
@@ -116,10 +61,8 @@ class SystemController(EnvMixin):
         self.system_output_location = OutputLocation(self)
         self.agv_recharge_location = AGVRechargeLocation(self)
 
-        self.idle_feeding_agvs = IdleFeedingAGVs(signal_at="append", owner=self, env=self.env)
-        self.feeding_agvs_observer = FeedingAGVsObserver(
-            observable_area=self.idle_feeding_agvs, register_main_process=True, env=self.env
-        )
+        # Simple list replaces ObservableArea+Observer indirection
+        self.idle_feeding_agvs: list[AGV] = []
 
         self.process_jobs()
         self.pallet_requests_release()

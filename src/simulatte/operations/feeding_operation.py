@@ -451,10 +451,7 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
 
         # Knock on the door of the picking cell
         self.status["arrived"] = True
-        # Signal the cell staging area that the feeding operation is ready to enter the cell
-        self.cell.staging_area.trigger_signal_event(
-            payload=EventPayload(message=f"{self} - In front of the staging area of {self.cell}")
-        )
+        self.cell.on_feeding_arrival(self)
 
         logger.debug(f"{self} - Finished the agv trip using {self.agv} to {self.cell}")
 
@@ -479,11 +476,7 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         logger.debug(f"{self} - Finished moving into {self.cell} staging area")
 
         self.cell.staging_area.append_exceed(self)
-
-        # Knock on internal area
-        self.cell.internal_area.trigger_signal_event(
-            payload=EventPayload(message=f"{self} - Triggering the signal event {self.cell} internal area")
-        )
+        self.cell._shift_staging_to_internal()
 
     @as_process
     def move_into_internal_area(self):
@@ -499,6 +492,7 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
 
         # Remove the FeedingOperation from the StagingArea
         self.cell.staging_area.remove(self)
+        self.cell._shift_feeding_to_staging()
 
         if self.unload_position is None:
             raise RuntimeError("Unload position must be assigned before entering internal area.")
@@ -575,6 +569,7 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         store.input_agvs_queue_history.append((self.env.now, store.input_agvs_queue))
         self.log.finished_agv_unloading_for_return_trip_to_store = self.env.now
         logger.debug(f"{self} - Finished backflow to {store}")
+        self.cell.on_internal_exit()
 
     @as_process
     def drop(self):
@@ -601,3 +596,4 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         # Unload the unit load from the AGV
         yield self.agv.unload()
         self.agv.release_current()
+        self.cell.on_internal_exit()
