@@ -126,7 +126,7 @@ class PickingCell(IdentifiableMixin):
             feeding_operation (FeedingOperation): FeedingOperation to be registered.
         """
 
-        self.feeding_area.append(feeding_operation, exceed=True)
+        self.feeding_area.append_exceed(feeding_operation)
 
     def register_pallet_request(self, *, pallet_request: PalletRequest) -> None:
         """

@@ -8,6 +8,10 @@ class StagingArea(ObservableArea["FeedingOperation", "PickingCell"]):
     Represent the logical area inside a picking cell where AGVs wait to be processed.
     """
 
-    def append(self, item, exceed=False, skip_signal=False):
+    def append(self, item):
         item.enter_staging_area()
-        return super().append(item, exceed=exceed)
+        return super().append(item)
+
+    def append_exceed(self, item):
+        item.enter_staging_area()
+        return super().append_exceed(item)

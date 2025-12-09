@@ -45,7 +45,7 @@ class CellsController(Protocol):
         return self._picking_cells
 
     @lru_cache(maxsize=128)
-    def get_cells_by_type(self, type_: type[PickingCell]) -> tuple[PickingCell]:
+    def get_cells_by_type(self, type_: type[PickingCell]) -> tuple[PickingCell, ...]:
         return tuple(c for c in self._picking_cells if isinstance(c, type_))
 
     def register_system(self, system: SystemController):

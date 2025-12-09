@@ -1,9 +1,12 @@
 import math
+from typing import Protocol
 
-from .warehouse_location import WarehouseLocation
+
+class HasCoordinates(Protocol):
+    coordinates: tuple[float, float]
 
 
-def euclidean(location_a: WarehouseLocation, location_b: WarehouseLocation) -> float:
+def euclidean(location_a: HasCoordinates, location_b: HasCoordinates) -> float:
     """
     The euclidean distance between two WarehouseLocations.
     """
@@ -13,7 +16,7 @@ def euclidean(location_a: WarehouseLocation, location_b: WarehouseLocation) -> f
     return math.sqrt((loc_a_x - loc_b_x) ** 2 + ((loc_a_y - loc_b_y) ** 2))
 
 
-def manhattan(location_a: WarehouseLocation, location_b: WarehouseLocation) -> float:
+def manhattan(location_a: HasCoordinates, location_b: HasCoordinates) -> float:
     """
     The manhattan distance between two WarehouseLocations.
     """

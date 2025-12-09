@@ -13,13 +13,14 @@ class CaseContainer(Protocol):
     product: Product | Sequence[Product] | None = None
     n_cases: int | dict[Product, int]
     warehouse_location: WarehouseLocation | None = None
+    location: WarehouseLocation | None = None
     feeding_operation: FeedingOperation | None = None
 
     def remove_case(self, product: Product | None = None) -> None: ...
 
 
 class CaseContainerSingleProduct(CaseContainer, Protocol):
-    product: Product | None = None
+    product: Product
     n_cases: int = 0
 
     @staticmethod

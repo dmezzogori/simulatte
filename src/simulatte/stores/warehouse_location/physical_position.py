@@ -25,7 +25,7 @@ class PhysicalPosition:
         self.free = unit_load is None
         self.busy = not self.free
 
-    def put(self, *, unit_load: CaseContainer) -> None:
+    def put(self, *, unit_load: CaseContainer | object) -> None:
         """
         Load a unit load into the physical position.
         """
@@ -34,7 +34,7 @@ class PhysicalPosition:
             raise PhysicalPositionBusy(self)
 
         self.unit_load = unit_load
-        self.n_cases = unit_load.n_cases
+        self.n_cases = unit_load.n_cases  # type: ignore[attr-defined]
         self.free = False
         self.busy = True
 

@@ -57,24 +57,24 @@ class Area[Item, Owner](list, EnvMixin):
 
         return self.capacity - len(self)
 
-    def append(self, item: Item, exceed=False):
-        """
-        Override the list append method to add finite capacity.
-        The finite capacity can be exceeded if the exceed flag is set to True.
-        Record the content history, and update the last inserted item.
-        """
+    def append(self, item) -> None:
+        """Append respecting capacity; record history."""
 
-        # If the area is full and the `exceed` flag is not set, raise an error.
-        if self.is_full and not exceed:
+        if self.is_full:
             raise RuntimeError("Area is full.")
 
-        # Update the last inserted item.
         self.last_in = item
-
-        # Record the content history.
         self._history.append((self.env.now, len(self)))
 
-        return super().append(item)
+        super().append(item)
+
+    def append_exceed(self, item) -> None:
+        """Append ignoring capacity limits; record history."""
+
+        self.last_in = item
+        self._history.append((self.env.now, len(self)))
+
+        super().append(item)
 
     def pop(self, index=-1) -> Item:
         """
@@ -92,15 +92,10 @@ class Area[Item, Owner](list, EnvMixin):
 
         return item
 
-    def remove(self, item: Item) -> None:
-        """
-        Override the list remove method to record the content history, and update the last removed item.
-        """
+    def remove(self, item) -> None:
+        """Remove item; record history."""
 
-        # Update the last removed item.
         self.last_out = item
-
-        # Record the content history.
         self._history.append((self.env.now, len(self)))
 
         super().remove(item)

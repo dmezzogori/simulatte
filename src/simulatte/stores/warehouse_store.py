@@ -29,7 +29,7 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
         self.location_width = config["location_width"]
         self.location_height = config["location_height"]
         self.depth = config["depth"]
-        self.n_positions = config["n_positions"]
+        self.n_positions = config["n_positions"] or 0
         self.n_floors = config["n_floors"]
         self.load_time = config["load_time"]
         self.conveyor_capacity = config["conveyor_capacity"]
@@ -168,9 +168,7 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
             (self.env.now, self.full_unit_loads / n_locations, self.partial_unit_loads / n_locations)
         )
 
-    def put(
-        self, *, unit_load: CaseContainer, location: WarehouseLocation, agv: AGV, priority: int
-    ) -> ProcessGenerator:
+    def put(self, **kwargs) -> ProcessGenerator:
         """
         To be implemented by the specific store.
         """
@@ -201,7 +199,7 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
     def book_location(self, *, location: WarehouseLocation, unit_load: CaseContainer) -> None:
         location.freeze(unit_load=unit_load)
 
-    def plot(self, *, window, queue_stats: History, title: str) -> None:
+    def plot(self, *, window: int | None = None, queue_stats: History | None = None, title: str | None = None) -> None:
         import statistics
 
         import matplotlib.pyplot as plt
@@ -222,6 +220,10 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
                         return ret
                 ret.append(idxs)
                 start += step
+
+        queue_stats = queue_stats if queue_stats is not None else self.output_agvs_queue_history
+        window = window or 300
+        title = title or f"{self}"
 
         timestamps = [t for t, _ in queue_stats]
         get_queues = [s for _, s in queue_stats]

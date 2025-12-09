@@ -9,12 +9,12 @@ if TYPE_CHECKING:
 
 
 class PhysicalPositionBusy(SimulationError):
-    def __init__(self, physical_position: PhysicalPosition):
+    def __init__(self, physical_position: PhysicalPosition | object):
         self.physical_position = physical_position
         super().__init__(f"Physical position {physical_position} is busy")
 
 
 class PhysicalPositionEmpty(SimulationError):
-    def __init__(self, physical_position: PhysicalPosition):
+    def __init__(self, physical_position: PhysicalPosition | object):
         self.physical_position = physical_position
         super().__init__(f"Physical position {physical_position} is empty")

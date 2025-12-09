@@ -8,10 +8,10 @@ from typing import Self, TypeVar
 import numpy as np
 
 Result = TypeVar("Result")
-Worker = TypeVar("Worker", bound=Callable[[tuple[int, int]], Result])
+WorkerFn = Callable[[tuple[int, int]], Result]
 
 
-class Runner[Worker, Result]:
+class Runner[Result]:
     """
     Utility class to run a function in parallel or sequentially.
     Useful for running multiple simulations in parallel.
@@ -64,7 +64,7 @@ class Runner[Worker, Result]:
             random.seed(seed)
             np.random.seed(seed)
 
-    def __call__(self, worker: Worker, parallel=False) -> None:
+    def __call__(self, worker: WorkerFn, parallel=False) -> None:
         """
         Run the worker function in parallel or sequentially.
 
@@ -95,7 +95,7 @@ class Runner[Worker, Result]:
         self.i += 1
         return i, seed
 
-    def _parallel(self, worker: Worker) -> list[Result]:
+    def _parallel(self, worker: WorkerFn) -> list[Result]:
         """
         Run the worker function in parallel.
 
@@ -111,7 +111,7 @@ class Runner[Worker, Result]:
         multiple_results.get()
         return results
 
-    def _sequential(self, worker: Worker) -> list[Result]:
+    def _sequential(self, worker: WorkerFn) -> list[Result]:
         """
         Run the worker function sequentially.
 

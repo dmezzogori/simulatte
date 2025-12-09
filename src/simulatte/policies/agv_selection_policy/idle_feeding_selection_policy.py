@@ -1,18 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 
 from simulatte.policies.agv_selection_policy.base import MultiAGVSelectionPolicy
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
-
-    from simulatte.agv.agv import AGV
 
 
 class IdleFeedingSelectionPolicy(MultiAGVSelectionPolicy):
     @staticmethod
-    def sorter(agv: AGV):
+    def sorter(agv):
         """
         Return a tuple of the number of users and the number of processes in queue for the AGV.
         Used to sort the AGVs from the least busy to the most busy.
@@ -24,7 +18,7 @@ class IdleFeedingSelectionPolicy(MultiAGVSelectionPolicy):
 
         return agv.n_users, agv.n_queue, timestamp
 
-    def __call__(self, *, agvs: Iterable[AGV], exceptions: Iterable[AGV] | None = None) -> Sequence[AGV]:
+    def __call__(self, *, agvs, exceptions=None):
         """
         Selection policy for feeding operations.
         """

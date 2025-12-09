@@ -20,7 +20,7 @@ class LayerSingleProduct(IdentifiableMixin, CaseContainerSingleProduct):
         self.product = product
         self.n_cases = n_cases
 
-    def remove_case(self) -> None:
+    def remove_case(self, product: Product | None = None) -> None:
         self.n_cases -= 1
 
 

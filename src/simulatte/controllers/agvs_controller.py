@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import statistics
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from tabulate import tabulate
 
@@ -9,10 +9,7 @@ from simulatte.agv.agv_kind import AGVKind
 from simulatte.utils import EnvMixin
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Generator
-
-    from simulatte.agv import AGV, AGVMission
-    from simulatte.policies import AGVSelectionPolicy
+    pass
 
 
 class AGVController(EnvMixin):
@@ -22,15 +19,15 @@ class AGVController(EnvMixin):
     The controller is responsible for selecting the best agv for a given mission, according to the set selection policy.
     """
 
-    def __init__(self, *, agvs: Collection[AGV], agv_selection_policy: AGVSelectionPolicy):
+    def __init__(self, *, agvs, agv_selection_policy) -> None:
         EnvMixin.__init__(self)
 
         self.agvs = agvs
         self._agv_selection_policy = agv_selection_policy
-        self._feeding_agvs: tuple[AGV, ...] | None = None
-        self._replenishment_agvs: tuple[AGV, ...] | None = None
-        self._input_agvs: tuple[AGV, ...] | None = None
-        self._output_agvs: tuple[AGV, ...] | None = None
+        self._feeding_agvs: tuple[Any, ...] | None = None
+        self._replenishment_agvs: tuple[Any, ...] | None = None
+        self._input_agvs: tuple[Any, ...] | None = None
+        self._output_agvs: tuple[Any, ...] | None = None
 
     @property
     def feeding_agvs(self):
@@ -84,7 +81,7 @@ class AGVController(EnvMixin):
 
         return self._output_agvs
 
-    def agvs_missions(self, *, agvs: Collection[AGV] | None = None) -> Generator[AGVMission]:
+    def agvs_missions(self, *, agvs=None):
         """
         Return a generator of all the missions of the given agvs.
         If no agvs are given, return a generator of all the missions of all the agvs.
@@ -94,7 +91,7 @@ class AGVController(EnvMixin):
             agvs = self.agvs
         return (mission for agv in agvs for mission in agv.missions)
 
-    def best_agv(self, *, agvs: Collection[AGV] | None = None, exceptions: Collection[AGV] | None = None) -> AGV:
+    def best_agv(self, *, agvs=None, exceptions=None):
         """
         Return the best AGV according to the set selection policy.
         """
@@ -104,28 +101,28 @@ class AGVController(EnvMixin):
 
         return self._agv_selection_policy(agvs=agvs, exceptions=exceptions)
 
-    def best_feeding_agv(self, exceptions: Collection[AGV] | None = None) -> AGV:
+    def best_feeding_agv(self, exceptions=None):
         """
         Return the best feeding AGV according to the set selection policy.
         """
 
         return self.best_agv(agvs=self.feeding_agvs, exceptions=exceptions)
 
-    def best_replenishment_agv(self, exceptions: Collection[AGV] | None = None) -> AGV:
+    def best_replenishment_agv(self, exceptions=None):
         """
         Return the best replenishment AGV according to the set selection policy.
         """
 
         return self.best_agv(agvs=self.replenishment_agvs, exceptions=exceptions)
 
-    def best_input_agv(self, exceptions: Collection[AGV] | None = None) -> AGV:
+    def best_input_agv(self, exceptions=None):
         """
         Return the best input AGV according to the set selection policy.
         """
 
         return self.best_agv(agvs=self.input_agvs, exceptions=exceptions)
 
-    def best_output_agv(self, exceptions: Collection[AGV] | None = None) -> AGV:
+    def best_output_agv(self, exceptions=None):
         """
         Return the best output AGV according to the set selection policy.
         """

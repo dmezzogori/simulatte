@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 
 class LocationBusy(SimulationError):
-    def __init__(self, location: WarehouseLocation):
+    def __init__(self, location: WarehouseLocation | object):
         self.location = location
         super().__init__(location)
 
@@ -18,6 +18,6 @@ class LocationBusy(SimulationError):
 
 
 class LocationEmpty(SimulationError):
-    def __init__(self, location: WarehouseLocation):
+    def __init__(self, location: WarehouseLocation | object):
         self.location = location
         super().__init__(f"Location {location} is empty")

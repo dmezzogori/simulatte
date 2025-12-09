@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from simulatte.operations.feeding_operation import FeedingOperation
 from simulatte.protocols.has_product import HasManyProduct, HasSingleProduct
 from simulatte.protocols.hold_cases import HoldCases
 from simulatte.protocols.identifiable import Identifiable
@@ -11,7 +10,7 @@ from simulatte.unitload import Pallet
 
 
 class PickingRequest(Job, Identifiable, HoldCases, Protocol):
-    feeding_operations: list[FeedingOperation]
+    feeding_operations: list[object]
 
 
 class CaseRequest(PickingRequest, HasSingleProduct, Protocol):

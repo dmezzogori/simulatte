@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import abc
 import random
-from typing import TYPE_CHECKING, Any, Literal, TypedDict
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast
 
 from simulatte.agv import AGV
 from simulatte.exceptions.base import SimulationError
 from simulatte.products import Product, ProductsGenerator
 from simulatte.protocols.warehouse_store import WarehouseStoreProtocol
-from simulatte.unitload.case_container import CaseContainer
+from simulatte.unitload.case_container import CaseContainer, CaseContainerSingleProduct
 from simulatte.utils.env_mixin import EnvMixin
 
 if TYPE_CHECKING:
@@ -137,8 +138,12 @@ class StoresController(abc.ABC, EnvMixin):
         Finally, trigger the loading process of the store.
         """
 
+        unit_load = self._require_single_product_unit_load(agv.unit_load)
+        product: Product = cast(Product, unit_load.product)
+        n_cases: int = cast(int, unit_load.n_cases)
+
         def store_sorter(store):
-            product_locations = sum(location.product == agv.unit_load.product for location in store.locations)
+            product_locations = sum(location.product == product for location in store.locations)
             n_remaining_space = sum(
                 location.is_empty and len(location.future_unit_loads) == 0 for location in store.locations
             )
@@ -147,12 +152,7 @@ class StoresController(abc.ABC, EnvMixin):
         possible_locations = tuple(
             (store, location)
             for store in sorted(stores, key=store_sorter)
-            if (
-                location := self._storing_policy(
-                    store=store, product=agv.unit_load.product, n_cases=agv.unit_load.n_cases
-                )
-            )
-            is not None
+            if (location := self._storing_policy(store=store, product=product)) is not None
         )
         if len(possible_locations) == 0:
             raise SimulationError(f"No location found for {agv.unit_load} in {stores}")
@@ -164,29 +164,29 @@ class StoresController(abc.ABC, EnvMixin):
             raise SimulationError(f"No location found for {agv.unit_load} in {store} [n_cases={agv.unit_load.n_cases}]")
 
         # Book the location to prevent other non-compatible unit loads from being placed in the same location
-        store.book_location(location=location, unit_load=agv.unit_load)
+        store.book_location(location=location, unit_load=unit_load)
 
         # riduciamo l'on_transit
         self.update_stock(
             store_type=type(store),
             inventory="on_transit",
-            product=agv.unit_load.product,
-            n_cases=-agv.unit_load.n_cases,
+            product=product,
+            n_cases=-n_cases,
         )
 
-        if self._stock[agv.unit_load.product][type(store)]["on_transit"] < 0:
-            raise SimulationError(f"Negative on_transit for {agv.unit_load.product} in {type(store)}")
+        if self._stock[product][type(store)]["on_transit"] < 0:
+            raise SimulationError(f"Negative on_transit for {product} in {type(store)}")
 
         # alziamo l'on_hand
         self.update_stock(
             store_type=type(store),
             inventory="on_hand",
-            product=agv.unit_load.product,
-            n_cases=agv.unit_load.n_cases,
+            product=product,
+            n_cases=n_cases,
         )
 
-        if self._stock[agv.unit_load.product][type(store)]["on_hand"] < 0:
-            raise SimulationError(f"Negative on_hand for {agv.unit_load.product} in {type(store)}")
+        if self._stock[product][type(store)]["on_hand"] < 0:
+            raise SimulationError(f"Negative on_hand for {product} in {type(store)}")
 
         return store, location
 
@@ -216,6 +216,8 @@ class StoresController(abc.ABC, EnvMixin):
 
         # Loop over the stores, locations, and unit loads
         for store, location, unit_load in stores_and_locations:
+            unit_load = self._require_single_product_unit_load(unit_load)
+            unit_load_cases: int = unit_load.n_cases
             # Book the unit load at the store's location to prevent other processes from picking it up
             location.book_pickup(unit_load=unit_load)
 
@@ -225,11 +227,11 @@ class StoresController(abc.ABC, EnvMixin):
             if n_cases <= 0:
                 raise SimulationError(f"Null n_cases for {product} in {type_of_store}")
 
-            if unit_load.n_cases <= n_cases:
+            if unit_load_cases <= n_cases:
                 on_transit = 0
-                n_cases -= unit_load.n_cases
+                n_cases -= unit_load_cases
             else:
-                on_transit = unit_load.n_cases - n_cases
+                on_transit = unit_load_cases - n_cases
                 n_cases = 0
 
             self.update_stock(store_type=type_of_store, inventory="on_transit", product=product, n_cases=on_transit)
@@ -237,7 +239,29 @@ class StoresController(abc.ABC, EnvMixin):
             # Reduce "on hand"
             if not hasattr(unit_load, "magic"):
                 self.update_stock(
-                    store_type=type_of_store, inventory="on_hand", product=product, n_cases=-unit_load.n_cases
+                    store_type=type_of_store, inventory="on_hand", product=product, n_cases=-unit_load_cases
                 )
 
         return stores_and_locations
+
+    @staticmethod
+    def _require_single_product_unit_load(unit_load: CaseContainer | None) -> CaseContainerSingleProduct:
+        """
+        Ensure the unit load carries exactly one product and a scalar case count.
+        Raise SimulationError otherwise, while narrowing the type for the type-checker.
+        """
+
+        if unit_load is None:
+            raise SimulationError("AGV has no unit load to load into store.")
+
+        product = getattr(unit_load, "product", None)
+        n_cases = getattr(unit_load, "n_cases", None)
+
+        # Reject multi-product or missing product
+        if product is None or (isinstance(product, Sequence) and not isinstance(product, (str | bytes | bytearray))):
+            raise SimulationError("Unit load must carry exactly one product.")
+
+        if not isinstance(n_cases, int):
+            raise SimulationError("Unit load case count must be an integer.")
+
+        return cast(CaseContainerSingleProduct, unit_load)

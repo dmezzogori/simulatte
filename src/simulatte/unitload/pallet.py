@@ -30,6 +30,8 @@ class Pallet(CaseContainer, Protocol):
 
 class PalletSingleProduct(Pallet):
     layers: deque[LayerSingleProduct]
+    product: Product
+    n_cases: int
 
     def __init__(self, *layers: LayerSingleProduct) -> None:
         self.layers = deque(layers)
@@ -37,7 +39,7 @@ class PalletSingleProduct(Pallet):
         self.counter_pr = []
         if self.layers:
             self.product = self.layers[0].product
-            self.n_cases = sum(layer.n_cases for layer in self.layers)
+            self.n_cases = sum(int(layer.n_cases) for layer in self.layers)
 
     @property
     def upper_layer(self) -> LayerSingleProduct | None:
@@ -55,12 +57,24 @@ class PalletSingleProduct(Pallet):
 
 
 class PalletMultiProduct(Pallet):
+    n_cases: dict[Product, int]
+
     def __init__(self, *layers: LayerMultiProduct | LayerSingleProduct) -> None:
         self.layers: deque[LayerMultiProduct | LayerSingleProduct] = deque(layers)
-        self.products = tuple(set(product for layer in self.layers for product in layer.products))
-        self.n_cases = {
-            product: sum(layer.n_cases.get(product, 0) for layer in self.layers) for product in self.products
-        }
+        products_set: set[Product] = set()
+        counts: dict[Product, int] = {}
+
+        for layer in self.layers:
+            if isinstance(layer, LayerSingleProduct):
+                products_set.add(layer.product)
+                counts[layer.product] = counts.get(layer.product, 0) + layer.n_cases
+            else:
+                products_set.update(layer.products)
+                for product, n_cases in layer.n_cases.items():
+                    counts[product] = counts.get(product, 0) + n_cases
+
+        self.products = tuple(products_set)
+        self.n_cases = counts
 
     @property
     def upper_layer(self) -> LayerSingleProduct | LayerMultiProduct | None:

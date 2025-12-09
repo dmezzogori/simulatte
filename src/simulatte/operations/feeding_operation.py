@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from functools import total_ordering
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from simulatte.events.event_payload import EventPayload
 from simulatte.events.logged_event import LoggedEvent
@@ -14,12 +14,8 @@ from simulatte.utils.env_mixin import EnvMixin
 from simulatte.utils.identifiable_mixin import IdentifiableMixin
 
 if TYPE_CHECKING:
-    from simulatte.agv.agv import AGV
-    from simulatte.picking_cell.cell import PickingCell
     from simulatte.picking_cell.observable_areas.position import Position
-    from simulatte.protocols.warehouse_store import WarehouseStoreProtocol
     from simulatte.requests import PalletRequest, ProductRequest
-    from simulatte.stores.warehouse_location.warehouse_location import WarehouseLocation
 
 
 @total_ordering
@@ -47,7 +43,7 @@ class FeedingOperationLog:
         "finished_agv_return_trip_to_recharge",
     )
 
-    def __init__(self, feeding_operation: FeedingOperation, created: float):
+    def __init__(self, feeding_operation: Any, created: float):
         self.feeding_operation = feeding_operation
         self.created = created
 
@@ -96,37 +92,37 @@ class FeedingOperationLog:
 
     @property
     def agv_move_to_store(self):
-        if self.finished_agv_trip_to_store is None:
+        if self.started_agv_trip_to_store is None or self.finished_agv_trip_to_store is None:
             return None
         return self.finished_agv_trip_to_store - self.started_agv_trip_to_store
 
     @property
     def agv_waiting_at_store(self) -> float | None:
-        if self.started_loading is None:
+        if self.started_loading is None or self.finished_agv_trip_to_store is None:
             return None
         return self.started_loading - self.finished_agv_trip_to_store
 
     @property
     def agv_move_from_store_to_cell(self):
-        if self.finished_agv_trip_to_cell is None:
+        if self.started_agv_trip_to_cell is None or self.finished_agv_trip_to_cell is None:
             return None
         return self.finished_agv_trip_to_cell - self.started_agv_trip_to_cell
 
     @property
     def agv_waiting_at_cell(self):
-        if self.started_agv_trip_to_staging_area is None:
+        if self.started_agv_trip_to_staging_area is None or self.finished_agv_trip_to_cell is None:
             return None
         return self.started_agv_trip_to_staging_area - self.finished_agv_trip_to_cell
 
     @property
     def agv_waiting_at_staging(self):
-        if self.started_agv_trip_to_internal_area is None:
+        if self.started_agv_trip_to_internal_area is None or self.finished_agv_trip_to_staging_area is None:
             return None
         return self.started_agv_trip_to_internal_area - self.finished_agv_trip_to_staging_area
 
     @property
     def agv_move_from_staging_to_internal(self):
-        if self.finished_agv_trip_to_internal_area is None:
+        if self.started_agv_trip_to_internal_area is None or self.finished_agv_trip_to_internal_area is None:
             return None
         return self.finished_agv_trip_to_internal_area - self.started_agv_trip_to_internal_area
 
@@ -178,24 +174,43 @@ class FeedingOperationLog:
         )
 
     def check(self):
-        if self.finished_retrieval <= self.started_retrieval:
-            raise ValueError("Retrieval process not consistent")
-        if self.finished_agv_trip_to_store <= self.started_agv_trip_to_store:
-            raise ValueError("AGV trip to store not consistent")
-        if self.finished_loading <= self.started_loading:
-            raise ValueError("Loading process not consistent")
-        if self.finished_agv_trip_to_cell <= self.started_agv_trip_to_cell:
-            raise ValueError("AGV trip to cell not consistent")
-        if self.finished_agv_trip_to_staging_area <= self.started_agv_trip_to_staging_area:
-            raise ValueError("AGV trip to staging area not consistent")
-        if self.finished_agv_trip_to_internal_area <= self.started_agv_trip_to_internal_area:
-            raise ValueError("AGV trip to internal area not consistent")
-        if self.finished_agv_return_trip_to_store <= self.started_agv_return_trip_to_store:
-            raise ValueError("AGV return trip to store not consistent")
-        if self.finished_agv_unloading_for_return_trip_to_store <= self.started_agv_unloading_for_return_trip_to_store:
-            raise ValueError("AGV unloading for return trip to store not consistent")
-        if self.finished_agv_return_trip_to_recharge <= self.started_agv_return_trip_to_recharge:
-            raise ValueError("AGV return trip to recharge not consistent")
+        checks = [
+            (self.finished_retrieval, self.started_retrieval, "Retrieval process not consistent"),
+            (self.finished_agv_trip_to_store, self.started_agv_trip_to_store, "AGV trip to store not consistent"),
+            (self.finished_loading, self.started_loading, "Loading process not consistent"),
+            (self.finished_agv_trip_to_cell, self.started_agv_trip_to_cell, "AGV trip to cell not consistent"),
+            (
+                self.finished_agv_trip_to_staging_area,
+                self.started_agv_trip_to_staging_area,
+                "AGV trip to staging area not consistent",
+            ),
+            (
+                self.finished_agv_trip_to_internal_area,
+                self.started_agv_trip_to_internal_area,
+                "AGV trip to internal area not consistent",
+            ),
+            (
+                self.finished_agv_return_trip_to_store,
+                self.started_agv_return_trip_to_store,
+                "AGV return trip to store not consistent",
+            ),
+            (
+                self.finished_agv_unloading_for_return_trip_to_store,
+                self.started_agv_unloading_for_return_trip_to_store,
+                "AGV unloading for return trip to store not consistent",
+            ),
+            (
+                self.finished_agv_return_trip_to_recharge,
+                self.started_agv_return_trip_to_recharge,
+                "AGV return trip to recharge not consistent",
+            ),
+        ]
+
+        for end, start, msg in checks:
+            if end is None or start is None:
+                raise ValueError(f"Missing timestamp: {msg}")
+            if end <= start:
+                raise ValueError(msg)
 
 
 @total_ordering
@@ -228,11 +243,11 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
     def __init__(
         self,
         *,
-        cell: PickingCell,
-        agv: AGV,
-        store: WarehouseStoreProtocol,
+        cell: Any,
+        agv: Any,
+        store: Any,
         product_requests: Sequence[ProductRequest],
-        location: WarehouseLocation,
+        location: Any,
         unit_load: PalletSingleProduct,
     ) -> None:
         IdentifiableMixin.__init__(self)
@@ -442,7 +457,7 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         self.log.finished_agv_trip_to_staging_area = self.env.now
         logger.debug(f"{self} - Finished moving into {self.cell} staging area")
 
-        self.cell.staging_area.append(self, exceed=True)
+        self.cell.staging_area.append_exceed(self)
 
         # Knock on internal area
         self.cell.internal_area.trigger_signal_event(

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
 from simulatte.exceptions.location import LocationBusy, LocationEmpty
 from simulatte.exceptions.unitload import IncompatibleUnitLoad
@@ -20,10 +20,7 @@ class WarehouseLocationSide(Enum):
     ORIGIN = "origin"
 
 
-T = TypeVar("T", bound=CaseContainer)
-
-
-class WarehouseLocation[T](IdentifiableMixin):
+class WarehouseLocation(IdentifiableMixin):
     """
     Warehouse physical storage location, where the unit loads are stored.
     """
@@ -46,7 +43,7 @@ class WarehouseLocation[T](IdentifiableMixin):
     def __init__(
         self,
         *,
-        store: WarehouseStoreProtocol,
+        store: WarehouseStoreProtocol | object,
         x: int,
         y: int,
         side: WarehouseLocationSide,
@@ -178,12 +175,12 @@ class WarehouseLocation[T](IdentifiableMixin):
         if self.is_half_full:
             return self.second_position
 
-    def check_product_compatibility(self, unit_load: T) -> bool:
+    def check_product_compatibility(self, unit_load: CaseContainer) -> bool:
         if self.product is not None and unit_load.product != self.product:
             raise IncompatibleUnitLoad
         return True
 
-    def book_pickup(self, unit_load: T) -> None:
+    def book_pickup(self, unit_load: CaseContainer) -> None:
         if unit_load not in (
             self.first_position.unit_load,
             self.second_position.unit_load,
@@ -198,7 +195,7 @@ class WarehouseLocation[T](IdentifiableMixin):
 
         self.booked_pickups.append(unit_load)
 
-    def freeze(self, *, unit_load: T) -> None:
+    def freeze(self, *, unit_load: CaseContainer) -> None:
         """
         Freeze the location for a certain unit load to be stored in the future.
 
@@ -254,7 +251,7 @@ class WarehouseLocation[T](IdentifiableMixin):
 
         self.future_unit_loads.remove(unit_load)
 
-    def get(self, unit_load) -> T:
+    def get(self, unit_load) -> CaseContainer:
         if unit_load not in self.booked_pickups:
             raise ValueError("Cannot get a unit load without booking it first")
 

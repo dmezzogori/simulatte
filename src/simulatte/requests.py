@@ -18,8 +18,8 @@ class PickingRequestMixin(IdentifiableMixin, EnvMixin):
         IdentifiableMixin.__init__(self)
         EnvMixin.__init__(self)
 
-        self._start_time = None
-        self._end_time = None
+        self._start_time: float = 0.0
+        self._end_time: float = 0.0
 
         self.sub_jobs = []
         self.parent = None
@@ -43,7 +43,7 @@ class PickingRequestMixin(IdentifiableMixin, EnvMixin):
 
     @property
     def lead_time(self) -> float | None:
-        if self._start_time is not None and self._end_time is not None:
+        if self._start_time and self._end_time:
             return self._end_time - self._start_time
         return None
 
@@ -55,12 +55,12 @@ class PickingRequestMixin(IdentifiableMixin, EnvMixin):
     def started(self) -> None:
         """Mark as started"""
 
-        self._start_time = self.env.now
+        self._start_time = float(self.env.now)
 
     def completed(self) -> None:
         """Mark as completed"""
 
-        self._end_time = self.env.now
+        self._end_time = float(self.env.now)
 
 
 class CaseRequest(PickingRequestMixin):
@@ -77,7 +77,7 @@ class CaseRequest(PickingRequestMixin):
         self.remaining_workload = 1
         self.n_cases = 1
 
-        self.feeding_operations = []
+        self.feeding_operations: list[object] = []
 
 
 class ProductRequest(PickingRequestMixin):
@@ -100,7 +100,7 @@ class ProductRequest(PickingRequestMixin):
         self.workload = n_cases
         self.remaining_workload = n_cases
 
-        self.feeding_operations = []
+        self.feeding_operations: list[object] = []
 
     @as_process
     def iter_feeding_operations(self) -> Iterable[FeedingOperation]:
