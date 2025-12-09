@@ -4,7 +4,6 @@ from collections import deque
 from itertools import groupby
 from typing import TYPE_CHECKING, Literal, cast
 
-from IPython.display import Markdown, display
 from simpy import Process
 from tabulate import tabulate
 
@@ -242,10 +241,7 @@ class PickingCell(IdentifiableMixin):
                 self.system.retrieve_from_cell(cell=self, pallet_request=pallet_request)
 
     def summary(self, plot=True):
-        if hasattr(__builtins__, "__IPYTHON__"):
-            display(Markdown(f"## Performance Summary of {self}"))
-        else:
-            print(f"## Performance Summary of {self}")
+        print(f"## Performance Summary of {self}")
 
         hourly_cell_productivity = self.productivity * 60 * 60
         hourly_cases_productivity = sum(pallet_request.n_cases for pallet_request in self.pallet_requests_done) / (
@@ -310,9 +306,9 @@ class PickingCell(IdentifiableMixin):
         if plot:
             import matplotlib.pyplot as plt
 
-            display(Markdown("## Robot"))
+            print("## Robot")
             self.robot.plot()
-            display(Markdown("## Aree logiche/fisiche"))
+            print("## Aree logiche/fisiche")
             self.feeding_area.plot()
             self.staging_area.plot()
             self.internal_area.plot()

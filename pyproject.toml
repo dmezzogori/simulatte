@@ -1,18 +1,17 @@
 [project]
 name = "simulatte"
-version = "0.1.2"
-description = "A discrete-event simulation framework for warehouse logistics"
+version = "0.1.4"
+description = "A discrete-event simulation framework for intralogistics and operations management"
 readme = "README.md"
 authors = [
     { name = "Davide Mezzogori", email = "dmezzogori@users.noreply.github.com" },
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = [
     "simpy>=4.0.1",
     "matplotlib>=3.7.2",
     "tabulate>=0.9.0",
     "loguru>=0.7.2",
-    "jupyter>=1.0.0",
 ]
 
 [build-system]
@@ -81,7 +80,7 @@ line-length = 120
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 # Assume Python 3.11.
-target-version = "py311"
+target-version = "py314"
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]

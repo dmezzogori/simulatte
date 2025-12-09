@@ -3,8 +3,6 @@ from __future__ import annotations
 import statistics
 from typing import TYPE_CHECKING
 
-from IPython.core.display import Markdown
-from IPython.core.display_functions import display
 from tabulate import tabulate
 
 from simulatte.agv.agv_kind import AGVKind
@@ -135,10 +133,7 @@ class AGVController(EnvMixin):
         return self.best_agv(agvs=self.output_agvs, exceptions=exceptions)
 
     def summary(self):
-        if hasattr(__builtins__, "__IPYTHON__"):
-            display(Markdown("## Performance Summary of AGVs fleet"))
-        else:
-            print("## Performance Summary of AGVs fleet")
+        print("## Performance Summary of AGVs fleet")
 
         headers = ["KPI", "Valore", "U.M."]
         table = [
