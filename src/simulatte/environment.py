@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import simpy
 
-from simulatte.utils.singleton import Singleton
 
-
-class Environment(simpy.Environment, metaclass=Singleton):
+class Environment(simpy.Environment):
     """
-    Singleton class for the simulation environment.
+    Thin wrapper around ``simpy.Environment``.
+
+    Historically this was a global singleton; we now allow callers to
+    instantiate environments explicitly so simulations can coexist in the
+    same process.
     """
 
     def step(self) -> None:

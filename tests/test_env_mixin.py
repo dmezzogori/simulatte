@@ -10,7 +10,7 @@ class TestEnvMixin:
     """Tests for EnvMixin environment access."""
 
     def test_env_mixin_provides_environment(self) -> None:
-        """EnvMixin should provide access to the Environment singleton."""
+        """EnvMixin should provide access to a default Environment."""
 
         class MyClass(EnvMixin):
             def __init__(self) -> None:
@@ -21,8 +21,8 @@ class TestEnvMixin:
         assert hasattr(obj, "env")
         assert isinstance(obj.env, Environment)
 
-    def test_env_mixin_returns_singleton(self) -> None:
-        """EnvMixin.env should return the same Environment instance."""
+    def test_env_mixin_returns_default_env(self) -> None:
+        """EnvMixin.env should reuse the module-level default Environment."""
 
         class MyClass(EnvMixin):
             def __init__(self) -> None:

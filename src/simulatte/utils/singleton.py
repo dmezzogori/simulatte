@@ -6,25 +6,10 @@ T = TypeVar("T")
 
 
 class Singleton[T](type):
-    """
-    Singleton is a metaclass that implements the singleton design pattern.
+    """Metaclass implementing a simple singleton cache.
 
-    It ensures only one instance of a class exists and manages access to that
-    instance.
-
-    The _instances dict stores the instances for each subclass of Singleton.
-
-    The __call__ method checks if an instance already exists for the called
-    class. If not, it creates one by calling super and stores it in _instances.
-
-    The __getattr__ method proxies attribute access to the stored instance.
-
-    The clear method allows removing the instance for a given class from
-    _instances.
-
-    Any class that subclasses Singleton will have at most one instance,
-    accessible via the class or any instances. Further calls to the class
-    will return the same instance.
+    Deprecated: retained only for backward compatibility with older tests.
+    Prefer passing explicit instances instead of relying on global state.
     """
 
     _instances: dict[type[T], T] = {}
@@ -64,8 +49,4 @@ class Singleton[T](type):
         This allows resetting the singleton instance for a given class,
         forcing a new one to be created on next access.
         """
-
-        classes = tuple(Singleton._instances.keys())
-        for cls in classes:
-            instance = Singleton._instances.pop(cls)
-            del instance
+        Singleton._instances.clear()

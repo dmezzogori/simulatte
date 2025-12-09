@@ -5,18 +5,18 @@ from __future__ import annotations
 import simpy
 
 from simulatte.environment import Environment
-from simulatte.utils.singleton import Singleton
 
 
 class TestEnvironment:
-    """Tests for the singleton simulation Environment."""
+    """Tests for the simulation Environment (no singleton)."""
 
-    def test_environment_is_singleton(self) -> None:
-        """Environment should be a singleton."""
+    def test_environments_are_independent(self) -> None:
+        """Each Environment() call should yield a distinct env."""
         env1 = Environment()
         env2 = Environment()
 
-        assert env1 is env2
+        assert env1 is not env2
+        assert env1.now == env2.now == 0
 
     def test_environment_is_simpy_environment(self) -> None:
         """Environment should inherit from simpy.Environment."""
@@ -59,17 +59,6 @@ class TestEnvironment:
         env.run()
 
         assert results == ["started", "completed"]
-
-    def test_new_environment_after_clear(self) -> None:
-        """After Singleton.clear(), a new Environment instance should be created."""
-        env1 = Environment()
-        env1.run(until=100)
-
-        Singleton.clear()
-        env2 = Environment()
-
-        assert env1 is not env2
-        assert env2.now == 0
 
     def test_environment_run_until(self) -> None:
         """Environment should be able to run until a specific time."""

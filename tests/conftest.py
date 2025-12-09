@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from simulatte.utils import IdentifiableMixin
-from simulatte.utils.singleton import Singleton
+from simulatte.utils.env_mixin import set_default_env
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -27,8 +27,8 @@ def clear_global_state() -> Generator[None, Any]:
 
     The cleanup runs automatically before and after every test.
     """
-    Singleton.clear()
+    set_default_env(None)
     IdentifiableMixin.clear()
     yield
-    Singleton.clear()
+    set_default_env(None)
     IdentifiableMixin.clear()

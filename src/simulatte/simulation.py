@@ -24,27 +24,27 @@ class Simulation[SimulationConfig](abc.ABC):
         env: The simulatte environment of the simulation.
     """
 
-    def __init__(self, *, config: SimulationConfig, seed: int | None = None) -> None:
+    def __init__(self, *, config: SimulationConfig, env: Environment | None = None, seed: int | None = None) -> None:
         """
         Initialize the simulation.
-        Resets the Identifiable and Singleton metaclasses.
+        Resets Identifiable ids.
         Sets the seed for random number generation.
 
         Args:
             config: The configuration of the simulation.
+            env: Optional pre-created environment (useful for testing or composition).
             seed: The seed to use for random number generation.
 
         Returns:
             None
         """
-        from simulatte.utils import IdentifiableMixin, Singleton
+        from simulatte.utils import IdentifiableMixin
 
-        Singleton.clear()
         IdentifiableMixin.clear()
 
         self.config = config
         self.seed = seed
-        self.env = Environment()
+        self.env = env if env is not None else Environment()
 
         if self.seed is not None:
             random.seed(self.seed)
