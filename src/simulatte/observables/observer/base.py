@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 import simpy
 
@@ -10,7 +10,7 @@ from simulatte.utils import EnvMixin
 T = TypeVar("T", bound=ObservableArea)
 
 
-class Observer(EnvMixin, Generic[T]):
+class Observer[T](EnvMixin):
     """
     An observer is in charge of observing an observable area of an element of the simulation.
     When the observable area signal event is triggered, the observer will execute its main process.

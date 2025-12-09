@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from simpy.resources.store import FilterStore, Store
 
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
-class SequentialStore(EnvMixin, Generic[T]):
+class SequentialStore[T](EnvMixin):
     """
     The SequentialStore implements a FIFO queue (items are stored in the order in which they are put).
 

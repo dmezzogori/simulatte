@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Generic, TypeVar
+from typing import TypeVar
 
-_T = TypeVar("_T")
+T = TypeVar("T")
 
 
-class Singleton(type, Generic[_T]):
+class Singleton[T](type):
     """
     Singleton is a metaclass that implements the singleton design pattern.
 
@@ -27,7 +27,7 @@ class Singleton(type, Generic[_T]):
     will return the same instance.
     """
 
-    _instances: dict[type[_T], _T] = {}
+    _instances: dict[type[T], T] = {}
 
     def __call__(cls, *args, **kwargs):
         """

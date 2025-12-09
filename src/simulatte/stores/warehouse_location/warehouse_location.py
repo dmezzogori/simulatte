@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from simulatte.exceptions.location import LocationBusy, LocationEmpty
 from simulatte.exceptions.unitload import IncompatibleUnitLoad
@@ -23,7 +23,7 @@ class WarehouseLocationSide(Enum):
 T = TypeVar("T", bound=CaseContainer)
 
 
-class WarehouseLocation(IdentifiableMixin, Generic[T]):
+class WarehouseLocation[T](IdentifiableMixin):
     """
     Warehouse physical storage location, where the unit loads are stored.
     """

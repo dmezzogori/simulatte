@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from simulatte.typings import History
 from simulatte.utils import EnvMixin
@@ -13,7 +13,7 @@ Item = TypeVar("Item")
 Owner = TypeVar("Owner")
 
 
-class Area(list, EnvMixin, Generic[Item, Owner]):
+class Area[Item, Owner](list, EnvMixin):
     """
     Implement a virtual area.
     Extends list to add (optional) finite capacity.

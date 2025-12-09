@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 import simpy
 
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 T = TypeVar("T", bound=CaseContainer)
 
 
-class Traslo(simpy.PriorityResource, EnvMixin, HasEnv, Generic[T]):
+class Traslo[T](simpy.PriorityResource, EnvMixin, HasEnv):
     def __init__(
         self, *, store: WarehouseStoreProtocol, x: int, y: int, speed_x: float, speed_y: float, load_time: float
     ) -> None:

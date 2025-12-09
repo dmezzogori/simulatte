@@ -4,7 +4,7 @@ import abc
 import random
 import time
 from collections.abc import Iterable
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 import numpy as np
 from simpy import Event
@@ -15,7 +15,7 @@ from simulatte.logger import logger
 SimulationConfig = TypeVar("SimulationConfig")
 
 
-class Simulation(abc.ABC, Generic[SimulationConfig]):
+class Simulation[SimulationConfig](abc.ABC):
     """
     Base class to build and run a simulation.
 
