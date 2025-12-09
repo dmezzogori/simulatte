@@ -56,7 +56,7 @@
 - [x] Port Job/Server/ShopFloor.  
 - [x] Add PSP/Router/policies/distributions/builders/runner.  
 - [x] Add/tests for core flow.  
-- [ ] Final doc update + commit.
+- [x] Final doc update + commit.
 
 **Current status (Dec 9, 2025)**  
 - Jobshop package scaffolded with core flow objects, PSP/policies, router, builders, runner.  
