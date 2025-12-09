@@ -6,6 +6,13 @@ from simulatte.observables.observable_area.base import ObservableArea
 
 if TYPE_CHECKING:
     from simulatte.operations.feeding_operation import FeedingOperation
+    from simulatte.picking_cell.cell import PickingCell
+else:
+
+    class PickingCell:  # pragma: no cover
+        """Runtime placeholder to satisfy forward references."""
+
+        ...
 
 
 class StagingArea(ObservableArea["FeedingOperation", "PickingCell"]):
