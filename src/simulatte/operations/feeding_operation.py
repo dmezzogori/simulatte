@@ -4,6 +4,7 @@ from collections.abc import Iterable, Sequence
 from functools import total_ordering
 from typing import TYPE_CHECKING, Any
 
+from simulatte.environment import Environment
 from simulatte.events.event_payload import EventPayload
 from simulatte.events.logged_event import LoggedEvent
 from simulatte.location import InternalLocation, Location
@@ -257,7 +258,7 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
         product_requests: Sequence[ProductRequest],
         location: Any,
         unit_load: PalletSingleProduct,
-        env=None,
+        env: Environment,
     ) -> None:
         IdentifiableMixin.__init__(self)
         EnvMixin.__init__(self, env=env)
@@ -293,7 +294,7 @@ class FeedingOperation(IdentifiableMixin, EnvMixin):
             "ready": False,
             "done": False,
         }
-        self.ready = LoggedEvent()
+        self.ready = LoggedEvent(env=self.env)
 
         self.log = FeedingOperationLog(self, self.env.now)
 

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 from tabulate import tabulate
 
 from simulatte.agv.agv_kind import AGVKind
+from simulatte.environment import Environment
 from simulatte.utils import EnvMixin
 
 if TYPE_CHECKING:
@@ -19,7 +20,7 @@ class AGVController(EnvMixin):
     The controller is responsible for selecting the best agv for a given mission, according to the set selection policy.
     """
 
-    def __init__(self, *, agvs, agv_selection_policy, env=None) -> None:
+    def __init__(self, *, agvs, agv_selection_policy, env: Environment) -> None:
         EnvMixin.__init__(self, env=env)
 
         self.agvs = agvs

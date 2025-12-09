@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, TypeVar
 
 from simulatte.typings import History
+from simulatte.environment import Environment
 from simulatte.utils import EnvMixin
 
 if TYPE_CHECKING:
@@ -22,7 +23,7 @@ class Area[Item, Owner](list[Item], EnvMixin):
 
     __slots__ = ("env", "capacity", "_history", "last_in", "last_out")
 
-    def __init__(self, *, capacity: float = float("inf"), owner: Owner, env=None) -> None:
+    def __init__(self, *, owner: Owner, env: Environment, capacity: float = float("inf")) -> None:
         EnvMixin.__init__(self, env=env)
         list.__init__(self)
 

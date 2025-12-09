@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from simpy.resources.store import Store
 
+from simulatte.environment import Environment
 from simulatte.unitload import PaperSheet, WoodBoard
 from simulatte.utils import EnvMixin, as_process
 
@@ -20,9 +21,9 @@ class EOQBuffer(EnvMixin):
         eoq: int,
         get_time: int,
         put_time: int,
+        env: Environment,
         capacity: float = float("inf"),
         init: int = 0,
-        env=None,
     ):
         EnvMixin.__init__(self, env=env)
 

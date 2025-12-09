@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from simulatte.environment import Environment
 from simulatte.utils import IdentifiableMixin
-from simulatte.utils.env_mixin import set_default_env
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -21,14 +21,17 @@ if TYPE_CHECKING:
 def clear_global_state() -> Generator[None, Any]:
     """Clear singleton and identifiable state before and after each test.
 
-    This fixture ensures test isolation by:
-    1. Clearing Singleton instances (including Environment)
-    2. Resetting IdentifiableMixin ID counters
+    This fixture ensures test isolation by resetting IdentifiableMixin ID counters.
 
     The cleanup runs automatically before and after every test.
     """
-    set_default_env(None)
     IdentifiableMixin.clear()
     yield
-    set_default_env(None)
     IdentifiableMixin.clear()
+
+
+@pytest.fixture
+def env() -> Environment:
+    """Fresh simulation environment for tests."""
+
+    return Environment()

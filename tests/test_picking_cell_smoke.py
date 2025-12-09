@@ -21,9 +21,9 @@ def test_picking_cell_can_instantiate_without_main_process():
     system = DummySystem()
     env = system.env
     input_queue = Store(env)
-    output_queue = SequentialStore()
+    output_queue = SequentialStore(env=env)
     building_point = MonitoredResource(env, capacity=1)
-    robot = Robot(pick_timeout=1, place_timeout=1, rotation_timeout=1)
+    robot = Robot(pick_timeout=1, place_timeout=1, rotation_timeout=1, env=env)
 
     cell = PickingCell(
         system=cast(SystemController, system),
@@ -36,6 +36,7 @@ def test_picking_cell_can_instantiate_without_main_process():
         internal_area_capacity=2,
         workload_unit="cases",
         register_main_process=False,
+        env=env,
     )
 
     assert cell.system is system

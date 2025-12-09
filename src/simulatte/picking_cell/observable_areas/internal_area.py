@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
+from simulatte.environment import Environment
 from simulatte.observables.observable_area.base import ObservableArea
 from simulatte.picking_cell.observable_areas.position import Position
 
@@ -16,7 +17,15 @@ class InternalArea(ObservableArea):
     Manage both unloading and pre-unloading positions.
     """
 
-    def __init__(self, *, capacity: int, owner: PickingCell, signal_at, pre_unload: bool = False, env=None) -> None:
+    def __init__(
+        self,
+        *,
+        capacity: int,
+        owner: PickingCell,
+        signal_at,
+        pre_unload: bool = False,
+        env: Environment,
+    ) -> None:
         super().__init__(capacity=capacity, owner=owner, signal_at=signal_at, env=env)
 
         if pre_unload:

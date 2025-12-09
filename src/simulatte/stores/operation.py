@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from simulatte.environment import Environment
 from simulatte.protocols import HasEnv
 from simulatte.unitload import CaseContainer
 from simulatte.utils import EnvMixin
@@ -11,7 +12,14 @@ if TYPE_CHECKING:
 
 
 class Operation(EnvMixin, HasEnv):
-    def __init__(self, *, unit_load: CaseContainer, location: WarehouseLocation, priority: int = 0, env=None) -> None:
+    def __init__(
+        self,
+        *,
+        unit_load: CaseContainer,
+        location: WarehouseLocation,
+        env: Environment,
+        priority: int = 0,
+    ) -> None:
         EnvMixin.__init__(self, env=env)
 
         self.unit_load = unit_load
@@ -33,8 +41,15 @@ class Operation(EnvMixin, HasEnv):
 class InputOperation(Operation):
     """Warehouse input operation"""
 
-    def __init__(self, *, unit_load: CaseContainer, location: WarehouseLocation, priority: int) -> None:
-        super().__init__(unit_load=unit_load, location=location, priority=priority)
+    def __init__(
+        self,
+        *,
+        unit_load: CaseContainer,
+        location: WarehouseLocation,
+        priority: int,
+        env: Environment,
+    ) -> None:
+        super().__init__(unit_load=unit_load, location=location, priority=priority, env=env)
         self.lift_process = None
         self.lifted = self.env.event()
 

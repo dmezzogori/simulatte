@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from simulatte.environment import Environment
 from simulatte.policies.agv_selection_policy.base import AGVSelectionPolicy, MultiAGVSelectionPolicy
 from simulatte.protocols.timed import Timed
 from simulatte.protocols.job import Job
@@ -9,15 +10,15 @@ from simulatte.utils import EnvMixin
 
 
 class DummyTimed(EnvMixin, Timed):
-    def __init__(self):
-        EnvMixin.__init__(self)
+    def __init__(self, env: Environment):
+        EnvMixin.__init__(self, env=env)
         self._start_time = None
         self._end_time = None
 
 
 class ConcreteJob(Job, DummyTimed):
-    def __init__(self, workload: int = 2):
-        DummyTimed.__init__(self)
+    def __init__(self, env: Environment, workload: int = 2):
+        DummyTimed.__init__(self, env=env)
         self.id = 1
         self.workload = workload
         self.remaining_workload = workload
@@ -37,8 +38,8 @@ def test_agv_selection_policy_not_implemented():
         multi_policy(agvs=[])
 
 
-def test_timed_lead_time_and_job_context_manager():
-    job = ConcreteJob(workload=3)
+def test_timed_lead_time_and_job_context_manager(env):
+    job = ConcreteJob(env=env, workload=3)
 
     assert job.lead_time is None
 

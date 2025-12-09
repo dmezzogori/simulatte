@@ -3,6 +3,7 @@ from __future__ import annotations
 import simpy
 
 from simulatte.location import Location
+from simulatte.environment import Environment
 from simulatte.utils import EnvMixin
 
 
@@ -12,7 +13,7 @@ class ServicePoint(simpy.PriorityResource, EnvMixin):
     where ants go to be served.
     """
 
-    def __init__(self, *, location: Location, capacity=1, env=None):
+    def __init__(self, *, location: Location, env: Environment, capacity=1):
         EnvMixin.__init__(self, env=env)
         simpy.PriorityResource.__init__(self, self.env, capacity=capacity)
 

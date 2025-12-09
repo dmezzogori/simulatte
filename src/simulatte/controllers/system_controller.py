@@ -8,6 +8,7 @@ from simulatte.logger import logger
 from simulatte.observables.observable_area.base import ObservableArea
 from simulatte.observables.observer.base import Observer
 from simulatte.protocols import Job
+from simulatte.environment import Environment
 from simulatte.utils import EnvMixin
 from simulatte.utils.as_process import as_process
 
@@ -90,7 +91,7 @@ class SystemController(EnvMixin):
         jobs_generator: JobsGenerator,
         product_requests_selection_policy: ProductRequestSelectionPolicy,
         idle_feeding_agvs_selection_policy: IdleFeedingSelectionPolicy,
-        env=None,
+        env: Environment,
     ):
         EnvMixin.__init__(self, env=env)
 

@@ -10,7 +10,6 @@ import numpy as np
 from simpy import Event
 
 from simulatte.environment import Environment
-from simulatte.utils.env_mixin import set_default_env
 from simulatte.logger import logger
 
 SimulationConfig = TypeVar("SimulationConfig")
@@ -46,10 +45,6 @@ class Simulation[SimulationConfig](abc.ABC):
         self.config = config
         self.seed = seed
         self.env = env if env is not None else Environment()
-
-        # Make the simulation environment the default for legacy components
-        # that still rely on EnvMixin without explicit injection.
-        set_default_env(self.env)
 
         if self.seed is not None:
             random.seed(self.seed)

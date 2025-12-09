@@ -9,6 +9,7 @@ from simulatte.agv.agv_mission import AGVMission
 from simulatte.agv.agv_plotter import AGVPlotter
 from simulatte.agv.agv_status import AGVStatus
 from simulatte.agv.agv_trip import AGVTrip
+from simulatte.environment import Environment
 from simulatte.logger import logger
 from simulatte.protocols.has_env import HasEnv
 from simulatte.protocols.identifiable import Identifiable
@@ -68,8 +69,8 @@ class AGV(IdentifiableMixin, EnvMixin, PriorityResource, Identifiable, HasEnv):
         load_timeout: float,
         unload_timeout: float,
         speed: float,
+        env: Environment,
         picking_cell: type[PickingCell] | None = None,
-        env=None,
     ):
         IdentifiableMixin.__init__(self)
         EnvMixin.__init__(self, env=env)

@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from simulatte.events.logged_event import LoggedEvent
+from simulatte.environment import Environment
 
 if TYPE_CHECKING:
     from simulatte.events.event_payload import EventPayload
@@ -17,7 +18,8 @@ class Observable:
     The observer uses the observable signal event to act accordingly.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, env: Environment) -> None:
+        self.env = env
         self._callbacks: list[Callable] = []
         self.signal_event = self._init_signal_event()
 
@@ -34,7 +36,7 @@ class Observable:
         """
         Initialize the observable signal event.
         """
-        event = LoggedEvent()
+        event = LoggedEvent(env=self.env)
         if self.callbacks:
             event.callbacks.extend(self.callbacks)
 

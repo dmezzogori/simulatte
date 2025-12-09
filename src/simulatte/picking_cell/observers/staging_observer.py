@@ -17,7 +17,7 @@ class StagingObserver(Observer[StagingArea]):
         super().__init__(*args, **kwargs)
         self.out_of_sequence = set()
         self.first_fo_entered = False
-        self.waiting_fos = WaitingAGVsArea(owner=self.observable_area.owner)
+        self.waiting_fos = WaitingAGVsArea(owner=self.observable_area.owner, env=self.env)
 
     def next(self) -> FeedingOperation | None:
         """

@@ -8,66 +8,62 @@ from simulatte.simpy_extension.sequential_multi_store.sequential_multi_store imp
 from simulatte.simpy_extension.sequential_store.sequential_store import SequentialStore
 
 
-def test_sequential_store_put_get_order():
-    store = SequentialStore(capacity=3)
-    env = store.env
+def test_sequential_store_put_get_order(env):
+    store = SequentialStore(capacity=3, env=env)
 
     store.put("first")
     store.put("second")
-    env.run()
+    store.env.run()
 
     assert store.output_level == 1
     assert store.internal_store_level == 1
     assert store.level == 2
 
     getter = store.get(lambda _: True)
-    env.run()
+    store.env.run()
     assert getter.value == "first"
     assert store.output_level == 1  # second item promoted to output
     assert store.internal_store_level == 0
 
 
-def test_sequential_store_capacity_validation():
+def test_sequential_store_capacity_validation(env):
     with pytest.raises(ValueError):
-        SequentialStore(capacity=1)
+        SequentialStore(capacity=1, env=env)
 
 
-def test_multi_store_put_and_get_returns_available_items():
-    store = MultiStore(capacity=3)
-    env = store.env
+def test_multi_store_put_and_get_returns_available_items(env):
+    store = MultiStore(capacity=3, env=env)
 
     store.put([1, 2])
-    env.run()
+    store.env.run()
     assert store.level == 2
 
     one = store.get(1)
-    env.run()
+    store.env.run()
     assert one.value == [1]
     assert store.level == 1
 
     all_items = store.get(5)
-    env.run()
+    store.env.run()
     assert all_items.value == [2]
     assert store.level == 0
 
 
-def test_sequential_multi_store_custom_put_and_get():
-    store = SequentialMultiStore(capacity=4)
-    env = store.env
+def test_sequential_multi_store_custom_put_and_get(env):
+    store = SequentialMultiStore(capacity=4, env=env)
 
-    env.process(store._do_put([1, 2, 3]))
-    env.run()
+    store.env.process(store._do_put([1, 2, 3]))
+    store.env.run()
     assert store.output_level == 1
     assert store.internal_store_level == 2
 
-    getter = env.process(store._do_get(lambda _: True))
-    env.run()
+    getter = store.env.process(store._do_get(lambda _: True))
+    store.env.run()
     assert getter.value == 1
     assert store.output_level == 1  # next item promoted
 
 
-def test_hash_store_put_get_and_missing_key():
-    env = SequentialStore().env
+def test_hash_store_put_get_and_missing_key(env):
     env_store = HashStore(env=env, capacity=2)
 
     env_store.put(key="a", item=10)

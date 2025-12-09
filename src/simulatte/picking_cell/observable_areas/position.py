@@ -5,6 +5,7 @@ from typing import cast
 from simpy.core import BoundClass
 from simpy.resources.resource import Release, Request, Resource
 
+from simulatte.environment import Environment
 from simulatte.utils import EnvMixin
 
 
@@ -38,7 +39,7 @@ class Position(Resource, EnvMixin):
     # Method to release the position
     release = BoundClass(Release)  # type: ignore
 
-    def __init__(self, name: str, *args, env=None, **kwargs):
+    def __init__(self, name: str, *args, env: Environment, **kwargs):
         EnvMixin.__init__(self, env=env)
         kwargs.setdefault("env", self.env)
         Resource.__init__(self, *args, **kwargs)

@@ -3,8 +3,8 @@ from __future__ import annotations
 from simulatte.simpy_extension.filter_multi_store.filter_multi_store import FilterMultiStore
 
 
-def test_filter_multi_store_get_all_items_when_no_filter():
-    store = FilterMultiStore()
+def test_filter_multi_store_get_all_items_when_no_filter(env):
+    store = FilterMultiStore(env=env)
 
     store.put(items=[1, 2, 3])
     store.env.run()
@@ -16,8 +16,8 @@ def test_filter_multi_store_get_all_items_when_no_filter():
     assert store.level == 0
 
 
-def test_filter_multi_store_filters_items():
-    store = FilterMultiStore()
+def test_filter_multi_store_filters_items(env):
+    store = FilterMultiStore(env=env)
     store.put(items=[1, 2, 3, 4])
     store.env.run()
 

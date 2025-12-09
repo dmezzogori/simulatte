@@ -6,7 +6,7 @@ from simulatte.buffer import EOQBuffer
 from simulatte.unitload import PaperSheet
 
 
-def test_eoq_buffer_rejects_init_over_capacity():
+def test_eoq_buffer_rejects_init_over_capacity(env):
     with pytest.raises(ValueError):
         EOQBuffer(
             items_type=PaperSheet,
@@ -16,10 +16,11 @@ def test_eoq_buffer_rejects_init_over_capacity():
             put_time=1,
             capacity=1,
             init=2,
+            env=env,
         )
 
 
-def test_eoq_buffer_put_get_and_refill_flag():
+def test_eoq_buffer_put_get_and_refill_flag(env):
     buffer = EOQBuffer(
         items_type=PaperSheet,
         reorder_level=2,
@@ -27,6 +28,7 @@ def test_eoq_buffer_put_get_and_refill_flag():
         get_time=1,
         put_time=1,
         init=0,
+        env=env,
     )
 
     # Refill with two items; each put costs 1 time unit
@@ -48,7 +50,7 @@ def test_eoq_buffer_put_get_and_refill_flag():
     assert buffer.need_refill is True
 
 
-def test_eoq_buffer_initial_items_and_capacity_property():
+def test_eoq_buffer_initial_items_and_capacity_property(env):
     buffer = EOQBuffer(
         items_type=PaperSheet,
         reorder_level=1,
@@ -57,6 +59,7 @@ def test_eoq_buffer_initial_items_and_capacity_property():
         put_time=0,
         capacity=5,
         init=1,
+        env=env,
     )
 
     assert buffer.capacity == 5

@@ -63,7 +63,7 @@ def test_reverse_feeding_selection_policy_reverses_and_filters():
     assert agvs[0] not in filtered
 
 
-def test_agv_controller_groups_and_best_selection(capsys):
+def test_agv_controller_groups_and_best_selection(capsys, env):
     agvs = [
         DummyAGV(kind=AGVKind.FEEDING),
         DummyAGV(kind=AGVKind.REPLENISHMENT),
@@ -74,7 +74,7 @@ def test_agv_controller_groups_and_best_selection(capsys):
         def __call__(self, *, agvs, exceptions=None):
             return next(iter(agvs))
 
-    controller = AGVController(agvs=agvs, agv_selection_policy=FirstPolicy())
+    controller = AGVController(agvs=agvs, agv_selection_policy=FirstPolicy(), env=env)
 
     assert controller.best_feeding_agv() is agvs[0]
     assert controller.best_replenishment_agv() is agvs[1]

@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast
 
 from simulatte.agv import AGV
+from simulatte.environment import Environment
 from simulatte.exceptions.base import SimulationError
 from simulatte.products import Product, ProductsGenerator
 from simulatte.protocols.warehouse_store import WarehouseStoreProtocol
@@ -55,7 +56,7 @@ class StoresController(abc.ABC, EnvMixin):
     - a storing policy to be used to find the best locations for products' storage
     """
 
-    def __init__(self, *, config: StoresControllerConfig, env=None) -> None:
+    def __init__(self, *, config: StoresControllerConfig, env: Environment) -> None:
         EnvMixin.__init__(self, env=env)
 
         self._retrieval_policy: RetrievalPolicy = config["retrieval_policy"]

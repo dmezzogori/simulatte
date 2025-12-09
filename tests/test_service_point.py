@@ -4,17 +4,16 @@ from simulatte.location import Location
 from simulatte.service_point.service_point import ServicePoint
 
 
-def test_service_point_stores_location_and_env():
-    service_point = ServicePoint(location=Location(), capacity=1)
+def test_service_point_stores_location_and_env(env):
+    service_point = ServicePoint(location=Location(), capacity=1, env=env)
 
     assert service_point.location.name == "Location"
     assert service_point.capacity == 1
     assert service_point.env.now == 0
 
 
-def test_service_point_respects_priority_ordering():
-    service_point = ServicePoint(location=Location(), capacity=1)
-    env = service_point.env
+def test_service_point_respects_priority_ordering(env):
+    service_point = ServicePoint(location=Location(), capacity=1, env=env)
     served: list[str] = []
 
     def blocker():

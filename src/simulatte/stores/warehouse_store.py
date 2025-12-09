@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from simulatte.environment import Environment
 from simulatte.location import InputLocation, OutputLocation
 from simulatte.protocols import warehouse_store
 from simulatte.stores.operation import InputOperation
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
 
 
 class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStoreProtocol):
-    def __init__(self, *, config: warehouse_store.WarehouseStoreConfig, env=None):
+    def __init__(self, *, config: warehouse_store.WarehouseStoreConfig, env: Environment):
         IdentifiableMixin.__init__(self)
         EnvMixin.__init__(self, env=env)
 
@@ -127,7 +128,7 @@ class WarehouseStore(IdentifiableMixin, EnvMixin, warehouse_store.WarehouseStore
     def create_input_operation(
         self, *, unit_load: CaseContainer, location: WarehouseLocation, priority: int
     ) -> InputOperation:
-        return InputOperation(unit_load=unit_load, location=location, priority=priority)
+        return InputOperation(unit_load=unit_load, location=location, priority=priority, env=self.env)
 
     @as_process
     def unload_agv(self, *, agv: AGV, input_operation: InputOperation):

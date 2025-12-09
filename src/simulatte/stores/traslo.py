@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, TypeVar
 
 import simpy
 
+from simulatte.environment import Environment
 from simulatte.protocols.has_env import HasEnv
 from simulatte.typings import History, ProcessGenerator
 from simulatte.unitload.case_container import CaseContainer
@@ -27,7 +28,7 @@ class Traslo[T](simpy.PriorityResource, EnvMixin, HasEnv):
         speed_x: float,
         speed_y: float,
         load_time: float,
-        env=None,
+        env: Environment,
     ) -> None:
         EnvMixin.__init__(self, env=env)
         simpy.PriorityResource.__init__(self, self.env, capacity=1)

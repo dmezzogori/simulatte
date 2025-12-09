@@ -8,7 +8,7 @@ from simulatte.utils import EnvMixin
 
 
 class LoggedEvent(Event, EnvMixin):
-    def __init__(self, env=None):
+    def __init__(self, env):
         EnvMixin.__init__(self, env=env)
         Event.__init__(self, env=self.env)
 

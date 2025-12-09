@@ -26,9 +26,9 @@ def make_product(family="F", cases_per_layer=3):
     )
 
 
-def test_product_request_structure_and_lead_time_context():
+def test_product_request_structure_and_lead_time_context(env):
     product = make_product()
-    request = ProductRequest(product=product, n_cases=2)
+    request = ProductRequest(product=product, n_cases=2, env=env)
     assert isinstance(request.sub_jobs[0], CaseRequest)
     assert request.n_cases == 2
     assert request.remaining_workload == 2
@@ -39,11 +39,11 @@ def test_product_request_structure_and_lead_time_context():
     assert request.remaining_workload == 0
 
 
-def test_layer_and_pallet_requests_flags():
+def test_layer_and_pallet_requests_flags(env):
     product = make_product()
-    product_request = ProductRequest(product=product, n_cases=1)
-    layer = LayerRequestSingleProduct(product_request)
-    pallet = PalletRequest(layer)
+    product_request = ProductRequest(product=product, n_cases=1, env=env)
+    layer = LayerRequestSingleProduct(product_request, env=env)
+    pallet = PalletRequest(layer, env=env)
 
     assert pallet.all_layers_single_product
     assert not pallet.all_layers_multi_product
@@ -52,9 +52,9 @@ def test_layer_and_pallet_requests_flags():
     assert pallet.unit_load is not None
 
 
-def test_iter_feeding_operations_waits_until_available():
+def test_iter_feeding_operations_waits_until_available(env):
     product = make_product()
-    request = ProductRequest(product=product, n_cases=1)
+    request = ProductRequest(product=product, n_cases=1, env=env)
 
     def add_ops():
         yield request.env.timeout(2)
@@ -67,7 +67,7 @@ def test_iter_feeding_operations_waits_until_available():
     assert consumer.value == ["op"]
 
 
-def test_product_request_validation_against_cases_per_layer():
+def test_product_request_validation_against_cases_per_layer(env):
     product = make_product(cases_per_layer=1)
     with pytest.raises(ValueError):
-        ProductRequest(product=product, n_cases=2)
+        ProductRequest(product=product, n_cases=2, env=env)

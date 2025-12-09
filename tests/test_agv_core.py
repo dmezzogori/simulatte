@@ -27,12 +27,12 @@ class FakeAGV(AGV):
         return FakeTrip(agv=self, destination=destination)
 
 
-def make_agv() -> FakeAGV:
-    return FakeAGV(kind=AGVKind.FEEDING, load_timeout=1, unload_timeout=1, speed=1.0)
+def make_agv(env) -> FakeAGV:
+    return FakeAGV(kind=AGVKind.FEEDING, load_timeout=1, unload_timeout=1, speed=1.0, env=env)
 
 
-def test_agv_request_and_release_sets_mission_times():
-    agv = make_agv()
+def test_agv_request_and_release_sets_mission_times(env):
+    agv = make_agv(env)
 
     def user():
         with agv.request(operation="op") as req:
@@ -51,8 +51,8 @@ def test_agv_request_and_release_sets_mission_times():
     assert agv.total_mission_duration == pytest.approx(mission.duration)
 
 
-def test_load_and_unload_require_proper_status_and_unit_load():
-    agv = make_agv()
+def test_load_and_unload_require_proper_status_and_unit_load(env):
+    agv = make_agv(env)
     agv.status = AGVStatus.WAITING_TO_BE_LOADED
 
     loader = agv.load(unit_load=cast(CaseContainer, "payload"))
@@ -73,8 +73,8 @@ def test_load_and_unload_require_proper_status_and_unit_load():
     assert unloader.value is None
 
 
-def test_move_to_updates_trip_history_and_metrics():
-    agv = make_agv()
+def test_move_to_updates_trip_history_and_metrics(env):
+    agv = make_agv(env)
     start = Location()
     dest = Location()
     agv.current_location = start

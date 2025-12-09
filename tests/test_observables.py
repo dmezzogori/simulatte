@@ -9,7 +9,7 @@ from simulatte.observables.observer.base import Observer
 class DummyObserver(Observer[ObservableArea]):
     def __init__(self, observable_area: ObservableArea):
         self.triggers = 0
-        super().__init__(observable_area=observable_area, register_main_process=True)
+        super().__init__(observable_area=observable_area, register_main_process=True, env=observable_area.env)
 
     def next(self):
         return self.observable_area.last_in
@@ -18,8 +18,8 @@ class DummyObserver(Observer[ObservableArea]):
         self.triggers += 1
 
 
-def test_area_append_remove_and_history():
-    area = Area(capacity=1, owner="owner")
+def test_area_append_remove_and_history(env):
+    area = Area(capacity=1, owner="owner", env=env)
     assert area.is_empty
     area.append_exceed("item")
     assert area.last_in == "item"
@@ -29,8 +29,8 @@ def test_area_append_remove_and_history():
     assert area.last_out == "item"
 
 
-def test_observable_area_triggers_callbacks_and_observer():
-    area = ObservableArea(capacity=2, owner="cell", signal_at=("append", "remove"))
+def test_observable_area_triggers_callbacks_and_observer(env):
+    area = ObservableArea(capacity=2, owner="cell", signal_at=("append", "remove"), env=env)
     # Register an extra callback before observer to keep signal_event in sync
     triggered = []
     area.callbacks = [lambda ev: triggered.append(ev)]
@@ -51,8 +51,8 @@ def test_observable_area_triggers_callbacks_and_observer():
     assert observer.triggers == 2
 
 
-def test_observable_reset_signal_event():
-    observable = Observable()
+def test_observable_reset_signal_event(env):
+    observable = Observable(env=env)
     called = []
     observable.callbacks = [lambda ev: called.append(ev)]
     current_event = observable.signal_event

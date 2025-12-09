@@ -74,7 +74,7 @@ def make_partial_pallet(product: Product) -> PalletSingleProduct:
     return PalletSingleProduct(partial_layer)
 
 
-def test_feeding_operation_initial_state_and_status_flags():
+def test_feeding_operation_initial_state_and_status_flags(env):
     product = Product(
         probability=1,
         family="F",
@@ -84,7 +84,7 @@ def test_feeding_operation_initial_state_and_status_flags():
         min_case_per_pallet=4,
         lp_enabled=True,
     )
-    request = ProductRequest(product=product, n_cases=1)
+    request = ProductRequest(product=product, n_cases=1, env=env)
     pallet = make_partial_pallet(product)
 
     cell = DummyCell()
@@ -97,6 +97,7 @@ def test_feeding_operation_initial_state_and_status_flags():
         product_requests=[request],
         location=object(),
         unit_load=pallet,
+        env=env,
     )
 
     assert feeding in cell.feeding_operations

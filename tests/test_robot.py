@@ -5,12 +5,11 @@ import matplotlib.pyplot as plt
 from simulatte.robot import ArmPosition, Robot
 
 
-def test_robot_pick_place_and_metrics(monkeypatch):
+def test_robot_pick_place_and_metrics(monkeypatch, env):
     # Avoid opening plot windows
     monkeypatch.setattr(plt, "show", lambda *_, **__: None)
 
-    robot = Robot(pick_timeout=1, place_timeout=2, rotation_timeout=1)
-    env = robot.env
+    robot = Robot(pick_timeout=1, place_timeout=2, rotation_timeout=1, env=env)
 
     def work_cycle():
         with robot.request() as req:
@@ -32,9 +31,8 @@ def test_robot_pick_place_and_metrics(monkeypatch):
     robot.plot(show_productivity=False)
 
 
-def test_robot_rotate_updates_worked_time():
-    robot = Robot(pick_timeout=1, place_timeout=1, rotation_timeout=2)
-    env = robot.env
+def test_robot_rotate_updates_worked_time(env):
+    robot = Robot(pick_timeout=1, place_timeout=1, rotation_timeout=2, env=env)
 
     robot.rotate()
     env.run()
@@ -54,10 +52,9 @@ def test_robot_rotate_updates_worked_time():
     assert robot._history  # release recorded
 
 
-def test_robot_idle_time_and_plot_productivity(monkeypatch):
+def test_robot_idle_time_and_plot_productivity(monkeypatch, env):
     monkeypatch.setattr(plt, "show", lambda *_, **__: None)
-    robot = Robot(pick_timeout=1, place_timeout=1, rotation_timeout=1)
-    env = robot.env
+    robot = Robot(pick_timeout=1, place_timeout=1, rotation_timeout=1, env=env)
 
     def cycle():
         with robot.request() as req:

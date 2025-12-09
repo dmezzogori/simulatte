@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import simpy
 from simpy.resources.resource import Release, Request
 
+from simulatte.environment import Environment
 from simulatte.utils import EnvMixin
 
 if TYPE_CHECKING:
@@ -19,7 +20,7 @@ class ArmPosition(enum.Enum):
 
 
 class Robot(simpy.Resource, EnvMixin):
-    def __init__(self, *, pick_timeout: float, place_timeout: float, rotation_timeout: float, env=None) -> None:
+    def __init__(self, *, pick_timeout: float, place_timeout: float, rotation_timeout: float, env: Environment) -> None:
         EnvMixin.__init__(self, env=env)
         simpy.Resource.__init__(self, env=self.env, capacity=1)
 

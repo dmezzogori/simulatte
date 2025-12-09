@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
+from simulatte.environment import Environment
 from simulatte.simpy_extension.multi_store.multi_store import MultiStore
 from simulatte.simpy_extension.sequential_store.sequential_store import SequentialStore
 
@@ -19,10 +20,10 @@ class SequentialMultiStore(SequentialStore):
     one-piece-flow sequence must be respected.
     """
 
-    def __init__(self, capacity: float = float("inf")):
-        super().__init__(capacity)
+    def __init__(self, *, env: Environment, capacity: float = float("inf")) -> None:
+        super().__init__(env=env, capacity=capacity)
         # Overwrite the store with a MultiStore instance
-        self._internal_store = MultiStore(capacity - 1)
+        self._internal_store = MultiStore(env=env, capacity=capacity - 1)
 
     def _do_put(self, items: Sequence):
         if len(items) >= self.capacity:

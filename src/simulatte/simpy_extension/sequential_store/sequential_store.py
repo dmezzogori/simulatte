@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, TypeVar
 
 from simpy.resources.store import FilterStore, Store
 
+from simulatte.environment import Environment
 from simulatte.typings import History, ProcessGenerator
 from simulatte.utils import EnvMixin
 from simulatte.utils.as_process import as_process
@@ -26,7 +27,7 @@ class SequentialStore[T](EnvMixin):
     The retrieved element must satisfy the filter function applied to the FilterStore.
     """
 
-    def __init__(self, capacity: float = float("inf"), env=None) -> None:
+    def __init__(self, *, env: Environment, capacity: float = float("inf")) -> None:
         EnvMixin.__init__(self, env=env)
 
         if capacity <= 1:

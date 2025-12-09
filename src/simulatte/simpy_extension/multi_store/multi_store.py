@@ -5,6 +5,7 @@ from simpy.resources.base import BaseResource
 
 from simulatte.simpy_extension.multi_store.multi_store_get import MultiStoreGet
 from simulatte.simpy_extension.multi_store.multi_store_put import MultiStorePut
+from simulatte.environment import Environment
 from simulatte.utils import EnvMixin
 
 
@@ -21,7 +22,7 @@ class MultiStore(BaseResource, EnvMixin):
 
     get = BoundClass(MultiStoreGet)
 
-    def __init__(self, capacity: float = float("inf"), env=None) -> None:
+    def __init__(self, *, env: Environment, capacity: float = float("inf")) -> None:
         if capacity <= 0:
             raise ValueError("capacity must be > 0.")
 

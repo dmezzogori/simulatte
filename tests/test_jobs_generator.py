@@ -8,14 +8,15 @@ import pytest
 from simulatte.demand.jobs_generator import JobsGenerator
 from simulatte.demand.shift import Shift
 from simulatte.products import ProductsGenerator
+from simulatte.environment import Environment
 from simulatte.protocols.distribution_callable import DistributionCallable
 from simulatte.protocols.job import Job
 from simulatte.utils import EnvMixin
 
 
 class FakeJob(EnvMixin):
-    def __init__(self, *, job_id: int, workload: int = 1) -> None:
-        super().__init__()
+    def __init__(self, *, job_id: int, workload: int = 1, env: Environment) -> None:
+        super().__init__(env=env)
         self.id = job_id
         self.workload = workload
         self.remaining_workload = workload
@@ -62,10 +63,11 @@ class ConcreteJobsGenerator(JobsGenerator):
         self.products_generator = cast(ProductsGenerator, None)  # not used by this test
         self._shifts = None
         self._job_id = 0
+        self.env = Environment()
 
     def _generate_jobs(self) -> Iterator[Job]:  # type: ignore[override]
         for _ in range(self.jobs_per_order_distribution()):
-            job = FakeJob(job_id=self._job_id)
+            job = FakeJob(job_id=self._job_id, env=self.env)
             self._job_id += 1
             yield job
 
