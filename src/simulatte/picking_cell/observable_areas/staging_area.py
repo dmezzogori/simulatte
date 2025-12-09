@@ -20,6 +20,9 @@ class StagingArea(ObservableArea["FeedingOperation", "PickingCell"]):
     Represent the logical area inside a picking cell where AGVs wait to be processed.
     """
 
+    def __init__(self, *, capacity: int, owner: PickingCell, signal_at, env=None):
+        super().__init__(capacity=capacity, owner=owner, signal_at=signal_at, env=env)
+
     def append(self, item, /):  # type: ignore[override]
         fo = cast("FeedingOperation", item)
         fo.enter_staging_area()

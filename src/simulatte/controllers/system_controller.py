@@ -115,9 +115,9 @@ class SystemController(EnvMixin):
         self.system_output_location = OutputLocation(self)
         self.agv_recharge_location = AGVRechargeLocation(self)
 
-        self.idle_feeding_agvs = IdleFeedingAGVs(signal_at="append", owner=self)
+        self.idle_feeding_agvs = IdleFeedingAGVs(signal_at="append", owner=self, env=self.env)
         self.feeding_agvs_observer = FeedingAGVsObserver(
-            observable_area=self.idle_feeding_agvs, register_main_process=True
+            observable_area=self.idle_feeding_agvs, register_main_process=True, env=self.env
         )
 
         self.process_jobs()

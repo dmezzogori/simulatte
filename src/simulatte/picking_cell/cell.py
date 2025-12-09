@@ -76,17 +76,17 @@ class PickingCell(IdentifiableMixin):
         self.feeding_operations: list[FeedingOperation] = []
 
         # List of FeedingOperation which are still to enter the PickingCell
-        self.feeding_area = FeedingArea(capacity=feeding_area_capacity, owner=self)
+        self.feeding_area = FeedingArea(capacity=feeding_area_capacity, owner=self, env=self.env)
 
         # List of FeedingOperation which are currently in the staging area of the PickingCell
-        self.staging_area = StagingArea(capacity=staging_area_capacity, owner=self, signal_at="remove")
+        self.staging_area = StagingArea(capacity=staging_area_capacity, owner=self, signal_at="remove", env=self.env)
         # Observer of the staging area
-        self.staging_observer = StagingObserver(observable_area=self.staging_area)
+        self.staging_observer = StagingObserver(observable_area=self.staging_area, env=self.env)
 
         # List of FeedingOperation which are currently in the internal area of the PickingCell
-        self.internal_area = InternalArea(capacity=internal_area_capacity, owner=self, signal_at="remove")
+        self.internal_area = InternalArea(capacity=internal_area_capacity, owner=self, signal_at="remove", env=self.env)
         # Observer of the internal area
-        self.internal_observer = InternalObserver(observable_area=self.internal_area)
+        self.internal_observer = InternalObserver(observable_area=self.internal_area, env=self.env)
 
         # List of PalletRequest to be handled by the PickingCell
         self.pallet_requests_assigned: list[PalletRequest] = []

@@ -19,8 +19,9 @@ class ObservableArea(Area[Item, Owner], Observable):
         capacity: float = float("inf"),
         owner: Owner,
         signal_at: Literal["append", "remove"] | tuple[Literal["append", "remove"], ...],
+        env=None,
     ) -> None:
-        Area.__init__(self, capacity=capacity, owner=owner)
+        Area.__init__(self, capacity=capacity, owner=owner, env=env)
         Observable.__init__(self)
 
         if isinstance(signal_at, str):

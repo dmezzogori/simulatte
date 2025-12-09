@@ -16,16 +16,20 @@ class InternalArea(ObservableArea):
     Manage both unloading and pre-unloading positions.
     """
 
-    def __init__(self, *, capacity: int, owner: PickingCell, signal_at, pre_unload: bool = False) -> None:
-        super().__init__(capacity=capacity, owner=owner, signal_at=signal_at)
+    def __init__(self, *, capacity: int, owner: PickingCell, signal_at, pre_unload: bool = False, env=None) -> None:
+        super().__init__(capacity=capacity, owner=owner, signal_at=signal_at, env=env)
 
         if pre_unload:
-            self.unload_positions = tuple(Position(name=f"UnloadPosition{i}", capacity=1) for i in range(capacity // 2))
+            self.unload_positions = tuple(
+                Position(name=f"UnloadPosition{i}", capacity=1, env=env) for i in range(capacity // 2)
+            )
             self.pre_unload_positions = tuple(
-                Position(name=f"PreUnloadPosition{i}", capacity=1) for i in range(capacity // 2)
+                Position(name=f"PreUnloadPosition{i}", capacity=1, env=env) for i in range(capacity // 2)
             )
         else:
-            self.unload_positions = tuple(Position(name=f"UnloadPosition{i}", capacity=1) for i in range(capacity))
+            self.unload_positions = tuple(
+                Position(name=f"UnloadPosition{i}", capacity=1, env=env) for i in range(capacity)
+            )
             self.pre_unload_positions = tuple()
 
     def append(self, feeding_operation: object, /):  # type: ignore[override]

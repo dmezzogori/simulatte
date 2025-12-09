@@ -8,6 +8,9 @@ class FeedingArea(Area):
     Represent the logical area of Feeding Operations currently associated to a picking cell.
     """
 
+    def __init__(self, *, capacity: int, owner, env=None):
+        super().__init__(capacity=capacity, owner=owner, env=env)
+
     def append(self, item, /):  # type: ignore[override]
         return super().append(item)
 
