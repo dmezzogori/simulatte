@@ -1,6 +1,6 @@
 # Simulatte
 
-![Coverage](https://raw.githubusercontent.com/dmezzogori/simulatte/main/coverage.svg)
+[![codecov](https://codecov.io/gh/dmezzogori/simulatte/graph/badge.svg)](https://codecov.io/gh/dmezzogori/simulatte)
 
 Discrete-event simulation framework for job-shop scheduling and intralogistics.
 
