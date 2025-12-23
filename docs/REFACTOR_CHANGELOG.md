@@ -6,7 +6,7 @@ This document tracks the progress of the job-shop core refactor.
 
 **Goal:** Make job-shop the core DES library with unified Server-based intralogistics.
 
-**Baseline:** 148 tests passing, 5 failing (jobshop tests due to singleton/env issues)
+**Baseline:** 148 tests passing, 5 failing (job-shop tests due to singleton/env issues)
 
 ---
 
@@ -17,41 +17,65 @@ This document tracks the progress of the job-shop core refactor.
 - Tagged baseline: `pre-refactor-jobshop-core`
 - Created this changelog
 
----
-
-## Phase 1: Unpackage Job-Shop into Root
-
-**Status:** Not started
-
-**Files to move:**
-- [ ] `jobshop/job.py` → `job.py`
-- [ ] `jobshop/shopfloor.py` → `shopfloor.py`
-- [ ] `jobshop/router.py` → `router.py`
-- [ ] `jobshop/runner.py` → `runner.py`
-- [ ] `jobshop/distributions.py` → `distributions.py`
-- [ ] `jobshop/typing.py` → `typing.py`
-- [ ] `jobshop/builders.py` → `builders.py`
-- [ ] `jobshop/server/*` → root level
-- [ ] `jobshop/psp/*` → root level
-- [ ] `jobshop/policies/*` → `policies/`
+**Commit:** `chore: establish refactor baseline with pre-refactor tag`
 
 ---
 
-## Phase 2: Delete jobshop/ Directory
+## Phase 1+2: Unpackage Job-Shop and Delete Directory (Completed)
 
-**Status:** Not started
+Combined into single commit for clean type checking.
+
+**Files moved to root:**
+- [x] `job.py`, `server.py`, `shopfloor.py`, `router.py`, `runner.py`
+- [x] `builders.py`, `distributions.py`, `typing.py`
+- [x] `faulty_server.py`, `inspection_server.py`
+- [x] `policies/` (lumscor, slar, starvation_avoidance)
+- [x] `psp.py` and `psp_policies/`
+
+**Deleted:**
+- [x] `src/simulatte/jobshop/` (entire directory)
+- [x] `src/simulatte/jobs.py` (empty file)
+- [x] `src/simulatte/utils/runner.py` (replaced by job-shop runner)
+- [x] `tests/test_runner.py` (tested old runner)
+
+**Tests:** Renamed `tests/jobshop` to `tests/core`
+
+**Commit:** `refactor: unpackage jobshop modules to simulatte root and delete jobshop/`
 
 ---
 
-## Phase 3: Explicit Environment Injection
+## Phase 3: Explicit Environment Injection (Completed)
 
-**Status:** Not started
+**Key changes:**
+- [x] Removed `Singleton` metaclass from `ShopFloor`
+- [x] `ShopFloor.servers` is now instance variable (not `ClassVar`)
+- [x] Added `env: Environment` parameter to:
+  - `Server`, `ShopFloor`, `Job`, `Router`, `PreShopPool`
+- [x] Added `shopfloor` parameter to:
+  - `Server`, `PreShopPool`, `LumsCor`
+- [x] Updated `FaultyServer` to pass through `env`/`shopfloor`
+- [x] Updated all builders to accept `env` and construct components explicitly
+- [x] Updated `Runner` to pass `env` to builder (no more `Singleton.clear()`)
+- [x] Replaced all `Environment().now` with `self._env.now` in `Job`
+- [x] Updated all core tests for explicit injection
+
+**Test results:** All 8 core tests pass
+
+**Commit:** `refactor: implement explicit environment injection`
 
 ---
 
 ## Phase 4: Job Type Hierarchy
 
 **Status:** Not started
+
+**Planned:**
+- Create `JobType` enum (PRODUCTION, TRANSPORT, WAREHOUSE)
+- Create `Job` base class (abstract)
+- Create `ProductionJob` with `material_requirements`
+- Create `TransportJob` with origin/destination/cargo
+- Create `WarehouseJob` with product/quantity/operation_type
+- Keep `Job = ProductionJob` for backward compatibility
 
 ---
 
