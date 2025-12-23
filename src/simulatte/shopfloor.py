@@ -9,18 +9,32 @@ from simulatte.environment import Environment
 if TYPE_CHECKING:  # pragma: no cover
     from simpy.core import SimTime
 
+    from simulatte.job import ProductionJob
+    from simulatte.materials import MaterialCoordinator
+    from simulatte.server import Server
     from simulatte.typing import ProcessGenerator
 
-    from simulatte.job import Job
-    from simulatte.server import Server
+    # Type alias for jobs that can be processed
+    type Job = ProductionJob
 
 
 class ShopFloor:
-    """Tracks jobs, WIP, and completion events across servers."""
+    """Tracks jobs, WIP, and completion events across servers.
 
-    def __init__(self, *, env: Environment, ema_alpha: float = 0.01) -> None:
+    Optionally integrates with MaterialCoordinator to handle material
+    delivery before processing at each operation.
+    """
+
+    def __init__(
+        self,
+        *,
+        env: Environment,
+        ema_alpha: float = 0.01,
+        material_coordinator: MaterialCoordinator | None = None,
+    ) -> None:
         self.env = env
         self.ema_alpha = ema_alpha
+        self.material_coordinator = material_coordinator
 
         self.servers: list[Server] = []  # Instance variable, not ClassVar
         self.jobs: set[Job] = set()
@@ -81,9 +95,14 @@ class ShopFloor:
         self.job_finished_event = self.env.event()
 
     def main(self, job: Job) -> ProcessGenerator:
-        for server, processing_time in job.server_processing_times:
+        for op_index, (server, processing_time) in enumerate(job.server_processing_times):
             with server.request(job=job) as request:
                 yield request
+
+                # If materials are required, block while holding server (FIFO blocking)
+                if self.material_coordinator is not None:
+                    yield from self.material_coordinator.ensure(job, server, op_index)
+
                 yield self.env.process(server.process_job(job, processing_time))
                 self.wip[server] -= processing_time
 

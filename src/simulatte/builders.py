@@ -268,4 +268,7 @@ class MaterialSystemBuilder:
             shopfloor=shopfloor,
         )
 
+        # Wire coordinator to shopfloor for automatic material handling
+        shopfloor.material_coordinator = coordinator
+
         return shopfloor, servers, warehouse, agvs, coordinator

@@ -182,6 +182,31 @@ Combined into single commit for clean type checking.
 
 ---
 
+## Phase 9: ShopFloor MaterialCoordinator Integration (Completed)
+
+**Key changes:**
+- [x] Added optional `material_coordinator` parameter to `ShopFloor.__init__()`
+- [x] Integrated `coordinator.ensure()` into `ShopFloor.main()` for automatic material handling
+- [x] `MaterialSystemBuilder.build()` now wires coordinator to shopfloor automatically
+- [x] Added 2 new tests for automatic material handling
+
+**How it works:**
+```python
+# With MaterialSystemBuilder (automatic wiring)
+shopfloor, servers, warehouse, agvs, coordinator = MaterialSystemBuilder.build(env)
+# coordinator is automatically wired to shopfloor
+
+# Or manual wiring
+sf = ShopFloor(env=env, material_coordinator=coordinator)
+# Or: sf.material_coordinator = coordinator
+```
+
+**Test results:** 98 tests pass
+
+**Commit:** `feat: integrate MaterialCoordinator into ShopFloor.main()`
+
+---
+
 ## Summary
 
 The refactor is complete. Simulatte now has:
@@ -192,8 +217,9 @@ The refactor is complete. Simulatte now has:
    - `WarehouseStore` - inventory management with blocking picks
    - `AGVServer` - transport with travel time tracking
    - `MaterialCoordinator` - orchestrates delivery with FIFO blocking
-4. **MaterialSystemBuilder** for easy system configuration
-5. **96 passing tests** covering all functionality
+4. **Automatic material handling** via `ShopFloor.material_coordinator` integration
+5. **MaterialSystemBuilder** for easy system configuration
+6. **98 passing tests** covering all functionality
 
 **Key improvements:**
 - No more singleton pattern - fully explicit environment injection
@@ -201,3 +227,4 @@ The refactor is complete. Simulatte now has:
 - Unified Server interface for all resources
 - Comprehensive metrics tracking
 - FIFO blocking semantics for material delivery
+- Automatic material handling when coordinator is wired to shopfloor
