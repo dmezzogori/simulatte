@@ -16,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from simpy.resources.resource import Release
 
-    from simulatte.job import Job
+    from simulatte.job import BaseJob
     from simulatte.shopfloor import ShopFloor
     from simulatte.typing import ProcessGenerator
 
@@ -24,7 +24,7 @@ if TYPE_CHECKING:  # pragma: no cover
 class ServerPriorityRequest(PriorityRequest):
     """Priority request that carries the job reference and priority key."""
 
-    def __init__(self, resource: Server, job: Job, preempt: bool = True) -> None:  # noqa: FBT001, FBT002
+    def __init__(self, resource: Server, job: BaseJob, preempt: bool = True) -> None:  # noqa: FBT001, FBT002
         self.server = resource
         self.job = job
         self.preempt = preempt
@@ -56,7 +56,7 @@ class Server(simpy.PriorityResource):
         self._last_queue_level: int = 0
         self._last_queue_level_timestamp: float = 0
 
-        self._jobs: list[Job] = []
+        self._jobs: list[BaseJob] = []
 
         if shopfloor is not None:
             shopfloor.servers.append(self)
@@ -86,7 +86,7 @@ class Server(simpy.PriorityResource):
         return self.env.now - self.worked_time
 
     @property
-    def queueing_jobs(self) -> Iterable[Job]:
+    def queueing_jobs(self) -> Iterable[BaseJob]:
         return (request.job for request in self.queue)
 
     def _update_qt(self) -> None:
@@ -107,7 +107,7 @@ class Server(simpy.PriorityResource):
     def request(  # type: ignore[override]
         self,
         *,
-        job: Job,
+        job: BaseJob,
         preempt: bool = True,
     ) -> ServerPriorityRequest:
         request = ServerPriorityRequest(self, job, preempt=preempt)
@@ -124,7 +124,7 @@ class Server(simpy.PriorityResource):
         self._update_ut()
         return release
 
-    def process_job(self, job: Job, processing_time: float) -> ProcessGenerator:
+    def process_job(self, job: BaseJob, processing_time: float) -> ProcessGenerator:
         self._jobs.append(job)
         yield self.env.timeout(processing_time)
         self.worked_time += processing_time

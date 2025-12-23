@@ -12,7 +12,7 @@ from simulatte.server import Server
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
 
-    from simulatte.job import Job
+    from simulatte.job import BaseJob
     from simulatte.shopfloor import ShopFloor
     from simulatte.typing import ProcessGenerator
 
@@ -59,7 +59,7 @@ class FaultyServer(Server):
             self.breakdown_event = simpy.Event(self.env)
             yield self.env.process(self._process_or_breakdown(remaining_service_time))
 
-    def process_job(self, job: Job, processing_time: float) -> ProcessGenerator:
+    def process_job(self, job: BaseJob, processing_time: float) -> ProcessGenerator:
         self._jobs.append(job)
         yield self.env.process(self._process_or_breakdown(processing_time))
         self.worked_time += processing_time

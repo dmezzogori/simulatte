@@ -1,0 +1,180 @@
+"""MaterialCoordinator - Orchestrates material delivery with FIFO blocking."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from simulatte.environment import Environment
+from simulatte.job import ProductionJob, TransportJob, WarehouseJob
+
+if TYPE_CHECKING:  # pragma: no cover
+    from simulatte.agv_server import AGVServer
+    from simulatte.server import Server
+    from simulatte.shopfloor import ShopFloor
+    from simulatte.typing import ProcessGenerator
+    from simulatte.warehouse_store import WarehouseStore
+
+
+class MaterialCoordinator:
+    """Orchestrates material delivery from warehouse to production servers.
+
+    The MaterialCoordinator implements strict FIFO blocking semantics: when a
+    ProductionJob requires materials at an operation, it holds the server
+    (blocks the queue) while waiting for materials to be picked and delivered.
+    This ensures jobs are processed in arrival order even when material
+    delivery times vary.
+
+    The delivery process for each material requirement:
+    1. Request a warehouse bay (wait for availability)
+    2. Pick the product from inventory (blocks if insufficient stock)
+    3. Request an AGV (wait for availability)
+    4. Transport materials to the destination server
+
+    Attributes:
+        env: The simulation environment.
+        warehouse: The WarehouseStore to pick from.
+        agvs: List of available AGVServers for transport.
+        shopfloor: The ShopFloor for job tracking.
+    """
+
+    def __init__(
+        self,
+        *,
+        env: Environment,
+        warehouse: WarehouseStore,
+        agvs: list[AGVServer],
+        shopfloor: ShopFloor,
+    ) -> None:
+        """Initialize a MaterialCoordinator.
+
+        Args:
+            env: The simulation environment.
+            warehouse: The warehouse to pick materials from.
+            agvs: List of AGV servers for transport.
+            shopfloor: The shopfloor for job tracking.
+        """
+        self.env = env
+        self.warehouse = warehouse
+        self.agvs = agvs
+        self.shopfloor = shopfloor
+
+        # Metrics
+        self.total_deliveries: int = 0
+        self.total_delivery_time: float = 0
+
+    def ensure(
+        self,
+        job: ProductionJob,
+        server: Server,
+        op_index: int,
+    ) -> ProcessGenerator:
+        """Ensure materials are delivered before processing can begin.
+
+        This method blocks (while holding the server) until all required
+        materials for the operation are picked from the warehouse and
+        delivered to the server. This implements FIFO blocking - the job
+        holds its position in the queue while waiting for materials.
+
+        Args:
+            job: The production job requiring materials.
+            server: The server where processing will occur.
+            op_index: The operation index (0-based).
+
+        Yields:
+            SimPy events for the complete delivery process.
+        """
+        requirements = job.get_materials_for_operation(op_index)
+        if not requirements:
+            return  # No materials needed for this operation
+
+        start_time = self.env.now
+
+        for product, quantity in requirements.items():
+            yield from self._deliver_material(product, quantity, server, job)
+
+        self.total_deliveries += 1
+        self.total_delivery_time += self.env.now - start_time
+
+    def _deliver_material(
+        self,
+        product: str,
+        quantity: int,
+        destination: Server,
+        parent_job: ProductionJob,
+    ) -> ProcessGenerator:
+        """Deliver a single material from warehouse to destination.
+
+        Args:
+            product: Product name to deliver.
+            quantity: Quantity to deliver.
+            destination: Server to deliver to.
+            parent_job: The production job this delivery supports.
+
+        Yields:
+            SimPy events for pick and transport.
+        """
+        # Create a warehouse job for the pick operation
+        pick_job = WarehouseJob(
+            env=self.env,
+            warehouse=self.warehouse,
+            product=product,
+            quantity=quantity,
+            operation_type="pick",
+            processing_time=0,  # Time is handled by pick_inventory
+        )
+
+        # Request a warehouse bay and perform pick
+        with self.warehouse.request(job=pick_job) as warehouse_request:
+            yield warehouse_request
+            yield self.env.process(self.warehouse.pick_inventory(product, quantity))
+
+        # Select an AGV (simple round-robin or first available)
+        agv = yield from self._request_agv(destination, parent_job)
+
+        # Create transport job
+        transport_job = TransportJob(
+            env=self.env,
+            origin=self.warehouse,
+            destination=destination,
+            cargo={product: quantity},
+        )
+
+        # Transport materials
+        with agv.request(job=transport_job) as agv_request:
+            yield agv_request
+            yield self.env.process(agv.travel(self.warehouse, destination))
+
+    def _request_agv(
+        self,
+        destination: Server,  # noqa: ARG002
+        parent_job: ProductionJob,  # noqa: ARG002
+    ) -> ProcessGenerator:
+        """Request an available AGV.
+
+        This simple implementation returns the first AGV. More sophisticated
+        policies (nearest AGV, load balancing, etc.) can be implemented by
+        extending this method.
+
+        Args:
+            destination: Where the AGV needs to go (for smart selection).
+            parent_job: The production job this supports (for priority).
+
+        Yields:
+            The selected AGV when available.
+
+        Returns:
+            The selected AGVServer.
+        """
+        # Simple policy: return first AGV (caller will request it)
+        # For now, just pick the first one - more complex policies can be added
+        agv = self.agvs[0]
+        # Yield a zero timeout to make this a generator
+        yield self.env.timeout(0)
+        return agv
+
+    @property
+    def average_delivery_time(self) -> float:
+        """Average time to complete a material delivery."""
+        if self.total_deliveries == 0:
+            return 0.0
+        return self.total_delivery_time / self.total_deliveries
