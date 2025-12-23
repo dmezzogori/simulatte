@@ -1,4 +1,4 @@
-"""AGVServer - Server specialization for AGV transport operations."""
+"""AGV - Server specialization for AGV transport operations."""
 
 from __future__ import annotations
 
@@ -14,10 +14,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.typing import ProcessGenerator
 
 
-class AGVServer(Server):
+class AGV(Server):
     """An AGV (Automated Guided Vehicle) server for transport operations.
 
-    AGVServer extends Server to model transport resources. Each AGV has capacity=1
+    AGV extends Server to model transport resources. Each AGV has capacity=1
     (can only transport one job at a time) and tracks travel time metrics.
 
     Attributes:
@@ -37,7 +37,7 @@ class AGVServer(Server):
         collect_time_series: bool = False,
         retain_job_history: bool = False,
     ) -> None:
-        """Initialize an AGVServer.
+        """Initialize an AGV.
 
         Args:
             env: The simulation environment.
@@ -62,7 +62,7 @@ class AGVServer(Server):
         self._current_location: Server | None = None
 
     def __repr__(self) -> str:
-        return f"AGVServer(id={self.agv_id})"
+        return f"AGV(id={self.agv_id})"
 
     @property
     def current_location(self) -> Server | None:

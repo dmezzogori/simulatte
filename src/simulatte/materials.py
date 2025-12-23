@@ -8,7 +8,7 @@ from simulatte.environment import Environment
 from simulatte.job import ProductionJob, TransportJob, WarehouseJob
 
 if TYPE_CHECKING:  # pragma: no cover
-    from simulatte.agv_server import AGVServer
+    from simulatte.agv import AGV
     from simulatte.server import Server
     from simulatte.shopfloor import ShopFloor
     from simulatte.typing import ProcessGenerator
@@ -33,7 +33,7 @@ class MaterialCoordinator:
     Attributes:
         env: The simulation environment.
         warehouse: The WarehouseStore to pick from.
-        agvs: List of available AGVServers for transport.
+        agvs: List of available AGVs for transport.
         shopfloor: The ShopFloor for job tracking.
     """
 
@@ -42,7 +42,7 @@ class MaterialCoordinator:
         *,
         env: Environment,
         warehouse: WarehouseStore,
-        agvs: list[AGVServer],
+        agvs: list[AGV],
         shopfloor: ShopFloor,
     ) -> None:
         """Initialize a MaterialCoordinator.
@@ -149,7 +149,7 @@ class MaterialCoordinator:
         self,
         destination: Server,  # noqa: ARG002
         parent_job: ProductionJob,  # noqa: ARG002
-    ) -> AGVServer:
+    ) -> AGV:
         """Select an AGV using a lightweight load-balancing heuristic.
 
         The default heuristic chooses the AGV with the smallest current workload,
@@ -161,7 +161,7 @@ class MaterialCoordinator:
             parent_job: The production job this supports (for priority).
 
         Returns:
-            The selected AGVServer.
+            The selected AGV.
         """
         if not self.agvs:
             raise ValueError("MaterialCoordinator has no AGVs configured.")

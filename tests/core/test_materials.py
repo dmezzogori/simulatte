@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from simulatte.agv_server import AGVServer
+from simulatte.agv import AGV
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.materials import MaterialCoordinator
@@ -16,7 +16,7 @@ from simulatte.warehouse_store import WarehouseStore
 def create_test_system(
     env: Environment,
     initial_inventory: dict[str, int] | None = None,
-) -> tuple[ShopFloor, Server, WarehouseStore, AGVServer, MaterialCoordinator]:
+) -> tuple[ShopFloor, Server, WarehouseStore, AGV, MaterialCoordinator]:
     """Create a test system with warehouse, AGV, and coordinator."""
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
@@ -29,7 +29,7 @@ def create_test_system(
         put_time_fn=lambda: 0.5,
         shopfloor=sf,
     )
-    agv = AGVServer(
+    agv = AGV(
         env=env,
         travel_time_fn=lambda o, d: 2.0,
         shopfloor=sf,
@@ -273,13 +273,13 @@ class TestMaterialCoordinator:
             shopfloor=sf,
         )
 
-        agv_1 = AGVServer(
+        agv_1 = AGV(
             env=env,
             travel_time_fn=lambda o, d: 1.0,
             shopfloor=sf,
             agv_id="agv-1",
         )
-        agv_2 = AGVServer(
+        agv_2 = AGV(
             env=env,
             travel_time_fn=lambda o, d: 1.0,
             shopfloor=sf,

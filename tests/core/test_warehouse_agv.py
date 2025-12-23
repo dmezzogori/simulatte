@@ -1,10 +1,10 @@
-"""Tests for WarehouseStore and AGVServer."""
+"""Tests for WarehouseStore and AGV."""
 
 from __future__ import annotations
 
 import pytest
 
-from simulatte.agv_server import AGVServer
+from simulatte.agv import AGV
 from simulatte.environment import Environment
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
@@ -150,14 +150,14 @@ class TestWarehouseStore:
         assert warehouse.average_put_time == pytest.approx(1.0)
 
 
-class TestAGVServer:
-    """Tests for AGVServer functionality."""
+class TestAGV:
+    """Tests for AGV functionality."""
 
     def test_agv_creation(self) -> None:
-        """AGVServer should initialize with capacity=1."""
+        """AGV should initialize with capacity=1."""
         env = Environment()
         sf = ShopFloor(env=env)
-        agv = AGVServer(
+        agv = AGV(
             env=env,
             travel_time_fn=lambda o, d: 5.0,
             shopfloor=sf,
@@ -176,7 +176,7 @@ class TestAGVServer:
         sf = ShopFloor(env=env)
         warehouse = Server(env=env, capacity=1, shopfloor=sf)
         workstation = Server(env=env, capacity=1, shopfloor=sf)
-        agv = AGVServer(
+        agv = AGV(
             env=env,
             travel_time_fn=lambda o, d: 3.0,
             shopfloor=sf,
@@ -204,7 +204,7 @@ class TestAGVServer:
         def travel_fn(o: Server, d: Server) -> float:
             return 2.0
 
-        agv = AGVServer(env=env, travel_time_fn=travel_fn, shopfloor=sf)
+        agv = AGV(env=env, travel_time_fn=travel_fn, shopfloor=sf)
         agv.set_location(loc_a)
 
         def do_travel():
@@ -220,7 +220,7 @@ class TestAGVServer:
         """travel_to should raise if no current location."""
         env = Environment()
         loc = Server(env=env, capacity=1)
-        agv = AGVServer(env=env, travel_time_fn=lambda o, d: 1.0)
+        agv = AGV(env=env, travel_time_fn=lambda o, d: 1.0)
 
         with pytest.raises(ValueError, match="no current location"):
             # Try to start the generator to trigger the error
@@ -228,13 +228,13 @@ class TestAGVServer:
             next(gen)
 
     def test_agv_metrics(self) -> None:
-        """AGVServer should track travel metrics."""
+        """AGV should track travel metrics."""
         env = Environment()
         loc_a = Server(env=env, capacity=1)
         loc_b = Server(env=env, capacity=1)
         loc_c = Server(env=env, capacity=1)
 
-        agv = AGVServer(env=env, travel_time_fn=lambda o, d: 2.5)
+        agv = AGV(env=env, travel_time_fn=lambda o, d: 2.5)
 
         def do_trips():
             yield from agv.travel(loc_a, loc_b)
@@ -253,7 +253,7 @@ class TestAGVServer:
         """set_location should set location without travel."""
         env = Environment()
         loc = Server(env=env, capacity=1)
-        agv = AGVServer(env=env, travel_time_fn=lambda o, d: 10.0)
+        agv = AGV(env=env, travel_time_fn=lambda o, d: 10.0)
 
         agv.set_location(loc)
 
@@ -266,7 +266,7 @@ class TestAGVServer:
         """AGV should generate default ID from index."""
         env = Environment()
         sf = ShopFloor(env=env)
-        agv = AGVServer(env=env, travel_time_fn=lambda o, d: 1.0, shopfloor=sf)
+        agv = AGV(env=env, travel_time_fn=lambda o, d: 1.0, shopfloor=sf)
 
         # ID includes the server index
         assert "agv-" in agv.agv_id

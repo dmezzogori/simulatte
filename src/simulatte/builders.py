@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING, Literal
 
-from simulatte.agv_server import AGVServer
+from simulatte.agv import AGV
 from simulatte.distributions import server_sampling, truncated_2erlang
 from simulatte.environment import Environment
 from simulatte.materials import MaterialCoordinator
@@ -26,7 +26,7 @@ type MaterialSystem = tuple[
     ShopFloor,
     tuple[Server, ...],
     WarehouseStore,
-    tuple[AGVServer, ...],
+    tuple[AGV, ...],
     MaterialCoordinator,
 ]
 
@@ -278,7 +278,7 @@ class MaterialSystemBuilder:
 
         # Create AGVs
         agvs = tuple(
-            AGVServer(
+            AGV(
                 env=env,
                 travel_time_fn=lambda o, d: travel_time,
                 shopfloor=shopfloor,

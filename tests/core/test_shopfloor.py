@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from simulatte.agv_server import AGVServer
+from simulatte.agv import AGV
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.materials import MaterialCoordinator
@@ -145,7 +145,7 @@ def test_automatic_material_handling_via_shopfloor() -> None:
         shopfloor=sf,
     )
 
-    agv = AGVServer(
+    agv = AGV(
         env=env,
         travel_time_fn=lambda o, d: 2.0,
         shopfloor=sf,
