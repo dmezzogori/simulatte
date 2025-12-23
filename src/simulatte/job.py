@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING
+from abc import ABC, abstractmethod
+from enum import Enum, auto
+from typing import TYPE_CHECKING, Any
 
 from simulatte.environment import Environment
 
@@ -15,8 +17,21 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.server import Server
 
 
-class Job:
-    """Represents a job/order flowing through a sequence of servers."""
+class JobType(Enum):
+    """Enumeration of job types in the simulation."""
+
+    PRODUCTION = auto()
+    TRANSPORT = auto()
+    WAREHOUSE = auto()
+
+
+class BaseJob(ABC):
+    """Abstract base class for jobs flowing through the simulation.
+
+    This class defines the common interface and state tracking for all job types.
+    Concrete implementations (ProductionJob, TransportJob, WarehouseJob) extend this
+    with type-specific attributes and behavior.
+    """
 
     __slots__ = (
         "_env",
@@ -29,6 +44,7 @@ class Job:
         "family",
         "finished_at",
         "id",
+        "job_type",
         "priority_policy",
         "psp_exit_at",
         "release_evalutations",
@@ -42,13 +58,15 @@ class Job:
         self,
         *,
         env: Environment,
+        job_type: JobType,
         family: str,
         servers: Sequence[Server],
         processing_times: Sequence[float],
         due_date: SimTime,
-        priority_policy: Callable[[Job, Server], float] | None = None,
+        priority_policy: Callable[[Any, Server], float] | None = None,
     ) -> None:
         self._env = env
+        self.job_type = job_type
         self.id = str(uuid.uuid4())
         self.family = family
         self._servers = servers
@@ -69,8 +87,9 @@ class Job:
         self.servers_exit_at: dict[Server, SimTime | None] = dict.fromkeys(self._servers)
         self.finished_at: SimTime | None = None
 
+    @abstractmethod
     def __repr__(self) -> str:
-        return f"Job(id='{self.id}')"
+        """Return a string representation of the job."""
 
     @property
     def makespan(self) -> float:
@@ -225,3 +244,172 @@ class Job:
     @property
     def virtual_in_window(self) -> bool:
         return self.would_be_finished_in_due_date_window(allowance=7)
+
+
+class ProductionJob(BaseJob):
+    """A production job that flows through servers with optional material requirements.
+
+    Production jobs represent manufacturing orders that require processing at one or more
+    servers. They can optionally specify material requirements that must be delivered
+    before processing can begin at each operation.
+    """
+
+    __slots__ = ("material_requirements",)
+
+    def __init__(
+        self,
+        *,
+        env: Environment,
+        family: str,
+        servers: Sequence[Server],
+        processing_times: Sequence[float],
+        due_date: SimTime,
+        priority_policy: Callable[[Any, Server], float] | None = None,
+        material_requirements: dict[int, dict[str, int]] | None = None,
+    ) -> None:
+        """Initialize a production job.
+
+        Args:
+            env: The simulation environment.
+            family: Job family identifier.
+            servers: Sequence of servers in the job's routing.
+            processing_times: Processing time at each server.
+            due_date: Target completion time.
+            priority_policy: Optional function to compute priority at each server.
+            material_requirements: Optional mapping from operation index to required
+                materials. Format: {op_index: {product_name: quantity}}.
+                Example: {0: {"steel": 2, "bolts": 10}} means operation 0 requires
+                2 units of steel and 10 bolts to be delivered before processing.
+        """
+        super().__init__(
+            env=env,
+            job_type=JobType.PRODUCTION,
+            family=family,
+            servers=servers,
+            processing_times=processing_times,
+            due_date=due_date,
+            priority_policy=priority_policy,
+        )
+        self.material_requirements = material_requirements or {}
+
+    def __repr__(self) -> str:
+        return f"ProductionJob(id='{self.id}', family='{self.family}')"
+
+    def get_materials_for_operation(self, op_index: int) -> dict[str, int]:
+        """Get material requirements for a specific operation.
+
+        Args:
+            op_index: The operation index (0-based).
+
+        Returns:
+            Dictionary mapping product names to required quantities,
+            or empty dict if no materials required.
+        """
+        return self.material_requirements.get(op_index, {})
+
+
+class TransportJob(BaseJob):
+    """A transport job for moving materials between locations.
+
+    Transport jobs represent AGV or other vehicle movements carrying cargo
+    from an origin (typically a warehouse) to a destination (typically a server).
+    """
+
+    __slots__ = ("cargo", "destination", "origin")
+
+    def __init__(
+        self,
+        *,
+        env: Environment,
+        origin: Server,
+        destination: Server,
+        cargo: dict[str, int],
+        processing_times: Sequence[float] | None = None,
+        due_date: SimTime | None = None,
+        priority_policy: Callable[[Any, Server], float] | None = None,
+    ) -> None:
+        """Initialize a transport job.
+
+        Args:
+            env: The simulation environment.
+            origin: Source location (e.g., WarehouseStore).
+            destination: Target location (e.g., production Server).
+            cargo: Materials being transported {product_name: quantity}.
+            processing_times: Optional processing times (defaults to [0] for single-hop transport).
+            due_date: Optional due date (defaults to infinity if not specified).
+            priority_policy: Optional function to compute priority.
+        """
+        # Transport jobs have a simple routing: just the AGV that will carry them
+        # The actual servers list will be set when assigned to an AGV
+        super().__init__(
+            env=env,
+            job_type=JobType.TRANSPORT,
+            family="transport",
+            servers=[origin] if processing_times is None else [origin],
+            processing_times=processing_times or [0.0],
+            due_date=due_date if due_date is not None else float("inf"),
+            priority_policy=priority_policy,
+        )
+        self.origin = origin
+        self.destination = destination
+        self.cargo = cargo
+
+    def __repr__(self) -> str:
+        return f"TransportJob(id='{self.id}', cargo={self.cargo})"
+
+
+class WarehouseJob(BaseJob):
+    """A warehouse job for pick or put operations.
+
+    Warehouse jobs represent individual pick or put operations at a warehouse store.
+    They are typically created by the MaterialCoordinator to fulfill material requirements.
+    """
+
+    __slots__ = ("operation_type", "product", "quantity")
+
+    def __init__(
+        self,
+        *,
+        env: Environment,
+        warehouse: Server,
+        product: str,
+        quantity: int,
+        operation_type: str,
+        processing_time: float = 0.0,
+        due_date: SimTime | None = None,
+        priority_policy: Callable[[Any, Server], float] | None = None,
+    ) -> None:
+        """Initialize a warehouse job.
+
+        Args:
+            env: The simulation environment.
+            warehouse: The WarehouseStore where the operation occurs.
+            product: The product being picked or put.
+            quantity: The quantity to pick or put.
+            operation_type: Either "pick" or "put".
+            processing_time: Time to complete the operation (pick/put time).
+            due_date: Optional due date (defaults to infinity if not specified).
+            priority_policy: Optional function to compute priority.
+        """
+        if operation_type not in ("pick", "put"):
+            raise ValueError(f"operation_type must be 'pick' or 'put', got '{operation_type}'")
+
+        super().__init__(
+            env=env,
+            job_type=JobType.WAREHOUSE,
+            family=f"warehouse_{operation_type}",
+            servers=[warehouse],
+            processing_times=[processing_time],
+            due_date=due_date if due_date is not None else float("inf"),
+            priority_policy=priority_policy,
+        )
+        self.product = product
+        self.quantity = quantity
+        self.operation_type = operation_type
+
+    def __repr__(self) -> str:
+        return f"WarehouseJob(id='{self.id}', {self.operation_type} {self.quantity}x {self.product})"
+
+
+# Backward compatibility alias - existing code using Job will get ProductionJob
+Job = ProductionJob
