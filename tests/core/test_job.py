@@ -7,7 +7,6 @@ import pytest
 from simulatte.environment import Environment
 from simulatte.job import (
     BaseJob,
-    Job,
     JobType,
     ProductionJob,
     TransportJob,
@@ -15,11 +14,6 @@ from simulatte.job import (
 )
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
-
-
-def test_job_alias_is_production_job() -> None:
-    """Job should be an alias for ProductionJob for backward compatibility."""
-    assert Job is ProductionJob
 
 
 def test_production_job_type() -> None:

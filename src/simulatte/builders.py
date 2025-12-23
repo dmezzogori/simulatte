@@ -36,10 +36,22 @@ def build_push_system(
     n_servers: int,
     arrival_rate: float = 1.0,
     service_rate: float = 1.0,
+    *,
+    collect_time_series: bool = False,
+    retain_job_history: bool = False,
 ) -> PushSystem:
     """Build a simple push system with explicit env injection."""
     shop_floor = ShopFloor(env=env)
-    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
+    servers = tuple(
+        Server(
+            env=env,
+            capacity=1,
+            shopfloor=shop_floor,
+            collect_time_series=collect_time_series,
+            retain_job_history=retain_job_history,
+        )
+        for _ in range(n_servers)
+    )
     router = Router(
         env=env,
         shopfloor=shop_floor,
@@ -47,7 +59,7 @@ def build_push_system(
         psp=None,
         inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
         family_distributions={"F1": 1},
-        family_routings={"F1": dict.fromkeys(servers, 1.0)},  # type: ignore[arg-type]
+        family_routings={"F1": lambda: servers},
         family_service_times={
             "F1": {server: lambda: random.expovariate(service_rate) for server in servers},
         },
@@ -213,6 +225,8 @@ class MaterialSystemBuilder:
         pick_time: float = 1.0,
         put_time: float = 0.5,
         travel_time: float = 2.0,
+        collect_time_series: bool = False,
+        retain_job_history: bool = False,
     ) -> MaterialSystem:
         """Build a complete material handling system.
 
@@ -226,6 +240,8 @@ class MaterialSystemBuilder:
             pick_time: Time for warehouse pick operation.
             put_time: Time for warehouse put operation.
             travel_time: Time for AGV travel between locations.
+            collect_time_series: Enable Server queue/utilization time-series tracking.
+            retain_job_history: Retain processed job references on each Server.
 
         Returns:
             Tuple of (shopfloor, servers, warehouse, agvs, coordinator).
@@ -236,7 +252,16 @@ class MaterialSystemBuilder:
         shopfloor = ShopFloor(env=env)
 
         # Create production servers
-        servers = tuple(Server(env=env, capacity=1, shopfloor=shopfloor) for _ in range(n_servers))
+        servers = tuple(
+            Server(
+                env=env,
+                capacity=1,
+                shopfloor=shopfloor,
+                collect_time_series=collect_time_series,
+                retain_job_history=retain_job_history,
+            )
+            for _ in range(n_servers)
+        )
 
         # Create warehouse
         warehouse = WarehouseStore(
@@ -247,6 +272,8 @@ class MaterialSystemBuilder:
             pick_time_fn=lambda: pick_time,
             put_time_fn=lambda: put_time,
             shopfloor=shopfloor,
+            collect_time_series=collect_time_series,
+            retain_job_history=retain_job_history,
         )
 
         # Create AGVs
@@ -256,6 +283,8 @@ class MaterialSystemBuilder:
                 travel_time_fn=lambda o, d: travel_time,
                 shopfloor=shopfloor,
                 agv_id=f"agv-{i}",
+                collect_time_series=collect_time_series,
+                retain_job_history=retain_job_history,
             )
             for i in range(n_agvs)
         )

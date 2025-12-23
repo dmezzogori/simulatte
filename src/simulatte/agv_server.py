@@ -34,6 +34,8 @@ class AGVServer(Server):
         travel_time_fn: Callable[[Server, Server], float],
         shopfloor: ShopFloor | None = None,
         agv_id: str | None = None,
+        collect_time_series: bool = False,
+        retain_job_history: bool = False,
     ) -> None:
         """Initialize an AGVServer.
 
@@ -43,7 +45,13 @@ class AGVServer(Server):
             shopfloor: Optional shopfloor to register with.
             agv_id: Optional identifier for this AGV.
         """
-        super().__init__(env=env, capacity=1, shopfloor=shopfloor)
+        super().__init__(
+            env=env,
+            capacity=1,
+            shopfloor=shopfloor,
+            collect_time_series=collect_time_series,
+            retain_job_history=retain_job_history,
+        )
 
         self.travel_time_fn = travel_time_fn
         self.agv_id = agv_id or f"agv-{self._idx}"

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from simulatte.psp_policies.base import PSPReleasePolicy
 
 if TYPE_CHECKING:  # pragma: no cover
-    from simulatte.job import Job
+    from simulatte.job import ProductionJob
     from simulatte.psp import PreShopPool
     from simulatte.server import Server
     from simulatte.shopfloor import ShopFloor
@@ -48,7 +48,7 @@ class LumsCor(PSPReleasePolicy):
 
 def lumscor_starvation_trigger(shopfloor: ShopFloor, psp: PreShopPool) -> ProcessGenerator:
     while True:
-        triggering_job: Job = yield shopfloor.job_processing_end
+        triggering_job: ProductionJob = yield shopfloor.job_processing_end
         server_triggered = triggering_job.previous_server
         is_empty = server_triggered.empty
         has_one = len(server_triggered.queue) == 1

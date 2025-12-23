@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from simulatte.environment import Environment
-from simulatte.job import Job
+from simulatte.job import ProductionJob
 from simulatte.psp import PreShopPool
 from simulatte.psp_policies.base import PSPReleasePolicy
 from simulatte.server import Server
@@ -21,7 +21,7 @@ def test_psp_add_remove_sets_exit_time() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
-    job = Job(env=env, family="A", servers=[server], processing_times=[1], due_date=5)
+    job = ProductionJob(env=env, family="A", servers=[server], processing_times=[1], due_date=5)
     psp = PreShopPool(env=env, shopfloor=sf)
 
     assert len(psp) == 0
@@ -37,7 +37,7 @@ def test_psp_main_invokes_policy() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
-    job = Job(env=env, family="A", servers=[server], processing_times=[1], due_date=5)
+    job = ProductionJob(env=env, family="A", servers=[server], processing_times=[1], due_date=5)
     policy = DummyPolicy()
     psp = PreShopPool(env=env, shopfloor=sf, check_timeout=0.1, psp_release_policy=policy)
 
@@ -53,7 +53,7 @@ def test_psp_signal_new_job_triggers_event() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
-    job = Job(env=env, family="A", servers=[server], processing_times=[1], due_date=5)
+    job = ProductionJob(env=env, family="A", servers=[server], processing_times=[1], due_date=5)
     psp = PreShopPool(env=env, shopfloor=sf)
 
     events = []

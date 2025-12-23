@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from simulatte.job import Job
+    from simulatte.job import ProductionJob
     from simulatte.psp import PreShopPool
     from simulatte.server import Server
     from simulatte.shopfloor import ShopFloor
@@ -18,20 +18,20 @@ class Slar:
     def __init__(self, allowance_factor: int = 2) -> None:
         self.allowance_factor = allowance_factor
 
-    def pst_priority_policy(self, job: Job, server: Server) -> float | None:
+    def pst_priority_policy(self, job: ProductionJob, server: Server) -> float | None:
         return job.planned_slack_times(allowance=self.allowance_factor)[server]
 
-    def _pst_value(self, job: Job, server: Server) -> float:
+    def _pst_value(self, job: ProductionJob, server: Server) -> float:
         """Return planned slack time as float (None -> 0)."""
         pst = self.pst_priority_policy(job, server)
         return float(pst) if pst is not None else 0.0
 
     def slar_release_triggers(self, shopfloor: ShopFloor, psp: PreShopPool) -> ProcessGenerator:
         while True:
-            triggering_job: Job = yield shopfloor.job_processing_end
+            triggering_job: ProductionJob = yield shopfloor.job_processing_end
             server_triggered = triggering_job.previous_server
 
-            candidate_job: Job | None = None
+            candidate_job: ProductionJob | None = None
 
             is_empty = server_triggered.empty
             has_one = len(server_triggered.queue) == 1

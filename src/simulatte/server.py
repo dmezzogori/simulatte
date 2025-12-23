@@ -44,19 +44,21 @@ class Server(simpy.PriorityResource):
         env: Environment,
         capacity: int,
         shopfloor: ShopFloor | None = None,
+        collect_time_series: bool = False,
+        retain_job_history: bool = False,
     ) -> None:
         self.env = env
         super().__init__(env, capacity)
         self.worked_time: float = 0
 
         self._queue_history: dict[int, float] = defaultdict(float)
-        self._qt: list[tuple[float, int]] = []
-        self._ut: list[tuple[float, int]] = [(0, 0)]
+        self._qt: list[tuple[float, int]] | None = [] if collect_time_series else None
+        self._ut: list[tuple[float, float]] | None = [(0, 0.0)] if collect_time_series else None
 
         self._last_queue_level: int = 0
         self._last_queue_level_timestamp: float = 0
 
-        self._jobs: list[BaseJob] = []
+        self._jobs: list[BaseJob] | None = [] if retain_job_history else None
 
         if shopfloor is not None:
             shopfloor.servers.append(self)
@@ -73,6 +75,8 @@ class Server(simpy.PriorityResource):
 
     @property
     def average_queue_length(self) -> float:
+        if self.env.now == 0:
+            return 0.0
         return sum(queue_length * time for queue_length, time in self._queue_history.items()) / self.env.now
 
     @property
@@ -90,10 +94,14 @@ class Server(simpy.PriorityResource):
         return (request.job for request in self.queue)
 
     def _update_qt(self) -> None:
+        if self._qt is None:
+            return
         self._qt.append((self.env.now, len(self.queue)))
 
     def _update_ut(self) -> None:
-        status = int(self.count == 1 or len(self.queue) > 0)
+        if self._ut is None:
+            return
+        status = self.count / self.capacity if self.capacity else 0.0
         if self._ut and self._ut[-1][1] == status:
             return
         self._ut.append((self.env.now, status))
@@ -115,7 +123,9 @@ class Server(simpy.PriorityResource):
         job.current_server = self
 
         self._update_queue_history(None)
+        self._update_ut()
         request.callbacks.append(self._update_queue_history)
+        request.callbacks.append(lambda _: self._update_ut())
         return request
 
     def release(self, request: ServerPriorityRequest) -> Release:  # type: ignore[override]
@@ -125,7 +135,8 @@ class Server(simpy.PriorityResource):
         return release
 
     def process_job(self, job: BaseJob, processing_time: float) -> ProcessGenerator:
-        self._jobs.append(job)
+        if self._jobs is not None:
+            self._jobs.append(job)
         yield self.env.timeout(processing_time)
         self.worked_time += processing_time
 
@@ -134,6 +145,8 @@ class Server(simpy.PriorityResource):
         queue_list.sort(key=lambda req: req.key)
 
     def plot_qt(self) -> None:  # pragma: no cover
+        if self._qt is None:
+            raise RuntimeError("Queue time-series collection is disabled for this Server.")
         x, y = zip(*self._qt, strict=False)
         plt.step(x, y, where="pre")
         plt.fill_between(x, y, step="pre", alpha=1.0)
@@ -143,6 +156,8 @@ class Server(simpy.PriorityResource):
         plt.show()
 
     def plot_ut(self) -> None:  # pragma: no cover
+        if self._ut is None:
+            raise RuntimeError("Utilization time-series collection is disabled for this Server.")
         ut = [*self._ut, (self.env.now, self._ut[-1][1])]
         x, y = zip(*ut, strict=False)
         plt.step(x, y, where="post")

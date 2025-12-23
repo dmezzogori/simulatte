@@ -41,6 +41,8 @@ class WarehouseStore(Server):
         pick_time_fn: Callable[[], float],
         put_time_fn: Callable[[], float],
         shopfloor: ShopFloor | None = None,
+        collect_time_series: bool = False,
+        retain_job_history: bool = False,
     ) -> None:
         """Initialize a WarehouseStore.
 
@@ -53,7 +55,13 @@ class WarehouseStore(Server):
             put_time_fn: Callable returning time for a put operation.
             shopfloor: Optional shopfloor to register with.
         """
-        super().__init__(env=env, capacity=n_bays, shopfloor=shopfloor)
+        super().__init__(
+            env=env,
+            capacity=n_bays,
+            shopfloor=shopfloor,
+            collect_time_series=collect_time_series,
+            retain_job_history=retain_job_history,
+        )
 
         self.pick_time_fn = pick_time_fn
         self.put_time_fn = put_time_fn

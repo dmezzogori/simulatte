@@ -28,8 +28,16 @@ class FaultyServer(Server):
         time_between_failures_distribution: Callable[[], float],
         repair_time_distribution: Callable[[], float],
         shopfloor: ShopFloor | None = None,
+        collect_time_series: bool = False,
+        retain_job_history: bool = False,
     ) -> None:
-        super().__init__(env=env, capacity=capacity, shopfloor=shopfloor)
+        super().__init__(
+            env=env,
+            capacity=capacity,
+            shopfloor=shopfloor,
+            collect_time_series=collect_time_series,
+            retain_job_history=retain_job_history,
+        )
         self.repair_time_distribution = repair_time_distribution
         self.time_between_failures_distribution = time_between_failures_distribution
 
@@ -60,6 +68,7 @@ class FaultyServer(Server):
             yield self.env.process(self._process_or_breakdown(remaining_service_time))
 
     def process_job(self, job: BaseJob, processing_time: float) -> ProcessGenerator:
-        self._jobs.append(job)
+        if self._jobs is not None:
+            self._jobs.append(job)
         yield self.env.process(self._process_or_breakdown(processing_time))
         self.worked_time += processing_time

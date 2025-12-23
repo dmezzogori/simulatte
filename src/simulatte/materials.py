@@ -57,6 +57,7 @@ class MaterialCoordinator:
         self.warehouse = warehouse
         self.agvs = agvs
         self.shopfloor = shopfloor
+        self._agv_rr_cursor: int = 0
 
         # Metrics
         self.total_deliveries: int = 0
@@ -128,8 +129,8 @@ class MaterialCoordinator:
             yield warehouse_request
             yield self.env.process(self.warehouse.pick_inventory(product, quantity))
 
-        # Select an AGV (simple round-robin or first available)
-        agv = yield from self._request_agv(destination, parent_job)
+        # Select an AGV (load-balanced by current workload)
+        agv = self._select_agv(destination, parent_job)
 
         # Create transport job
         transport_job = TransportJob(
@@ -144,33 +145,39 @@ class MaterialCoordinator:
             yield agv_request
             yield self.env.process(agv.travel(self.warehouse, destination))
 
-    def _request_agv(
+    def _select_agv(
         self,
         destination: Server,  # noqa: ARG002
         parent_job: ProductionJob,  # noqa: ARG002
-    ) -> ProcessGenerator:
-        """Request an available AGV.
+    ) -> AGVServer:
+        """Select an AGV using a lightweight load-balancing heuristic.
 
-        This simple implementation returns the first AGV. More sophisticated
-        policies (nearest AGV, load balancing, etc.) can be implemented by
-        extending this method.
+        The default heuristic chooses the AGV with the smallest current workload,
+        defined as `agv.count + len(agv.queue)` (busy + waiting). Ties are broken
+        round-robin to distribute work across identical candidates.
 
         Args:
             destination: Where the AGV needs to go (for smart selection).
             parent_job: The production job this supports (for priority).
 
-        Yields:
-            The selected AGV when available.
-
         Returns:
             The selected AGVServer.
         """
-        # Simple policy: return first AGV (caller will request it)
-        # For now, just pick the first one - more complex policies can be added
-        agv = self.agvs[0]
-        # Yield a zero timeout to make this a generator
-        yield self.env.timeout(0)
-        return agv
+        if not self.agvs:
+            raise ValueError("MaterialCoordinator has no AGVs configured.")
+
+        best_load = min(agv.count + len(agv.queue) for agv in self.agvs)
+        start = self._agv_rr_cursor % len(self.agvs)
+
+        for offset in range(len(self.agvs)):
+            idx = (start + offset) % len(self.agvs)
+            agv = self.agvs[idx]
+            if agv.count + len(agv.queue) == best_load:
+                self._agv_rr_cursor = (idx + 1) % len(self.agvs)
+                return agv
+
+        # Fallback (should be unreachable given best_load computation).
+        return self.agvs[start]
 
     @property
     def average_delivery_time(self) -> float:

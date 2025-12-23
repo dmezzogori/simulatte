@@ -4,7 +4,7 @@ import pytest
 
 from simulatte.agv_server import AGVServer
 from simulatte.environment import Environment
-from simulatte.job import Job, ProductionJob
+from simulatte.job import ProductionJob
 from simulatte.materials import MaterialCoordinator
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
@@ -15,7 +15,7 @@ def test_single_job_processing() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
-    job = Job(env=env, family="A", servers=[server], processing_times=[5], due_date=10)
+    job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=10)
     sf.add(job)
 
     assert job in sf.jobs
@@ -39,8 +39,8 @@ def test_multiple_jobs_sequential_processing_and_queue() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
-    job1 = Job(env=env, family="A", servers=[server], processing_times=[3], due_date=10)
-    job2 = Job(env=env, family="B", servers=[server], processing_times=[4], due_date=10)
+    job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[3], due_date=10)
+    job2 = ProductionJob(env=env, family="B", servers=[server], processing_times=[4], due_date=10)
     sf.add(job1)
     sf.add(job2)
 
@@ -65,8 +65,8 @@ def test_parallel_processing_with_capacity() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=2, shopfloor=sf)
-    job1 = Job(env=env, family="A", servers=[server], processing_times=[5], due_date=10)
-    job2 = Job(env=env, family="B", servers=[server], processing_times=[5], due_date=10)
+    job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=10)
+    job2 = ProductionJob(env=env, family="B", servers=[server], processing_times=[5], due_date=10)
     sf.add(job1)
     sf.add(job2)
 
@@ -89,8 +89,8 @@ def test_enable_corrected_wip() -> None:
     server2 = Server(env=env, capacity=1, shopfloor=shopfloor)
     server3 = Server(env=env, capacity=1, shopfloor=shopfloor)
     shopfloor.enable_corrected_wip = True
-    job1 = Job(env=env, family="A", servers=[server1, server2], processing_times=[2, 3], due_date=10)
-    job2 = Job(env=env, family="B", servers=[server2, server3], processing_times=[4, 5], due_date=10)
+    job1 = ProductionJob(env=env, family="A", servers=[server1, server2], processing_times=[2, 3], due_date=10)
+    job2 = ProductionJob(env=env, family="B", servers=[server2, server3], processing_times=[4, 5], due_date=10)
     shopfloor.add(job1)
     shopfloor.add(job2)
 

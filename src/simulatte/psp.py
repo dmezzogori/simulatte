@@ -11,7 +11,7 @@ from simulatte.shopfloor import ShopFloor
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterable
 
-    from simulatte.job import Job
+    from simulatte.job import ProductionJob
     from simulatte.typing import ProcessGenerator
 
     from simulatte.psp_policies.base import PSPReleasePolicy
@@ -33,7 +33,7 @@ class PreShopPool:
         self._check_timeout = check_timeout
         self.psp_release_policy = psp_release_policy
 
-        self._psp: deque[Job] = deque()
+        self._psp: deque[ProductionJob] = deque()
         self.new_job = self.env.event()
 
         if check_timeout > 0 and psp_release_policy is not None:
@@ -42,10 +42,10 @@ class PreShopPool:
     def __len__(self) -> int:
         return len(self._psp)
 
-    def __contains__(self, job: Job) -> bool:
+    def __contains__(self, job: ProductionJob) -> bool:
         return job in self._psp
 
-    def __getitem__(self, index: int) -> Job:
+    def __getitem__(self, index: int) -> ProductionJob:
         return self._psp[index]
 
     @property
@@ -53,7 +53,7 @@ class PreShopPool:
         return not self._psp
 
     @property
-    def jobs(self) -> Iterable[Job]:
+    def jobs(self) -> Iterable[ProductionJob]:
         yield from self._psp
 
     def main(self) -> ProcessGenerator:
@@ -62,11 +62,11 @@ class PreShopPool:
             if self._psp and self.psp_release_policy is not None:
                 self.psp_release_policy.release(self, self.shopfloor)
 
-    def add(self, job: Job) -> None:
+    def add(self, job: ProductionJob) -> None:
         self._psp.append(job)
         self._signal_new_job(job)
 
-    def remove(self, *, job: Job | None = None) -> Job:
+    def remove(self, *, job: ProductionJob | None = None) -> ProductionJob:
         if job is not None:
             if job not in self._psp:
                 raise ValueError(f"{job} not found in the pre-shop pool.")
@@ -76,6 +76,6 @@ class PreShopPool:
         job.psp_exit_at = self.env.now
         return job
 
-    def _signal_new_job(self, job: Job) -> None:
+    def _signal_new_job(self, job: ProductionJob) -> None:
         self.new_job.succeed(job)
         self.new_job = self.env.event()

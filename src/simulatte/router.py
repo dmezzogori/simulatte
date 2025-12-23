@@ -7,7 +7,7 @@ from collections.abc import Callable, Generator, Sequence
 from typing import TYPE_CHECKING, NoReturn
 
 from simulatte.environment import Environment
-from simulatte.job import Job
+from simulatte.job import ProductionJob
 from simulatte.shopfloor import ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -38,7 +38,7 @@ class Router:
             DiscreteDistribution[Server, Distribution[float]],
         ],
         waiting_time_distribution: dict[str, Distribution[float]],
-        priority_policies: Callable[[Job, Server], float] | None = None,
+        priority_policies: Callable[[ProductionJob, Server], float] | None = None,
     ) -> None:
         self.env = env
         self.shopfloor = shopfloor
@@ -69,7 +69,7 @@ class Router:
             service_times = tuple(self.family_service_times[family][server]() for server in routing)
             waiting_time = self.waiting_time_distribution[family]()
 
-            job = Job(
+            job = ProductionJob(
                 env=self.env,
                 family=family,
                 servers=routing,

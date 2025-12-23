@@ -409,7 +409,3 @@ class WarehouseJob(BaseJob):
 
     def __repr__(self) -> str:
         return f"WarehouseJob(id='{self.id}', {self.operation_type} {self.quantity}x {self.product})"
-
-
-# Backward compatibility alias - existing code using Job will get ProductionJob
-Job = ProductionJob

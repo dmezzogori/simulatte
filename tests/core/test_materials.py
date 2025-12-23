@@ -254,3 +254,70 @@ class TestMaterialCoordinator:
 
         assert coordinator.total_deliveries == 1
         assert coordinator.average_delivery_time == pytest.approx(3.0)
+
+    def test_agv_selection_load_balances_across_agvs(self) -> None:
+        """MaterialCoordinator should distribute work across available AGVs."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+
+        server_a = Server(env=env, capacity=1, shopfloor=sf)
+        server_b = Server(env=env, capacity=1, shopfloor=sf)
+
+        warehouse = WarehouseStore(
+            env=env,
+            n_bays=2,
+            products=["steel"],
+            initial_inventory={"steel": 100},
+            pick_time_fn=lambda: 0.0,
+            put_time_fn=lambda: 0.0,
+            shopfloor=sf,
+        )
+
+        agv_1 = AGVServer(
+            env=env,
+            travel_time_fn=lambda o, d: 1.0,
+            shopfloor=sf,
+            agv_id="agv-1",
+        )
+        agv_2 = AGVServer(
+            env=env,
+            travel_time_fn=lambda o, d: 1.0,
+            shopfloor=sf,
+            agv_id="agv-2",
+        )
+
+        coordinator = MaterialCoordinator(
+            env=env,
+            warehouse=warehouse,
+            agvs=[agv_1, agv_2],
+            shopfloor=sf,
+        )
+
+        job1 = ProductionJob(
+            env=env,
+            family="A",
+            servers=[server_a],
+            processing_times=[0.0],
+            due_date=100.0,
+            material_requirements={0: {"steel": 1}},
+        )
+        job2 = ProductionJob(
+            env=env,
+            family="B",
+            servers=[server_b],
+            processing_times=[0.0],
+            due_date=100.0,
+            material_requirements={0: {"steel": 1}},
+        )
+
+        def run_ensure(job: ProductionJob, server: Server):
+            with server.request(job=job) as req:
+                yield req
+                yield from coordinator.ensure(job, server, 0)
+
+        env.process(run_ensure(job1, server_a))
+        env.process(run_ensure(job2, server_b))
+        env.run()
+
+        assert agv_1.trip_count == 1
+        assert agv_2.trip_count == 1
