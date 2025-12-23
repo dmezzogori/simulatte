@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from simulatte.jobshop import Environment, Router, Server
-from simulatte.jobshop.psp.psp import PreShopPool
+from simulatte.environment import Environment
+from simulatte.router import Router
+from simulatte.server import Server
+from simulatte.psp import PreShopPool
 
 
 def test_generate_job_adds_to_psp_and_sets_attributes() -> None:

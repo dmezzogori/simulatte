@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from simulatte.jobshop.job import Job
-    from simulatte.jobshop.psp.psp import PreShopPool
-    from simulatte.jobshop.shopfloor import ShopFloor
-    from simulatte.jobshop.typing import ProcessGenerator
+    from simulatte.job import Job
+    from simulatte.psp import PreShopPool
+    from simulatte.shopfloor import ShopFloor
+    from simulatte.typing import ProcessGenerator
 
 
 def starvation_avoidance_process(shopfloor: ShopFloor, psp: PreShopPool) -> ProcessGenerator:

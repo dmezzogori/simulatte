@@ -5,16 +5,16 @@ from __future__ import annotations
 from collections import deque
 from typing import TYPE_CHECKING
 
-from simulatte.jobshop.environment import Environment
-from simulatte.jobshop.shopfloor import ShopFloor
+from simulatte.environment import Environment
+from simulatte.shopfloor import ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterable
 
-    from simulatte.jobshop.job import Job
-    from simulatte.jobshop.typing import ProcessGenerator
+    from simulatte.job import Job
+    from simulatte.typing import ProcessGenerator
 
-    from .policies.base import PSPReleasePolicy
+    from simulatte.psp_policies.base import PSPReleasePolicy
 
 
 class PreShopPool:

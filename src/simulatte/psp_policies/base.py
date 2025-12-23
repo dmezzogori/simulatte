@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from simulatte.jobshop.psp.psp import PreShopPool
-    from simulatte.jobshop.shopfloor import ShopFloor
+    from simulatte.psp import PreShopPool
+    from simulatte.shopfloor import ShopFloor
 
 
 class PSPReleasePolicy:

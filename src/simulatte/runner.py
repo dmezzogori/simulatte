@@ -6,14 +6,14 @@ import multiprocessing
 import random
 from typing import TYPE_CHECKING
 
-from simulatte.jobshop.environment import Environment
-from simulatte.jobshop.shopfloor import ShopFloor
+from simulatte.environment import Environment
+from simulatte.shopfloor import ShopFloor
 from simulatte.utils.singleton import Singleton
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable, Sequence
 
-    from simulatte.jobshop.typing import Builder
+    from simulatte.typing import Builder
 
 
 class Runner[S, T]:

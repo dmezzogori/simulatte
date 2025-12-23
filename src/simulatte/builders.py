@@ -5,18 +5,18 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING, Literal
 
-from simulatte.jobshop.distributions import server_sampling, truncated_2erlang
-from simulatte.jobshop.environment import Environment
-from simulatte.jobshop.policies.lumscor import LumsCor, lumscor_starvation_trigger
-from simulatte.jobshop.policies.slar import Slar
-from simulatte.jobshop.policies.starvation_avoidance import starvation_avoidance_process
-from simulatte.jobshop.psp.psp import PreShopPool
-from simulatte.jobshop.router import Router
-from simulatte.jobshop.server.server import Server
-from simulatte.jobshop.shopfloor import ShopFloor
+from simulatte.distributions import server_sampling, truncated_2erlang
+from simulatte.environment import Environment
+from simulatte.policies.lumscor import LumsCor, lumscor_starvation_trigger
+from simulatte.policies.slar import Slar
+from simulatte.policies.starvation_avoidance import starvation_avoidance_process
+from simulatte.psp import PreShopPool
+from simulatte.router import Router
+from simulatte.server import Server
+from simulatte.shopfloor import ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
-    from simulatte.jobshop.typing import PushSystem, System
+    from simulatte.typing import PushSystem, System
 
 
 def build_push_system(

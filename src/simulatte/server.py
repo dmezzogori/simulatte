@@ -9,16 +9,16 @@ import matplotlib.pyplot as plt
 import simpy
 from simpy.resources.resource import PriorityRequest
 
-from simulatte.jobshop.environment import Environment
-from simulatte.jobshop.shopfloor import ShopFloor
+from simulatte.environment import Environment
+from simulatte.shopfloor import ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterable
 
     from simpy.resources.resource import Release
 
-    from simulatte.jobshop.job import Job
-    from simulatte.jobshop.typing import ProcessGenerator
+    from simulatte.job import Job
+    from simulatte.typing import ProcessGenerator
 
 
 class ServerPriorityRequest(PriorityRequest):

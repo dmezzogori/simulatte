@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from simulatte.jobshop.job import Job
-from simulatte.jobshop.server.server import Server
-from simulatte.jobshop.shopfloor import ShopFloor
+from simulatte.job import Job
+from simulatte.server import Server
+from simulatte.shopfloor import ShopFloor
 
 
 def test_shopfloor_is_singleton() -> None:

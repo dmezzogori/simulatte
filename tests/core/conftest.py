@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from simulatte.utils.singleton import Singleton
-from simulatte.jobshop.shopfloor import ShopFloor
+from simulatte.shopfloor import ShopFloor
 
 
 @pytest.fixture(autouse=True)

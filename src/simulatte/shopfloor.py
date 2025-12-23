@@ -6,15 +6,15 @@ from typing import TYPE_CHECKING, ClassVar
 
 from simulatte.utils.singleton import Singleton
 
-from .environment import Environment
+from simulatte.environment import Environment
 
 if TYPE_CHECKING:  # pragma: no cover
     from simpy.core import SimTime
 
-    from simulatte.jobshop.typing import ProcessGenerator
+    from simulatte.typing import ProcessGenerator
 
-    from .job import Job
-    from .server.server import Server
+    from simulatte.job import Job
+    from simulatte.server import Server
 
 
 class ShopFloor(metaclass=Singleton):

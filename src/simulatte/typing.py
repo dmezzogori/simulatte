@@ -6,10 +6,10 @@ from collections.abc import Callable
 
 from simpy.events import ProcessGenerator
 
-from simulatte.jobshop.psp.psp import PreShopPool
-from simulatte.jobshop.router import Router
-from simulatte.jobshop.server.server import Server
-from simulatte.jobshop.shopfloor import ShopFloor
+from simulatte.psp import PreShopPool
+from simulatte.router import Router
+from simulatte.server import Server
+from simulatte.shopfloor import ShopFloor
 
 type System[T] = tuple[T, tuple[Server, ...], ShopFloor, Router]
 type PushSystem = System[None]

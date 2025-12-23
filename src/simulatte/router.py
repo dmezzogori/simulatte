@@ -6,15 +6,15 @@ import random
 from collections.abc import Callable, Generator, Sequence
 from typing import TYPE_CHECKING, NoReturn
 
-from simulatte.jobshop.environment import Environment
-from simulatte.jobshop.job import Job
-from simulatte.jobshop.shopfloor import ShopFloor
+from simulatte.environment import Environment
+from simulatte.job import Job
+from simulatte.shopfloor import ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
     from simpy.events import Timeout
 
-    from simulatte.jobshop.psp.psp import PreShopPool
-    from simulatte.jobshop.server.server import Server
+    from simulatte.psp import PreShopPool
+    from simulatte.server import Server
 
 type Distribution[T] = Callable[[], T]
 type DiscreteDistribution[K, T] = dict[K, T]

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 
-from simulatte.jobshop.job import Job
-from simulatte.jobshop.psp.policies.base import PSPReleasePolicy
-from simulatte.jobshop.psp.psp import PreShopPool
-from simulatte.jobshop.server.server import Server
-from simulatte.jobshop.shopfloor import ShopFloor
+from simulatte.job import Job
+from simulatte.psp_policies.base import PSPReleasePolicy
+from simulatte.psp import PreShopPool
+from simulatte.server import Server
+from simulatte.shopfloor import ShopFloor
 
 
 class DummyPolicy(PSPReleasePolicy):

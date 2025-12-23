@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from .server import Server
+from simulatte.server import Server
 
 if TYPE_CHECKING:  # pragma: no cover
-    from simulatte.jobshop.job import Job
-    from simulatte.jobshop.typing import ProcessGenerator
+    from simulatte.job import Job
+    from simulatte.typing import ProcessGenerator
 
 
 class InspectionServer(Server):

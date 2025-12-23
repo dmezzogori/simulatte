@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from simulatte.jobshop.psp.policies.base import PSPReleasePolicy
-from simulatte.jobshop.shopfloor import ShopFloor
+from simulatte.psp_policies.base import PSPReleasePolicy
+from simulatte.shopfloor import ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
-    from simulatte.jobshop.job import Job
-    from simulatte.jobshop.psp.psp import PreShopPool
-    from simulatte.jobshop.server.server import Server
-    from simulatte.jobshop.typing import ProcessGenerator
+    from simulatte.job import Job
+    from simulatte.psp import PreShopPool
+    from simulatte.server import Server
+    from simulatte.typing import ProcessGenerator
 
 
 class LumsCor(PSPReleasePolicy):

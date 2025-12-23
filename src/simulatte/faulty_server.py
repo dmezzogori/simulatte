@@ -6,13 +6,13 @@ from typing import TYPE_CHECKING
 
 import simpy
 
-from .server import Server
+from simulatte.server import Server
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
 
-    from simulatte.jobshop.job import Job
-    from simulatte.jobshop.typing import ProcessGenerator
+    from simulatte.job import Job
+    from simulatte.typing import ProcessGenerator
 
 
 class FaultyServer(Server):

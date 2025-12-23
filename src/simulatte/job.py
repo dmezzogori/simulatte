@@ -5,14 +5,14 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING
 
-from .environment import Environment
+from simulatte.environment import Environment
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable, Iterable, Sequence
 
     from simpy.core import SimTime
 
-    from .server.server import Server
+    from simulatte.server import Server
 
 
 class Job:

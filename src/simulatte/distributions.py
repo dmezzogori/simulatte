@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable, Sequence
 
-    from simulatte.jobshop.server.server import Server
+    from simulatte.server import Server
 
 
 def server_sampling(servers: Sequence[Server]) -> Callable[[], Sequence[Server]]:
