@@ -28,7 +28,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--cov=src/simulatte --cov-branch --cov-report=term-missing --cov-report=xml -v"
+addopts = "--cov=src/simulatte --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=84 -v"
 testpaths = ["tests"]
 
 [tool.coverage.run]

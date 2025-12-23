@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from loguru import Record, logger as _logger
+from loguru import logger as _logger
+
+if TYPE_CHECKING:
+    from loguru import Record
 
 # Initialize the logger
 _logger.remove()
