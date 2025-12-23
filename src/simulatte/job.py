@@ -47,7 +47,7 @@ class BaseJob(ABC):
         "job_type",
         "priority_policy",
         "psp_exit_at",
-        "release_evalutations",
+        "release_evaluations",
         "rework",
         "routing",
         "servers_entry_at",
@@ -79,7 +79,7 @@ class BaseJob(ABC):
 
         self.rework = False
         self.done = False
-        self.release_evalutations = 0
+        self.release_evaluations = 0
 
         self.created_at: float = env.now
         self.psp_exit_at: SimTime | None = None
