@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, simulatte-refactor-jobshop-core]  # TODO: remove feature branch after testing
   pull_request:
     branches: [main]
 
