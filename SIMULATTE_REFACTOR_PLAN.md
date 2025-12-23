@@ -1,10 +1,13 @@
 # Simulatte Refactor Plan (Job-Shop Core + Intralogistics)
 
-Date: 2025-12-23  
-Status: Approved direction, implementation not started yet (this file is the pre-flight plan)
+<metadata>
+  <date>2025-12-23</date>
+  <status>Approved direction, implementation not started yet (this file is the pre-flight plan)</status>
+</metadata>
 
-## 1) Aim (what we are building)
+## 1) Aim
 
+<aim>
 Refactor Simulatte into a single, cohesive **discrete-event simulation core** where:
 
 - The **job-shop** model becomes the **core library** (moved from `simulatte.jobshop` to `src/simulatte/`).
@@ -19,284 +22,350 @@ Refactor Simulatte into a single, cohesive **discrete-event simulation core** wh
   - The system uses a simplified distance model (Warehouse ↔ Server), suitable for scale.
 
 This refactor intentionally drops project-specific implementations and backward compatibility.
+</aim>
 
-## 2) Scope (what is in / out)
+## 2) Scope
 
-### In scope
+<scope>
+  <in-scope>
+    <item>Unpackage and make job-shop modules the Simulatte root DES core (`src/simulatte/`).</item>
+    <item>Enforce **explicit environment injection** everywhere (no singleton environment; one clock per simulation).</item>
+    <item>
+      Implement a **job-centric** `Server` model:
+      <detail>`Server.request(job=...)` remains the primary interface.</detail>
+      <detail>All capacity contention and processing occurs through `Job` instances.</detail>
+      <detail>AGV and warehouse operations are represented as jobs (specialized job types).</detail>
+    </item>
+    <item>
+      Implement simplified intralogistics:
+      <detail>`WarehouseStore(Server)` with bay capacity + inventory + service times.</detail>
+      <detail>`AGVServer(Server)` with travel time function and minimal trip metrics.</detail>
+    </item>
+    <item>Implement a material coordinator with strict FIFO semantics (see §4.6).</item>
+    <item>Delete modules that are no longer needed after the new core is in place.</item>
+    <item>Update tests and docs to reflect the new architecture.</item>
+  </in-scope>
 
-- Unpackage and make job-shop modules the Simulatte root DES core (`src/simulatte/`).
-- Enforce **explicit environment injection** everywhere (no singleton environment; one clock per simulation).
-- Implement a **job-centric** `Server` model:
-  - `Server.request(job=...)` remains the primary interface.
-  - All capacity contention and processing occurs through `Job` instances.
-  - AGV and warehouse operations are represented as jobs (specialized job types).
-- Implement simplified intralogistics:
-  - `WarehouseStore(Server)` with bay capacity + inventory + service times.
-  - `AGVServer(Server)` with travel time function and minimal trip metrics.
-- Implement a material coordinator with strict FIFO semantics (see §4.6).
-- Delete modules that are no longer needed after the new core is in place.
-- Update tests and docs to reflect the new architecture.
+  <out-of-scope>
+    <item reason="intentional-break">Backward compatibility (no shims, no legacy exports).</item>
+    <item reason="replaced">Keeping existing detailed models (current `agv/`, `stores/`, `picking_cell/`, and controllers may be removed).</item>
+    <item reason="scale">Per-location `Server` instances for warehouse slots (too heavy at the required scale).</item>
+    <item reason="not-needed">RL / Gym / training components from `rl-ppc` (not needed).</item>
+  </out-of-scope>
+</scope>
 
-### Out of scope (explicitly)
+## 3) Clarifications & Decisions (Source of Truth)
 
-- Backward compatibility (no shims, no legacy exports).
-- Keeping existing detailed models (current `agv/`, `stores/`, `picking_cell/`, and controllers may be removed).
-- Per-location `Server` instances for warehouse slots (too heavy at the required scale).
-- RL / Gym / training components from `rl-ppc` (not needed).
-
-## 3) Clarifications & decisions (source of truth)
-
+<decisions>
 These decisions are explicitly confirmed and must be preserved during implementation:
 
-1. **Target scenario**
-   - Manufacturing job-shop + intralogistics.
-   - Reframe warehouse/AGV/picking-cell concepts into job-shop elements, i.e. `Server`.
+  <decision id="1" topic="target-scenario">
+    <summary>Manufacturing job-shop + intralogistics.</summary>
+    <detail>Reframe warehouse/AGV/picking-cell concepts into job-shop elements, i.e. `Server`.</detail>
+  </decision>
 
-2. **Warehouse model**
-   - Simpler abstraction is OK.
-   - `WarehouseStore` must extend the unified `Server` class.
+  <decision id="2" topic="warehouse-model">
+    <summary>Simpler abstraction is OK.</summary>
+    <detail>`WarehouseStore` must extend the unified `Server` class.</detail>
+  </decision>
 
-3. **Environment**
-   - `simulatte.jobshop` becomes **fully explicit env**.
-   - After refactor, the whole library is explicit env injection (single clock per simulation instance).
+  <decision id="3" topic="environment">
+    <summary>`simulatte.jobshop` becomes **fully explicit env**.</summary>
+    <detail>After refactor, the whole library is explicit env injection (single clock per simulation instance).</detail>
+  </decision>
 
-4. **Packaging**
-   - `src/simulatte/jobshop` must be **deleted**.
-   - Job-shop code is moved directly under `src/simulatte/`.
-   - If there are naming conflicts, job-shop-derived components **take priority** and legacy components may be deleted.
+  <decision id="4" topic="packaging">
+    <summary>`src/simulatte/jobshop` must be **deleted**.</summary>
+    <detail>Job-shop code is moved directly under `src/simulatte/`.</detail>
+    <detail>If there are naming conflicts, job-shop-derived components **take priority** and legacy components may be deleted.</detail>
+  </decision>
 
-5. **Unified KPI**
-   - Mandatory across machine/AGV/warehouse.
-   - Simplification is acceptable to achieve KPI unification.
+  <decision id="5" topic="unified-kpi">
+    <summary>Mandatory across machine/AGV/warehouse.</summary>
+    <detail>Simplification is acceptable to achieve KPI unification.</detail>
+  </decision>
 
-6. **Materials**
-   - Inventory can be insufficient.
-   - Missing materials can stall jobs.
-   - Materials can be requested at any server (any routing step).
-   - Materials may be “general consumables” or job-specific, but initial modeling can start with `product + quantity`.
-   - Materials are optional: some jobs/operations require no materials.
+  <decision id="6" topic="materials">
+    <summary>Materials can cause stalls and are optional per operation.</summary>
+    <detail>Inventory can be insufficient.</detail>
+    <detail>Missing materials can stall jobs.</detail>
+    <detail>Materials can be requested at any server (any routing step).</detail>
+    <detail>Materials may be "general consumables" or job-specific, but initial modeling can start with `product + quantity`.</detail>
+    <detail>Materials are optional: some jobs/operations require no materials.</detail>
+  </decision>
 
-7. **Routing & blocking semantics**
-   - Preserve strict FIFO on server queues, even under material starvation.
-   - Head-of-line jobs can block others (no bypass/resequencing).
+  <decision id="7" topic="routing-blocking">
+    <summary>Preserve strict FIFO on server queues, even under material starvation.</summary>
+    <detail>Head-of-line jobs can block others (no bypass/resequencing).</detail>
+  </decision>
 
-8. **Distance model**
-   - OK to model travel distance/time as Warehouse ↔ Server.
+  <decision id="8" topic="distance-model">
+    <summary>OK to model travel distance/time as Warehouse ↔ Server.</summary>
+  </decision>
 
-9. **Expected scale**
-   - 500–1000 warehouse locations (but *not* modeled as Servers).
-   - 20–100 AGVs.
-   - Thousands of jobs per run.
+  <decision id="9" topic="expected-scale">
+    <summary>Scale targets for the simulation.</summary>
+    <detail>500–1000 warehouse locations (but *not* modeled as Servers).</detail>
+    <detail>20–100 AGVs.</detail>
+    <detail>Thousands of jobs per run.</detail>
+  </decision>
+</decisions>
 
-## 4) Target design (high-level)
+## 4) Target Design (High-Level)
 
-### 4.1 Module layout (after unpackaging)
+### 4.1 Module Layout (After Unpackaging)
 
+<module-layout>
 After refactor, `src/simulatte/` becomes the single canonical DES API.
 
-Proposed modules (names confirmed):
+  <module path="src/simulatte/environment.py" description="Environment (explicit)" />
+  <module path="src/simulatte/job.py" description="Job base + specialized job types" />
+  <module path="src/simulatte/server.py" description="Server base (job-centric) + ServerPriorityRequest" />
+  <module path="src/simulatte/shopfloor.py" description="ShopFloor orchestration (explicit instance, not singleton)" />
+  <module path="src/simulatte/router.py" description="Router (explicit env; generates jobs)" />
+  <module path="src/simulatte/psp.py" description="PreShopPool" />
+  <module path="src/simulatte/policies/" description="release/priority policies (LUMS-COR, SLAR, DRACO, starvation avoidance)" />
+  <module path="src/simulatte/distributions.py" description="distributions used by builders" />
+  <module path="src/simulatte/builders.py" description="builders for common systems (job-shop only; job-shop + materials)" />
+  <module path="src/simulatte/runner.py" description="runner for repeated simulations (explicit env, parallel-safe)" />
+  <module path="src/simulatte/materials.py" description="material coordination logic (Warehouse, AGVs, strict FIFO stalling)" />
 
-- `src/simulatte/environment.py` — `Environment` (explicit)
-- `src/simulatte/job.py` — `Job` base + specialized job types (see below)
-- `src/simulatte/server.py` — `Server` base (job-centric) + `ServerPriorityRequest`
-- `src/simulatte/shopfloor.py` — `ShopFloor` orchestration (explicit instance, not singleton)
-- `src/simulatte/router.py` — `Router` (explicit env; generates jobs)
-- `src/simulatte/psp.py` — `PreShopPool`
-- `src/simulatte/policies/` — release/priority policies (LUMS-COR, SLAR, DRACO, starvation avoidance)
-- `src/simulatte/distributions.py` — distributions used by builders
-- `src/simulatte/builders.py` — builders for common systems (job-shop only; job-shop + materials)
-- `src/simulatte/runner.py` — runner for repeated simulations (explicit env, parallel-safe)
-- `src/simulatte/materials.py` — material coordination logic (Warehouse, AGVs, strict FIFO stalling)
+  <delete path="src/simulatte/jobshop/" reason="unpackaged into root" />
+</module-layout>
 
-The old `src/simulatte/jobshop/` directory is removed.
+### 4.2 Core Contract: Explicit Environment
 
-### 4.2 Core contract: explicit environment
-
+<contract id="explicit-env">
 All stateful DES objects receive `env: Environment` explicitly:
 
-- `Server(env=...)`
-- `ShopFloor(env=...)`
-- `Router(env=...)`
-- `PreShopPool(env=...)`
-- `Runner` constructs `env` per run and passes it through builder.
+  <signature>Server(env=...)</signature>
+  <signature>ShopFloor(env=...)</signature>
+  <signature>Router(env=...)</signature>
+  <signature>PreShopPool(env=...)</signature>
+  <signature>Runner constructs env per run and passes it through builder.</signature>
 
-There must be no implicit `Environment()` calls inside components.
+  <constraint>There must be no implicit `Environment()` calls inside components.</constraint>
+</contract>
 
-### 4.3 Unified Server base (job-centric)
+### 4.3 Unified Server Base (Job-Centric)
 
-Constraint: `Server` is **not** job-agnostic. Every interaction must be via `Job`.
+<contract id="job-centric-server">
+  <constraint>Server is **not** job-agnostic. Every interaction must be via `Job`.</constraint>
 
-Implications:
+  <implication>`Server.request(job=..., preempt=...)` remains the API.</implication>
+  <implication>Priority calculations remain job-driven (`job.priority(server)`).</implication>
+  <implication>"AGV missions" and "warehouse operations" are modeled as `Job` subtypes that still satisfy `Job.priority(server)`.</implication>
 
-- `Server.request(job=..., preempt=...)` remains the API.
-- Priority calculations remain job-driven (`job.priority(server)`).
-- “AGV missions” and “warehouse operations” are modeled as `Job` subtypes that still satisfy `Job.priority(server)`.
+  <kpis>
+    <kpi name="worked_time" required="true" />
+    <kpi name="utilization_rate" required="true" />
+    <kpi name="average_queue_length" required="true" />
+    <kpi name="time_series" required="false" note="must be controllable to avoid memory blowup at scale" />
+  </kpis>
+</contract>
 
-Unified KPIs supported on `Server`:
+### 4.4 Job Model (Production + Logistics)
 
-- `worked_time`
-- `utilization_rate`
-- `average_queue_length`
-- Optional: queue/utilization time series (must be controllable to avoid memory blowup at scale).
-
-### 4.4 Job model (production + logistics)
-
+<job-model>
 We keep a single `Job` base and add specialized variants as needed:
 
-- `ProductionJob`: classic job-shop job with routing and processing times.
-- `TransportJob`: “move materials from Warehouse to Server”.
-- `WarehouseJob`: “pick/store material at Warehouse”.
+  <job-type name="ProductionJob" description="classic job-shop job with routing and processing times" />
+  <job-type name="TransportJob" description="move materials from Warehouse to Server" />
+  <job-type name="WarehouseJob" description="pick/store material at Warehouse" />
 
-These can either be separate classes or a single class with typed fields; the key is that all are “Jobs” and can be processed by `Server`.
+  <note>These can either be separate classes or a single class with typed fields; the key is that all are "Jobs" and can be processed by `Server`.</note>
+</job-model>
 
-### 4.5 WarehouseStore(Server) (simplified)
+### 4.5 WarehouseStore(Server) (Simplified)
 
-Warehouse responsibilities are reduced to:
+<component name="WarehouseStore" extends="Server">
+  <responsibility name="capacity-contention">
+    Bays modeled via `Server(capacity=n_bays)`.
+  </responsibility>
 
-- **Capacity contention**: bays modeled via `Server(capacity=n_bays)`.
-- **Inventory**: per-product inventory modeled via `simpy.Container` or equivalent:
-  - `Container.get(qty)` blocks when insufficient (models starvation).
-  - optional “supply process” can add inventory over time.
-- **Service times**: `pick_time`, `put_time` as distributions/callables.
+  <responsibility name="inventory">
+    Per-product inventory modeled via `simpy.Container` or equivalent:
+    <detail>`Container.get(qty)` blocks when insufficient (models starvation).</detail>
+    <detail>Optional "supply process" can add inventory over time.</detail>
+  </responsibility>
 
-We explicitly do **not** model 500–1000 locations as `Server`s. Locations can remain lightweight data or be summarized as capacity/occupancy counters.
+  <responsibility name="service-times">
+    `pick_time`, `put_time` as distributions/callables.
+  </responsibility>
 
-### 4.6 AGVServer(Server) (simplified)
+  <constraint>We explicitly do **not** model 500–1000 locations as `Server`s. Locations can remain lightweight data or be summarized as capacity/occupancy counters.</constraint>
+</component>
 
-AGV model:
+### 4.6 AGVServer(Server) (Simplified)
 
-- Each AGV is `AGVServer(Server, capacity=1)`.
-- Travel time computed by `travel_time_fn(warehouse, destination_server)` (Warehouse ↔ Server only).
-- Minimal KPIs:
-  - As a `Server`, utilization/queue metrics exist.
-  - Additional counters: total travel time, trip count (optional).
+<component name="AGVServer" extends="Server">
+  <property name="capacity" value="1" />
+  <property name="travel_time_fn" signature="travel_time_fn(warehouse, destination_server)" note="Warehouse ↔ Server only" />
 
-### 4.7 Materials + strict FIFO blocking
+  <kpis>
+    <kpi name="utilization" source="Server base" />
+    <kpi name="queue_metrics" source="Server base" />
+    <kpi name="total_travel_time" optional="true" />
+    <kpi name="trip_count" optional="true" />
+  </kpis>
+</component>
 
-Requirement: strict FIFO even when materials are missing (head-of-line can block).
+### 4.7 Materials + Strict FIFO Blocking
 
-Proposed mechanism:
+<component name="MaterialCoordinator">
+  <requirement>Strict FIFO even when materials are missing (head-of-line can block).</requirement>
 
-- Each `ProductionJob` has **per-operation** optional material requirements, e.g.:
-  - `job.material_requirements[op_index] = {product: qty, ...}` or empty/None.
-- In `ShopFloor.main(job)` (or inside `Server.process_job`), for each operation:
-  1. Request server (FIFO/priority queue) with `with server.request(job=job) as req: yield req`.
-  2. **If materials required**, block while holding the server:
-     - `yield env.process(materials.ensure(job, server, op_index))`
-  3. Perform processing time: `yield env.timeout(processing_time)`.
-  4. Release happens normally (context manager exit / explicit release).
+  <mechanism>
+    <step order="1">Each `ProductionJob` has **per-operation** optional material requirements:
+      `job.material_requirements[op_index] = {product: qty, ...}` or empty/None.
+    </step>
+    <step order="2">
+      In `ShopFloor.main(job)` (or inside `Server.process_job`), for each operation:
+      <substep order="2.1">Request server (FIFO/priority queue) with `with server.request(job=job) as req: yield req`.</substep>
+      <substep order="2.2">**If materials required**, block while holding the server: `yield env.process(materials.ensure(job, server, op_index))`</substep>
+      <substep order="2.3">Perform processing time: `yield env.timeout(processing_time)`.</substep>
+      <substep order="2.4">Release happens normally (context manager exit / explicit release).</substep>
+    </step>
+  </mechanism>
 
-This satisfies “strict FIFO and potentially block others”: the server is acquired by the job; if materials are missing, the server is effectively held idle while waiting for material delivery.
+  <note>This satisfies "strict FIFO and potentially block others": the server is acquired by the job; if materials are missing, the server is effectively held idle while waiting for material delivery.</note>
 
-MaterialCoordinator responsibilities:
+  <responsibilities>
+    <item>Reads material requirements for a (job, server, op_index).</item>
+    <item>Waits for warehouse inventory (`Container.get`), blocks when insufficient.</item>
+    <item>Requests `WarehouseStore` bay capacity to perform pick.</item>
+    <item>Requests an `AGVServer` to transport Warehouse → server (travel time).</item>
+    <item>Signals completion back to the waiting job.</item>
+  </responsibilities>
 
-- Reads material requirements for a (job, server, op_index).
-- Waits for warehouse inventory (`Container.get`), blocks when insufficient.
-- Requests `WarehouseStore` bay capacity to perform pick.
-- Requests an `AGVServer` to transport Warehouse → server (travel time).
-- Signals completion back to the waiting job.
+  <constraint>Materials are optional: if requirement is empty/None, `ensure` returns immediately.</constraint>
+</component>
 
-Materials are optional: if requirement is empty/None, `ensure` returns immediately.
+## 5) Performance/Memory Guardrails
 
-## 5) Performance/memory guardrails (“don’t over-engineer”)
+<guardrails context="scale: thousands of jobs, up to 100 AGVs">
+  <guardrail id="no-server-per-slot">
+    Avoid `Server` per warehouse slot; model inventory in aggregate.
+  </guardrail>
 
-Given scale (thousands of jobs, up to 100 AGVs):
+  <guardrail id="lightweight-metrics">
+    Default metrics should be lightweight:
+    <detail>Keep `worked_time` and queue-time histogram for average queue length.</detail>
+    <detail>Make any full time-series collection opt-in (or at least bounded) to avoid memory blow-ups.</detail>
+  </guardrail>
 
-- Avoid `Server` per warehouse slot; model inventory in aggregate.
-- Default metrics should be lightweight:
-  - Keep `worked_time` and queue-time histogram for average queue length.
-  - Make any full time-series collection opt-in (or at least bounded) to avoid memory blow-ups.
-- MaterialCoordinator should be event-driven (e.g., per-operation `ensure()` triggers work), not global polling over all jobs.
+  <guardrail id="event-driven-coordinator">
+    MaterialCoordinator should be event-driven (e.g., per-operation `ensure()` triggers work), not global polling over all jobs.
+  </guardrail>
+</guardrails>
 
-## 6) Step-by-step execution instructions (how to proceed)
+## 6) Step-by-Step Execution Instructions
 
-### Step 0 — Baseline & safety checks
+<execution-plan>
 
-1. Run tests to capture current baseline:
-   - `pytest -q`
-2. Record that current jobshop tests fail due to env mismatch (different clocks).
-3. Ensure git status clean before starting (recommended):
-   - `git status`
-4. Create a new branch for the refactor:
-   - `git checkout -b simulatte-refactor-jobshop-core`
-5. Optionally, tag the current commit for easy reference:
-   - `git tag pre-refactor-jobshop-core`
-6. Prepare to commit frequently during the refactor.
-7. Before each major step, run tests to ensure no regressions.
-8. Before proceeding to the next step, create a markdown file documenting the changes made, to be updated at each step.
-9. Before proceeding to the next step, commit all changes from the previous step.
+  <step id="0" name="Baseline & Safety Checks">
+    <task>Run tests to capture current baseline: `pytest -q`</task>
+    <task>Record that current jobshop tests fail due to env mismatch (different clocks).</task>
+    <task>Ensure git status clean before starting: `git status`</task>
+    <task>Create a new branch for the refactor: `git checkout -b simulatte-refactor-jobshop-core`</task>
+    <task>Optionally, tag the current commit for easy reference: `git tag pre-refactor-jobshop-core`</task>
+    <task>Prepare to commit frequently during the refactor.</task>
+    <task>Before each major step, run tests to ensure no regressions.</task>
+    <task>Before proceeding to the next step, create a markdown file documenting the changes made, to be updated at each step.</task>
+    <task>Before proceeding to the next step, commit all changes from the previous step.</task>
+  </step>
 
-### Step 1 — Unpackage job-shop into root
+  <step id="1" name="Unpackage Job-Shop into Root">
+    <task>Move jobshop modules into root using `git mv`, mapping to the module layout in §4.1.</task>
+    <task>Update imports inside moved files to point to `simulatte.*` root modules.</task>
+    <task>Resolve naming collisions by deleting/overwriting legacy modules as needed (jobshop wins).</task>
+  </step>
 
-1. Move jobshop modules into root using `git mv`, mapping to the module layout in §4.1.
-2. Update imports inside moved files to point to `simulatte.*` root modules.
-3. Resolve naming collisions by deleting/overwriting legacy modules as needed (jobshop wins).
+  <step id="2" name="Delete src/simulatte/jobshop/">
+    <task>Delete the directory after all moved files are in place and imports updated.</task>
+    <task>Update any remaining references in tests/docs.</task>
+  </step>
 
-### Step 2 — Delete `src/simulatte/jobshop/`
+  <step id="3" name="Make Env Explicit Everywhere">
+    <task>Update constructors to accept `env` and store `self.env = env`.</task>
+    <task>
+      Remove:
+      <detail>`Singleton` metaclass usage for `ShopFloor`.</detail>
+      <detail>Any internal `Environment()` construction in `Server/ShopFloor/Router/PSP/builders/Runner`.</detail>
+    </task>
+    <task>Update builders to construct one env and pass it to every component.</task>
+    <task>Update tests to create `env = Environment()` and pass it through.</task>
+  </step>
 
-1. Delete the directory after all moved files are in place and imports updated.
-2. Update any remaining references in tests/docs.
+  <step id="4" name="Enforce Job-Centric Server Semantics + Unified KPIs">
+    <task>Keep `ServerPriorityRequest(job=...)` as the request type.</task>
+    <task>Ensure that AGV/Warehouse operations are implemented as `Job` subclasses and run through the same request/process path.</task>
+    <task>Keep KPI computations consistent across all server types.</task>
+  </step>
 
-### Step 3 — Make env explicit everywhere
+  <step id="5" name="Add WarehouseStore(Server) + AGVServer(Server)">
+    <task>
+      Implement `WarehouseStore` with:
+      <detail>bay capacity (`capacity=n_bays`)</detail>
+      <detail>inventory (`Container` per product)</detail>
+      <detail>pick/put service times</detail>
+    </task>
+    <task>
+      Implement `AGVServer` with:
+      <detail>travel time function (Warehouse ↔ Server)</detail>
+      <detail>minimal trip counters</detail>
+    </task>
+  </step>
 
-1. Update constructors to accept `env` and store `self.env = env`.
-2. Remove:
-   - `Singleton` metaclass usage for `ShopFloor`.
-   - Any internal `Environment()` construction in `Server/ShopFloor/Router/PSP/builders/Runner`.
-3. Update builders to construct one env and pass it to every component.
-4. Update tests to create `env = Environment()` and pass it through.
+  <step id="6" name="Implement Materials Coordinator + Strict FIFO Stalling">
+    <task>Extend `ProductionJob` to include per-operation material requirements (optional).</task>
+    <task>Implement `MaterialCoordinator.ensure(job, server, op_index)` as described in §4.7.</task>
+    <task>Integrate `ensure()` into shopfloor execution while holding the server resource.</task>
+    <task>Add a simple supply process (optional) to allow inventory to replenish over time.</task>
+  </step>
 
-### Step 4 — Enforce job-centric Server semantics + unified KPIs
+  <step id="7" name="Update Builders, Policies, Tests, Docs">
+    <task>
+      Builders:
+      <detail>jobshop-only (no materials)</detail>
+      <detail>jobshop + materials (warehouse + AGVs + coordinator)</detail>
+    </task>
+    <task>Policies: port existing jobshop release/priority policies into root `policies/`.</task>
+    <task>
+      Tests:
+      <detail>Update existing jobshop tests to new module paths.</detail>
+      <detail>Add new tests: materials missing stalls job while holding server.</detail>
+      <detail>Add new tests: materials at later routing steps.</detail>
+      <detail>Add new tests: unified KPI available for machine/warehouse/agv.</detail>
+    </task>
+    <task>Docs: Update `docs/simulatte-architecture.md` and refactor docs to match actual architecture.</task>
+  </step>
 
-1. Keep `ServerPriorityRequest(job=...)` as the request type.
-2. Ensure that AGV/Warehouse operations are implemented as `Job` subclasses and run through the same request/process path.
-3. Keep KPI computations consistent across all server types.
+  <step id="8" name="Delete Unused Modules (No Legacy)">
+    <task>Identify modules unused by the new core.</task>
+    <task>
+      Delete:
+      <detail>old intralogistics implementations (`agv/`, `stores/`, `picking_cell/`, controllers, etc.) if not referenced.</detail>
+    </task>
+    <task>Remove corresponding tests if they test deleted functionality.</task>
+    <task>Re-run test suite.</task>
+  </step>
 
-### Step 5 — Add WarehouseStore(Server) + AGVServer(Server)
+</execution-plan>
 
-1. Implement `WarehouseStore` with:
-   - bay capacity (`capacity=n_bays`)
-   - inventory (`Container` per product)
-   - pick/put service times
-2. Implement `AGVServer` with:
-   - travel time function (Warehouse ↔ Server)
-   - minimal trip counters
+## 7) Remaining Open Items
 
-### Step 6 — Implement materials coordinator + strict FIFO stalling
+<open-items>
+  <item topic="material-representation">
+    The exact representation of "general consumables" vs job-specific materials:
+    <approach>Start with per-operation `{product: qty}`; later can add flags like `consumable=True`.</approach>
+  </item>
 
-1. Extend `ProductionJob` to include per-operation material requirements (optional).
-2. Implement `MaterialCoordinator.ensure(job, server, op_index)` as described in §4.7.
-3. Integrate `ensure()` into shopfloor execution while holding the server resource.
-4. Add a simple supply process (optional) to allow inventory to replenish over time.
+  <item topic="partial-deliveries">
+    Partial deliveries (split qty across multiple AGVs) are not required initially.
+  </item>
 
-### Step 7 — Update builders, policies, tests, docs
-
-1. Builders:
-   - jobshop-only (no materials)
-   - jobshop + materials (warehouse + AGVs + coordinator)
-2. Policies:
-   - port existing jobshop release/priority policies into root `policies/`
-3. Tests:
-   - Update existing jobshop tests to new module paths.
-   - Add new tests:
-     - materials missing stalls job while holding server
-     - materials at later routing steps
-     - unified KPI available for machine/warehouse/agv
-4. Docs:
-   - Update `docs/simulatte-architecture.md` and refactor docs to match actual architecture.
-
-### Step 8 — Delete unused modules (no legacy)
-
-1. Identify modules unused by the new core.
-2. Delete:
-   - old intralogistics implementations (`agv/`, `stores/`, `picking_cell/`, controllers, etc.) if not referenced.
-3. Remove corresponding tests if they test deleted functionality.
-4. Re-run test suite.
-
-## 7) Remaining open items (to decide during implementation)
-
-- The exact representation of “general consumables” vs job-specific materials:
-  - Start with per-operation `{product: qty}`; later can add flags like `consumable=True`.
-- Partial deliveries (split qty across multiple AGVs) are not required initially.
-- Priority rules for material transport jobs (initially: FIFO, or derived from blocked production job priority).
-
+  <item topic="transport-priority">
+    Priority rules for material transport jobs (initially: FIFO, or derived from blocked production job priority).
+  </item>
+</open-items>
