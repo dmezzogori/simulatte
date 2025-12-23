@@ -321,3 +321,83 @@ class TestMaterialCoordinator:
 
         assert agv_1.trip_count == 1
         assert agv_2.trip_count == 1
+
+    def test_no_agvs_raises(self) -> None:
+        """_select_agv should raise ValueError when no AGVs configured."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        warehouse = WarehouseStore(
+            env=env,
+            n_bays=1,
+            products=["steel"],
+            pick_time_fn=lambda: 1.0,
+            put_time_fn=lambda: 0.5,
+            shopfloor=sf,
+        )
+
+        coordinator = MaterialCoordinator(
+            env=env,
+            warehouse=warehouse,
+            agvs=[],  # No AGVs
+            shopfloor=sf,
+        )
+
+        job = ProductionJob(
+            env=env,
+            family="A",
+            servers=[server],
+            processing_times=[1.0],
+            due_date=100,
+        )
+
+        with pytest.raises(ValueError, match="no AGVs configured"):
+            coordinator._select_agv(server, job)
+
+    def test_average_delivery_time_no_deliveries(self) -> None:
+        """average_delivery_time should return 0.0 when no deliveries made."""
+        env = Environment()
+        sf, server, warehouse, agv, coordinator = create_test_system(env)
+
+        assert coordinator.average_delivery_time == 0.0
+
+    def test_agv_selection_round_robin(self) -> None:
+        """_select_agv should round-robin between AGVs with equal load."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        warehouse = WarehouseStore(
+            env=env,
+            n_bays=1,
+            products=["steel"],
+            pick_time_fn=lambda: 1.0,
+            put_time_fn=lambda: 0.5,
+            shopfloor=sf,
+        )
+
+        agv1 = AGV(env=env, travel_time_fn=lambda o, d: 1.0, shopfloor=sf, agv_id="agv-1")
+        agv2 = AGV(env=env, travel_time_fn=lambda o, d: 1.0, shopfloor=sf, agv_id="agv-2")
+
+        coordinator = MaterialCoordinator(
+            env=env,
+            warehouse=warehouse,
+            agvs=[agv1, agv2],
+            shopfloor=sf,
+        )
+
+        job = ProductionJob(
+            env=env,
+            family="A",
+            servers=[server],
+            processing_times=[1.0],
+            due_date=100,
+        )
+
+        # Select AGVs multiple times - should round-robin
+        selected1 = coordinator._select_agv(server, job)
+        selected2 = coordinator._select_agv(server, job)
+        selected3 = coordinator._select_agv(server, job)
+
+        assert selected1 is agv1
+        assert selected2 is agv2
+        assert selected3 is agv1

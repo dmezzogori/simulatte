@@ -22,5 +22,5 @@ class Environment(simpy.Environment):
 
         try:
             super().step()
-        except KeyboardInterrupt:
+        except KeyboardInterrupt:  # pragma: no cover
             raise simpy.core.StopSimulation("KeyboardInterrupt")

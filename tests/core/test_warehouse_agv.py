@@ -270,3 +270,102 @@ class TestAGV:
 
         # ID includes the server index
         assert "agv-" in agv.agv_id
+
+    def test_agv_repr(self) -> None:
+        """AGV should have a useful repr."""
+        env = Environment()
+        agv = AGV(env=env, travel_time_fn=lambda o, d: 1.0, agv_id="test-agv")
+
+        repr_str = repr(agv)
+        assert "AGV" in repr_str
+        assert "test-agv" in repr_str
+
+    def test_agv_average_travel_time_zero_trips(self) -> None:
+        """average_travel_time should return 0.0 when no trips made."""
+        env = Environment()
+        agv = AGV(env=env, travel_time_fn=lambda o, d: 1.0)
+
+        assert agv.average_travel_time == 0.0
+
+
+class TestWarehouseStoreEdgeCases:
+    """Additional edge case tests for WarehouseStore."""
+
+    def test_warehouse_repr(self) -> None:
+        """WarehouseStore should have a useful repr."""
+        env = Environment()
+        warehouse = WarehouseStore(
+            env=env,
+            n_bays=3,
+            products=["a"],
+            pick_time_fn=lambda: 1.0,
+            put_time_fn=lambda: 0.5,
+        )
+
+        repr_str = repr(warehouse)
+        assert "WarehouseStore" in repr_str
+        assert "bays=3" in repr_str
+
+    def test_warehouse_pick_unknown_product_raises(self) -> None:
+        """pick_inventory should raise KeyError for unknown product."""
+        env = Environment()
+        warehouse = WarehouseStore(
+            env=env,
+            n_bays=1,
+            products=["steel"],
+            pick_time_fn=lambda: 1.0,
+            put_time_fn=lambda: 0.5,
+        )
+
+        def do_pick():
+            yield from warehouse.pick_inventory("unknown", 5)
+
+        # The error is raised when the generator runs
+        with pytest.raises(KeyError, match="Unknown product"):
+            gen = do_pick()
+            next(gen)
+
+    def test_warehouse_put_unknown_product_raises(self) -> None:
+        """put_inventory should raise KeyError for unknown product."""
+        env = Environment()
+        warehouse = WarehouseStore(
+            env=env,
+            n_bays=1,
+            products=["steel"],
+            pick_time_fn=lambda: 1.0,
+            put_time_fn=lambda: 0.5,
+        )
+
+        def do_put():
+            yield from warehouse.put_inventory("unknown", 5)
+
+        # The error is raised when the generator runs
+        with pytest.raises(KeyError, match="Unknown product"):
+            gen = do_put()
+            next(gen)
+
+    def test_warehouse_average_pick_time_zero_picks(self) -> None:
+        """average_pick_time should return 0.0 when no picks made."""
+        env = Environment()
+        warehouse = WarehouseStore(
+            env=env,
+            n_bays=1,
+            products=["a"],
+            pick_time_fn=lambda: 1.0,
+            put_time_fn=lambda: 0.5,
+        )
+
+        assert warehouse.average_pick_time == 0.0
+
+    def test_warehouse_average_put_time_zero_puts(self) -> None:
+        """average_put_time should return 0.0 when no puts made."""
+        env = Environment()
+        warehouse = WarehouseStore(
+            env=env,
+            n_bays=1,
+            products=["a"],
+            pick_time_fn=lambda: 1.0,
+            put_time_fn=lambda: 0.5,
+        )
+
+        assert warehouse.average_put_time == 0.0

@@ -177,3 +177,47 @@ def test_slar_allowance_factor() -> None:
 
     # Different allowance factors should produce different PST values
     assert pst1 != pst2
+
+
+def test_slar_negative_pst_release() -> None:
+    """Test releasing negative PST job when all queued jobs have positive PST."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    env.process(slar.slar_release_triggers(sf, psp))
+
+    # Add a job that takes a while to process (to have queued jobs)
+    processing_job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5.0], due_date=1000.0)
+    sf.add(processing_job)
+
+    # Add two jobs to queue with far due dates (positive PST)
+    queued_job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[1.0], due_date=1000.0)
+    queued_job2 = ProductionJob(env=env, family="A", servers=[server], processing_times=[1.0], due_date=1000.0)
+    sf.add(queued_job1)
+    sf.add(queued_job2)
+
+    # Wait until queue has 2+ jobs (not empty, not just one)
+    env.run(until=0.1)
+
+    # Queue should have 2 jobs with positive PST
+    assert len(server.queue) == 2
+
+    # Add candidate job to PSP with negative PST (urgent, past due)
+    urgent_job = ProductionJob(
+        env=env,
+        family="A",
+        servers=[server],
+        processing_times=[0.5],  # Short processing time
+        due_date=env.now - 10.0,  # Already past due (negative PST)
+    )
+    psp.add(urgent_job)
+
+    # Run until first job finishes - this triggers the release check
+    env.run(until=6)
+
+    # The urgent job with negative PST should be released
+    # (because all queued jobs have positive PST and this one has negative)
+    assert urgent_job not in list(psp.jobs)

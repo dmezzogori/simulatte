@@ -177,7 +177,7 @@ class MaterialCoordinator:
                 return agv
 
         # Fallback (should be unreachable given best_load computation).
-        return self.agvs[start]
+        return self.agvs[start]  # pragma: no cover
 
     @property
     def average_delivery_time(self) -> float:

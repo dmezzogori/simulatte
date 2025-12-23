@@ -205,3 +205,56 @@ def test_shopfloor_without_coordinator_works() -> None:
     assert job.done
     # No material handling, just processing time
     assert job.finished_at == pytest.approx(5.0)
+
+
+def test_average_time_in_system_no_jobs_done() -> None:
+    """average_time_in_system should return 0.0 when no jobs are done."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    Server(env=env, capacity=1, shopfloor=sf)
+
+    assert sf.average_time_in_system == 0.0
+
+
+def test_average_time_in_system_with_jobs() -> None:
+    """average_time_in_system should calculate correctly when jobs are done."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[2.0], due_date=100)
+    job2 = ProductionJob(env=env, family="A", servers=[server], processing_times=[4.0], due_date=100)
+    sf.add(job1)
+    sf.add(job2)
+    env.run()
+
+    # job1 time_in_system = 2.0 (exit at t=2, enter at t=0)
+    # job2 time_in_system = 6.0 (exit at t=6, enter at t=0)
+    # average = (2 + 6) / 2 = 4.0
+    assert sf.average_time_in_system == pytest.approx(4.0)
+
+
+def test_update_hourly_throughput_snapshot() -> None:
+    """Throughput snapshot should update after time window passes."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    # Add and process a job quickly
+    job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[1], due_date=100)
+    sf.add(job1)
+    env.run(until=2)
+
+    assert job1.done
+
+    # Advance time past the 60-second window
+    env.run(until=65)
+
+    # Process another job - this should trigger the throughput update
+    job2 = ProductionJob(env=env, family="A", servers=[server], processing_times=[1], due_date=200)
+    sf.add(job2)
+    env.run(until=70)
+
+    # The hourly throughput snapshot should have been updated
+    # We just check that the code ran without error
+    assert sf.last_throughput_snapshot_time > 0
