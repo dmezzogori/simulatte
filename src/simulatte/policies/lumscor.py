@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from simulatte.psp_policies.base import PSPReleasePolicy
+from simulatte.psp import PSPReleasePolicy
 
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.job import ProductionJob

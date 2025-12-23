@@ -14,7 +14,17 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.job import ProductionJob
     from simulatte.typing import ProcessGenerator
 
-    from simulatte.psp_policies.base import PSPReleasePolicy
+
+class PSPReleasePolicy:
+    """Base class for PSP release policies."""
+
+    def release_condition(self, psp: PreShopPool, shopfloor: ShopFloor) -> bool:
+        raise NotImplementedError
+
+    def release(self, psp: PreShopPool, shopfloor: ShopFloor) -> None:
+        if self.release_condition(psp, shopfloor):
+            job = psp.remove()
+            shopfloor.add(job)
 
 
 class PreShopPool:

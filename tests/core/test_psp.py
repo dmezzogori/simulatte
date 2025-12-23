@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
-from simulatte.psp import PreShopPool
-from simulatte.psp_policies.base import PSPReleasePolicy
+from simulatte.psp import PreShopPool, PSPReleasePolicy
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
 
