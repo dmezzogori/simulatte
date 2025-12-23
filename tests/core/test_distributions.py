@@ -31,13 +31,10 @@ def test_server_sampling_different_results_with_different_seeds() -> None:
     sampler = server_sampling(servers)
 
     random.seed(1)
-    result1 = sampler()
-    random.seed(2)
-    result2 = sampler()
+    assert sampler() == [servers[9], servers[1], servers[4]]
 
-    # With 10 servers and different seeds, results should differ
-    # (statistically very likely)
-    assert result1 != result2 or len(result1) != len(result2)
+    random.seed(2)
+    assert sampler() == [servers[1]]
 
 
 def test_truncated_2erlang_within_bounds() -> None:

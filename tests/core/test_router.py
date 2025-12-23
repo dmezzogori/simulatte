@@ -83,10 +83,11 @@ def test_generate_job_directly_to_shopfloor_when_no_psp() -> None:
         waiting_time_distribution={"A": wait_val},
     )
 
-    env.run(until=3.5)
+    env.run(until=3.6)
 
-    # Jobs should have been processed directly on shopfloor
-    # First job at t=1, processes for 0.5, done at 1.5
-    # Second job at t=2, processes for 0.5, done at 2.5
-    # Third job at t=3, processes for 0.5, done at 3.5
-    assert len(sf.jobs_done) >= 2
+    assert len(sf.jobs_done) == 3
+
+    assert [job.created_at for job in sf.jobs_done] == [pytest.approx(1.0), pytest.approx(2.0), pytest.approx(3.0)]
+    assert [job.finished_at for job in sf.jobs_done] == [pytest.approx(1.5), pytest.approx(2.5), pytest.approx(3.5)]
+
+    assert server.worked_time == pytest.approx(1.5)

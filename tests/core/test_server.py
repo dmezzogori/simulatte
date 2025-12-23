@@ -133,8 +133,13 @@ class TestServer:
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
 
+        class DummyRequest:
+            def __init__(self, *, key: int, job: ProductionJob) -> None:
+                self.key = key
+                self.job = job
+
         # Create jobs with different priorities
-        job1 = ProductionJob(
+        job_med = ProductionJob(
             env=env,
             family="A",
             servers=[server],
@@ -142,7 +147,7 @@ class TestServer:
             due_date=200,
             priority_policy=lambda job, srv: 10,
         )
-        job2 = ProductionJob(
+        job_low = ProductionJob(
             env=env,
             family="B",
             servers=[server],
@@ -150,7 +155,7 @@ class TestServer:
             due_date=200,
             priority_policy=lambda job, srv: 5,
         )
-        job3 = ProductionJob(
+        job_high = ProductionJob(
             env=env,
             family="C",
             servers=[server],
@@ -159,17 +164,18 @@ class TestServer:
             priority_policy=lambda job, srv: 15,
         )
 
-        sf.add(job1)
-        sf.add(job2)
-        sf.add(job3)
-        env.run(until=0.1)  # Let them enter queue
+        # Manually build an intentionally unsorted queue
+        req_high = DummyRequest(key=int(job_high.priority(server)), job=job_high)
+        req_low = DummyRequest(key=int(job_low.priority(server)), job=job_low)
+        req_med = DummyRequest(key=int(job_med.priority(server)), job=job_med)
+        server.queue[:] = [req_high, req_low, req_med]
+
+        assert [req.job for req in server.queue] == [job_high, job_low, job_med]
 
         # Sort the queue
         server.sort_queue()
 
-        # Check that sort was called (queue should be sorted by priority key)
-        # The queue uses priority keys, so we just verify sort runs without error
-        assert True  # If we get here, sort_queue worked
+        assert [req.job for req in server.queue] == [job_low, job_med, job_high]
 
     def test_empty_property(self) -> None:
         """empty should be True when queue is empty."""

@@ -174,7 +174,7 @@ class LiteratureSystemBuilder:
         env.process(lumscor_starvation_trigger(shopfloor=shop_floor, psp=psp))
         env.process(starvation_avoidance_process(shop_floor, psp))  # type: ignore[arg-type]
 
-        return None, servers, shop_floor, router
+        return psp, servers, shop_floor, router
 
     @staticmethod
     def build_system_slar(env: Environment, allowance_factor: float | int) -> System:
@@ -207,7 +207,7 @@ class LiteratureSystemBuilder:
         env.process(slar.slar_release_triggers(shopfloor=shop_floor, psp=psp))
         env.process(starvation_avoidance_process(shop_floor, psp))  # type: ignore[arg-type]
 
-        return None, servers, shop_floor, router
+        return psp, servers, shop_floor, router
 
 
 class MaterialSystemBuilder:

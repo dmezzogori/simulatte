@@ -4,6 +4,7 @@ import pytest
 
 from simulatte.builders import LiteratureSystemBuilder, MaterialSystemBuilder, build_push_system
 from simulatte.environment import Environment
+from simulatte.psp import PreShopPool
 
 
 class TestBuildPushSystem:
@@ -63,7 +64,8 @@ class TestLiteratureSystemBuilder:
             allowance_factor=2,
         )
 
-        assert psp is None  # Returns None in the tuple position
+        assert isinstance(psp, PreShopPool)
+        assert router.psp is psp
         assert len(servers) == 6
         assert shop_floor is not None
         assert router is not None
@@ -77,7 +79,8 @@ class TestLiteratureSystemBuilder:
             allowance_factor=3,
         )
 
-        assert psp is None  # Returns None in the tuple position
+        assert isinstance(psp, PreShopPool)
+        assert router.psp is psp
         assert len(servers) == 6
         assert shop_floor is not None
         assert router is not None
@@ -107,7 +110,8 @@ class TestLiteratureSystemBuilder:
             allowance_factor=2,
         )
 
-        assert psp is None  # Returns None in the tuple position
+        assert isinstance(psp, PreShopPool)
+        assert router.psp is psp
         assert len(servers) == 6
         assert shop_floor is not None
         assert router is not None
@@ -119,7 +123,8 @@ class TestLiteratureSystemBuilder:
             allowance_factor=2,
         )
 
-        assert psp is None  # Returns None in the tuple position
+        assert isinstance(psp, PreShopPool)
+        assert router.psp is psp
         assert len(servers) == 6
         assert shop_floor is not None
         assert router is not None
