@@ -20,13 +20,17 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def build_push_system(
+    env: Environment,
     n_servers: int,
     arrival_rate: float = 1.0,
     service_rate: float = 1.0,
 ) -> PushSystem:
-    servers = tuple(Server(capacity=1) for _ in range(n_servers))
-    shop_floor = ShopFloor()
+    """Build a simple push system with explicit env injection."""
+    shop_floor = ShopFloor(env=env)
+    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
     router = Router(
+        env=env,
+        shopfloor=shop_floor,
         servers=servers,
         psp=None,
         inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
@@ -49,6 +53,7 @@ class LiteratureSystemBuilder:
 
     @staticmethod
     def __call__(
+        env: Environment,
         system: Literal["push", "lumscor", "slar"],
         *,
         check_timeout: float | int | None = None,
@@ -56,29 +61,33 @@ class LiteratureSystemBuilder:
         allowance_factor: float | int | None = None,
     ) -> System:
         if system == "push":
-            return LiteratureSystemBuilder().build_system_push()
+            return LiteratureSystemBuilder.build_system_push(env)
         if system == "lumscor":
             assert check_timeout is not None and wl_norm_level is not None and allowance_factor is not None
-            check_timeout_f = float(check_timeout)
-            wl_norm_level_f = float(wl_norm_level)
-            allowance_factor_f = float(allowance_factor)
-            return LiteratureSystemBuilder().build_system_lumscor(
-                check_timeout=check_timeout_f,
-                wl_norm_level=wl_norm_level_f,
-                allowance_factor=allowance_factor_f,
+            return LiteratureSystemBuilder.build_system_lumscor(
+                env,
+                check_timeout=float(check_timeout),
+                wl_norm_level=float(wl_norm_level),
+                allowance_factor=float(allowance_factor),
             )
         if system == "slar":
             assert allowance_factor is not None
-            allowance_factor_f = float(allowance_factor)
-            return LiteratureSystemBuilder().build_system_slar(allowance_factor=allowance_factor_f)
+            return LiteratureSystemBuilder.build_system_slar(
+                env,
+                allowance_factor=float(allowance_factor),
+            )
         msg = f"Unknown system type: {system}"
         raise ValueError(msg)
 
     @staticmethod
-    def build_system_push() -> System:
-        servers = tuple(Server(capacity=1) for _ in range(LiteratureSystemBuilder._n_servers))
-        shop_floor = ShopFloor()
+    def build_system_push(env: Environment) -> System:
+        shop_floor = ShopFloor(env=env)
+        servers = tuple(
+            Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(LiteratureSystemBuilder._n_servers)
+        )
         router = Router(
+            env=env,
+            shopfloor=shop_floor,
             servers=servers,
             psp=None,
             inter_arrival_distribution=lambda: random.expovariate(LiteratureSystemBuilder._arrival_rate),
@@ -99,19 +108,28 @@ class LiteratureSystemBuilder:
 
     @staticmethod
     def build_system_lumscor(
-        check_timeout: float | int, wl_norm_level: float | int, allowance_factor: float | int
+        env: Environment,
+        check_timeout: float | int,
+        wl_norm_level: float | int,
+        allowance_factor: float | int,
     ) -> System:
-        env = Environment()
-        servers = tuple(Server(capacity=1) for _ in range(LiteratureSystemBuilder._n_servers))
-        shop_floor = ShopFloor()
+        shop_floor = ShopFloor(env=env)
+        servers = tuple(
+            Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(LiteratureSystemBuilder._n_servers)
+        )
         psp = PreShopPool(
+            env=env,
+            shopfloor=shop_floor,
             check_timeout=float(check_timeout),
             psp_release_policy=LumsCor(
+                shopfloor=shop_floor,
                 wl_norm=dict.fromkeys(servers, float(wl_norm_level)),
                 allowance_factor=int(allowance_factor),
             ),
         )
         router = Router(
+            env=env,
+            shopfloor=shop_floor,
             servers=servers,
             psp=psp,
             inter_arrival_distribution=lambda: random.expovariate(LiteratureSystemBuilder._arrival_rate),
@@ -135,13 +153,16 @@ class LiteratureSystemBuilder:
         return None, servers, shop_floor, router
 
     @staticmethod
-    def build_system_slar(allowance_factor: float | int) -> System:
-        env = Environment()
-        servers = tuple(Server(capacity=1) for _ in range(LiteratureSystemBuilder._n_servers))
-        shop_floor = ShopFloor()
-        psp = PreShopPool(check_timeout=0, psp_release_policy=None)
+    def build_system_slar(env: Environment, allowance_factor: float | int) -> System:
+        shop_floor = ShopFloor(env=env)
+        servers = tuple(
+            Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(LiteratureSystemBuilder._n_servers)
+        )
+        psp = PreShopPool(env=env, shopfloor=shop_floor, check_timeout=0, psp_release_policy=None)
         slar = Slar(allowance_factor=int(allowance_factor))
         router = Router(
+            env=env,
+            shopfloor=shop_floor,
             servers=servers,
             psp=psp,
             inter_arrival_distribution=lambda: random.expovariate(LiteratureSystemBuilder._arrival_rate),

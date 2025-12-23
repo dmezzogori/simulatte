@@ -6,12 +6,14 @@ from typing import TYPE_CHECKING
 
 import simpy
 
+from simulatte.environment import Environment
 from simulatte.server import Server
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
 
     from simulatte.job import Job
+    from simulatte.shopfloor import ShopFloor
     from simulatte.typing import ProcessGenerator
 
 
@@ -21,11 +23,13 @@ class FaultyServer(Server):
     def __init__(
         self,
         *,
+        env: Environment,
         capacity: int,
         time_between_failures_distribution: Callable[[], float],
         repair_time_distribution: Callable[[], float],
+        shopfloor: ShopFloor | None = None,
     ) -> None:
-        super().__init__(capacity=capacity)
+        super().__init__(env=env, capacity=capacity, shopfloor=shopfloor)
         self.repair_time_distribution = repair_time_distribution
         self.time_between_failures_distribution = time_between_failures_distribution
 

@@ -23,11 +23,13 @@ class PreShopPool:
     def __init__(
         self,
         *,
+        env: Environment,
+        shopfloor: ShopFloor,
         check_timeout: float = 1,
         psp_release_policy: PSPReleasePolicy | None = None,
     ) -> None:
-        self.env = Environment()
-        self.shopfloor = ShopFloor()
+        self.env = env
+        self.shopfloor = shopfloor
         self._check_timeout = check_timeout
         self.psp_release_policy = psp_release_policy
 

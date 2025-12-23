@@ -26,6 +26,8 @@ class Router:
     def __init__(  # noqa: PLR0913
         self,
         *,
+        env: Environment,
+        shopfloor: ShopFloor,
         servers: Sequence[Server],
         psp: PreShopPool | None,
         inter_arrival_distribution: Distribution[float],
@@ -38,10 +40,10 @@ class Router:
         waiting_time_distribution: dict[str, Distribution[float]],
         priority_policies: Callable[[Job, Server], float] | None = None,
     ) -> None:
-        self.env = Environment()
+        self.env = env
+        self.shopfloor = shopfloor
         self.servers = servers
         self.psp = psp
-        self.shopfloor = ShopFloor()
 
         self.inter_arrival_distribution = inter_arrival_distribution
         self.family_distributions = family_distributions
@@ -68,6 +70,7 @@ class Router:
             waiting_time = self.waiting_time_distribution[family]()
 
             job = Job(
+                env=self.env,
                 family=family,
                 servers=routing,
                 processing_times=service_times,

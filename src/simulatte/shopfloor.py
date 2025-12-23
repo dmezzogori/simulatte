@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
-
-from simulatte.utils.singleton import Singleton
+from typing import TYPE_CHECKING
 
 from simulatte.environment import Environment
 
@@ -17,18 +15,17 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.server import Server
 
 
-class ShopFloor(metaclass=Singleton):
+class ShopFloor:
     """Tracks jobs, WIP, and completion events across servers."""
 
-    servers: ClassVar[list[Server]] = []
-
-    def __init__(self, ema_alpha: float = 0.01) -> None:
+    def __init__(self, *, env: Environment, ema_alpha: float = 0.01) -> None:
+        self.env = env
         self.ema_alpha = ema_alpha
 
-        self.env = Environment()
+        self.servers: list[Server] = []  # Instance variable, not ClassVar
         self.jobs: set[Job] = set()
         self.jobs_done: list[Job] = []
-        self.wip: dict[Server, float] = dict.fromkeys(self.servers, 0.0)
+        self.wip: dict[Server, float] = {}
         self.total_time_in_system: float = 0.0
         self.last_throughput_snapshot_time: SimTime = 0
         self.last_throughput_snapshot_jobs_done: int = 0
@@ -59,6 +56,11 @@ class ShopFloor(metaclass=Singleton):
 
     def add(self, job: Job) -> None:
         self.jobs.add(job)
+
+        # Initialize WIP for servers not yet tracked
+        for server, _ in job.server_processing_times:
+            if server not in self.wip:
+                self.wip[server] = 0.0
 
         if self.enable_corrected_wip:
             for i, (server, processing_time) in enumerate(job.server_processing_times):

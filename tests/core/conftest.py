@@ -2,14 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from simulatte.utils.singleton import Singleton
-from simulatte.shopfloor import ShopFloor
+from simulatte.environment import Environment
 
 
-@pytest.fixture(autouse=True)
-def reset_singletons():
-    Singleton.clear()
-    ShopFloor.servers = []
-    yield
-    Singleton.clear()
-    ShopFloor.servers = []
+@pytest.fixture
+def env() -> Environment:
+    """Provide a fresh Environment for each test."""
+    return Environment()

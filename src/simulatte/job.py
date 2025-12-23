@@ -19,6 +19,7 @@ class Job:
     """Represents a job/order flowing through a sequence of servers."""
 
     __slots__ = (
+        "_env",
         "_processing_times",
         "_servers",
         "created_at",
@@ -40,12 +41,14 @@ class Job:
     def __init__(
         self,
         *,
+        env: Environment,
         family: str,
         servers: Sequence[Server],
         processing_times: Sequence[float],
         due_date: SimTime,
         priority_policy: Callable[[Job, Server], float] | None = None,
     ) -> None:
+        self._env = env
         self.id = str(uuid.uuid4())
         self.family = family
         self._servers = servers
@@ -60,7 +63,7 @@ class Job:
         self.done = False
         self.release_evalutations = 0
 
-        self.created_at: float = Environment().now
+        self.created_at: float = env.now
         self.psp_exit_at: SimTime | None = None
         self.servers_entry_at: dict[Server, SimTime | None] = dict.fromkeys(self._servers)
         self.servers_exit_at: dict[Server, SimTime | None] = dict.fromkeys(self._servers)
@@ -73,7 +76,7 @@ class Job:
     def makespan(self) -> float:
         if self.finished_at is not None:
             return self.finished_at - self.created_at
-        return Environment().now - self.created_at
+        return self._env.now - self.created_at
 
     @property
     def processing_times(self) -> tuple[float, ...]:
@@ -96,7 +99,7 @@ class Job:
             if entry_at is not None and exit_at is not None:
                 waiting_times[server] = exit_at - entry_at - processing_time
             elif entry_at is not None:
-                waiting_times[server] = Environment().now - entry_at
+                waiting_times[server] = self._env.now - entry_at
             else:
                 waiting_times[server] = None
         return waiting_times
@@ -114,7 +117,7 @@ class Job:
 
     @property
     def slack_time(self) -> float:
-        return self.due_date - Environment().now
+        return self.due_date - self._env.now
 
     @property
     def time_in_system(self) -> float:
@@ -138,7 +141,7 @@ class Job:
     def late(self) -> bool:
         if self.done:
             return self.finished_at is not None and self.finished_at > self.due_date
-        return Environment().now > self.due_date
+        return self._env.now > self.due_date
 
     @property
     def is_in_psp(self) -> bool:
@@ -206,10 +209,10 @@ class Job:
 
     @property
     def virtual_lateness(self) -> float:
-        return Environment().now - self.due_date
+        return self._env.now - self.due_date
 
     def would_be_finished_in_due_date_window(self, allowance: float = 7) -> bool:
-        return self.due_date - allowance <= Environment().now <= self.due_date + allowance
+        return self.due_date - allowance <= self._env.now <= self.due_date + allowance
 
     @property
     def virtual_tardy(self) -> bool:

@@ -10,7 +10,6 @@ import simpy
 from simpy.resources.resource import PriorityRequest
 
 from simulatte.environment import Environment
-from simulatte.shopfloor import ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterable
@@ -18,6 +17,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from simpy.resources.resource import Release
 
     from simulatte.job import Job
+    from simulatte.shopfloor import ShopFloor
     from simulatte.typing import ProcessGenerator
 
 
@@ -38,9 +38,15 @@ class ServerPriorityRequest(PriorityRequest):
 class Server(simpy.PriorityResource):
     """A server/workstation with queue and utilization tracking."""
 
-    def __init__(self, *, capacity: int) -> None:
-        self.env = Environment()
-        super().__init__(self.env, capacity)
+    def __init__(
+        self,
+        *,
+        env: Environment,
+        capacity: int,
+        shopfloor: ShopFloor | None = None,
+    ) -> None:
+        self.env = env
+        super().__init__(env, capacity)
         self.worked_time: float = 0
 
         self._queue_history: dict[int, float] = defaultdict(float)
@@ -52,8 +58,11 @@ class Server(simpy.PriorityResource):
 
         self._jobs: list[Job] = []
 
-        ShopFloor.servers.append(self)
-        self._idx = ShopFloor.servers.index(self)
+        if shopfloor is not None:
+            shopfloor.servers.append(self)
+            self._idx = shopfloor.servers.index(self)
+        else:
+            self._idx = -1
 
     def __repr__(self) -> str:
         return f"Server(id={self._idx})"

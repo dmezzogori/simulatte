@@ -3,9 +3,10 @@ from __future__ import annotations
 import pytest
 
 from simulatte.environment import Environment
+from simulatte.psp import PreShopPool
 from simulatte.router import Router
 from simulatte.server import Server
-from simulatte.psp import PreShopPool
+from simulatte.shopfloor import ShopFloor
 
 
 def test_generate_job_adds_to_psp_and_sets_attributes() -> None:
@@ -20,10 +21,14 @@ def test_generate_job_adds_to_psp_and_sets_attributes() -> None:
     def wait_val() -> float:
         return 3.0
 
-    server = Server(capacity=1)
-    psp = PreShopPool(check_timeout=100, psp_release_policy=None)
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf, check_timeout=100, psp_release_policy=None)
 
     Router(
+        env=env,
+        shopfloor=sf,
         servers=[server],
         psp=psp,
         inter_arrival_distribution=inter_arrival,
@@ -33,7 +38,6 @@ def test_generate_job_adds_to_psp_and_sets_attributes() -> None:
         waiting_time_distribution={"A": wait_val},
     )
 
-    env = Environment()
     env.run(until=2.1)
 
     assert len(psp) == 2

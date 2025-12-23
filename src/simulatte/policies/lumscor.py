@@ -5,12 +5,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from simulatte.psp_policies.base import PSPReleasePolicy
-from simulatte.shopfloor import ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.job import Job
     from simulatte.psp import PreShopPool
     from simulatte.server import Server
+    from simulatte.shopfloor import ShopFloor
     from simulatte.typing import ProcessGenerator
 
 
@@ -19,13 +19,19 @@ class LumsCor(PSPReleasePolicy):
 
     allowance_factor: int
 
-    def __init__(self, wl_norm: dict[Server, float], allowance_factor: int) -> None:
+    def __init__(
+        self,
+        shopfloor: ShopFloor,
+        wl_norm: dict[Server, float],
+        allowance_factor: int,
+    ) -> None:
+        self.shopfloor = shopfloor
         self.wl_norm = wl_norm
         LumsCor.allowance_factor = allowance_factor
         self.enable_corrected_wip()
 
     def enable_corrected_wip(self) -> None:
-        ShopFloor().enable_corrected_wip = True
+        self.shopfloor.enable_corrected_wip = True
 
     def release_condition(self, psp: PreShopPool, shopfloor: ShopFloor) -> bool:  # noqa: ARG002
         return True

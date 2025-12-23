@@ -7,8 +7,6 @@ import random
 from typing import TYPE_CHECKING
 
 from simulatte.environment import Environment
-from simulatte.shopfloor import ShopFloor
-from simulatte.utils.singleton import Singleton
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable, Sequence
@@ -17,7 +15,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Runner[S, T]:
-    """Manage repeated simulations with configurable builder and seeds."""
+    """Manage repeated simulations with configurable builder and seeds.
+
+    The builder callable should accept an `env: Environment` parameter.
+    """
 
     def __init__(
         self,
@@ -35,12 +36,10 @@ class Runner[S, T]:
         self.n_jobs = n_jobs
 
     def _run_single(self, seed_until: tuple[float, float]) -> T:
-        Singleton.clear()
-        ShopFloor.servers = []
-        env = Environment()
         seed, until = seed_until
         random.seed(seed)
-        system = self.builder()
+        env = Environment()
+        system = self.builder(env=env)
         env.run(until=until)
         return self.extract_fn(system)
 
