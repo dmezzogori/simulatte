@@ -65,6 +65,17 @@ class BaseJob(ABC):
         due_date: SimTime,
         priority_policy: Callable[[Any, Server], float] | None = None,
     ) -> None:
+        """Initialize a base job.
+
+        Args:
+            env: The simulation environment.
+            job_type: Type of job (PRODUCTION, TRANSPORT, or WAREHOUSE).
+            sku: Stock keeping unit identifier for the job.
+            servers: Sequence of servers defining the job's routing.
+            processing_times: Processing time at each server (must match servers length).
+            due_date: Target completion time for the job.
+            priority_policy: Optional function(job, server) -> float for priority calculation.
+        """
         self._env = env
         self.job_type = job_type
         self.id = str(uuid.uuid4())
@@ -93,24 +104,29 @@ class BaseJob(ABC):
 
     @property
     def makespan(self) -> float:
+        """Elapsed time since job creation, or total duration if finished."""
         if self.finished_at is not None:
             return self.finished_at - self.created_at
         return self._env.now - self.created_at
 
     @property
     def processing_times(self) -> tuple[float, ...]:
+        """Immutable tuple of processing times for each server in the routing."""
         return tuple(self._processing_times)
 
     @property
     def servers(self) -> tuple[Server, ...]:
+        """Immutable tuple of servers in the job's routing."""
         return tuple(self._servers)
 
     @property
     def server_processing_times(self) -> Iterable[tuple[Server, float]]:
+        """Iterate over (server, processing_time) pairs in routing order."""
         yield from zip(self._servers, self._processing_times, strict=False)
 
     @property
     def server_waiting_times(self) -> dict[Server, float | None]:
+        """Queue waiting time at each server (None if not yet entered)."""
         waiting_times = {}
         for server, processing_time in self.server_processing_times:
             entry_at = self.servers_entry_at[server]
@@ -125,6 +141,11 @@ class BaseJob(ABC):
 
     @property
     def total_queue_time(self) -> float:
+        """Sum of waiting times across all servers (only for completed jobs).
+
+        Raises:
+            ValueError: If job is not done or has missing timing information.
+        """
         if not self.done:
             raise ValueError("Job is not done. Cannot calculate total queue time.")
 
@@ -136,10 +157,16 @@ class BaseJob(ABC):
 
     @property
     def slack_time(self) -> float:
+        """Time remaining until the due date."""
         return self.due_date - self._env.now
 
     @property
     def time_in_system(self) -> float:
+        """Total time from first server entry to last server exit.
+
+        Raises:
+            ValueError: If job is not done or missing timestamps.
+        """
         last_server = self._servers[-1]
         first_server = self._servers[0]
 
@@ -154,36 +181,47 @@ class BaseJob(ABC):
 
     @property
     def time_in_shopfloor(self) -> float:
+        """Alias for time_in_system."""
         return self.time_in_system
 
     @property
     def late(self) -> bool:
+        """Whether the job is late (finished after due date, or current time past due)."""
         if self.done:
             return self.finished_at is not None and self.finished_at > self.due_date
         return self._env.now > self.due_date
 
     @property
     def is_in_psp(self) -> bool:
+        """Whether the job is still waiting in the Pre-Shop Pool."""
         return self.psp_exit_at is None
 
     @property
     def time_in_psp(self) -> float:
+        """Time spent waiting in the Pre-Shop Pool before release.
+
+        Raises:
+            ValueError: If job has not been released from PSP yet.
+        """
         if self.psp_exit_at is None:
             raise ValueError("Job has not been released from PSP. Cannot calculate time in PSP.")
         return self.psp_exit_at - self.created_at
 
     @property
     def remaining_routing(self) -> tuple[Server, ...]:
+        """Tuple of servers not yet visited by this job."""
         return tuple(srv for srv in self._servers if self.servers_entry_at[srv] is None)
 
     @property
     def next_server(self) -> Server | None:
+        """Next server to visit, or None if routing is complete."""
         if not self.is_in_psp:
             return next((srv for srv in self.servers_entry_at if self.servers_entry_at[srv] is None), None)
         return self.servers[0]
 
     @property
     def previous_server(self) -> Server | None:
+        """Most recently exited server, or None if no servers visited yet."""
         for server in reversed(self.servers_exit_at.keys()):
             if self.servers_exit_at[server] is not None:
                 return server
@@ -191,42 +229,90 @@ class BaseJob(ABC):
 
     @property
     def lateness(self) -> float:
+        """Finish time minus due date (negative means early, positive means late).
+
+        Raises:
+            ValueError: If job is not done or missing finish time.
+        """
         if self.done and self.finished_at is not None:
             return self.finished_at - self.due_date
         raise ValueError("Job is not done or missing finish time. Cannot calculate lateness.")
 
     @property
     def planned_slack_time(self) -> float:
+        """Slack time minus total remaining processing time."""
         return self.slack_time - sum(self._processing_times)
 
     @property
     def virtual_lateness(self) -> float:
+        """Projected lateness if the job finished at current simulation time."""
         return self._env.now - self.due_date
 
     @property
     def virtual_tardy(self) -> bool:
+        """True if job would be late if finished at current simulation time."""
         return self.virtual_lateness > 0
 
     @property
     def virtual_early(self) -> bool:
+        """True if job would be early if finished at current simulation time."""
         return self.virtual_lateness < 0
 
     @property
     def virtual_in_window(self) -> bool:
+        """True if current time is within ±7 time units of due date."""
         return self.would_be_finished_in_due_date_window(allowance=7)
 
     def is_finished_in_due_date_window(self, window_size: float = 7) -> bool:
+        """Check if the completed job finished within the due date window.
+
+        Args:
+            window_size: Allowable deviation from due date (±window_size).
+
+        Returns:
+            True if finish time is within [due_date - window_size, due_date + window_size].
+
+        Raises:
+            ValueError: If job is not done or missing finish time.
+        """
         if self.done and self.finished_at is not None:
             return self.due_date - window_size <= self.finished_at <= self.due_date + window_size
         raise ValueError("Job is not done or missing finish time. Cannot determine if finished in due date window.")
 
     def planned_release_date(self, allowance: int = 2) -> SimTime:
+        """Calculate the optimal release time from the Pre-Shop Pool.
+
+        Args:
+            allowance: Buffer time per server (accounts for queue waiting).
+
+        Returns:
+            Target release time: due_date - total_processing - (servers * allowance).
+        """
         return self.due_date - (sum(self._processing_times) + len(self._servers) * allowance)
 
     def starts_at(self, server: Server) -> bool:
+        """Check if this job's routing begins at the given server.
+
+        Args:
+            server: The server to check.
+
+        Returns:
+            True if server is the first in this job's routing.
+        """
         return self._servers[0] is server
 
     def planned_slack_times(self, allowance: float = 0) -> dict[Server, float | None]:
+        """Compute backward slack time for each server in the routing.
+
+        Calculates how much slack remains when arriving at each server,
+        working backward from the due date. Already-visited servers return None.
+
+        Args:
+            allowance: Additional buffer time per server.
+
+        Returns:
+            Dict mapping each server to its slack time (None if already exited).
+        """
         slack_times = {}
         pst = self.slack_time
         for server, processing_time in reversed(list(self.server_processing_times)):
@@ -238,11 +324,27 @@ class BaseJob(ABC):
         return slack_times
 
     def priority(self, server: Server) -> float:
+        """Get priority value for this job at the given server.
+
+        Args:
+            server: The server to compute priority for.
+
+        Returns:
+            Priority value from policy function, or 0 if no policy is set.
+        """
         if self.priority_policy is not None:
             return self.priority_policy(self, server)
         return 0
 
     def would_be_finished_in_due_date_window(self, allowance: float = 7) -> bool:
+        """Check if current simulation time falls within the due date window.
+
+        Args:
+            allowance: Allowable deviation from due date (±allowance).
+
+        Returns:
+            True if current time is within [due_date - allowance, due_date + allowance].
+        """
         return self.due_date - allowance <= self._env.now <= self.due_date + allowance
 
 
