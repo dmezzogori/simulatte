@@ -195,6 +195,26 @@ class BaseJob(ABC):
             return self.finished_at - self.due_date
         raise ValueError("Job is not done or missing finish time. Cannot calculate lateness.")
 
+    @property
+    def planned_slack_time(self) -> float:
+        return self.slack_time - sum(self._processing_times)
+
+    @property
+    def virtual_lateness(self) -> float:
+        return self._env.now - self.due_date
+
+    @property
+    def virtual_tardy(self) -> bool:
+        return self.virtual_lateness > 0
+
+    @property
+    def virtual_early(self) -> bool:
+        return self.virtual_lateness < 0
+
+    @property
+    def virtual_in_window(self) -> bool:
+        return self.would_be_finished_in_due_date_window(allowance=7)
+
     def is_finished_in_due_date_window(self, window_size: float = 7) -> bool:
         if self.done and self.finished_at is not None:
             return self.due_date - window_size <= self.finished_at <= self.due_date + window_size
@@ -205,10 +225,6 @@ class BaseJob(ABC):
 
     def starts_at(self, server: Server) -> bool:
         return self._servers[0] is server
-
-    @property
-    def planned_slack_time(self) -> float:
-        return self.slack_time - sum(self._processing_times)
 
     def planned_slack_times(self, allowance: float = 0) -> dict[Server, float | None]:
         slack_times = {}
@@ -226,24 +242,8 @@ class BaseJob(ABC):
             return self.priority_policy(self, server)
         return 0
 
-    @property
-    def virtual_lateness(self) -> float:
-        return self._env.now - self.due_date
-
     def would_be_finished_in_due_date_window(self, allowance: float = 7) -> bool:
         return self.due_date - allowance <= self._env.now <= self.due_date + allowance
-
-    @property
-    def virtual_tardy(self) -> bool:
-        return self.virtual_lateness > 0
-
-    @property
-    def virtual_early(self) -> bool:
-        return self.virtual_lateness < 0
-
-    @property
-    def virtual_in_window(self) -> bool:
-        return self.would_be_finished_in_due_date_window(allowance=7)
 
 
 class ProductionJob(BaseJob):
