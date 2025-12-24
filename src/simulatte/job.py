@@ -127,17 +127,25 @@ class BaseJob(ABC):
     @property
     def server_waiting_times(self) -> dict[Server, float | None]:
         """Queue waiting time at each server (None if not yet entered)."""
-        waiting_times = {}
-        for server, processing_time in self.server_processing_times:
-            entry_at = self.servers_entry_at[server]
-            exit_at = self.servers_exit_at[server]
-            if entry_at is not None and exit_at is not None:
-                waiting_times[server] = exit_at - entry_at - processing_time
-            elif entry_at is not None:
-                waiting_times[server] = self._env.now - entry_at
-            else:
-                waiting_times[server] = None
-        return waiting_times
+        return {server: self.waiting_time_at(server) for server in self._servers}
+
+    def waiting_time_at(self, server: Server) -> float | None:
+        """Get the waiting time at a specific server.
+
+        Args:
+            server: The server to get waiting time for.
+
+        Returns:
+            Waiting time in queue, or None if not yet entered.
+            If currently at server, returns time elapsed since entry.
+        """
+        entry_at = self.servers_entry_at[server]
+        exit_at = self.servers_exit_at[server]
+        if entry_at is not None and exit_at is not None:
+            return exit_at - entry_at - self.routing[server]
+        if entry_at is not None:
+            return self._env.now - entry_at
+        return None
 
     @property
     def total_queue_time(self) -> float:
