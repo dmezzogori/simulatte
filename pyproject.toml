@@ -25,6 +25,7 @@ dev = [
     "pytest-cov>=4.1.0",
     "ruff>=0.1.5",
     "ty>=0.0.1a32",
+    "zensical>=0.0.14",
 ]
 
 [tool.pytest.ini_options]

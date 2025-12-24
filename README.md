@@ -30,6 +30,10 @@ or with [uv](https://docs.astral.sh/uv/):
 uv add simulatte
 ```
 
+## Documentation
+
+Project documentation: [dmezzogori.github.io/simulatte](https://dmezzogori.github.io/simulatte/)
+
 ## Quick Start
 
 ```python

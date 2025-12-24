@@ -1,0 +1,29 @@
+[project]
+site_name = "Simulatte"
+site_url = "https://dmezzogori.github.io/simulatte/"
+repo_url = "https://github.com/dmezzogori/simulatte"
+edit_uri = "edit/main/docs/"
+docs_dir = "docs"
+site_dir = "site"
+
+nav = [
+  { "Home" = "index.md" },
+  { "Getting Started" = "getting-started.md" },
+  { "Tutorials" = [
+    { "Overview" = "tutorials/index.md" },
+    { "Job-shop basics" = "tutorials/job-shop-basics.md" },
+    { "Materials, warehouse, and AGVs" = "tutorials/materials-warehouse-agvs.md" },
+    { "Multi-run experiments" = "tutorials/multi-run-experiments.md" },
+    { "Troubleshooting" = "tutorials/troubleshooting.md" },
+  ]},
+]
+
+[project.theme]
+features = [
+  "content.action.edit",
+  "content.action.view",
+  "navigation.instant",
+  "navigation.sections",
+  "navigation.tracking",
+  "toc.follow",
+]
