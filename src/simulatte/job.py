@@ -125,18 +125,18 @@ class BaseJob(ABC):
         yield from zip(self._servers, self._processing_times, strict=False)
 
     @property
-    def server_waiting_times(self) -> dict[Server, float | None]:
-        """Queue waiting time at each server (None if not yet entered)."""
-        return {server: self.waiting_time_at(server) for server in self._servers}
+    def server_queue_times(self) -> dict[Server, float | None]:
+        """Queue time at each server (None if not yet entered)."""
+        return {server: self.queue_time_at(server) for server in self._servers}
 
-    def waiting_time_at(self, server: Server) -> float | None:
-        """Get the waiting time at a specific server.
+    def queue_time_at(self, server: Server) -> float | None:
+        """Get the queue time at a specific server.
 
         Args:
-            server: The server to get waiting time for.
+            server: The server to get queue time for.
 
         Returns:
-            Waiting time in queue, or None if not yet entered.
+            Queue time, or None if not yet entered.
             If currently at server, returns time elapsed since entry.
         """
         entry_at = self.servers_entry_at[server]
@@ -149,7 +149,7 @@ class BaseJob(ABC):
 
     @property
     def total_queue_time(self) -> float:
-        """Sum of waiting times across all servers (only for completed jobs).
+        """Sum of queue times across all servers (only for completed jobs).
 
         Raises:
             ValueError: If job is not done or has missing timing information.
@@ -157,11 +157,11 @@ class BaseJob(ABC):
         if not self.done:
             raise ValueError("Job is not done. Cannot calculate total queue time.")
 
-        waiting_times = self.server_waiting_times
-        if None in waiting_times.values():
+        queue_times = self.server_queue_times
+        if None in queue_times.values():
             raise ValueError("Job has missing timing information. Cannot calculate total queue time.")
 
-        return sum(wt for wt in waiting_times.values() if wt is not None)
+        return sum(qt for qt in queue_times.values() if qt is not None)
 
     @property
     def slack_time(self) -> float:

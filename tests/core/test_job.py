@@ -221,8 +221,8 @@ class TestJobProperties:
         env.run(until=10)
         assert job.makespan == 10.0
 
-    def test_server_waiting_times_in_progress(self) -> None:
-        """server_waiting_times when job is in progress (entry_at set, exit_at None)."""
+    def test_server_queue_times_in_progress(self) -> None:
+        """server_queue_times when job is in progress (entry_at set, exit_at None)."""
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
@@ -233,13 +233,13 @@ class TestJobProperties:
         env.run(until=5)  # Mid-processing
 
         # Job is in progress: entry_at set, exit_at is None
-        waiting_times = job.server_waiting_times
-        assert server in waiting_times
+        queue_times = job.server_queue_times
+        assert server in queue_times
         # Should return env.now - entry_at since exit_at is None
-        assert waiting_times[server] == pytest.approx(5.0)
+        assert queue_times[server] == pytest.approx(5.0)
 
-    def test_server_waiting_times_not_entered(self) -> None:
-        """server_waiting_times when job hasn't entered server (both None)."""
+    def test_server_queue_times_not_entered(self) -> None:
+        """server_queue_times when job hasn't entered server (both None)."""
         env = Environment()
         sf = ShopFloor(env=env)
         s1 = Server(env=env, capacity=1, shopfloor=sf)
@@ -247,10 +247,10 @@ class TestJobProperties:
         job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1, 1], due_date=100)
 
         # Don't add to shopfloor - servers_entry_at will be None
-        waiting_times = job.server_waiting_times
+        queue_times = job.server_queue_times
         # Both servers should return None since job hasn't entered them
-        assert waiting_times[s1] is None
-        assert waiting_times[s2] is None
+        assert queue_times[s1] is None
+        assert queue_times[s2] is None
 
     def test_total_queue_time_not_done_raises(self) -> None:
         """total_queue_time should raise when job not done."""
