@@ -33,7 +33,7 @@ Material requirements are keyed by **operation index** (0-based):
 ```python
 job = ProductionJob(
     env=env,
-    family="P1",
+    sku="P1",
     servers=servers,
     processing_times=[5.0, 3.0],
     due_date=100.0,

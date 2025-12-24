@@ -53,7 +53,7 @@ class TestMaterialSystemIntegration:
         # Create a job with no material requirements
         job = ProductionJob(
             env=env,
-            family="A",
+            sku="A",
             servers=[servers[0], servers[1]],
             processing_times=[3.0, 2.0],
             due_date=100,
@@ -82,7 +82,7 @@ class TestMaterialSystemIntegration:
         # Create a job that requires materials at operation 0
         job = ProductionJob(
             env=env,
-            family="A",
+            sku="A",
             servers=[servers[0]],
             processing_times=[3.0],
             due_date=100,
@@ -126,7 +126,7 @@ class TestMaterialSystemIntegration:
         # Job 1: requires materials
         job1 = ProductionJob(
             env=env,
-            family="A",
+            sku="A",
             servers=[server],
             processing_times=[1.0],
             due_date=100,
@@ -136,7 +136,7 @@ class TestMaterialSystemIntegration:
         # Job 2: no materials, arrives slightly later
         job2 = ProductionJob(
             env=env,
-            family="B",
+            sku="B",
             servers=[server],
             processing_times=[1.0],
             due_date=100,
@@ -148,7 +148,7 @@ class TestMaterialSystemIntegration:
                 if needs_materials:
                     yield from coordinator.ensure(job, server, 0)
                 yield env.process(server.process_job(job, job.processing_times[0]))
-            completion_order.append(job.family)
+            completion_order.append(job.sku)
 
         def start_job2():
             yield env.timeout(0.1)  # Arrive after job1
@@ -179,7 +179,7 @@ class TestMaterialSystemIntegration:
 
         job = ProductionJob(
             env=env,
-            family="A",
+            sku="A",
             servers=[server],
             processing_times=[1.0],
             due_date=100,
@@ -228,7 +228,7 @@ class TestMaterialSystemIntegration:
         # Two jobs with materials
         job1 = ProductionJob(
             env=env,
-            family="X",
+            sku="X",
             servers=[servers[0]],
             processing_times=[1.0],
             due_date=100,
@@ -236,7 +236,7 @@ class TestMaterialSystemIntegration:
         )
         job2 = ProductionJob(
             env=env,
-            family="Y",
+            sku="Y",
             servers=[servers[1]],
             processing_times=[1.0],
             due_date=100,

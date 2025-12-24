@@ -22,7 +22,7 @@ def test_faulty_server_no_breakdown() -> None:
         shopfloor=sf,
     )
 
-    job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5.0], due_date=20.0)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=20.0)
     sf.add(job)
     env.run(until=10)  # Run until job completes (breakdown_process runs forever)
 
@@ -56,7 +56,7 @@ def test_faulty_server_single_breakdown() -> None:
 
     # Job needs 10 time units
     # Timeline: 0-2 processing, 2-7 repair, 7-15 remaining (8 units)
-    job = ProductionJob(env=env, family="A", servers=[server], processing_times=[10.0], due_date=50.0)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[10.0], due_date=50.0)
     sf.add(job)
     env.run(until=20)
 
@@ -87,7 +87,7 @@ def test_faulty_server_breakdown_metrics() -> None:
     )
 
     # Long job that will experience multiple breakdowns
-    job = ProductionJob(env=env, family="A", servers=[server], processing_times=[3.0], due_date=50.0)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[3.0], due_date=50.0)
     sf.add(job)
     env.run(until=20)
 
@@ -110,7 +110,7 @@ def test_faulty_server_retains_job_history() -> None:
         retain_job_history=True,
     )
 
-    job = ProductionJob(env=env, family="A", servers=[server], processing_times=[2.0], due_date=10.0)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=10.0)
     sf.add(job)
     env.run(until=10)
 
@@ -141,8 +141,8 @@ def test_faulty_server_multiple_jobs() -> None:
         shopfloor=sf,
     )
 
-    job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[10.0], due_date=50.0)
-    job2 = ProductionJob(env=env, family="A", servers=[server], processing_times=[10.0], due_date=100.0)
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[10.0], due_date=50.0)
+    job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[10.0], due_date=100.0)
 
     sf.add(job1)
     sf.add(job2)

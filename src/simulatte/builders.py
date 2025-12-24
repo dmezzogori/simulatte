@@ -58,9 +58,9 @@ def build_push_system(
         servers=servers,
         psp=None,
         inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
-        family_distributions={"F1": 1},
-        family_routings={"F1": lambda: servers},
-        family_service_times={
+        sku_distributions={"F1": 1},
+        sku_routings={"F1": lambda: servers},
+        sku_service_times={
             "F1": {server: lambda: random.expovariate(service_rate) for server in servers},
         },
         waiting_time_distribution={"F1": lambda: random.expovariate(1.0 * n_servers)},
@@ -115,9 +115,9 @@ class LiteratureSystemBuilder:
             servers=servers,
             psp=None,
             inter_arrival_distribution=lambda: random.expovariate(LiteratureSystemBuilder._arrival_rate),
-            family_distributions={"F1": 1},
-            family_routings={"F1": server_sampling(servers)},
-            family_service_times={
+            sku_distributions={"F1": 1},
+            sku_routings={"F1": server_sampling(servers)},
+            sku_service_times={
                 "F1": {
                     server: lambda: truncated_2erlang(
                         lam=LiteratureSystemBuilder._service_rate,
@@ -157,9 +157,9 @@ class LiteratureSystemBuilder:
             servers=servers,
             psp=psp,
             inter_arrival_distribution=lambda: random.expovariate(LiteratureSystemBuilder._arrival_rate),
-            family_distributions={"F1": 1},
-            family_routings={"F1": server_sampling(servers)},
-            family_service_times={
+            sku_distributions={"F1": 1},
+            sku_routings={"F1": server_sampling(servers)},
+            sku_service_times={
                 "F1": {
                     server: lambda: truncated_2erlang(
                         lam=LiteratureSystemBuilder._service_rate,
@@ -190,9 +190,9 @@ class LiteratureSystemBuilder:
             servers=servers,
             psp=psp,
             inter_arrival_distribution=lambda: random.expovariate(LiteratureSystemBuilder._arrival_rate),
-            family_distributions={"F1": 1},
-            family_routings={"F1": server_sampling(servers)},
-            family_service_times={
+            sku_distributions={"F1": 1},
+            sku_routings={"F1": server_sampling(servers)},
+            sku_service_times={
                 "F1": {
                     server: lambda: truncated_2erlang(
                         lam=LiteratureSystemBuilder._service_rate,

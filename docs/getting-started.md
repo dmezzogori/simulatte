@@ -33,7 +33,7 @@ server = Server(env=env, capacity=1, shopfloor=shopfloor)
 
 job = ProductionJob(
     env=env,
-    family="A",
+    sku="A",
     servers=[server],
     processing_times=[5.0],
     due_date=100.0,  # absolute simulation time

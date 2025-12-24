@@ -54,7 +54,7 @@ server = Server(env=env, capacity=1, shopfloor=shopfloor)
 # Create a job with routing through the server
 job = ProductionJob(
     env=env,
-    family="A",
+    sku="A",
     servers=[server],
     processing_times=[5.0],
     due_date=100,

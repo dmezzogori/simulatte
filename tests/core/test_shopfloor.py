@@ -15,7 +15,7 @@ def test_single_job_processing() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
-    job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=10)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=10)
     sf.add(job)
 
     assert job in sf.jobs
@@ -39,8 +39,8 @@ def test_multiple_jobs_sequential_processing_and_queue() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
-    job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[3], due_date=10)
-    job2 = ProductionJob(env=env, family="B", servers=[server], processing_times=[4], due_date=10)
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[3], due_date=10)
+    job2 = ProductionJob(env=env, sku="B", servers=[server], processing_times=[4], due_date=10)
     sf.add(job1)
     sf.add(job2)
 
@@ -65,8 +65,8 @@ def test_parallel_processing_with_capacity() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=2, shopfloor=sf)
-    job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=10)
-    job2 = ProductionJob(env=env, family="B", servers=[server], processing_times=[5], due_date=10)
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=10)
+    job2 = ProductionJob(env=env, sku="B", servers=[server], processing_times=[5], due_date=10)
     sf.add(job1)
     sf.add(job2)
 
@@ -89,8 +89,8 @@ def test_enable_corrected_wip() -> None:
     server2 = Server(env=env, capacity=1, shopfloor=shopfloor)
     server3 = Server(env=env, capacity=1, shopfloor=shopfloor)
     shopfloor.enable_corrected_wip = True
-    job1 = ProductionJob(env=env, family="A", servers=[server1, server2], processing_times=[2, 3], due_date=10)
-    job2 = ProductionJob(env=env, family="B", servers=[server2, server3], processing_times=[4, 5], due_date=10)
+    job1 = ProductionJob(env=env, sku="A", servers=[server1, server2], processing_times=[2, 3], due_date=10)
+    job2 = ProductionJob(env=env, sku="B", servers=[server2, server3], processing_times=[4, 5], due_date=10)
     shopfloor.add(job1)
     shopfloor.add(job2)
 
@@ -164,7 +164,7 @@ def test_automatic_material_handling_via_shopfloor() -> None:
     # Create job with material requirements
     job = ProductionJob(
         env=env,
-        family="A",
+        sku="A",
         servers=[server],
         processing_times=[3.0],
         due_date=100,
@@ -192,7 +192,7 @@ def test_shopfloor_without_coordinator_works() -> None:
     # Job with material requirements but no coordinator configured
     job = ProductionJob(
         env=env,
-        family="A",
+        sku="A",
         servers=[server],
         processing_times=[5.0],
         due_date=100,
@@ -222,8 +222,8 @@ def test_average_time_in_system_with_jobs() -> None:
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
 
-    job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[2.0], due_date=100)
-    job2 = ProductionJob(env=env, family="A", servers=[server], processing_times=[4.0], due_date=100)
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=100)
+    job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[4.0], due_date=100)
     sf.add(job1)
     sf.add(job2)
     env.run()
@@ -241,7 +241,7 @@ def test_update_hourly_throughput_snapshot() -> None:
     server = Server(env=env, capacity=1, shopfloor=sf)
 
     # Add and process a job quickly
-    job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[1], due_date=100)
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1], due_date=100)
     sf.add(job1)
     env.run(until=2)
 
@@ -251,7 +251,7 @@ def test_update_hourly_throughput_snapshot() -> None:
     env.run(until=65)
 
     # Process another job - this should trigger the throughput update
-    job2 = ProductionJob(env=env, family="A", servers=[server], processing_times=[1], due_date=200)
+    job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1], due_date=200)
     sf.add(job2)
     env.run(until=70)
 

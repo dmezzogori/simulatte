@@ -41,7 +41,6 @@ class BaseJob(ABC):
         "current_server",
         "done",
         "due_date",
-        "family",
         "finished_at",
         "id",
         "job_type",
@@ -52,6 +51,7 @@ class BaseJob(ABC):
         "routing",
         "servers_entry_at",
         "servers_exit_at",
+        "sku",
     )
 
     def __init__(
@@ -59,7 +59,7 @@ class BaseJob(ABC):
         *,
         env: Environment,
         job_type: JobType,
-        family: str,
+        sku: str,
         servers: Sequence[Server],
         processing_times: Sequence[float],
         due_date: SimTime,
@@ -68,7 +68,7 @@ class BaseJob(ABC):
         self._env = env
         self.job_type = job_type
         self.id = str(uuid.uuid4())
-        self.family = family
+        self.sku = sku
         self._servers = servers
         self._processing_times = processing_times
         self.due_date = due_date
@@ -260,7 +260,7 @@ class ProductionJob(BaseJob):
         self,
         *,
         env: Environment,
-        family: str,
+        sku: str,
         servers: Sequence[Server],
         processing_times: Sequence[float],
         due_date: SimTime,
@@ -271,7 +271,7 @@ class ProductionJob(BaseJob):
 
         Args:
             env: The simulation environment.
-            family: Job family identifier.
+            sku: Job SKU identifier.
             servers: Sequence of servers in the job's routing.
             processing_times: Processing time at each server.
             due_date: Target completion time.
@@ -284,7 +284,7 @@ class ProductionJob(BaseJob):
         super().__init__(
             env=env,
             job_type=JobType.PRODUCTION,
-            family=family,
+            sku=sku,
             servers=servers,
             processing_times=processing_times,
             due_date=due_date,
@@ -293,7 +293,7 @@ class ProductionJob(BaseJob):
         self.material_requirements = material_requirements or {}
 
     def __repr__(self) -> str:
-        return f"ProductionJob(id='{self.id}', family='{self.family}')"
+        return f"ProductionJob(id='{self.id}', sku='{self.sku}')"
 
     def get_materials_for_operation(self, op_index: int) -> dict[str, int]:
         """Get material requirements for a specific operation.
@@ -344,7 +344,7 @@ class TransportJob(BaseJob):
         super().__init__(
             env=env,
             job_type=JobType.TRANSPORT,
-            family="transport",
+            sku="transport",
             servers=[origin] if processing_times is None else [origin],
             processing_times=processing_times or [0.0],
             due_date=due_date if due_date is not None else float("inf"),
@@ -397,7 +397,7 @@ class WarehouseJob(BaseJob):
         super().__init__(
             env=env,
             job_type=JobType.WAREHOUSE,
-            family=f"warehouse_{operation_type}",
+            sku=f"warehouse_{operation_type}",
             servers=[warehouse],
             processing_times=[processing_time],
             due_date=due_date if due_date is not None else float("inf"),

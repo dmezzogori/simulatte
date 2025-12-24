@@ -13,7 +13,7 @@ def test_generate_job_adds_to_psp_and_sets_attributes() -> None:
     def inter_arrival() -> float:
         return 1.0
 
-    family_dist = {"A": 1.0}
+    sku_dist = {"A": 1.0}
 
     def service_val() -> float:
         return 2.0
@@ -32,9 +32,9 @@ def test_generate_job_adds_to_psp_and_sets_attributes() -> None:
         servers=[server],
         psp=psp,
         inter_arrival_distribution=inter_arrival,
-        family_distributions=family_dist,
-        family_routings={"A": lambda: [server]},
-        family_service_times={"A": {server: service_val}},
+        sku_distributions=sku_dist,
+        sku_routings={"A": lambda: [server]},
+        sku_service_times={"A": {server: service_val}},
         waiting_time_distribution={"A": wait_val},
     )
 
@@ -43,7 +43,7 @@ def test_generate_job_adds_to_psp_and_sets_attributes() -> None:
     assert len(psp) == 2
 
     for idx, job in enumerate(psp.jobs, start=1):
-        assert job.family == "A"
+        assert job.sku == "A"
         assert job._servers == [server]
         assert job._processing_times == (2.0,)
         assert job.created_at == pytest.approx(idx * 1.0)
@@ -59,7 +59,7 @@ def test_generate_job_directly_to_shopfloor_when_no_psp() -> None:
     def inter_arrival() -> float:
         return 1.0
 
-    family_dist = {"A": 1.0}
+    sku_dist = {"A": 1.0}
 
     def service_val() -> float:
         return 0.5
@@ -77,9 +77,9 @@ def test_generate_job_directly_to_shopfloor_when_no_psp() -> None:
         servers=[server],
         psp=None,  # No PSP - jobs go directly to shopfloor
         inter_arrival_distribution=inter_arrival,
-        family_distributions=family_dist,
-        family_routings={"A": lambda: [server]},
-        family_service_times={"A": {server: service_val}},
+        sku_distributions=sku_dist,
+        sku_routings={"A": lambda: [server]},
+        sku_service_times={"A": {server: service_val}},
         waiting_time_distribution={"A": wait_val},
     )
 

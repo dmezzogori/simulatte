@@ -14,7 +14,7 @@ class TestServerPriorityRequest:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=100)
 
         request = ServerPriorityRequest(server, job)
         repr_str = repr(request)
@@ -65,8 +65,8 @@ class TestServer:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[100], due_date=200)
-        job2 = ProductionJob(env=env, family="B", servers=[server], processing_times=[100], due_date=200)
+        job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[100], due_date=200)
+        job2 = ProductionJob(env=env, sku="B", servers=[server], processing_times=[100], due_date=200)
 
         sf.add(job1)
         sf.add(job2)
@@ -81,7 +81,7 @@ class TestServer:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf, collect_time_series=True)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=100)
 
         sf.add(job)
         env.run()
@@ -119,7 +119,7 @@ class TestServer:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf, retain_job_history=True)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=100)
 
         sf.add(job)
         env.run()
@@ -141,7 +141,7 @@ class TestServer:
         # Create jobs with different priorities
         job_med = ProductionJob(
             env=env,
-            family="A",
+            sku="A",
             servers=[server],
             processing_times=[100],
             due_date=200,
@@ -149,7 +149,7 @@ class TestServer:
         )
         job_low = ProductionJob(
             env=env,
-            family="B",
+            sku="B",
             servers=[server],
             processing_times=[100],
             due_date=200,
@@ -157,7 +157,7 @@ class TestServer:
         )
         job_high = ProductionJob(
             env=env,
-            family="C",
+            sku="C",
             servers=[server],
             processing_times=[100],
             due_date=200,
@@ -185,7 +185,7 @@ class TestServer:
 
         assert server.empty
 
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[100], due_date=200)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[100], due_date=200)
         sf.add(job)
         env.run(until=0.1)
 
@@ -198,8 +198,8 @@ class TestServer:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[100], due_date=200)
-        job2 = ProductionJob(env=env, family="B", servers=[server], processing_times=[100], due_date=200)
+        job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[100], due_date=200)
+        job2 = ProductionJob(env=env, sku="B", servers=[server], processing_times=[100], due_date=200)
 
         sf.add(job1)
         sf.add(job2)

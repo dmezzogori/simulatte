@@ -15,7 +15,7 @@ def test_slar_pst_priority_policy() -> None:
     server = Server(env=env, capacity=1, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5.0], due_date=20.0)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=20.0)
 
     pst = slar.pst_priority_policy(job, server)
     # slack_time = due_date - arrival_time - remaining_processing
@@ -33,7 +33,7 @@ def test_slar_pst_value_none_returns_zero() -> None:
     slar = Slar(allowance_factor=2)
 
     # Job visits both servers
-    job = ProductionJob(env=env, family="A", servers=[server1, server2], processing_times=[1.0, 1.0], due_date=20.0)
+    job = ProductionJob(env=env, sku="A", servers=[server1, server2], processing_times=[1.0, 1.0], due_date=20.0)
 
     # Before processing, PST for server1 should be a float
     pst_value_before = slar._pst_value(job, server1)
@@ -55,7 +55,7 @@ def test_slar_pst_value_returns_float() -> None:
     server = Server(env=env, capacity=1, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5.0], due_date=100.0)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=100.0)
 
     pst_value = slar._pst_value(job, server)
     assert isinstance(pst_value, float)
@@ -72,11 +72,11 @@ def test_slar_release_when_server_empty() -> None:
     env.process(slar.slar_release_triggers(sf, psp))
 
     # Add a job to shopfloor and process it
-    job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[1.0], due_date=10.0)
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
     sf.add(job1)
 
     # Add a candidate job to PSP (starts at same server)
-    job2 = ProductionJob(env=env, family="A", servers=[server], processing_times=[1.0], due_date=20.0)
+    job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=20.0)
     psp.add(job2)
 
     # Run until job1 finishes - this triggers job_processing_end
@@ -96,13 +96,13 @@ def test_slar_release_when_queue_has_one() -> None:
     env.process(slar.slar_release_triggers(sf, psp))
 
     # Add two jobs to shopfloor - one processing, one waiting
-    job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[2.0], due_date=10.0)
-    job2 = ProductionJob(env=env, family="A", servers=[server], processing_times=[2.0], due_date=15.0)
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=10.0)
+    job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=15.0)
     sf.add(job1)
     sf.add(job2)
 
     # Add candidate job to PSP
-    job3 = ProductionJob(env=env, family="A", servers=[server], processing_times=[1.0], due_date=20.0)
+    job3 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=20.0)
     psp.add(job3)
 
     # Run until job1 finishes - queue will have 1 job (job2)
@@ -123,11 +123,11 @@ def test_slar_no_release_when_no_candidates() -> None:
     env.process(slar.slar_release_triggers(sf, psp))
 
     # Add job to server1
-    job1 = ProductionJob(env=env, family="A", servers=[server1], processing_times=[1.0], due_date=10.0)
+    job1 = ProductionJob(env=env, sku="A", servers=[server1], processing_times=[1.0], due_date=10.0)
     sf.add(job1)
 
     # Add candidate job to PSP that starts at server2 (different server)
-    job2 = ProductionJob(env=env, family="B", servers=[server2], processing_times=[1.0], due_date=20.0)
+    job2 = ProductionJob(env=env, sku="B", servers=[server2], processing_times=[1.0], due_date=20.0)
     psp.add(job2)
 
     # Run until job1 finishes
@@ -147,12 +147,12 @@ def test_slar_selects_minimum_pst_job() -> None:
     env.process(slar.slar_release_triggers(sf, psp))
 
     # Add processing job
-    job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[1.0], due_date=10.0)
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
     sf.add(job1)
 
     # Add two candidate jobs with different due dates (affects PST)
-    job_urgent = ProductionJob(env=env, family="A", servers=[server], processing_times=[1.0], due_date=5.0)
-    job_relaxed = ProductionJob(env=env, family="A", servers=[server], processing_times=[1.0], due_date=50.0)
+    job_urgent = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=5.0)
+    job_relaxed = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=50.0)
     psp.add(job_urgent)
     psp.add(job_relaxed)
 
@@ -170,7 +170,7 @@ def test_slar_allowance_factor() -> None:
     slar1 = Slar(allowance_factor=1)
     slar2 = Slar(allowance_factor=5)
 
-    job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5.0], due_date=20.0)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=20.0)
 
     pst1 = slar1.pst_priority_policy(job, server)
     pst2 = slar2.pst_priority_policy(job, server)
@@ -190,12 +190,12 @@ def test_slar_negative_pst_release() -> None:
     env.process(slar.slar_release_triggers(sf, psp))
 
     # Add a job that takes a while to process (to have queued jobs)
-    processing_job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5.0], due_date=1000.0)
+    processing_job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=1000.0)
     sf.add(processing_job)
 
     # Add two jobs to queue with far due dates (positive PST)
-    queued_job1 = ProductionJob(env=env, family="A", servers=[server], processing_times=[1.0], due_date=1000.0)
-    queued_job2 = ProductionJob(env=env, family="A", servers=[server], processing_times=[1.0], due_date=1000.0)
+    queued_job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
+    queued_job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
     sf.add(queued_job1)
     sf.add(queued_job2)
 
@@ -208,7 +208,7 @@ def test_slar_negative_pst_release() -> None:
     # Add candidate job to PSP with negative PST (urgent, past due)
     urgent_job = ProductionJob(
         env=env,
-        family="A",
+        sku="A",
         servers=[server],
         processing_times=[0.5],  # Short processing time
         due_date=env.now - 10.0,  # Already past due (negative PST)

@@ -64,7 +64,7 @@ class TestMaterialCoordinator:
 
         job = ProductionJob(
             env=env,
-            family="A",
+            sku="A",
             servers=[server],
             processing_times=[5],
             due_date=100,
@@ -89,7 +89,7 @@ class TestMaterialCoordinator:
 
         job = ProductionJob(
             env=env,
-            family="A",
+            sku="A",
             servers=[server],
             processing_times=[5],
             due_date=100,
@@ -118,7 +118,7 @@ class TestMaterialCoordinator:
 
         job = ProductionJob(
             env=env,
-            family="A",
+            sku="A",
             servers=[server],
             processing_times=[5],
             due_date=100,
@@ -149,7 +149,7 @@ class TestMaterialCoordinator:
         # Job 1 requires materials
         job1 = ProductionJob(
             env=env,
-            family="A",
+            sku="A",
             servers=[server],
             processing_times=[2],
             due_date=100,
@@ -159,7 +159,7 @@ class TestMaterialCoordinator:
         # Job 2 has no material requirements
         job2 = ProductionJob(
             env=env,
-            family="B",
+            sku="B",
             servers=[server],
             processing_times=[1],
             due_date=100,
@@ -201,7 +201,7 @@ class TestMaterialCoordinator:
 
         job = ProductionJob(
             env=env,
-            family="A",
+            sku="A",
             servers=[server],
             processing_times=[5],
             due_date=100,
@@ -237,7 +237,7 @@ class TestMaterialCoordinator:
 
         job = ProductionJob(
             env=env,
-            family="A",
+            sku="A",
             servers=[server],
             processing_times=[5],
             due_date=100,
@@ -295,7 +295,7 @@ class TestMaterialCoordinator:
 
         job1 = ProductionJob(
             env=env,
-            family="A",
+            sku="A",
             servers=[server_a],
             processing_times=[0.0],
             due_date=100.0,
@@ -303,7 +303,7 @@ class TestMaterialCoordinator:
         )
         job2 = ProductionJob(
             env=env,
-            family="B",
+            sku="B",
             servers=[server_b],
             processing_times=[0.0],
             due_date=100.0,
@@ -345,7 +345,7 @@ class TestMaterialCoordinator:
 
         job = ProductionJob(
             env=env,
-            family="A",
+            sku="A",
             servers=[server],
             processing_times=[1.0],
             due_date=100,
@@ -387,7 +387,7 @@ class TestMaterialCoordinator:
 
         job = ProductionJob(
             env=env,
-            family="A",
+            sku="A",
             servers=[server],
             processing_times=[1.0],
             due_date=100,

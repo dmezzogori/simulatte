@@ -27,9 +27,9 @@ Each job has:
 
 ```python
 jobs = [
-    ProductionJob(env=env, family="A", servers=[s1, s2], processing_times=[5.0, 3.0], due_date=40.0),
-    ProductionJob(env=env, family="A", servers=[s1, s2], processing_times=[4.0, 2.0], due_date=40.0),
-    ProductionJob(env=env, family="B", servers=[s1, s2], processing_times=[6.0, 2.0], due_date=40.0),
+    ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[5.0, 3.0], due_date=40.0),
+    ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[4.0, 2.0], due_date=40.0),
+    ProductionJob(env=env, sku="B", servers=[s1, s2], processing_times=[6.0, 2.0], due_date=40.0),
 ]
 for job in jobs:
     shopfloor.add(job)

@@ -23,7 +23,7 @@ def test_production_job_type() -> None:
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(
         env=env,
-        family="A",
+        sku="A",
         servers=[server],
         processing_times=[5],
         due_date=10,
@@ -45,7 +45,7 @@ def test_production_job_material_requirements() -> None:
     }
     job = ProductionJob(
         env=env,
-        family="A",
+        sku="A",
         servers=[s1, s2],
         processing_times=[5, 3],
         due_date=20,
@@ -64,7 +64,7 @@ def test_production_job_default_no_materials() -> None:
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(
         env=env,
-        family="A",
+        sku="A",
         servers=[server],
         processing_times=[5],
         due_date=10,
@@ -91,7 +91,7 @@ def test_transport_job_type() -> None:
     assert job.origin is origin
     assert job.destination is destination
     assert job.cargo == {"steel": 5}
-    assert job.family == "transport"
+    assert job.sku == "transport"
     assert isinstance(job, BaseJob)
 
 
@@ -114,7 +114,7 @@ def test_warehouse_job_pick() -> None:
     assert job.product == "steel"
     assert job.quantity == 5
     assert job.operation_type == "pick"
-    assert job.family == "warehouse_pick"
+    assert job.sku == "warehouse_pick"
     assert job.processing_times == (2.0,)
     assert isinstance(job, BaseJob)
 
@@ -134,7 +134,7 @@ def test_warehouse_job_put() -> None:
     )
 
     assert job.operation_type == "put"
-    assert job.family == "warehouse_put"
+    assert job.sku == "warehouse_put"
 
 
 def test_warehouse_job_invalid_operation() -> None:
@@ -163,7 +163,7 @@ def test_base_job_is_abstract() -> None:
         BaseJob(  # type: ignore[abstract]
             env=env,
             job_type=JobType.PRODUCTION,
-            family="A",
+            sku="A",
             servers=[server],
             processing_times=[5],
             due_date=10,
@@ -178,7 +178,7 @@ def test_job_repr() -> None:
 
     prod_job = ProductionJob(
         env=env,
-        family="A",
+        sku="A",
         servers=[server],
         processing_times=[5],
         due_date=10,
@@ -215,7 +215,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=100)
 
         # Advance time without finishing job
         env.run(until=10)
@@ -226,7 +226,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[100], due_date=200)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[100], due_date=200)
 
         # Start processing
         sf.add(job)
@@ -244,7 +244,7 @@ class TestJobProperties:
         sf = ShopFloor(env=env)
         s1 = Server(env=env, capacity=1, shopfloor=sf)
         s2 = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[s1, s2], processing_times=[1, 1], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1, 1], due_date=100)
 
         # Don't add to shopfloor - servers_entry_at will be None
         waiting_times = job.server_waiting_times
@@ -257,7 +257,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=100)
 
         with pytest.raises(ValueError, match="Job is not done"):
             _ = job.total_queue_time
@@ -267,7 +267,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=100)
 
         # Mark as done but don't set timestamps properly
         job.done = True
@@ -280,7 +280,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=100)
 
         with pytest.raises(ValueError, match="Job is not done"):
             _ = job.time_in_system
@@ -290,7 +290,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[50], due_date=10)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[50], due_date=10)
 
         sf.add(job)
         env.run(until=60)
@@ -303,7 +303,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[100], due_date=10)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[100], due_date=10)
 
         sf.add(job)
         env.run(until=15)
@@ -316,7 +316,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=100)
 
         assert job.is_in_psp  # Before release
         job.psp_exit_at = env.now
@@ -327,7 +327,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=100)
 
         with pytest.raises(ValueError, match="not been released from PSP"):
             _ = job.time_in_psp
@@ -338,7 +338,7 @@ class TestJobProperties:
         sf = ShopFloor(env=env)
         s1 = Server(env=env, capacity=1, shopfloor=sf)
         s2 = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[s1, s2], processing_times=[5, 5], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[5, 5], due_date=100)
 
         assert job.is_in_psp
         assert job.next_server is s1
@@ -349,7 +349,7 @@ class TestJobProperties:
         sf = ShopFloor(env=env)
         s1 = Server(env=env, capacity=1, shopfloor=sf)
         s2 = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[s1, s2], processing_times=[1, 1], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1, 1], due_date=100)
 
         sf.add(job)
         env.run(until=1.5)  # s1 done, s2 in progress
@@ -368,7 +368,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[1], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1], due_date=100)
 
         sf.add(job)
         env.run(until=2)
@@ -381,7 +381,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=100)
 
         assert job.previous_server is None
 
@@ -391,7 +391,7 @@ class TestJobProperties:
         sf = ShopFloor(env=env)
         s1 = Server(env=env, capacity=1, shopfloor=sf)
         s2 = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[s1, s2], processing_times=[1, 5], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1, 5], due_date=100)
 
         sf.add(job)
         env.run(until=2)  # s1 done, s2 in progress
@@ -403,7 +403,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=100)
 
         with pytest.raises(ValueError, match="Job is not done"):
             _ = job.lateness
@@ -413,7 +413,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=100)
 
         with pytest.raises(ValueError, match="Job is not done"):
             _ = job.is_finished_in_due_date_window()
@@ -424,7 +424,7 @@ class TestJobProperties:
         sf = ShopFloor(env=env)
         s1 = Server(env=env, capacity=1, shopfloor=sf)
         s2 = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[s1, s2], processing_times=[5, 3], due_date=100)
+        job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[5, 3], due_date=100)
 
         # due_date - (sum of processing times + n_servers * allowance)
         # 100 - (8 + 2*2) = 100 - 12 = 88
@@ -435,7 +435,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=50)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=50)
 
         env.run(until=60)
         assert job.virtual_lateness == 10.0  # 60 - 50
@@ -445,7 +445,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=50)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=50)
 
         env.run(until=45)  # Within window [43, 57]
         assert job.would_be_finished_in_due_date_window(allowance=7)
@@ -458,7 +458,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=50)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=50)
 
         env.run(until=60)
         assert job.virtual_tardy
@@ -468,7 +468,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=50)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=50)
 
         env.run(until=40)
         assert job.virtual_early
@@ -478,7 +478,7 @@ class TestJobProperties:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[server], processing_times=[5], due_date=50)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=50)
 
         env.run(until=50)
         assert job.virtual_in_window  # At exactly due_date
@@ -489,7 +489,7 @@ class TestJobProperties:
         sf = ShopFloor(env=env)
         s1 = Server(env=env, capacity=1, shopfloor=sf)
         s2 = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, family="A", servers=[s1, s2], processing_times=[5, 3], due_date=50)
+        job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[5, 3], due_date=50)
 
         # At t=0: slack_time = 50 - 0 = 50
         # planned_slack_time = 50 - (5 + 3) = 42

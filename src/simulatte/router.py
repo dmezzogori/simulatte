@@ -31,9 +31,9 @@ class Router:
         servers: Sequence[Server],
         psp: PreShopPool | None,
         inter_arrival_distribution: Distribution[float],
-        family_distributions: DiscreteDistribution[str, float],
-        family_routings: dict[str, Callable[[], Sequence[Server]]],
-        family_service_times: dict[
+        sku_distributions: DiscreteDistribution[str, float],
+        sku_routings: dict[str, Callable[[], Sequence[Server]]],
+        sku_service_times: dict[
             str,
             DiscreteDistribution[Server, Distribution[float]],
         ],
@@ -46,9 +46,9 @@ class Router:
         self.psp = psp
 
         self.inter_arrival_distribution = inter_arrival_distribution
-        self.family_distributions = family_distributions
-        self.family_routings = family_routings
-        self.family_service_times = family_service_times
+        self.sku_distributions = sku_distributions
+        self.sku_routings = sku_routings
+        self.sku_service_times = sku_service_times
         self.waiting_time_distribution = waiting_time_distribution
         self.priority_policies = priority_policies
 
@@ -59,19 +59,19 @@ class Router:
             inter_arrival_time = self.inter_arrival_distribution()
             yield self.env.timeout(inter_arrival_time)
 
-            family = random.choices(  # noqa: S311
-                tuple(self.family_distributions.keys()),
-                weights=tuple(self.family_distributions.values()),
+            sku = random.choices(  # noqa: S311
+                tuple(self.sku_distributions.keys()),
+                weights=tuple(self.sku_distributions.values()),
                 k=1,
             )[0]
 
-            routing = self.family_routings[family]()
-            service_times = tuple(self.family_service_times[family][server]() for server in routing)
-            waiting_time = self.waiting_time_distribution[family]()
+            routing = self.sku_routings[sku]()
+            service_times = tuple(self.sku_service_times[sku][server]() for server in routing)
+            waiting_time = self.waiting_time_distribution[sku]()
 
             job = ProductionJob(
                 env=self.env,
-                family=family,
+                sku=sku,
                 servers=routing,
                 processing_times=service_times,
                 due_date=self.env.now + waiting_time,
