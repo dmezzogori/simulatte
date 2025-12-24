@@ -18,6 +18,11 @@ nav = [
   ]},
 ]
 
+[project.markdown_extensions."pymdownx.highlight"]
+use_pygments = true
+
+[project.markdown_extensions."pymdownx.superfences"]
+
 [project.theme]
 features = [
   "content.action.edit",

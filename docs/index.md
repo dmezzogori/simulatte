@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="Simulatte" width="200">
+</p>
+
 # Simulatte
 
 Discrete-event simulation framework for job-shop scheduling and intralogistics, built on [SimPy](https://simpy.readthedocs.io/).
