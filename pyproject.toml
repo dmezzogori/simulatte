@@ -6,7 +6,19 @@ readme = "README.md"
 authors = [
     { name = "Davide Mezzogori", email = "dmezzogori@users.noreply.github.com" },
 ]
+license = "MIT"
 requires-python = ">=3.14"
+keywords = ["simulation", "discrete-event", "intralogistics", "operations", "simpy"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Typing :: Typed",
+]
 dependencies = [
     "simpy>=4.0.1",
     "matplotlib>=3.7.2",
@@ -95,3 +107,8 @@ max-complexity = 10
 
 [tool.ruff.lint.isort]
 required-imports = ["from __future__ import annotations"]
+
+[project.urls]
+Homepage = "https://github.com/dmezzogori/simulatte"
+Repository = "https://github.com/dmezzogori/simulatte"
+Documentation = "https://dmezzogori.github.io/simulatte/"
