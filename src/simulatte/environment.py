@@ -32,6 +32,7 @@ class Environment(simpy.Environment):
         log_file: str | Path | None = None,
         log_format: Literal["text", "json"] = "text",
         log_history_size: int = 1000,
+        log_db_path: str | Path | None = None,
     ) -> None:
         """Initialize the simulation environment.
 
@@ -39,6 +40,8 @@ class Environment(simpy.Environment):
             log_file: Optional file path for log output (defaults to stderr)
             log_format: Output format ("text" or "json")
             log_history_size: Maximum number of events to keep in history buffer
+            log_db_path: Optional SQLite database path for persistent event storage.
+                         If provided, events are stored in both memory buffer and SQLite.
         """
         super().__init__()
         self._logger = SimLogger(
@@ -46,6 +49,7 @@ class Environment(simpy.Environment):
             log_file=log_file,
             log_format=log_format,
             history_size=log_history_size,
+            db_path=log_db_path,
         )
 
     def step(self) -> None:

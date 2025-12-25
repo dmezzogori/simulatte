@@ -441,7 +441,7 @@ def test_simlogger_close_handles_missing_handler() -> None:
     env.logger.close()  # Should not raise
 
 
-def test_finalize_handler_is_resilient_to_missing_handler() -> None:
-    from simulatte.logger import _finalize_handler
+def test_finalize_logger_is_resilient_to_missing_handler() -> None:
+    from simulatte.logger import _finalize_logger
 
-    _finalize_handler(999_999_999)  # Should not raise
+    _finalize_logger(999_999_999, None)  # Should not raise

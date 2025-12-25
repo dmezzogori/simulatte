@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import sys
+import threading
 import uuid
 import weakref
 from collections import deque
@@ -131,6 +133,173 @@ class EventHistoryBuffer:
         return results
 
 
+class SQLiteEventStore:
+    """Thread-safe SQLite storage for log events.
+
+    Provides persistent storage of log events across simulation runs.
+    Multiple environments can share a single database file, distinguished
+    by the env_id column.
+    """
+
+    __slots__ = ("_db_path", "_conn", "_lock")
+
+    _SCHEMA = """
+        CREATE TABLE IF NOT EXISTS log_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            env_id TEXT NOT NULL,
+            timestamp REAL NOT NULL,
+            level TEXT NOT NULL,
+            message TEXT NOT NULL,
+            component TEXT,
+            extra TEXT,
+            wall_time TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_env_id ON log_events(env_id);
+        CREATE INDEX IF NOT EXISTS idx_timestamp ON log_events(env_id, timestamp);
+        CREATE INDEX IF NOT EXISTS idx_level ON log_events(env_id, level);
+        CREATE INDEX IF NOT EXISTS idx_component ON log_events(env_id, component);
+    """
+
+    def __init__(self, db_path: str | Path) -> None:
+        """Open or create the SQLite database.
+
+        Args:
+            db_path: Path to the SQLite database file.
+        """
+        self._db_path = Path(db_path)
+        self._lock = threading.Lock()
+        self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
+        self._conn.row_factory = sqlite3.Row
+        self._init_schema()
+
+    def _init_schema(self) -> None:
+        """Create tables and indexes if they don't exist."""
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=5000")
+        self._conn.executescript(self._SCHEMA)
+        self._conn.commit()
+
+    def insert(self, env_id: str, event: LogEvent, wall_time: str) -> None:
+        """Insert a single event.
+
+        Args:
+            env_id: Environment identifier.
+            event: The LogEvent to store.
+            wall_time: ISO8601 wall-clock time string.
+        """
+        extra_json = json.dumps(event.extra) if event.extra else "{}"
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO log_events
+                    (env_id, timestamp, level, message, component, extra, wall_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    env_id,
+                    event.timestamp,
+                    event.level,
+                    event.message,
+                    event.component,
+                    extra_json,
+                    wall_time,
+                ),
+            )
+            self._conn.commit()
+
+    def query(
+        self,
+        env_id: str,
+        *,
+        level: str | None = None,
+        component: str | None = None,
+        since: float | None = None,
+        until: float | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[LogEvent]:
+        """Query events with optional filters.
+
+        Args:
+            env_id: Environment identifier to filter by.
+            level: Filter by log level (e.g., "INFO", "ERROR").
+            component: Filter by component name.
+            since: Include events with timestamp >= since.
+            until: Include events with timestamp <= until.
+            limit: Maximum number of events to return.
+            offset: Number of events to skip.
+
+        Returns:
+            List of matching LogEvent objects.
+        """
+        sql = "SELECT timestamp, level, message, component, extra FROM log_events WHERE env_id = ?"
+        params: list[Any] = [env_id]
+
+        if level is not None:
+            sql += " AND level = ?"
+            params.append(level.upper())
+        if component is not None:
+            sql += " AND component = ?"
+            params.append(component)
+        if since is not None:
+            sql += " AND timestamp >= ?"
+            params.append(since)
+        if until is not None:
+            sql += " AND timestamp <= ?"
+            params.append(until)
+
+        sql += " ORDER BY timestamp, id"
+
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(limit)
+        if offset > 0:
+            if limit is None:
+                sql += " LIMIT -1"
+            sql += " OFFSET ?"
+            params.append(offset)
+
+        with self._lock:
+            cursor = self._conn.execute(sql, params)
+            rows = cursor.fetchall()
+
+        return [
+            LogEvent(
+                timestamp=row["timestamp"],
+                level=row["level"],
+                message=row["message"],
+                component=row["component"],
+                extra=json.loads(row["extra"]) if row["extra"] else {},
+            )
+            for row in rows
+        ]
+
+    def execute_sql(
+        self,
+        sql: str,
+        params: tuple[Any, ...] = (),
+    ) -> list[sqlite3.Row]:
+        """Execute arbitrary SQL and return raw rows.
+
+        Args:
+            sql: SQL query to execute.
+            params: Query parameters.
+
+        Returns:
+            List of sqlite3.Row objects.
+        """
+        with self._lock:
+            cursor = self._conn.execute(sql, params)
+            return cursor.fetchall()
+
+    def close(self) -> None:
+        """Close the database connection."""
+        if self._conn is not None:
+            with self._lock:
+                self._conn.close()
+                self._conn = None  # type: ignore[assignment]
+
+
 # Level name to numeric priority mapping (matching loguru)
 _LEVEL_PRIORITY = {
     "TRACE": 5,
@@ -164,6 +333,7 @@ class SimLogger:
         "_handler_id",
         "_env_id",
         "_finalizer",
+        "_db_store",
     )
 
     def __init__(
@@ -173,6 +343,7 @@ class SimLogger:
         log_file: str | Path | None = None,
         log_format: Literal["text", "json"] = "text",
         history_size: int = 1000,
+        db_path: str | Path | None = None,
     ) -> None:
         """Initialize a per-environment logger.
 
@@ -181,6 +352,8 @@ class SimLogger:
             log_file: Optional file path for log output (defaults to stderr)
             log_format: Output format ("text" or "json")
             history_size: Maximum number of events to keep in history buffer
+            db_path: Optional SQLite database path for persistent event storage.
+                     If provided, events are stored in both memory buffer and SQLite.
         """
         self._env = env
         self._log_file = Path(log_file) if log_file else None
@@ -189,12 +362,14 @@ class SimLogger:
         self._component_filters: dict[str, bool] = {}
         self._env_id = uuid.uuid4().hex
         self._handler_id: int | None = None
+        self._db_store: SQLiteEventStore | None = SQLiteEventStore(db_path) if db_path is not None else None
         self._setup_handler()
-        handler_id = self._handler_id
-        if handler_id is None:  # pragma: no cover
-            self._finalizer = weakref.finalize(env, lambda: None)
-        else:
-            self._finalizer = weakref.finalize(env, _finalize_handler, handler_id)
+        self._finalizer = weakref.finalize(
+            env,
+            _finalize_logger,
+            self._handler_id,
+            self._db_store,
+        )
 
     @classmethod
     def set_level(cls, level: str) -> None:
@@ -315,6 +490,11 @@ class SimLogger:
         )
         self._history.append(event)
 
+        # Add to SQLite if enabled
+        if self._db_store is not None:
+            wall_time = datetime.now(UTC).isoformat()
+            self._db_store.insert(self._env_id, event, wall_time)
+
         # Log via loguru
         _logger.bind(
             sim_time=sim_time,
@@ -344,8 +524,83 @@ class SimLogger:
         """Access the event history buffer."""
         return self._history
 
+    @property
+    def env_id(self) -> str:
+        """Return this environment's unique identifier."""
+        return self._env_id
+
+    @property
+    def db_enabled(self) -> bool:
+        """Return whether SQLite storage is enabled."""
+        return self._db_store is not None
+
+    def query_sql(
+        self,
+        *,
+        level: str | None = None,
+        component: str | None = None,
+        since: float | None = None,
+        until: float | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[LogEvent]:
+        """Query events from SQLite storage.
+
+        Similar to history.query() but queries the persistent SQLite database.
+        Only available when db_path was provided at initialization.
+
+        Args:
+            level: Filter by log level (e.g., "INFO", "ERROR").
+            component: Filter by component name.
+            since: Include events with timestamp >= since.
+            until: Include events with timestamp <= until.
+            limit: Maximum number of events to return.
+            offset: Number of events to skip.
+
+        Returns:
+            List of matching LogEvent objects.
+
+        Raises:
+            RuntimeError: If SQLite storage is not enabled.
+        """
+        if self._db_store is None:
+            raise RuntimeError("SQLite storage not enabled. Provide db_path to enable.")
+        return self._db_store.query(
+            self._env_id,
+            level=level,
+            component=component,
+            since=since,
+            until=until,
+            limit=limit,
+            offset=offset,
+        )
+
+    def execute_sql(
+        self,
+        sql: str,
+        params: tuple[Any, ...] = (),
+    ) -> list[sqlite3.Row]:
+        """Execute arbitrary SQL query on the log database.
+
+        The database has a `log_events` table with columns:
+        id, env_id, timestamp, level, message, component, extra, wall_time
+
+        Args:
+            sql: SQL query to execute.
+            params: Query parameters.
+
+        Returns:
+            List of sqlite3.Row objects.
+
+        Raises:
+            RuntimeError: If SQLite storage is not enabled.
+        """
+        if self._db_store is None:
+            raise RuntimeError("SQLite storage not enabled. Provide db_path to enable.")
+        return self._db_store.execute_sql(sql, params)
+
     def close(self) -> None:
-        """Clean up loguru handler.
+        """Clean up loguru handler and SQLite connection.
 
         Should be called when the environment is no longer needed,
         especially important for multiprocessing scenarios.
@@ -358,12 +613,25 @@ class SimLogger:
             except ValueError:
                 pass  # Handler already removed
             self._handler_id = None
+        if getattr(self, "_db_store", None) is not None:
+            self._db_store.close()
+            self._db_store = None
 
 
-def _finalize_handler(handler_id: int) -> None:
-    """Remove a Loguru handler from a weakref finalizer callback."""
-    try:
-        _logger.remove(handler_id)
-    except Exception:
-        # Be resilient: handler may already be removed, or Loguru may be torn down.
-        return
+def _finalize_logger(
+    handler_id: int | None,
+    db_store: SQLiteEventStore | None,
+) -> None:
+    """Clean up logger resources from a weakref finalizer callback."""
+    if handler_id is not None:
+        try:
+            _logger.remove(handler_id)
+        except Exception:
+            # Be resilient: handler may already be removed, or Loguru may be torn down.
+            pass
+    if db_store is not None:
+        try:
+            db_store.close()
+        except Exception:
+            # Be resilient: connection may already be closed.
+            pass
