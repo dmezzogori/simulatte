@@ -50,4 +50,5 @@ print(f"Server utilization: {server.utilization_rate:.1%}")
 
 - [Job-shop basics](tutorials/job-shop-basics.md)
 - [Materials, warehouse, and AGVs](tutorials/materials-warehouse-agvs.md)
+- [Logging](tutorials/logging.md)
 
