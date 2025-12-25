@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from simulatte.environment import Environment
@@ -169,3 +170,134 @@ def test_runner_empty_seeds() -> None:
     results = runner.run(until=10.0)
 
     assert results == []
+
+
+# =============================================================================
+# Tests for logging integration
+# =============================================================================
+
+
+def test_runner_log_dir_creates_files(tmp_path: Path) -> None:
+    """Runner should create per-simulation log files when log_dir is specified."""
+
+    from simulatte.logger import SimLogger
+
+    original_level = SimLogger.get_level()
+    try:
+        SimLogger.set_level("DEBUG")
+
+        def logging_builder(env: Environment) -> SimpleSystem:
+            system = SimpleSystem(env=env)
+            env.info("Simulation started")
+            return system
+
+        runner = Runner(
+            builder=logging_builder,
+            seeds=[1, 2, 3],
+            parallel=False,
+            extract_fn=extract_time,
+            log_dir=tmp_path,
+        )
+
+        runner.run(until=10.0)
+
+        # Check that 3 log files were created
+        log_files = list(tmp_path.glob("sim_*.log"))
+        assert len(log_files) == 3
+
+        # Check naming convention
+        expected_files = [
+            tmp_path / "sim_0000_seed_1.log",
+            tmp_path / "sim_0001_seed_2.log",
+            tmp_path / "sim_0002_seed_3.log",
+        ]
+        for expected in expected_files:
+            assert expected.exists()
+    finally:
+        SimLogger.set_level(original_level)
+
+
+def test_runner_log_format_json(tmp_path: Path) -> None:
+    """Runner should support JSON log format."""
+    import json
+
+    from simulatte.logger import SimLogger
+
+    original_level = SimLogger.get_level()
+    try:
+        SimLogger.set_level("DEBUG")
+
+        def logging_builder(env: Environment) -> SimpleSystem:
+            system = SimpleSystem(env=env)
+            env.info("Simulation started", component="Builder")
+            return system
+
+        runner = Runner(
+            builder=logging_builder,
+            seeds=[42],
+            parallel=False,
+            extract_fn=extract_time,
+            log_dir=tmp_path,
+            log_format="json",
+        )
+
+        runner.run(until=10.0)
+
+        log_file = tmp_path / "sim_0000_seed_42.log"
+        assert log_file.exists()
+
+        content = log_file.read_text().strip()
+        data = json.loads(content)
+        assert data["level"] == "INFO"
+        assert data["message"] == "Simulation started"
+        assert data["component"] == "Builder"
+    finally:
+        SimLogger.set_level(original_level)
+
+
+def test_runner_without_log_dir() -> None:
+    """Runner should work without log_dir (logs to stderr)."""
+    runner = Runner(
+        builder=simple_builder,
+        seeds=[1],
+        parallel=False,
+        extract_fn=extract_time,
+        log_dir=None,
+    )
+
+    results = runner.run(until=10.0)
+    assert len(results) == 1
+    assert results[0] == 10.0
+
+
+def test_runner_log_dir_creates_directory(tmp_path: Path) -> None:
+    """Runner should create log_dir if it doesn't exist."""
+
+    from simulatte.logger import SimLogger
+
+    original_level = SimLogger.get_level()
+    try:
+        SimLogger.set_level("DEBUG")
+
+        def logging_builder(env: Environment) -> SimpleSystem:
+            system = SimpleSystem(env=env)
+            env.info("Simulation started")
+            return system
+
+        nested_dir = tmp_path / "nested" / "logs"
+        assert not nested_dir.exists()
+
+        runner = Runner(
+            builder=logging_builder,
+            seeds=[1],
+            parallel=False,
+            extract_fn=extract_time,
+            log_dir=nested_dir,
+        )
+
+        runner.run(until=10.0)
+
+        assert nested_dir.exists()
+        assert (nested_dir / "sim_0000_seed_1.log").exists()
+    finally:
+        SimLogger.set_level(original_level)
