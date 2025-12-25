@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 from pathlib import Path
+
+from loguru import logger as loguru_logger
 
 from simulatte.environment import Environment
 from simulatte.logger import (
@@ -361,3 +364,84 @@ def test_simlogger_history_size() -> None:
     finally:
         SimLogger.set_level(original_level)
         env.logger.close()
+
+
+def _reset_loguru_to_single_stderr_sink(*, handler_id: int) -> None:
+    loguru_logger.remove()
+    core = getattr(loguru_logger, "_core", None)
+    if core is not None:
+        setattr(core, "handlers_count", handler_id)
+    loguru_logger.add(sys.stderr)
+
+
+def test_patch_loguru_default_sink_returns_when_multiple_handlers() -> None:
+    import simulatte.logger as simulatte_logger
+
+    extra_handler = loguru_logger.add(sys.stderr)
+    try:
+        simulatte_logger._patch_loguru_default_sink()
+    finally:
+        loguru_logger.remove(extra_handler)
+
+
+def test_patch_loguru_default_sink_returns_when_handler0_missing() -> None:
+    import simulatte.logger as simulatte_logger
+
+    # Ensure the single handler does not have id=0.
+    _reset_loguru_to_single_stderr_sink(handler_id=1)
+    simulatte_logger._patch_loguru_default_sink()
+
+    # Restore a baseline that matches typical "fresh import" expectations.
+    _reset_loguru_to_single_stderr_sink(handler_id=0)
+    simulatte_logger._patch_loguru_default_sink()
+
+
+def test_patch_loguru_default_sink_returns_when_not_stderr() -> None:
+    import simulatte.logger as simulatte_logger
+
+    loguru_logger.remove()
+    core = getattr(loguru_logger, "_core", None)
+    if core is not None:
+        setattr(core, "handlers_count", 0)
+    loguru_logger.add(sys.stdout)
+
+    simulatte_logger._patch_loguru_default_sink()
+
+    # Restore baseline
+    _reset_loguru_to_single_stderr_sink(handler_id=0)
+    simulatte_logger._patch_loguru_default_sink()
+
+
+def test_patch_loguru_default_sink_is_resilient_to_exceptions(monkeypatch) -> None:
+    import simulatte.logger as simulatte_logger
+
+    _reset_loguru_to_single_stderr_sink(handler_id=0)
+
+    original_remove = simulatte_logger._logger.remove
+
+    def boom(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(simulatte_logger._logger, "remove", boom)
+
+    # Should not raise despite internal failure.
+    simulatte_logger._patch_loguru_default_sink()
+
+    # Restore baseline
+    monkeypatch.setattr(simulatte_logger._logger, "remove", original_remove)
+    _reset_loguru_to_single_stderr_sink(handler_id=0)
+    simulatte_logger._patch_loguru_default_sink()
+
+
+def test_simlogger_close_handles_missing_handler() -> None:
+    env = Environment()
+    handler_id = env.logger._handler_id
+    assert handler_id is not None
+    loguru_logger.remove(handler_id)
+    env.logger.close()  # Should not raise
+
+
+def test_finalize_handler_is_resilient_to_missing_handler() -> None:
+    from simulatte.logger import _finalize_handler
+
+    _finalize_handler(999_999_999)  # Should not raise

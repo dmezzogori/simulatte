@@ -73,17 +73,13 @@ class Runner[S, T]:
             self.log_dir.mkdir(parents=True, exist_ok=True)
             log_file = self.log_dir / f"sim_{run_id:04d}_seed_{seed}.log"
 
-        env = Environment(
+        with Environment(
             log_file=log_file,
             log_format=self.log_format,
-        )
-
-        try:
+        ) as env:
             system = self.builder(env=env)
             env.run(until=until)
             return self.extract_fn(system)
-        finally:
-            env.logger.close()
 
     def run(self, until: float) -> list[T]:
         """Run all simulations.

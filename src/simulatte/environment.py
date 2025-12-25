@@ -61,6 +61,16 @@ class Environment(simpy.Environment):
         except KeyboardInterrupt:  # pragma: no cover
             raise simpy.core.StopSimulation("KeyboardInterrupt")
 
+    def close(self) -> None:
+        """Release logger resources associated with this environment."""
+        self._logger.close()
+
+    def __enter__(self) -> Environment:
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+        self.close()
+
     # -------------------------------------------------------------------------
     # Logging convenience methods
     # -------------------------------------------------------------------------

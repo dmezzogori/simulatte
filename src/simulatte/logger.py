@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import sys
+import uuid
+import weakref
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -16,6 +18,44 @@ from loguru import logger as _logger
 
 if TYPE_CHECKING:
     from simulatte.environment import Environment
+
+
+def _patch_loguru_default_sink() -> None:
+    """Avoid double-logging per-environment records to Loguru's default sink.
+
+    Loguru installs a default stderr sink on import. Since SimLogger registers
+    its own sink (stderr or file) per Environment, keeping Loguru's default sink
+    enabled would duplicate output. We only patch the default sink when Loguru
+    still appears to be in its pristine, unconfigured state.
+    """
+    try:
+        core = getattr(_logger, "_core", None)
+        handlers = getattr(core, "handlers", None)
+        if not isinstance(handlers, dict) or len(handlers) != 1:
+            return
+
+        handler0 = handlers.get(0)
+        if handler0 is None:
+            return
+
+        sink = getattr(handler0, "_sink", None)
+        stream = getattr(sink, "_stream", None)
+        if stream is not sys.stderr:
+            return
+
+        level_no = getattr(handler0, "_levelno", 10)  # Default is DEBUG.
+        _logger.remove(0)
+        _logger.add(
+            sys.stderr,
+            level=level_no,
+            filter=lambda r: r["extra"].get("env_id") is None,
+        )
+    except Exception:
+        # Never fail import-time due to Loguru internals changing.
+        return
+
+
+_patch_loguru_default_sink()
 
 
 def _format_sim_time(seconds: float) -> str:
@@ -123,6 +163,7 @@ class SimLogger:
         "_component_filters",
         "_handler_id",
         "_env_id",
+        "_finalizer",
     )
 
     def __init__(
@@ -146,9 +187,14 @@ class SimLogger:
         self._log_format = log_format
         self._history = EventHistoryBuffer(max_size=history_size)
         self._component_filters: dict[str, bool] = {}
-        self._env_id = id(env)
+        self._env_id = uuid.uuid4().hex
         self._handler_id: int | None = None
         self._setup_handler()
+        handler_id = self._handler_id
+        if handler_id is None:  # pragma: no cover
+            self._finalizer = weakref.finalize(env, lambda: None)
+        else:
+            self._finalizer = weakref.finalize(env, _finalize_handler, handler_id)
 
     @classmethod
     def set_level(cls, level: str) -> None:
@@ -304,9 +350,20 @@ class SimLogger:
         Should be called when the environment is no longer needed,
         especially important for multiprocessing scenarios.
         """
+        if getattr(self, "_finalizer", None) is not None and self._finalizer.alive:
+            self._finalizer.detach()
         if self._handler_id is not None:
             try:
                 _logger.remove(self._handler_id)
             except ValueError:
                 pass  # Handler already removed
             self._handler_id = None
+
+
+def _finalize_handler(handler_id: int) -> None:
+    """Remove a Loguru handler from a weakref finalizer callback."""
+    try:
+        _logger.remove(handler_id)
+    except Exception:
+        # Be resilient: handler may already be removed, or Loguru may be torn down.
+        return
