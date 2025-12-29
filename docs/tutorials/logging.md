@@ -26,10 +26,10 @@ env.error("Timeout exceeded", component="AGV")
 Output (to stderr by default):
 
 ```
-0.0d 00:01:40.00 | INFO     | Main         | Simulation checkpoint
-0.0d 00:01:40.00 | DEBUG    | Server       | Detailed info
-0.0d 00:01:40.00 | WARNING  | Router       | Queue getting long
-0.0d 00:01:40.00 | ERROR    | AGV          | Timeout exceeded
+00d 00:01:40.00 | INFO     | Main         | Simulation checkpoint
+00d 00:01:40.00 | DEBUG    | Server       | Detailed info
+00d 00:01:40.00 | WARNING  | Router       | Queue getting long
+00d 00:01:40.00 | ERROR    | AGV          | Timeout exceeded
 ```
 
 ## Log levels
@@ -43,6 +43,110 @@ SimLogger.set_level("WARNING")  # Only WARNING and ERROR
 SimLogger.set_level("DEBUG")    # Everything
 SimLogger.set_level("INFO")     # Default
 ```
+
+## Built-in component logs (best-effort)
+
+Simulatte’s built-in components emit structured **DEBUG** events for tracing and post-run analysis. These are
+**best-effort** (not a stable API): message text and `extra` keys may change between releases.
+
+Important: the in-memory `env.log_history` only records events that pass the current global log level, so to
+collect built-in component events you must enable DEBUG:
+
+```python
+from simulatte.logger import SimLogger
+
+SimLogger.set_level("DEBUG")
+```
+
+After a run, query by component:
+
+```python
+server_events = env.log_history.query(component="Server")
+for e in server_events:
+    print(e.timestamp, e.message, e.extra)
+```
+
+### Per-component event catalog
+
+Notes:
+
+- Most job-related messages include `job.id[:8]` for readability; the full id is in `extra["job_id"]`.
+- `server_id` / `warehouse_id` refer to the component’s internal `_idx` (usually set when registered on a `ShopFloor`).
+- Some “started” events may be emitted before a blocking wait (e.g., waiting for inventory/AGV capacity); use timestamps
+  and follow-up events to infer actual durations.
+
+#### Server (`component="Server"`)
+
+| Event | Message (example) | `extra` keys |
+| --- | --- | --- |
+| Queue entry | `Job ab12cd34 entered queue` | `job_id`, `server_id`, `priority`, `queue_length`, `sku` |
+| Processing start | `Job ab12cd34 processing started` | `job_id`, `server_id`, `processing_time` |
+| Release | `Job ab12cd34 released` | `job_id`, `server_id`, `time_at_server` |
+
+#### ShopFloor (`component="ShopFloor"`)
+
+| Event | Message (example) | `extra` keys |
+| --- | --- | --- |
+| Job entry | `Job ab12cd34 entered shopfloor` | `job_id`, `sku`, `wip_total`, `jobs_count` |
+| Operation queued | `Job ab12cd34 queued at server 0` | `job_id`, `server_id`, `op_index` |
+| Operation completed | `Job ab12cd34 completed op at server 0` | `job_id`, `server_id`, `op_index`, `processing_time` |
+| Job finished | `Job ab12cd34 finished` | `job_id`, `sku`, `makespan`, `lateness`, `total_queue_time` |
+
+#### Router (`component="Router"`)
+
+| Event | Message (example) | `extra` keys |
+| --- | --- | --- |
+| Job created | `Job ab12cd34 created` | `job_id`, `sku`, `routing_length`, `due_date`, `total_processing_time` |
+| Routed to PSP | `Job ab12cd34 routed to PSP` | `job_id`, `destination` |
+| Routed to ShopFloor | `Job ab12cd34 routed to ShopFloor` | `job_id`, `destination` |
+
+#### PreShopPool (`component="PreShopPool"`)
+
+| Event | Message (example) | `extra` keys |
+| --- | --- | --- |
+| PSP entry | `Job ab12cd34 entered PSP` | `job_id`, `sku`, `psp_size`, `due_date` |
+| PSP release | `Job ab12cd34 released from PSP` | `job_id`, `time_in_psp`, `psp_size_after` |
+
+#### WarehouseStore (`component="WarehouseStore"`)
+
+| Event | Message (example) | `extra` keys |
+| --- | --- | --- |
+| Pick start | `Pick started: 2x A` | `product`, `quantity`, `inventory_before`, `warehouse_id` |
+| Pick completed | `Pick completed: 2x A` | `product`, `quantity`, `pick_time`, `inventory_after` |
+| Put start | `Put started: 5x B` | `product`, `quantity`, `inventory_before`, `warehouse_id` |
+| Put completed | `Put completed: 5x B` | `product`, `quantity`, `put_time`, `inventory_after` |
+
+#### AGV (`component="AGV"`)
+
+| Event | Message (example) | `extra` keys |
+| --- | --- | --- |
+| Travel start | `Travel started: Server(id=0) -> Server(id=1)` | `agv_id`, `origin_id`, `destination_id`, `travel_time` |
+| Travel completed | `Travel completed: arrived at Server(id=1)` | `agv_id`, `destination_id`, `trip_count` |
+
+#### MaterialCoordinator (`component="MaterialCoordinator"`)
+
+| Event | Message (example) | `extra` keys |
+| --- | --- | --- |
+| Delivery triggered | `Material delivery triggered for job ab12cd34` | `job_id`, `server_id`, `op_index`, `materials` |
+| Delivery completed | `Material delivery completed for job ab12cd34` | `job_id`, `server_id`, `delivery_time`, `total_deliveries` |
+| Warehouse pick requested | `Warehouse pick requested: 2x A` | `product`, `quantity`, `warehouse_id` |
+| AGV selected | `AGV selected: AGV-0` | `agv_id`, `workload`, `agv_count` |
+| AGV transport started | `AGV transport started: 2x A` | `agv_id`, `product`, `quantity`, `destination_id` |
+
+#### FaultyServer (`component="FaultyServer"`)
+
+| Event | Message (example) | `extra` keys |
+| --- | --- | --- |
+| Breakdown | `Server breakdown (#3)` | `server_id`, `breakdown_count` |
+| Job interrupted | `Job interrupted by breakdown` | `server_id`, `remaining_time`, `repair_time` |
+| Repaired | `Server repaired` | `server_id`, `downtime`, `total_breakdown_time` |
+
+#### InspectionServer (`component="InspectionServer"`)
+
+| Event | Message (example) | `extra` keys |
+| --- | --- | --- |
+| Inspection complete | `Inspection complete: pass` / `Inspection complete: rework` | `job_id`, `server_id`, `result` |
+| Rework triggered | `Rework triggered for job ab12cd34` | `job_id`, `server_id` |
 
 ## Log to file
 
