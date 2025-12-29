@@ -71,16 +71,13 @@ class ShopFloor:
     def add(self, job: Job) -> None:
         self.jobs.add(job)
 
-        # Initialize WIP for servers not yet tracked
-        for server, _ in job.server_processing_times:
-            if server not in self.wip:
-                self.wip[server] = 0.0
-
         if self.enable_corrected_wip:
             for i, (server, processing_time) in enumerate(job.server_processing_times):
+                self.wip.setdefault(server, 0.0)
                 self.wip[server] += processing_time / (i + 1)
         else:
             for server, processing_time in job.server_processing_times:
+                self.wip.setdefault(server, 0.0)
                 self.wip[server] += processing_time
 
         self.env.debug(
@@ -99,8 +96,8 @@ class ShopFloor:
         self.job_processing_end.succeed(job)
         self.job_processing_end = self.env.event()
 
-    def signal_job_finished(self) -> None:
-        self.job_finished_event.succeed()
+    def signal_job_finished(self, job: Job) -> None:
+        self.job_finished_event.succeed(job)
         self.job_finished_event = self.env.event()
 
     def main(self, job: Job) -> ProcessGenerator:
@@ -170,7 +167,7 @@ class ShopFloor:
         self.ema_time_in_shopfloor += self.ema_alpha * (job.time_in_shopfloor - self.ema_time_in_shopfloor)
         self.ema_total_queue_time += self.ema_alpha * (job.total_queue_time - self.ema_total_queue_time)
 
-        self.signal_job_finished()
+        self.signal_job_finished(job)
 
     def _update_hourly_throughput_snapshot(self) -> None:
         time_window = 60
