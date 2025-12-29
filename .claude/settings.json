@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(docker compose:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git mv:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)"
+    ],
+    "ask": [
+      "Bash(git push:*)"
+    ],
+    "deny": [
+      "Bash(rm:*)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "sequential-thinking",
+    "context7"
+  ]
+}
