@@ -21,18 +21,13 @@ from simulatte.warehouse_store import WarehouseStore
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.typing import MaterialSystem, PullSystem, PushSystem
 
-# Literature-validated defaults
-_LITERATURE_N_SERVERS: int = 6
-_LITERATURE_ARRIVAL_RATE: float = 1 / 0.648
-_LITERATURE_SERVICE_RATE: float = 2.0
-
 
 def build_immediate_release_system(
     env: Environment,
+    *,
     n_servers: int,
     arrival_rate: float = 1.0,
     service_rate: float = 1.0,
-    *,
     collect_time_series: bool = False,
     retain_job_history: bool = False,
 ) -> PushSystem:
@@ -66,13 +61,13 @@ def build_immediate_release_system(
 
 def build_lumscor_system(
     env: Environment,
+    *,
     check_timeout: float,
     wl_norm_level: float,
     allowance_factor: int,
-    *,
-    n_servers: int = _LITERATURE_N_SERVERS,
-    arrival_rate: float = _LITERATURE_ARRIVAL_RATE,
-    service_rate: float = _LITERATURE_SERVICE_RATE,
+    n_servers: int = 6,
+    arrival_rate: float = 1 / 0.648,
+    service_rate: float = 2.0,
 ) -> PullSystem:
     """Build a LumsCor (load-based) pull system.
 
@@ -128,11 +123,11 @@ def build_lumscor_system(
 
 def build_slar_system(
     env: Environment,
-    allowance_factor: int,
     *,
-    n_servers: int = _LITERATURE_N_SERVERS,
-    arrival_rate: float = _LITERATURE_ARRIVAL_RATE,
-    service_rate: float = _LITERATURE_SERVICE_RATE,
+    allowance_factor: int,
+    n_servers: int = 6,
+    arrival_rate: float = 1 / 0.648,
+    service_rate: float = 2.0,
 ) -> PullSystem:
     """Build a SLAR (Server Load Adjustment Rule) pull system.
 
