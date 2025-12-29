@@ -133,21 +133,6 @@ Notes:
 | AGV selected | `AGV selected: AGV-0` | `agv_id`, `workload`, `agv_count` |
 | AGV transport started | `AGV transport started: 2x A` | `agv_id`, `product`, `quantity`, `destination_id` |
 
-#### FaultyServer (`component="FaultyServer"`)
-
-| Event | Message (example) | `extra` keys |
-| --- | --- | --- |
-| Breakdown | `Server breakdown (#3)` | `server_id`, `breakdown_count` |
-| Job interrupted | `Job interrupted by breakdown` | `server_id`, `remaining_time`, `repair_time` |
-| Repaired | `Server repaired` | `server_id`, `downtime`, `total_breakdown_time` |
-
-#### InspectionServer (`component="InspectionServer"`)
-
-| Event | Message (example) | `extra` keys |
-| --- | --- | --- |
-| Inspection complete | `Inspection complete: pass` / `Inspection complete: rework` | `job_id`, `server_id`, `result` |
-| Rework triggered | `Rework triggered for job ab12cd34` | `job_id`, `server_id` |
-
 ## Log to file
 
 ```python
