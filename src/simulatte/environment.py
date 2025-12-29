@@ -1,23 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import simpy
+from simpy.core import StopSimulation
 
 from simulatte.logger import EventHistoryBuffer, SimLogger
-
-if TYPE_CHECKING:
-    pass
 
 
 class Environment(simpy.Environment):
     """
     Thin wrapper around ``simpy.Environment`` with integrated logging.
-
-    Historically this was a global singleton; we now allow callers to
-    instantiate environments explicitly so simulations can coexist in the
-    same process.
 
     Each environment has its own logger that:
     - Automatically includes simulation time in log output
@@ -63,7 +57,7 @@ class Environment(simpy.Environment):
         try:
             super().step()
         except KeyboardInterrupt:  # pragma: no cover
-            raise simpy.core.StopSimulation("KeyboardInterrupt")
+            raise StopSimulation("KeyboardInterrupt")
 
     def close(self) -> None:
         """Release logger resources associated with this environment."""
