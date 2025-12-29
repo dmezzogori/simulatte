@@ -121,16 +121,16 @@ def build_lumscor_system(
 def build_slar_system(
     env: Environment,
     *,
-    allowance_factor: int,
+    allowance_factor: float,
     n_servers: int = 6,
     arrival_rate: float = 1 / 0.648,
     service_rate: float = 2.0,
 ) -> PullSystem:
-    """Build a SLAR (Server Load Adjustment Rule) pull system.
+    """Build a SLAR (Superfluous Load Avoidance Release) pull system.
 
     Args:
         env: The simulation environment.
-        allowance_factor: Allowance factor for due date calculation.
+        allowance_factor: Slack allowance per operation (parameter 'k' in paper).
         n_servers: Number of production servers.
         arrival_rate: Inter-arrival rate (lambda for exponential).
         service_rate: Service rate (lambda for truncated 2-Erlang).
@@ -141,7 +141,7 @@ def build_slar_system(
     shop_floor = ShopFloor(env=env)
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
     psp = PreShopPool(env=env, shopfloor=shop_floor, check_timeout=0, psp_release_policy=None)
-    slar = Slar(allowance_factor=int(allowance_factor))
+    slar = Slar(allowance_factor=allowance_factor)
     router = Router(
         env=env,
         shopfloor=shop_floor,

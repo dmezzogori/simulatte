@@ -287,7 +287,7 @@ class BaseJob(ABC):
             return self.due_date - window_size <= self.finished_at <= self.due_date + window_size
         raise ValueError("Job is not done or missing finish time. Cannot determine if finished in due date window.")
 
-    def planned_release_date(self, allowance: int = 2) -> SimTime:
+    def planned_release_date(self, allowance: float = 2.0) -> SimTime:
         """Calculate the optimal release time from the Pre-Shop Pool.
 
         Args:

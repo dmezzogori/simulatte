@@ -110,6 +110,10 @@ class LumsCor:
         while True:
             triggering_job: ProductionJob = yield shopfloor.job_processing_end
             server_triggered = triggering_job.previous_server
+
+            if server_triggered is None:  # pragma: no cover
+                continue
+
             is_empty = server_triggered.empty
             has_one = len(server_triggered.queue) == 1
             if is_empty or has_one:
