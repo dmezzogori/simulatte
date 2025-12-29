@@ -10,7 +10,9 @@
       "Bash(mkdir:*)",
       "Bash(mv:*)",
       "Bash(tree:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(uv run ruff:*)",
+      "Bash(uv run ty:*)"
     ],
     "ask": [
       "Bash(git push:*)"
