@@ -60,7 +60,7 @@ Simulatte is a discrete-event simulation framework for job-shop scheduling and i
 - **MaterialCoordinator** (`materials.py`): FIFO material delivery coordination
 - **Runner** (`runner.py`): Multi-simulation execution with seed management
 - **AGV** (`agv.py`): Automated guided vehicle transport
-- **WarehouseStore** (`warehouse_store.py`): Inventory management
+- **Warehouse** (`warehouse.py`): Inventory management
 - **PSP** (`psp.py`): Pre-shop pool for job release control
 - **Builders** (`builders.py`): Factory functions (`build_immediate_release_system`, `build_lumscor_system`, `build_slar_system`, `MaterialSystemBuilder`)
 

@@ -12,7 +12,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.server import Server
     from simulatte.shopfloor import ShopFloor
     from simulatte.typing import ProcessGenerator
-    from simulatte.warehouse_store import WarehouseStore
+    from simulatte.warehouse import Warehouse
 
 
 class MaterialCoordinator:
@@ -32,7 +32,7 @@ class MaterialCoordinator:
 
     Attributes:
         env: The simulation environment.
-        warehouse: The WarehouseStore to pick from.
+        warehouse: The Warehouse to pick from.
         agvs: List of available AGVs for transport.
         shopfloor: The ShopFloor for job tracking.
     """
@@ -41,7 +41,7 @@ class MaterialCoordinator:
         self,
         *,
         env: Environment,
-        warehouse: WarehouseStore,
+        warehouse: Warehouse,
         agvs: list[AGV],
         shopfloor: ShopFloor,
     ) -> None:

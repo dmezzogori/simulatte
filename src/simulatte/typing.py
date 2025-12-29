@@ -12,7 +12,7 @@ from simulatte.materials import MaterialCoordinator
 from simulatte.psp import PreShopPool
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
-from simulatte.warehouse_store import WarehouseStore
+from simulatte.warehouse import Warehouse
 
 if TYPE_CHECKING:
     from simulatte.router import Router
@@ -27,7 +27,7 @@ type PullSystem = System[PreShopPool]
 type MaterialSystem = tuple[
     ShopFloor,
     tuple[Server, ...],
-    WarehouseStore,
+    Warehouse,
     tuple[AGV, ...],
     MaterialCoordinator,
 ]

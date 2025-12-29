@@ -442,7 +442,7 @@ class TransportJob(BaseJob):
 
         Args:
             env: The simulation environment.
-            origin: Source location (e.g., WarehouseStore).
+            origin: Source location (e.g., Warehouse).
             destination: Target location (e.g., production Server).
             cargo: Materials being transported {product_name: quantity}.
             processing_times: Optional processing times (defaults to [0] for single-hop transport).
@@ -493,7 +493,7 @@ class WarehouseJob(BaseJob):
 
         Args:
             env: The simulation environment.
-            warehouse: The WarehouseStore where the operation occurs.
+            warehouse: The Warehouse where the operation occurs.
             product: The product being picked or put.
             quantity: The quantity to pick or put.
             operation_type: Either "pick" or "put".

@@ -10,17 +10,17 @@ from simulatte.job import ProductionJob
 from simulatte.materials import MaterialCoordinator
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
-from simulatte.warehouse_store import WarehouseStore
+from simulatte.warehouse import Warehouse
 
 
 def create_test_system(
     env: Environment,
     initial_inventory: dict[str, int] | None = None,
-) -> tuple[ShopFloor, Server, WarehouseStore, AGV, MaterialCoordinator]:
+) -> tuple[ShopFloor, Server, Warehouse, AGV, MaterialCoordinator]:
     """Create a test system with warehouse, AGV, and coordinator."""
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
-    warehouse = WarehouseStore(
+    warehouse = Warehouse(
         env=env,
         n_bays=2,
         products=["steel", "bolts"],
@@ -263,7 +263,7 @@ class TestMaterialCoordinator:
         server_a = Server(env=env, capacity=1, shopfloor=sf)
         server_b = Server(env=env, capacity=1, shopfloor=sf)
 
-        warehouse = WarehouseStore(
+        warehouse = Warehouse(
             env=env,
             n_bays=2,
             products=["steel"],
@@ -327,7 +327,7 @@ class TestMaterialCoordinator:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        warehouse = WarehouseStore(
+        warehouse = Warehouse(
             env=env,
             n_bays=1,
             products=["steel"],
@@ -366,7 +366,7 @@ class TestMaterialCoordinator:
         env = Environment()
         sf = ShopFloor(env=env)
         server = Server(env=env, capacity=1, shopfloor=sf)
-        warehouse = WarehouseStore(
+        warehouse = Warehouse(
             env=env,
             n_bays=1,
             products=["steel"],

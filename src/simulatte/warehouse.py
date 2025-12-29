@@ -1,4 +1,4 @@
-"""WarehouseStore - Server specialization for warehouse operations with inventory."""
+"""Warehouse - Server specialization for warehouse operations with inventory."""
 
 from __future__ import annotations
 
@@ -16,10 +16,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.typing import ProcessGenerator
 
 
-class WarehouseStore(Server):
+class Warehouse(Server):
     """A warehouse server with inventory containers for pick/put operations.
 
-    WarehouseStore extends Server to add inventory management. Each product has
+    Warehouse extends Server to add inventory management. Each product has
     its own simpy.Container that tracks available quantity. Pick operations block
     until sufficient inventory is available, implementing natural backpressure.
 
@@ -44,7 +44,7 @@ class WarehouseStore(Server):
         collect_time_series: bool = False,
         retain_job_history: bool = False,
     ) -> None:
-        """Initialize a WarehouseStore.
+        """Initialize a Warehouse.
 
         Args:
             env: The simulation environment.
@@ -79,7 +79,7 @@ class WarehouseStore(Server):
         self._total_put_time: float = 0
 
     def __repr__(self) -> str:
-        return f"WarehouseStore(id={self._idx}, bays={self.capacity})"
+        return f"Warehouse(id={self._idx}, bays={self.capacity})"
 
     @property
     def products(self) -> list[str]:
@@ -111,7 +111,7 @@ class WarehouseStore(Server):
         inventory_before = self.inventory[product].level
         self.env.debug(
             f"Pick started: {quantity}x {product}",
-            component="WarehouseStore",
+            component="Warehouse",
             product=product,
             quantity=quantity,
             inventory_before=inventory_before,
@@ -131,7 +131,7 @@ class WarehouseStore(Server):
 
         self.env.debug(
             f"Pick completed: {quantity}x {product}",
-            component="WarehouseStore",
+            component="Warehouse",
             product=product,
             quantity=quantity,
             pick_time=pick_time,
@@ -154,7 +154,7 @@ class WarehouseStore(Server):
         inventory_before = self.inventory[product].level
         self.env.debug(
             f"Put started: {quantity}x {product}",
-            component="WarehouseStore",
+            component="Warehouse",
             product=product,
             quantity=quantity,
             inventory_before=inventory_before,
@@ -174,7 +174,7 @@ class WarehouseStore(Server):
 
         self.env.debug(
             f"Put completed: {quantity}x {product}",
-            component="WarehouseStore",
+            component="Warehouse",
             product=product,
             quantity=quantity,
             put_time=put_time,

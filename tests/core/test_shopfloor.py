@@ -8,7 +8,7 @@ from simulatte.job import ProductionJob
 from simulatte.materials import MaterialCoordinator
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
-from simulatte.warehouse_store import WarehouseStore
+from simulatte.warehouse import Warehouse
 
 
 def test_single_job_processing() -> None:
@@ -136,7 +136,7 @@ def test_automatic_material_handling_via_shopfloor() -> None:
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
 
-    warehouse = WarehouseStore(
+    warehouse = Warehouse(
         env=env,
         n_bays=1,
         products=["steel"],

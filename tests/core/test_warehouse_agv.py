@@ -1,4 +1,4 @@
-"""Tests for WarehouseStore and AGV."""
+"""Tests for Warehouse and AGV."""
 
 from __future__ import annotations
 
@@ -8,17 +8,17 @@ from simulatte.agv import AGV
 from simulatte.environment import Environment
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
-from simulatte.warehouse_store import WarehouseStore
+from simulatte.warehouse import Warehouse
 
 
-class TestWarehouseStore:
-    """Tests for WarehouseStore functionality."""
+class TestWarehouse:
+    """Tests for Warehouse functionality."""
 
     def test_warehouse_creation(self) -> None:
-        """WarehouseStore should initialize with inventory containers."""
+        """Warehouse should initialize with inventory containers."""
         env = Environment()
         sf = ShopFloor(env=env)
-        warehouse = WarehouseStore(
+        warehouse = Warehouse(
             env=env,
             n_bays=2,
             products=["steel", "bolts"],
@@ -37,7 +37,7 @@ class TestWarehouseStore:
     def test_warehouse_pick_success(self) -> None:
         """Pick should succeed when inventory is available."""
         env = Environment()
-        warehouse = WarehouseStore(
+        warehouse = Warehouse(
             env=env,
             n_bays=1,
             products=["steel"],
@@ -60,7 +60,7 @@ class TestWarehouseStore:
     def test_warehouse_pick_blocks_on_insufficient_inventory(self) -> None:
         """Pick should block until inventory is available."""
         env = Environment()
-        warehouse = WarehouseStore(
+        warehouse = Warehouse(
             env=env,
             n_bays=2,
             products=["steel"],
@@ -91,7 +91,7 @@ class TestWarehouseStore:
     def test_warehouse_put(self) -> None:
         """Put should add inventory."""
         env = Environment()
-        warehouse = WarehouseStore(
+        warehouse = Warehouse(
             env=env,
             n_bays=1,
             products=["bolts"],
@@ -113,7 +113,7 @@ class TestWarehouseStore:
     def test_warehouse_unknown_product_raises(self) -> None:
         """Operations on unknown products should raise KeyError."""
         env = Environment()
-        warehouse = WarehouseStore(
+        warehouse = Warehouse(
             env=env,
             n_bays=1,
             products=["steel"],
@@ -125,9 +125,9 @@ class TestWarehouseStore:
             warehouse.get_inventory_level("unknown")
 
     def test_warehouse_metrics(self) -> None:
-        """WarehouseStore should track pick/put metrics."""
+        """Warehouse should track pick/put metrics."""
         env = Environment()
-        warehouse = WarehouseStore(
+        warehouse = Warehouse(
             env=env,
             n_bays=2,
             products=["a"],
@@ -288,13 +288,13 @@ class TestAGV:
         assert agv.average_travel_time == 0.0
 
 
-class TestWarehouseStoreEdgeCases:
-    """Additional edge case tests for WarehouseStore."""
+class TestWarehouseEdgeCases:
+    """Additional edge case tests for Warehouse."""
 
     def test_warehouse_repr(self) -> None:
-        """WarehouseStore should have a useful repr."""
+        """Warehouse should have a useful repr."""
         env = Environment()
-        warehouse = WarehouseStore(
+        warehouse = Warehouse(
             env=env,
             n_bays=3,
             products=["a"],
@@ -303,13 +303,13 @@ class TestWarehouseStoreEdgeCases:
         )
 
         repr_str = repr(warehouse)
-        assert "WarehouseStore" in repr_str
+        assert "Warehouse" in repr_str
         assert "bays=3" in repr_str
 
     def test_warehouse_pick_unknown_product_raises(self) -> None:
         """pick_inventory should raise KeyError for unknown product."""
         env = Environment()
-        warehouse = WarehouseStore(
+        warehouse = Warehouse(
             env=env,
             n_bays=1,
             products=["steel"],
@@ -328,7 +328,7 @@ class TestWarehouseStoreEdgeCases:
     def test_warehouse_put_unknown_product_raises(self) -> None:
         """put_inventory should raise KeyError for unknown product."""
         env = Environment()
-        warehouse = WarehouseStore(
+        warehouse = Warehouse(
             env=env,
             n_bays=1,
             products=["steel"],
@@ -347,7 +347,7 @@ class TestWarehouseStoreEdgeCases:
     def test_warehouse_average_pick_time_zero_picks(self) -> None:
         """average_pick_time should return 0.0 when no picks made."""
         env = Environment()
-        warehouse = WarehouseStore(
+        warehouse = Warehouse(
             env=env,
             n_bays=1,
             products=["a"],
@@ -360,7 +360,7 @@ class TestWarehouseStoreEdgeCases:
     def test_warehouse_average_put_time_zero_puts(self) -> None:
         """average_put_time should return 0.0 when no puts made."""
         env = Environment()
-        warehouse = WarehouseStore(
+        warehouse = Warehouse(
             env=env,
             n_bays=1,
             products=["a"],

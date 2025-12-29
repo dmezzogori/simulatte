@@ -107,7 +107,7 @@ Notes:
 | PSP entry | `Job ab12cd34 entered PSP` | `job_id`, `sku`, `psp_size`, `due_date` |
 | PSP release | `Job ab12cd34 released from PSP` | `job_id`, `time_in_psp`, `psp_size_after` |
 
-#### WarehouseStore (`component="WarehouseStore"`)
+#### Warehouse (`component="Warehouse"`)
 
 | Event | Message (example) | `extra` keys |
 | --- | --- | --- |
