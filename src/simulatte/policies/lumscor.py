@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from simulatte.psp import PSPReleasePolicy
+from simulatte.shopfloor import CorrectedWIPStrategy
 
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.job import ProductionJob
@@ -28,10 +29,11 @@ class LumsCor(PSPReleasePolicy):
         self.shopfloor = shopfloor
         self.wl_norm = wl_norm
         LumsCor.allowance_factor = allowance_factor
-        self.enable_corrected_wip()
+        self._enable_corrected_wip()
 
-    def enable_corrected_wip(self) -> None:
-        self.shopfloor.enable_corrected_wip = True
+    def _enable_corrected_wip(self) -> None:
+        """Configure shopfloor to use corrected WIP strategy."""
+        self.shopfloor._wip_strategy = CorrectedWIPStrategy()
 
     def release_condition(self, psp: PreShopPool, shopfloor: ShopFloor) -> bool:  # noqa: ARG002
         return True

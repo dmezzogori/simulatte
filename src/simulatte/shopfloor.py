@@ -11,11 +11,17 @@ The ShopFloor integrates with:
 - ProductionJob: Jobs flowing through the shop floor
 - MaterialCoordinator: Optional material delivery before processing
 - Environment: The SimPy-based simulation environment
+
+Extensibility is provided through:
+- OperationHook: Generator-based hooks for before/after each operation
+- WIPStrategy: Pluggable WIP calculation strategies
+- MetricsCollector: Pluggable metrics recording
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from simulatte.environment import Environment
 
@@ -26,39 +32,285 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.typing import ProcessGenerator
 
 
+# =============================================================================
+# Protocols for extensibility
+# =============================================================================
+
+
+@runtime_checkable
+class OperationHook(Protocol):
+    """Hook called before or after each operation.
+
+    Operation hooks are generator-based to support SimPy's async model.
+    They can yield SimPy events (timeouts, resource requests, etc.) to
+    inject delays or coordinate with other simulation components.
+
+    Example:
+        A setup time hook that adds delay before processing::
+
+            def setup_time_hook(job, server, op_index, processing_time):
+                setup = 2.0 if job.sku.startswith("COMPLEX") else 0.5
+                yield server.env.timeout(setup)
+
+            shopfloor = ShopFloor(env=env, before_operation=setup_time_hook)
+    """
+
+    def __call__(
+        self,
+        job: ProductionJob,
+        server: Server,
+        op_index: int,
+        processing_time: float,
+    ) -> ProcessGenerator:
+        """Execute the hook.
+
+        Args:
+            job: The job being processed.
+            server: The server where the operation occurs.
+            op_index: Zero-based index of the current operation.
+            processing_time: Duration of the operation.
+
+        Yields:
+            SimPy events (timeouts, resource requests, etc.).
+        """
+        ...
+
+
+@runtime_checkable
+class WIPStrategy(Protocol):
+    """Strategy for calculating work-in-progress (WIP).
+
+    WIP strategies define how processing times are accumulated when jobs
+    enter the shop floor and how they are decremented as operations complete.
+
+    Two built-in strategies are provided:
+    - StandardWIPStrategy: Full processing time per server
+    - CorrectedWIPStrategy: Position-discounted WIP (1/1, 1/2, 1/3, ...)
+    """
+
+    def add_job(self, job: ProductionJob, wip: dict[Server, float]) -> None:
+        """Update WIP when a job enters the shop floor.
+
+        Args:
+            job: The job entering the shop floor.
+            wip: Dictionary mapping servers to their current WIP values.
+        """
+        ...
+
+    def complete_operation(
+        self,
+        job: ProductionJob,
+        server: Server,
+        op_index: int,
+        processing_time: float,
+        wip: dict[Server, float],
+    ) -> None:
+        """Update WIP when an operation completes.
+
+        Args:
+            job: The job that completed the operation.
+            server: The server where the operation completed.
+            op_index: Zero-based index of the completed operation.
+            processing_time: Duration of the completed operation.
+            wip: Dictionary mapping servers to their current WIP values.
+        """
+        ...
+
+
+@runtime_checkable
+class MetricsCollector(Protocol):
+    """Collector for job completion metrics.
+
+    Metrics collectors receive completed jobs and can compute any desired
+    performance metrics. The built-in EMAMetricsCollector computes exponential
+    moving averages for common metrics.
+
+    Example:
+        A simple throughput collector::
+
+            class ThroughputCollector:
+                def __init__(self):
+                    self.count = 0
+                    self.tardy = 0
+
+                def record(self, job):
+                    self.count += 1
+                    if job.lateness > 0:
+                        self.tardy += 1
+
+            collector = ThroughputCollector()
+            shopfloor = ShopFloor(env=env, metrics_collector=collector)
+    """
+
+    def record(self, job: ProductionJob) -> None:
+        """Record metrics for a completed job.
+
+        Args:
+            job: The job that just completed its routing.
+        """
+        ...
+
+
+# =============================================================================
+# Built-in WIP Strategies
+# =============================================================================
+
+
+class StandardWIPStrategy:
+    """Default WIP strategy: full processing time added per server.
+
+    When a job enters the shop floor, the full processing time for each
+    operation is added to the corresponding server's WIP. When an operation
+    completes, only that operation's processing time is decremented.
+    """
+
+    def add_job(self, job: ProductionJob, wip: dict[Server, float]) -> None:
+        """Add full processing times to WIP for all servers in routing."""
+        for server, processing_time in job.server_processing_times:
+            wip.setdefault(server, 0.0)
+            wip[server] += processing_time
+
+    def complete_operation(
+        self,
+        job: ProductionJob,  # noqa: ARG002
+        server: Server,
+        op_index: int,  # noqa: ARG002
+        processing_time: float,
+        wip: dict[Server, float],
+    ) -> None:
+        """Decrement WIP by the completed operation's processing time."""
+        del job, op_index  # Unused but required by protocol
+        wip[server] -= processing_time
+
+
+class CorrectedWIPStrategy:
+    """Position-discounted WIP strategy.
+
+    Processing times are discounted by operation position:
+    - 1st operation: full time (1/1)
+    - 2nd operation: half time (1/2)
+    - 3rd operation: third time (1/3)
+    - etc.
+
+    As operations complete, remaining operations' WIP values are adjusted
+    upward to reflect their new position in the routing.
+
+    This strategy provides a more balanced view of workload when jobs
+    have long routings, preventing downstream servers from appearing
+    overloaded due to jobs that haven't reached them yet.
+    """
+
+    def add_job(self, job: ProductionJob, wip: dict[Server, float]) -> None:
+        """Add position-discounted processing times to WIP."""
+        for i, (server, processing_time) in enumerate(job.server_processing_times):
+            wip.setdefault(server, 0.0)
+            wip[server] += processing_time / (i + 1)
+
+    def complete_operation(
+        self,
+        job: ProductionJob,
+        server: Server,
+        op_index: int,  # noqa: ARG002
+        processing_time: float,
+        wip: dict[Server, float],
+    ) -> None:
+        """Decrement WIP and adjust remaining operations' discounts."""
+        del op_index  # Unused but required by protocol
+        wip[server] -= processing_time
+        # Adjust remaining operations: they move up one position
+        for i, remaining_server in enumerate(job.remaining_routing):
+            remaining_processing_time = job.routing[remaining_server]
+            # Remove old discounted value, add new discounted value
+            wip[remaining_server] -= remaining_processing_time / (i + 2)
+            wip[remaining_server] += remaining_processing_time / (i + 1)
+
+
+# =============================================================================
+# Built-in Metrics Collector
+# =============================================================================
+
+
+class EMAMetricsCollector:
+    """Exponential moving average (EMA) metrics collector.
+
+    Computes EMAs for common job shop performance metrics:
+    - ema_makespan: Job completion time (creation to finish)
+    - ema_tardy_jobs: Proportion of jobs finishing late
+    - ema_early_jobs: Proportion of jobs finishing early
+    - ema_in_window_jobs: Proportion of jobs finishing in due date window
+    - ema_time_in_psp: Time spent in Pre-Shop Pool
+    - ema_time_in_shopfloor: Time spent on shop floor
+    - ema_total_queue_time: Total time waiting in queues
+
+    Attributes:
+        alpha: Smoothing factor (0 < alpha <= 1). Smaller values give
+            more weight to historical data.
+    """
+
+    def __init__(self, alpha: float = 0.01) -> None:
+        """Initialize the collector.
+
+        Args:
+            alpha: EMA smoothing factor. Defaults to 0.01.
+        """
+        self.alpha = alpha
+        self.ema_makespan: float = 0.0
+        self.ema_tardy_jobs: float = 0.0
+        self.ema_early_jobs: float = 0.0
+        self.ema_in_window_jobs: float = 0.0
+        self.ema_time_in_psp: float = 0.0
+        self.ema_time_in_shopfloor: float = 0.0
+        self.ema_total_queue_time: float = 0.0
+
+    def record(self, job: ProductionJob) -> None:
+        """Update all EMA metrics based on the completed job."""
+        lateness = job.lateness
+        in_window = job.is_finished_in_due_date_window()
+
+        self.ema_makespan += self.alpha * (job.makespan - self.ema_makespan)
+
+        tardy_indicator = 1 if not in_window and lateness > 0 else 0
+        self.ema_tardy_jobs += self.alpha * (tardy_indicator - self.ema_tardy_jobs)
+
+        early_indicator = 1 if not in_window and lateness < 0 else 0
+        self.ema_early_jobs += self.alpha * (early_indicator - self.ema_early_jobs)
+
+        in_window_indicator = 1 if in_window else 0
+        self.ema_in_window_jobs += self.alpha * (in_window_indicator - self.ema_in_window_jobs)
+
+        self.ema_time_in_psp += self.alpha * (job.time_in_psp - self.ema_time_in_psp)
+        self.ema_time_in_shopfloor += self.alpha * (job.time_in_shopfloor - self.ema_time_in_shopfloor)
+        self.ema_total_queue_time += self.alpha * (job.total_queue_time - self.ema_total_queue_time)
+
+
+# =============================================================================
+# ShopFloor Class
+# =============================================================================
+
+
 class ShopFloor:
     """Central orchestrator for job flow through a manufacturing simulation.
 
     The ShopFloor manages the complete lifecycle of production jobs as they move
     through a sequence of servers. It tracks work-in-progress (WIP) at each server,
-    maintains exponential moving average (EMA) metrics for performance monitoring,
-    and signals events when jobs complete processing steps or finish entirely.
+    maintains metrics for performance monitoring, and signals events when jobs
+    complete processing steps or finish entirely.
 
-    When a MaterialCoordinator is configured, the ShopFloor coordinates material
-    delivery before processing begins at each operation, implementing FIFO blocking
-    to ensure materials arrive before processing starts.
+    Extensibility is provided through composition:
+    - before_operation / after_operation: Hooks for custom logic at each operation
+    - wip_strategy: Pluggable WIP calculation
+    - metrics_collector: Pluggable metrics recording
+    - on_job_finished: Callbacks when jobs complete
+    - material_coordinator: Optional material delivery coordination
 
     Attributes:
         env: The simulation environment providing time and process management.
-        ema_alpha: Smoothing factor for EMA calculations (0 < alpha <= 1).
-            Smaller values give more weight to historical data.
         material_coordinator: Optional coordinator for material delivery.
-            When set, ensures materials are delivered before each operation.
         servers: List of servers registered with this shop floor.
         jobs: Set of jobs currently being processed on the shop floor.
         jobs_done: List of completed jobs in order of completion.
-        wip: Dictionary mapping each server to its current WIP value
-            (sum of remaining processing times for jobs routing through it).
+        wip: Dictionary mapping each server to its current WIP value.
         total_time_in_system: Cumulative time spent by all completed jobs.
-        ema_makespan: EMA of job makespan (creation to completion time).
-        ema_tardy_jobs: EMA of tardy job indicator (1 if late, 0 otherwise).
-        ema_early_jobs: EMA of early job indicator (1 if early, 0 otherwise).
-        ema_in_window_jobs: EMA of in-window job indicator.
-        ema_time_in_psp: EMA of time jobs spend in the Pre-Shop Pool.
-        ema_time_in_shopfloor: EMA of time jobs spend on the shop floor.
-        ema_total_queue_time: EMA of total queue time across all servers.
-        enable_corrected_wip: When True, applies position-based WIP correction
-            that discounts processing times by operation position.
         job_processing_end: SimPy event triggered when any job finishes
             processing at a server. Recreated after each trigger.
         job_finished_event: SimPy event triggered when any job completes
@@ -67,27 +319,24 @@ class ShopFloor:
         maximum_shopfloor_jobs: Peak number of concurrent jobs observed.
 
     Example:
-        Basic usage with a single server::
+        Basic usage with hooks::
 
             from simulatte import Environment, Server, ProductionJob, ShopFloor
 
+            def setup_hook(job, server, op_index, pt):
+                yield server.env.timeout(1.0)  # 1s setup time
+
             env = Environment()
-            server = Server(env=env, capacity=1)
-            shop_floor = ShopFloor(env=env)
-            shop_floor.servers.append(server)
+            shop_floor = ShopFloor(env=env, before_operation=setup_hook)
+            server = Server(env=env, capacity=1, shopfloor=shop_floor)
 
             job = ProductionJob(
-                env=env,
-                sku="PART-A",
-                servers=[server],
-                processing_times=[10.0],
-                due_date=100.0,
+                env=env, sku="PART-A", servers=[server],
+                processing_times=[10.0], due_date=100.0,
             )
 
             shop_floor.add(job)
             env.run()
-
-            print(f"Job completed at: {job.finished_at}")
     """
 
     def __init__(
@@ -96,48 +345,87 @@ class ShopFloor:
         env: Environment,
         ema_alpha: float = 0.01,
         material_coordinator: MaterialCoordinator | None = None,
+        wip_strategy: WIPStrategy | None = None,
+        metrics_collector: MetricsCollector | None = None,
+        before_operation: OperationHook | Sequence[OperationHook] | None = None,
+        after_operation: OperationHook | Sequence[OperationHook] | None = None,
+        on_job_finished: Callable[[ProductionJob], None] | Sequence[Callable[[ProductionJob], None]] | None = None,
     ) -> None:
         """Initialize a new ShopFloor instance.
 
         Args:
             env: The simulation environment that provides time management,
                 event scheduling, and process coordination.
-            ema_alpha: Smoothing factor for exponential moving average
-                calculations. Must be in range (0, 1]. Smaller values
-                (e.g., 0.01) give more weight to historical observations,
-                while larger values respond more quickly to recent data.
-                Defaults to 0.01.
+            ema_alpha: Smoothing factor for the default EMAMetricsCollector.
+                Must be in range (0, 1]. Ignored if a custom metrics_collector
+                is provided. Defaults to 0.01.
             material_coordinator: Optional coordinator for handling material
                 delivery to servers. When provided, the shop floor will
                 ensure materials are delivered before processing begins
                 at each operation, implementing FIFO blocking behavior.
+            wip_strategy: Strategy for WIP calculation. Defaults to
+                StandardWIPStrategy which uses full processing times.
+            metrics_collector: Collector for job completion metrics. Defaults
+                to EMAMetricsCollector. Pass None to disable metrics.
+            before_operation: Hook(s) called after acquiring server but before
+                material delivery and processing. Can be a single hook or list.
+            after_operation: Hook(s) called after processing completes but
+                before signaling. Can be a single hook or list.
+            on_job_finished: Callback(s) called when a job completes its
+                entire routing. Can be a single callable or list.
         """
         self.env = env
-        self.ema_alpha = ema_alpha
         self.material_coordinator = material_coordinator
 
-        self.servers: list[Server] = []  # Instance variable, not ClassVar
+        # Normalize hooks to lists
+        self._before_operation: list[OperationHook] = self._normalize_hooks(before_operation)
+        self._after_operation: list[OperationHook] = self._normalize_hooks(after_operation)
+        self._on_job_finished: list[Callable[[ProductionJob], None]] = self._normalize_callbacks(on_job_finished)
+
+        # Strategies with defaults
+        self._wip_strategy: WIPStrategy = wip_strategy if wip_strategy is not None else StandardWIPStrategy()
+        self._metrics_collector: MetricsCollector | None = (
+            metrics_collector if metrics_collector is not None else EMAMetricsCollector(alpha=ema_alpha)
+        )
+
+        # Core state
+        self.servers: list[Server] = []
         self.jobs: set[ProductionJob] = set()
         self.jobs_done: list[ProductionJob] = []
         self.wip: dict[Server, float] = {}
         self.total_time_in_system: float = 0.0
 
-        self.ema_makespan: float = 0.0
-        self.ema_tardy_jobs: float = 0.0
-        self.ema_early_jobs: float = 0.0
-        self.ema_in_window_jobs: float = 0.0
-
-        self.ema_time_in_psp: float = 0.0
-        self.ema_time_in_shopfloor: float = 0.0
-        self.ema_total_queue_time: float = 0.0
-
-        self.enable_corrected_wip: bool = False
-
+        # Events
         self.job_processing_end = self.env.event()
         self.job_finished_event = self.env.event()
 
+        # Peak tracking
         self.maximum_wip_value: float = 0.0
         self.maximum_shopfloor_jobs: int = 0
+
+    @staticmethod
+    def _normalize_hooks(
+        hooks: OperationHook | Sequence[OperationHook] | None,
+    ) -> list[OperationHook]:
+        """Normalize hook parameter to a list."""
+        if hooks is None:
+            return []
+        if isinstance(hooks, list | tuple):  # type: ignore[arg-type, misc]
+            return list(hooks)  # type: ignore[arg-type]
+        # Single hook
+        return [hooks]  # type: ignore[list-item]
+
+    @staticmethod
+    def _normalize_callbacks(
+        callbacks: Callable[[ProductionJob], None] | Sequence[Callable[[ProductionJob], None]] | None,
+    ) -> list[Callable[[ProductionJob], None]]:
+        """Normalize callback parameter to a list."""
+        if callbacks is None:
+            return []
+        if isinstance(callbacks, list | tuple):  # type: ignore[arg-type, misc]
+            return list(callbacks)  # type: ignore[arg-type]
+        # Single callback
+        return [callbacks]  # type: ignore[list-item]
 
     @property
     def average_time_in_system(self) -> float:
@@ -158,14 +446,9 @@ class ShopFloor:
 
         This method performs the following actions:
         1. Adds the job to the active jobs set
-        2. Updates WIP values for all servers in the job's routing
+        2. Updates WIP values via the configured WIP strategy
         3. Records the PSP exit timestamp on the job
         4. Spawns the main processing coroutine for the job
-
-        The WIP calculation depends on enable_corrected_wip:
-        - When False: Full processing time is added to each server's WIP
-        - When True: Processing time is discounted by operation position
-          (first op gets full time, second gets time/2, etc.)
 
         Args:
             job: The production job to release onto the shop floor.
@@ -177,15 +460,7 @@ class ShopFloor:
             immediately after this call.
         """
         self.jobs.add(job)
-
-        if self.enable_corrected_wip:
-            for i, (server, processing_time) in enumerate(job.server_processing_times):
-                self.wip.setdefault(server, 0.0)
-                self.wip[server] += processing_time / (i + 1)
-        else:
-            for server, processing_time in job.server_processing_times:
-                self.wip.setdefault(server, 0.0)
-                self.wip[server] += processing_time
+        self._wip_strategy.add_job(job, self.wip)
 
         self.env.debug(
             f"Job {job.id[:8]} entered shopfloor",
@@ -253,24 +528,25 @@ class ShopFloor:
         its routing. For each server in the job's routing, it:
 
         1. Requests and acquires the server resource (queuing if busy)
-        2. If a MaterialCoordinator is configured, waits for material delivery
-           (FIFO blocking - holds server while waiting for materials)
-        3. Processes the job for the specified duration
-        4. Updates WIP values (decrements current server, adjusts remaining if
-           corrected WIP is enabled)
-        5. Signals processing completion via signal_end_processing()
+        2. Executes before_operation hooks
+        3. If a MaterialCoordinator is configured, waits for material delivery
+        4. Processes the job for the specified duration
+        5. Updates WIP via the configured WIP strategy
+        6. Executes after_operation hooks
+        7. Signals processing completion via signal_end_processing()
 
         After all operations complete, it:
         - Records the finish timestamp on the job
         - Moves the job from active (jobs) to completed (jobs_done)
-        - Updates all EMA metrics (makespan, tardiness, queue times, etc.)
+        - Records metrics via the configured metrics collector
+        - Calls on_job_finished callbacks
         - Signals job completion via signal_job_finished()
 
         Args:
             job: The production job to process through its routing.
 
         Yields:
-            SimPy events for server requests, material delivery, and processing.
+            SimPy events for server requests, hooks, material delivery, and processing.
 
         Note:
             This method is automatically spawned by add() and should not be
@@ -288,18 +564,23 @@ class ShopFloor:
             with server.request(job=job) as request:
                 yield request
 
-                # If materials are required, block while holding server (FIFO blocking)
+                # Before-operation hooks
+                for hook in self._before_operation:
+                    yield from hook(job, server, op_index, processing_time)
+
+                # Material coordination (if configured)
                 if self.material_coordinator is not None:
                     yield from self.material_coordinator.ensure(job, server, op_index)
 
+                # Process job
                 yield self.env.process(server.process_job(job, processing_time))
-                self.wip[server] -= processing_time
 
-                if self.enable_corrected_wip:
-                    for i, remaining_server in enumerate(job.remaining_routing):
-                        remaining_processing_time = job.routing[remaining_server]
-                        self.wip[remaining_server] -= remaining_processing_time / (i + 2)
-                        self.wip[remaining_server] += remaining_processing_time / (i + 1)
+                # Update WIP via strategy
+                self._wip_strategy.complete_operation(job, server, op_index, processing_time, self.wip)
+
+                # After-operation hooks
+                for hook in self._after_operation:
+                    yield from hook(job, server, op_index, processing_time)
 
                 self.env.debug(
                     f"Job {job.id[:8]} completed op at server {server._idx}",
@@ -312,6 +593,7 @@ class ShopFloor:
 
                 self.signal_end_processing(job)
 
+        # Job completion
         job.finished_at = self.env.now
         job.current_server = None
         job.done = True
@@ -319,26 +601,22 @@ class ShopFloor:
         self.jobs_done.append(job)
         self.total_time_in_system += job.time_in_system
 
-        lateness = job.lateness
-        in_window = job.is_finished_in_due_date_window()
-
         self.env.debug(
             f"Job {job.id[:8]} finished",
             component="ShopFloor",
             job_id=job.id,
             sku=job.sku,
             makespan=job.makespan,
-            lateness=lateness,
+            lateness=job.lateness,
             total_queue_time=job.total_queue_time,
         )
-        self.ema_makespan += self.ema_alpha * (job.makespan - self.ema_makespan)
 
-        self.ema_tardy_jobs += self.ema_alpha * ((1 if not in_window and lateness > 0 else 0) - self.ema_tardy_jobs)
-        self.ema_early_jobs += self.ema_alpha * ((1 if not in_window and lateness < 0 else 0) - self.ema_early_jobs)
-        self.ema_in_window_jobs += self.ema_alpha * ((1 if in_window else 0) - self.ema_in_window_jobs)
+        # Record metrics via collector
+        if self._metrics_collector is not None:
+            self._metrics_collector.record(job)
 
-        self.ema_time_in_psp += self.ema_alpha * (job.time_in_psp - self.ema_time_in_psp)
-        self.ema_time_in_shopfloor += self.ema_alpha * (job.time_in_shopfloor - self.ema_time_in_shopfloor)
-        self.ema_total_queue_time += self.ema_alpha * (job.total_queue_time - self.ema_total_queue_time)
+        # Job finished callbacks
+        for callback in self._on_job_finished:
+            callback(job)
 
         self.signal_job_finished(job)

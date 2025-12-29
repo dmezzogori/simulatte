@@ -5,19 +5,19 @@ from simulatte.job import ProductionJob
 from simulatte.policies.lumscor import LumsCor, lumscor_starvation_trigger
 from simulatte.psp import PreShopPool
 from simulatte.server import Server
-from simulatte.shopfloor import ShopFloor
+from simulatte.shopfloor import CorrectedWIPStrategy, ShopFloor, StandardWIPStrategy
 
 
-def test_lumscor_enable_corrected_wip() -> None:
+def test_lumscor_sets_corrected_wip_strategy() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
 
-    assert sf.enable_corrected_wip is False
+    assert isinstance(sf._wip_strategy, StandardWIPStrategy)
 
     LumsCor(shopfloor=sf, wl_norm={server: 10.0}, allowance_factor=2)
 
-    assert sf.enable_corrected_wip is True
+    assert isinstance(sf._wip_strategy, CorrectedWIPStrategy)
 
 
 def test_lumscor_release_condition_always_true() -> None:
