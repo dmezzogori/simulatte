@@ -62,7 +62,7 @@ Simulatte is a discrete-event simulation framework for job-shop scheduling and i
 - **AGV** (`agv.py`): Automated guided vehicle transport
 - **WarehouseStore** (`warehouse_store.py`): Inventory management
 - **PSP** (`psp.py`): Pre-shop pool for job release control
-- **Builders** (`builders.py`): Factory functions (`build_push_system`, `build_pull_system`, `build_material_system`)
+- **Builders** (`builders.py`): Factory functions (`build_immediate_release_system`, `build_lumscor_system`, `build_slar_system`, `MaterialSystemBuilder`)
 
 ### Typical Simulation Flow
 

@@ -1,18 +1,21 @@
 from __future__ import annotations
 
-import pytest
-
-from simulatte.builders import LiteratureSystemBuilder, MaterialSystemBuilder, build_push_system
+from simulatte.builders import (
+    MaterialSystemBuilder,
+    build_immediate_release_system,
+    build_lumscor_system,
+    build_slar_system,
+)
 from simulatte.environment import Environment
 from simulatte.psp import PreShopPool
 
 
-class TestBuildPushSystem:
-    """Tests for the build_push_system function."""
+class TestBuildImmediateReleaseSystem:
+    """Tests for the build_immediate_release_system function."""
 
-    def test_build_push_system_basic(self) -> None:
+    def test_build_immediate_release_system_basic(self) -> None:
         env = Environment()
-        psp, servers, shop_floor, router = build_push_system(env, n_servers=3)
+        psp, servers, shop_floor, router = build_immediate_release_system(env, n_servers=3)
 
         assert psp is None
         assert len(servers) == 3
@@ -20,9 +23,9 @@ class TestBuildPushSystem:
         assert router is not None
         assert all(server.env is env for server in servers)
 
-    def test_build_push_system_with_options(self) -> None:
+    def test_build_immediate_release_system_with_options(self) -> None:
         env = Environment()
-        psp, servers, shop_floor, router = build_push_system(
+        psp, servers, shop_floor, router = build_immediate_release_system(
             env,
             n_servers=2,
             arrival_rate=0.5,
@@ -40,25 +43,13 @@ class TestBuildPushSystem:
         assert servers[0]._jobs is not None
 
 
-class TestLiteratureSystemBuilder:
-    """Tests for the LiteratureSystemBuilder class."""
+class TestPullSystemBuilders:
+    """Tests for the pull system builder functions."""
 
-    def test_call_push_system(self) -> None:
+    def test_build_lumscor_system(self) -> None:
         env = Environment()
-        builder = LiteratureSystemBuilder()
-        psp, servers, shop_floor, router = builder(env, "push")
-
-        assert psp is None
-        assert len(servers) == 6  # Default n_servers
-        assert shop_floor is not None
-        assert router is not None
-
-    def test_call_lumscor_system(self) -> None:
-        env = Environment()
-        builder = LiteratureSystemBuilder()
-        psp, servers, shop_floor, router = builder(
+        psp, servers, shop_floor, router = build_lumscor_system(
             env,
-            "lumscor",
             check_timeout=10.0,
             wl_norm_level=5.0,
             allowance_factor=2,
@@ -66,66 +57,20 @@ class TestLiteratureSystemBuilder:
 
         assert isinstance(psp, PreShopPool)
         assert router.psp is psp
-        assert len(servers) == 6
+        assert len(servers) == 6  # Default n_servers
         assert shop_floor is not None
         assert router is not None
 
-    def test_call_slar_system(self) -> None:
+    def test_build_slar_system(self) -> None:
         env = Environment()
-        builder = LiteratureSystemBuilder()
-        psp, servers, shop_floor, router = builder(
+        psp, servers, shop_floor, router = build_slar_system(
             env,
-            "slar",
             allowance_factor=3,
         )
 
         assert isinstance(psp, PreShopPool)
         assert router.psp is psp
-        assert len(servers) == 6
-        assert shop_floor is not None
-        assert router is not None
-
-    def test_call_invalid_system_raises(self) -> None:
-        env = Environment()
-        builder = LiteratureSystemBuilder()
-
-        with pytest.raises(ValueError, match="Unknown system type"):
-            builder(env, "invalid_system")  # type: ignore[arg-type]
-
-    def test_build_system_push(self) -> None:
-        env = Environment()
-        psp, servers, shop_floor, router = LiteratureSystemBuilder.build_system_push(env)
-
-        assert psp is None
-        assert len(servers) == 6
-        assert shop_floor is not None
-        assert router is not None
-
-    def test_build_system_lumscor(self) -> None:
-        env = Environment()
-        psp, servers, shop_floor, router = LiteratureSystemBuilder.build_system_lumscor(
-            env,
-            check_timeout=5.0,
-            wl_norm_level=10.0,
-            allowance_factor=2,
-        )
-
-        assert isinstance(psp, PreShopPool)
-        assert router.psp is psp
-        assert len(servers) == 6
-        assert shop_floor is not None
-        assert router is not None
-
-    def test_build_system_slar(self) -> None:
-        env = Environment()
-        psp, servers, shop_floor, router = LiteratureSystemBuilder.build_system_slar(
-            env,
-            allowance_factor=2,
-        )
-
-        assert isinstance(psp, PreShopPool)
-        assert router.psp is psp
-        assert len(servers) == 6
+        assert len(servers) == 6  # Default n_servers
         assert shop_floor is not None
         assert router is not None
 
