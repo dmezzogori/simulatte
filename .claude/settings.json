@@ -12,7 +12,8 @@
       "Bash(tree:*)",
       "Bash(wc:*)",
       "Bash(uv run ruff:*)",
-      "Bash(uv run ty:*)"
+      "Bash(uv run ty:*)",
+      "Bash(uv run pytest:*)"
     ],
     "ask": [
       "Bash(git push:*)"
