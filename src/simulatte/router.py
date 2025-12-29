@@ -1,4 +1,9 @@
-"""Job generator and routing logic."""
+"""Stochastic job generation and routing for discrete-event simulation.
+
+This module provides the Router class, which continuously generates ProductionJob
+instances using configurable probability distributions and routes them either to a
+PreShopPool (pull system) or directly to the ShopFloor (push system).
+"""
 
 from __future__ import annotations
 
@@ -21,7 +26,20 @@ type DiscreteDistribution[K, T] = dict[K, T]
 
 
 class Router:
-    """Generates jobs from distributions and routes them to PSP or shopfloor."""
+    """Stochastic job generator that routes jobs through the simulation.
+
+    The Router continuously generates ProductionJob instances at random intervals
+    determined by the inter-arrival distribution. Each job is assigned a randomly
+    selected SKU, a routing through servers, and processing times sampled from
+    configured distributions.
+
+    Jobs are routed based on system configuration:
+    - **Push system** (psp=None): Jobs go directly to the ShopFloor
+    - **Pull system** (psp set): Jobs queue in the PreShopPool until released
+
+    Upon instantiation, the Router registers itself as a SimPy process that runs
+    for the duration of the simulation.
+    """
 
     def __init__(  # noqa: PLR0913
         self,
@@ -40,6 +58,40 @@ class Router:
         waiting_time_distribution: dict[str, Distribution[float]],
         priority_policies: Callable[[ProductionJob, Server], float] | None = None,
     ) -> None:
+        """Initialize the Router and start the job generation process.
+
+        Args:
+            env: The simulation environment.
+            shopfloor: ShopFloor instance managing job flow and WIP tracking.
+            servers: Sequence of all available Server instances in the system.
+            psp: PreShopPool for pull systems, or None for push systems where jobs
+                go directly to the ShopFloor.
+            inter_arrival_distribution: Callable returning the time until the next
+                job arrival (e.g., ``lambda: random.expovariate(1.0)``).
+            sku_distributions: Mapping from SKU names to probability weights for
+                random SKU selection (e.g., ``{"A": 0.5, "B": 0.3, "C": 0.2}``).
+            sku_routings: Mapping from SKU to a callable that returns the server
+                routing sequence for that SKU.
+            sku_service_times: Nested mapping ``{sku: {server: distribution}}`` where
+                each distribution is a callable returning the processing time.
+            waiting_time_distribution: Mapping from SKU to a callable returning the
+                time allowance used to compute due date (``due_date = now + allowance``).
+            priority_policies: Optional callable ``(job, server) -> float`` for
+                computing job priority at each server.
+
+        Example:
+            >>> router = Router(
+            ...     env=env,
+            ...     shopfloor=shop_floor,
+            ...     servers=servers,
+            ...     psp=None,  # Push system
+            ...     inter_arrival_distribution=lambda: random.expovariate(1.0),
+            ...     sku_distributions={"F1": 1.0},
+            ...     sku_routings={"F1": lambda: servers},
+            ...     sku_service_times={"F1": {s: lambda: 2.0 for s in servers}},
+            ...     waiting_time_distribution={"F1": lambda: 30.0},
+            ... )
+        """
         self.env = env
         self.shopfloor = shopfloor
         self.servers = servers
@@ -55,6 +107,20 @@ class Router:
         self.env.process(self.generate_job())
 
     def generate_job(self) -> Generator[Timeout, None, NoReturn]:
+        """Infinite generator that creates and routes jobs at random intervals.
+
+        This method runs as a SimPy process for the simulation's duration. On each
+        iteration it:
+
+        1. Waits for the inter-arrival time
+        2. Samples a random SKU based on configured weights
+        3. Generates a routing and processing times for the selected SKU
+        4. Creates a ProductionJob with computed due date
+        5. Routes the job to PSP (if configured) or directly to ShopFloor
+
+        Yields:
+            simpy.Timeout: Pauses the process until the next job arrival.
+        """
         while True:
             inter_arrival_time = self.inter_arrival_distribution()
             yield self.env.timeout(inter_arrival_time)
