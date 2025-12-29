@@ -87,12 +87,30 @@ class AGV(Server):
             SimPy timeout for travel duration.
         """
         travel_time = self.travel_time_fn(origin, destination)
+
+        self.env.debug(
+            f"Travel started: {origin} -> {destination}",
+            component="AGV",
+            agv_id=self.agv_id,
+            origin_id=getattr(origin, "_idx", -1),
+            destination_id=getattr(destination, "_idx", -1),
+            travel_time=travel_time,
+        )
+
         yield self.env.timeout(travel_time)
 
         self.trip_count += 1
         self.total_travel_time += travel_time
         self.worked_time += travel_time
         self._current_location = destination
+
+        self.env.debug(
+            f"Travel completed: arrived at {destination}",
+            component="AGV",
+            agv_id=self.agv_id,
+            destination_id=getattr(destination, "_idx", -1),
+            trip_count=self.trip_count,
+        )
 
     def travel_to(self, destination: Server) -> ProcessGenerator:
         """Travel from current location to destination.

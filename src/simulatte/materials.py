@@ -88,13 +88,32 @@ class MaterialCoordinator:
         if not requirements:
             return  # No materials needed for this operation
 
+        self.env.debug(
+            f"Material delivery triggered for job {job.id[:8]}",
+            component="MaterialCoordinator",
+            job_id=job.id,
+            server_id=server._idx,
+            op_index=op_index,
+            materials=requirements,
+        )
+
         start_time = self.env.now
 
         for product, quantity in requirements.items():
             yield from self._deliver_material(product, quantity, server, job)
 
+        delivery_time = self.env.now - start_time
         self.total_deliveries += 1
-        self.total_delivery_time += self.env.now - start_time
+        self.total_delivery_time += delivery_time
+
+        self.env.debug(
+            f"Material delivery completed for job {job.id[:8]}",
+            component="MaterialCoordinator",
+            job_id=job.id,
+            server_id=server._idx,
+            delivery_time=delivery_time,
+            total_deliveries=self.total_deliveries,
+        )
 
     def _deliver_material(
         self,
@@ -124,6 +143,14 @@ class MaterialCoordinator:
             processing_time=0,  # Time is handled by pick_inventory
         )
 
+        self.env.debug(
+            f"Warehouse pick requested: {quantity}x {product}",
+            component="MaterialCoordinator",
+            product=product,
+            quantity=quantity,
+            warehouse_id=self.warehouse._idx,
+        )
+
         # Request a warehouse bay and perform pick
         with self.warehouse.request(job=pick_job) as warehouse_request:
             yield warehouse_request
@@ -138,6 +165,15 @@ class MaterialCoordinator:
             origin=self.warehouse,
             destination=destination,
             cargo={product: quantity},
+        )
+
+        self.env.debug(
+            f"AGV transport started: {quantity}x {product}",
+            component="MaterialCoordinator",
+            agv_id=agv.agv_id,
+            product=product,
+            quantity=quantity,
+            destination_id=destination._idx,
         )
 
         # Transport materials
@@ -174,6 +210,15 @@ class MaterialCoordinator:
             agv = self.agvs[idx]
             if agv.count + len(agv.queue) == best_load:
                 self._agv_rr_cursor = (idx + 1) % len(self.agvs)
+
+                self.env.debug(
+                    f"AGV selected: {agv.agv_id}",
+                    component="MaterialCoordinator",
+                    agv_id=agv.agv_id,
+                    workload=best_load,
+                    agv_count=len(self.agvs),
+                )
+
                 return agv
 
         # Fallback (should be unreachable given best_load computation).

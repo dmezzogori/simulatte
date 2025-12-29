@@ -83,6 +83,15 @@ class ShopFloor:
             for server, processing_time in job.server_processing_times:
                 self.wip[server] += processing_time
 
+        self.env.debug(
+            f"Job {job.id[:8]} entered shopfloor",
+            component="ShopFloor",
+            job_id=job.id,
+            sku=job.sku,
+            wip_total=sum(self.wip.values()),
+            jobs_count=len(self.jobs),
+        )
+
         job.psp_exit_at = self.env.now
         self.env.process(self.main(job))
 
@@ -96,6 +105,14 @@ class ShopFloor:
 
     def main(self, job: Job) -> ProcessGenerator:
         for op_index, (server, processing_time) in enumerate(job.server_processing_times):
+            self.env.debug(
+                f"Job {job.id[:8]} queued at server {server._idx}",
+                component="ShopFloor",
+                job_id=job.id,
+                server_id=server._idx,
+                op_index=op_index,
+            )
+
             with server.request(job=job) as request:
                 yield request
 
@@ -112,6 +129,15 @@ class ShopFloor:
                         self.wip[remaining_server] -= remaining_processing_time / (i + 2)
                         self.wip[remaining_server] += remaining_processing_time / (i + 1)
 
+                self.env.debug(
+                    f"Job {job.id[:8]} completed op at server {server._idx}",
+                    component="ShopFloor",
+                    job_id=job.id,
+                    server_id=server._idx,
+                    op_index=op_index,
+                    processing_time=processing_time,
+                )
+
                 self.signal_end_processing(job)
 
         job.finished_at = self.env.now
@@ -121,6 +147,16 @@ class ShopFloor:
         self.jobs_done.append(job)
         self.total_time_in_system += job.time_in_system
         self._update_hourly_throughput_snapshot()
+
+        self.env.debug(
+            f"Job {job.id[:8]} finished",
+            component="ShopFloor",
+            job_id=job.id,
+            sku=job.sku,
+            makespan=job.makespan,
+            lateness=job.lateness,
+            total_queue_time=job.total_queue_time,
+        )
         self.ema_makespan += self.ema_alpha * (job.makespan - self.ema_makespan)
 
         self.ema_tardy_jobs += self.ema_alpha * (

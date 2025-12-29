@@ -78,7 +78,29 @@ class Router:
                 priority_policy=self.priority_policies,
             )
 
+            self.env.debug(
+                f"Job {job.id[:8]} created",
+                component="Router",
+                job_id=job.id,
+                sku=sku,
+                routing_length=len(routing),
+                due_date=job.due_date,
+                total_processing_time=sum(service_times),
+            )
+
             if self.psp is not None:
+                self.env.debug(
+                    f"Job {job.id[:8]} routed to PSP",
+                    component="Router",
+                    job_id=job.id,
+                    destination="PSP",
+                )
                 self.psp.add(job)
             else:
+                self.env.debug(
+                    f"Job {job.id[:8]} routed to ShopFloor",
+                    component="Router",
+                    job_id=job.id,
+                    destination="ShopFloor",
+                )
                 self.shopfloor.add(job)

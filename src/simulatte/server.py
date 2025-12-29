@@ -122,6 +122,16 @@ class Server(simpy.PriorityResource):
         job.servers_entry_at[self] = self.env.now
         job.current_server = self
 
+        self.env.debug(
+            f"Job {job.id[:8]} entered queue",
+            component="Server",
+            job_id=job.id,
+            server_id=self._idx,
+            priority=int(job.priority(self)),
+            queue_length=len(self.queue) + 1,
+            sku=getattr(job, "sku", None),
+        )
+
         self._update_queue_history(None)
         self._update_ut()
         request.callbacks.append(self._update_queue_history)
@@ -131,12 +141,32 @@ class Server(simpy.PriorityResource):
     def release(self, request: ServerPriorityRequest) -> Release:  # type: ignore[override]
         release = super().release(request)  # type: ignore[arg-type]
         request.job.servers_exit_at[self] = self.env.now
+
+        job = request.job
+        entry_time = job.servers_entry_at.get(self, self.env.now)
+        self.env.debug(
+            f"Job {job.id[:8]} released",
+            component="Server",
+            job_id=job.id,
+            server_id=self._idx,
+            time_at_server=self.env.now - entry_time,
+        )
+
         self._update_ut()
         return release
 
     def process_job(self, job: BaseJob, processing_time: float) -> ProcessGenerator:
         if self._jobs is not None:
             self._jobs.append(job)
+
+        self.env.debug(
+            f"Job {job.id[:8]} processing started",
+            component="Server",
+            job_id=job.id,
+            server_id=self._idx,
+            processing_time=processing_time,
+        )
+
         yield self.env.timeout(processing_time)
         self.worked_time += processing_time
 

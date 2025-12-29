@@ -19,6 +19,22 @@ class InspectionServer(Server):
 
     def process_job(self, job: BaseJob, processing_time: float) -> ProcessGenerator:
         yield self.env.process(super().process_job(job, processing_time))
+
+        result = "rework" if job.rework else "pass"
+        self.env.debug(
+            f"Inspection complete: {result}",
+            component="InspectionServer",
+            job_id=job.id,
+            server_id=self._idx,
+            result=result,
+        )
+
         if job.rework:
+            self.env.debug(
+                f"Rework triggered for job {job.id[:8]}",
+                component="InspectionServer",
+                job_id=job.id,
+                server_id=self._idx,
+            )
             job.rework = False
             self.rework(job)

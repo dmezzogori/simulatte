@@ -108,6 +108,16 @@ class WarehouseStore(Server):
         if product not in self.inventory:
             raise KeyError(f"Unknown product: {product}")
 
+        inventory_before = self.inventory[product].level
+        self.env.debug(
+            f"Pick started: {quantity}x {product}",
+            component="WarehouseStore",
+            product=product,
+            quantity=quantity,
+            inventory_before=inventory_before,
+            warehouse_id=self._idx,
+        )
+
         # Wait for inventory (blocks if insufficient)
         yield self.inventory[product].get(quantity)
 
@@ -118,6 +128,15 @@ class WarehouseStore(Server):
         self.total_picks += 1
         self._total_pick_time += pick_time
         self.worked_time += pick_time
+
+        self.env.debug(
+            f"Pick completed: {quantity}x {product}",
+            component="WarehouseStore",
+            product=product,
+            quantity=quantity,
+            pick_time=pick_time,
+            inventory_after=self.inventory[product].level,
+        )
 
     def put_inventory(self, product: str, quantity: int) -> ProcessGenerator:
         """Put items into inventory.
@@ -132,6 +151,16 @@ class WarehouseStore(Server):
         if product not in self.inventory:
             raise KeyError(f"Unknown product: {product}")
 
+        inventory_before = self.inventory[product].level
+        self.env.debug(
+            f"Put started: {quantity}x {product}",
+            component="WarehouseStore",
+            product=product,
+            quantity=quantity,
+            inventory_before=inventory_before,
+            warehouse_id=self._idx,
+        )
+
         # Simulate put time
         put_time = self.put_time_fn()
         yield self.env.timeout(put_time)
@@ -142,6 +171,15 @@ class WarehouseStore(Server):
         self.total_puts += 1
         self._total_put_time += put_time
         self.worked_time += put_time
+
+        self.env.debug(
+            f"Put completed: {quantity}x {product}",
+            component="WarehouseStore",
+            product=product,
+            quantity=quantity,
+            put_time=put_time,
+            inventory_after=self.inventory[product].level,
+        )
 
     @property
     def average_pick_time(self) -> float:

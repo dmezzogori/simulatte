@@ -53,6 +53,12 @@ class FaultyServer(Server):
             yield self.env.timeout(time_between_failures)
             if not self.breakdown_event.triggered:
                 self.breakdowns += 1
+                self.env.debug(
+                    f"Server breakdown (#{self.breakdowns})",
+                    component="FaultyServer",
+                    server_id=self._idx,
+                    breakdown_count=self.breakdowns,
+                )
                 self.breakdown_event.succeed()
 
     def _process_or_breakdown(self, processing_time: float) -> ProcessGenerator:
@@ -62,8 +68,26 @@ class FaultyServer(Server):
         if self.breakdown_event in res:
             remaining_service_time = processing_time - (self.env.now - start_time)
             repair_timeout = self.repair_time_distribution()
+
+            self.env.debug(
+                "Job interrupted by breakdown",
+                component="FaultyServer",
+                server_id=self._idx,
+                remaining_time=remaining_service_time,
+                repair_time=repair_timeout,
+            )
+
             yield self.env.timeout(repair_timeout)
             self.breakdown_time += repair_timeout
+
+            self.env.debug(
+                "Server repaired",
+                component="FaultyServer",
+                server_id=self._idx,
+                downtime=repair_timeout,
+                total_breakdown_time=self.breakdown_time,
+            )
+
             self.breakdown_event = simpy.Event(self.env)
             yield self.env.process(self._process_or_breakdown(remaining_service_time))
 

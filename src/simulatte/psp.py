@@ -74,6 +74,16 @@ class PreShopPool:
 
     def add(self, job: ProductionJob) -> None:
         self._psp.append(job)
+
+        self.env.debug(
+            f"Job {job.id[:8]} entered PSP",
+            component="PreShopPool",
+            job_id=job.id,
+            sku=job.sku,
+            psp_size=len(self._psp),
+            due_date=job.due_date,
+        )
+
         self._signal_new_job(job)
 
     def remove(self, *, job: ProductionJob | None = None) -> ProductionJob:
@@ -83,7 +93,18 @@ class PreShopPool:
             self._psp.remove(job)
         else:
             job = self._psp.popleft()
+
+        time_in_psp = self.env.now - job.created_at
         job.psp_exit_at = self.env.now
+
+        self.env.debug(
+            f"Job {job.id[:8]} released from PSP",
+            component="PreShopPool",
+            job_id=job.id,
+            time_in_psp=time_in_psp,
+            psp_size_after=len(self._psp),
+        )
+
         return job
 
     def _signal_new_job(self, job: ProductionJob) -> None:
