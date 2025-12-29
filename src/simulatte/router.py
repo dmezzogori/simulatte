@@ -14,15 +14,13 @@ from typing import TYPE_CHECKING, NoReturn
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.shopfloor import ShopFloor
+from simulatte.typing import DiscreteDistribution, Distribution
 
 if TYPE_CHECKING:  # pragma: no cover
     from simpy.events import Timeout
 
     from simulatte.psp import PreShopPool
     from simulatte.server import Server
-
-type Distribution[T] = Callable[[], T]
-type DiscreteDistribution[K, T] = dict[K, T]
 
 
 class Router:
