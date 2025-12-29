@@ -12,9 +12,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.server import Server
     from simulatte.typing import ProcessGenerator
 
-    # Type alias for jobs that can be processed
-    type Job = ProductionJob
-
 
 class ShopFloor:
     """Tracks jobs, WIP, and completion events across servers.
@@ -35,8 +32,8 @@ class ShopFloor:
         self.material_coordinator = material_coordinator
 
         self.servers: list[Server] = []  # Instance variable, not ClassVar
-        self.jobs: set[Job] = set()
-        self.jobs_done: list[Job] = []
+        self.jobs: set[ProductionJob] = set()
+        self.jobs_done: list[ProductionJob] = []
         self.wip: dict[Server, float] = {}
         self.total_time_in_system: float = 0.0
 
@@ -63,7 +60,7 @@ class ShopFloor:
             return 0.0
         return self.total_time_in_system / len(self.jobs_done)
 
-    def add(self, job: Job) -> None:
+    def add(self, job: ProductionJob) -> None:
         self.jobs.add(job)
 
         if self.enable_corrected_wip:
@@ -87,15 +84,15 @@ class ShopFloor:
         job.psp_exit_at = self.env.now
         self.env.process(self.main(job))
 
-    def signal_end_processing(self, job: Job) -> None:
+    def signal_end_processing(self, job: ProductionJob) -> None:
         self.job_processing_end.succeed(job)
         self.job_processing_end = self.env.event()
 
-    def signal_job_finished(self, job: Job) -> None:
+    def signal_job_finished(self, job: ProductionJob) -> None:
         self.job_finished_event.succeed(job)
         self.job_finished_event = self.env.event()
 
-    def main(self, job: Job) -> ProcessGenerator:
+    def main(self, job: ProductionJob) -> ProcessGenerator:
         for op_index, (server, processing_time) in enumerate(job.server_processing_times):
             self.env.debug(
                 f"Job {job.id[:8]} queued at server {server._idx}",
