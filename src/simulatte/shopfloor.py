@@ -148,28 +148,23 @@ class ShopFloor:
         self.total_time_in_system += job.time_in_system
         self._update_hourly_throughput_snapshot()
 
+        lateness = job.lateness
+        in_window = job.is_finished_in_due_date_window()
+
         self.env.debug(
             f"Job {job.id[:8]} finished",
             component="ShopFloor",
             job_id=job.id,
             sku=job.sku,
             makespan=job.makespan,
-            lateness=job.lateness,
+            lateness=lateness,
             total_queue_time=job.total_queue_time,
         )
         self.ema_makespan += self.ema_alpha * (job.makespan - self.ema_makespan)
 
-        self.ema_tardy_jobs += self.ema_alpha * (
-            (1 if not job.is_finished_in_due_date_window() and job.lateness > 0 else 0) - self.ema_tardy_jobs
-        )
-
-        self.ema_early_jobs += self.ema_alpha * (
-            (1 if not job.is_finished_in_due_date_window() and job.lateness < 0 else 0) - self.ema_early_jobs
-        )
-
-        self.ema_in_window_jobs += self.ema_alpha * (
-            (1 if job.is_finished_in_due_date_window() else 0) - self.ema_in_window_jobs
-        )
+        self.ema_tardy_jobs += self.ema_alpha * ((1 if not in_window and lateness > 0 else 0) - self.ema_tardy_jobs)
+        self.ema_early_jobs += self.ema_alpha * ((1 if not in_window and lateness < 0 else 0) - self.ema_early_jobs)
+        self.ema_in_window_jobs += self.ema_alpha * ((1 if in_window else 0) - self.ema_in_window_jobs)
 
         self.ema_time_in_psp += self.ema_alpha * (job.time_in_psp - self.ema_time_in_psp)
         self.ema_time_in_shopfloor += self.ema_alpha * (job.time_in_shopfloor - self.ema_time_in_shopfloor)
