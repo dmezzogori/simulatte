@@ -35,7 +35,7 @@ def test_generate_job_adds_to_psp_and_sets_attributes() -> None:
         sku_distributions=sku_dist,
         sku_routings={"A": lambda: [server]},
         sku_service_times={"A": {server: service_val}},
-        waiting_time_distribution={"A": wait_val},
+        due_date_offset_distribution={"A": wait_val},
     )
 
     env.run(until=2.1)
@@ -80,7 +80,7 @@ def test_generate_job_directly_to_shopfloor_when_no_psp() -> None:
         sku_distributions=sku_dist,
         sku_routings={"A": lambda: [server]},
         sku_service_times={"A": {server: service_val}},
-        waiting_time_distribution={"A": wait_val},
+        due_date_offset_distribution={"A": wait_val},
     )
 
     env.run(until=3.6)

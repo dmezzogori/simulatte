@@ -63,7 +63,7 @@ def build_push_system(
         sku_service_times={
             "F1": {server: lambda: random.expovariate(service_rate) for server in servers},
         },
-        waiting_time_distribution={"F1": lambda: random.expovariate(1.0 * n_servers)},
+        due_date_offset_distribution={"F1": lambda: random.expovariate(1.0 * n_servers)},
     )
     return None, servers, shop_floor, router
 
@@ -126,7 +126,7 @@ class LiteratureSystemBuilder:
                     for server in servers
                 },
             },
-            waiting_time_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+            due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
         )
         return None, servers, shop_floor, router
 
@@ -168,7 +168,7 @@ class LiteratureSystemBuilder:
                     for server in servers
                 },
             },
-            waiting_time_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+            due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
         )
 
         env.process(lumscor_starvation_trigger(shopfloor=shop_floor, psp=psp))
@@ -201,7 +201,7 @@ class LiteratureSystemBuilder:
                     for server in servers
                 },
             },
-            waiting_time_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+            due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
             priority_policies=lambda job, server: slar.pst_priority_policy(job, server) or 0.0,
         )
         env.process(slar.slar_release_triggers(shopfloor=shop_floor, psp=psp))

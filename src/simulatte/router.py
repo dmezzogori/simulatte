@@ -53,7 +53,7 @@ class Router:
             str,
             DiscreteDistribution[Server, Distribution[float]],
         ],
-        waiting_time_distribution: dict[str, Distribution[float]],
+        due_date_offset_distribution: dict[str, Distribution[float]],
         priority_policies: Callable[[ProductionJob, Server], float] | None = None,
     ) -> None:
         """Initialize the Router and start the job generation process.
@@ -72,8 +72,8 @@ class Router:
                 routing sequence for that SKU.
             sku_service_times: Nested mapping ``{sku: {server: distribution}}`` where
                 each distribution is a callable returning the processing time.
-            waiting_time_distribution: Mapping from SKU to a callable returning the
-                time allowance used to compute due date (``due_date = now + allowance``).
+            due_date_offset_distribution: Mapping from SKU to a callable returning the
+                offset used to compute due date (``due_date = now + offset``).
             priority_policies: Optional callable ``(job, server) -> float`` for
                 computing job priority at each server.
 
@@ -87,7 +87,7 @@ class Router:
             ...     sku_distributions={"F1": 1.0},
             ...     sku_routings={"F1": lambda: servers},
             ...     sku_service_times={"F1": {s: lambda: 2.0 for s in servers}},
-            ...     waiting_time_distribution={"F1": lambda: 30.0},
+            ...     due_date_offset_distribution={"F1": lambda: 30.0},
             ... )
         """
         self.env = env
@@ -99,7 +99,7 @@ class Router:
         self.sku_distributions = sku_distributions
         self.sku_routings = sku_routings
         self.sku_service_times = sku_service_times
-        self.waiting_time_distribution = waiting_time_distribution
+        self.due_date_offset_distribution = due_date_offset_distribution
         self.priority_policies = priority_policies
 
         self.env.process(self.generate_job())
@@ -131,7 +131,7 @@ class Router:
 
             routing = self.sku_routings[sku]()
             service_times = tuple(self.sku_service_times[sku][server]() for server in routing)
-            waiting_time = self.waiting_time_distribution[sku]()
+            waiting_time = self.due_date_offset_distribution[sku]()
 
             job = ProductionJob(
                 env=self.env,
