@@ -33,7 +33,7 @@ class LumsCor(PSPReleasePolicy):
 
     def _enable_corrected_wip(self) -> None:
         """Configure shopfloor to use corrected WIP strategy."""
-        self.shopfloor._wip_strategy = CorrectedWIPStrategy()
+        self.shopfloor.set_wip_strategy(CorrectedWIPStrategy())
 
     def release_condition(self, psp: PreShopPool, shopfloor: ShopFloor) -> bool:  # noqa: ARG002
         return True
@@ -41,7 +41,7 @@ class LumsCor(PSPReleasePolicy):
     def release(self, psp: PreShopPool, shopfloor: ShopFloor) -> None:
         for job in sorted(psp.jobs, key=lambda j: j.planned_release_date(LumsCor.allowance_factor)):
             if all(
-                shopfloor.wip[server] + processing_time / (i + 1) <= self.wl_norm[server]
+                shopfloor.wip.get(server, 0.0) + processing_time / (i + 1) <= self.wl_norm[server]
                 for i, (server, processing_time) in enumerate(job.server_processing_times)
             ):
                 psp.remove(job=job)

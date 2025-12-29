@@ -21,7 +21,7 @@ Extensibility is provided through:
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 
 from simulatte.environment import Environment
 
@@ -30,6 +30,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.materials import MaterialCoordinator
     from simulatte.server import Server
     from simulatte.typing import ProcessGenerator
+
+
+# Sentinel to differentiate "use default" vs "explicitly None" for metrics.
+_DEFAULT_METRICS_COLLECTOR = object()
 
 
 # =============================================================================
@@ -346,7 +350,7 @@ class ShopFloor:
         ema_alpha: float = 0.01,
         material_coordinator: MaterialCoordinator | None = None,
         wip_strategy: WIPStrategy | None = None,
-        metrics_collector: MetricsCollector | None = None,
+        metrics_collector: MetricsCollector | None | object = _DEFAULT_METRICS_COLLECTOR,
         before_operation: OperationHook | Sequence[OperationHook] | None = None,
         after_operation: OperationHook | Sequence[OperationHook] | None = None,
         on_job_finished: Callable[[ProductionJob], None] | Sequence[Callable[[ProductionJob], None]] | None = None,
@@ -384,9 +388,10 @@ class ShopFloor:
 
         # Strategies with defaults
         self._wip_strategy: WIPStrategy = wip_strategy if wip_strategy is not None else StandardWIPStrategy()
-        self._metrics_collector: MetricsCollector | None = (
-            metrics_collector if metrics_collector is not None else EMAMetricsCollector(alpha=ema_alpha)
-        )
+        if metrics_collector is _DEFAULT_METRICS_COLLECTOR:
+            self._metrics_collector: MetricsCollector | None = EMAMetricsCollector(alpha=ema_alpha)
+        else:
+            self._metrics_collector = cast(MetricsCollector | None, metrics_collector)
 
         # Core state
         self.servers: list[Server] = []
@@ -426,6 +431,24 @@ class ShopFloor:
             return list(callbacks)  # type: ignore[arg-type]
         # Single callback
         return [callbacks]  # type: ignore[list-item]
+
+    @property
+    def wip_strategy(self) -> WIPStrategy:
+        """The current WIP strategy used by the shopfloor."""
+        return self._wip_strategy
+
+    def set_wip_strategy(self, strategy: WIPStrategy) -> None:
+        """Replace the shopfloor's WIP strategy."""
+        self._wip_strategy = strategy
+
+    @property
+    def metrics_collector(self) -> MetricsCollector | None:
+        """Collector called when jobs complete (or None if disabled)."""
+        return self._metrics_collector
+
+    def set_metrics_collector(self, collector: MetricsCollector | None) -> None:
+        """Replace the shopfloor's metrics collector (or disable with None)."""
+        self._metrics_collector = collector
 
     @property
     def average_time_in_system(self) -> float:

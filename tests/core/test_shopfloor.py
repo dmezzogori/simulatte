@@ -377,14 +377,8 @@ def test_custom_metrics_collector() -> None:
 def test_no_metrics_collector() -> None:
     """ShopFloor with metrics_collector=None should work without recording metrics."""
 
-    class NoOpCollector:
-        """A collector that does nothing."""
-
-        def record(self, job: ProductionJob) -> None:
-            pass
-
     env = Environment()
-    sf = ShopFloor(env=env, metrics_collector=NoOpCollector())
+    sf = ShopFloor(env=env, metrics_collector=None)
     server = Server(env=env, capacity=1, shopfloor=sf)
 
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=10)
@@ -393,6 +387,7 @@ def test_no_metrics_collector() -> None:
 
     assert job.done
     assert job.finished_at == pytest.approx(5.0)
+    assert sf.metrics_collector is None
 
 
 def test_on_job_finished_callback() -> None:

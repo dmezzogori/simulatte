@@ -13,11 +13,11 @@ def test_lumscor_sets_corrected_wip_strategy() -> None:
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
 
-    assert isinstance(sf._wip_strategy, StandardWIPStrategy)
+    assert isinstance(sf.wip_strategy, StandardWIPStrategy)
 
     LumsCor(shopfloor=sf, wl_norm={server: 10.0}, allowance_factor=2)
 
-    assert isinstance(sf._wip_strategy, CorrectedWIPStrategy)
+    assert isinstance(sf.wip_strategy, CorrectedWIPStrategy)
 
 
 def test_lumscor_release_condition_always_true() -> None:
@@ -36,9 +36,6 @@ def test_lumscor_release_under_norm() -> None:
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-
-    # Initialize wip for the server (normally done when jobs are added)
-    sf.wip[server] = 0.0
 
     # High workload norm allows releases
     policy = LumsCor(shopfloor=sf, wl_norm={server: 100.0}, allowance_factor=2)
@@ -59,9 +56,6 @@ def test_lumscor_release_respects_norm() -> None:
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
 
-    # Initialize wip for the server
-    sf.wip[server] = 0.0
-
     # Very low workload norm blocks releases
     policy = LumsCor(shopfloor=sf, wl_norm={server: 0.1}, allowance_factor=2)
 
@@ -79,9 +73,6 @@ def test_lumscor_release_order_by_planned_release_date() -> None:
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-
-    # Initialize wip for the server
-    sf.wip[server] = 0.0
 
     policy = LumsCor(shopfloor=sf, wl_norm={server: 100.0}, allowance_factor=2)
 
