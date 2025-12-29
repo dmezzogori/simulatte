@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from simulatte.builders import MaterialSystemBuilder
 from simulatte.environment import Environment
+from simulatte.experimental import MaterialSystemBuilder
 from simulatte.job import ProductionJob
 
 

@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from simulatte.agv import AGV
 from simulatte.environment import Environment
+from simulatte.experimental import AGV, MaterialCoordinator, Warehouse
 from simulatte.job import ProductionJob
-from simulatte.materials import MaterialCoordinator
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
-from simulatte.warehouse import Warehouse
 
 
 def test_single_job_processing() -> None:

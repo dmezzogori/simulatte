@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from simulatte.agv import AGV
 from simulatte.environment import Environment
+from simulatte.experimental import AGV, Warehouse
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
-from simulatte.warehouse import Warehouse
 
 
 class TestWarehouse:

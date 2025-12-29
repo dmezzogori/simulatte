@@ -26,8 +26,8 @@ from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 from simulatte.environment import Environment
 
 if TYPE_CHECKING:  # pragma: no cover
+    from simulatte.experimental.materials import MaterialCoordinator
     from simulatte.job import ProductionJob
-    from simulatte.materials import MaterialCoordinator
     from simulatte.server import Server
     from simulatte.typing import ProcessGenerator
 

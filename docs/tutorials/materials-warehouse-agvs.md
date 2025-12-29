@@ -1,13 +1,15 @@
 # Materials, warehouse, and AGVs
 
+> **Experimental**: This feature is part of `simulatte.experimental` and may change in future releases.
+
 Goal: add a warehouse + AGVs and run a `ProductionJob` that requires materials.
 
-Simulatte’s material handling uses **FIFO blocking**: if a job needs materials at an operation, it holds the server while the warehouse pick + AGV transport happens.
+Simulatte's material handling uses **FIFO blocking**: if a job needs materials at an operation, it holds the server while the warehouse pick + AGV transport happens.
 
 ## Build a material system
 
 ```python
-from simulatte.builders import MaterialSystemBuilder
+from simulatte.experimental import MaterialSystemBuilder
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 
