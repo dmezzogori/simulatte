@@ -33,20 +33,45 @@ class Slar:
         control concepts in job shops: Improving the release method.
         International Journal of Production Economics, 56-57, 347-364.
         https://doi.org/10.1016/S0925-5273(98)00052-8
-
-    Args:
-        allowance_factor: Slack allowance per operation (parameter 'k' in paper).
-            Higher values result in more conservative (later) release timing.
     """
 
     def __init__(self, allowance_factor: float = 2.0) -> None:
+        """Initialize the SLAR release policy.
+
+        Args:
+            allowance_factor: Slack allowance per operation (parameter 'k' in paper).
+                Higher values result in more conservative (later) release timing.
+        """
         self.allowance_factor = allowance_factor
 
     def pst_priority_policy(self, job: ProductionJob, server: Server) -> float | None:
+        """Get the planned slack time priority for a job at a server.
+
+        This method is designed to be used as a priority_policy callback for jobs.
+        Lower PST values indicate higher urgency (job is behind schedule).
+
+        Args:
+            job: The production job to evaluate.
+            server: The server to calculate priority for.
+
+        Returns:
+            Planned slack time for the job at the server, or None if the server
+            is not in the job's routing.
+        """
         return job.planned_slack_times(allowance=self.allowance_factor)[server]
 
     def _pst_value(self, job: ProductionJob, server: Server) -> float:
-        """Return planned slack time as float (None -> 0)."""
+        """Get planned slack time as a numeric value for comparisons.
+
+        Converts None values to 0.0 to enable consistent sorting and comparisons.
+
+        Args:
+            job: The production job to evaluate.
+            server: The server to calculate PST for.
+
+        Returns:
+            Planned slack time as float, or 0.0 if PST is None.
+        """
         pst = self.pst_priority_policy(job, server)
         return float(pst) if pst is not None else 0.0
 
@@ -55,6 +80,11 @@ class Slar:
 
         This generator process waits for job processing completions and evaluates
         whether to release a new job based on the SLAR algorithm triggers.
+
+        Note:
+            This implementation extends the original paper algorithm by also
+            triggering starvation avoidance when a queue has exactly one job,
+            not just when empty.
 
         Args:
             shopfloor: The shopfloor to monitor for job completions.

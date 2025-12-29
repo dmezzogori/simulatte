@@ -180,44 +180,60 @@ def test_slar_allowance_factor() -> None:
 
 
 def test_slar_negative_pst_release() -> None:
-    """Test releasing negative PST job when all queued jobs have positive PST."""
+    """Test releasing negative PST job when all queued jobs have positive PST.
+
+    This test covers the elif branch (line 116) where:
+    - Queue has 2+ jobs (not empty, not has_one)
+    - All queued jobs have positive PST (non-urgent)
+    - An urgent job (negative PST) in PSP gets released
+    """
     env = Environment()
     sf = ShopFloor(env=env)
-    server = Server(env=env, capacity=1, shopfloor=sf)
+    # Use capacity=2 so multiple jobs can queue while two are processing
+    server = Server(env=env, capacity=2, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
     env.process(slar.slar_release_triggers(sf, psp))
 
-    # Add a job that takes a while to process (to have queued jobs)
-    processing_job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=1000.0)
-    sf.add(processing_job)
+    # Add jobs that take a while to process (with far due dates = positive PST)
+    processing_job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=1000.0)
+    processing_job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=1000.0)
+    sf.add(processing_job1)
+    sf.add(processing_job2)
 
-    # Add two jobs to queue with far due dates (positive PST)
+    # Add THREE jobs to queue with far due dates (positive PST)
+    # When one processing job finishes, one queued job starts processing,
+    # leaving 2 jobs in queue (triggers elif branch, not if branch)
     queued_job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
     queued_job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
+    queued_job3 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
     sf.add(queued_job1)
     sf.add(queued_job2)
+    sf.add(queued_job3)
 
-    # Wait until queue has 2+ jobs (not empty, not just one)
+    # Wait until queue has 3 jobs
     env.run(until=0.1)
 
-    # Queue should have 2 jobs with positive PST
-    assert len(server.queue) == 2
+    # Queue should have 3 jobs with positive PST (2 are processing)
+    assert len(server.queue) == 3
 
     # Add candidate job to PSP with negative PST (urgent, past due)
     urgent_job = ProductionJob(
         env=env,
         sku="A",
         servers=[server],
-        processing_times=[0.5],  # Short processing time
+        processing_times=[0.5],  # Short processing time (selected by min)
         due_date=env.now - 10.0,  # Already past due (negative PST)
     )
     psp.add(urgent_job)
 
     # Run until first job finishes - this triggers the release check
+    # At t=5: processing_job1 finishes, queued_job1 starts processing
+    # Queue now has 2 jobs (queued_job2, queued_job3) - all with positive PST
+    # elif branch triggers, urgent_job gets released
     env.run(until=6)
 
     # The urgent job with negative PST should be released
-    # (because all queued jobs have positive PST and this one has negative)
+    # (because queue has 2+ jobs, all with positive PST, and this one has negative)
     assert urgent_job not in list(psp.jobs)
