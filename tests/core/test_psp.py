@@ -4,18 +4,23 @@ import pytest
 
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
-from simulatte.psp import PreShopPool, PSPReleasePolicy
+from simulatte.psp import PreShopPool
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
 
 
-class DummyPolicy(PSPReleasePolicy):
+class DummyPolicy:
+    """Dummy release policy for testing."""
+
     def __init__(self) -> None:
         self.called = 0
 
-    def release_condition(self, psp: PreShopPool, shopfloor: ShopFloor) -> bool:  # noqa: ARG002
+    def release(self, psp: PreShopPool, shopfloor: ShopFloor) -> None:
+        """Release all jobs from PSP to shopfloor."""
         self.called += 1
-        return True
+        while not psp.empty:
+            job = psp.remove()
+            shopfloor.add(job)
 
 
 def test_psp_add_remove_sets_exit_time() -> None:
@@ -71,17 +76,6 @@ def test_psp_signal_new_job_triggers_event() -> None:
     env.run(until=0.1)
 
     assert events == [job]
-
-
-def test_psp_release_policy_not_implemented() -> None:
-    """Base PSPReleasePolicy.release_condition should raise NotImplementedError."""
-    env = Environment()
-    sf = ShopFloor(env=env)
-    psp = PreShopPool(env=env, shopfloor=sf)
-    policy = PSPReleasePolicy()
-
-    with pytest.raises(NotImplementedError):
-        policy.release_condition(psp, sf)
 
 
 def test_psp_contains() -> None:

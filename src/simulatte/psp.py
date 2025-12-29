@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from simulatte.environment import Environment
 from simulatte.shopfloor import ShopFloor
@@ -15,16 +15,15 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.typing import ProcessGenerator
 
 
-class PSPReleasePolicy:
-    """Base class for PSP release policies."""
+class PSPReleasePolicy(Protocol):
+    """Protocol for PSP release policies.
 
-    def release_condition(self, psp: PreShopPool, shopfloor: ShopFloor) -> bool:
-        raise NotImplementedError
+    Any class implementing a `release` method with this signature can be used.
+    """
 
     def release(self, psp: PreShopPool, shopfloor: ShopFloor) -> None:
-        if self.release_condition(psp, shopfloor):
-            job = psp.remove()
-            shopfloor.add(job)
+        """Release jobs from the pre-shop pool to the shopfloor."""
+        ...
 
 
 class PreShopPool:

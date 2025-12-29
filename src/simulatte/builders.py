@@ -7,13 +7,13 @@ from typing import TYPE_CHECKING
 
 from simulatte.distributions import server_sampling, truncated_2erlang
 from simulatte.environment import Environment
-from simulatte.policies.lumscor import LumsCor, lumscor_starvation_trigger
+from simulatte.policies.lumscor import LumsCor
 from simulatte.policies.slar import Slar
 from simulatte.policies.starvation_avoidance import starvation_avoidance_process
 from simulatte.psp import PreShopPool
 from simulatte.router import Router
 from simulatte.server import Server
-from simulatte.shopfloor import ShopFloor
+from simulatte.shopfloor import CorrectedWIPStrategy, ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.typing import PullSystem, PushSystem
@@ -81,16 +81,16 @@ def build_lumscor_system(
         Tuple of (psp, servers, shop_floor, router).
     """
     shop_floor = ShopFloor(env=env)
+    shop_floor.set_wip_strategy(CorrectedWIPStrategy())
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
+
+    lumscor = LumsCor(wl_norm=dict.fromkeys(servers, float(wl_norm_level)), allowance_factor=int(allowance_factor))
+
     psp = PreShopPool(
         env=env,
         shopfloor=shop_floor,
         check_timeout=float(check_timeout),
-        psp_release_policy=LumsCor(
-            shopfloor=shop_floor,
-            wl_norm=dict.fromkeys(servers, float(wl_norm_level)),
-            allowance_factor=int(allowance_factor),
-        ),
+        psp_release_policy=lumscor,
     )
     router = Router(
         env=env,
@@ -112,7 +112,7 @@ def build_lumscor_system(
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
     )
 
-    env.process(lumscor_starvation_trigger(shopfloor=shop_floor, psp=psp))
+    env.process(lumscor.starvation_trigger(shopfloor=shop_floor, psp=psp))
     env.process(starvation_avoidance_process(shop_floor, psp))  # type: ignore[arg-type]
 
     return psp, servers, shop_floor, router

@@ -1,49 +1,43 @@
 from __future__ import annotations
 
+import pytest
+
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
-from simulatte.policies.lumscor import LumsCor, lumscor_starvation_trigger
+from simulatte.policies.lumscor import LumsCor
 from simulatte.psp import PreShopPool
 from simulatte.server import Server
 from simulatte.shopfloor import CorrectedWIPStrategy, ShopFloor, StandardWIPStrategy
 
 
-def test_lumscor_sets_corrected_wip_strategy() -> None:
-    env = Environment()
-    sf = ShopFloor(env=env)
-    server = Server(env=env, capacity=1, shopfloor=sf)
-
-    assert isinstance(sf.wip_strategy, StandardWIPStrategy)
-
-    LumsCor(shopfloor=sf, wl_norm={server: 10.0}, allowance_factor=2)
-
-    assert isinstance(sf.wip_strategy, CorrectedWIPStrategy)
-
-
-def test_lumscor_release_condition_always_true() -> None:
+def test_lumscor_requires_corrected_wip_strategy() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
 
-    policy = LumsCor(shopfloor=sf, wl_norm={server: 10.0}, allowance_factor=2)
+    lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
 
-    assert policy.release_condition(psp, sf) is True
+    # Should raise when WIP strategy is not CorrectedWIPStrategy
+    assert isinstance(sf.wip_strategy, StandardWIPStrategy)
+    with pytest.raises(TypeError, match="LumsCor requires CorrectedWIPStrategy"):
+        lumscor.release(psp, sf)
 
 
 def test_lumscor_release_under_norm() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
+    sf.set_wip_strategy(CorrectedWIPStrategy())
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
 
     # High workload norm allows releases
-    policy = LumsCor(shopfloor=sf, wl_norm={server: 100.0}, allowance_factor=2)
+    lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
 
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=20.0)
     psp.add(job)
 
-    policy.release(psp, sf)
+    lumscor.release(psp, sf)
 
     # Job should be released since WIP is well under norm
     assert job not in psp.jobs
@@ -53,16 +47,17 @@ def test_lumscor_release_under_norm() -> None:
 def test_lumscor_release_respects_norm() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
+    sf.set_wip_strategy(CorrectedWIPStrategy())
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
 
     # Very low workload norm blocks releases
-    policy = LumsCor(shopfloor=sf, wl_norm={server: 0.1}, allowance_factor=2)
+    lumscor = LumsCor(wl_norm={server: 0.1}, allowance_factor=2)
 
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=20.0)
     psp.add(job)
 
-    policy.release(psp, sf)
+    lumscor.release(psp, sf)
 
     # Job should stay in PSP since adding it would exceed norm
     assert job in psp.jobs
@@ -71,10 +66,11 @@ def test_lumscor_release_respects_norm() -> None:
 def test_lumscor_release_order_by_planned_release_date() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
+    sf.set_wip_strategy(CorrectedWIPStrategy())
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
 
-    policy = LumsCor(shopfloor=sf, wl_norm={server: 100.0}, allowance_factor=2)
+    lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
 
     # Add jobs with different due dates
     job_late = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=50.0)
@@ -83,7 +79,7 @@ def test_lumscor_release_order_by_planned_release_date() -> None:
     psp.add(job_late)
     psp.add(job_early)
 
-    policy.release(psp, sf)
+    lumscor.release(psp, sf)
 
     # Both should be released since norm is high
     assert job_early not in psp.jobs
@@ -93,14 +89,12 @@ def test_lumscor_release_order_by_planned_release_date() -> None:
 def test_lumscor_starvation_trigger_releases_when_empty() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
+    sf.set_wip_strategy(CorrectedWIPStrategy())
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
 
-    # Set allowance_factor via LumsCor (class attribute)
-    LumsCor(shopfloor=sf, wl_norm={server: 100.0}, allowance_factor=2)
-
-    # Start starvation trigger process
-    env.process(lumscor_starvation_trigger(sf, psp))
+    lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
+    env.process(lumscor.starvation_trigger(sf, psp))
 
     # Add a job to shopfloor
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
@@ -120,11 +114,12 @@ def test_lumscor_starvation_trigger_releases_when_empty() -> None:
 def test_lumscor_starvation_trigger_when_queue_has_one() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
+    sf.set_wip_strategy(CorrectedWIPStrategy())
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
 
-    LumsCor(shopfloor=sf, wl_norm={server: 100.0}, allowance_factor=2)
-    env.process(lumscor_starvation_trigger(sf, psp))
+    lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
+    env.process(lumscor.starvation_trigger(sf, psp))
 
     # Add two jobs to shopfloor
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=10.0)
@@ -146,12 +141,13 @@ def test_lumscor_starvation_trigger_when_queue_has_one() -> None:
 def test_lumscor_starvation_no_release_when_no_candidates() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
+    sf.set_wip_strategy(CorrectedWIPStrategy())
     server1 = Server(env=env, capacity=1, shopfloor=sf)
     server2 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
 
-    LumsCor(shopfloor=sf, wl_norm={server1: 100.0, server2: 100.0}, allowance_factor=2)
-    env.process(lumscor_starvation_trigger(sf, psp))
+    lumscor = LumsCor(wl_norm={server1: 100.0, server2: 100.0}, allowance_factor=2)
+    env.process(lumscor.starvation_trigger(sf, psp))
 
     # Add job to server1
     job1 = ProductionJob(env=env, sku="A", servers=[server1], processing_times=[1.0], due_date=10.0)
@@ -170,11 +166,12 @@ def test_lumscor_starvation_no_release_when_no_candidates() -> None:
 def test_lumscor_starvation_selects_by_planned_release_date() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
+    sf.set_wip_strategy(CorrectedWIPStrategy())
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
 
-    LumsCor(shopfloor=sf, wl_norm={server: 100.0}, allowance_factor=2)
-    env.process(lumscor_starvation_trigger(sf, psp))
+    lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
+    env.process(lumscor.starvation_trigger(sf, psp))
 
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
     sf.add(job1)
@@ -189,3 +186,19 @@ def test_lumscor_starvation_selects_by_planned_release_date() -> None:
 
     # The urgent job (earlier planned release date) should be selected
     assert job_urgent not in psp.jobs
+
+
+def test_lumscor_starvation_trigger_requires_corrected_wip_strategy() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
+
+    # Should raise when WIP strategy is not CorrectedWIPStrategy
+    assert isinstance(sf.wip_strategy, StandardWIPStrategy)
+    with pytest.raises(TypeError, match="LumsCor requires CorrectedWIPStrategy"):
+        # Need to actually run the generator to trigger the validation
+        gen = lumscor.starvation_trigger(sf, psp)
+        next(gen)
