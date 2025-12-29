@@ -232,29 +232,3 @@ def test_average_time_in_system_with_jobs() -> None:
     # job2 time_in_system = 6.0 (exit at t=6, enter at t=0)
     # average = (2 + 6) / 2 = 4.0
     assert sf.average_time_in_system == pytest.approx(4.0)
-
-
-def test_update_hourly_throughput_snapshot() -> None:
-    """Throughput snapshot should update after time window passes."""
-    env = Environment()
-    sf = ShopFloor(env=env)
-    server = Server(env=env, capacity=1, shopfloor=sf)
-
-    # Add and process a job quickly
-    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1], due_date=100)
-    sf.add(job1)
-    env.run(until=2)
-
-    assert job1.done
-
-    # Advance time past the 60-second window
-    env.run(until=65)
-
-    # Process another job - this should trigger the throughput update
-    job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1], due_date=200)
-    sf.add(job2)
-    env.run(until=70)
-
-    # The hourly throughput snapshot should have been updated
-    # We just check that the code ran without error
-    assert sf.last_throughput_snapshot_time > 0

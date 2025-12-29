@@ -7,8 +7,6 @@ from typing import TYPE_CHECKING
 from simulatte.environment import Environment
 
 if TYPE_CHECKING:  # pragma: no cover
-    from simpy.core import SimTime
-
     from simulatte.job import ProductionJob
     from simulatte.materials import MaterialCoordinator
     from simulatte.server import Server
@@ -41,9 +39,6 @@ class ShopFloor:
         self.jobs_done: list[Job] = []
         self.wip: dict[Server, float] = {}
         self.total_time_in_system: float = 0.0
-        self.last_throughput_snapshot_time: SimTime = 0
-        self.last_throughput_snapshot_jobs_done: int = 0
-        self.current_hourly_throughput: int = 0
 
         self.ema_makespan: float = 0.0
         self.ema_tardy_jobs: float = 0.0
@@ -143,7 +138,6 @@ class ShopFloor:
         self.jobs.remove(job)
         self.jobs_done.append(job)
         self.total_time_in_system += job.time_in_system
-        self._update_hourly_throughput_snapshot()
 
         lateness = job.lateness
         in_window = job.is_finished_in_due_date_window()
@@ -168,12 +162,3 @@ class ShopFloor:
         self.ema_total_queue_time += self.ema_alpha * (job.total_queue_time - self.ema_total_queue_time)
 
         self.signal_job_finished(job)
-
-    def _update_hourly_throughput_snapshot(self) -> None:
-        time_window = 60
-        if self.env.now - self.last_throughput_snapshot_time >= time_window:
-            jobs_done_now = len(self.jobs_done)
-            jobs_completed_in_window = jobs_done_now - self.last_throughput_snapshot_jobs_done
-            self.last_throughput_snapshot_time = self.env.now
-            self.last_throughput_snapshot_jobs_done = jobs_done_now
-            self.current_hourly_throughput = jobs_completed_in_window
