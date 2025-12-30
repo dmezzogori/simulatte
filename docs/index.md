@@ -51,6 +51,7 @@ print(f"Utilization: {server.utilization_rate:.1%}")
 ## What's next
 
 - [Job-shop basics](tutorials/job-shop-basics.md): multiple servers, multiple jobs, common metrics.
+- [Release control](tutorials/release-control.md): pre-shop pool, release policies (LumsCor, SLAR), and triggers.
 - [ShopFloor extensibility](tutorials/shopfloor-extensibility.md): hooks, WIP strategies, and metrics collectors.
 - [Materials, warehouse, and AGVs](tutorials/materials-warehouse-agvs.md): FIFO blocking material delivery.
 - [Multi-run experiments](tutorials/multi-run-experiments.md): repeatable runs across seeds.
