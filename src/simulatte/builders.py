@@ -28,7 +28,31 @@ def build_immediate_release_system(
     collect_time_series: bool = False,
     retain_job_history: bool = False,
 ) -> PushSystem:
-    """Build an immediate release (push) system with explicit env injection."""
+    """Build an immediate release (push) system with no workload control.
+
+    Creates a simple push system where jobs enter the shopfloor immediately
+    upon arrival without any release control. Useful for baseline comparisons
+    against pull systems (LumsCor, SLAR).
+
+    Args:
+        env: The simulation environment.
+        n_servers: Number of production servers to create.
+        arrival_rate: Inter-arrival rate (lambda for exponential distribution).
+        service_rate: Service rate (lambda for exponential distribution).
+        collect_time_series: If True, servers collect queue length time series.
+        retain_job_history: If True, servers retain completed job references.
+
+    Returns:
+        Tuple of (psp, servers, shop_floor, router) where psp is None.
+
+    Example:
+        >>> env = Environment()
+        >>> _, servers, shop_floor, router = build_immediate_release_system(
+        ...     env, n_servers=6, arrival_rate=1.5
+        ... )
+        >>> env.run(until=1000)
+        >>> print(f"Jobs completed: {len(shop_floor.jobs_done)}")
+    """
     shop_floor = ShopFloor(env=env)
     servers = tuple(
         Server(
@@ -66,19 +90,39 @@ def build_lumscor_system(
     arrival_rate: float = 1 / 0.648,
     service_rate: float = 2.0,
 ) -> PullSystem:
-    """Build a LumsCor (load-based) pull system.
+    """Build a LumsCor (load-based) pull system with workload control.
+
+    Creates a pull system using LUMS-COR (Land's Upper limit for Make-Span
+    with CORrected workload) release policy. Jobs are held in a Pre-Shop Pool
+    and released only when server workloads stay below configured norms.
+
+    Uses CorrectedWIPStrategy which discounts downstream workload by position,
+    and includes starvation avoidance triggers for idle servers.
 
     Args:
         env: The simulation environment.
         check_timeout: Time between pool release checks.
-        wl_norm_level: Workload norm level for each server.
-        allowance_factor: Allowance factor for due date calculation.
+        wl_norm_level: Workload norm threshold for each server. Jobs are
+            released only if adding them keeps corrected WIP at or below this level.
+        allowance_factor: Buffer time per server for due date calculation.
+            Higher values result in earlier (more conservative) releases.
         n_servers: Number of production servers.
-        arrival_rate: Inter-arrival rate (lambda for exponential).
-        service_rate: Service rate (lambda for truncated 2-Erlang).
+        arrival_rate: Inter-arrival rate (lambda for exponential distribution).
+        service_rate: Service rate (lambda for truncated 2-Erlang distribution).
 
     Returns:
         Tuple of (psp, servers, shop_floor, router).
+
+    Example:
+        >>> env = Environment()
+        >>> psp, servers, shop_floor, router = build_lumscor_system(
+        ...     env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2
+        ... )
+        >>> env.run(until=1000)
+
+    References:
+        Land, M.J. (2006). Parameters and sensitivity in workload control.
+        International Journal of Production Economics, 104(2), 625-638.
     """
     shop_floor = ShopFloor(env=env)
     shop_floor.set_wip_strategy(CorrectedWIPStrategy())
@@ -128,15 +172,39 @@ def build_slar_system(
 ) -> PullSystem:
     """Build a SLAR (Superfluous Load Avoidance Release) pull system.
 
+    Creates a pull system using SLAR release policy based on planned slack
+    times (PST). Jobs are released from the Pre-Shop Pool when servers risk
+    starvation or when urgent jobs need insertion.
+
+    Release triggers:
+        - Starvation avoidance: When queue is empty or has one job, release
+          the job with earliest planned start time.
+        - Urgent job insertion: When all queued jobs are non-urgent, insert
+          the most urgent job with shortest processing time.
+
     Args:
         env: The simulation environment.
         allowance_factor: Slack allowance per operation (parameter 'k' in paper).
+            Higher values provide more buffer time per server.
         n_servers: Number of production servers.
-        arrival_rate: Inter-arrival rate (lambda for exponential).
-        service_rate: Service rate (lambda for truncated 2-Erlang).
+        arrival_rate: Inter-arrival rate (lambda for exponential distribution).
+        service_rate: Service rate (lambda for truncated 2-Erlang distribution).
 
     Returns:
         Tuple of (psp, servers, shop_floor, router).
+
+    Example:
+        >>> env = Environment()
+        >>> psp, servers, shop_floor, router = build_slar_system(
+        ...     env, allowance_factor=3.0
+        ... )
+        >>> env.run(until=1000)
+
+    References:
+        Land, M.J. & Gaalman, G.J.C. (1998). The performance of workload control
+        concepts in job shops: Improving the release method.
+        International Journal of Production Economics, 56-57, 347-364.
+        https://doi.org/10.1016/S0925-5273(98)00052-8
     """
     shop_floor = ShopFloor(env=env)
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
