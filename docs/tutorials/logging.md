@@ -130,7 +130,7 @@ Notes:
 | Delivery triggered | `Material delivery triggered for job ab12cd34` | `job_id`, `server_id`, `op_index`, `materials` |
 | Delivery completed | `Material delivery completed for job ab12cd34` | `job_id`, `server_id`, `delivery_time`, `total_deliveries` |
 | Warehouse pick requested | `Warehouse pick requested: 2x A` | `product`, `quantity`, `warehouse_id` |
-| AGV selected | `AGV selected: AGV-0` | `agv_id`, `workload`, `agv_count` |
+| AGV selected | `AGV selected: agv-0` | `agv_id`, `workload`, `agv_count` |
 | AGV transport started | `AGV transport started: 2x A` | `agv_id`, `product`, `quantity`, `destination_id` |
 
 ## Log to file
@@ -194,24 +194,32 @@ When running parallel experiments, each simulation can write to its own log file
 
 ```python
 from pathlib import Path
+
+from simulatte.builders import build_immediate_release_system
 from simulatte.runner import Runner
 
 def builder(*, env):
-    env.info("Simulation starting")
-    # ... build system ...
-    return system
+    env.info("Simulation starting", component="Main")
+    return build_immediate_release_system(env, n_servers=6, arrival_rate=1.5, service_rate=2.0)
 
-runner = Runner(
-    builder=builder,
-    seeds=range(10),
-    parallel=True,
-    extract_fn=extract,
-    log_dir=Path("logs"),        # Each run gets its own file
-    log_format="json",           # Optional: use JSON format
-)
+def extract(system):
+    _psp, servers, shopfloor, _router = system
+    avg_util = sum(s.utilization_rate for s in servers) / len(servers)
+    return {"jobs_done": len(shopfloor.jobs_done), "avg_utilization": avg_util}
 
-results = runner.run(until=1000)
-# Creates: logs/sim_0000_seed_0.log, logs/sim_0001_seed_1.log, ...
+if __name__ == "__main__":
+    runner = Runner(
+        builder=builder,
+        seeds=range(10),
+        parallel=True,
+        extract_fn=extract,
+        log_dir=Path("logs"),  # Each run gets its own file
+        log_format="json",  # Optional: use JSON format
+    )
+
+    results = runner.run(until=1000)
+    print(results)
+    # Creates: logs/sim_0000_seed_0.log, logs/sim_0001_seed_1.log, ...
 ```
 
 ## Context manager
@@ -230,17 +238,21 @@ with Environment(log_file="run.log") as env:
 Add logging to your custom components:
 
 ```python
+from simulatte.server import Server
+
 class MyServer(Server):
-    def process(self, job):
+    def process_job(self, job, processing_time):
         self.env.debug(
             f"Processing {job.sku}",
             component=self.__class__.__name__,
             job_id=job.id,
+            processing_time=processing_time,
         )
-        yield from super().process(job)
+        yield from super().process_job(job, processing_time)
         self.env.info(
             f"Completed {job.sku}",
             component=self.__class__.__name__,
-            duration=job.processing_times[0],
+            job_id=job.id,
+            processing_time=processing_time,
         )
 ```

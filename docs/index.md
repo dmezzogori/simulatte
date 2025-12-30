@@ -11,6 +11,8 @@ Discrete-event simulation framework for job-shop scheduling and intralogistics, 
 
 ## Install
 
+Requires Python 3.14+.
+
 ```bash
 pip install simulatte
 ```

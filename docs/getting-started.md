@@ -9,6 +9,8 @@ This guide gets you from “installed” to “first simulation” using Simulat
 
 ## Install
 
+Requires Python 3.14+.
+
 ```bash
 pip install simulatte
 ```
