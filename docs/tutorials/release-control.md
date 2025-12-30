@@ -176,6 +176,7 @@ def run_system(builder_fn, builder_kwargs, until=1000):
             "avg_utilization": sum(s.utilization_rate for s in servers) / len(servers),
         }
 
+    # progress=None (default) auto-enables tqdm on TTY; set False to disable
     runner = Runner(builder=builder, seeds=range(5), parallel=False, extract_fn=extract)
     return runner.run(until=until)
 

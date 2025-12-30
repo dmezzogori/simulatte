@@ -33,6 +33,16 @@ def extract_time(system: SimpleSystem) -> float:
     return system.env.now
 
 
+def random_value_builder(env: Environment) -> tuple[Environment, float]:
+    import random
+
+    return (env, random.random())
+
+
+def extract_random_value(system: tuple[Environment, float]) -> float:
+    return system[1]
+
+
 def test_runner_sequential_single_seed() -> None:
     runner = Runner(
         builder=simple_builder,
@@ -141,6 +151,23 @@ def test_runner_parallel_smoke_test() -> None:
 
     assert len(results) == 2
     assert all(r == 10.0 for r in results)
+
+
+def test_runner_parallel_preserves_seed_order() -> None:
+    import random
+
+    seeds = [1, 2, 3, 4]
+    runner = Runner(
+        builder=random_value_builder,
+        seeds=seeds,
+        parallel=True,
+        extract_fn=extract_random_value,
+        n_jobs=2,
+    )
+
+    results = runner.run(until=1.0)
+
+    assert results == [random.Random(seed).random() for seed in seeds]
 
 
 def test_runner_parallel_with_n_jobs_none() -> None:

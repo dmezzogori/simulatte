@@ -7,6 +7,7 @@ Goal: run the same stochastic system multiple times (different seeds) and collec
 - seeding `random`
 - building a fresh `Environment` for each run
 - optional multiprocessing (`parallel=True`)
+- a `tqdm` progress bar (auto-enabled on TTY; override with `progress=True/False`)
 
 ## Example: push system with stochastic arrivals
 
@@ -30,6 +31,7 @@ runner = Runner(
     builder=builder,
     seeds=range(10),
     parallel=False,
+    # progress=None (default) auto-enables on TTY; set False to disable
     extract_fn=extract,
 )
 
@@ -46,4 +48,3 @@ if __name__ == "__main__":
     runner = Runner(builder=builder, seeds=range(20), parallel=True, extract_fn=extract)
     print(runner.run(until=1_000))
 ```
-

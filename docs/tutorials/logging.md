@@ -215,6 +215,7 @@ if __name__ == "__main__":
         extract_fn=extract,
         log_dir=Path("logs"),  # Each run gets its own file
         log_format="json",  # Optional: use JSON format
+        # progress=None (default) auto-enables tqdm on TTY; set False to disable
     )
 
     results = runner.run(until=1000)
