@@ -7,7 +7,7 @@ authors = [
     { name = "Davide Mezzogori", email = "dmezzogori@users.noreply.github.com" },
 ]
 license = "MIT"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 keywords = ["simulation", "discrete-event", "intralogistics", "operations", "simpy"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -15,6 +15,8 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering",
     "Typing :: Typed",
@@ -83,8 +85,8 @@ exclude = [
 # Same as Black.
 line-length = 120
 
-# Assume Python 3.14.
-target-version = "py314"
+# Assume Python 3.12.
+target-version = "py312"
 
 [tool.ruff.lint]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.

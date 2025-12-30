@@ -76,7 +76,7 @@ Simulatte is a discrete-event simulation framework for job-shop scheduling and i
 
 ## Code Style
 
-- Python 3.14+, line length 120
+- Python 3.12+, line length 120
 - All files must have `from __future__ import annotations`
 - Ruff for linting/formatting, ty for type checking
 - 99% test coverage required

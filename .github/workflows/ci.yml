@@ -9,6 +9,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
@@ -18,22 +22,29 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install Python 3.14
-        run: uv python install 3.14
+      - name: Install Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --dev
+        run: uv sync --dev --python ${{ matrix.python-version }} --frozen
+
+      - name: Check lockfile is up-to-date
+        if: matrix.python-version == '3.14'
+        run: uv lock --check
 
       - name: Run linting
+        if: matrix.python-version == '3.14'
         run: uv run ruff check src tests
 
       - name: Run type checking
+        if: matrix.python-version == '3.14'
         run: uv run ty check src
 
       - name: Run tests with coverage
         run: uv run pytest
 
       - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.14'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

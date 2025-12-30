@@ -9,7 +9,7 @@ This guide gets you from “installed” to “first simulation” using Simulat
 
 ## Install
 
-Requires Python 3.14+.
+Requires Python 3.12+ (tested on Python 3.12–3.14).
 
 ```bash
 pip install simulatte
