@@ -4,6 +4,7 @@ from __future__ import annotations
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.policies.slar import Slar
+from simulatte.policies.triggers import on_completion_trigger
 from simulatte.psp import PreShopPool
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
@@ -69,7 +70,7 @@ def test_slar_release_when_server_empty() -> None:
     slar = Slar(allowance_factor=2)
 
     # Start SLAR release trigger process
-    env.process(slar.slar_release_triggers(sf, psp))
+    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
 
     # Add a job to shopfloor and process it
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
@@ -93,7 +94,7 @@ def test_slar_release_when_queue_has_one() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    env.process(slar.slar_release_triggers(sf, psp))
+    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
 
     # Add two jobs to shopfloor - one processing, one waiting
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=10.0)
@@ -120,7 +121,7 @@ def test_slar_no_release_when_no_candidates() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    env.process(slar.slar_release_triggers(sf, psp))
+    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
 
     # Add job to server1
     job1 = ProductionJob(env=env, sku="A", servers=[server1], processing_times=[1.0], due_date=10.0)
@@ -144,7 +145,7 @@ def test_slar_selects_minimum_pst_job() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    env.process(slar.slar_release_triggers(sf, psp))
+    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
 
     # Add processing job
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
@@ -179,6 +180,29 @@ def test_slar_allowance_factor() -> None:
     assert pst1 != pst2
 
 
+def test_slar_starvation_release_no_previous_server() -> None:
+    """Starvation release should return early when triggering job has no previous server."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    # Add a candidate job to PSP
+    candidate = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=20.0)
+    psp.add(candidate)
+
+    # Create a fresh job with no previous_server (never processed)
+    fresh_job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
+    assert fresh_job.previous_server is None
+
+    # This should return early without releasing anything
+    slar.starvation_release(fresh_job, psp)
+
+    # Candidate should still be in PSP
+    assert candidate in psp.jobs
+
+
 def test_slar_negative_pst_release() -> None:
     """Test releasing negative PST job when all queued jobs have positive PST.
 
@@ -194,7 +218,7 @@ def test_slar_negative_pst_release() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    env.process(slar.slar_release_triggers(sf, psp))
+    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
 
     # Add jobs that take a while to process (with far due dates = positive PST)
     processing_job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=1000.0)

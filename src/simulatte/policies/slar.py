@@ -8,8 +8,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.job import ProductionJob
     from simulatte.psp import PreShopPool
     from simulatte.server import Server
-    from simulatte.shopfloor import ShopFloor
-    from simulatte.typing import ProcessGenerator
 
 
 class Slar:
@@ -27,6 +25,12 @@ class Slar:
     2. **Urgent job insertion**: When all queued jobs at a station are
        non-urgent (positive PST), release an urgent job (negative PST)
        with the shortest processing time to minimize disruption.
+
+    Example:
+        >>> from simulatte.policies.triggers import on_completion_trigger
+        >>> slar = Slar(allowance_factor=3.0)
+        >>> psp = PreShopPool(env=env, shopfloor=shopfloor)
+        >>> env.process(on_completion_trigger(shopfloor, psp, slar.starvation_release))
 
     Reference:
         Land, M.J. & Gaalman, G.J.C. (1998). The performance of workload
@@ -75,11 +79,14 @@ class Slar:
         pst = self.pst_priority_policy(job, server)
         return float(pst) if pst is not None else 0.0
 
-    def slar_release_triggers(self, shopfloor: ShopFloor, psp: PreShopPool) -> ProcessGenerator:
-        """Monitor job completions and trigger releases from the Pre-Shop Pool.
+    def starvation_release(self, triggering_job: ProductionJob, psp: PreShopPool) -> None:
+        """Release a job based on SLAR algorithm triggers.
 
-        This generator process waits for job processing completions and evaluates
-        whether to release a new job based on the SLAR algorithm triggers.
+        Evaluates whether to release a new job when a job finishes processing.
+        Implements two release triggers: starvation avoidance and urgent job
+        insertion.
+
+        This method is designed to be used with `on_completion_trigger`.
 
         Note:
             This implementation extends the original paper algorithm by also
@@ -87,45 +94,40 @@ class Slar:
             not just when empty.
 
         Args:
-            shopfloor: The shopfloor to monitor for job completions.
+            triggering_job: The job that just finished processing.
             psp: The Pre-Shop Pool to release jobs from.
-
-        Yields:
-            Waits for job_processing_end events from the shopfloor.
         """
-        while True:
-            triggering_job: ProductionJob = yield shopfloor.job_processing_end
-            server_triggered = triggering_job.previous_server
+        server_triggered = triggering_job.previous_server
 
-            if server_triggered is None:  # pragma: no cover
-                continue
+        if server_triggered is None:
+            return
 
-            candidate_job: ProductionJob | None = None
+        candidate_job: ProductionJob | None = None
 
-            is_empty = server_triggered.empty
-            has_one = len(server_triggered.queue) == 1
+        is_empty = server_triggered.empty
+        has_one = len(server_triggered.queue) == 1
 
-            # Extension: Also trigger when queue has exactly 1 job to prevent
-            # imminent starvation (more aggressive than original paper algorithm)
-            if is_empty or has_one:
-                candidate_job = min(
-                    (job for job in psp.jobs if job.starts_at(server_triggered)),
-                    default=None,
-                    key=lambda j: self._pst_value(j, server_triggered),
-                )
-            elif all(self._pst_value(job, server_triggered) > 0 for job in server_triggered.queueing_jobs):
-                # Per paper: select shortest processing time to minimize disruption
-                # when inserting urgent job into non-urgent queue
-                candidate_job = min(
-                    (
-                        job
-                        for job in psp.jobs
-                        if (job.starts_at(server_triggered) and self._pst_value(job, server_triggered) < 0)
-                    ),
-                    default=None,
-                    key=lambda j: j.processing_times[0],
-                )
+        # Extension: Also trigger when queue has exactly 1 job to prevent
+        # imminent starvation (more aggressive than original paper algorithm)
+        if is_empty or has_one:
+            candidate_job = min(
+                (job for job in psp.jobs if job.starts_at(server_triggered)),
+                default=None,
+                key=lambda j: self._pst_value(j, server_triggered),
+            )
+        elif all(self._pst_value(job, server_triggered) > 0 for job in server_triggered.queueing_jobs):  # type: ignore[arg-type]
+            # Per paper: select shortest processing time to minimize disruption
+            # when inserting urgent job into non-urgent queue
+            candidate_job = min(
+                (
+                    job
+                    for job in psp.jobs
+                    if (job.starts_at(server_triggered) and self._pst_value(job, server_triggered) < 0)
+                ),
+                default=None,
+                key=lambda j: j.processing_times[0],
+            )
 
-            if candidate_job is not None:
-                psp.remove(job=candidate_job)
-                shopfloor.add(candidate_job)
+        if candidate_job is not None:
+            psp.remove(job=candidate_job)
+            psp.shopfloor.add(candidate_job)

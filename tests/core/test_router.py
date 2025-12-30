@@ -24,7 +24,7 @@ def test_generate_job_adds_to_psp_and_sets_attributes() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
-    psp = PreShopPool(env=env, shopfloor=sf, check_timeout=100, psp_release_policy=None)
+    psp = PreShopPool(env=env, shopfloor=sf)
 
     Router(
         env=env,

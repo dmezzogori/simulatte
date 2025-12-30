@@ -5,6 +5,7 @@ import pytest
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.policies.lumscor import LumsCor
+from simulatte.policies.triggers import on_completion_trigger
 from simulatte.psp import PreShopPool
 from simulatte.server import Server
 from simulatte.shopfloor import CorrectedWIPStrategy, ShopFloor, StandardWIPStrategy
@@ -21,7 +22,7 @@ def test_lumscor_requires_corrected_wip_strategy() -> None:
     # Should raise when WIP strategy is not CorrectedWIPStrategy
     assert isinstance(sf.wip_strategy, StandardWIPStrategy)
     with pytest.raises(TypeError, match="LumsCor requires CorrectedWIPStrategy"):
-        lumscor.release(psp, sf)
+        lumscor.periodic_release(psp)
 
 
 def test_lumscor_release_under_norm() -> None:
@@ -37,7 +38,7 @@ def test_lumscor_release_under_norm() -> None:
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=20.0)
     psp.add(job)
 
-    lumscor.release(psp, sf)
+    lumscor.periodic_release(psp)
 
     # Job should be released since WIP is well under norm
     assert job not in psp.jobs
@@ -57,7 +58,7 @@ def test_lumscor_release_respects_norm() -> None:
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=20.0)
     psp.add(job)
 
-    lumscor.release(psp, sf)
+    lumscor.periodic_release(psp)
 
     # Job should stay in PSP since adding it would exceed norm
     assert job in psp.jobs
@@ -79,14 +80,14 @@ def test_lumscor_release_order_by_planned_release_date() -> None:
     psp.add(job_late)
     psp.add(job_early)
 
-    lumscor.release(psp, sf)
+    lumscor.periodic_release(psp)
 
     # Both should be released since norm is high
     assert job_early not in psp.jobs
     assert job_late not in psp.jobs
 
 
-def test_lumscor_starvation_trigger_releases_when_empty() -> None:
+def test_lumscor_starvation_release_when_empty() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     sf.set_wip_strategy(CorrectedWIPStrategy())
@@ -94,7 +95,7 @@ def test_lumscor_starvation_trigger_releases_when_empty() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
 
     lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
-    env.process(lumscor.starvation_trigger(sf, psp))
+    env.process(on_completion_trigger(sf, psp, lumscor.starvation_release))
 
     # Add a job to shopfloor
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
@@ -111,7 +112,7 @@ def test_lumscor_starvation_trigger_releases_when_empty() -> None:
     assert job2 not in psp.jobs
 
 
-def test_lumscor_starvation_trigger_when_queue_has_one() -> None:
+def test_lumscor_starvation_release_when_queue_has_one() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     sf.set_wip_strategy(CorrectedWIPStrategy())
@@ -119,7 +120,7 @@ def test_lumscor_starvation_trigger_when_queue_has_one() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
 
     lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
-    env.process(lumscor.starvation_trigger(sf, psp))
+    env.process(on_completion_trigger(sf, psp, lumscor.starvation_release))
 
     # Add two jobs to shopfloor
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=10.0)
@@ -147,7 +148,7 @@ def test_lumscor_starvation_no_release_when_no_candidates() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
 
     lumscor = LumsCor(wl_norm={server1: 100.0, server2: 100.0}, allowance_factor=2)
-    env.process(lumscor.starvation_trigger(sf, psp))
+    env.process(on_completion_trigger(sf, psp, lumscor.starvation_release))
 
     # Add job to server1
     job1 = ProductionJob(env=env, sku="A", servers=[server1], processing_times=[1.0], due_date=10.0)
@@ -171,7 +172,7 @@ def test_lumscor_starvation_selects_by_planned_release_date() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
 
     lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
-    env.process(lumscor.starvation_trigger(sf, psp))
+    env.process(on_completion_trigger(sf, psp, lumscor.starvation_release))
 
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
     sf.add(job1)
@@ -188,7 +189,32 @@ def test_lumscor_starvation_selects_by_planned_release_date() -> None:
     assert job_urgent not in psp.jobs
 
 
-def test_lumscor_starvation_trigger_requires_corrected_wip_strategy() -> None:
+def test_lumscor_starvation_release_no_previous_server() -> None:
+    """Starvation release should return early when triggering job has no previous server."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.set_wip_strategy(CorrectedWIPStrategy())
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
+
+    # Add a candidate job to PSP
+    candidate = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=20.0)
+    psp.add(candidate)
+
+    # Create a fresh job with no previous_server (never processed)
+    fresh_job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
+    assert fresh_job.previous_server is None
+
+    # This should return early without releasing anything
+    lumscor.starvation_release(fresh_job, psp)
+
+    # Candidate should still be in PSP
+    assert candidate in psp.jobs
+
+
+def test_lumscor_starvation_release_requires_corrected_wip_strategy() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
@@ -198,7 +224,10 @@ def test_lumscor_starvation_trigger_requires_corrected_wip_strategy() -> None:
 
     # Should raise when WIP strategy is not CorrectedWIPStrategy
     assert isinstance(sf.wip_strategy, StandardWIPStrategy)
+
+    # Create a dummy triggering job and set its previous_server by setting servers_exit_at
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
+    job.servers_exit_at[server] = 0.0  # This makes previous_server return server
+
     with pytest.raises(TypeError, match="LumsCor requires CorrectedWIPStrategy"):
-        # Need to actually run the generator to trigger the validation
-        gen = lumscor.starvation_trigger(sf, psp)
-        next(gen)
+        lumscor.starvation_release(job, psp)

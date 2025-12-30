@@ -9,20 +9,6 @@ from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
 
 
-class DummyPolicy:
-    """Dummy release policy for testing."""
-
-    def __init__(self) -> None:
-        self.called = 0
-
-    def release(self, psp: PreShopPool, shopfloor: ShopFloor) -> None:
-        """Release all jobs from PSP to shopfloor."""
-        self.called += 1
-        while not psp.empty:
-            job = psp.remove()
-            shopfloor.add(job)
-
-
 def test_psp_add_remove_sets_exit_time() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
@@ -37,22 +23,6 @@ def test_psp_add_remove_sets_exit_time() -> None:
     removed = psp.remove()
     assert removed is job
     assert job.psp_exit_at == env.now
-
-
-def test_psp_main_invokes_policy() -> None:
-    env = Environment()
-    sf = ShopFloor(env=env)
-    server = Server(env=env, capacity=1, shopfloor=sf)
-    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1], due_date=5)
-    policy = DummyPolicy()
-    psp = PreShopPool(env=env, shopfloor=sf, check_timeout=0.1, psp_release_policy=policy)
-
-    psp.add(job)
-    env.run(until=0.3)
-
-    assert policy.called == 1  # policy invoked while job present
-    assert len(psp) == 0
-    assert job in sf.jobs or job in sf.jobs_done
 
 
 def test_psp_signal_new_job_triggers_event() -> None:

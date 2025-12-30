@@ -10,6 +10,7 @@ from simulatte.environment import Environment
 from simulatte.policies.lumscor import LumsCor
 from simulatte.policies.slar import Slar
 from simulatte.policies.starvation_avoidance import starvation_avoidance_process
+from simulatte.policies.triggers import on_completion_trigger, periodic_trigger
 from simulatte.psp import PreShopPool
 from simulatte.router import Router
 from simulatte.server import Server
@@ -129,13 +130,7 @@ def build_lumscor_system(
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
 
     lumscor = LumsCor(wl_norm=dict.fromkeys(servers, float(wl_norm_level)), allowance_factor=int(allowance_factor))
-
-    psp = PreShopPool(
-        env=env,
-        shopfloor=shop_floor,
-        check_timeout=float(check_timeout),
-        psp_release_policy=lumscor,
-    )
+    psp = PreShopPool(env=env, shopfloor=shop_floor)
     router = Router(
         env=env,
         shopfloor=shop_floor,
@@ -156,7 +151,9 @@ def build_lumscor_system(
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
     )
 
-    env.process(lumscor.starvation_trigger(shopfloor=shop_floor, psp=psp))
+    # Compose release triggers
+    env.process(periodic_trigger(psp, float(check_timeout), lumscor.periodic_release))
+    env.process(on_completion_trigger(shop_floor, psp, lumscor.starvation_release))
     env.process(starvation_avoidance_process(shop_floor, psp))  # type: ignore[arg-type]
 
     return psp, servers, shop_floor, router
@@ -208,8 +205,8 @@ def build_slar_system(
     """
     shop_floor = ShopFloor(env=env)
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
-    psp = PreShopPool(env=env, shopfloor=shop_floor, check_timeout=0, psp_release_policy=None)
     slar = Slar(allowance_factor=allowance_factor)
+    psp = PreShopPool(env=env, shopfloor=shop_floor)
     router = Router(
         env=env,
         shopfloor=shop_floor,
@@ -230,7 +227,9 @@ def build_slar_system(
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
         priority_policies=lambda job, server: slar.pst_priority_policy(job, server) or 0.0,
     )
-    env.process(slar.slar_release_triggers(shopfloor=shop_floor, psp=psp))
+
+    # Compose release triggers (event-driven only, no periodic)
+    env.process(on_completion_trigger(shop_floor, psp, slar.starvation_release))
     env.process(starvation_avoidance_process(shop_floor, psp))  # type: ignore[arg-type]
 
     return psp, servers, shop_floor, router

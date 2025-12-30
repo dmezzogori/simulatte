@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from simulatte.psp import PreShopPool
     from simulatte.server import Server
     from simulatte.shopfloor import ShopFloor
-    from simulatte.typing import ProcessGenerator
 
 
 class LumsCor:
@@ -32,17 +31,19 @@ class LumsCor:
     2. Releasing a job only if adding it keeps each server's corrected WIP
        at or below its workload norm
 
-    The starvation trigger complements periodic releases by immediately releasing
+    The starvation release complements periodic releases by immediately releasing
     jobs when servers become idle or nearly idle.
 
     Requires CorrectedWIPStrategy on the shopfloor, which accounts for downstream
     workload when computing WIP at each server.
 
     Example:
+        >>> from simulatte.policies.triggers import periodic_trigger, on_completion_trigger
         >>> lumscor = LumsCor(wl_norm={server: 10.0}, allowance_factor=2)
         >>> shopfloor.set_wip_strategy(CorrectedWIPStrategy())
-        >>> psp = PreShopPool(..., psp_release_policy=lumscor)
-        >>> env.process(lumscor.starvation_trigger(shopfloor, psp))
+        >>> psp = PreShopPool(env=env, shopfloor=shopfloor)
+        >>> env.process(periodic_trigger(psp, 1.0, lumscor.periodic_release))
+        >>> env.process(on_completion_trigger(shopfloor, psp, lumscor.starvation_release))
     """
 
     def __init__(self, *, wl_norm: dict[Server, float], allowance_factor: int) -> None:
@@ -70,17 +71,19 @@ class LumsCor:
             msg = "LumsCor requires CorrectedWIPStrategy. Use shopfloor.set_wip_strategy() first."
             raise TypeError(msg)
 
-    def release(self, psp: PreShopPool, shopfloor: ShopFloor) -> None:
+    def periodic_release(self, psp: PreShopPool) -> None:
         """Release jobs from PSP to shopfloor based on workload norms.
 
         Jobs are considered in order of their planned release date (earliest first).
         A job is released only if adding it would keep each server's corrected WIP
         at or below the configured workload norm.
 
+        This method is designed to be used with `periodic_trigger`.
+
         Args:
             psp: The Pre-Shop Pool containing candidate jobs.
-            shopfloor: The shopfloor to release jobs into.
         """
+        shopfloor = psp.shopfloor
         self._validate_wip_strategy(shopfloor)
         for job in sorted(psp.jobs, key=lambda j: j.planned_release_date(self.allowance_factor)):
             if all(
@@ -90,38 +93,33 @@ class LumsCor:
                 psp.remove(job=job)
                 shopfloor.add(job)
 
-    def starvation_trigger(self, shopfloor: ShopFloor, psp: PreShopPool) -> ProcessGenerator:
-        """Generator process that releases jobs when servers risk starvation.
+    def starvation_release(self, triggering_job: ProductionJob, psp: PreShopPool) -> None:
+        """Release a job when a server risks starvation.
 
-        Listens for job processing completion events. When a server becomes empty
-        or has only one job queued, releases the job from PSP with the earliest
-        planned release date that starts at that server.
+        When a server becomes empty or has only one job queued, releases the
+        job from PSP with the earliest planned release date that starts at
+        that server.
 
-        This process should be registered with env.process() and runs continuously.
+        This method is designed to be used with `on_completion_trigger`.
 
         Args:
-            shopfloor: The shopfloor to monitor for starvation.
+            triggering_job: The job that just finished processing.
             psp: The Pre-Shop Pool to release jobs from.
-
-        Yields:
-            Waits for job_processing_end events from the shopfloor.
         """
-        self._validate_wip_strategy(shopfloor)
-        while True:
-            triggering_job: ProductionJob = yield shopfloor.job_processing_end
-            server_triggered = triggering_job.previous_server
+        self._validate_wip_strategy(psp.shopfloor)
+        server_triggered = triggering_job.previous_server
 
-            if server_triggered is None:  # pragma: no cover
-                continue
+        if server_triggered is None:
+            return
 
-            is_empty = server_triggered.empty
-            has_one = len(server_triggered.queue) == 1
-            if is_empty or has_one:
-                candidate_job = min(
-                    (job for job in psp.jobs if job.starts_at(server_triggered)),
-                    default=None,
-                    key=lambda j: j.planned_release_date(self.allowance_factor),
-                )
-                if candidate_job:
-                    psp.remove(job=candidate_job)
-                    shopfloor.add(candidate_job)
+        is_empty = server_triggered.empty
+        has_one = len(server_triggered.queue) == 1
+        if is_empty or has_one:
+            candidate_job = min(
+                (job for job in psp.jobs if job.starts_at(server_triggered)),
+                default=None,
+                key=lambda j: j.planned_release_date(self.allowance_factor),
+            )
+            if candidate_job:
+                psp.remove(job=candidate_job)
+                psp.shopfloor.add(candidate_job)
