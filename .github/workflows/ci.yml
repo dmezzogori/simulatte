@@ -25,6 +25,9 @@ jobs:
       - name: Install Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libjpeg-dev zlib1g-dev
+
       - name: Install dependencies
         run: uv sync --dev --python ${{ matrix.python-version }} --frozen
 
