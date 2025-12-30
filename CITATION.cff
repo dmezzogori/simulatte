@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Simulatte"
+abstract: "Discrete-event simulation framework for job-shop scheduling and intralogistics, built on SimPy."
+authors:
+  - family-names: "Mezzogori"
+    given-names: "Davide"
+    orcid: "https://orcid.org/0000-0002-3303-0789"
+version: "0.1.4"
+date-released: "2025-01-01"
+license: "MIT"
+repository-code: "https://github.com/dmezzogori/simulatte"
+url: "https://dmezzogori.github.io/simulatte/"
+keywords:
+  - discrete-event simulation
+  - job-shop scheduling
+  - intralogistics
+  - SimPy
+  - Python
