@@ -99,6 +99,92 @@ shopfloor = ShopFloor(env=env, metrics_collector=collector)
 print(collector.ema_makespan, collector.ema_total_queue_time)
 ```
 
+## Time-series collectors and plotting
+
+Time-series collectors capture metrics over simulation time for analysis and visualization. Unlike `MetricsCollector` (which aggregates per-job), time-series collectors record data points at each lifecycle event.
+
+### Enable with convenience flag
+
+```python
+from simulatte.environment import Environment
+from simulatte.shopfloor import ShopFloor
+
+env = Environment()
+shopfloor = ShopFloor(env=env, collect_time_series=True)
+```
+
+This creates a `DefaultTimeSeriesCollector` that tracks:
+
+- `wip_ts`: Total WIP over time
+- `job_count_ts`: Number of jobs in system over time
+- `throughput_ts`: Cumulative completed jobs
+- `lateness_ts`: Job lateness at completion
+
+### Access the collector and plot
+
+```python
+from simulatte.environment import Environment
+from simulatte.job import ProductionJob
+from simulatte.server import Server
+from simulatte.shopfloor import DefaultTimeSeriesCollector, ShopFloor
+
+collector = DefaultTimeSeriesCollector()
+env = Environment()
+shopfloor = ShopFloor(env=env, time_series_collector=collector)
+server = Server(env=env, capacity=1, shopfloor=shopfloor)
+
+job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=10.0)
+shopfloor.add(job)
+env.run()
+
+# Plot collected metrics (requires matplotlib)
+collector.plot_wip()
+collector.plot_job_count()
+collector.plot_throughput()
+collector.plot_lateness()
+```
+
+### Access raw data
+
+```python
+# Each time-series is a list of (time, value) tuples
+for time, wip in collector.wip_ts:
+    print(f"t={time}: WIP={wip}")
+```
+
+### Provide a custom collector
+
+Any object implementing the `TimeSeriesCollector` protocol works:
+
+```python
+class TardyTracker:
+    def __init__(self) -> None:
+        self.tardy_times: list[float] = []
+
+    def on_job_entered(self, shopfloor, job) -> None:
+        pass  # Called when job enters shopfloor
+
+    def on_operation_completed(self, shopfloor, job, server, op_index) -> None:
+        pass  # Called after each operation completes
+
+    def on_job_finished(self, shopfloor, job) -> None:
+        if job.lateness > 0:
+            self.tardy_times.append(shopfloor.env.now)
+
+tracker = TardyTracker()
+shopfloor = ShopFloor(env=env, time_series_collector=tracker)
+```
+
+### Swap collector at runtime
+
+```python
+from simulatte.shopfloor import DefaultTimeSeriesCollector
+
+shopfloor.set_time_series_collector(DefaultTimeSeriesCollector())
+# or disable:
+shopfloor.set_time_series_collector(None)
+```
+
 ## Job-finished callbacks
 
 Use `on_job_finished` to run synchronous callbacks when a job completes its full routing:

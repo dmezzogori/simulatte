@@ -466,3 +466,199 @@ def test_hooks_with_multi_server_routing() -> None:
     assert hook_calls[0] == (0, 0)  # server1, op 0
     assert hook_calls[1] == (1, 1)  # server2, op 1
     assert hook_calls[2] == (2, 2)  # server3, op 2
+
+
+# =============================================================================
+# Time-Series Collector Tests
+# =============================================================================
+
+
+def test_time_series_collector_disabled_by_default() -> None:
+    """Time-series collector should be None when not configured."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    assert sf.time_series_collector is None
+
+
+def test_collect_time_series_flag_creates_default_collector() -> None:
+    """collect_time_series=True should create a DefaultTimeSeriesCollector."""
+    from simulatte.shopfloor import DefaultTimeSeriesCollector
+
+    env = Environment()
+    sf = ShopFloor(env=env, collect_time_series=True)
+    assert isinstance(sf.time_series_collector, DefaultTimeSeriesCollector)
+
+
+def test_explicit_time_series_collector_overrides_flag() -> None:
+    """Explicit time_series_collector should take precedence over flag."""
+    from simulatte.shopfloor import DefaultTimeSeriesCollector
+
+    custom_collector = DefaultTimeSeriesCollector()
+    env = Environment()
+    sf = ShopFloor(env=env, collect_time_series=True, time_series_collector=custom_collector)
+    assert sf.time_series_collector is custom_collector
+
+
+def test_set_time_series_collector() -> None:
+    """set_time_series_collector should replace the collector."""
+    from simulatte.shopfloor import DefaultTimeSeriesCollector
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    assert sf.time_series_collector is None
+
+    collector = DefaultTimeSeriesCollector()
+    sf.set_time_series_collector(collector)
+    assert sf.time_series_collector is collector
+
+    sf.set_time_series_collector(None)
+    assert sf.time_series_collector is None
+
+
+def test_default_time_series_collector_collects_wip() -> None:
+    """DefaultTimeSeriesCollector should track WIP over time."""
+    from simulatte.shopfloor import DefaultTimeSeriesCollector
+
+    collector = DefaultTimeSeriesCollector()
+    env = Environment()
+    sf = ShopFloor(env=env, time_series_collector=collector)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    job2 = ProductionJob(env=env, sku="B", servers=[server], processing_times=[3], due_date=20)
+    sf.add(job1)
+    sf.add(job2)
+    env.run()
+
+    # WIP data should have been collected
+    assert len(collector.wip_ts) > 0
+    # First entry after first job enters (WIP = 5)
+    assert collector.wip_ts[0] == (0.0, 5.0)
+    # Second entry after second job enters (WIP = 8)
+    assert collector.wip_ts[1] == (0.0, 8.0)
+
+
+def test_default_time_series_collector_collects_job_count() -> None:
+    """DefaultTimeSeriesCollector should track job count over time."""
+    from simulatte.shopfloor import DefaultTimeSeriesCollector
+
+    collector = DefaultTimeSeriesCollector()
+    env = Environment()
+    sf = ShopFloor(env=env, time_series_collector=collector)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    job2 = ProductionJob(env=env, sku="B", servers=[server], processing_times=[3], due_date=20)
+    sf.add(job1)
+    sf.add(job2)
+    env.run()
+
+    # Job count data should have been collected
+    assert len(collector.job_count_ts) > 0
+    # First entry: 1 job, Second entry: 2 jobs
+    assert collector.job_count_ts[0] == (0.0, 1)
+    assert collector.job_count_ts[1] == (0.0, 2)
+    # After first job finishes: 1 job
+    assert collector.job_count_ts[2] == (5.0, 1)
+    # After second job finishes: 0 jobs
+    assert collector.job_count_ts[3] == (8.0, 0)
+
+
+def test_default_time_series_collector_collects_throughput() -> None:
+    """DefaultTimeSeriesCollector should track cumulative throughput."""
+    from simulatte.shopfloor import DefaultTimeSeriesCollector
+
+    collector = DefaultTimeSeriesCollector()
+    env = Environment()
+    sf = ShopFloor(env=env, time_series_collector=collector)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    job2 = ProductionJob(env=env, sku="B", servers=[server], processing_times=[3], due_date=20)
+    sf.add(job1)
+    sf.add(job2)
+    env.run()
+
+    # Throughput starts at (0, 0)
+    assert collector.throughput_ts[0] == (0.0, 0)
+    # After first job finishes
+    assert collector.throughput_ts[1] == (5.0, 1)
+    # After second job finishes
+    assert collector.throughput_ts[2] == (8.0, 2)
+
+
+def test_default_time_series_collector_collects_lateness() -> None:
+    """DefaultTimeSeriesCollector should track job lateness."""
+    from simulatte.shopfloor import DefaultTimeSeriesCollector
+
+    collector = DefaultTimeSeriesCollector()
+    env = Environment()
+    sf = ShopFloor(env=env, time_series_collector=collector)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    # job1 due at 10, finishes at 5 -> lateness = -5 (early)
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=10)
+    # job2 due at 6, finishes at 8 -> lateness = 2 (tardy)
+    job2 = ProductionJob(env=env, sku="B", servers=[server], processing_times=[3], due_date=6)
+    sf.add(job1)
+    sf.add(job2)
+    env.run()
+
+    assert len(collector.lateness_ts) == 2
+    assert collector.lateness_ts[0] == (5.0, -5.0)  # early
+    assert collector.lateness_ts[1] == (8.0, 2.0)  # tardy
+
+
+def test_custom_time_series_collector() -> None:
+    """Custom time-series collectors should receive lifecycle events."""
+
+    class CustomCollector:
+        def __init__(self) -> None:
+            self.entered: list[str] = []
+            self.op_completed: list[tuple[str, int]] = []
+            self.finished: list[str] = []
+
+        def on_job_entered(self, shopfloor: ShopFloor, job: ProductionJob) -> None:
+            self.entered.append(job.sku)
+
+        def on_operation_completed(
+            self, shopfloor: ShopFloor, job: ProductionJob, server: Server, op_index: int
+        ) -> None:
+            self.op_completed.append((job.sku, op_index))
+
+        def on_job_finished(self, shopfloor: ShopFloor, job: ProductionJob) -> None:
+            self.finished.append(job.sku)
+
+    collector = CustomCollector()
+    env = Environment()
+    sf = ShopFloor(env=env, time_series_collector=collector)
+    server1 = Server(env=env, capacity=1, shopfloor=sf)
+    server2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="PART-X", servers=[server1, server2], processing_times=[2, 3], due_date=10)
+    sf.add(job)
+    env.run()
+
+    assert collector.entered == ["PART-X"]
+    assert collector.op_completed == [("PART-X", 0), ("PART-X", 1)]
+    assert collector.finished == ["PART-X"]
+
+
+def test_time_series_collector_multi_server_wip() -> None:
+    """Time-series collector should capture WIP changes across multiple servers."""
+    from simulatte.shopfloor import DefaultTimeSeriesCollector
+
+    collector = DefaultTimeSeriesCollector()
+    env = Environment()
+    sf = ShopFloor(env=env, time_series_collector=collector)
+    server1 = Server(env=env, capacity=1, shopfloor=sf)
+    server2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server1, server2], processing_times=[3, 4], due_date=20)
+    sf.add(job)
+    env.run()
+
+    # WIP starts at 7 (3 + 4), then decreases as operations complete
+    assert collector.wip_ts[0] == (0.0, 7.0)  # After job enters
+    assert collector.wip_ts[1] == (3.0, 4.0)  # After first op completes
+    assert collector.wip_ts[2] == (7.0, 0.0)  # After second op completes
