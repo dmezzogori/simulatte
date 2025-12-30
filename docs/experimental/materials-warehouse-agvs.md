@@ -56,4 +56,3 @@ print(f"Warehouse picks: {warehouse.total_picks} (avg pick time: {warehouse.aver
 print(f"AGV trips: {agvs[0].trip_count} (avg travel time: {agvs[0].average_travel_time:.1f})")
 print(f"Deliveries: {coordinator.total_deliveries} (avg delivery time: {coordinator.average_delivery_time:.1f})")
 ```
-

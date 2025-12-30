@@ -12,10 +12,13 @@ nav = [
   { "Tutorials" = [
     { "Overview" = "tutorials/index.md" },
     { "Job-shop basics" = "tutorials/job-shop-basics.md" },
-    { "Materials, warehouse, and AGVs" = "tutorials/materials-warehouse-agvs.md" },
     { "Multi-run experiments" = "tutorials/multi-run-experiments.md" },
     { "Logging" = "tutorials/logging.md" },
     { "Troubleshooting" = "tutorials/troubleshooting.md" },
+  ]},
+  { "Experimental" = [
+    { "Overview" = "experimental/index.md" },
+    { "Materials, warehouse, and AGVs" = "experimental/materials-warehouse-agvs.md" },
   ]},
 ]
 
