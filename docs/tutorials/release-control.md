@@ -52,20 +52,29 @@ Example: compose periodic and event-driven triggers together:
 from simulatte.policies.triggers import periodic_trigger, on_completion_trigger
 
 def my_release_fn(psp):
-    """Release oldest job if shopfloor has capacity."""
-    if not psp.empty and len(psp.shopfloor.jobs_in_progress) < 10:
+    """Release oldest job if shopfloor WIP is low."""
+    if not psp.empty and len(psp.shopfloor.jobs) < 10:
         job = psp.remove()
         psp.shopfloor.add(job)
 
 def my_starvation_fn(triggering_job, psp):
-    """Release a job when server might starve."""
-    if not psp.empty:
-        job = psp.remove()
-        psp.shopfloor.add(job)
+    """Release a job when a server might starve.
 
-# Register both triggers as SimPy processes
-env.process(periodic_trigger(psp, interval=5.0, release_fn=my_release_fn))
-env.process(on_completion_trigger(shopfloor, psp, release_fn=my_starvation_fn))
+    The triggering_job is the job that just finished processing.
+    We check if its previous server is now empty.
+    """
+    server = triggering_job.previous_server
+    if server is not None and server.empty and not psp.empty:
+        # Find a job that starts at this server
+        for candidate in psp.jobs:
+            if candidate.starts_at(server):
+                psp.remove(job=candidate)
+                psp.shopfloor.add(candidate)
+                break
+
+# Register triggers
+env.process(periodic_trigger(psp, 5.0, my_release_fn))
+env.process(on_completion_trigger(shopfloor, psp, my_starvation_fn))
 ```
 
 ## 4) Using builders
@@ -111,7 +120,7 @@ psp, servers, shopfloor, router = build_lumscor_system(
 env.run(until=1000)
 
 print(f"Jobs completed: {len(shopfloor.jobs_done)}")
-print(f"Avg time in PSP: {sum(j.psp_exit_at - j.created_at for j in shopfloor.jobs_done) / len(shopfloor.jobs_done):.2f}")
+print(f"Avg time in PSP: {sum(j.time_in_psp for j in shopfloor.jobs_done) / len(shopfloor.jobs_done):.2f}")
 ```
 
 Key parameters:
