@@ -121,3 +121,35 @@ def test_psp_remove_specific_job_not_found() -> None:
 
     with pytest.raises(ValueError, match="not found"):
         psp.remove(job=job2)
+
+
+def test_psp_new_job_multiple_consumers_can_double_remove() -> None:
+    """Multiple listeners to new_job can race and double-remove the same job.
+
+    This test demonstrates the hazard: `new_job` is a broadcast signal and all
+    waiting consumers will receive the same job instance. If more than one
+    consumer attempts to `remove(job=...)`, the second one will raise.
+    """
+    from simulatte.typing import ProcessGenerator
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    def consumer() -> ProcessGenerator:
+        while True:
+            job: ProductionJob = yield psp.new_job
+            psp.remove(job=job)
+
+    env.process(consumer())
+    env.process(consumer())
+
+    # Ensure both consumers are waiting on the current new_job event.
+    env.run(until=0.0001)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1], due_date=5)
+    psp.add(job)
+
+    with pytest.raises(ValueError, match="not found"):
+        env.run(until=0.1)
