@@ -1,6 +1,6 @@
 [project]
 name = "simulatte"
-version = "0.1.4"
+version = "0.2.0"
 description = "A discrete-event simulation framework for intralogistics and operations management"
 readme = "README.md"
 authors = [
@@ -112,6 +112,6 @@ max-complexity = 10
 required-imports = ["from __future__ import annotations"]
 
 [project.urls]
-Homepage = "https://github.com/dmezzogori/simulatte"
+Homepage = "https://simulatte.dev"
 Repository = "https://github.com/dmezzogori/simulatte"
-Documentation = "https://dmezzogori.github.io/simulatte/"
+Documentation = "https://simulatte.dev"

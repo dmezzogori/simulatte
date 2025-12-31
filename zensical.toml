@@ -1,6 +1,6 @@
 [project]
 site_name = "Simulatte"
-site_url = "https://dmezzogori.github.io/simulatte/"
+site_url = "https://simulatte.dev/"
 repo_url = "https://github.com/dmezzogori/simulatte"
 edit_uri = "edit/main/docs/"
 docs_dir = "docs"
