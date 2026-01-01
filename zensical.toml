@@ -24,12 +24,16 @@ nav = [
   ]},
 ]
 
+[project.extra.analytics]
+provider = "custom"
+
 [project.markdown_extensions."pymdownx.highlight"]
 use_pygments = true
 
 [project.markdown_extensions."pymdownx.superfences"]
 
 [project.theme]
+custom_dir = "overrides"
 features = [
   "content.action.edit",
   "content.action.view",
