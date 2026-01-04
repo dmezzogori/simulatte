@@ -29,6 +29,16 @@ dependencies = [
     "tqdm>=4.67.1",
 ]
 
+[project.optional-dependencies]
+web = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.0.0",
+]
+
+[project.scripts]
+simulatte = "simulatte.web.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -48,7 +58,7 @@ addopts = "--cov=src/simulatte --cov-branch --cov-report=term-missing --cov-repo
 testpaths = ["tests"]
 
 [tool.coverage.run]
-omit = ["tests/*"]
+omit = ["tests/*", "src/simulatte/web/*"]
 
 [tool.coverage.report]
 exclude_lines = [
