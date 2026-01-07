@@ -10,6 +10,8 @@
 	let until = $state(100);
 	let snapshotInterval = $state(5);
 	let consoleMessages = $state<string[]>([]);
+	let lastLoadedSnapshotIndex = $state(-1);
+	let snapshotsLoadedForRun = $state<number | null>(null);
 
 	function log(message: string) {
 		consoleMessages = [...consoleMessages.slice(-99), `[${new Date().toLocaleTimeString()}] ${message}`];
@@ -20,6 +22,8 @@
 			log('Starting simulation...');
 			simulation.reset();
 			playback.reset();
+			lastLoadedSnapshotIndex = -1;
+			snapshotsLoadedForRun = null;
 
 			await api.startSimulation(until, undefined, snapshotInterval);
 			simulation.startPolling();
@@ -57,7 +61,9 @@
 
 	// Watch for completion and auto-load snapshots
 	$effect(() => {
-		if ($isCompleted) {
+		const runId = $simulation.runId;
+		if ($isCompleted && runId !== null && snapshotsLoadedForRun !== runId) {
+			snapshotsLoadedForRun = runId;
 			log('Simulation completed, loading snapshots...');
 			loadSnapshots();
 		}
@@ -68,11 +74,20 @@
 	let snapshots = $derived($simulation.snapshots);
 
 	$effect(() => {
-		if (snapshots.length > 0 && currentPlaybackIndex < snapshots.length) {
-			const snapshotItem = snapshots[currentPlaybackIndex];
+		if (snapshots.length > 0 &&
+			currentPlaybackIndex < snapshots.length &&
+			currentPlaybackIndex !== lastLoadedSnapshotIndex) {
+
+			const indexToLoad = currentPlaybackIndex;
+			lastLoadedSnapshotIndex = indexToLoad;
+
+			const snapshotItem = snapshots[indexToLoad];
 			api.getSnapshot(snapshotItem.id).then(snapshot => {
-				simulation.setCurrentSnapshot(snapshot, currentPlaybackIndex);
-			}).catch(e => log(`Error loading snapshot: ${e.message}`));
+				simulation.setCurrentSnapshot(snapshot, indexToLoad);
+			}).catch(e => {
+				lastLoadedSnapshotIndex = -1;
+				log(`Error loading snapshot: ${e.message}`);
+			});
 		}
 	});
 

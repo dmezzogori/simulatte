@@ -27,7 +27,7 @@
 		snapshot?.jobs.filter(j => j.location === 'psp') ?? []
 	);
 
-	let jobsByServer = $derived(() => {
+	let jobsByServer = $derived.by(() => {
 		if (!snapshot) return new Map<number, JobState[]>();
 		const map = new Map<number, JobState[]>();
 		for (const job of snapshot.jobs) {
@@ -79,7 +79,7 @@
 	<!-- Servers -->
 	{#each serverPositions as pos, i}
 		{@const server = snapshot?.servers[i]}
-		{@const queuedJobs = jobsByServer().get(i) ?? []}
+		{@const queuedJobs = jobsByServer.get(i) ?? []}
 		{@const processingJob = processingJobs.find(j => j.server_id === i)}
 
 		<ServerMesh
