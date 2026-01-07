@@ -91,8 +91,10 @@ def create_app(db_path: Path) -> FastAPI:
 
     # Serve static frontend files
     static_dir = Path(__file__).parent / "static"
-    if static_dir.exists():
-        app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
+    app_dir = static_dir / "_app"
+    if static_dir.exists() and app_dir.exists():
+        # Mount SvelteKit's _app directory for JS/CSS bundles
+        app.mount("/_app", StaticFiles(directory=app_dir), name="app")
 
         @app.get("/", response_class=HTMLResponse)
         async def serve_index() -> HTMLResponse:
@@ -104,7 +106,10 @@ def create_app(db_path: Path) -> FastAPI:
 
         @app.get("/{path:path}", response_class=HTMLResponse)
         async def serve_spa(path: str) -> HTMLResponse:
-            """Serve SPA for all other routes."""
+            """Serve SPA for all other routes (except API)."""
+            # Don't catch API routes
+            if path.startswith("api/"):
+                return HTMLResponse(content="Not Found", status_code=404)
             index_path = static_dir / "index.html"
             if index_path.exists():
                 return HTMLResponse(content=index_path.read_text())
