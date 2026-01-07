@@ -4,8 +4,10 @@
       "Bash(docker compose:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
+      "Bash(git show:*)",
       "Bash(git mv:*)",
       "Bash(cat:*)",
+      "Bash(curl:*)",
       "Bash(ls:*)",
       "Bash(mkdir:*)",
       "Bash(mv:*)",
@@ -13,7 +15,11 @@
       "Bash(wc:*)",
       "Bash(uv run ruff:*)",
       "Bash(uv run ty:*)",
-      "Bash(uv run pytest:*)"
+      "Bash(uv run pytest:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(npm run build:*)",
+      "WebSearch"
     ],
     "ask": [
       "Bash(git push:*)"
