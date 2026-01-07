@@ -11,8 +11,8 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
   },
   "dependencies": {
-    "@threlte/core": "^7.3.1",
-    "@threlte/extras": "^8.11.5",
+    "@threlte/core": "^8.0.0",
+    "@threlte/extras": "^9.0.0",
     "echarts": "^5.5.1",
     "three": "^0.169.0"
   },

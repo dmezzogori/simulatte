@@ -21,10 +21,15 @@
 </script>
 
 <div class="console-panel" class:collapsed>
-	<div class="console-header" onclick={() => collapsed = !collapsed}>
+	<button
+		type="button"
+		class="console-header"
+		onclick={() => collapsed = !collapsed}
+		aria-expanded={!collapsed}
+	>
 		<span class="console-title">Console</span>
 		<span class="console-toggle">{collapsed ? '▲' : '▼'}</span>
-	</div>
+	</button>
 
 	{#if !collapsed}
 		<div
@@ -54,10 +59,13 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
+		width: 100%;
 		padding: var(--spacing-xs) var(--spacing-md);
 		cursor: pointer;
 		user-select: none;
 		background: var(--bg-secondary);
+		border: none;
+		font: inherit;
 	}
 
 	.console-header:hover {
