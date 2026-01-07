@@ -23,11 +23,11 @@ function createPlaybackStore() {
 			if (!state.playing) return state;
 
 			const delta = timestamp - lastTime;
-			lastTime = timestamp;
-
-			// Advance based on speed (ms per snapshot)
 			const msPerSnapshot = 500 / state.speed;
+
+			// Only advance and reset lastTime when enough time has passed
 			if (delta >= msPerSnapshot) {
+				lastTime = timestamp;
 				const newIndex = Math.min(state.currentIndex + 1, state.maxIndex);
 				if (newIndex >= state.maxIndex) {
 					// Reached end, stop playing
