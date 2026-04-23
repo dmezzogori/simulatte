@@ -248,7 +248,10 @@ class BaseJob(ABC):
 
     @property
     def planned_slack_time(self) -> float:
-        """Slack time minus total remaining processing time."""
+        """Slack time minus total remaining processing time.
+        
+        NOTE: this is valid only for jobs that have not yet started processing at their first server.
+        """
         return self.slack_time - sum(self._processing_times)
 
     @property
@@ -288,7 +291,7 @@ class BaseJob(ABC):
         raise ValueError("Job is not done or missing finish time. Cannot determine if finished in due date window.")
 
     def planned_release_date(self, allowance: float = 2.0) -> SimTime:
-        """Calculate the optimal release time from the Pre-Shop Pool.
+        """Calculate the planned release date from the Pre-Shop Pool.
 
         Args:
             allowance: Buffer time per server (accounts for queue waiting).
