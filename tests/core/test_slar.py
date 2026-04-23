@@ -25,43 +25,6 @@ def test_slar_pst_priority_policy() -> None:
     assert pst is not None
 
 
-def test_slar_pst_value_none_returns_zero() -> None:
-    """Test that _pst_value returns 0.0 when PST is None (server already visited)."""
-    env = Environment()
-    sf = ShopFloor(env=env)
-    server1 = Server(env=env, capacity=1, shopfloor=sf)
-    server2 = Server(env=env, capacity=1, shopfloor=sf)
-    slar = Slar(allowance_factor=2)
-
-    # Job visits both servers
-    job = ProductionJob(env=env, sku="A", servers=[server1, server2], processing_times=[1.0, 1.0], due_date=20.0)
-
-    # Before processing, PST for server1 should be a float
-    pst_value_before = slar._pst_value(job, server1)
-    assert isinstance(pst_value_before, float)
-    assert pst_value_before != 0.0
-
-    # Process job through server1
-    sf.add(job)
-    env.run(until=2)
-
-    # After exiting server1, PST for server1 is None -> _pst_value returns 0.0
-    pst_value_after = slar._pst_value(job, server1)
-    assert pst_value_after == 0.0
-
-
-def test_slar_pst_value_returns_float() -> None:
-    env = Environment()
-    sf = ShopFloor(env=env)
-    server = Server(env=env, capacity=1, shopfloor=sf)
-    slar = Slar(allowance_factor=2)
-
-    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=100.0)
-
-    pst_value = slar._pst_value(job, server)
-    assert isinstance(pst_value, float)
-
-
 def test_slar_release_when_server_empty() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
@@ -70,7 +33,7 @@ def test_slar_release_when_server_empty() -> None:
     slar = Slar(allowance_factor=2)
 
     # Start SLAR release trigger process
-    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
 
     # Add a job to shopfloor and process it
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
@@ -94,7 +57,7 @@ def test_slar_release_when_queue_has_one() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
 
     # Add two jobs to shopfloor - one processing, one waiting
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=10.0)
@@ -106,10 +69,10 @@ def test_slar_release_when_queue_has_one() -> None:
     job3 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=20.0)
     psp.add(job3)
 
-    # Run until job1 finishes - queue will have 1 job (job2)
+    # At t=2 job1 finishes: queue has exactly 1 (job2) -> postponed release of job3
+    # scheduled with a ~0.001 delay. Run past the delay.
     env.run(until=3)
 
-    # job3 should be released because queue has only 1 job
     assert job3 not in psp.jobs
 
 
@@ -121,7 +84,7 @@ def test_slar_no_release_when_no_candidates() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
 
     # Add job to server1
     job1 = ProductionJob(env=env, sku="A", servers=[server1], processing_times=[1.0], due_date=10.0)
@@ -145,7 +108,7 @@ def test_slar_selects_minimum_pst_job() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
 
     # Add processing job
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
@@ -180,36 +143,14 @@ def test_slar_allowance_factor() -> None:
     assert pst1 != pst2
 
 
-def test_slar_starvation_release_no_previous_server() -> None:
-    """Starvation release should return early when triggering job has no previous server."""
-    env = Environment()
-    sf = ShopFloor(env=env)
-    server = Server(env=env, capacity=1, shopfloor=sf)
-    psp = PreShopPool(env=env, shopfloor=sf)
-    slar = Slar(allowance_factor=2)
-
-    # Add a candidate job to PSP
-    candidate = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=20.0)
-    psp.add(candidate)
-
-    # Create a fresh job with no previous_server (never processed)
-    fresh_job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
-    assert fresh_job.previous_server is None
-
-    # This should return early without releasing anything
-    slar.starvation_release(fresh_job, psp)
-
-    # Candidate should still be in PSP
-    assert candidate in psp.jobs
-
 
 def test_slar_negative_pst_release() -> None:
-    """Test releasing negative PST job when all queued jobs have positive PST.
+    """Urgent-in-PSP branch: release a negative-PST PSP job when all queued jobs are non-urgent.
 
-    This test covers the elif branch (line 116) where:
+    Covers the branch where:
     - Queue has 2+ jobs (not empty, not has_one)
     - All queued jobs have positive PST (non-urgent)
-    - An urgent job (negative PST) in PSP gets released
+    - An urgent job (negative PST) in PSP gets released (min proc-time).
     """
     env = Environment()
     sf = ShopFloor(env=env)
@@ -218,17 +159,17 @@ def test_slar_negative_pst_release() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
 
-    # Add jobs that take a while to process (with far due dates = positive PST)
+    # Two long-running jobs with far due dates (positive PST)
     processing_job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=1000.0)
     processing_job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=1000.0)
     sf.add(processing_job1)
     sf.add(processing_job2)
 
-    # Add THREE jobs to queue with far due dates (positive PST)
-    # When one processing job finishes, one queued job starts processing,
-    # leaving 2 jobs in queue (triggers elif branch, not if branch)
+    # Three queued jobs with far due dates (positive PST).
+    # When one processing job finishes, a queued job starts, leaving 2 in queue
+    # -> triggers the urgent-in-PSP branch (non-empty queue, all non-urgent).
     queued_job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
     queued_job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
     queued_job3 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
@@ -238,26 +179,122 @@ def test_slar_negative_pst_release() -> None:
 
     # Wait until queue has 3 jobs
     env.run(until=0.1)
-
-    # Queue should have 3 jobs with positive PST (2 are processing)
     assert len(server.queue) == 3
 
-    # Add candidate job to PSP with negative PST (urgent, past due)
+    # Candidate urgent PSP job (negative PST, short proc time)
     urgent_job = ProductionJob(
         env=env,
         sku="A",
         servers=[server],
-        processing_times=[0.5],  # Short processing time (selected by min)
-        due_date=env.now - 10.0,  # Already past due (negative PST)
+        processing_times=[0.5],
+        due_date=env.now - 10.0,  # already past due -> negative PST
     )
     psp.add(urgent_job)
 
-    # Run until first job finishes - this triggers the release check
-    # At t=5: processing_job1 finishes, queued_job1 starts processing
-    # Queue now has 2 jobs (queued_job2, queued_job3) - all with positive PST
-    # elif branch triggers, urgent_job gets released
+    # At t=5 one processing job finishes. Queue now has 2 non-urgent jobs, so
+    # the urgent-in-PSP branch releases urgent_job immediately.
     env.run(until=6)
 
-    # The urgent job with negative PST should be released
-    # (because queue has 2+ jobs, all with positive PST, and this one has negative)
     assert urgent_job not in list(psp.jobs)
+
+
+def test_slar_no_release_when_urgent_job_in_queue() -> None:
+    """Covers the branch where the queued mix contains at least one urgent job.
+
+    When a queued job is already urgent and the queue length is >= 2, SLAR
+    skips both the urgent-in-PSP branch (condition ``all positive`` is False)
+    and the has_one starvation branch. No release happens.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
+
+    # Processing job, slow, non-urgent due date
+    job_proc = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=1000.0)
+    # Two queued jobs: one urgent (past due), one non-urgent
+    job_urgent_q = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=-10.0)
+    job_normal_q = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
+    sf.add(job_proc)
+    sf.add(job_urgent_q)
+    sf.add(job_normal_q)
+
+    # PSP candidate (non-urgent) that would be picked if any SLAR branch triggered
+    psp_candidate = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
+    psp.add(psp_candidate)
+
+    # Run past completion of job_proc at t=2. Queue at trigger moment has 2 jobs,
+    # one urgent -> branch A skipped, branch B skipped (len != 1).
+    env.run(until=3)
+
+    assert psp_candidate in list(psp.jobs)
+
+
+def test_slar_no_psp_candidate_for_postponed_release() -> None:
+    """Covers the branch where queue has exactly 1 but PSP has no candidate.
+
+    Branch B attempts starvation avoidance via postponed release but finds no
+    PSP job starting at the triggering server, so nothing happens.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server_a = Server(env=env, capacity=1, shopfloor=sf)
+    server_b = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
+
+    # Two jobs on server_a (one processes, one queues) -> queue == 1 at completion.
+    job1 = ProductionJob(env=env, sku="A", servers=[server_a], processing_times=[2.0], due_date=1000.0)
+    job2 = ProductionJob(env=env, sku="A", servers=[server_a], processing_times=[2.0], due_date=1000.0)
+    sf.add(job1)
+    sf.add(job2)
+
+    # PSP candidate starts at a DIFFERENT server -> no release possible.
+    other_psp = ProductionJob(env=env, sku="B", servers=[server_b], processing_times=[1.0], due_date=1000.0)
+    psp.add(other_psp)
+
+    env.run(until=3)
+
+    assert other_psp in list(psp.jobs)
+
+
+def test_slar_postponed_release_delay() -> None:
+    """has_one-queue branch: PSP candidate is released via a postponed SimPy process.
+
+    At the completion tick the PSP job is still in PSP; after the 0.001 delay
+    it has been moved to the shopfloor.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
+
+    # Two jobs on server: one processing, one queued -> queue will have exactly 1
+    # when job1 finishes.
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=10.0)
+    job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=15.0)
+    sf.add(job1)
+    sf.add(job2)
+
+    # PSP candidate
+    job3 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=20.0)
+    psp.add(job3)
+
+    # Stop between the completion event (t=2.0) and the postponed release
+    # timeout (t=2.001). job3 should already be removed from PSP but not yet
+    # added to the shopfloor.
+    env.run(until=2.0005)
+    assert job3 not in psp.jobs
+    assert job3 not in sf.jobs
+
+    # After the timeout elapses, the shopfloor has received job3.
+    env.run(until=2.1)
+    assert job3 in sf.jobs
