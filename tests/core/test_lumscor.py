@@ -11,6 +11,19 @@ from simulatte.server import Server
 from simulatte.shopfloor import CorrectedWIPStrategy, ShopFloor, StandardWIPStrategy
 
 
+def test_lumscor_pst_priority_policy() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
+    pst = lumscor.pst_priority_policy(job, server)
+
+    assert pst is not None
+    assert isinstance(pst, float)
+
+
 def test_lumscor_requires_corrected_wip_strategy() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
@@ -122,21 +135,77 @@ def test_lumscor_starvation_release_when_queue_has_one() -> None:
     lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
     env.process(on_completion_trigger(sf, psp, lumscor.starvation_release))
 
-    # Add two jobs to shopfloor
+    # job1 processes first; job2 waits in queue so has_one fires when job1 finishes
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=10.0)
     job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=15.0)
     sf.add(job1)
     sf.add(job2)
 
-    # Add candidate to PSP
     job3 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=25.0)
     psp.add(job3)
 
-    # Run until job1 finishes
+    # At job1 finish (t=2): job3 is removed from PSP immediately but not yet on shopfloor
+    env.run(until=2.0005)
+    assert job3 not in psp.jobs
+    assert job3 not in sf.jobs
+
+    # After the postponed delay, job3 enters the shopfloor
+    env.run(until=2.1)
+    assert job3 in sf.jobs
+
+
+def test_lumscor_starvation_no_release_when_queue_has_one_no_candidates() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.set_wip_strategy(CorrectedWIPStrategy())
+    server1 = Server(env=env, capacity=1, shopfloor=sf)
+    server2 = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    lumscor = LumsCor(wl_norm={server1: 100.0, server2: 100.0}, allowance_factor=2)
+    env.process(on_completion_trigger(sf, psp, lumscor.starvation_release))
+
+    # Two jobs on server1 so has_one fires when job1 finishes (job2 in queue)
+    job1 = ProductionJob(env=env, sku="A", servers=[server1], processing_times=[2.0], due_date=10.0)
+    job2 = ProductionJob(env=env, sku="A", servers=[server1], processing_times=[2.0], due_date=15.0)
+    sf.add(job1)
+    sf.add(job2)
+
+    # PSP candidate starts at server2, not server1
+    job3 = ProductionJob(env=env, sku="B", servers=[server2], processing_times=[1.0], due_date=25.0)
+    psp.add(job3)
+
     env.run(until=3)
 
-    # job3 should be released when queue has only 1 job
-    assert job3 not in psp.jobs
+    # job3 should remain in PSP (no candidates start at server1)
+    assert job3 in psp.jobs
+
+
+def test_lumscor_starvation_no_release_when_queue_has_many() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.set_wip_strategy(CorrectedWIPStrategy())
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
+    env.process(on_completion_trigger(sf, psp, lumscor.starvation_release))
+
+    # Three jobs on server so queue has 2 when job1 finishes (neither is_empty nor has_one)
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=10.0)
+    job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=15.0)
+    job3 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=20.0)
+    sf.add(job1)
+    sf.add(job2)
+    sf.add(job3)
+
+    psp_job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=30.0)
+    psp.add(psp_job)
+
+    env.run(until=3)
+
+    # No release: server had 2 jobs in queue, not a starvation risk
+    assert psp_job in psp.jobs
 
 
 def test_lumscor_starvation_no_release_when_no_candidates() -> None:

@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from simulatte.psp import PreShopPool
     from simulatte.server import Server
     from simulatte.shopfloor import ShopFloor
+    from simulatte.typing import ProcessGenerator
 
 
 class LumsCor:
@@ -46,6 +47,8 @@ class LumsCor:
         >>> env.process(on_completion_trigger(shopfloor, psp, lumscor.starvation_release))
     """
 
+    _POSTPONED_DELAY: float = 0.001
+
     def __init__(self, *, wl_norm: dict[Server, float], allowance_factor: int) -> None:
         """Initialize the LUMS-COR release policy.
 
@@ -57,6 +60,22 @@ class LumsCor:
         """
         self.wl_norm = wl_norm
         self.allowance_factor = allowance_factor
+
+    def pst_priority_policy(self, job: ProductionJob, server: Server) -> float | None:
+        """Get the planned slack time priority for a job at a server.
+
+        Lower PST means higher urgency (job is behind schedule). Designed to be
+        used as a priority_policy callback on jobs for queue dispatching.
+
+        Args:
+            job: The production job to evaluate.
+            server: The server to calculate priority for.
+
+        Returns:
+            Planned slack time for the job at the server, or None if the server
+            is not in the job's remaining routing.
+        """
+        return job.planned_slack_times(allowance=self.allowance_factor)[server]
 
     def _validate_wip_strategy(self, shopfloor: ShopFloor) -> None:
         """Validate that the shopfloor uses CorrectedWIPStrategy.
@@ -114,7 +133,7 @@ class LumsCor:
 
         is_empty = server_triggered.empty
         has_one = len(server_triggered.queue) == 1
-        if is_empty or has_one:
+        if is_empty:
             candidate_job = min(
                 (job for job in psp.jobs if job.starts_at(server_triggered)),
                 default=None,
@@ -123,3 +142,21 @@ class LumsCor:
             if candidate_job:
                 psp.remove(job=candidate_job)
                 psp.shopfloor.add(candidate_job)
+        elif has_one:
+            candidate_job = min(
+                (job for job in psp.jobs if job.starts_at(server_triggered)),
+                default=None,
+                key=lambda j: j.planned_release_date(self.allowance_factor),
+            )
+            if candidate_job:
+                psp.remove(job=candidate_job)
+                psp.env.process(self._postponed_release(candidate_job, psp))
+
+    def _postponed_release(self, job: ProductionJob, psp: PreShopPool) -> ProcessGenerator:
+        """Release *job* to the shopfloor after a small delay.
+
+        The delay ensures the job already waiting in the server queue acquires
+        the server before the released job requests it, preserving queue order.
+        """
+        yield psp.env.timeout(self._POSTPONED_DELAY)
+        psp.shopfloor.add(job)

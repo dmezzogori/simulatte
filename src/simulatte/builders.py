@@ -149,6 +149,7 @@ def build_lumscor_system(
             },
         },
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+        priority_policies=lambda job, server: lumscor.pst_priority_policy(job, server) or 0.0,
     )
 
     # Compose release triggers
