@@ -31,7 +31,7 @@ from extractors import extract_results
 
 def _immediate_fifo_runs(cfg: dict) -> list[tuple[dict, Runner]]:
     sim = cfg["simulation"]
-    extract = partial(extract_results, warmup=sim["warmup"])
+    extract = partial(extract_results, sim["warmup"])
     builder = partial(
         build_immediate_release_system,
         n_servers=sim["n_servers"],
@@ -43,7 +43,7 @@ def _immediate_fifo_runs(cfg: dict) -> list[tuple[dict, Runner]]:
 
 def _immediate_spt_runs(cfg: dict) -> list[tuple[dict, Runner]]:
     sim = cfg["simulation"]
-    extract = partial(extract_results, warmup=sim["warmup"])
+    extract = partial(extract_results, sim["warmup"])
     builder = partial(
         build_immediate_release_system,
         n_servers=sim["n_servers"],
@@ -57,7 +57,7 @@ def _immediate_spt_runs(cfg: dict) -> list[tuple[dict, Runner]]:
 def _slar_runs(cfg: dict) -> list[tuple[dict, Runner]]:
     sim = cfg["simulation"]
     pol = cfg["policies"]["slar"]
-    extract = partial(extract_results, warmup=sim["warmup"])
+    extract = partial(extract_results, sim["warmup"])
     runs = []
     for af in pol["allowance_factor"]:
         builder = partial(
@@ -75,7 +75,7 @@ def _slar_runs(cfg: dict) -> list[tuple[dict, Runner]]:
 def _lumscor_runs(cfg: dict) -> list[tuple[dict, Runner]]:
     sim = cfg["simulation"]
     pol = cfg["policies"]["lumscor"]
-    extract = partial(extract_results, warmup=sim["warmup"])
+    extract = partial(extract_results, sim["warmup"])
     runs = []
     for wl, af in product(pol["wl_norm_level"], pol["allowance_factor"]):
         builder = partial(
