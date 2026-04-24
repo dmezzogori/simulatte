@@ -10,9 +10,13 @@ from itertools import product
 from pathlib import Path
 
 import yaml
+from typing import TYPE_CHECKING
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-sys.path.insert(0, str(Path(__file__).parent))
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))  # simulatte package
+sys.path.insert(0, str(Path(__file__).parent))  # experiments/extractors
 
 from simulatte.builders import (
     build_immediate_release_system,
@@ -88,7 +92,7 @@ def _lumscor_runs(cfg: dict) -> list[tuple[dict, Runner]]:
     return runs
 
 
-POLICY_REGISTRY: dict[str, object] = {
+POLICY_REGISTRY: dict[str, Callable[[dict], list[tuple[dict, Runner]]]] = {
     "immediate_fifo": _immediate_fifo_runs,
     "immediate_spt": _immediate_spt_runs,
     "slar": _slar_runs,
@@ -118,13 +122,16 @@ def main() -> None:
         for seed, result in zip(sim["seeds"], results, strict=True):
             all_rows.append({"seed": seed, **param_cols, **result})
 
-    if all_rows:
-        fieldnames = list(all_rows[0].keys())
-        with csv_path.open("w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(all_rows)
-        print(f"Saved {len(all_rows)} rows to {csv_path}")
+    if not all_rows:
+        print(f"Warning: no results produced for policy '{args.policy}'", file=sys.stderr)
+        return
+
+    fieldnames = list(all_rows[0].keys())
+    with csv_path.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(all_rows)
+    print(f"Saved {len(all_rows)} rows to {csv_path}")
 
 
 if __name__ == "__main__":
