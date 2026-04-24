@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.12"
 
 [[package]]
@@ -770,6 +770,7 @@ dev = [
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pyyaml" },
     { name = "ruff" },
     { name = "ty" },
     { name = "zensical" },
@@ -789,6 +790,7 @@ dev = [
     { name = "pre-commit", specifier = ">=3.3.3" },
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "pytest-cov", specifier = ">=4.1.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", specifier = ">=0.1.5" },
     { name = "ty", specifier = ">=0.0.1a32" },
     { name = "zensical", specifier = ">=0.0.14" },
