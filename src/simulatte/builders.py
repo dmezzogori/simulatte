@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from simulatte.distributions import server_sampling, truncated_2erlang
 from simulatte.environment import Environment
+from simulatte.job import ProductionJob
 from simulatte.policies.lumscor import LumsCor
 from simulatte.policies.slar import Slar
 from simulatte.policies.starvation_avoidance import starvation_avoidance_backup
@@ -17,17 +18,25 @@ from simulatte.server import Server
 from simulatte.shopfloor import CorrectedWIPStrategy, ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Callable
+
     from simulatte.typing import PullSystem, PushSystem
+
+
+def spt_priority_policy(job: ProductionJob, server: Server) -> float:
+    """Shortest Processing Time dispatching: priority = processing time at server."""
+    return job.routing[server]
 
 
 def build_immediate_release_system(
     env: Environment,
     *,
-    n_servers: int,
-    arrival_rate: float = 1.0,
-    service_rate: float = 1.0,
+    n_servers: int = 6,
+    arrival_rate: float = 1 / 0.648,
+    service_rate: float = 2.0,
     collect_time_series: bool = False,
     retain_job_history: bool = False,
+    priority_policies: Callable[[ProductionJob, Server], float] | None = None,
 ) -> PushSystem:
     """Build an immediate release (push) system with no workload control.
 
@@ -39,9 +48,10 @@ def build_immediate_release_system(
         env: The simulation environment.
         n_servers: Number of production servers to create.
         arrival_rate: Inter-arrival rate (lambda for exponential distribution).
-        service_rate: Service rate (lambda for exponential distribution).
+        service_rate: Service rate (lambda for truncated 2-Erlang distribution).
         collect_time_series: If True, servers collect queue length time series.
         retain_job_history: If True, servers retain completed job references.
+        priority_policies: Optional callable used to assign job priorities at servers.
 
     Returns:
         Tuple of (psp, servers, shop_floor, router) where psp is None.
@@ -56,15 +66,12 @@ def build_immediate_release_system(
     """
     shop_floor = ShopFloor(env=env)
     servers = tuple(
-        Server(
-            env=env,
-            capacity=1,
-            shopfloor=shop_floor,
-            collect_time_series=collect_time_series,
-            retain_job_history=retain_job_history,
-        )
+        Server(env=env, capacity=1, shopfloor=shop_floor,
+               collect_time_series=collect_time_series,
+               retain_job_history=retain_job_history)
         for _ in range(n_servers)
     )
+
     router = Router(
         env=env,
         shopfloor=shop_floor,
@@ -72,21 +79,28 @@ def build_immediate_release_system(
         psp=None,
         inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
         sku_distributions={"F1": 1},
-        sku_routings={"F1": lambda: servers},
+        sku_routings={"F1": server_sampling(servers)},
         sku_service_times={
-            "F1": {server: lambda: random.expovariate(service_rate) for server in servers},
+            "F1": {
+                server: lambda: truncated_2erlang(
+                    lam=service_rate,
+                    max_value=4.0,
+                )
+                for server in servers
+            },
         },
-        due_date_offset_distribution={"F1": lambda: random.expovariate(1.0 * n_servers)},
+        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},
+        priority_policies=priority_policies,
     )
     return None, servers, shop_floor, router
 
 
 def build_lumscor_system(
     env: Environment,
-    *,
     check_timeout: float,
     wl_norm_level: float,
     allowance_factor: int,
+    *,
     n_servers: int = 6,
     arrival_rate: float = 1 / 0.648,
     service_rate: float = 2.0,
@@ -162,8 +176,8 @@ def build_lumscor_system(
 
 def build_slar_system(
     env: Environment,
-    *,
     allowance_factor: float,
+    *,
     n_servers: int = 6,
     arrival_rate: float = 1 / 0.648,
     service_rate: float = 2.0,
