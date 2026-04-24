@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
-from simulatte.policies.starvation_avoidance import starvation_avoidance_process
+from simulatte.policies.starvation_avoidance import starvation_avoidance_backup as starvation_avoidance_process
 from simulatte.psp import PreShopPool
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
