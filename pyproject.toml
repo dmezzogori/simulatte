@@ -38,6 +38,7 @@ dev = [
     "pre-commit>=3.3.3",
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",
+    "pyyaml>=6.0",
     "ruff>=0.1.5",
     "ty>=0.0.1a32",
     "zensical>=0.0.14",
