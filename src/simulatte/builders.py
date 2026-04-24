@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 from simulatte.distributions import server_sampling, truncated_2erlang
 from simulatte.environment import Environment
-from simulatte.job import ProductionJob
 from simulatte.policies.lumscor import LumsCor
 from simulatte.policies.slar import Slar
 from simulatte.policies.starvation_avoidance import starvation_avoidance_backup
@@ -20,6 +19,7 @@ from simulatte.shopfloor import CorrectedWIPStrategy, ShopFloor
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
 
+    from simulatte.job import ProductionJob
     from simulatte.typing import PullSystem, PushSystem
 
 
@@ -89,7 +89,7 @@ def build_immediate_release_system(
                 for server in servers
             },
         },
-        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},
+        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
         priority_policies=priority_policies,
     )
     return None, servers, shop_floor, router
@@ -97,10 +97,10 @@ def build_immediate_release_system(
 
 def build_lumscor_system(
     env: Environment,
+    *,
     check_timeout: float,
     wl_norm_level: float,
     allowance_factor: int,
-    *,
     n_servers: int = 6,
     arrival_rate: float = 1 / 0.648,
     service_rate: float = 2.0,
