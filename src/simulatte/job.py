@@ -217,7 +217,10 @@ class BaseJob(ABC):
 
     @property
     def remaining_routing(self) -> tuple[Server, ...]:
-        """Tuple of servers not yet visited by this job."""
+        """Tuple of servers not yet visited by this job.
+        
+        NOTE: not yet entered means not entered in the queue.
+        """
         return tuple(srv for srv in self._servers if self.servers_entry_at[srv] is None)
 
     @property
