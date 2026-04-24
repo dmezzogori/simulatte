@@ -86,3 +86,33 @@ class TestPullSystemBuilders:
         assert len(servers) == 6  # Default n_servers
         assert shop_floor is not None
         assert router is not None
+
+
+class TestCollectWorkload:
+    """Tests for the collect_workload parameter on all builder functions."""
+
+    def test_build_immediate_release_collect_workload_false(self) -> None:
+        from simulatte.shopfloor import CurrentWorkLoadCollector
+        env = Environment()
+        _, _, shop_floor, _ = build_immediate_release_system(env, n_servers=2)
+        assert not isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
+
+    def test_build_immediate_release_collect_workload_true(self) -> None:
+        from simulatte.shopfloor import CurrentWorkLoadCollector
+        env = Environment()
+        _, _, shop_floor, _ = build_immediate_release_system(env, n_servers=2, collect_workload=True)
+        assert isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
+
+    def test_build_lumscor_collect_workload_true(self) -> None:
+        from simulatte.shopfloor import CurrentWorkLoadCollector
+        env = Environment()
+        _, _, shop_floor, _ = build_lumscor_system(
+            env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2, collect_workload=True
+        )
+        assert isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
+
+    def test_build_slar_collect_workload_true(self) -> None:
+        from simulatte.shopfloor import CurrentWorkLoadCollector
+        env = Environment()
+        _, _, shop_floor, _ = build_slar_system(env, allowance_factor=3.0, collect_workload=True)
+        assert isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)

@@ -14,7 +14,7 @@ from simulatte.policies.triggers import on_completion_trigger, periodic_trigger
 from simulatte.psp import PreShopPool
 from simulatte.router import Router
 from simulatte.server import Server
-from simulatte.shopfloor import CorrectedWIPStrategy, ShopFloor
+from simulatte.shopfloor import CorrectedWIPStrategy, CurrentWorkLoadCollector, ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
@@ -37,6 +37,7 @@ def build_immediate_release_system(
     collect_time_series: bool = False,
     retain_job_history: bool = False,
     priority_policies: Callable[[ProductionJob, Server], float] | None = None,
+    collect_workload: bool = False,
 ) -> PushSystem:
     """Build an immediate release (push) system with no workload control.
 
@@ -64,7 +65,10 @@ def build_immediate_release_system(
         >>> env.run(until=1000)
         >>> print(f"Jobs completed: {len(shop_floor.jobs_done)}")
     """
-    shop_floor = ShopFloor(env=env)
+    shop_floor = ShopFloor(
+        env=env,
+        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+    )
     servers = tuple(
         Server(env=env, capacity=1, shopfloor=shop_floor,
                collect_time_series=collect_time_series,
@@ -104,6 +108,7 @@ def build_lumscor_system(
     n_servers: int = 6,
     arrival_rate: float = 1 / 0.648,
     service_rate: float = 2.0,
+    collect_workload: bool = False,
 ) -> PullSystem:
     """Build a LumsCor (load-based) pull system with workload control.
 
@@ -139,7 +144,10 @@ def build_lumscor_system(
         Land, M.J. (2006). Parameters and sensitivity in workload control.
         International Journal of Production Economics, 104(2), 625-638.
     """
-    shop_floor = ShopFloor(env=env)
+    shop_floor = ShopFloor(
+        env=env,
+        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+    )
     shop_floor.set_wip_strategy(CorrectedWIPStrategy())
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
 
@@ -181,6 +189,7 @@ def build_slar_system(
     n_servers: int = 6,
     arrival_rate: float = 1 / 0.648,
     service_rate: float = 2.0,
+    collect_workload: bool = False,
 ) -> PullSystem:
     """Build a SLAR (Superfluous Load Avoidance Release) pull system.
 
@@ -218,7 +227,10 @@ def build_slar_system(
         International Journal of Production Economics, 56-57, 347-364.
         https://doi.org/10.1016/S0925-5273(98)00052-8
     """
-    shop_floor = ShopFloor(env=env)
+    shop_floor = ShopFloor(
+        env=env,
+        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+    )
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
     slar = Slar(allowance_factor=allowance_factor)
     psp = PreShopPool(env=env, shopfloor=shop_floor)

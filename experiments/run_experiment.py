@@ -37,6 +37,7 @@ def _immediate_fifo_runs(cfg: dict) -> list[tuple[dict, Runner]]:
         n_servers=sim["n_servers"],
         arrival_rate=sim["arrival_rate"],
         service_rate=sim["service_rate"],
+        collect_workload=True,
     )
     return [({}, Runner(builder=builder, seeds=sim["seeds"], extract_fn=extract, parallel=True))]
 
@@ -50,6 +51,7 @@ def _immediate_spt_runs(cfg: dict) -> list[tuple[dict, Runner]]:
         arrival_rate=sim["arrival_rate"],
         service_rate=sim["service_rate"],
         priority_policies=spt_priority_policy,
+        collect_workload=True,
     )
     return [({}, Runner(builder=builder, seeds=sim["seeds"], extract_fn=extract, parallel=True))]
 
@@ -66,6 +68,7 @@ def _slar_runs(cfg: dict) -> list[tuple[dict, Runner]]:
             n_servers=sim["n_servers"],
             arrival_rate=sim["arrival_rate"],
             service_rate=sim["service_rate"],
+            collect_workload=True,
         )
         runner = Runner(builder=builder, seeds=sim["seeds"], extract_fn=extract, parallel=True)
         runs.append(({"allowance_factor": af}, runner))
@@ -86,6 +89,7 @@ def _lumscor_runs(cfg: dict) -> list[tuple[dict, Runner]]:
             n_servers=sim["n_servers"],
             arrival_rate=sim["arrival_rate"],
             service_rate=sim["service_rate"],
+            collect_workload=True,
         )
         runner = Runner(builder=builder, seeds=sim["seeds"], extract_fn=extract, parallel=True)
         runs.append(({"wl_norm_level": wl, "allowance_factor": af, "check_timeout": pol["check_timeout"]}, runner))

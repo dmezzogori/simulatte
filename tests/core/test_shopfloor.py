@@ -662,3 +662,107 @@ def test_time_series_collector_multi_server_wip() -> None:
     assert collector.wip_ts[0] == (0.0, 7.0)  # After job enters
     assert collector.wip_ts[1] == (3.0, 4.0)  # After first op completes
     assert collector.wip_ts[2] == (7.0, 0.0)  # After second op completes
+
+
+def test_current_workload_collector_on_job_entered() -> None:
+    """CurrentWorkLoadCollector should record full routing PT when a job enters."""
+    from simulatte.shopfloor import CurrentWorkLoadCollector
+
+    collector = CurrentWorkLoadCollector()
+    env = Environment()
+    sf = ShopFloor(env=env, time_series_collector=collector)
+    server1 = Server(env=env, capacity=1, shopfloor=sf)
+    server2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server1, server2], processing_times=[6, 4], due_date=20)
+    sf.add(job)
+
+    # Snapshot taken before simulation runs: new job contributes full 6+4=10
+    assert collector.wip_ts[0] == (0.0, 10.0)
+
+
+def test_current_workload_collector_on_operation_completed() -> None:
+    """CurrentWorkLoadCollector should exclude the just-completed operation despite servers_exit_at not yet stamped."""
+    from simulatte.shopfloor import CurrentWorkLoadCollector
+
+    collector = CurrentWorkLoadCollector()
+    env = Environment()
+    sf = ShopFloor(env=env, time_series_collector=collector)
+    server1 = Server(env=env, capacity=1, shopfloor=sf)
+    server2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server1, server2], processing_times=[6, 4], due_date=20)
+    sf.add(job)
+    env.run()
+
+    # t=0:  job entered → full workload 6+4=10
+    assert collector.wip_ts[0] == (0.0, 10.0)
+    # t=6:  op0 at server1 completes → skip (job, server1); server2 still remaining → 4
+    assert collector.wip_ts[1] == (6.0, 4.0)
+    # t=10: op1 at server2 completes → skip (job, server2); no remaining work → 0
+    assert collector.wip_ts[2] == (10.0, 0.0)
+
+
+def test_current_workload_collector_no_snapshot_on_job_finished() -> None:
+    """CurrentWorkLoadCollector.on_job_finished should add no extra entry to wip_ts."""
+    from simulatte.shopfloor import CurrentWorkLoadCollector
+
+    collector = CurrentWorkLoadCollector()
+    env = Environment()
+    sf = ShopFloor(env=env, time_series_collector=collector)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    # on_job_entered (t=0) + on_operation_completed (t=5) = exactly 2 entries; on_job_finished adds none
+    assert len(collector.wip_ts) == 2
+
+
+def test_current_workload_collector_multi_job() -> None:
+    """CurrentWorkLoadCollector should sum remaining work across all jobs in the system."""
+    from simulatte.shopfloor import CurrentWorkLoadCollector
+
+    collector = CurrentWorkLoadCollector()
+    env = Environment()
+    sf = ShopFloor(env=env, time_series_collector=collector)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    job2 = ProductionJob(env=env, sku="B", servers=[server], processing_times=[3], due_date=20)
+    sf.add(job1)
+    sf.add(job2)
+    env.run()
+
+    # t=0: job1 entered → 5
+    assert collector.wip_ts[0] == (0.0, 5.0)
+    # t=0: job2 entered → job1 (5) + job2 (3) = 8
+    assert collector.wip_ts[1] == (0.0, 8.0)
+    # t=5: job1 op completes → skip job1; job2 still queued (servers_exit_at=None) → 3
+    assert collector.wip_ts[2] == (5.0, 3.0)
+    # t=8: job2 op completes → skip job2; no jobs remaining → 0
+    assert collector.wip_ts[3] == (8.0, 0.0)
+
+
+def test_current_workload_collector_strategy_independent() -> None:
+    """CurrentWorkLoadCollector should produce the same wip_ts regardless of WIP strategy."""
+    from simulatte.shopfloor import CorrectedWIPStrategy, CurrentWorkLoadCollector
+
+    def run_with_strategy(strategy):
+        collector = CurrentWorkLoadCollector()
+        env = Environment()
+        sf = ShopFloor(env=env, time_series_collector=collector)
+        if strategy is not None:
+            sf.set_wip_strategy(strategy)
+        server1 = Server(env=env, capacity=1, shopfloor=sf)
+        server2 = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[server1, server2], processing_times=[6, 4], due_date=20)
+        sf.add(job)
+        env.run()
+        return collector.wip_ts
+
+    wip_standard = run_with_strategy(None)
+    wip_corrected = run_with_strategy(CorrectedWIPStrategy())
+
+    assert wip_standard == wip_corrected
