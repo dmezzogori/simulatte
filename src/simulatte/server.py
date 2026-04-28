@@ -109,6 +109,16 @@ class Server(simpy.PriorityResource):
         return len(self.queue) == 0
 
     @property
+    def is_idle(self) -> bool:
+        """Whether the server has no active users and an empty queue."""
+        return self.count == 0 and self.empty
+
+    @property
+    def current_jobs(self) -> tuple[BaseJob, ...]:
+        """Jobs currently occupying active server slots (includes hook/material phases)."""
+        return tuple(cast(ServerPriorityRequest, request).job for request in self.users)
+
+    @property
     def average_queue_length(self) -> float:
         """Time-weighted average queue length over the simulation."""
         if self.env.now == 0:
