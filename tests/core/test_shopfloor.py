@@ -1028,3 +1028,35 @@ def test_attach_dispatcher_no_psp_skips_arrival() -> None:
     assert job.done
     assert execution_log == ["after_op"]
     assert "psp_arrival" not in execution_log
+
+
+def test_hook_returning_non_generator_raises_type_error() -> None:
+    """A hook that returns a non-None, non-generator value should raise TypeError."""
+
+    def bad_hook(job: ProductionJob, server: Server, op_index: int, processing_time: float) -> int:
+        return 42  # type: ignore[return-value]
+
+    env = Environment()
+    sf = ShopFloor(env=env, on_before_operation=bad_hook)  # type: ignore[arg-type]
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+
+    with pytest.raises(TypeError, match="OperationHook must return None or a generator"):
+        env.run()
+
+
+def test_after_hook_returning_non_generator_raises_type_error() -> None:
+    """An after-operation hook that returns non-None/non-generator should raise TypeError."""
+
+    def bad_hook(job: ProductionJob, server: Server, op_index: int, processing_time: float) -> str:
+        return "oops"  # type: ignore[return-value]
+
+    env = Environment()
+    sf = ShopFloor(env=env, on_after_operation=bad_hook)  # type: ignore[arg-type]
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+
+    with pytest.raises(TypeError, match="OperationHook must return None or a generator"):
+        env.run()

@@ -228,7 +228,7 @@ class TimeSeriesCollector(Protocol):
         ...
 
 
-class Dispatcher(Protocol):
+class Dispatcher(Protocol):  # pragma: no cover
     """Reference protocol showing the full dispatcher interface.
 
     All methods are optional at runtime — ``attach_dispatcher`` wires
