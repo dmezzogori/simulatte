@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/logo.png" alt="Simulatte" width="200">
+  <img src="https://raw.githubusercontent.com/dmezzogori/simulatte/main/docs/assets/logo.png" alt="Simulatte" width="200">
 </p>
 
 # Simulatte
