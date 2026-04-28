@@ -47,8 +47,6 @@ def starvation_avoidance_backup(shopfloor: ShopFloor, psp: PreShopPool) -> Proce
     while True:
         new_job_in_psp: ProductionJob = yield psp.new_job
         first_server: Server = new_job_in_psp.servers[0]
-        is_queue_empty: bool = first_server.empty
-        is_user_empty: bool = len(first_server.users) == 0
-        if is_queue_empty and is_user_empty:
+        if first_server.is_idle:
             psp.remove(job=new_job_in_psp)
             shopfloor.add(new_job_in_psp)
