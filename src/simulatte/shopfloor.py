@@ -498,6 +498,82 @@ class DefaultTimeSeriesCollector:
         plt.show()
 
 
+class CurrentWorkLoadCollector:
+    """Time-series collector measuring true remaining processing work on the shop floor.
+
+    At each snapshot, records the sum of remaining processing times across all jobs
+    currently in the system, regardless of WIP strategy. An operation is considered
+    remaining if its server has not yet been released (servers_exit_at is None),
+    which includes operations in queue, currently processing, and not yet started.
+
+    Unlike DefaultTimeSeriesCollector.wip_ts, these values are not affected by
+    CorrectedWIPStrategy's position discounting and represent actual workload.
+
+    Attributes:
+        wip_ts: Time series of (simulation_time, total_remaining_work) tuples.
+            Appended on every job entry and every operation completion.
+    """
+
+    def __init__(self) -> None:
+        self.wip_ts: list[tuple[float, float]] = []
+
+    def _snapshot(
+        self,
+        shopfloor: ShopFloor,
+        skip_job: ProductionJob | None = None,
+        skip_server: Server | None = None,
+    ) -> None:
+        total = sum(
+            job.routing[s]
+            for job in shopfloor.jobs
+            for s in job.servers
+            if job.servers_exit_at[s] is None and not (job is skip_job and s is skip_server)
+        )
+        self.wip_ts.append((shopfloor.env.now, total))
+
+    def on_job_entered(
+        self,
+        shopfloor: ShopFloor,
+        job: ProductionJob,  # noqa: ARG002
+    ) -> None:
+        """Record total remaining work when a job enters the shop floor."""
+        del job  # Already included via shopfloor.jobs
+        self._snapshot(shopfloor)
+
+    def on_operation_completed(
+        self,
+        shopfloor: ShopFloor,
+        job: ProductionJob,
+        server: Server,
+        op_index: int,  # noqa: ARG002
+    ) -> None:
+        """Record total remaining work after an operation completes.
+
+        The (job, server) pair is explicitly skipped because this callback fires
+        inside the `with server.request()` block in ShopFloor.main(), before the
+        block exits and Server.release() stamps servers_exit_at[server]. Without
+        the skip, the just-completed operation would still read as remaining work.
+
+        TODO: move this notification to after the `with` block exits so that
+        servers_exit_at is already stamped, at which point the skip can be removed
+        and this method becomes uniform with on_job_entered.
+        """
+        del op_index  # Unused but required by protocol
+        self._snapshot(shopfloor, skip_job=job, skip_server=server)
+
+    def on_job_finished(
+        self,
+        shopfloor: ShopFloor,  # noqa: ARG002
+        job: ProductionJob,  # noqa: ARG002
+    ) -> None:
+        """No-op: job is already removed from shopfloor.jobs before this fires.
+
+        The last on_operation_completed already captured the WIP drop to zero
+        for the finishing job via the skip mechanism.
+        """
+        del shopfloor, job  # Unused but required by protocol
+
+
 # =============================================================================
 # ShopFloor Class
 # =============================================================================

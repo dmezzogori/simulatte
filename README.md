@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/logo.png" alt="Simulatte" width="200">
+  <img src="https://raw.githubusercontent.com/dmezzogori/simulatte/main/docs/assets/logo.png" alt="Simulatte" width="200">
 </p>
 
 # Simulatte
@@ -8,22 +8,11 @@
 [![Python](https://img.shields.io/pypi/pyversions/simulatte)](https://pypi.org/project/simulatte/)
 [![License](https://img.shields.io/pypi/l/simulatte)](https://github.com/dmezzogori/simulatte/blob/main/LICENSE)
 [![codecov](https://codecov.io/gh/dmezzogori/simulatte/graph/badge.svg)](https://codecov.io/gh/dmezzogori/simulatte)
-[![Docs](https://img.shields.io/badge/docs-online-blue)](https://dmezzogori.github.io/simulatte/)
+[![Docs](https://img.shields.io/badge/docs-online-blue)](https://simulatte.dev)
 
 Discrete-event simulation framework for job-shop scheduling and intralogistics, built on [SimPy](https://simpy.readthedocs.io/).
 
----
-
-## Table of Contents
-
-- [What is Simulatte?](#what-is-simulatte)
-- [Features](#features)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Documentation](#documentation)
-- [Citation](#citation)
-- [Contributing](#contributing)
-- [License](#license)
+> **Note:** Simulatte is under active development. All APIs — including those outside `simulatte.experimental` — should be considered unstable and may change between releases without prior deprecation. Pin your dependency to a specific version if you need stability.
 
 ---
 
@@ -124,9 +113,23 @@ print(f"Server utilization: {server.utilization_rate:.1%}")
 
 ---
 
+## AI Coding Agent Skill
+
+Simulatte ships a skill for AI coding agents (Claude Code, Cursor, Windsurf, etc.) that helps them write correct Simulatte simulations — from choosing a release policy to running multi-seed experiments.
+
+Install it with the [Vercel Skills CLI](https://github.com/vercel-labs/skills):
+
+```bash
+npx skills add https://github.com/dmezzogori/simulatte/tree/main/skills/simulatte-dev
+```
+
+Once installed, invoke it with `/simulatte-dev` or let the agent auto-trigger it when working with Simulatte code.
+
+---
+
 ## Documentation
 
-Full documentation is available at [dmezzogori.github.io/simulatte](https://dmezzogori.github.io/simulatte/).
+Full documentation is available at [simulatte.dev](https://simulatte.dev).
 
 ---
 
@@ -136,11 +139,11 @@ If you use Simulatte in your research, please cite:
 
 ```bibtex
 @software{Mezzogori2025Simulatte,
-  author = {Mezzogori, Davide},
+  author = {Mezzogori, Davide and Mercogliano, Nicola},
   title = {{Simulatte}: A discrete-event simulation framework for job-shop scheduling and intralogistics},
   year = {2025},
   url = {https://github.com/dmezzogori/simulatte},
-  note = {Python package version 0.1.4}
+  note = {Python package version 0.2.0}
 }
 ```
 
@@ -148,7 +151,7 @@ If you use Simulatte in your research, please cite:
 
 ## Contributing
 
-Issues and pull requests are welcome at [github.com/dmezzogori/simulatte](https://github.com/dmezzogori/simulatte).
+Contributions are welcome — please read [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow (branching, PR requirements, merge process).
 
 ---
 

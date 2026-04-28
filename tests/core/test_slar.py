@@ -19,47 +19,22 @@ def test_slar_pst_priority_policy() -> None:
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=20.0)
 
     pst = slar.pst_priority_policy(job, server)
-    # slack_time = due_date - arrival_time - remaining_processing
-    # At t=0: slack = 20 - 0 - 5 = 15
-    # planned_slack_times with allowance=2: pst = slack - (processing + allowance per server)
-    assert pst is not None
+    # At t=0: slack = 20, PST at server = slack - (5 + 2) = 13
+    assert isinstance(pst, float)
+    assert pst == 13.0
 
 
-def test_slar_pst_value_none_returns_zero() -> None:
-    """Test that _pst_value returns 0.0 when PST is None (server already visited)."""
-    env = Environment()
-    sf = ShopFloor(env=env)
-    server1 = Server(env=env, capacity=1, shopfloor=sf)
-    server2 = Server(env=env, capacity=1, shopfloor=sf)
-    slar = Slar(allowance_factor=2)
-
-    # Job visits both servers
-    job = ProductionJob(env=env, sku="A", servers=[server1, server2], processing_times=[1.0, 1.0], due_date=20.0)
-
-    # Before processing, PST for server1 should be a float
-    pst_value_before = slar._pst_value(job, server1)
-    assert isinstance(pst_value_before, float)
-    assert pst_value_before != 0.0
-
-    # Process job through server1
-    sf.add(job)
-    env.run(until=2)
-
-    # After exiting server1, PST for server1 is None -> _pst_value returns 0.0
-    pst_value_after = slar._pst_value(job, server1)
-    assert pst_value_after == 0.0
-
-
-def test_slar_pst_value_returns_float() -> None:
+def test_slar_pst_priority_policy_returns_inf_for_exited_server() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=100.0)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=20.0)
+    sf.add(job)
+    env.run()
 
-    pst_value = slar._pst_value(job, server)
-    assert isinstance(pst_value, float)
+    assert slar.pst_priority_policy(job, server) == float("inf")
 
 
 def test_slar_release_when_server_empty() -> None:
@@ -70,7 +45,7 @@ def test_slar_release_when_server_empty() -> None:
     slar = Slar(allowance_factor=2)
 
     # Start SLAR release trigger process
-    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
 
     # Add a job to shopfloor and process it
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
@@ -94,7 +69,7 @@ def test_slar_release_when_queue_has_one() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
 
     # Add two jobs to shopfloor - one processing, one waiting
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=10.0)
@@ -106,10 +81,10 @@ def test_slar_release_when_queue_has_one() -> None:
     job3 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=20.0)
     psp.add(job3)
 
-    # Run until job1 finishes - queue will have 1 job (job2)
+    # At t=2 job1 finishes: queue has exactly 1 (job2) -> postponed release of job3
+    # scheduled with a ~0.001 delay. Run past the delay.
     env.run(until=3)
 
-    # job3 should be released because queue has only 1 job
     assert job3 not in psp.jobs
 
 
@@ -121,7 +96,7 @@ def test_slar_no_release_when_no_candidates() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
 
     # Add job to server1
     job1 = ProductionJob(env=env, sku="A", servers=[server1], processing_times=[1.0], due_date=10.0)
@@ -145,7 +120,7 @@ def test_slar_selects_minimum_pst_job() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
 
     # Add processing job
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
@@ -180,36 +155,13 @@ def test_slar_allowance_factor() -> None:
     assert pst1 != pst2
 
 
-def test_slar_starvation_release_no_previous_server() -> None:
-    """Starvation release should return early when triggering job has no previous server."""
-    env = Environment()
-    sf = ShopFloor(env=env)
-    server = Server(env=env, capacity=1, shopfloor=sf)
-    psp = PreShopPool(env=env, shopfloor=sf)
-    slar = Slar(allowance_factor=2)
-
-    # Add a candidate job to PSP
-    candidate = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=20.0)
-    psp.add(candidate)
-
-    # Create a fresh job with no previous_server (never processed)
-    fresh_job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
-    assert fresh_job.previous_server is None
-
-    # This should return early without releasing anything
-    slar.starvation_release(fresh_job, psp)
-
-    # Candidate should still be in PSP
-    assert candidate in psp.jobs
-
-
 def test_slar_negative_pst_release() -> None:
-    """Test releasing negative PST job when all queued jobs have positive PST.
+    """Urgent-in-PSP branch: release a negative-PST PSP job when all queued jobs are non-urgent.
 
-    This test covers the elif branch (line 116) where:
+    Covers the branch where:
     - Queue has 2+ jobs (not empty, not has_one)
     - All queued jobs have positive PST (non-urgent)
-    - An urgent job (negative PST) in PSP gets released
+    - An urgent job (negative PST) in PSP gets released (min proc-time).
     """
     env = Environment()
     sf = ShopFloor(env=env)
@@ -218,17 +170,17 @@ def test_slar_negative_pst_release() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     slar = Slar(allowance_factor=2)
 
-    env.process(on_completion_trigger(sf, psp, slar.starvation_release))
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
 
-    # Add jobs that take a while to process (with far due dates = positive PST)
+    # Two long-running jobs with far due dates (positive PST)
     processing_job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=1000.0)
     processing_job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=1000.0)
     sf.add(processing_job1)
     sf.add(processing_job2)
 
-    # Add THREE jobs to queue with far due dates (positive PST)
-    # When one processing job finishes, one queued job starts processing,
-    # leaving 2 jobs in queue (triggers elif branch, not if branch)
+    # Three queued jobs with far due dates (positive PST).
+    # When one processing job finishes, a queued job starts, leaving 2 in queue
+    # -> triggers the urgent-in-PSP branch (non-empty queue, all non-urgent).
     queued_job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
     queued_job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
     queued_job3 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
@@ -238,26 +190,316 @@ def test_slar_negative_pst_release() -> None:
 
     # Wait until queue has 3 jobs
     env.run(until=0.1)
-
-    # Queue should have 3 jobs with positive PST (2 are processing)
     assert len(server.queue) == 3
 
-    # Add candidate job to PSP with negative PST (urgent, past due)
+    # Candidate urgent PSP job (negative PST, short proc time)
     urgent_job = ProductionJob(
         env=env,
         sku="A",
         servers=[server],
-        processing_times=[0.5],  # Short processing time (selected by min)
-        due_date=env.now - 10.0,  # Already past due (negative PST)
+        processing_times=[0.5],
+        due_date=env.now - 10.0,  # already past due -> negative PST
     )
     psp.add(urgent_job)
 
-    # Run until first job finishes - this triggers the release check
-    # At t=5: processing_job1 finishes, queued_job1 starts processing
-    # Queue now has 2 jobs (queued_job2, queued_job3) - all with positive PST
-    # elif branch triggers, urgent_job gets released
+    # At t=5 one processing job finishes. Queue now has 2 non-urgent jobs, so
+    # the urgent-in-PSP branch releases urgent_job immediately.
     env.run(until=6)
 
-    # The urgent job with negative PST should be released
-    # (because queue has 2+ jobs, all with positive PST, and this one has negative)
     assert urgent_job not in list(psp.jobs)
+
+
+def test_slar_no_release_when_urgent_job_in_queue() -> None:
+    """Covers the branch where the queued mix contains at least one urgent job.
+
+    When a queued job is already urgent and the queue length is >= 2, SLAR
+    skips both the urgent-in-PSP branch (condition ``all positive`` is False)
+    and the has_one starvation branch. No release happens.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
+
+    # Processing job, slow, non-urgent due date
+    job_proc = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=1000.0)
+    # Two queued jobs: one urgent (past due), one non-urgent
+    job_urgent_q = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=-10.0)
+    job_normal_q = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
+    sf.add(job_proc)
+    sf.add(job_urgent_q)
+    sf.add(job_normal_q)
+
+    # PSP candidate (non-urgent) that would be picked if any SLAR branch triggered
+    psp_candidate = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1000.0)
+    psp.add(psp_candidate)
+
+    # Run past completion of job_proc at t=2. Queue at trigger moment has 2 jobs,
+    # one urgent -> branch A skipped, branch B skipped (len != 1).
+    env.run(until=3)
+
+    assert psp_candidate in list(psp.jobs)
+
+
+def test_slar_no_psp_candidate_for_postponed_release() -> None:
+    """Covers the branch where queue has exactly 1 but PSP has no candidate.
+
+    Branch B attempts starvation avoidance via postponed release but finds no
+    PSP job starting at the triggering server, so nothing happens.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server_a = Server(env=env, capacity=1, shopfloor=sf)
+    server_b = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
+
+    # Two jobs on server_a (one processes, one queues) -> queue == 1 at completion.
+    job1 = ProductionJob(env=env, sku="A", servers=[server_a], processing_times=[2.0], due_date=1000.0)
+    job2 = ProductionJob(env=env, sku="A", servers=[server_a], processing_times=[2.0], due_date=1000.0)
+    sf.add(job1)
+    sf.add(job2)
+
+    # PSP candidate starts at a DIFFERENT server -> no release possible.
+    other_psp = ProductionJob(env=env, sku="B", servers=[server_b], processing_times=[1.0], due_date=1000.0)
+    psp.add(other_psp)
+
+    env.run(until=3)
+
+    assert other_psp in list(psp.jobs)
+
+
+def test_slar_postponed_release_delay() -> None:
+    """has_one-queue branch: PSP candidate is released via a postponed SimPy process.
+
+    At the completion tick the PSP job is still in PSP; after the 0.001 delay
+    it has been moved to the shopfloor.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
+
+    # Two jobs on server: one processing, one queued -> queue will have exactly 1
+    # when job1 finishes.
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=10.0)
+    job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=15.0)
+    sf.add(job1)
+    sf.add(job2)
+
+    # PSP candidate
+    job3 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=20.0)
+    psp.add(job3)
+
+    # Stop between the completion event (t=2.0) and the postponed release
+    # timeout (t=2.001). job3 should already be removed from PSP but not yet
+    # added to the shopfloor.
+    env.run(until=2.0005)
+    assert job3 not in psp.jobs
+    assert job3 not in sf.jobs
+
+    # After the timeout elapses, the shopfloor has received job3.
+    env.run(until=2.1)
+    assert job3 in sf.jobs
+
+
+def test_slar_pst_priority_orders_queue_correctly() -> None:
+    """Jobs in the server queue must be ordered by PST when using SLAR's priority policy.
+
+    This verifies the integration between Slar.pst_priority_policy (wired via the
+    Router's priority_policies) and the ServerPriorityRequest, ensuring that jobs
+    with lower PST (more urgent) are processed before jobs with higher PST.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    def pst_policy(job: ProductionJob, server: Server) -> float:
+        return slar.pst_priority_policy(job, server) or 0.0
+
+    # Blocker occupies the server so subsequent jobs queue up
+    blocker = ProductionJob(
+        env=env,
+        sku="BLOCK",
+        servers=[server],
+        processing_times=[10.0],
+        due_date=1000.0,
+        priority_policy=pst_policy,
+    )
+    sf.add(blocker)
+    env.run(until=0.01)
+
+    # Add three jobs with different due dates (and thus different PSTs).
+    # Lower due_date -> lower PST -> more urgent -> should process first.
+    job_relaxed = ProductionJob(
+        env=env,
+        sku="RELAXED",
+        servers=[server],
+        processing_times=[1.0],
+        due_date=50.0,
+        priority_policy=pst_policy,
+    )
+    job_medium = ProductionJob(
+        env=env,
+        sku="MEDIUM",
+        servers=[server],
+        processing_times=[1.0],
+        due_date=20.0,
+        priority_policy=pst_policy,
+    )
+    job_urgent = ProductionJob(
+        env=env,
+        sku="URGENT",
+        servers=[server],
+        processing_times=[1.0],
+        due_date=8.0,
+        priority_policy=pst_policy,
+    )
+    # Add in non-PST order to verify priority sorting, not insertion order
+    sf.add(job_relaxed)
+    sf.add(job_medium)
+    sf.add(job_urgent)
+
+    env.run()
+
+    # Verify processing order: urgent first, then medium, then relaxed
+    urgent_exit = job_urgent.servers_exit_at[server]
+    medium_exit = job_medium.servers_exit_at[server]
+    relaxed_exit = job_relaxed.servers_exit_at[server]
+    assert urgent_exit is not None and medium_exit is not None and relaxed_exit is not None
+    assert urgent_exit < medium_exit
+    assert medium_exit < relaxed_exit
+
+
+def test_slar_pst_priority_discriminates_fractional_differences() -> None:
+    """PST-based priority must distinguish jobs whose PST differs by less than 1.0.
+
+    This is a regression test for the int() truncation bug: if priority values
+    are truncated to int, jobs with PST=2.3 and PST=2.8 both become priority 2,
+    losing the ordering guarantee.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    def pst_policy(job: ProductionJob, server: Server) -> float:
+        return slar.pst_priority_policy(job, server) or 0.0
+
+    blocker = ProductionJob(
+        env=env,
+        sku="BLOCK",
+        servers=[server],
+        processing_times=[10.0],
+        due_date=1000.0,
+        priority_policy=pst_policy,
+    )
+    sf.add(blocker)
+    env.run(until=0.01)
+
+    # Two jobs whose PSTs differ by less than 1.0 AND share the same integer part.
+    # PST = (due - now) - (proc + allowance) = (due - 0.01) - (1.0 + 2.0) = due - 3.01
+    # job_a: due=10.3 -> PST ≈ 7.29 -> int(7.29) = 7
+    # job_b: due=10.7 -> PST ≈ 7.69 -> int(7.69) = 7
+    # Both truncate to int priority 7, so int() truncation would make them FIFO.
+    job_a = ProductionJob(
+        env=env,
+        sku="A",
+        servers=[server],
+        processing_times=[1.0],
+        due_date=10.3,
+        priority_policy=pst_policy,
+    )
+    job_b = ProductionJob(
+        env=env,
+        sku="B",
+        servers=[server],
+        processing_times=[1.0],
+        due_date=10.7,
+        priority_policy=pst_policy,
+    )
+
+    pst_a = slar.pst_priority_policy(job_a, server)
+    pst_b = slar.pst_priority_policy(job_b, server)
+    assert pst_a is not None and pst_b is not None
+    assert pst_a < pst_b  # A is more urgent
+
+    # Add in reverse PST order (B first) to ensure priority wins over insertion order
+    sf.add(job_b)
+    sf.add(job_a)
+
+    env.run()
+
+    # A (lower PST) must process before B despite being added second
+    a_exit = job_a.servers_exit_at[server]
+    b_exit = job_b.servers_exit_at[server]
+    assert a_exit is not None and b_exit is not None
+    assert a_exit < b_exit
+
+
+def test_slar_urgent_psp_job_processes_before_non_urgent_queued() -> None:
+    """Branch A: an urgent PSP job released into the queue should process before
+    a non-urgent queued job, thanks to PST-based priority ordering.
+
+    When the trigger fires with queue=1 (non-urgent) and an urgent PSP job exists,
+    Branch A releases the urgent job immediately. The priority policy ensures the
+    urgent job gets the server first.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    def pst_policy(job: ProductionJob, server: Server) -> float:
+        return slar.pst_priority_policy(job, server) or 0.0
+
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
+
+    job1 = ProductionJob(
+        env=env,
+        sku="J1",
+        servers=[server],
+        processing_times=[5.0],
+        due_date=100.0,
+        priority_policy=pst_policy,
+    )
+    job2 = ProductionJob(
+        env=env,
+        sku="J2",
+        servers=[server],
+        processing_times=[3.0],
+        due_date=50.0,
+        priority_policy=pst_policy,
+    )
+    sf.add(job1)
+    sf.add(job2)
+
+    # PSP candidate with a very tight due date (urgent, negative PST).
+    # Branch A releases it immediately; priority ordering puts it ahead of job2.
+    job3 = ProductionJob(
+        env=env,
+        sku="J3",
+        servers=[server],
+        processing_times=[2.0],
+        due_date=3.0,
+        priority_policy=pst_policy,
+    )
+    psp.add(job3)
+
+    env.run()
+
+    # Urgent job3 must process before non-urgent job2
+    j3_exit = job3.servers_exit_at[server]
+    j2_exit = job2.servers_exit_at[server]
+    assert j3_exit is not None and j2_exit is not None
+    assert j3_exit < j2_exit

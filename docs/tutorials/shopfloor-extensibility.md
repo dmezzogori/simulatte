@@ -152,6 +152,40 @@ for time, wip in collector.wip_ts:
     print(f"t={time}: WIP={wip}")
 ```
 
+### CurrentWorkLoadCollector
+
+`CurrentWorkLoadCollector` measures the **true remaining processing work** on the shop floor — the sum of remaining processing times across all in-system jobs — regardless of WIP strategy. Unlike `DefaultTimeSeriesCollector.wip_ts` (which reflects the active `WIPStrategy` and its position discounting), these values represent actual workload.
+
+```python
+from simulatte.environment import Environment
+from simulatte.shopfloor import CurrentWorkLoadCollector, ShopFloor
+
+collector = CurrentWorkLoadCollector()
+env = Environment()
+shopfloor = ShopFloor(env=env, time_series_collector=collector)
+```
+
+It records a snapshot on every job entry and every operation completion:
+
+```python
+# After simulation
+for time, workload in collector.wip_ts:
+    print(f"t={time}: remaining work={workload:.2f}")
+```
+
+The builder functions also accept `collect_workload=True` as a shorthand:
+
+```python
+from simulatte.builders import build_immediate_release_system
+
+_, servers, shopfloor, router = build_immediate_release_system(
+    env,
+    n_servers=6,
+    collect_workload=True,
+)
+# shopfloor.time_series_collector is now a CurrentWorkLoadCollector
+```
+
 ### Provide a custom collector
 
 Any object implementing the `TimeSeriesCollector` protocol works:

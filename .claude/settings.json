@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Bash(docker compose:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git mv:*)",
@@ -21,9 +20,5 @@
     "deny": [
       "Bash(rm:*)"
     ]
-  },
-  "enabledMcpjsonServers": [
-    "sequential-thinking",
-    "context7"
-  ]
+  }
 }

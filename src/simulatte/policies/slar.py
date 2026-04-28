@@ -5,32 +5,39 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from simulatte.job import ProductionJob
+    from simulatte.job import BaseJob, ProductionJob
     from simulatte.psp import PreShopPool
     from simulatte.server import Server
+    from simulatte.typing import ProcessGenerator
 
 
 class Slar:
     """Superfluous Load Avoidance Release (SLAR) policy.
 
-    Implements the SLAR algorithm from Land & Gaalman (1998) with an extension
-    for more aggressive starvation avoidance.
+    Implements the SLAR algorithm from Land & Gaalman (1998) extended with a
+    starvation-avoidance sub-trigger. On every job-completion event at a
+    server, the policy decides whether to release a PSP job based on three
+    branches (evaluated in order):
 
-    The policy releases jobs from the Pre-Shop Pool based on two triggers:
+    1. **Empty-queue release**: if the server queue is empty, release the
+       most urgent PSP candidate (lowest PST) to prevent idling.
 
-    1. **Starvation avoidance**: When a station's queue is empty or has only
-       one job (extension: original paper only triggers on empty), release
-       the job with earliest planned start time (lowest PST).
+    2. **Urgent-job insertion**: if all queued jobs are non-urgent (positive
+       PST), release from PSP the urgent job (negative PST) with the shortest
+       processing time to minimise disruption.
 
-    2. **Urgent job insertion**: When all queued jobs at a station are
-       non-urgent (positive PST), release an urgent job (negative PST)
-       with the shortest processing time to minimize disruption.
+    3. **Postponed starvation avoidance**: if exactly one job remains in the
+       queue, schedule a PSP candidate for delayed release so the queue is
+       replenished before it drains.
+
+    Queue ordering is handled externally via a PST-based priority policy
+    wired through the Router (see ``build_slar_system``), not by this class.
 
     Example:
         >>> from simulatte.policies.triggers import on_completion_trigger
         >>> slar = Slar(allowance_factor=3.0)
         >>> psp = PreShopPool(env=env, shopfloor=shopfloor)
-        >>> env.process(on_completion_trigger(shopfloor, psp, slar.starvation_release))
+        >>> env.process(on_completion_trigger(shopfloor, psp, slar.decide_next_job))
 
     Reference:
         Land, M.J. & Gaalman, G.J.C. (1998). The performance of workload
@@ -38,6 +45,8 @@ class Slar:
         International Journal of Production Economics, 56-57, 347-364.
         https://doi.org/10.1016/S0925-5273(98)00052-8
     """
+
+    _POSTPONED_DELAY: float = 0.001
 
     def __init__(self, allowance_factor: float = 2.0) -> None:
         """Initialize the SLAR release policy.
@@ -48,86 +57,122 @@ class Slar:
         """
         self.allowance_factor = allowance_factor
 
-    def pst_priority_policy(self, job: ProductionJob, server: Server) -> float | None:
+    def pst_priority_policy(self, job: BaseJob, server: Server) -> float:
         """Get the planned slack time priority for a job at a server.
 
-        This method is designed to be used as a priority_policy callback for jobs.
-        Lower PST values indicate higher urgency (job is behind schedule).
+        Designed to be used as a priority_policy callback for jobs. Lower PST
+        values indicate higher urgency (job is behind schedule). Returns
+        infinity for servers already exited or not in the job's routing.
 
         Args:
             job: The production job to evaluate.
             server: The server to calculate priority for.
 
         Returns:
-            Planned slack time for the job at the server, or None if the server
-            is not in the job's routing.
+            Planned slack time for the job at the server.
         """
-        return job.planned_slack_times(allowance=self.allowance_factor)[server]
+        pst = job.planned_slack_time_at(server, allowance=self.allowance_factor)
+        if pst is None:
+            return float("inf")
+        return pst
 
-    def _pst_value(self, job: ProductionJob, server: Server) -> float:
-        """Get planned slack time as a numeric value for comparisons.
+    def decide_next_job(self, triggering_job: ProductionJob, psp: PreShopPool) -> None:
+        """Decide whether to release a PSP job on a server's job-completion event.
 
-        Converts None values to 0.0 to enable consistent sorting and comparisons.
-
-        Args:
-            job: The production job to evaluate.
-            server: The server to calculate PST for.
-
-        Returns:
-            Planned slack time as float, or 0.0 if PST is None.
-        """
-        pst = self.pst_priority_policy(job, server)
-        return float(pst) if pst is not None else 0.0
-
-    def starvation_release(self, triggering_job: ProductionJob, psp: PreShopPool) -> None:
-        """Release a job based on SLAR algorithm triggers.
-
-        Evaluates whether to release a new job when a job finishes processing.
-        Implements two release triggers: starvation avoidance and urgent job
-        insertion.
-
-        This method is designed to be used with `on_completion_trigger`.
-
-        Note:
-            This implementation extends the original paper algorithm by also
-            triggering starvation avoidance when a queue has exactly one job,
-            not just when empty.
+        This method is the callback used with ``on_completion_trigger``. It
+        selects a candidate via :meth:`_select_psp_candidate_job` and releases
+        it from PSP to the shopfloor when one is returned.
 
         Args:
             triggering_job: The job that just finished processing.
             psp: The Pre-Shop Pool to release jobs from.
         """
         server_triggered = triggering_job.previous_server
+        assert server_triggered is not None
 
-        if server_triggered is None:
-            return
+        candidate = self._select_psp_candidate_job(server_triggered, psp)
+        if candidate is not None:
+            psp.remove(job=candidate)
+            psp.shopfloor.add(candidate)
 
-        candidate_job: ProductionJob | None = None
+    def _select_psp_candidate_job(self, server: Server, psp: PreShopPool) -> ProductionJob | None:
+        """Select a PSP job to release (if any) after a job completion at *server*.
 
-        is_empty = server_triggered.empty
-        has_one = len(server_triggered.queue) == 1
+        Examines the server's queue state and the Pre-Shop Pool to decide
+        whether a PSP job should be released to the shopfloor. Three branches
+        are evaluated in order:
 
-        # Extension: Also trigger when queue has exactly 1 job to prevent
-        # imminent starvation (more aggressive than original paper algorithm)
-        if is_empty or has_one:
-            candidate_job = min(
-                (job for job in psp.jobs if job.starts_at(server_triggered)),
-                default=None,
-                key=lambda j: self._pst_value(j, server_triggered),
+        1. **Empty queue**: release the most urgent candidate (lowest PST)
+           to prevent the server from idling.
+        2. **Urgent insertion**: if all queued jobs are non-urgent, release
+           an urgent candidate (negative PST) with the shortest processing
+           time to minimise disruption to the existing queue.
+        3. **Postponed starvation avoidance**: if exactly one job remains in
+           the queue, schedule a delayed release so the queue is replenished
+           before it drains. The candidate is removed from PSP immediately
+           (to avoid double-selection) but enters the shopfloor after a small
+           delay.
+
+        Branches 1 and 2 return the candidate for the caller to release
+        immediately. Branch 3 schedules a postponed sub-process and returns
+        None.
+
+        Args:
+            server: The server where the job completion triggered this check.
+            psp: The Pre-Shop Pool containing candidate jobs.
+
+        Returns:
+            A PSP job to release immediately, or None.
+        """
+        psp_candidates = tuple(j for j in psp.jobs if j.starts_at(server))
+
+        if not psp_candidates:
+            return None
+
+        # Branch 1: empty queue — release the most urgent PSP candidate.
+        if server.empty:
+            return min(
+                psp_candidates,
+                key=lambda j: self.pst_priority_policy(j, server),
             )
-        elif all(self._pst_value(job, server_triggered) > 0 for job in server_triggered.queueing_jobs):  # type: ignore[arg-type]
-            # Per paper: select shortest processing time to minimize disruption
-            # when inserting urgent job into non-urgent queue
-            candidate_job = min(
-                (
-                    job
-                    for job in psp.jobs
-                    if (job.starts_at(server_triggered) and self._pst_value(job, server_triggered) < 0)
-                ),
+
+        # Branch 2: urgent insertion — release an urgent PSP candidate when
+        # all queued jobs are non-urgent.
+        if all(self.pst_priority_policy(j, server) > 0 for j in server.queueing_jobs):
+            urgent = min(
+                (j for j in psp_candidates if self.pst_priority_policy(j, server) < 0),
                 default=None,
                 key=lambda j: j.processing_times[0],
             )
+            if urgent is not None:
+                return urgent
 
-        if candidate_job is not None:
-            psp.remove(job=candidate_job)
-            psp.shopfloor.add(candidate_job)
+        # Branch 3: postponed starvation avoidance — schedule a delayed
+        # release when exactly one job remains in the queue.
+        if len(server.queue) == 1:
+            candidate = min(
+                psp_candidates,
+                key=lambda j: self.pst_priority_policy(j, server),
+            )
+            psp.env.process(self._postponed_release(candidate, psp))
+
+        return None
+
+    def _postponed_release(self, job: ProductionJob, psp: PreShopPool) -> ProcessGenerator:
+        """Release *job* from PSP after a tiny delay.
+
+        Removes *job* from the PSP immediately to avoid races with other
+        triggers selecting the same candidate, then yields a small timeout so
+        the single queued job at the triggering server starts processing first,
+        then adds *job* to the shopfloor.
+
+        Args:
+            job: The PSP job selected for postponed release.
+            psp: The Pre-Shop Pool the job is currently in.
+
+        Yields:
+            A SimPy timeout event.
+        """
+        psp.remove(job=job)
+        yield psp.env.timeout(self._POSTPONED_DELAY)
+        psp.shopfloor.add(job)

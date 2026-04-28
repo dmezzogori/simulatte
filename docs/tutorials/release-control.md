@@ -102,6 +102,25 @@ print(f"Jobs completed: {len(shopfloor.jobs_done)}")
 print(f"Avg time in system: {shopfloor.average_time_in_system:.2f}")
 ```
 
+The default parameters (`n_servers`, `arrival_rate`, `service_rate`) reflect a standard benchmark workload — pass explicit values to model other regimes.
+
+Optional parameters:
+
+- `priority_policies`: A callable `(job, server) -> float` used to assign queue priorities. Lower values are served first. Pass `None` (default) for FIFO ordering.
+- `collect_workload`: If `True`, attaches a `CurrentWorkLoadCollector` that records total remaining processing work over time (see [ShopFloor extensibility](shopfloor-extensibility.md#currentworkloadcollector)).
+
+A ready-made SPT (Shortest Processing Time) policy is available:
+
+```python
+from simulatte.builders import build_immediate_release_system, spt_priority_policy
+
+_, servers, shopfloor, router = build_immediate_release_system(
+    env,
+    n_servers=6,
+    priority_policies=spt_priority_policy,
+)
+```
+
 ### LumsCor (workload-based)
 
 Jobs are released only if adding them keeps corrected WIP at or below a workload norm. Combines periodic checks with starvation avoidance.
@@ -128,10 +147,21 @@ Key parameters:
 - `check_timeout`: Time between periodic release checks
 - `wl_norm_level`: Maximum corrected WIP allowed per server
 - `allowance_factor`: Multiplier for due date slack (higher = more conservative)
+- `collect_workload`: If `True`, attaches a `CurrentWorkLoadCollector` (see [ShopFloor extensibility](shopfloor-extensibility.md#currentworkloadcollector))
+
+Release triggers wired by the builder:
+
+1. **Periodic release** (`periodic_trigger`): every `check_timeout` time units, release PSP jobs (sorted by planned release date) whose corrected WIP fits within the workload norm.
+2. **Starvation release** (`on_completion_trigger`): when a server finishes a job:
+    - If the server queue is **empty**, immediately release the PSP candidate with the earliest planned release date.
+    - If exactly **one job** remains in the queue, schedule a **postponed release** — the candidate is removed from PSP immediately, but enters the shopfloor after a tiny delay so the queued job acquires the server first.
+3. **Starvation avoidance backup** (`starvation_avoidance_backup`): when a new job enters the PSP and its first server is completely idle (empty queue *and* no job processing), the job is released immediately.
+
+Queue ordering uses a PST (planned slack time) priority policy: jobs with lower slack are served first.
 
 ### SLAR (slack-based)
 
-Event-driven release based on planned slack times. No periodic checks—releases happen when servers risk starvation or urgent jobs need insertion.
+Event-driven release based on planned slack times (PST). No periodic checks — releases are triggered by job completions at servers.
 
 ```python
 from simulatte.builders import build_slar_system
@@ -147,9 +177,20 @@ env.run(until=1000)
 print(f"Jobs completed: {len(shopfloor.jobs_done)}")
 ```
 
-Key parameter:
+Key parameters:
 
 - `allowance_factor`: Slack allowance per operation (higher = more buffer time)
+- `collect_workload`: If `True`, attaches a `CurrentWorkLoadCollector` (see [ShopFloor extensibility](shopfloor-extensibility.md#currentworkloadcollector))
+
+On every job completion at a server, SLAR evaluates three branches in order:
+
+1. **Empty-queue release**: if the server queue is empty, immediately release the most urgent PSP candidate (lowest PST) to prevent idling.
+2. **Urgent-job insertion**: if all queued jobs are non-urgent (positive PST), release from PSP the urgent job (negative PST) with the shortest processing time, minimising disruption to the existing queue.
+3. **Postponed starvation avoidance**: if exactly one job remains in the queue, schedule a **delayed release** — the candidate is removed from PSP immediately (to avoid double-selection) but enters the shopfloor after a tiny delay so the queued job acquires the server first.
+
+Additionally, a **starvation avoidance backup** process monitors the PSP: when a new job arrives whose first server is completely idle (empty queue *and* no job processing), it is released immediately.
+
+Queue ordering uses a PST-based priority policy: jobs with lower slack are served first.
 
 ## 5) Comparing systems
 

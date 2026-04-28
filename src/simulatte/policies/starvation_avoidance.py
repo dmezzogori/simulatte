@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from simulatte.server import Server
+
 if TYPE_CHECKING:
     from simulatte.job import ProductionJob
     from simulatte.psp import PreShopPool
@@ -17,7 +19,7 @@ if TYPE_CHECKING:
     from simulatte.typing import ProcessGenerator
 
 
-def starvation_avoidance_process(shopfloor: ShopFloor, psp: PreShopPool) -> ProcessGenerator:
+def starvation_avoidance_backup(shopfloor: ShopFloor, psp: PreShopPool) -> ProcessGenerator:
     """SimPy process that prevents server starvation by releasing jobs immediately.
 
     This process monitors the Pre-Shop Pool for incoming jobs. When a job arrives
@@ -36,14 +38,17 @@ def starvation_avoidance_process(shopfloor: ShopFloor, psp: PreShopPool) -> Proc
 
     Note:
         This process runs in an infinite loop and should be registered with the
-        simulation environment using ``env.process(starvation_avoidance_process(...))``.
+        simulation environment using ``env.process(starvation_avoidance_backup(...))``.
         It is typically used alongside pull-based release policies like LumsCor or SLAR.
 
     Example:
-        >>> env.process(starvation_avoidance_process(shop_floor, psp))
+        >>> env.process(starvation_avoidance_backup(shop_floor, psp))
     """
     while True:
         new_job_in_psp: ProductionJob = yield psp.new_job
-        if new_job_in_psp.servers[0].empty:
+        first_server: Server = new_job_in_psp.servers[0]
+        is_queue_empty: bool = first_server.empty
+        is_user_empty: bool = len(first_server.users) == 0
+        if is_queue_empty and is_user_empty:
             psp.remove(job=new_job_in_psp)
             shopfloor.add(new_job_in_psp)

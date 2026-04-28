@@ -7,11 +7,14 @@ authors:
   - family-names: "Mezzogori"
     given-names: "Davide"
     orcid: "https://orcid.org/0000-0002-3303-0789"
-version: "0.1.4"
-date-released: "2025-01-01"
+  - family-names: "Mercogliano"
+    given-names: "Nicola"
+    orcid: "https://orcid.org/0009-0005-6716-6755"
+version: "0.2.0"
+date-released: "2025-12-31"
 license: "MIT"
 repository-code: "https://github.com/dmezzogori/simulatte"
-url: "https://dmezzogori.github.io/simulatte/"
+url: "https://simulatte.dev"
 keywords:
   - discrete-event simulation
   - job-shop scheduling

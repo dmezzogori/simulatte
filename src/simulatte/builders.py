@@ -9,25 +9,35 @@ from simulatte.distributions import server_sampling, truncated_2erlang
 from simulatte.environment import Environment
 from simulatte.policies.lumscor import LumsCor
 from simulatte.policies.slar import Slar
-from simulatte.policies.starvation_avoidance import starvation_avoidance_process
+from simulatte.policies.starvation_avoidance import starvation_avoidance_backup
 from simulatte.policies.triggers import on_completion_trigger, periodic_trigger
 from simulatte.psp import PreShopPool
 from simulatte.router import Router
 from simulatte.server import Server
-from simulatte.shopfloor import CorrectedWIPStrategy, ShopFloor
+from simulatte.shopfloor import CorrectedWIPStrategy, CurrentWorkLoadCollector, ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Callable
+
+    from simulatte.job import ProductionJob
     from simulatte.typing import PullSystem, PushSystem
+
+
+def spt_priority_policy(job: ProductionJob, server: Server) -> float:
+    """Shortest Processing Time dispatching: priority = processing time at server."""
+    return job.routing[server]
 
 
 def build_immediate_release_system(
     env: Environment,
     *,
-    n_servers: int,
-    arrival_rate: float = 1.0,
-    service_rate: float = 1.0,
+    n_servers: int = 6,
+    arrival_rate: float = 1 / 0.648,
+    service_rate: float = 2.0,
     collect_time_series: bool = False,
     retain_job_history: bool = False,
+    priority_policies: Callable[[ProductionJob, Server], float] | None = None,
+    collect_workload: bool = False,
 ) -> PushSystem:
     """Build an immediate release (push) system with no workload control.
 
@@ -39,9 +49,10 @@ def build_immediate_release_system(
         env: The simulation environment.
         n_servers: Number of production servers to create.
         arrival_rate: Inter-arrival rate (lambda for exponential distribution).
-        service_rate: Service rate (lambda for exponential distribution).
+        service_rate: Service rate (lambda for truncated 2-Erlang distribution).
         collect_time_series: If True, servers collect queue length time series.
         retain_job_history: If True, servers retain completed job references.
+        priority_policies: Optional callable used to assign job priorities at servers.
 
     Returns:
         Tuple of (psp, servers, shop_floor, router) where psp is None.
@@ -54,7 +65,10 @@ def build_immediate_release_system(
         >>> env.run(until=1000)
         >>> print(f"Jobs completed: {len(shop_floor.jobs_done)}")
     """
-    shop_floor = ShopFloor(env=env)
+    shop_floor = ShopFloor(
+        env=env,
+        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+    )
     servers = tuple(
         Server(
             env=env,
@@ -65,6 +79,7 @@ def build_immediate_release_system(
         )
         for _ in range(n_servers)
     )
+
     router = Router(
         env=env,
         shopfloor=shop_floor,
@@ -72,11 +87,18 @@ def build_immediate_release_system(
         psp=None,
         inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
         sku_distributions={"F1": 1},
-        sku_routings={"F1": lambda: servers},
+        sku_routings={"F1": server_sampling(servers)},
         sku_service_times={
-            "F1": {server: lambda: random.expovariate(service_rate) for server in servers},
+            "F1": {
+                server: lambda: truncated_2erlang(
+                    lam=service_rate,
+                    max_value=4.0,
+                )
+                for server in servers
+            },
         },
-        due_date_offset_distribution={"F1": lambda: random.expovariate(1.0 * n_servers)},
+        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+        priority_policies=priority_policies,
     )
     return None, servers, shop_floor, router
 
@@ -90,6 +112,7 @@ def build_lumscor_system(
     n_servers: int = 6,
     arrival_rate: float = 1 / 0.648,
     service_rate: float = 2.0,
+    collect_workload: bool = False,
 ) -> PullSystem:
     """Build a LumsCor (load-based) pull system with workload control.
 
@@ -125,7 +148,10 @@ def build_lumscor_system(
         Land, M.J. (2006). Parameters and sensitivity in workload control.
         International Journal of Production Economics, 104(2), 625-638.
     """
-    shop_floor = ShopFloor(env=env)
+    shop_floor = ShopFloor(
+        env=env,
+        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+    )
     shop_floor.set_wip_strategy(CorrectedWIPStrategy())
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
 
@@ -149,23 +175,25 @@ def build_lumscor_system(
             },
         },
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+        priority_policies=lambda job, server: lumscor.pst_priority_policy(job, server) or 0.0,
     )
 
     # Compose release triggers
     env.process(periodic_trigger(psp, float(check_timeout), lumscor.periodic_release))
     env.process(on_completion_trigger(shop_floor, psp, lumscor.starvation_release))
-    env.process(starvation_avoidance_process(shop_floor, psp))  # type: ignore[arg-type]
+    env.process(starvation_avoidance_backup(shop_floor, psp))  # type: ignore[arg-type]
 
     return psp, servers, shop_floor, router
 
 
 def build_slar_system(
     env: Environment,
-    *,
     allowance_factor: float,
+    *,
     n_servers: int = 6,
     arrival_rate: float = 1 / 0.648,
     service_rate: float = 2.0,
+    collect_workload: bool = False,
 ) -> PullSystem:
     """Build a SLAR (Superfluous Load Avoidance Release) pull system.
 
@@ -203,7 +231,10 @@ def build_slar_system(
         International Journal of Production Economics, 56-57, 347-364.
         https://doi.org/10.1016/S0925-5273(98)00052-8
     """
-    shop_floor = ShopFloor(env=env)
+    shop_floor = ShopFloor(
+        env=env,
+        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+    )
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
     slar = Slar(allowance_factor=allowance_factor)
     psp = PreShopPool(env=env, shopfloor=shop_floor)
@@ -229,7 +260,7 @@ def build_slar_system(
     )
 
     # Compose release triggers (event-driven only, no periodic)
-    env.process(on_completion_trigger(shop_floor, psp, slar.starvation_release))
-    env.process(starvation_avoidance_process(shop_floor, psp))  # type: ignore[arg-type]
+    env.process(on_completion_trigger(shop_floor, psp, slar.decide_next_job))
+    env.process(starvation_avoidance_backup(shop_floor, psp))  # type: ignore[arg-type]
 
     return psp, servers, shop_floor, router
