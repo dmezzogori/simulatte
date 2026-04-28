@@ -315,27 +315,27 @@ class BaseJob(ABC):
         """
         return self._servers[0] is server
 
-    def planned_slack_times(self, allowance: float = 0) -> dict[Server, float | None]:
-        """Compute backward slack time for each server in the routing.
+    def planned_slack_time_at(self, server: Server, allowance: float = 0) -> float | None:
+        """Compute backward slack time at a specific server in the routing.
 
-        Calculates how much slack remains when arriving at each server,
-        working backward from the due date. Already-visited servers return None.
+        Calculates how much slack remains when arriving at *server*, working
+        backward from the due date through downstream operations.
 
         Args:
+            server: The server to compute slack time for.
             allowance: Additional buffer time per server.
 
         Returns:
-            Dict mapping each server to its slack time (None if already exited).
+            Slack time at the server, or None if the server has already been exited.
         """
-        slack_times = {}
+        if self.servers_exit_at[server] is not None:
+            return None
         pst = self.slack_time
-        for server, processing_time in reversed(list(self.server_processing_times)):
+        for srv, processing_time in reversed(list(self.server_processing_times)):
             pst -= processing_time + allowance
-            slack_times[server] = pst
-        for server, exit_time in self.servers_exit_at.items():
-            if exit_time is not None:
-                slack_times[server] = None
-        return slack_times
+            if srv is server:
+                return pst
+        return None
 
     def priority(self, server: Server) -> float:
         """Get priority value for this job at the given server.

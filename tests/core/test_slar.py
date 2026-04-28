@@ -21,7 +21,7 @@ def test_slar_pst_priority_policy() -> None:
     pst = slar.pst_priority_policy(job, server)
     # slack_time = due_date - arrival_time - remaining_processing
     # At t=0: slack = 20 - 0 - 5 = 15
-    # planned_slack_times with allowance=2: pst = slack - (processing + allowance per server)
+    # planned_slack_time_at with allowance=2: pst = slack - (processing + allowance)
     assert pst is not None
 
 

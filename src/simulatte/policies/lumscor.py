@@ -75,7 +75,7 @@ class LumsCor:
             Planned slack time for the job at the server, or None if the server
             is not in the job's remaining routing.
         """
-        return job.planned_slack_times(allowance=self.allowance_factor)[server]
+        return job.planned_slack_time_at(server, allowance=self.allowance_factor)
 
     def _validate_wip_strategy(self, shopfloor: ShopFloor) -> None:
         """Validate that the shopfloor uses CorrectedWIPStrategy.

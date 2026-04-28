@@ -392,3 +392,34 @@ class TestJobProperties:
         # At t=0: slack_time = 50 - 0 = 50
         # planned_slack_time = 50 - (5 + 3) = 42
         assert job.planned_slack_time == 42.0
+
+    def test_planned_slack_time_at(self) -> None:
+        """planned_slack_time_at should compute backward slack at a specific server."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s1 = Server(env=env, capacity=1, shopfloor=sf)
+        s2 = Server(env=env, capacity=1, shopfloor=sf)
+        s3 = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[s1, s2, s3], processing_times=[4, 3, 2], due_date=50)
+
+        # At t=0: slack = 50, allowance=1
+        # Backward from s3: pst = 50 - (2+1) = 47
+        # At s2: pst = 47 - (3+1) = 43
+        # At s1: pst = 43 - (4+1) = 38
+        assert job.planned_slack_time_at(s3, allowance=1) == 47.0
+        assert job.planned_slack_time_at(s2, allowance=1) == 43.0
+        assert job.planned_slack_time_at(s1, allowance=1) == 38.0
+
+    def test_planned_slack_time_at_returns_none_for_exited_server(self) -> None:
+        """planned_slack_time_at returns None for a server the job has exited."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s1 = Server(env=env, capacity=1, shopfloor=sf)
+        s2 = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[5, 3], due_date=50)
+
+        sf.add(job)
+        env.run(until=6)  # Job finishes at s1 (t=5), enters s2
+
+        assert job.planned_slack_time_at(s1) is None
+        assert job.planned_slack_time_at(s2) is not None
