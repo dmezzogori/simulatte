@@ -12,6 +12,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterable
 
     from simulatte.job import ProductionJob
+    from simulatte.server import Server
 
 
 class PreShopPool:
@@ -122,6 +123,32 @@ class PreShopPool:
         )
 
         return job
+
+    def release(self, job: ProductionJob) -> None:
+        """Remove a job from the pool and release it to the shopfloor.
+
+        Combines remove() and shopfloor.add() in one atomic operation.
+        Use remove() instead if you want to discard a job without releasing it.
+
+        Args:
+            job: The job to release from the pool to the shopfloor.
+
+        Raises:
+            ValueError: If the job is not found in the pool.
+        """
+        self.remove(job=job)
+        self.shopfloor.add(job)
+
+    def jobs_starting_at(self, server: Server) -> list[ProductionJob]:
+        """Return jobs in the pool whose routing begins at the given server.
+
+        Args:
+            server: The server to filter by.
+
+        Returns:
+            List of jobs whose first routing server matches, in FIFO order.
+        """
+        return [job for job in self._psp if job.starts_at(server)]
 
     def _signal_new_job(self, job: ProductionJob) -> None:
         """Trigger the new_job event and prepare for the next signal.
