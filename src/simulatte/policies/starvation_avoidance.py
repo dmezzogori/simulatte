@@ -29,5 +29,7 @@ def starvation_avoidance(job: ProductionJob, psp: PreShopPool) -> None:
     Example:
         >>> psp.on_arrival(starvation_avoidance)
     """
+    if job not in psp:
+        return
     if job.servers[0].is_idle:
         psp.release(job)

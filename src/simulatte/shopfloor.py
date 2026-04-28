@@ -13,7 +13,7 @@ The ShopFloor integrates with:
 - Environment: The SimPy-based simulation environment
 
 Extensibility is provided through:
-- OperationHook: Generator-based hooks for before/after each operation
+- OperationHook: Sync or generator-based hooks for before/after each operation
 - WIPStrategy: Pluggable WIP calculation strategies
 - MetricsCollector: Pluggable metrics recording
 """
@@ -955,7 +955,7 @@ class ShopFloor:
         as the event value, notifying any waiting processes that a job has
         finished all operations. The event is then recreated for the next signal.
 
-        Unlike signal_end_processing, this is only called once per job when
+        Unlike job_processing_end, this is only called once per job when
         it completes its final operation.
 
         Args:
@@ -985,7 +985,7 @@ class ShopFloor:
         4. Processes the job for the specified duration
         5. Updates WIP via the configured WIP strategy
         6. Executes on_after_operation hooks
-        7. Signals processing completion via signal_end_processing()
+        7. Signals processing completion (job_processing_end event + on_processing_end callbacks)
 
         After all operations complete, it:
         - Records the finish timestamp on the job

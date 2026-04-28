@@ -105,3 +105,21 @@ def test_starvation_avoidance_coexists_with_other_arrival_callbacks() -> None:
     assert arrivals_seen == [job]
     assert job not in psp
     assert job in sf.jobs
+
+
+def test_starvation_avoidance_tolerates_earlier_callback_releasing_job() -> None:
+    """If an earlier on_arrival callback already released the job, starvation avoidance should not error."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    # An earlier callback releases the job before starvation avoidance runs
+    psp.on_arrival(lambda job, pool: pool.release(job))
+    psp.on_arrival(starvation_avoidance)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=20.0)
+    psp.add(job)  # Should not raise ValueError
+
+    assert job not in psp
+    assert job in sf.jobs
