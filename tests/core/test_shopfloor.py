@@ -846,3 +846,87 @@ def test_sync_after_operation_hook() -> None:
     assert job.done
     assert len(hook_calls) == 1
     assert hook_calls[0] == pytest.approx(5.0)
+
+
+# =============================================================================
+# Post-init hook registration Tests
+# =============================================================================
+
+
+def test_on_before_operation_post_init() -> None:
+    """on_before_operation() should register a hook after construction."""
+    hook_calls: list[float] = []
+
+    def hook(job: ProductionJob, server: Server, op_index: int, processing_time: float) -> None:
+        hook_calls.append(server.env.now)
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.on_before_operation(hook)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert job.done
+    assert len(hook_calls) == 1
+
+
+def test_on_after_operation_post_init() -> None:
+    """on_after_operation() should register a hook after construction."""
+    hook_calls: list[float] = []
+
+    def hook(job: ProductionJob, server: Server, op_index: int, processing_time: float) -> None:
+        hook_calls.append(server.env.now)
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.on_after_operation(hook)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert job.done
+    assert len(hook_calls) == 1
+    assert hook_calls[0] == pytest.approx(5.0)
+
+
+def test_on_job_finished_post_init() -> None:
+    """on_job_finished() should register a callback after construction."""
+    finished_jobs: list[ProductionJob] = []
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.on_job_finished(lambda job: finished_jobs.append(job))
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert finished_jobs == [job]
+
+
+def test_post_init_hooks_combine_with_init_hooks() -> None:
+    """Hooks registered post-init should execute after init hooks, in order."""
+    from simulatte.typing import ProcessGenerator
+
+    execution_order: list[str] = []
+
+    def init_hook(job: ProductionJob, server: Server, op_index: int, processing_time: float) -> ProcessGenerator:
+        execution_order.append("init")
+        return
+        yield
+
+    def post_init_hook(job: ProductionJob, server: Server, op_index: int, processing_time: float) -> None:
+        execution_order.append("post_init")
+
+    env = Environment()
+    sf = ShopFloor(env=env, on_after_operation=init_hook)
+    sf.on_after_operation(post_init_hook)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert execution_order == ["init", "post_init"]

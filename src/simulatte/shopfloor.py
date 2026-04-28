@@ -742,6 +742,30 @@ class ShopFloor:
         # Single callback
         return [callbacks]  # type: ignore[list-item]
 
+    def on_before_operation(self, hook: OperationHook) -> None:
+        """Register a hook to run before each operation.
+
+        Hooks registered post-construction execute after any hooks
+        passed via __init__, in registration order.
+        """
+        self._before_operation.append(hook)
+
+    def on_after_operation(self, hook: OperationHook) -> None:
+        """Register a hook to run after each operation.
+
+        Hooks registered post-construction execute after any hooks
+        passed via __init__, in registration order.
+        """
+        self._after_operation.append(hook)
+
+    def on_job_finished(self, callback: Callable[[ProductionJob], None]) -> None:
+        """Register a callback for when a job completes its entire routing.
+
+        Callbacks registered post-construction execute after any callbacks
+        passed via __init__, in registration order.
+        """
+        self._on_job_finished.append(callback)
+
     @property
     def wip_strategy(self) -> WIPStrategy:
         """The current WIP strategy used by the shopfloor."""
