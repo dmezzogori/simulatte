@@ -207,3 +207,220 @@ class TestServer:
 
         # job1 processing, job2 in queue
         assert not server.empty
+
+
+class TestPriorityQueueOrdering:
+    """Tests for dynamic priority-based queue ordering in Server.
+
+    SimPy's PriorityResource uses a SortedQueue that re-sorts on every
+    insertion. These tests verify that ServerPriorityRequest integrates
+    correctly with this mechanism: jobs enter the queue sorted by their
+    priority value (lower = more urgent), and late-arriving jobs are
+    inserted in the correct position among already-queued jobs.
+    """
+
+    @staticmethod
+    def _make_job(
+        env: Environment,
+        server: Server,
+        sku: str,
+        priority: float,
+        processing_time: float = 3.0,
+    ) -> ProductionJob:
+        def policy(job: ProductionJob, srv: Server) -> float:
+            return priority
+
+        return ProductionJob(
+            env=env,
+            sku=sku,
+            servers=[server],
+            processing_times=[processing_time],
+            due_date=1000.0,
+            priority_policy=policy,
+        )
+
+    def test_initial_insertion_sorts_by_priority(self) -> None:
+        """Jobs entering the queue are sorted by priority, not insertion order."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+
+        blocker = self._make_job(env, server, "BLOCK", 0, processing_time=100.0)
+        sf.add(blocker)
+        env.run(until=0.01)
+
+        job_b = self._make_job(env, server, "B", 3.14)
+        job_a = self._make_job(env, server, "A", 2.11)
+        sf.add(job_b)
+        sf.add(job_a)
+        env.run(until=0.02)
+
+        queued_skus = [r.job.sku for r in server.queue]
+        assert queued_skus == ["A", "B"]
+
+    def test_late_arrival_inserted_in_priority_order(self) -> None:
+        """A job arriving after others are queued is inserted at the correct position."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+
+        blocker = self._make_job(env, server, "BLOCK", 0, processing_time=100.0)
+        sf.add(blocker)
+        env.run(until=0.01)
+
+        job_low = self._make_job(env, server, "LOW", 10.0)
+        job_high = self._make_job(env, server, "HIGH", 1.0)
+        sf.add(job_low)
+        sf.add(job_high)
+        env.run(until=0.02)
+
+        # Now add MED between HIGH and LOW
+        job_med = self._make_job(env, server, "MED", 5.0)
+        sf.add(job_med)
+        env.run(until=0.03)
+
+        queued_skus = [r.job.sku for r in server.queue]
+        assert queued_skus == ["HIGH", "MED", "LOW"]
+
+    def test_dynamic_reordering_during_processing(self) -> None:
+        """A job added while another is processing is correctly sorted among waiters.
+
+        Scenario:
+        1. Blocker occupies the server
+        2. B (priority 3.14) and A (priority 2.11) enter queue → sorted [A, B]
+        3. Blocker finishes → A starts processing, B remains in queue
+        4. C (priority 1.5) arrives → sorted before B in queue → [C, B]
+        5. Processing order: Blocker → A → C → B
+        """
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+
+        blocker = self._make_job(env, server, "BLOCK", 0, processing_time=10.0)
+        sf.add(blocker)
+        env.run(until=0.01)
+
+        job_b = self._make_job(env, server, "B", 3.14)
+        job_a = self._make_job(env, server, "A", 2.11)
+        sf.add(job_b)
+        sf.add(job_a)
+        env.run(until=0.02)
+
+        # Queue should be [A, B]
+        assert [r.job.sku for r in server.queue] == ["A", "B"]
+
+        # Blocker finishes at t=10, A gets the server
+        env.run(until=10.01)
+        assert [r.job.sku for r in server.users] == ["A"]
+        assert [r.job.sku for r in server.queue] == ["B"]
+
+        # Add C (more urgent than B) while A is processing
+        job_c = self._make_job(env, server, "C", 1.5)
+        sf.add(job_c)
+        env.run(until=10.02)
+
+        assert [r.job.sku for r in server.queue] == ["C", "B"]
+
+        # Run to completion and verify processing order
+        env.run()
+        assert blocker.servers_exit_at[server] < job_a.servers_exit_at[server]
+        assert job_a.servers_exit_at[server] < job_c.servers_exit_at[server]
+        assert job_c.servers_exit_at[server] < job_b.servers_exit_at[server]
+
+    def test_equal_priority_preserves_arrival_order(self) -> None:
+        """Jobs with the same priority are processed in FIFO (arrival) order."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+
+        blocker = self._make_job(env, server, "BLOCK", 0, processing_time=10.0)
+        sf.add(blocker)
+        env.run(until=0.01)
+
+        job_first = self._make_job(env, server, "FIRST", 5.0)
+        sf.add(job_first)
+        env.run(until=0.02)
+
+        job_second = self._make_job(env, server, "SECOND", 5.0)
+        sf.add(job_second)
+        env.run(until=0.03)
+
+        # Same priority → FIFO: FIRST entered at t=0.01, SECOND at t=0.02
+        env.run()
+        assert job_first.servers_exit_at[server] < job_second.servers_exit_at[server]
+
+    def test_fractional_priority_discrimination(self) -> None:
+        """Priorities differing by less than 1.0 must still be distinguished.
+
+        Regression test: under int() truncation, 5.2 and 5.8 would both
+        become 5, losing the ordering guarantee.
+        """
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+
+        blocker = self._make_job(env, server, "BLOCK", 0, processing_time=10.0)
+        sf.add(blocker)
+        env.run(until=0.01)
+
+        # Add in REVERSE priority order to ensure sorting, not FIFO
+        job_less_urgent = self._make_job(env, server, "LESS", 5.8)
+        job_more_urgent = self._make_job(env, server, "MORE", 5.2)
+        sf.add(job_less_urgent)
+        sf.add(job_more_urgent)
+
+        env.run()
+
+        assert job_more_urgent.servers_exit_at[server] < job_less_urgent.servers_exit_at[server]
+
+    def test_negative_priorities_sort_correctly(self) -> None:
+        """Negative priority values (urgent jobs) sort before positive ones."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+
+        blocker = self._make_job(env, server, "BLOCK", 0, processing_time=10.0)
+        sf.add(blocker)
+        env.run(until=0.01)
+
+        job_positive = self._make_job(env, server, "POS", 3.0)
+        job_negative = self._make_job(env, server, "NEG", -2.0)
+        sf.add(job_positive)
+        sf.add(job_negative)
+
+        env.run(until=0.02)
+        assert [r.job.sku for r in server.queue] == ["NEG", "POS"]
+
+        env.run()
+        assert job_negative.servers_exit_at[server] < job_positive.servers_exit_at[server]
+
+    def test_multiple_late_arrivals_maintain_order(self) -> None:
+        """Multiple jobs arriving at different times are all correctly sorted.
+
+        Jobs arrive one at a time while a blocker is processing:
+        D(8.0), B(3.0), E(9.0), A(1.0), C(5.0)
+        Queue at each step should be sorted, and processing order should be
+        A → B → C → D → E.
+        """
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+
+        blocker = self._make_job(env, server, "BLOCK", 0, processing_time=100.0)
+        sf.add(blocker)
+        env.run(until=0.01)
+
+        arrivals = [("D", 8.0), ("B", 3.0), ("E", 9.0), ("A", 1.0), ("C", 5.0)]
+        jobs = {}
+        for i, (sku, prio) in enumerate(arrivals):
+            j = self._make_job(env, server, sku, prio)
+            sf.add(j)
+            jobs[sku] = j
+            env.run(until=0.02 + i * 0.01)
+
+        queued_skus = [r.job.sku for r in server.queue]
+        assert queued_skus == ["A", "B", "C", "D", "E"]
+
+        env.run()
+        exit_times = {sku: j.servers_exit_at[server] for sku, j in jobs.items()}
+        assert exit_times["A"] < exit_times["B"] < exit_times["C"] < exit_times["D"] < exit_times["E"]
