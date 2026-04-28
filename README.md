@@ -113,6 +113,20 @@ print(f"Server utilization: {server.utilization_rate:.1%}")
 
 ---
 
+## AI Coding Agent Skill
+
+Simulatte ships a skill for AI coding agents (Claude Code, Cursor, Windsurf, etc.) that helps them write correct Simulatte simulations — from choosing a release policy to running multi-seed experiments.
+
+Install it with the [Vercel Skills CLI](https://github.com/vercel-labs/skills):
+
+```bash
+npx skills add https://github.com/dmezzogori/simulatte/tree/main/skills/simulatte-dev
+```
+
+Once installed, invoke it with `/simulatte-dev` or let the agent auto-trigger it when working with Simulatte code.
+
+---
+
 ## Documentation
 
 Full documentation is available at [simulatte.dev](https://simulatte.dev).
