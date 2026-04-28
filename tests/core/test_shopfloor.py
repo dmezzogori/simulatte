@@ -254,7 +254,7 @@ def test_before_operation_hook_adds_setup_time() -> None:
         yield server.env.timeout(2.0)  # 2s setup time
 
     env = Environment()
-    sf = ShopFloor(env=env, before_operation=setup_hook)
+    sf = ShopFloor(env=env, on_before_operation=setup_hook)
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
     sf.add(job)
@@ -283,7 +283,7 @@ def test_after_operation_hook_executes_after_processing() -> None:
         yield server.env.timeout(1.0)  # 1s cleanup
 
     env = Environment()
-    sf = ShopFloor(env=env, after_operation=after_hook)
+    sf = ShopFloor(env=env, on_after_operation=after_hook)
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
     sf.add(job)
@@ -315,7 +315,7 @@ def test_multiple_hooks_execute_in_order() -> None:
 
     hooks: list[OperationHook] = [hook1, hook2]  # type: ignore[list-item]
     env = Environment()
-    sf = ShopFloor(env=env, before_operation=hooks)
+    sf = ShopFloor(env=env, on_before_operation=hooks)
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=10)
     sf.add(job)
@@ -447,7 +447,7 @@ def test_hooks_with_multi_server_routing() -> None:
         yield
 
     env = Environment()
-    sf = ShopFloor(env=env, before_operation=track_hook)
+    sf = ShopFloor(env=env, on_before_operation=track_hook)
     server1 = Server(env=env, capacity=1, shopfloor=sf)
     server2 = Server(env=env, capacity=1, shopfloor=sf)
     server3 = Server(env=env, capacity=1, shopfloor=sf)
@@ -786,7 +786,7 @@ def test_sync_before_operation_hook() -> None:
         hook_calls.append(server.env.now)
 
     env = Environment()
-    sf = ShopFloor(env=env, before_operation=sync_hook)
+    sf = ShopFloor(env=env, on_before_operation=sync_hook)
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
     sf.add(job)
@@ -814,7 +814,7 @@ def test_mixed_sync_and_generator_hooks_execute_in_order() -> None:
 
     env = Environment()
     hooks: list[OperationHook] = [sync_hook, gen_hook]  # type: ignore[list-item]
-    sf = ShopFloor(env=env, before_operation=hooks)
+    sf = ShopFloor(env=env, on_before_operation=hooks)
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
     sf.add(job)
@@ -837,7 +837,7 @@ def test_sync_after_operation_hook() -> None:
         hook_calls.append(server.env.now)
 
     env = Environment()
-    sf = ShopFloor(env=env, after_operation=sync_hook)
+    sf = ShopFloor(env=env, on_after_operation=sync_hook)
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
     sf.add(job)

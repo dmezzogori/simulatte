@@ -594,7 +594,7 @@ class ShopFloor:
     complete processing steps or finish entirely.
 
     Extensibility is provided through composition:
-    - before_operation / after_operation: Hooks for custom logic at each operation
+    - on_before_operation / on_after_operation: Hooks for custom logic at each operation
     - wip_strategy: Pluggable WIP calculation
     - metrics_collector: Pluggable metrics recording
     - time_series_collector: Pluggable time-series data collection
@@ -625,7 +625,7 @@ class ShopFloor:
                 yield server.env.timeout(1.0)  # 1s setup time
 
             env = Environment()
-            shop_floor = ShopFloor(env=env, before_operation=setup_hook)
+            shop_floor = ShopFloor(env=env, on_before_operation=setup_hook)
             server = Server(env=env, capacity=1, shopfloor=shop_floor)
 
             job = ProductionJob(
@@ -647,8 +647,8 @@ class ShopFloor:
         metrics_collector: MetricsCollector | None | object = _DEFAULT_METRICS_COLLECTOR,
         collect_time_series: bool = False,
         time_series_collector: TimeSeriesCollector | None = None,
-        before_operation: OperationHook | Sequence[OperationHook] | None = None,
-        after_operation: OperationHook | Sequence[OperationHook] | None = None,
+        on_before_operation: OperationHook | Sequence[OperationHook] | None = None,
+        on_after_operation: OperationHook | Sequence[OperationHook] | None = None,
         on_job_finished: Callable[[ProductionJob], None] | Sequence[Callable[[ProductionJob], None]] | None = None,
     ) -> None:
         """Initialize a new ShopFloor instance.
@@ -673,9 +673,9 @@ class ShopFloor:
             time_series_collector: Collector for time-series data. If provided,
                 overrides collect_time_series. Pass None to disable time-series
                 collection. Defaults to None.
-            before_operation: Hook(s) called after acquiring server but before
+            on_before_operation: Hook(s) called after acquiring server but before
                 material delivery and processing. Can be a single hook or list.
-            after_operation: Hook(s) called after processing completes but
+            on_after_operation: Hook(s) called after processing completes but
                 before signaling. Can be a single hook or list.
             on_job_finished: Callback(s) called when a job completes its
                 entire routing. Can be a single callable or list.
@@ -684,8 +684,8 @@ class ShopFloor:
         self.material_coordinator = material_coordinator
 
         # Normalize hooks to lists
-        self._before_operation: list[OperationHook] = self._normalize_hooks(before_operation)
-        self._after_operation: list[OperationHook] = self._normalize_hooks(after_operation)
+        self._before_operation: list[OperationHook] = self._normalize_hooks(on_before_operation)
+        self._after_operation: list[OperationHook] = self._normalize_hooks(on_after_operation)
         self._on_job_finished: list[Callable[[ProductionJob], None]] = self._normalize_callbacks(on_job_finished)
 
         # Strategies with defaults
@@ -874,11 +874,11 @@ class ShopFloor:
         its routing. For each server in the job's routing, it:
 
         1. Requests and acquires the server resource (queuing if busy)
-        2. Executes before_operation hooks
+        2. Executes on_before_operation hooks
         3. If a MaterialCoordinator is configured, waits for material delivery
         4. Processes the job for the specified duration
         5. Updates WIP via the configured WIP strategy
-        6. Executes after_operation hooks
+        6. Executes on_after_operation hooks
         7. Signals processing completion via signal_end_processing()
 
         After all operations complete, it:
