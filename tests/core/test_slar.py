@@ -372,8 +372,12 @@ def test_slar_pst_priority_orders_queue_correctly() -> None:
     env.run()
 
     # Verify processing order: urgent first, then medium, then relaxed
-    assert job_urgent.servers_exit_at[server] < job_medium.servers_exit_at[server]
-    assert job_medium.servers_exit_at[server] < job_relaxed.servers_exit_at[server]
+    urgent_exit = job_urgent.servers_exit_at[server]
+    medium_exit = job_medium.servers_exit_at[server]
+    relaxed_exit = job_relaxed.servers_exit_at[server]
+    assert urgent_exit is not None and medium_exit is not None and relaxed_exit is not None
+    assert urgent_exit < medium_exit
+    assert medium_exit < relaxed_exit
 
 
 def test_slar_pst_priority_discriminates_fractional_differences() -> None:
@@ -436,7 +440,10 @@ def test_slar_pst_priority_discriminates_fractional_differences() -> None:
     env.run()
 
     # A (lower PST) must process before B despite being added second
-    assert job_a.servers_exit_at[server] < job_b.servers_exit_at[server]
+    a_exit = job_a.servers_exit_at[server]
+    b_exit = job_b.servers_exit_at[server]
+    assert a_exit is not None and b_exit is not None
+    assert a_exit < b_exit
 
 
 def test_slar_urgent_psp_job_processes_before_non_urgent_queued() -> None:
@@ -492,4 +499,7 @@ def test_slar_urgent_psp_job_processes_before_non_urgent_queued() -> None:
     env.run()
 
     # Urgent job3 must process before non-urgent job2
-    assert job3.servers_exit_at[server] < job2.servers_exit_at[server]
+    j3_exit = job3.servers_exit_at[server]
+    j2_exit = job2.servers_exit_at[server]
+    assert j3_exit is not None and j2_exit is not None
+    assert j3_exit < j2_exit

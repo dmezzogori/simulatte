@@ -143,6 +143,10 @@ class SQLiteEventStore:
 
     __slots__ = ("_db_path", "_conn", "_lock")
 
+    _conn: sqlite3.Connection
+    _db_path: Path
+    _lock: threading.Lock
+
     _SCHEMA = """
         CREATE TABLE IF NOT EXISTS log_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -613,8 +617,9 @@ class SimLogger:
             except ValueError:
                 pass  # Handler already removed
             self._handler_id = None
-        if getattr(self, "_db_store", None) is not None:
-            self._db_store.close()
+        store = getattr(self, "_db_store", None)
+        if store is not None:
+            store.close()
             self._db_store = None
 
 

@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+from simpy.resources.resource import Request
+
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.server import Server, ServerPriorityRequest
 from simulatte.shopfloor import ShopFloor
+
+
+def _as_priority_request(r: Request) -> ServerPriorityRequest:
+    assert isinstance(r, ServerPriorityRequest)
+    return r
 
 
 class TestServerPriorityRequest:
@@ -255,7 +262,7 @@ class TestPriorityQueueOrdering:
         sf.add(job_a)
         env.run(until=0.02)
 
-        queued_skus = [r.job.sku for r in server.queue]
+        queued_skus = [_as_priority_request(r).job.sku for r in server.queue]
         assert queued_skus == ["A", "B"]
 
     def test_late_arrival_inserted_in_priority_order(self) -> None:
@@ -279,7 +286,7 @@ class TestPriorityQueueOrdering:
         sf.add(job_med)
         env.run(until=0.03)
 
-        queued_skus = [r.job.sku for r in server.queue]
+        queued_skus = [_as_priority_request(r).job.sku for r in server.queue]
         assert queued_skus == ["HIGH", "MED", "LOW"]
 
     def test_dynamic_reordering_during_processing(self) -> None:
@@ -307,25 +314,31 @@ class TestPriorityQueueOrdering:
         env.run(until=0.02)
 
         # Queue should be [A, B]
-        assert [r.job.sku for r in server.queue] == ["A", "B"]
+        assert [_as_priority_request(r).job.sku for r in server.queue] == ["A", "B"]
 
         # Blocker finishes at t=10, A gets the server
         env.run(until=10.01)
-        assert [r.job.sku for r in server.users] == ["A"]
-        assert [r.job.sku for r in server.queue] == ["B"]
+        assert [_as_priority_request(r).job.sku for r in server.users] == ["A"]
+        assert [_as_priority_request(r).job.sku for r in server.queue] == ["B"]
 
         # Add C (more urgent than B) while A is processing
         job_c = self._make_job(env, server, "C", 1.5)
         sf.add(job_c)
         env.run(until=10.02)
 
-        assert [r.job.sku for r in server.queue] == ["C", "B"]
+        assert [_as_priority_request(r).job.sku for r in server.queue] == ["C", "B"]
 
         # Run to completion and verify processing order
         env.run()
-        assert blocker.servers_exit_at[server] < job_a.servers_exit_at[server]
-        assert job_a.servers_exit_at[server] < job_c.servers_exit_at[server]
-        assert job_c.servers_exit_at[server] < job_b.servers_exit_at[server]
+        blocker_exit = blocker.servers_exit_at[server]
+        a_exit = job_a.servers_exit_at[server]
+        c_exit = job_c.servers_exit_at[server]
+        b_exit = job_b.servers_exit_at[server]
+        assert blocker_exit is not None and a_exit is not None
+        assert c_exit is not None and b_exit is not None
+        assert blocker_exit < a_exit
+        assert a_exit < c_exit
+        assert c_exit < b_exit
 
     def test_equal_priority_preserves_arrival_order(self) -> None:
         """Jobs with the same priority are processed in FIFO (arrival) order."""
@@ -347,7 +360,10 @@ class TestPriorityQueueOrdering:
 
         # Same priority → FIFO: FIRST entered at t=0.01, SECOND at t=0.02
         env.run()
-        assert job_first.servers_exit_at[server] < job_second.servers_exit_at[server]
+        first_exit = job_first.servers_exit_at[server]
+        second_exit = job_second.servers_exit_at[server]
+        assert first_exit is not None and second_exit is not None
+        assert first_exit < second_exit
 
     def test_fractional_priority_discrimination(self) -> None:
         """Priorities differing by less than 1.0 must still be distinguished.
@@ -371,7 +387,10 @@ class TestPriorityQueueOrdering:
 
         env.run()
 
-        assert job_more_urgent.servers_exit_at[server] < job_less_urgent.servers_exit_at[server]
+        more_exit = job_more_urgent.servers_exit_at[server]
+        less_exit = job_less_urgent.servers_exit_at[server]
+        assert more_exit is not None and less_exit is not None
+        assert more_exit < less_exit
 
     def test_negative_priorities_sort_correctly(self) -> None:
         """Negative priority values (urgent jobs) sort before positive ones."""
@@ -389,10 +408,13 @@ class TestPriorityQueueOrdering:
         sf.add(job_negative)
 
         env.run(until=0.02)
-        assert [r.job.sku for r in server.queue] == ["NEG", "POS"]
+        assert [_as_priority_request(r).job.sku for r in server.queue] == ["NEG", "POS"]
 
         env.run()
-        assert job_negative.servers_exit_at[server] < job_positive.servers_exit_at[server]
+        neg_exit = job_negative.servers_exit_at[server]
+        pos_exit = job_positive.servers_exit_at[server]
+        assert neg_exit is not None and pos_exit is not None
+        assert neg_exit < pos_exit
 
     def test_multiple_late_arrivals_maintain_order(self) -> None:
         """Multiple jobs arriving at different times are all correctly sorted.
@@ -418,9 +440,10 @@ class TestPriorityQueueOrdering:
             jobs[sku] = j
             env.run(until=0.02 + i * 0.01)
 
-        queued_skus = [r.job.sku for r in server.queue]
+        queued_skus = [_as_priority_request(r).job.sku for r in server.queue]
         assert queued_skus == ["A", "B", "C", "D", "E"]
 
         env.run()
         exit_times = {sku: j.servers_exit_at[server] for sku, j in jobs.items()}
+        assert all(v is not None for v in exit_times.values())
         assert exit_times["A"] < exit_times["B"] < exit_times["C"] < exit_times["D"] < exit_times["E"]
