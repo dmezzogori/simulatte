@@ -240,3 +240,63 @@ def test_psp_jobs_starting_at_empty() -> None:
     psp.add(job)
 
     assert psp.jobs_starting_at(server2) == []
+
+
+def test_psp_on_arrival_callback() -> None:
+    """on_arrival() should invoke callback each time a job is added."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    received: list[ProductionJob] = []
+
+    def on_arrival(job: ProductionJob, pool: PreShopPool) -> None:
+        received.append(job)
+
+    psp.on_arrival(on_arrival)
+
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    psp.add(job1)
+
+    job2 = ProductionJob(env=env, sku="B", servers=[server], processing_times=[5], due_date=20)
+    psp.add(job2)
+
+    assert received == [job1, job2]
+
+
+def test_psp_on_arrival_no_priming_needed() -> None:
+    """on_arrival() should work without env.run() between registration and add."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    received: list[ProductionJob] = []
+    psp.on_arrival(lambda job, pool: received.append(job))
+
+    # Add immediately without priming — callback should still fire
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    psp.add(job)
+
+    assert received == [job]
+
+
+def test_psp_on_arrival_multiple_callbacks() -> None:
+    """Multiple on_arrival() callbacks should all be invoked in registration order."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    calls_a: list[ProductionJob] = []
+    calls_b: list[ProductionJob] = []
+
+    psp.on_arrival(lambda job, pool: calls_a.append(job))
+    psp.on_arrival(lambda job, pool: calls_b.append(job))
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    psp.add(job)
+
+    assert calls_a == [job]
+    assert calls_b == [job]

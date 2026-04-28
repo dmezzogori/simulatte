@@ -9,7 +9,7 @@ from simulatte.environment import Environment
 from simulatte.shopfloor import ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable
 
     from simulatte.job import ProductionJob
     from simulatte.server import Server
@@ -43,6 +43,7 @@ class PreShopPool:
         self.shopfloor = shopfloor
         self._psp: deque[ProductionJob] = deque()
         self.new_job = self.env.event()
+        self._arrival_callbacks: list[Callable[[ProductionJob, PreShopPool], None]] = []
 
     def __len__(self) -> int:
         """Return the number of jobs currently in the pool."""
@@ -151,14 +152,27 @@ class PreShopPool:
         return [job for job in self._psp if job.starts_at(server)]
 
     def _signal_new_job(self, job: ProductionJob) -> None:
-        """Trigger the new_job event and prepare for the next signal.
+        """Invoke arrival callbacks and trigger the new_job event.
 
-        Succeeds the current `new_job` event with the job as its value, waking
-        any processes yielding on it. Then creates a fresh event for the next
-        signal, following the SimPy one-shot event pattern.
+        First invokes all registered on_arrival callbacks synchronously,
+        then succeeds the SimPy new_job event (waking process-based listeners).
 
         Args:
-            job: The job to pass as the event's value to waiting processes.
+            job: The job to pass to callbacks and as the event's value.
         """
+        for callback in self._arrival_callbacks:
+            callback(job, self)
+
         self.new_job.succeed(job)
         self.new_job = self.env.event()
+
+    def on_arrival(self, callback: Callable[[ProductionJob, PreShopPool], None]) -> None:
+        """Subscribe a callback to be invoked each time a job arrives in the pool.
+
+        Callbacks are invoked synchronously during add(), before the SimPy
+        new_job event fires. No env.run() priming is needed.
+
+        Args:
+            callback: Function called with (job, psp) when a job arrives.
+        """
+        self._arrival_callbacks.append(callback)
