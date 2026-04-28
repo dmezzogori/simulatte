@@ -91,3 +91,27 @@ def test_starvation_avoidance_reacts_to_multiple_jobs() -> None:
     env.run(until=0.2)
 
     assert job3 not in list(psp.jobs)
+
+
+def test_starvation_avoidance_tolerates_job_already_removed_by_arrival_callback() -> None:
+    """If an on_arrival callback removes the job before starvation avoidance runs, no error."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    # Register an arrival callback that releases the job immediately
+    psp.on_arrival(lambda job, pool: pool.release(job))
+
+    # Start starvation avoidance (will also see the arrival via new_job event)
+    env.process(starvation_avoidance_process(sf, psp))
+    env.run(until=0.001)
+
+    # Add a job — the on_arrival callback fires synchronously and releases it,
+    # then starvation avoidance receives the new_job event but job is already gone
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=20.0)
+    psp.add(job)
+    env.run(until=0.1)  # Should not raise ValueError
+
+    assert len(psp) == 0
+    assert job in sf.jobs or job in sf.jobs_done

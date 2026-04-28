@@ -128,7 +128,7 @@ class PreShopPool:
     def release(self, job: ProductionJob) -> None:
         """Remove a job from the pool and release it to the shopfloor.
 
-        Combines remove() and shopfloor.add() in one atomic operation.
+        Convenience method combining remove() and shopfloor.add().
         Use remove() instead if you want to discard a job without releasing it.
 
         Args:
