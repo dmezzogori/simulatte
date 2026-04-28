@@ -69,7 +69,7 @@ Simulatte is a discrete-event simulation framework for job-shop scheduling and i
 **Policies** (`src/simulatte/policies/`): Release policies for job scheduling:
 - LumsCor: Load-based scheduling
 - SLAR: Server load adjustment rule
-- StarvationAvoidance: Prevents resource starvation
+- `starvation_avoidance`: Callback for `psp.on_arrival()` that releases jobs when first server is idle
 
 ### Supporting Modules
 

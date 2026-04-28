@@ -34,14 +34,15 @@ The library provides ready-to-use components for common manufacturing scenarios 
 ### Release Control
 - **Pre-Shop Pool (PSP)** for workload-based job release
 - Built-in policies: Immediate Release, LumsCor, SLAR
-- Composable triggers (periodic, on-arrival, on-completion)
+- Event callbacks (`psp.on_arrival`, `shopfloor.on_processing_end`) and composable triggers
 - Starvation avoidance mechanisms
 
 ### Extensibility
-- **Operation hooks**: inject logic before/after processing (e.g., setup times)
+- **Operation hooks**: sync or generator-based, before/after processing (e.g., setup times, dispatching)
+- **Event callbacks**: `on_processing_end`, `on_job_finished`, `on_arrival` for reactive logic
+- **Dispatcher protocol**: one-call wiring of multi-event controllers via `attach_dispatcher()`
 - **WIP strategies**: Standard and Corrected workload estimation
 - **Custom metrics collectors**: plug in your own real-time or time-series collectors
-- **Job-finished callbacks**: react to completed jobs synchronously
 
 ### Time-Series Analysis
 - Built-in collectors for WIP, throughput, job count, lateness
