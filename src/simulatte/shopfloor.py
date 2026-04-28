@@ -29,6 +29,7 @@ from simulatte.environment import Environment
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.experimental.materials import MaterialCoordinator
     from simulatte.job import ProductionJob
+    from simulatte.psp import PreShopPool
     from simulatte.server import Server
     from simulatte.typing import ProcessGenerator
 
@@ -225,6 +226,37 @@ class TimeSeriesCollector(Protocol):
             job: The job that just finished.
         """
         ...
+
+
+class Dispatcher(Protocol):
+    """Reference protocol showing the full dispatcher interface.
+
+    All methods are optional at runtime — ``attach_dispatcher`` wires
+    only those that are present and callable on the dispatcher object.
+
+    This protocol is NOT runtime-checkable. It exists for documentation
+    and IDE support. Partial implementations are explicitly supported.
+    """
+
+    def on_before_operation(
+        self,
+        job: ProductionJob,
+        server: Server,
+        op_index: int,
+        processing_time: float,
+    ) -> ProcessGenerator | None: ...
+
+    def on_after_operation(
+        self,
+        job: ProductionJob,
+        server: Server,
+        op_index: int,
+        processing_time: float,
+    ) -> ProcessGenerator | None: ...
+
+    def on_job_finished(self, job: ProductionJob) -> None: ...
+
+    def on_psp_arrival(self, job: ProductionJob, psp: PreShopPool) -> None: ...
 
 
 # =============================================================================
@@ -765,6 +797,36 @@ class ShopFloor:
         passed via __init__, in registration order.
         """
         self._on_job_finished.append(callback)
+
+    def attach_dispatcher(self, dispatcher: object, *, psp: PreShopPool | None = None) -> None:
+        """Wire a dispatcher object's hook methods to this shopfloor.
+
+        Detects which hook methods exist on the dispatcher and registers
+        only those that are callable. This allows partial implementations
+        where a dispatcher only handles a subset of events.
+
+        Args:
+            dispatcher: Object with any combination of on_before_operation,
+                on_after_operation, on_job_finished, and on_psp_arrival methods.
+            psp: If provided and dispatcher has on_psp_arrival, registers
+                an arrival subscription on the PSP.
+        """
+        hook = getattr(dispatcher, "on_before_operation", None)
+        if callable(hook):
+            self.on_before_operation(hook)
+
+        hook = getattr(dispatcher, "on_after_operation", None)
+        if callable(hook):
+            self.on_after_operation(hook)
+
+        hook = getattr(dispatcher, "on_job_finished", None)
+        if callable(hook):
+            self.on_job_finished(hook)
+
+        if psp is not None:
+            hook = getattr(dispatcher, "on_psp_arrival", None)
+            if callable(hook):
+                psp.on_arrival(hook)
 
     @property
     def wip_strategy(self) -> WIPStrategy:

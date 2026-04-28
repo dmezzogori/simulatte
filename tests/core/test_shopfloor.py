@@ -930,3 +930,101 @@ def test_post_init_hooks_combine_with_init_hooks() -> None:
     env.run()
 
     assert execution_order == ["init", "post_init"]
+
+
+# =============================================================================
+# Dispatcher Protocol and attach_dispatcher Tests
+# =============================================================================
+
+
+def test_attach_dispatcher_full() -> None:
+    """attach_dispatcher should wire all hooks when dispatcher has all methods."""
+    from simulatte.psp import PreShopPool
+
+    execution_log: list[str] = []
+
+    class MyDispatcher:
+        def on_before_operation(self, job, server, op_index, processing_time):
+            execution_log.append("before_op")
+
+        def on_after_operation(self, job, server, op_index, processing_time):
+            execution_log.append("after_op")
+
+        def on_job_finished(self, job):
+            execution_log.append("job_finished")
+
+        def on_psp_arrival(self, job, psp):
+            execution_log.append("psp_arrival")
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    dispatcher = MyDispatcher()
+    sf.attach_dispatcher(dispatcher, psp=psp)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    psp.add(job)
+
+    # PSP arrival should have fired synchronously
+    assert "psp_arrival" in execution_log
+
+    # Release job to shopfloor
+    psp.release(job)
+    env.run()
+
+    assert job.done
+    assert "before_op" in execution_log
+    assert "after_op" in execution_log
+    assert "job_finished" in execution_log
+
+
+def test_attach_dispatcher_partial() -> None:
+    """attach_dispatcher should wire only methods that exist on the dispatcher."""
+    execution_log: list[str] = []
+
+    class PartialDispatcher:
+        def on_after_operation(self, job, server, op_index, processing_time):
+            execution_log.append("after_op")
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    dispatcher = PartialDispatcher()
+    sf.attach_dispatcher(dispatcher)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert job.done
+    assert execution_log == ["after_op"]
+
+
+def test_attach_dispatcher_no_psp_skips_arrival() -> None:
+    """attach_dispatcher without psp should skip on_psp_arrival wiring."""
+    execution_log: list[str] = []
+
+    class DispatcherWithArrival:
+        def on_after_operation(self, job, server, op_index, processing_time):
+            execution_log.append("after_op")
+
+        def on_psp_arrival(self, job, psp):
+            execution_log.append("psp_arrival")
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    dispatcher = DispatcherWithArrival()
+    sf.attach_dispatcher(dispatcher)  # no psp — on_psp_arrival should not be wired
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert job.done
+    assert execution_log == ["after_op"]
+    assert "psp_arrival" not in execution_log
