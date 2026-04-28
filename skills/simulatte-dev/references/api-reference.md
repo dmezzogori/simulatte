@@ -48,8 +48,8 @@ ShopFloor(
     metrics_collector=_DEFAULT,                  # Default: EMAMetricsCollector
     collect_time_series: bool = False,           # Auto-create DefaultTimeSeriesCollector
     time_series_collector: TimeSeriesCollector | None = None,
-    before_operation: OperationHook | list[OperationHook] | None = None,
-    after_operation: OperationHook | list[OperationHook] | None = None,
+    on_before_operation: OperationHook | list[OperationHook] | None = None,
+    on_after_operation: OperationHook | list[OperationHook] | None = None,
     on_job_finished: Callable | list[Callable] | None = None,
 )
 ```
@@ -58,6 +58,11 @@ ShopFloor(
 - `shopfloor.add(job)` — release a job onto the shopfloor
 - `shopfloor.set_wip_strategy(strategy)` — replace WIP strategy at runtime
 - `shopfloor.set_metrics_collector(collector)` — replace or disable (None) metrics
+- `shopfloor.on_before_operation(hook)` — register hook post-construction
+- `shopfloor.on_after_operation(hook)` — register hook post-construction
+- `shopfloor.on_job_finished(callback)` — register callback post-construction
+- `shopfloor.on_processing_end(callback)` — callback `(job, server) -> None`, fires after server release
+- `shopfloor.attach_dispatcher(dispatcher, *, psp=None)` — wire a dispatcher object's methods
 
 **Key attributes:**
 - `shopfloor.jobs: set[ProductionJob]` — currently active jobs
@@ -98,6 +103,8 @@ Extends `simpy.PriorityResource`.
 - `server.idle_time: float`
 - `server.worked_time: float`
 - `server.empty: bool` — whether queue is empty
+- `server.is_idle: bool` — no active users and empty queue
+- `server.current_jobs: tuple[BaseJob, ...]` — jobs occupying active slots
 - `server.queue` — SimPy queue of waiting requests
 - `server.queueing_jobs` — iterator over jobs in queue
 
@@ -205,6 +212,9 @@ Pure container — no built-in release logic. Release policies are external.
 **Methods:**
 - `psp.add(job)` — add job, triggers `psp.new_job` event
 - `psp.remove(job=None)` — remove specific job or FIFO (oldest)
+- `psp.release(job)` — remove from PSP and add to shopfloor
+- `psp.jobs_starting_at(server) -> list[ProductionJob]` — jobs whose routing starts at server
+- `psp.on_arrival(callback)` — callback `(job, psp) -> None`, fires synchronously on add
 - `len(psp)`, `psp.empty`, `job in psp`, `psp[index]`
 - `psp.jobs` — iterable over jobs in FIFO order
 
@@ -251,28 +261,33 @@ from simulatte.policies.triggers import (
     on_arrival_trigger,
     on_completion_trigger,
 )
-from simulatte.policies.starvation_avoidance import starvation_avoidance_backup
+from simulatte.policies.starvation_avoidance import starvation_avoidance
 ```
 
-All return SimPy generators — register with `env.process(...)`.
+`periodic_trigger`, `on_arrival_trigger`, and `on_completion_trigger` return
+SimPy generators — register with `env.process(...)`.
+
+`starvation_avoidance` is a plain callback `(job, psp) -> None` for use with
+`psp.on_arrival()`.
 
 ```python
 periodic_trigger(psp, interval: float, release_fn: (PreShopPool) -> None)
 on_arrival_trigger(psp, release_fn: (ProductionJob, PreShopPool) -> None)
 on_completion_trigger(shopfloor, psp, release_fn: (ProductionJob, PreShopPool) -> None)
-starvation_avoidance_backup(shopfloor, psp)
+starvation_avoidance(job, psp)
 ```
 
 **`periodic_trigger`**: calls `release_fn(psp)` every `interval` time units
 (only if PSP is non-empty).
 
 **`on_arrival_trigger`**: calls `release_fn(job, psp)` when a new job enters
-the PSP.
+the PSP. SimPy process-based alternative for advanced use cases.
 
 **`on_completion_trigger`**: calls `release_fn(triggering_job, psp)` when any
-job finishes processing at a server.
+job finishes processing at a server. SimPy process-based alternative for
+advanced use cases.
 
-**`starvation_avoidance_backup`**: monitors PSP arrivals and immediately
+**`starvation_avoidance`**: plain callback for `psp.on_arrival()`. Immediately
 releases any job whose first server is completely idle (empty queue and no
 active users).
 
@@ -286,11 +301,25 @@ def my_hook(
     server: Server,
     op_index: int,
     processing_time: float,
-) -> ProcessGenerator:
+) -> ProcessGenerator | None:
     yield server.env.timeout(1.0)
 ```
 
-Must be a generator (use `yield`). Used with `before_operation` / `after_operation`.
+Used with `on_before_operation` / `on_after_operation`. Can be a generator
+(use `yield`) or a plain sync function returning None.
+
+### Dispatcher
+
+Optional protocol for objects that bundle multiple shopfloor hooks.
+All methods are optional — `attach_dispatcher` wires only those present.
+
+```python
+def on_before_operation(self, job, server, op_index, processing_time) -> ProcessGenerator | None: ...
+def on_after_operation(self, job, server, op_index, processing_time) -> ProcessGenerator | None: ...
+def on_job_finished(self, job) -> None: ...
+def on_processing_end(self, job, server) -> None: ...
+def on_psp_arrival(self, job, psp) -> None: ...
+```
 
 ### WIPStrategy
 

@@ -36,20 +36,21 @@ Key properties:
 - `psp.jobs`: Iterate over waiting jobs (FIFO order)
 - `psp.new_job`: Event that fires when a job is added
 
-## 3) Composable triggers
+## 3) Composing release logic
 
-Release policies are implemented as external SimPy processes using trigger functions from `simulatte.policies.triggers`:
+Release policies are wired to the simulation through callback registration methods on `ShopFloor` and `PreShopPool`:
 
-| Trigger | Fires when | Use case |
-|---------|-----------|----------|
-| `periodic_trigger` | At regular intervals | Workload checks |
-| `on_arrival_trigger` | New job enters PSP | Immediate decisions |
-| `on_completion_trigger` | Job finishes at server | Starvation avoidance |
+| Method | Fires when | Use case |
+|--------|-----------|----------|
+| `psp.on_arrival(callback)` | New job enters PSP | Immediate decisions |
+| `shopfloor.on_processing_end(callback)` | Job finishes at a server | Starvation avoidance |
 
-Example: compose periodic and event-driven triggers together:
+For periodic checks, a `periodic_trigger` process is also available (see below).
+
+Example: compose event-driven callbacks with a periodic trigger:
 
 ```python
-from simulatte.policies.triggers import periodic_trigger, on_completion_trigger
+from simulatte.policies.triggers import periodic_trigger
 
 def my_release_fn(psp):
     """Release oldest job if shopfloor WIP is low."""
@@ -57,25 +58,52 @@ def my_release_fn(psp):
         job = psp.remove()
         psp.shopfloor.add(job)
 
-def my_starvation_fn(triggering_job, psp):
-    """Release a job when a server might starve.
+def my_starvation_fn(job, server):
+    """Release a PSP job when a server might starve.
 
-    The triggering_job is the job that just finished processing.
-    We check if its previous server is now empty.
+    Called after a job finishes processing at a server.
+    We check if the server is now empty.
     """
-    server = triggering_job.previous_server
-    if server is not None and server.empty and not psp.empty:
+    if server.empty and not psp.empty:
         # Find a job that starts at this server
-        for candidate in psp.jobs:
-            if candidate.starts_at(server):
-                psp.remove(job=candidate)
-                psp.shopfloor.add(candidate)
-                break
+        for candidate in psp.jobs_starting_at(server):
+            psp.release(candidate)
+            break
 
-# Register triggers
+def my_arrival_fn(job, psp):
+    """Release a job immediately if its first server is idle."""
+    if job.servers[0].is_idle:
+        psp.release(job)
+
+# Register callbacks
+shopfloor.on_processing_end(my_starvation_fn)
+psp.on_arrival(my_arrival_fn)
 env.process(periodic_trigger(psp, 5.0, my_release_fn))
-env.process(on_completion_trigger(shopfloor, psp, my_starvation_fn))
 ```
+
+The `psp.release(job)` method is a convenience for `psp.remove(job=job)` followed by `shopfloor.add(job)`.
+
+### Advanced: process-based triggers
+
+For cases that require full SimPy process semantics (e.g., yielding timeouts or composing with other events), lower-level trigger functions are available in `simulatte.policies.triggers`:
+
+| Trigger | Fires when |
+|---------|-----------|
+| `periodic_trigger` | At regular intervals |
+| `on_arrival_trigger` | New job enters PSP |
+| `on_completion_trigger` | Job finishes at server |
+
+These are started as SimPy processes and run in an infinite loop:
+
+```python
+from simulatte.policies.triggers import on_arrival_trigger, on_completion_trigger
+
+# Process-based equivalents of the callbacks above
+env.process(on_arrival_trigger(psp, my_arrival_fn))
+env.process(on_completion_trigger(shopfloor, psp, my_starvation_trigger_fn))
+```
+
+In most cases the callback APIs (`psp.on_arrival`, `shopfloor.on_processing_end`) are simpler and preferred. Use the process-based triggers when you need to yield SimPy events inside your release logic.
 
 ## 4) Using builders
 
@@ -152,10 +180,10 @@ Key parameters:
 Release triggers wired by the builder:
 
 1. **Periodic release** (`periodic_trigger`): every `check_timeout` time units, release PSP jobs (sorted by planned release date) whose corrected WIP fits within the workload norm.
-2. **Starvation release** (`on_completion_trigger`): when a server finishes a job:
+2. **Starvation release** (`shopfloor.on_processing_end`): when a server finishes a job:
     - If the server queue is **empty**, immediately release the PSP candidate with the earliest planned release date.
     - If exactly **one job** remains in the queue, schedule a **postponed release** — the candidate is removed from PSP immediately, but enters the shopfloor after a tiny delay so the queued job acquires the server first.
-3. **Starvation avoidance backup** (`starvation_avoidance_backup`): when a new job enters the PSP and its first server is completely idle (empty queue *and* no job processing), the job is released immediately.
+3. **Starvation avoidance** (`psp.on_arrival`): when a new job enters the PSP and its first server is completely idle (empty queue *and* no job processing), the job is released immediately.
 
 Queue ordering uses a PST (planned slack time) priority policy: jobs with lower slack are served first.
 
@@ -188,7 +216,7 @@ On every job completion at a server, SLAR evaluates three branches in order:
 2. **Urgent-job insertion**: if all queued jobs are non-urgent (positive PST), release from PSP the urgent job (negative PST) with the shortest processing time, minimising disruption to the existing queue.
 3. **Postponed starvation avoidance**: if exactly one job remains in the queue, schedule a **delayed release** — the candidate is removed from PSP immediately (to avoid double-selection) but enters the shopfloor after a tiny delay so the queued job acquires the server first.
 
-Additionally, a **starvation avoidance backup** process monitors the PSP: when a new job arrives whose first server is completely idle (empty queue *and* no job processing), it is released immediately.
+Additionally, a **starvation avoidance** callback is registered via `psp.on_arrival`: when a new job arrives whose first server is completely idle (empty queue *and* no job processing), it is released immediately.
 
 Queue ordering uses a PST-based priority policy: jobs with lower slack are served first.
 
@@ -233,7 +261,8 @@ for name, results in [("Immediate", immediate), ("LumsCor", lumscor), ("SLAR", s
 
 ## Notes
 
-- Multiple triggers can run simultaneously on the same PSP.
-- The PSP's `new_job` event is broadcast: all waiting processes receive the job.
+- Multiple callbacks and triggers can coexist on the same PSP and shopfloor.
+- `psp.on_arrival` callbacks run synchronously during `psp.add()`, before the SimPy `new_job` event fires. Process-based listeners via `on_arrival_trigger` resume after.
+- `shopfloor.on_processing_end` callbacks run after the server is released (`servers_exit_at` is stamped and `job.previous_server` is available).
 - LumsCor requires `CorrectedWIPStrategy` on the shopfloor (set automatically by the builder).
 - SLAR is purely event-driven (no periodic trigger).
