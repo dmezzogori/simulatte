@@ -256,6 +256,8 @@ class Dispatcher(Protocol):  # pragma: no cover
 
     def on_job_finished(self, job: ProductionJob) -> None: ...
 
+    def on_processing_end(self, job: ProductionJob, server: Server) -> None: ...
+
     def on_psp_arrival(self, job: ProductionJob, psp: PreShopPool) -> None: ...
 
 
@@ -719,6 +721,7 @@ class ShopFloor:
         self._before_operation: list[OperationHook] = self._normalize_hooks(on_before_operation)
         self._after_operation: list[OperationHook] = self._normalize_hooks(on_after_operation)
         self._on_job_finished: list[Callable[[ProductionJob], None]] = self._normalize_callbacks(on_job_finished)
+        self._processing_end_callbacks: list[Callable[[ProductionJob, Server], None]] = []
 
         # Strategies with defaults
         self._wip_strategy: WIPStrategy = wip_strategy if wip_strategy is not None else StandardWIPStrategy()
@@ -798,6 +801,25 @@ class ShopFloor:
         """
         self._on_job_finished.append(callback)
 
+    def on_processing_end(self, callback: Callable[[ProductionJob, Server], None]) -> None:
+        """Register a callback for when a job completes processing at any server.
+
+        Callbacks are invoked synchronously after the server is released
+        (``servers_exit_at`` is stamped and ``job.previous_server`` is
+        available). This fires after each operation, not just when the
+        job finishes its entire routing.
+
+        Note:
+            The SimPy ``job_processing_end`` event is succeeded earlier
+            (while the server is still held). These callbacks fire after
+            server release and always run before SimPy process-based
+            listeners resume.
+
+        Args:
+            callback: Function called with (job, server) after processing completes.
+        """
+        self._processing_end_callbacks.append(callback)
+
     def attach_dispatcher(self, dispatcher: object, *, psp: PreShopPool | None = None) -> None:
         """Wire a dispatcher object's hook methods to this shopfloor.
 
@@ -807,7 +829,8 @@ class ShopFloor:
 
         Args:
             dispatcher: Object with any combination of on_before_operation,
-                on_after_operation, on_job_finished, and on_psp_arrival methods.
+                on_after_operation, on_job_finished, on_processing_end,
+                and on_psp_arrival methods.
             psp: If provided and dispatcher has on_psp_arrival, registers
                 an arrival subscription on the PSP.
         """
@@ -822,6 +845,10 @@ class ShopFloor:
         hook = getattr(dispatcher, "on_job_finished", None)
         if callable(hook):
             self.on_job_finished(hook)
+
+        hook = getattr(dispatcher, "on_processing_end", None)
+        if callable(hook):
+            self.on_processing_end(hook)
 
         if psp is not None:
             hook = getattr(dispatcher, "on_psp_arrival", None)
@@ -906,27 +933,20 @@ class ShopFloor:
         job.psp_exit_at = self.env.now
         self.env.process(self.main(job))
 
-    def signal_end_processing(self, job: ProductionJob) -> None:
-        """Signal that a job has finished processing at its current server.
+    def _fire_processing_end_callbacks(self, job: ProductionJob, server: Server) -> None:
+        """Invoke on_processing_end callbacks after server release.
 
-        This method triggers the job_processing_end event with the completed job
-        as the event value, allowing any waiting processes to react to the
-        processing completion. The event is then recreated for the next signal.
-
-        This is called after each operation completes, not just when the job
-        finishes its entire routing.
+        Called after the ``with server.request()`` context exits, meaning
+        servers_exit_at is stamped and the server resource is freed. This
+        is the correct point for release-policy decisions that inspect
+        server state or job.previous_server.
 
         Args:
-            job: The job that just completed processing at a server.
-
-        Example:
-            Waiting for any job to finish processing::
-
-                job = yield shop_floor.job_processing_end
-                print(f"Job {job.id} finished an operation")
+            job: The job that just completed processing.
+            server: The server where processing completed.
         """
-        self.job_processing_end.succeed(job)
-        self.job_processing_end = self.env.event()
+        for callback in self._processing_end_callbacks:
+            callback(job, server)
 
     def signal_job_finished(self, job: ProductionJob) -> None:
         """Signal that a job has completed its entire routing.
@@ -1020,7 +1040,7 @@ class ShopFloor:
                 if self._time_series_collector is not None:
                     self._time_series_collector.on_operation_completed(self, job, server, op_index)
 
-                # After-operation hooks
+                # After-operation hooks (server still held)
                 for hook in self._after_operation:
                     result = hook(job, server, op_index, processing_time)
                     if result is None:
@@ -1039,7 +1059,12 @@ class ShopFloor:
                     processing_time=processing_time,
                 )
 
-                self.signal_end_processing(job)
+                # SimPy event (server still held — preserves existing semantics)
+                self.job_processing_end.succeed(job)
+                self.job_processing_end = self.env.event()
+
+            # Server released — servers_exit_at is now stamped
+            self._fire_processing_end_callbacks(job, server)
 
         # Job completion
         job.finished_at = self.env.now

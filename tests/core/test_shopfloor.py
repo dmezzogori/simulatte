@@ -933,6 +933,96 @@ def test_post_init_hooks_combine_with_init_hooks() -> None:
 
 
 # =============================================================================
+# on_processing_end Tests
+# =============================================================================
+
+
+def test_on_processing_end_fires_after_each_operation() -> None:
+    """on_processing_end callback should fire after each operation with (job, server)."""
+    completions: list[tuple[ProductionJob, Server]] = []
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.on_processing_end(lambda job, server: completions.append((job, server)))
+    server1 = Server(env=env, capacity=1, shopfloor=sf)
+    server2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server1, server2], processing_times=[3, 4], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert len(completions) == 2
+    assert completions[0] == (job, server1)
+    assert completions[1] == (job, server2)
+
+
+def test_on_processing_end_multiple_callbacks_in_order() -> None:
+    """Multiple on_processing_end callbacks should fire in registration order."""
+    order: list[str] = []
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.on_processing_end(lambda job, server: order.append("first"))
+    sf.on_processing_end(lambda job, server: order.append("second"))
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert order == ["first", "second"]
+
+
+def test_on_processing_end_fires_after_server_release() -> None:
+    """on_processing_end should fire after server is released (exit_at stamped, previous_server available)."""
+    callback_time: list[float] = []
+    exit_stamped: list[bool] = []
+    prev_server: list[Server | None] = []
+    server_idle: list[bool] = []
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+
+    def check_release(job: ProductionJob, server: Server) -> None:
+        callback_time.append(env.now)
+        exit_stamped.append(job.servers_exit_at[server] is not None)
+        prev_server.append(job.previous_server)
+        server_idle.append(server.is_idle)
+
+    sf.on_processing_end(check_release)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert callback_time == [5.0]
+    assert exit_stamped == [True]
+    assert prev_server == [server]
+    assert server_idle == [True]
+
+
+def test_on_processing_end_via_attach_dispatcher() -> None:
+    """attach_dispatcher should wire on_processing_end if present."""
+    completions: list[tuple[ProductionJob, Server]] = []
+
+    class MyDispatcher:
+        def on_processing_end(self, job, server):
+            completions.append((job, server))
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.attach_dispatcher(MyDispatcher())
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert completions == [(job, server)]
+
+
+# =============================================================================
 # Dispatcher Protocol and attach_dispatcher Tests
 # =============================================================================
 
