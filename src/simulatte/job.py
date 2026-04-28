@@ -326,9 +326,10 @@ class BaseJob(ABC):
             allowance: Additional buffer time per server.
 
         Returns:
-            Slack time at the server, or None if the server has already been exited.
+            Slack time at the server, or None if the server is not in the
+            routing or has already been exited.
         """
-        if self.servers_exit_at[server] is not None:
+        if server not in self.servers_exit_at or self.servers_exit_at[server] is not None:
             return None
         pst = self.slack_time
         for srv, processing_time in reversed(list(self.server_processing_times)):

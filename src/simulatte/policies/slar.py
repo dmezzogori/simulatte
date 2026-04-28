@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from simulatte.job import ProductionJob
+    from simulatte.job import BaseJob, ProductionJob
     from simulatte.psp import PreShopPool
     from simulatte.server import Server
     from simulatte.typing import ProcessGenerator
@@ -57,21 +57,24 @@ class Slar:
         """
         self.allowance_factor = allowance_factor
 
-    def pst_priority_policy(self, job: ProductionJob, server: Server) -> float | None:
+    def pst_priority_policy(self, job: BaseJob, server: Server) -> float:
         """Get the planned slack time priority for a job at a server.
 
         Designed to be used as a priority_policy callback for jobs. Lower PST
-        values indicate higher urgency (job is behind schedule).
+        values indicate higher urgency (job is behind schedule). Returns
+        infinity for servers already exited or not in the job's routing.
 
         Args:
             job: The production job to evaluate.
             server: The server to calculate priority for.
 
         Returns:
-            Planned slack time for the job at the server, or None if the server
-            is not in the job's remaining routing.
+            Planned slack time for the job at the server.
         """
-        return job.planned_slack_time_at(server, allowance=self.allowance_factor)
+        pst = job.planned_slack_time_at(server, allowance=self.allowance_factor)
+        if pst is None:
+            return float("inf")
+        return pst
 
     def decide_next_job(self, triggering_job: ProductionJob, psp: PreShopPool) -> None:
         """Decide whether to release a PSP job on a server's job-completion event.
@@ -85,6 +88,7 @@ class Slar:
             psp: The Pre-Shop Pool to release jobs from.
         """
         server_triggered = triggering_job.previous_server
+        assert server_triggered is not None
 
         candidate = self._select_psp_candidate_job(server_triggered, psp)
         if candidate is not None:
@@ -129,12 +133,12 @@ class Slar:
         if server.empty:
             return min(
                 psp_candidates,
-                key=lambda j: self.pst_priority_policy(j, server),  # type: ignore[arg-type,return-value]
+                key=lambda j: self.pst_priority_policy(j, server),
             )
 
         # Branch 2: urgent insertion — release an urgent PSP candidate when
         # all queued jobs are non-urgent.
-        if all(self.pst_priority_policy(j, server) > 0 for j in server.queueing_jobs):  # type: ignore[operator]
+        if all(self.pst_priority_policy(j, server) > 0 for j in server.queueing_jobs):
             urgent = min(
                 (j for j in psp_candidates if self.pst_priority_policy(j, server) < 0),
                 default=None,
@@ -148,7 +152,7 @@ class Slar:
         if len(server.queue) == 1:
             candidate = min(
                 psp_candidates,
-                key=lambda j: self.pst_priority_policy(j, server),  # type: ignore[arg-type,return-value]
+                key=lambda j: self.pst_priority_policy(j, server),
             )
             psp.env.process(self._postponed_release(candidate, psp))
 

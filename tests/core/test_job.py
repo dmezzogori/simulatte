@@ -423,3 +423,13 @@ class TestJobProperties:
 
         assert job.planned_slack_time_at(s1) is None
         assert job.planned_slack_time_at(s2) is not None
+
+    def test_planned_slack_time_at_returns_none_for_unknown_server(self) -> None:
+        """planned_slack_time_at returns None for a server not in the job's routing."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s1 = Server(env=env, capacity=1, shopfloor=sf)
+        s_other = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[5], due_date=50)
+
+        assert job.planned_slack_time_at(s_other) is None

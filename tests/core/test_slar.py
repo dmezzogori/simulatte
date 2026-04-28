@@ -19,10 +19,22 @@ def test_slar_pst_priority_policy() -> None:
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=20.0)
 
     pst = slar.pst_priority_policy(job, server)
-    # slack_time = due_date - arrival_time - remaining_processing
-    # At t=0: slack = 20 - 0 - 5 = 15
-    # planned_slack_time_at with allowance=2: pst = slack - (processing + allowance)
-    assert pst is not None
+    # At t=0: slack = 20, PST at server = slack - (5 + 2) = 13
+    assert isinstance(pst, float)
+    assert pst == 13.0
+
+
+def test_slar_pst_priority_policy_returns_inf_for_exited_server() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=20.0)
+    sf.add(job)
+    env.run()
+
+    assert slar.pst_priority_policy(job, server) == float("inf")
 
 
 def test_slar_release_when_server_empty() -> None:

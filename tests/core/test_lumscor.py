@@ -20,8 +20,21 @@ def test_lumscor_pst_priority_policy() -> None:
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
     pst = lumscor.pst_priority_policy(job, server)
 
-    assert pst is not None
     assert isinstance(pst, float)
+    assert pst == 7.0  # slack(10) - (1 + 2) = 7
+
+
+def test_lumscor_pst_priority_policy_returns_inf_for_exited_server() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    lumscor = LumsCor(wl_norm={server: 100.0}, allowance_factor=2)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
+    sf.add(job)
+    env.run()
+
+    assert lumscor.pst_priority_policy(job, server) == float("inf")
 
 
 def test_lumscor_requires_corrected_wip_strategy() -> None:

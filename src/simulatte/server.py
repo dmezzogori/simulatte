@@ -46,7 +46,7 @@ class ServerPriorityRequest(PriorityRequest):
         self.job = job
         self.preempt = preempt
         self.time = resource.env.now
-        super().__init__(resource=resource, priority=job.priority(resource), preempt=preempt)
+        super().__init__(resource=resource, priority=job.priority(resource), preempt=preempt)  # type: ignore[arg-type]  # SimPy annotates int but works with float
 
     def __repr__(self) -> str:
         return f"ServerPriorityRequest(job={self.job}, server={self.server})"

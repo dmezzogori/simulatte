@@ -61,21 +61,24 @@ class LumsCor:
         self.wl_norm = wl_norm
         self.allowance_factor = allowance_factor
 
-    def pst_priority_policy(self, job: ProductionJob, server: Server) -> float | None:
+    def pst_priority_policy(self, job: ProductionJob, server: Server) -> float:
         """Get the planned slack time priority for a job at a server.
 
         Lower PST means higher urgency (job is behind schedule). Designed to be
-        used as a priority_policy callback on jobs for queue dispatching.
+        used as a priority_policy callback on jobs for queue dispatching. Returns
+        infinity for servers already exited or not in the job's routing.
 
         Args:
             job: The production job to evaluate.
             server: The server to calculate priority for.
 
         Returns:
-            Planned slack time for the job at the server, or None if the server
-            is not in the job's remaining routing.
+            Planned slack time for the job at the server.
         """
-        return job.planned_slack_time_at(server, allowance=self.allowance_factor)
+        pst = job.planned_slack_time_at(server, allowance=self.allowance_factor)
+        if pst is None:
+            return float("inf")
+        return pst
 
     def _validate_wip_strategy(self, shopfloor: ShopFloor) -> None:
         """Validate that the shopfloor uses CorrectedWIPStrategy.
