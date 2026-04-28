@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## API Stability
+
+Simulatte is under active development. All APIs — including those outside `simulatte.experimental` — should be considered unstable and may introduce breaking changes between releases without prior deprecation.
+
 ## Build and Development Commands
 
 ```bash

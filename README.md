@@ -12,6 +12,8 @@
 
 Discrete-event simulation framework for job-shop scheduling and intralogistics, built on [SimPy](https://simpy.readthedocs.io/).
 
+> **Note:** Simulatte is under active development. All APIs — including those outside `simulatte.experimental` — should be considered unstable and may change between releases without prior deprecation. Pin your dependency to a specific version if you need stability.
+
 ---
 
 ## What is Simulatte?
