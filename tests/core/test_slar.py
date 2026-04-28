@@ -298,3 +298,147 @@ def test_slar_postponed_release_delay() -> None:
     # After the timeout elapses, the shopfloor has received job3.
     env.run(until=2.1)
     assert job3 in sf.jobs
+
+
+def test_slar_pst_priority_orders_queue_correctly() -> None:
+    """Jobs in the server queue must be ordered by PST when using SLAR's priority policy.
+
+    This verifies the integration between Slar.pst_priority_policy (wired via the
+    Router's priority_policies) and the ServerPriorityRequest, ensuring that jobs
+    with lower PST (more urgent) are processed before jobs with higher PST.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    def pst_policy(job: ProductionJob, server: Server) -> float:
+        return slar.pst_priority_policy(job, server) or 0.0
+
+    # Blocker occupies the server so subsequent jobs queue up
+    blocker = ProductionJob(
+        env=env, sku="BLOCK", servers=[server], processing_times=[10.0], due_date=1000.0,
+        priority_policy=pst_policy,
+    )
+    sf.add(blocker)
+    env.run(until=0.01)
+
+    # Add three jobs with different due dates (and thus different PSTs).
+    # Lower due_date -> lower PST -> more urgent -> should process first.
+    job_relaxed = ProductionJob(
+        env=env, sku="RELAXED", servers=[server], processing_times=[1.0], due_date=50.0,
+        priority_policy=pst_policy,
+    )
+    job_medium = ProductionJob(
+        env=env, sku="MEDIUM", servers=[server], processing_times=[1.0], due_date=20.0,
+        priority_policy=pst_policy,
+    )
+    job_urgent = ProductionJob(
+        env=env, sku="URGENT", servers=[server], processing_times=[1.0], due_date=8.0,
+        priority_policy=pst_policy,
+    )
+    # Add in non-PST order to verify priority sorting, not insertion order
+    sf.add(job_relaxed)
+    sf.add(job_medium)
+    sf.add(job_urgent)
+
+    env.run()
+
+    # Verify processing order: urgent first, then medium, then relaxed
+    assert job_urgent.servers_exit_at[server] < job_medium.servers_exit_at[server]
+    assert job_medium.servers_exit_at[server] < job_relaxed.servers_exit_at[server]
+
+
+def test_slar_pst_priority_discriminates_fractional_differences() -> None:
+    """PST-based priority must distinguish jobs whose PST differs by less than 1.0.
+
+    This is a regression test for the int() truncation bug: if priority values
+    are truncated to int, jobs with PST=2.3 and PST=2.8 both become priority 2,
+    losing the ordering guarantee.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    def pst_policy(job: ProductionJob, server: Server) -> float:
+        return slar.pst_priority_policy(job, server) or 0.0
+
+    blocker = ProductionJob(
+        env=env, sku="BLOCK", servers=[server], processing_times=[10.0], due_date=1000.0,
+        priority_policy=pst_policy,
+    )
+    sf.add(blocker)
+    env.run(until=0.01)
+
+    # Two jobs whose PSTs differ by less than 1.0 AND share the same integer part.
+    # PST = (due - now) - (proc + allowance) = (due - 0.01) - (1.0 + 2.0) = due - 3.01
+    # job_a: due=10.3 -> PST ≈ 7.29 -> int(7.29) = 7
+    # job_b: due=10.7 -> PST ≈ 7.69 -> int(7.69) = 7
+    # Both truncate to int priority 7, so int() truncation would make them FIFO.
+    job_a = ProductionJob(
+        env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.3,
+        priority_policy=pst_policy,
+    )
+    job_b = ProductionJob(
+        env=env, sku="B", servers=[server], processing_times=[1.0], due_date=10.7,
+        priority_policy=pst_policy,
+    )
+
+    pst_a = slar.pst_priority_policy(job_a, server)
+    pst_b = slar.pst_priority_policy(job_b, server)
+    assert pst_a is not None and pst_b is not None
+    assert pst_a < pst_b  # A is more urgent
+
+    # Add in reverse PST order (B first) to ensure priority wins over insertion order
+    sf.add(job_b)
+    sf.add(job_a)
+
+    env.run()
+
+    # A (lower PST) must process before B despite being added second
+    assert job_a.servers_exit_at[server] < job_b.servers_exit_at[server]
+
+
+def test_slar_urgent_psp_job_processes_before_non_urgent_queued() -> None:
+    """Branch A: an urgent PSP job released into the queue should process before
+    a non-urgent queued job, thanks to PST-based priority ordering.
+
+    When the trigger fires with queue=1 (non-urgent) and an urgent PSP job exists,
+    Branch A releases the urgent job immediately. The priority policy ensures the
+    urgent job gets the server first.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    slar = Slar(allowance_factor=2)
+
+    def pst_policy(job: ProductionJob, server: Server) -> float:
+        return slar.pst_priority_policy(job, server) or 0.0
+
+    env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
+
+    job1 = ProductionJob(
+        env=env, sku="J1", servers=[server], processing_times=[5.0], due_date=100.0,
+        priority_policy=pst_policy,
+    )
+    job2 = ProductionJob(
+        env=env, sku="J2", servers=[server], processing_times=[3.0], due_date=50.0,
+        priority_policy=pst_policy,
+    )
+    sf.add(job1)
+    sf.add(job2)
+
+    # PSP candidate with a very tight due date (urgent, negative PST).
+    # Branch A releases it immediately; priority ordering puts it ahead of job2.
+    job3 = ProductionJob(
+        env=env, sku="J3", servers=[server], processing_times=[2.0], due_date=3.0,
+        priority_policy=pst_policy,
+    )
+    psp.add(job3)
+
+    env.run()
+
+    # Urgent job3 must process before non-urgent job2
+    assert job3.servers_exit_at[server] < job2.servers_exit_at[server]

@@ -134,18 +134,18 @@ class TestServer:
         server = Server(env=env, capacity=1, shopfloor=sf)
 
         class DummyRequest:
-            def __init__(self, *, key: int, job: ProductionJob) -> None:
+            def __init__(self, *, key: float, job: ProductionJob) -> None:
                 self.key = key
                 self.job = job
 
-        # Create jobs with different priorities
+        # Create jobs with different priorities (floats to verify no int truncation)
         job_med = ProductionJob(
             env=env,
             sku="A",
             servers=[server],
             processing_times=[100],
             due_date=200,
-            priority_policy=lambda job, srv: 10,
+            priority_policy=lambda job, srv: 10.3,
         )
         job_low = ProductionJob(
             env=env,
@@ -153,7 +153,7 @@ class TestServer:
             servers=[server],
             processing_times=[100],
             due_date=200,
-            priority_policy=lambda job, srv: 5,
+            priority_policy=lambda job, srv: 5.7,
         )
         job_high = ProductionJob(
             env=env,
@@ -161,13 +161,13 @@ class TestServer:
             servers=[server],
             processing_times=[100],
             due_date=200,
-            priority_policy=lambda job, srv: 15,
+            priority_policy=lambda job, srv: 15.1,
         )
 
         # Manually build an intentionally unsorted queue
-        req_high = DummyRequest(key=int(job_high.priority(server)), job=job_high)
-        req_low = DummyRequest(key=int(job_low.priority(server)), job=job_low)
-        req_med = DummyRequest(key=int(job_med.priority(server)), job=job_med)
+        req_high = DummyRequest(key=job_high.priority(server), job=job_high)
+        req_low = DummyRequest(key=job_low.priority(server), job=job_low)
+        req_med = DummyRequest(key=job_med.priority(server), job=job_med)
         server.queue[:] = [req_high, req_low, req_med]
 
         assert [req.job for req in server.queue] == [job_high, job_low, job_med]
