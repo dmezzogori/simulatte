@@ -9,7 +9,7 @@ from simulatte.distributions import server_sampling, truncated_2erlang
 from simulatte.environment import Environment
 from simulatte.policies.lumscor import LumsCor
 from simulatte.policies.slar import Slar
-from simulatte.policies.starvation_avoidance import starvation_avoidance_backup
+from simulatte.policies.starvation_avoidance import starvation_avoidance
 from simulatte.policies.triggers import on_completion_trigger, periodic_trigger
 from simulatte.psp import PreShopPool
 from simulatte.router import Router
@@ -181,7 +181,7 @@ def build_lumscor_system(
     # Compose release triggers
     env.process(periodic_trigger(psp, float(check_timeout), lumscor.periodic_release))
     env.process(on_completion_trigger(shop_floor, psp, lumscor.starvation_release))
-    env.process(starvation_avoidance_backup(shop_floor, psp))  # type: ignore[arg-type]
+    psp.on_arrival(starvation_avoidance)
 
     return psp, servers, shop_floor, router
 
@@ -261,6 +261,6 @@ def build_slar_system(
 
     # Compose release triggers (event-driven only, no periodic)
     env.process(on_completion_trigger(shop_floor, psp, slar.decide_next_job))
-    env.process(starvation_avoidance_backup(shop_floor, psp))  # type: ignore[arg-type]
+    psp.on_arrival(starvation_avoidance)
 
     return psp, servers, shop_floor, router
