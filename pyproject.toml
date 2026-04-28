@@ -5,6 +5,7 @@ description = "A discrete-event simulation framework for intralogistics and oper
 readme = "README.md"
 authors = [
     { name = "Davide Mezzogori", email = "dmezzogori@users.noreply.github.com" },
+    { name = "Nicola Mercogliano", email = "nmercogl@users.noreply.github.com" },
 ]
 license = "MIT"
 requires-python = ">=3.12"

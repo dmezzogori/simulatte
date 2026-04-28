@@ -123,7 +123,7 @@ If you use Simulatte in your research, please cite:
 
 ```bibtex
 @software{Mezzogori2025Simulatte,
-  author = {Mezzogori, Davide},
+  author = {Mezzogori, Davide and Mercogliano, Nicola},
   title = {{Simulatte}: A discrete-event simulation framework for job-shop scheduling and intralogistics},
   year = {2025},
   url = {https://github.com/dmezzogori/simulatte},
