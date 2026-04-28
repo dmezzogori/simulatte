@@ -766,3 +766,83 @@ def test_current_workload_collector_strategy_independent() -> None:
     wip_corrected = run_with_strategy(CorrectedWIPStrategy())
 
     assert wip_standard == wip_corrected
+
+
+# =============================================================================
+# Sync OperationHook Tests
+# =============================================================================
+
+
+def test_sync_before_operation_hook() -> None:
+    """A plain sync function (no yield) should work as a before_operation hook."""
+    hook_calls: list[float] = []
+
+    def sync_hook(
+        job: ProductionJob,
+        server: Server,
+        op_index: int,
+        processing_time: float,
+    ) -> None:
+        hook_calls.append(server.env.now)
+
+    env = Environment()
+    sf = ShopFloor(env=env, before_operation=sync_hook)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert job.done
+    assert len(hook_calls) == 1
+    assert hook_calls[0] == 0.0
+    assert job.finished_at == pytest.approx(5.0)
+
+
+def test_mixed_sync_and_generator_hooks_execute_in_order() -> None:
+    """Sync and generator hooks in the same list execute in registration order."""
+    from simulatte.shopfloor import OperationHook
+    from simulatte.typing import ProcessGenerator
+
+    execution_order: list[str] = []
+
+    def sync_hook(job: ProductionJob, server: Server, op_index: int, pt: float) -> None:
+        execution_order.append("sync")
+
+    def gen_hook(job: ProductionJob, server: Server, op_index: int, pt: float) -> ProcessGenerator:
+        execution_order.append("gen")
+        yield server.env.timeout(0.1)
+
+    env = Environment()
+    hooks: list[OperationHook] = [sync_hook, gen_hook]  # type: ignore[list-item]
+    sf = ShopFloor(env=env, before_operation=hooks)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert execution_order == ["sync", "gen"]
+    assert job.finished_at == pytest.approx(5.1)
+
+
+def test_sync_after_operation_hook() -> None:
+    """A plain sync function should work as an after_operation hook."""
+    hook_calls: list[float] = []
+
+    def sync_hook(
+        job: ProductionJob,
+        server: Server,
+        op_index: int,
+        processing_time: float,
+    ) -> None:
+        hook_calls.append(server.env.now)
+
+    env = Environment()
+    sf = ShopFloor(env=env, after_operation=sync_hook)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert job.done
+    assert len(hook_calls) == 1
+    assert hook_calls[0] == pytest.approx(5.0)

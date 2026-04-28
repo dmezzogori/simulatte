@@ -20,6 +20,7 @@ Extensibility is provided through:
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 
@@ -45,18 +46,23 @@ _DEFAULT_METRICS_COLLECTOR = object()
 class OperationHook(Protocol):
     """Hook called before or after each operation.
 
-    Operation hooks are generator-based to support SimPy's async model.
-    They can yield SimPy events (timeouts, resource requests, etc.) to
-    inject delays or coordinate with other simulation components.
+    Hooks may be plain synchronous functions (returning None) or
+    generator-based (yielding SimPy events). Both styles can coexist
+    in the same hook list and execute in registration order.
 
-    Example:
-        A setup time hook that adds delay before processing::
+    Examples:
+        A synchronous dispatch hook::
+
+            def dispatch_hook(job, server, op_index, processing_time):
+                server.sort_queue()
+
+        A generator hook that adds setup time::
 
             def setup_time_hook(job, server, op_index, processing_time):
                 setup = 2.0 if job.sku.startswith("COMPLEX") else 0.5
                 yield server.env.timeout(setup)
 
-            shopfloor = ShopFloor(env=env, before_operation=setup_time_hook)
+            shopfloor = ShopFloor(env=env, on_before_operation=setup_time_hook)
     """
 
     def __call__(
@@ -65,7 +71,7 @@ class OperationHook(Protocol):
         server: Server,
         op_index: int,
         processing_time: float,
-    ) -> ProcessGenerator:
+    ) -> ProcessGenerator | None:
         """Execute the hook.
 
         Args:
@@ -74,8 +80,8 @@ class OperationHook(Protocol):
             op_index: Zero-based index of the current operation.
             processing_time: Duration of the operation.
 
-        Yields:
-            SimPy events (timeouts, resource requests, etc.).
+        Returns:
+            None for synchronous hooks, or a generator yielding SimPy events.
         """
         ...
 
@@ -906,7 +912,13 @@ class ShopFloor:
 
                 # Before-operation hooks
                 for hook in self._before_operation:
-                    yield from hook(job, server, op_index, processing_time)
+                    result = hook(job, server, op_index, processing_time)
+                    if result is None:
+                        continue
+                    if inspect.isgenerator(result):
+                        yield from result
+                    else:
+                        raise TypeError(f"OperationHook must return None or a generator, got {type(result).__name__}")
 
                 # Material coordination (if configured)
                 if self.material_coordinator is not None:
@@ -924,7 +936,13 @@ class ShopFloor:
 
                 # After-operation hooks
                 for hook in self._after_operation:
-                    yield from hook(job, server, op_index, processing_time)
+                    result = hook(job, server, op_index, processing_time)
+                    if result is None:
+                        continue
+                    if inspect.isgenerator(result):
+                        yield from result
+                    else:
+                        raise TypeError(f"OperationHook must return None or a generator, got {type(result).__name__}")
 
                 self.env.debug(
                     f"Job {job.id[:8]} completed op at server {server._idx}",
