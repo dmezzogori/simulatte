@@ -213,7 +213,7 @@ class Server(simpy.PriorityResource):
             component="Server",
             job_id=job.id,
             server_id=self._idx,
-            time_at_server=self.env.now - entry_time,
+            time_at_server=self.env.now - cast(float | int, entry_time),
         )
 
         self._update_ut()

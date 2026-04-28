@@ -27,6 +27,8 @@ class Runner[S, T]:
     separate log output for each simulation instance.
     """
 
+    log_format: Literal["text", "json"]
+
     def __init__(
         self,
         *,

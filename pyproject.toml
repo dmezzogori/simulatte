@@ -1,6 +1,6 @@
 [project]
 name = "simulatte"
-version = "0.2.0"
+version = "0.3.0"
 description = "A discrete-event simulation framework for intralogistics and operations management"
 readme = "README.md"
 authors = [
