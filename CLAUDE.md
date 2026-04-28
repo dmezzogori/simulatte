@@ -93,6 +93,10 @@ GitHub Actions workflows live in `.github/workflows/`:
 - **docs.yml**: Builds and deploys documentation to GitHub Pages on push to `main`.
 - **publish.yml**: Publishes to PyPI via trusted publishing when a `v*` tag is pushed.
 
+## Contributing
+
+See `CONTRIBUTING.md` for the full workflow. Key rules: branch from `main` as `feature/<name>` or `fix/<name>`, open a PR, all checks must pass, squash-merge by maintainer only. Update `docs/` when adding or changing functionality.
+
 ## Documentation
 
 The `docs/` folder contains the sources for the official website at [simulatte.dev](https://simulatte.dev), built with [Zensical](https://github.com/dmezzogori/zensical) (MkDocs-based). Configuration lives in `zensical.toml`; theme overrides in `overrides/`.

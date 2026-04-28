@@ -8,22 +8,9 @@
 [![Python](https://img.shields.io/pypi/pyversions/simulatte)](https://pypi.org/project/simulatte/)
 [![License](https://img.shields.io/pypi/l/simulatte)](https://github.com/dmezzogori/simulatte/blob/main/LICENSE)
 [![codecov](https://codecov.io/gh/dmezzogori/simulatte/graph/badge.svg)](https://codecov.io/gh/dmezzogori/simulatte)
-[![Docs](https://img.shields.io/badge/docs-online-blue)](https://dmezzogori.github.io/simulatte/)
+[![Docs](https://img.shields.io/badge/docs-online-blue)](https://simulatte.dev)
 
 Discrete-event simulation framework for job-shop scheduling and intralogistics, built on [SimPy](https://simpy.readthedocs.io/).
-
----
-
-## Table of Contents
-
-- [What is Simulatte?](#what-is-simulatte)
-- [Features](#features)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Documentation](#documentation)
-- [Citation](#citation)
-- [Contributing](#contributing)
-- [License](#license)
 
 ---
 
@@ -126,7 +113,7 @@ print(f"Server utilization: {server.utilization_rate:.1%}")
 
 ## Documentation
 
-Full documentation is available at [dmezzogori.github.io/simulatte](https://dmezzogori.github.io/simulatte/).
+Full documentation is available at [simulatte.dev](https://simulatte.dev).
 
 ---
 
@@ -140,7 +127,7 @@ If you use Simulatte in your research, please cite:
   title = {{Simulatte}: A discrete-event simulation framework for job-shop scheduling and intralogistics},
   year = {2025},
   url = {https://github.com/dmezzogori/simulatte},
-  note = {Python package version 0.1.4}
+  note = {Python package version 0.2.0}
 }
 ```
 
@@ -148,7 +135,7 @@ If you use Simulatte in your research, please cite:
 
 ## Contributing
 
-Issues and pull requests are welcome at [github.com/dmezzogori/simulatte](https://github.com/dmezzogori/simulatte).
+Contributions are welcome — please read [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow (branching, PR requirements, merge process).
 
 ---
 
