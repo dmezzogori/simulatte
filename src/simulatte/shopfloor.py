@@ -527,8 +527,7 @@ class CurrentWorkLoadCollector:
             job.routing[s]
             for job in shopfloor.jobs
             for s in job.servers
-            if job.servers_exit_at[s] is None
-            and not (job is skip_job and s is skip_server)
+            if job.servers_exit_at[s] is None and not (job is skip_job and s is skip_server)
         )
         self.wip_ts.append((shopfloor.env.now, total))
 

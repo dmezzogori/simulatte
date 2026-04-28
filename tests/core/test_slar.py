@@ -155,7 +155,6 @@ def test_slar_allowance_factor() -> None:
     assert pst1 != pst2
 
 
-
 def test_slar_negative_pst_release() -> None:
     """Urgent-in-PSP branch: release a negative-PST PSP job when all queued jobs are non-urgent.
 
@@ -329,7 +328,11 @@ def test_slar_pst_priority_orders_queue_correctly() -> None:
 
     # Blocker occupies the server so subsequent jobs queue up
     blocker = ProductionJob(
-        env=env, sku="BLOCK", servers=[server], processing_times=[10.0], due_date=1000.0,
+        env=env,
+        sku="BLOCK",
+        servers=[server],
+        processing_times=[10.0],
+        due_date=1000.0,
         priority_policy=pst_policy,
     )
     sf.add(blocker)
@@ -338,15 +341,27 @@ def test_slar_pst_priority_orders_queue_correctly() -> None:
     # Add three jobs with different due dates (and thus different PSTs).
     # Lower due_date -> lower PST -> more urgent -> should process first.
     job_relaxed = ProductionJob(
-        env=env, sku="RELAXED", servers=[server], processing_times=[1.0], due_date=50.0,
+        env=env,
+        sku="RELAXED",
+        servers=[server],
+        processing_times=[1.0],
+        due_date=50.0,
         priority_policy=pst_policy,
     )
     job_medium = ProductionJob(
-        env=env, sku="MEDIUM", servers=[server], processing_times=[1.0], due_date=20.0,
+        env=env,
+        sku="MEDIUM",
+        servers=[server],
+        processing_times=[1.0],
+        due_date=20.0,
         priority_policy=pst_policy,
     )
     job_urgent = ProductionJob(
-        env=env, sku="URGENT", servers=[server], processing_times=[1.0], due_date=8.0,
+        env=env,
+        sku="URGENT",
+        servers=[server],
+        processing_times=[1.0],
+        due_date=8.0,
         priority_policy=pst_policy,
     )
     # Add in non-PST order to verify priority sorting, not insertion order
@@ -377,7 +392,11 @@ def test_slar_pst_priority_discriminates_fractional_differences() -> None:
         return slar.pst_priority_policy(job, server) or 0.0
 
     blocker = ProductionJob(
-        env=env, sku="BLOCK", servers=[server], processing_times=[10.0], due_date=1000.0,
+        env=env,
+        sku="BLOCK",
+        servers=[server],
+        processing_times=[10.0],
+        due_date=1000.0,
         priority_policy=pst_policy,
     )
     sf.add(blocker)
@@ -389,11 +408,19 @@ def test_slar_pst_priority_discriminates_fractional_differences() -> None:
     # job_b: due=10.7 -> PST ≈ 7.69 -> int(7.69) = 7
     # Both truncate to int priority 7, so int() truncation would make them FIFO.
     job_a = ProductionJob(
-        env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.3,
+        env=env,
+        sku="A",
+        servers=[server],
+        processing_times=[1.0],
+        due_date=10.3,
         priority_policy=pst_policy,
     )
     job_b = ProductionJob(
-        env=env, sku="B", servers=[server], processing_times=[1.0], due_date=10.7,
+        env=env,
+        sku="B",
+        servers=[server],
+        processing_times=[1.0],
+        due_date=10.7,
         priority_policy=pst_policy,
     )
 
@@ -432,11 +459,19 @@ def test_slar_urgent_psp_job_processes_before_non_urgent_queued() -> None:
     env.process(on_completion_trigger(sf, psp, slar.decide_next_job))
 
     job1 = ProductionJob(
-        env=env, sku="J1", servers=[server], processing_times=[5.0], due_date=100.0,
+        env=env,
+        sku="J1",
+        servers=[server],
+        processing_times=[5.0],
+        due_date=100.0,
         priority_policy=pst_policy,
     )
     job2 = ProductionJob(
-        env=env, sku="J2", servers=[server], processing_times=[3.0], due_date=50.0,
+        env=env,
+        sku="J2",
+        servers=[server],
+        processing_times=[3.0],
+        due_date=50.0,
         priority_policy=pst_policy,
     )
     sf.add(job1)
@@ -445,7 +480,11 @@ def test_slar_urgent_psp_job_processes_before_non_urgent_queued() -> None:
     # PSP candidate with a very tight due date (urgent, negative PST).
     # Branch A releases it immediately; priority ordering puts it ahead of job2.
     job3 = ProductionJob(
-        env=env, sku="J3", servers=[server], processing_times=[2.0], due_date=3.0,
+        env=env,
+        sku="J3",
+        servers=[server],
+        processing_times=[2.0],
+        due_date=3.0,
         priority_policy=pst_policy,
     )
     psp.add(job3)

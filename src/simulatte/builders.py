@@ -70,9 +70,13 @@ def build_immediate_release_system(
         time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
     )
     servers = tuple(
-        Server(env=env, capacity=1, shopfloor=shop_floor,
-               collect_time_series=collect_time_series,
-               retain_job_history=retain_job_history)
+        Server(
+            env=env,
+            capacity=1,
+            shopfloor=shop_floor,
+            collect_time_series=collect_time_series,
+            retain_job_history=retain_job_history,
+        )
         for _ in range(n_servers)
     )
 

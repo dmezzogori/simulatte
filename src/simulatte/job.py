@@ -218,7 +218,7 @@ class BaseJob(ABC):
     @property
     def remaining_routing(self) -> tuple[Server, ...]:
         """Tuple of servers not yet visited by this job.
-        
+
         NOTE: not yet entered means not entered in the queue.
         """
         return tuple(srv for srv in self._servers if self.servers_entry_at[srv] is None)
@@ -252,7 +252,7 @@ class BaseJob(ABC):
     @property
     def planned_slack_time(self) -> float:
         """Slack time minus total remaining processing time.
-        
+
         NOTE: this is valid only for jobs that have not yet started processing at their first server.
         """
         return self.slack_time - sum(self._processing_times)
