@@ -241,3 +241,13 @@ class TestSeededDeterminism:
         obs_2, _ = self._collect_trajectory(env, seed=99, actions=actions)
         any_different = any(not np.array_equal(o1, o2) for o1, o2 in zip(obs_1, obs_2, strict=True))
         assert any_different
+
+
+class TestGymnasiumCompliance:
+    """Run Gymnasium's built-in env checker for baseline API compliance."""
+
+    def test_check_env_passes(self) -> None:
+        from gymnasium.utils.env_checker import check_env
+
+        env = MinimalEnv()
+        check_env(env.unwrapped, skip_render_check=True)
