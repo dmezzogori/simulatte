@@ -178,3 +178,66 @@ class TestComputeRewardReceivesAction:
         env.reset(seed=42)
         _, reward_1, _, _, _ = env.step(1)
         assert reward_1 == -10.0
+
+
+class StochasticEnv(SimulatteEnv):
+    """Subclass that uses self.np_random to produce stochastic observations."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.observation_space = spaces.Box(low=0.0, high=100.0, shape=(1,), dtype=np.float64)
+        self.action_space = spaces.Discrete(2)
+        self.step_count = 0
+
+    def setup(self, *, seed: int | None, options: dict | None) -> None:
+        self.step_count = 0
+
+    def get_observation(self):
+        return np.array([self.np_random.uniform(0.0, 100.0)], dtype=np.float64)
+
+    def apply_action(self, action) -> None:
+        self.step_count += 1
+
+    def compute_reward(self, action) -> float:
+        return self.np_random.uniform(-1.0, 1.0)
+
+    def is_terminated(self) -> bool:
+        return self.step_count >= 5
+
+    def is_truncated(self) -> bool:
+        return False
+
+
+class TestSeededDeterminism:
+    """Verify that seeding produces reproducible trajectories."""
+
+    @staticmethod
+    def _collect_trajectory(env: StochasticEnv, seed: int, actions: list[int]) -> tuple[list, list]:
+        observations = []
+        rewards = []
+        obs, _ = env.reset(seed=seed)
+        observations.append(obs.copy())
+        for action in actions:
+            obs, reward, terminated, truncated, _ = env.step(action)
+            observations.append(obs.copy())
+            rewards.append(reward)
+            if terminated or truncated:
+                break
+        return observations, rewards
+
+    def test_same_seed_same_trajectory(self) -> None:
+        env = StochasticEnv()
+        actions = [0, 1, 0, 1, 0]
+        obs_1, rew_1 = self._collect_trajectory(env, seed=42, actions=actions)
+        obs_2, rew_2 = self._collect_trajectory(env, seed=42, actions=actions)
+        for o1, o2 in zip(obs_1, obs_2, strict=True):
+            np.testing.assert_array_equal(o1, o2)
+        assert rew_1 == rew_2
+
+    def test_different_seed_different_trajectory(self) -> None:
+        env = StochasticEnv()
+        actions = [0, 1, 0, 1, 0]
+        obs_1, _ = self._collect_trajectory(env, seed=42, actions=actions)
+        obs_2, _ = self._collect_trajectory(env, seed=99, actions=actions)
+        any_different = any(not np.array_equal(o1, o2) for o1, o2 in zip(obs_1, obs_2, strict=True))
+        assert any_different
