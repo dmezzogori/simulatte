@@ -37,11 +37,12 @@ Once installed, the skill triggers automatically when the agent detects Simulatt
 - **Operation hooks** — injecting setup times, breakdowns, or other logic before/after processing
 - **Multi-run experiments** — configuring `Runner` with seeds, parallel execution, and result extraction
 - **Result inspection** — accessing job-level, server-level, and shopfloor-level metrics
+- **Gymnasium wrapper** — wrapping simulations as Gymnasium environments for RL training with `SimulatteEnv`
 - **Common pitfalls** — generator hooks, absolute due dates, arrival rate semantics, lambda closures, and more
 
 ### What the skill does NOT cover
 
-The skill excludes experimental modules (Warehouse, AGV, MaterialCoordinator) since they are unstable and subject to breaking changes.
+The skill excludes most experimental modules (Warehouse, AGV, MaterialCoordinator) since they are unstable and subject to breaking changes. The Gymnasium wrapper (`SimulatteEnv`) is an exception — it is covered because RL integration is a common use case.
 
 ## Skill structure
 

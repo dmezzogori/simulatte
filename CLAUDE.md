@@ -84,7 +84,7 @@ Simulatte is a discrete-event simulation framework for job-shop scheduling and i
 
 Unstable APIs, subject to change:
 
-- **SimulatteEnv** (`experimental/gymnasium.py`): Gymnasium ABC for wrapping simulations as RL environments. Users subclass it and implement six abstract methods (setup, get_observation, apply_action, compute_reward, is_terminated, is_truncated). Base class handles reset/step/close lifecycle, state guards, and teardown.
+- **SimulatteEnv** (`experimental/gymnasium.py`): Gymnasium ABC for wrapping simulations as RL environments. Users subclass it and implement six abstract methods (setup, get_observation, apply_action, compute_reward, is_terminated, is_truncated). Two optional hooks: `teardown()` for resource cleanup between episodes, `get_info()` for step metadata. Base class handles reset/step/close lifecycle and state guards.
 - **MaterialCoordinator** (`experimental/materials.py`): FIFO material delivery coordination
 - **AGV** (`experimental/agv.py`): Automated guided vehicle transport
 - **Warehouse** (`experimental/warehouse.py`): Inventory management

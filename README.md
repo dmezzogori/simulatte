@@ -50,8 +50,8 @@ The library provides ready-to-use components for common manufacturing scenarios 
 - Custom time-series collectors via simple protocol
 
 ### Reinforcement Learning Integration *(experimental)*
-- **Gymnasium wrapper** (`SimulatteEnv`): subclass a single ABC to turn any simulation into a Gymnasium environment
-- Works with Stable-Baselines3, CleanRL, and any Gymnasium-compatible RL library
+- **Gymnasium wrapper** ([`SimulatteEnv`](https://simulatte.dev/experimental/gymnasium-wrapper/)): subclass a single ABC to turn any simulation into a Gymnasium environment (`from simulatte.experimental.gymnasium import SimulatteEnv`)
+- Can be used with Stable-Baselines3, CleanRL, and other Gymnasium-compatible RL libraries
 - Built-in lifecycle guards, seeding support, and resource cleanup
 
 ### Material Handling *(experimental)*

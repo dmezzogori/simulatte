@@ -18,6 +18,7 @@ from simulatte.environment import Environment
 from simulatte.shopfloor import ShopFloor
 from simulatte.server import Server
 from simulatte.psp import PreShopPool
+from simulatte.job import ProductionJob
 
 
 class JobReleaseEnv(SimulatteEnv):
@@ -36,7 +37,18 @@ class JobReleaseEnv(SimulatteEnv):
             for _ in range(5)
         ]
         self.psp = PreShopPool(env=self.sim_env, shopfloor=self.shopfloor)
-        # Use self.np_random for reproducible randomness
+        # Create jobs using self.np_random for reproducibility
+        for _ in range(100):
+            routing = list(self.np_random.choice(self.servers, size=3, replace=False))
+            times = self.np_random.uniform(1.0, 5.0, size=3).tolist()
+            job = ProductionJob(
+                env=self.sim_env,
+                sku="A",
+                servers=routing,
+                processing_times=times,
+                due_date=self.sim_env.now + self.np_random.uniform(50.0, 200.0),
+            )
+            self.psp.add(job)
 
     def teardown(self):
         self.sim_env.close()
@@ -62,9 +74,9 @@ class JobReleaseEnv(SimulatteEnv):
         return self.sim_env.now > 10_000
 ```
 
-## Train with any RL library
+## Use with an RL library
 
-The resulting environment works with Stable-Baselines3, CleanRL, or any Gymnasium-compatible library:
+The resulting environment can be used with Stable-Baselines3, CleanRL, or any Gymnasium-compatible library:
 
 ```python
 env = JobReleaseEnv()
@@ -89,8 +101,10 @@ env.close()
 | `compute_reward(action)` | Yes | Compute step reward (receives the action) |
 | `is_terminated()` | Yes | Whether the episode ended naturally |
 | `is_truncated()` | Yes | Whether the episode was cut short |
-| `teardown()` | No | Clean up resources between episodes (default: no-op) |
-| `get_info()` | No | Return step info dict, called last in `step()` (default: `{}`) |
+| `teardown()` | No | Clean up resources between episodes and on `close()` (default: no-op) |
+| `get_info()` | No | Return step info dict, called last in `step()` only (default: `{}`) |
+
+> **Note:** `reset()` always returns an empty info dict `{}`. It does not call `get_info()` — that hook fires only during `step()`.
 
 ## Seeding
 
@@ -99,6 +113,8 @@ env.close()
 ```python
 def setup(self, *, seed, options):
     processing_time = self.np_random.uniform(1.0, 5.0)
+    # For non-numpy randomness, use the raw seed:
+    if seed is not None:
+        import random
+        random.seed(seed)
 ```
-
-The raw `seed` is also forwarded if you need to seed non-numpy sources (e.g., `random.seed(seed)`).

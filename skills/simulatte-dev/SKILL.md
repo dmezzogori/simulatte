@@ -321,7 +321,7 @@ class MyEnv(SimulatteEnv):
 - `compute_reward(action)` receives the action for action-dependent
   penalties. Access simulation state via `self`.
 - `teardown()` (optional) cleans up resources between episodes. Called
-  before `setup()` on every `reset()` after the first.
+  before `setup()` on every `reset()` after the first, and from `close()`.
 - `get_info()` (optional) returns a step info dict, called last in
   `step()` — use it for reward decomposition or diagnostics.
 - Use `self.np_random` (seeded automatically by Gymnasium) for all

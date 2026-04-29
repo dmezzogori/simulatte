@@ -531,10 +531,14 @@ def get_info(self) -> dict[str, Any]:
 **Lifecycle methods (implemented by base class):**
 
 ```python
-def reset(self, *, seed=None, options=None) -> tuple[obs, info]:
+def reset(
+    self, *, seed: int | None = None, options: dict[str, Any] | None = None,
+) -> tuple[Any, dict[str, Any]]:
     # Calls: super().reset() -> teardown() (if not first) -> setup() -> get_observation()
+    # Always returns (observation, {}). Does NOT call get_info().
 
-def step(self, action) -> tuple[obs, reward, terminated, truncated, info]:
+def step(self, action: Any) -> tuple[Any, float, bool, bool, dict[str, Any]]:
+    # Returns: (obs, reward, terminated, truncated, info)
     # Calls: apply_action() -> get_observation() -> compute_reward() -> is_terminated()
     #        -> is_truncated() -> get_info()
     # Raises RuntimeError if called before reset() or after episode end.
