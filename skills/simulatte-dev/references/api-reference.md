@@ -484,3 +484,71 @@ in seed order, one entry per seed.
 Each run creates its own `Environment` (with optional per-run log file),
 seeds `random.seed(seed)`, calls `builder(env=env)`, runs `env.run(until=until)`,
 and extracts results via `extract_fn(system)`.
+
+## SimulatteEnv (Gymnasium Wrapper)
+
+> **Experimental**: Part of `simulatte.experimental`.
+
+```python
+from simulatte.experimental.gymnasium import SimulatteEnv
+```
+
+Abstract base class extending `gymnasium.Env`. Subclass it and implement:
+
+**Abstract methods (must override):**
+
+```python
+def setup(self, *, seed: int | None, options: dict[str, Any] | None) -> None:
+    """Build fresh simulation for a new episode.
+    Use self.np_random for numpy randomness. seed is also forwarded directly."""
+
+def get_observation(self) -> Any:
+    """Extract observation from simulation state. Must match observation_space."""
+
+def apply_action(self, action: Any) -> None:
+    """Apply action and advance simulation to next decision point."""
+
+def compute_reward(self, action: Any) -> float:
+    """Compute step reward. Receives the action for action-dependent costs."""
+
+def is_terminated(self) -> bool:
+    """Whether the episode ended naturally (e.g., all jobs processed)."""
+
+def is_truncated(self) -> bool:
+    """Whether the episode was cut short (e.g., time budget exceeded)."""
+```
+
+**Optional hooks (have safe defaults):**
+
+```python
+def teardown(self) -> None:
+    """Clean up resources. Called before setup() on re-resets and from close()."""
+
+def get_info(self) -> dict[str, Any]:
+    """Return step info dict. Called last in step(). Default: {}."""
+```
+
+**Lifecycle methods (implemented by base class):**
+
+```python
+def reset(self, *, seed=None, options=None) -> tuple[obs, info]:
+    # Calls: super().reset() -> teardown() (if not first) -> setup() -> get_observation()
+
+def step(self, action) -> tuple[obs, reward, terminated, truncated, info]:
+    # Calls: apply_action() -> get_observation() -> compute_reward() -> is_terminated()
+    #        -> is_truncated() -> get_info()
+    # Raises RuntimeError if called before reset() or after episode end.
+
+def close(self) -> None:
+    # Calls teardown() if initialized, then super().close()
+```
+
+**State tracking (class-level defaults, shadowed per-instance):**
+
+- `_is_initialized: bool = False` — set True after first `setup()`
+- `_done: bool = False` — set True when `is_terminated()` or `is_truncated()` returns True
+
+**Subclass `__init__` must set:**
+
+- `self.observation_space: gymnasium.spaces.Space`
+- `self.action_space: gymnasium.spaces.Space`
