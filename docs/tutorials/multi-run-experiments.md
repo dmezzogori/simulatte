@@ -9,7 +9,7 @@ Goal: run the same stochastic system multiple times (different seeds) and collec
 - optional multiprocessing (`parallel=True`)
 - a `tqdm` progress bar (auto-enabled on TTY; override with `progress=True/False`)
 
-## Example: push system with stochastic arrivals
+## 1) Example: push system with stochastic arrivals
 
 ```python
 from simulatte.builders import build_immediate_release_system
@@ -39,7 +39,7 @@ results = runner.run(until=1_000)
 print(results)
 ```
 
-## Parallel runs
+## 2) Parallel runs
 
 If you turn on multiprocessing, keep your code in a `if __name__ == "__main__":` guard.
 
@@ -48,3 +48,7 @@ if __name__ == "__main__":
     runner = Runner(builder=builder, seeds=range(20), parallel=True, extract_fn=extract)
     print(runner.run(until=1_000))
 ```
+
+## Next
+
+- [Logging](logging.md)

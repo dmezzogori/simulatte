@@ -15,8 +15,8 @@ description: >
 
 # Simulatte Development Guide
 
-Simulatte is a discrete-event simulation framework for job-shop scheduling
-built on SimPy. It provides ready-made components for production servers,
+Simulatte is a discrete-event simulation framework for production planning
+and control built on SimPy. It provides ready-made components for production servers,
 release control policies, and multi-run experiments.
 
 This skill helps you write correct Simulatte code. Read

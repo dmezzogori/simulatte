@@ -50,7 +50,7 @@ simulatte/
 
 ## Architecture Overview
 
-Simulatte is a discrete-event simulation framework for job-shop scheduling and intralogistics, built on SimPy.
+Simulatte is a discrete-event simulation framework for production planning and control and intralogistics, built on SimPy.
 
 ### Core Components
 

@@ -9,7 +9,7 @@ Each `Environment` has a built-in logger that:
 - Maintains an in-memory history buffer for post-run analysis
 - Allows per-component filtering
 
-## Basic usage
+## 1) Basic usage
 
 ```python
 from simulatte.environment import Environment
@@ -32,7 +32,7 @@ Output (to stderr by default):
 00d 00:01:40.00 | ERROR    | AGV          | Timeout exceeded
 ```
 
-## Log levels
+## 2) Log levels
 
 Set the global log level to control verbosity:
 
@@ -44,7 +44,7 @@ SimLogger.set_level("DEBUG")    # Everything
 SimLogger.set_level("INFO")     # Default
 ```
 
-## Built-in component logs (best-effort)
+## 3) Built-in component logs (best-effort)
 
 Simulatte’s built-in components emit structured **DEBUG** events for tracing and post-run analysis. These are
 **best-effort** (not a stable API): message text and `extra` keys may change between releases.
@@ -133,14 +133,14 @@ Notes:
 | AGV selected | `AGV selected: agv-0` | `agv_id`, `workload`, `agv_count` |
 | AGV transport started | `AGV transport started: 2x A` | `agv_id`, `product`, `quantity`, `destination_id` |
 
-## Log to file
+## 4) Log to file
 
 ```python
 env = Environment(log_file="simulation.log")
 env.info("This goes to the file")
 ```
 
-## JSON format
+## 5) JSON format
 
 For structured logging (useful for log aggregation tools):
 
@@ -155,7 +155,7 @@ Output:
 {"sim_time": 0.0, "sim_time_formatted": "00d 00:00:0.00", "wall_time": "2025-12-25T12:00:00+00:00", "level": "INFO", "message": "Job completed", "component": "Server", "extra": {"job_id": "J1", "duration": 5.2}}
 ```
 
-## Query log history
+## 6) Query log history
 
 The environment keeps a ring buffer of recent log events (default: 1000 entries):
 
@@ -179,7 +179,7 @@ for event in env.log_history:
     print(f"{event.timestamp}: {event.message}")
 ```
 
-## Component filtering
+## 7) Component filtering
 
 Disable noisy components:
 
@@ -188,7 +188,7 @@ env.logger.disable_component("Router")  # Silence Router logs
 env.logger.enable_component("Router")   # Re-enable
 ```
 
-## Per-simulation logs with Runner
+## 8) Per-simulation logs with Runner
 
 When running parallel experiments, each simulation can write to its own log file:
 
@@ -223,7 +223,7 @@ if __name__ == "__main__":
     # Creates: logs/sim_0000_seed_0.log, logs/sim_0001_seed_1.log, ...
 ```
 
-## Context manager
+## 9) Context manager
 
 For explicit resource cleanup:
 
@@ -234,7 +234,7 @@ with Environment(log_file="run.log") as env:
 # Log file handler is automatically closed
 ```
 
-## Logging inside components
+## 10) Logging inside components
 
 Add logging to your custom components:
 
@@ -257,3 +257,7 @@ class MyServer(Server):
             processing_time=processing_time,
         )
 ```
+
+## Next
+
+- [Troubleshooting](troubleshooting.md)

@@ -1,8 +1,8 @@
-# Job-shop basics
+# Basic manufacturing system
 
-Goal: run a small job-shop, then inspect basic performance metrics.
+Goal: build a small manufacturing system, run jobs through it, then inspect basic performance metrics.
 
-## 1) Build a shop with two servers
+## 1) Build a small shopfloor with two servers
 
 ```python
 from simulatte.environment import Environment
@@ -53,4 +53,8 @@ print(f"Tardy jobs: {tardy}/{len(shopfloor.jobs_done)}")
 
 - Simulatte avoids global singletons: pass the same `env` to every component you want in the same simulation.
 - `Server(id=...)` is assigned when the server is registered on a `ShopFloor` (via the `shopfloor=` argument).
+
+## Next
+
+- [Release control and dispatching](release-control-and-dispatching.md)
 

@@ -2,7 +2,7 @@
 
 Goal: customize simulation behavior by composing a `ShopFloor` with hooks, WIP strategies, and metrics collectors.
 
-## Hooks: `on_before_operation` / `on_after_operation`
+## 1) Hooks: `on_before_operation` / `on_after_operation`
 
 Hooks are called for each operation of each job:
 
@@ -59,9 +59,9 @@ shopfloor.on_after_operation(my_dispatcher.on_after_operation)
 shopfloor.on_job_finished(my_dispatcher.on_job_finished)
 ```
 
-## WIP strategies
+## 2) WIP strategies
 
-WIP is stored as `shopfloor.wip[server]` and updated when jobs enter the shopfloor and when operations complete.
+**WIP (Work-in-Progress)** is here treated as the overall workload — measured in time units — present in the shopfloor at a given moment. It is stored as `shopfloor.wip[server]` and updated when jobs enter the shopfloor and when operations complete.
 
 Built-ins:
 
@@ -86,9 +86,9 @@ from simulatte.shopfloor import CorrectedWIPStrategy
 shopfloor.set_wip_strategy(CorrectedWIPStrategy())
 ```
 
-## Metrics collectors
+## 3) Metrics collectors
 
-By default, `ShopFloor` uses `EMAMetricsCollector` and updates it once per completed job.
+By default, `ShopFloor` uses `EMAMetricsCollector` (EMA — Exponential Moving Average) and updates it once per completed job.
 
 ### Disable metrics
 
@@ -124,7 +124,7 @@ shopfloor = ShopFloor(env=env, metrics_collector=collector)
 print(collector.ema_makespan, collector.ema_total_queue_time)
 ```
 
-## Time-series collectors and plotting
+## 4) Time-series collectors and plotting
 
 Time-series collectors capture metrics over simulation time for analysis and visualization. Unlike `MetricsCollector` (which aggregates per-job), time-series collectors record data points at each lifecycle event.
 
@@ -244,7 +244,7 @@ shopfloor.set_time_series_collector(DefaultTimeSeriesCollector())
 shopfloor.set_time_series_collector(None)
 ```
 
-## Job-finished callbacks
+## 5) Job-finished callbacks
 
 Use `on_job_finished` to run synchronous callbacks when a job completes its full routing:
 
@@ -256,3 +256,7 @@ def on_finished(job) -> None:
 
 shopfloor = ShopFloor(env=env, on_job_finished=on_finished)
 ```
+
+## Next
+
+- [Multi-run experiments](multi-run-experiments.md)
