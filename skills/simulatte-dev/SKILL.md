@@ -131,7 +131,9 @@ distributions, build the system by hand. The canonical sequence:
 3. Create `Server` instances (pass `shopfloor=` to auto-register)
 4. Create `PreShopPool` if using pull system
 5. Create `Router` with distribution configuration
-6. If pull system, compose triggers with `env.process(...)`
+6. If pull system, use callback APIs (`on_arrival`, `on_processing_end`) for
+   synchronous reactions, and trigger processes (`env.process(periodic_trigger(...))`)
+   for periodic or timed checks
 7. Run with `env.run(until=...)`
 
 See `references/api-reference.md` for exact signatures.
@@ -158,22 +160,85 @@ dispatching, computed via `job.planned_slack_time_at(server, allowance=k)`.
 
 ## Operation hooks
 
-Hooks inject logic before or after each processing operation. They must be
-**generators that yield SimPy events** — this is the most common mistake.
+Hooks inject logic before or after each processing operation. A hook can be
+a **plain function returning None** (for synchronous side-effects) or a
+**generator yielding SimPy events** (when the hook needs simulation time).
+Both styles can coexist in the same hook list and execute in registration order.
 
 ```python
-# Correct: generator that yields
+# Sync hook: no delay, just mutates state
+def reorder_queue(job, server, op_index, processing_time):
+    server.sort_queue()
+
+# Generator hook: consumes simulation time
 def setup_time(job, server, op_index, processing_time):
     delay = 2.0 if job.sku == "COMPLEX" else 0.5
     yield server.env.timeout(delay)
-
-# WRONG: regular function that returns — will silently break
-def setup_time_broken(job, server, op_index, processing_time):
-    return server.env.timeout(2.0)  # Bug: must yield, not return
 ```
 
-Pass hooks to `ShopFloor(before_operation=..., after_operation=...)`. Multiple
-hooks can be passed as a list; they execute in order.
+Pass hooks to `ShopFloor(on_before_operation=..., on_after_operation=...)`.
+Multiple hooks can be passed as a list; they execute in order.
+
+## Extension APIs
+
+These APIs let you wire event-driven logic after construction, solving
+chicken-and-egg problems where the hook object needs a reference to the
+shopfloor or PSP it is being attached to.
+
+### Post-construction hook registration
+
+```python
+shopfloor.on_before_operation(hook)      # same signature as constructor hooks
+shopfloor.on_after_operation(hook)       # sync or generator, appended in order
+shopfloor.on_job_finished(callback)      # callback(job) -> None
+shopfloor.on_processing_end(callback)    # callback(job, server) -> None
+```
+
+`on_processing_end` fires after the server is released (servers_exit_at is
+stamped), once per operation — not only when the job finishes its routing.
+
+### PSP event subscription
+
+```python
+psp.on_arrival(callback)  # callback(job, psp) -> None
+```
+
+Fires synchronously inside `psp.add()`, before the SimPy `new_job` event.
+No `env.process()` priming is needed.
+
+### PSP helpers
+
+```python
+psp.release(job)              # remove(job=job) + shopfloor.add(job) in one call
+psp.jobs_starting_at(server)  # jobs whose first routing server matches
+```
+
+### Server helpers
+
+```python
+server.is_idle       # True when no users and no queue
+server.current_jobs  # tuple of jobs occupying active server slots
+```
+
+### Dispatcher protocol
+
+A dispatcher is any object implementing a subset of:
+`on_before_operation`, `on_after_operation`, `on_job_finished`,
+`on_processing_end`, `on_psp_arrival`. Only present methods are wired.
+
+```python
+class MyDispatcher:
+    def on_before_operation(self, job, server, op_index, processing_time):
+        server.sort_queue()  # sync hook, returns None
+
+    def on_psp_arrival(self, job, psp):
+        # Release immediately if the first routing server is idle
+        if job.servers[0].is_idle:
+            psp.release(job)
+
+d = MyDispatcher()
+shopfloor.attach_dispatcher(d, psp=psp)
+```
 
 ## Multi-run experiments
 
@@ -261,9 +326,10 @@ shopfloor.time_series_collector.plot_job_count()
 
 ## Common pitfalls
 
-**Hooks must yield, not return.**
-Operation hooks are SimPy generators. If a hook uses `return` instead of
-`yield`, it silently produces no effect. Always use `yield env.timeout(...)`.
+**Hook return values must be None or a generator.**
+Operation hooks can be plain sync functions (return None) or generators
+(yield SimPy events). A hook that returns a non-None, non-generator value
+raises `TypeError` at runtime.
 
 **`due_date` is absolute simulation time, not an offset.**
 When hand-crafting `ProductionJob`, pass `due_date=env.now + offset`, not just

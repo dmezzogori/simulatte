@@ -153,3 +153,150 @@ def test_psp_new_job_multiple_consumers_can_double_remove() -> None:
 
     with pytest.raises(ValueError, match="not found"):
         env.run(until=0.1)
+
+
+def test_psp_release_removes_and_adds_to_shopfloor() -> None:
+    """release() should remove job from PSP, add to shopfloor, and start processing."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    psp.add(job)
+
+    assert job in psp
+    assert job not in sf.jobs
+
+    psp.release(job)
+
+    assert job not in psp
+    assert job in sf.jobs
+    assert sf.wip[server] == pytest.approx(5.0)
+
+    env.run()
+    assert job.done
+
+
+def test_psp_release_sets_exit_timestamp() -> None:
+    """release() should set psp_exit_at on the job."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    psp.add(job)
+    psp.release(job)
+
+    assert job.psp_exit_at == env.now
+
+
+def test_psp_release_job_not_found() -> None:
+    """release() should raise ValueError if job is not in the pool."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+
+    with pytest.raises(ValueError, match="not found"):
+        psp.release(job)
+
+
+def test_psp_jobs_starting_at() -> None:
+    """jobs_starting_at() should return only jobs whose routing starts at the given server."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server1 = Server(env=env, capacity=1, shopfloor=sf)
+    server2 = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    job_s1 = ProductionJob(env=env, sku="A", servers=[server1, server2], processing_times=[3, 4], due_date=20)
+    job_s2 = ProductionJob(env=env, sku="B", servers=[server2, server1], processing_times=[3, 4], due_date=20)
+    job_s1b = ProductionJob(env=env, sku="C", servers=[server1], processing_times=[5], due_date=20)
+
+    psp.add(job_s1)
+    psp.add(job_s2)
+    psp.add(job_s1b)
+
+    starting_at_s1 = psp.jobs_starting_at(server1)
+    assert starting_at_s1 == [job_s1, job_s1b]
+
+    starting_at_s2 = psp.jobs_starting_at(server2)
+    assert starting_at_s2 == [job_s2]
+
+
+def test_psp_jobs_starting_at_empty() -> None:
+    """jobs_starting_at() should return empty list when no jobs match."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server1 = Server(env=env, capacity=1, shopfloor=sf)
+    server2 = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server1], processing_times=[5], due_date=20)
+    psp.add(job)
+
+    assert psp.jobs_starting_at(server2) == []
+
+
+def test_psp_on_arrival_callback() -> None:
+    """on_arrival() should invoke callback each time a job is added."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    received: list[ProductionJob] = []
+
+    def on_arrival(job: ProductionJob, pool: PreShopPool) -> None:
+        received.append(job)
+
+    psp.on_arrival(on_arrival)
+
+    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    psp.add(job1)
+
+    job2 = ProductionJob(env=env, sku="B", servers=[server], processing_times=[5], due_date=20)
+    psp.add(job2)
+
+    assert received == [job1, job2]
+
+
+def test_psp_on_arrival_no_priming_needed() -> None:
+    """on_arrival() should work without env.run() between registration and add."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    received: list[ProductionJob] = []
+    psp.on_arrival(lambda job, pool: received.append(job))
+
+    # Add immediately without priming — callback should still fire
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    psp.add(job)
+
+    assert received == [job]
+
+
+def test_psp_on_arrival_multiple_callbacks() -> None:
+    """Multiple on_arrival() callbacks should all be invoked in registration order."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    calls_a: list[ProductionJob] = []
+    calls_b: list[ProductionJob] = []
+
+    psp.on_arrival(lambda job, pool: calls_a.append(job))
+    psp.on_arrival(lambda job, pool: calls_b.append(job))
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    psp.add(job)
+
+    assert calls_a == [job]
+    assert calls_b == [job]

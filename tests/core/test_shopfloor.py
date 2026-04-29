@@ -254,7 +254,7 @@ def test_before_operation_hook_adds_setup_time() -> None:
         yield server.env.timeout(2.0)  # 2s setup time
 
     env = Environment()
-    sf = ShopFloor(env=env, before_operation=setup_hook)
+    sf = ShopFloor(env=env, on_before_operation=setup_hook)
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
     sf.add(job)
@@ -283,7 +283,7 @@ def test_after_operation_hook_executes_after_processing() -> None:
         yield server.env.timeout(1.0)  # 1s cleanup
 
     env = Environment()
-    sf = ShopFloor(env=env, after_operation=after_hook)
+    sf = ShopFloor(env=env, on_after_operation=after_hook)
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
     sf.add(job)
@@ -315,7 +315,7 @@ def test_multiple_hooks_execute_in_order() -> None:
 
     hooks: list[OperationHook] = [hook1, hook2]  # type: ignore[list-item]
     env = Environment()
-    sf = ShopFloor(env=env, before_operation=hooks)
+    sf = ShopFloor(env=env, on_before_operation=hooks)
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=10)
     sf.add(job)
@@ -447,7 +447,7 @@ def test_hooks_with_multi_server_routing() -> None:
         yield
 
     env = Environment()
-    sf = ShopFloor(env=env, before_operation=track_hook)
+    sf = ShopFloor(env=env, on_before_operation=track_hook)
     server1 = Server(env=env, capacity=1, shopfloor=sf)
     server2 = Server(env=env, capacity=1, shopfloor=sf)
     server3 = Server(env=env, capacity=1, shopfloor=sf)
@@ -766,3 +766,387 @@ def test_current_workload_collector_strategy_independent() -> None:
     wip_corrected = run_with_strategy(CorrectedWIPStrategy())
 
     assert wip_standard == wip_corrected
+
+
+# =============================================================================
+# Sync OperationHook Tests
+# =============================================================================
+
+
+def test_sync_before_operation_hook() -> None:
+    """A plain sync function (no yield) should work as a before_operation hook."""
+    hook_calls: list[float] = []
+
+    def sync_hook(
+        job: ProductionJob,
+        server: Server,
+        op_index: int,
+        processing_time: float,
+    ) -> None:
+        hook_calls.append(server.env.now)
+
+    env = Environment()
+    sf = ShopFloor(env=env, on_before_operation=sync_hook)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert job.done
+    assert len(hook_calls) == 1
+    assert hook_calls[0] == 0.0
+    assert job.finished_at == pytest.approx(5.0)
+
+
+def test_mixed_sync_and_generator_hooks_execute_in_order() -> None:
+    """Sync and generator hooks in the same list execute in registration order."""
+    from simulatte.shopfloor import OperationHook
+    from simulatte.typing import ProcessGenerator
+
+    execution_order: list[str] = []
+
+    def sync_hook(job: ProductionJob, server: Server, op_index: int, pt: float) -> None:
+        execution_order.append("sync")
+
+    def gen_hook(job: ProductionJob, server: Server, op_index: int, pt: float) -> ProcessGenerator:
+        execution_order.append("gen")
+        yield server.env.timeout(0.1)
+
+    env = Environment()
+    hooks: list[OperationHook] = [sync_hook, gen_hook]  # type: ignore[list-item]
+    sf = ShopFloor(env=env, on_before_operation=hooks)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert execution_order == ["sync", "gen"]
+    assert job.finished_at == pytest.approx(5.1)
+
+
+def test_sync_after_operation_hook() -> None:
+    """A plain sync function should work as an after_operation hook."""
+    hook_calls: list[float] = []
+
+    def sync_hook(
+        job: ProductionJob,
+        server: Server,
+        op_index: int,
+        processing_time: float,
+    ) -> None:
+        hook_calls.append(server.env.now)
+
+    env = Environment()
+    sf = ShopFloor(env=env, on_after_operation=sync_hook)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert job.done
+    assert len(hook_calls) == 1
+    assert hook_calls[0] == pytest.approx(5.0)
+
+
+# =============================================================================
+# Post-init hook registration Tests
+# =============================================================================
+
+
+def test_on_before_operation_post_init() -> None:
+    """on_before_operation() should register a hook after construction."""
+    hook_calls: list[float] = []
+
+    def hook(job: ProductionJob, server: Server, op_index: int, processing_time: float) -> None:
+        hook_calls.append(server.env.now)
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.on_before_operation(hook)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert job.done
+    assert len(hook_calls) == 1
+
+
+def test_on_after_operation_post_init() -> None:
+    """on_after_operation() should register a hook after construction."""
+    hook_calls: list[float] = []
+
+    def hook(job: ProductionJob, server: Server, op_index: int, processing_time: float) -> None:
+        hook_calls.append(server.env.now)
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.on_after_operation(hook)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert job.done
+    assert len(hook_calls) == 1
+    assert hook_calls[0] == pytest.approx(5.0)
+
+
+def test_on_job_finished_post_init() -> None:
+    """on_job_finished() should register a callback after construction."""
+    finished_jobs: list[ProductionJob] = []
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.on_job_finished(lambda job: finished_jobs.append(job))
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert finished_jobs == [job]
+
+
+def test_post_init_hooks_combine_with_init_hooks() -> None:
+    """Hooks registered post-init should execute after init hooks, in order."""
+    from simulatte.typing import ProcessGenerator
+
+    execution_order: list[str] = []
+
+    def init_hook(job: ProductionJob, server: Server, op_index: int, processing_time: float) -> ProcessGenerator:
+        execution_order.append("init")
+        return
+        yield
+
+    def post_init_hook(job: ProductionJob, server: Server, op_index: int, processing_time: float) -> None:
+        execution_order.append("post_init")
+
+    env = Environment()
+    sf = ShopFloor(env=env, on_after_operation=init_hook)
+    sf.on_after_operation(post_init_hook)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert execution_order == ["init", "post_init"]
+
+
+# =============================================================================
+# on_processing_end Tests
+# =============================================================================
+
+
+def test_on_processing_end_fires_after_each_operation() -> None:
+    """on_processing_end callback should fire after each operation with (job, server)."""
+    completions: list[tuple[ProductionJob, Server]] = []
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.on_processing_end(lambda job, server: completions.append((job, server)))
+    server1 = Server(env=env, capacity=1, shopfloor=sf)
+    server2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server1, server2], processing_times=[3, 4], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert len(completions) == 2
+    assert completions[0] == (job, server1)
+    assert completions[1] == (job, server2)
+
+
+def test_on_processing_end_multiple_callbacks_in_order() -> None:
+    """Multiple on_processing_end callbacks should fire in registration order."""
+    order: list[str] = []
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.on_processing_end(lambda job, server: order.append("first"))
+    sf.on_processing_end(lambda job, server: order.append("second"))
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert order == ["first", "second"]
+
+
+def test_on_processing_end_fires_after_server_release() -> None:
+    """on_processing_end should fire after server is released (exit_at stamped, previous_server available)."""
+    callback_time: list[float] = []
+    exit_stamped: list[bool] = []
+    prev_server: list[Server | None] = []
+    server_idle: list[bool] = []
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+
+    def check_release(job: ProductionJob, server: Server) -> None:
+        callback_time.append(env.now)
+        exit_stamped.append(job.servers_exit_at[server] is not None)
+        prev_server.append(job.previous_server)
+        server_idle.append(server.is_idle)
+
+    sf.on_processing_end(check_release)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert callback_time == [5.0]
+    assert exit_stamped == [True]
+    assert prev_server == [server]
+    assert server_idle == [True]
+
+
+def test_on_processing_end_via_attach_dispatcher() -> None:
+    """attach_dispatcher should wire on_processing_end if present."""
+    completions: list[tuple[ProductionJob, Server]] = []
+
+    class MyDispatcher:
+        def on_processing_end(self, job, server):
+            completions.append((job, server))
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.attach_dispatcher(MyDispatcher())
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert completions == [(job, server)]
+
+
+# =============================================================================
+# Dispatcher Protocol and attach_dispatcher Tests
+# =============================================================================
+
+
+def test_attach_dispatcher_full() -> None:
+    """attach_dispatcher should wire all hooks when dispatcher has all methods."""
+    from simulatte.psp import PreShopPool
+
+    execution_log: list[str] = []
+
+    class MyDispatcher:
+        def on_before_operation(self, job, server, op_index, processing_time):
+            execution_log.append("before_op")
+
+        def on_after_operation(self, job, server, op_index, processing_time):
+            execution_log.append("after_op")
+
+        def on_job_finished(self, job):
+            execution_log.append("job_finished")
+
+        def on_psp_arrival(self, job, psp):
+            execution_log.append("psp_arrival")
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    dispatcher = MyDispatcher()
+    sf.attach_dispatcher(dispatcher, psp=psp)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    psp.add(job)
+
+    # PSP arrival should have fired synchronously
+    assert "psp_arrival" in execution_log
+
+    # Release job to shopfloor
+    psp.release(job)
+    env.run()
+
+    assert job.done
+    assert "before_op" in execution_log
+    assert "after_op" in execution_log
+    assert "job_finished" in execution_log
+
+
+def test_attach_dispatcher_partial() -> None:
+    """attach_dispatcher should wire only methods that exist on the dispatcher."""
+    execution_log: list[str] = []
+
+    class PartialDispatcher:
+        def on_after_operation(self, job, server, op_index, processing_time):
+            execution_log.append("after_op")
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    dispatcher = PartialDispatcher()
+    sf.attach_dispatcher(dispatcher)
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert job.done
+    assert execution_log == ["after_op"]
+
+
+def test_attach_dispatcher_no_psp_skips_arrival() -> None:
+    """attach_dispatcher without psp should skip on_psp_arrival wiring."""
+    execution_log: list[str] = []
+
+    class DispatcherWithArrival:
+        def on_after_operation(self, job, server, op_index, processing_time):
+            execution_log.append("after_op")
+
+        def on_psp_arrival(self, job, psp):
+            execution_log.append("psp_arrival")
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+
+    dispatcher = DispatcherWithArrival()
+    sf.attach_dispatcher(dispatcher)  # no psp — on_psp_arrival should not be wired
+
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+    env.run()
+
+    assert job.done
+    assert execution_log == ["after_op"]
+    assert "psp_arrival" not in execution_log
+
+
+def test_hook_returning_non_generator_raises_type_error() -> None:
+    """A hook that returns a non-None, non-generator value should raise TypeError."""
+
+    def bad_hook(job: ProductionJob, server: Server, op_index: int, processing_time: float) -> int:
+        return 42  # type: ignore[return-value]
+
+    env = Environment()
+    sf = ShopFloor(env=env, on_before_operation=bad_hook)  # type: ignore[arg-type]
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+
+    with pytest.raises(TypeError, match="OperationHook must return None or a generator"):
+        env.run()
+
+
+def test_after_hook_returning_non_generator_raises_type_error() -> None:
+    """An after-operation hook that returns non-None/non-generator should raise TypeError."""
+
+    def bad_hook(job: ProductionJob, server: Server, op_index: int, processing_time: float) -> str:
+        return "oops"  # type: ignore[return-value]
+
+    env = Environment()
+    sf = ShopFloor(env=env, on_after_operation=bad_hook)  # type: ignore[arg-type]
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
+    sf.add(job)
+
+    with pytest.raises(TypeError, match="OperationHook must return None or a generator"):
+        env.run()

@@ -13,13 +13,14 @@ The ShopFloor integrates with:
 - Environment: The SimPy-based simulation environment
 
 Extensibility is provided through:
-- OperationHook: Generator-based hooks for before/after each operation
+- OperationHook: Sync or generator-based hooks for before/after each operation
 - WIPStrategy: Pluggable WIP calculation strategies
 - MetricsCollector: Pluggable metrics recording
 """
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 
@@ -28,6 +29,7 @@ from simulatte.environment import Environment
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.experimental.materials import MaterialCoordinator
     from simulatte.job import ProductionJob
+    from simulatte.psp import PreShopPool
     from simulatte.server import Server
     from simulatte.typing import ProcessGenerator
 
@@ -45,18 +47,23 @@ _DEFAULT_METRICS_COLLECTOR = object()
 class OperationHook(Protocol):
     """Hook called before or after each operation.
 
-    Operation hooks are generator-based to support SimPy's async model.
-    They can yield SimPy events (timeouts, resource requests, etc.) to
-    inject delays or coordinate with other simulation components.
+    Hooks may be plain synchronous functions (returning None) or
+    generator-based (yielding SimPy events). Both styles can coexist
+    in the same hook list and execute in registration order.
 
-    Example:
-        A setup time hook that adds delay before processing::
+    Examples:
+        A synchronous dispatch hook::
+
+            def dispatch_hook(job, server, op_index, processing_time):
+                server.sort_queue()
+
+        A generator hook that adds setup time::
 
             def setup_time_hook(job, server, op_index, processing_time):
                 setup = 2.0 if job.sku.startswith("COMPLEX") else 0.5
                 yield server.env.timeout(setup)
 
-            shopfloor = ShopFloor(env=env, before_operation=setup_time_hook)
+            shopfloor = ShopFloor(env=env, on_before_operation=setup_time_hook)
     """
 
     def __call__(
@@ -65,7 +72,7 @@ class OperationHook(Protocol):
         server: Server,
         op_index: int,
         processing_time: float,
-    ) -> ProcessGenerator:
+    ) -> ProcessGenerator | None:
         """Execute the hook.
 
         Args:
@@ -74,8 +81,8 @@ class OperationHook(Protocol):
             op_index: Zero-based index of the current operation.
             processing_time: Duration of the operation.
 
-        Yields:
-            SimPy events (timeouts, resource requests, etc.).
+        Returns:
+            None for synchronous hooks, or a generator yielding SimPy events.
         """
         ...
 
@@ -219,6 +226,39 @@ class TimeSeriesCollector(Protocol):
             job: The job that just finished.
         """
         ...
+
+
+class Dispatcher(Protocol):  # pragma: no cover
+    """Reference protocol showing the full dispatcher interface.
+
+    All methods are optional at runtime — ``attach_dispatcher`` wires
+    only those that are present and callable on the dispatcher object.
+
+    This protocol is NOT runtime-checkable. It exists for documentation
+    and IDE support. Partial implementations are explicitly supported.
+    """
+
+    def on_before_operation(
+        self,
+        job: ProductionJob,
+        server: Server,
+        op_index: int,
+        processing_time: float,
+    ) -> ProcessGenerator | None: ...
+
+    def on_after_operation(
+        self,
+        job: ProductionJob,
+        server: Server,
+        op_index: int,
+        processing_time: float,
+    ) -> ProcessGenerator | None: ...
+
+    def on_job_finished(self, job: ProductionJob) -> None: ...
+
+    def on_processing_end(self, job: ProductionJob, server: Server) -> None: ...
+
+    def on_psp_arrival(self, job: ProductionJob, psp: PreShopPool) -> None: ...
 
 
 # =============================================================================
@@ -588,7 +628,7 @@ class ShopFloor:
     complete processing steps or finish entirely.
 
     Extensibility is provided through composition:
-    - before_operation / after_operation: Hooks for custom logic at each operation
+    - on_before_operation / on_after_operation: Hooks for custom logic at each operation
     - wip_strategy: Pluggable WIP calculation
     - metrics_collector: Pluggable metrics recording
     - time_series_collector: Pluggable time-series data collection
@@ -619,7 +659,7 @@ class ShopFloor:
                 yield server.env.timeout(1.0)  # 1s setup time
 
             env = Environment()
-            shop_floor = ShopFloor(env=env, before_operation=setup_hook)
+            shop_floor = ShopFloor(env=env, on_before_operation=setup_hook)
             server = Server(env=env, capacity=1, shopfloor=shop_floor)
 
             job = ProductionJob(
@@ -641,8 +681,8 @@ class ShopFloor:
         metrics_collector: MetricsCollector | None | object = _DEFAULT_METRICS_COLLECTOR,
         collect_time_series: bool = False,
         time_series_collector: TimeSeriesCollector | None = None,
-        before_operation: OperationHook | Sequence[OperationHook] | None = None,
-        after_operation: OperationHook | Sequence[OperationHook] | None = None,
+        on_before_operation: OperationHook | Sequence[OperationHook] | None = None,
+        on_after_operation: OperationHook | Sequence[OperationHook] | None = None,
         on_job_finished: Callable[[ProductionJob], None] | Sequence[Callable[[ProductionJob], None]] | None = None,
     ) -> None:
         """Initialize a new ShopFloor instance.
@@ -667,9 +707,9 @@ class ShopFloor:
             time_series_collector: Collector for time-series data. If provided,
                 overrides collect_time_series. Pass None to disable time-series
                 collection. Defaults to None.
-            before_operation: Hook(s) called after acquiring server but before
+            on_before_operation: Hook(s) called after acquiring server but before
                 material delivery and processing. Can be a single hook or list.
-            after_operation: Hook(s) called after processing completes but
+            on_after_operation: Hook(s) called after processing completes but
                 before signaling. Can be a single hook or list.
             on_job_finished: Callback(s) called when a job completes its
                 entire routing. Can be a single callable or list.
@@ -678,9 +718,10 @@ class ShopFloor:
         self.material_coordinator = material_coordinator
 
         # Normalize hooks to lists
-        self._before_operation: list[OperationHook] = self._normalize_hooks(before_operation)
-        self._after_operation: list[OperationHook] = self._normalize_hooks(after_operation)
+        self._before_operation: list[OperationHook] = self._normalize_hooks(on_before_operation)
+        self._after_operation: list[OperationHook] = self._normalize_hooks(on_after_operation)
         self._on_job_finished: list[Callable[[ProductionJob], None]] = self._normalize_callbacks(on_job_finished)
+        self._processing_end_callbacks: list[Callable[[ProductionJob, Server], None]] = []
 
         # Strategies with defaults
         self._wip_strategy: WIPStrategy = wip_strategy if wip_strategy is not None else StandardWIPStrategy()
@@ -735,6 +776,84 @@ class ShopFloor:
             return list(callbacks)  # type: ignore[arg-type]
         # Single callback
         return [callbacks]  # type: ignore[list-item]
+
+    def on_before_operation(self, hook: OperationHook) -> None:
+        """Register a hook to run before each operation.
+
+        Hooks registered post-construction execute after any hooks
+        passed via __init__, in registration order.
+        """
+        self._before_operation.append(hook)
+
+    def on_after_operation(self, hook: OperationHook) -> None:
+        """Register a hook to run after each operation.
+
+        Hooks registered post-construction execute after any hooks
+        passed via __init__, in registration order.
+        """
+        self._after_operation.append(hook)
+
+    def on_job_finished(self, callback: Callable[[ProductionJob], None]) -> None:
+        """Register a callback for when a job completes its entire routing.
+
+        Callbacks registered post-construction execute after any callbacks
+        passed via __init__, in registration order.
+        """
+        self._on_job_finished.append(callback)
+
+    def on_processing_end(self, callback: Callable[[ProductionJob, Server], None]) -> None:
+        """Register a callback for when a job completes processing at any server.
+
+        Callbacks are invoked synchronously after the server is released
+        (``servers_exit_at`` is stamped and ``job.previous_server`` is
+        available). This fires after each operation, not just when the
+        job finishes its entire routing.
+
+        Note:
+            The SimPy ``job_processing_end`` event is succeeded earlier
+            (while the server is still held). These callbacks fire after
+            server release and always run before SimPy process-based
+            listeners resume.
+
+        Args:
+            callback: Function called with (job, server) after processing completes.
+        """
+        self._processing_end_callbacks.append(callback)
+
+    def attach_dispatcher(self, dispatcher: object, *, psp: PreShopPool | None = None) -> None:
+        """Wire a dispatcher object's hook methods to this shopfloor.
+
+        Detects which hook methods exist on the dispatcher and registers
+        only those that are callable. This allows partial implementations
+        where a dispatcher only handles a subset of events.
+
+        Args:
+            dispatcher: Object with any combination of on_before_operation,
+                on_after_operation, on_job_finished, on_processing_end,
+                and on_psp_arrival methods.
+            psp: If provided and dispatcher has on_psp_arrival, registers
+                an arrival subscription on the PSP.
+        """
+        hook = getattr(dispatcher, "on_before_operation", None)
+        if callable(hook):
+            self.on_before_operation(hook)
+
+        hook = getattr(dispatcher, "on_after_operation", None)
+        if callable(hook):
+            self.on_after_operation(hook)
+
+        hook = getattr(dispatcher, "on_job_finished", None)
+        if callable(hook):
+            self.on_job_finished(hook)
+
+        hook = getattr(dispatcher, "on_processing_end", None)
+        if callable(hook):
+            self.on_processing_end(hook)
+
+        if psp is not None:
+            hook = getattr(dispatcher, "on_psp_arrival", None)
+            if callable(hook):
+                psp.on_arrival(hook)
 
     @property
     def wip_strategy(self) -> WIPStrategy:
@@ -814,27 +933,20 @@ class ShopFloor:
         job.psp_exit_at = self.env.now
         self.env.process(self.main(job))
 
-    def signal_end_processing(self, job: ProductionJob) -> None:
-        """Signal that a job has finished processing at its current server.
+    def _fire_processing_end_callbacks(self, job: ProductionJob, server: Server) -> None:
+        """Invoke on_processing_end callbacks after server release.
 
-        This method triggers the job_processing_end event with the completed job
-        as the event value, allowing any waiting processes to react to the
-        processing completion. The event is then recreated for the next signal.
-
-        This is called after each operation completes, not just when the job
-        finishes its entire routing.
+        Called after the ``with server.request()`` context exits, meaning
+        servers_exit_at is stamped and the server resource is freed. This
+        is the correct point for release-policy decisions that inspect
+        server state or job.previous_server.
 
         Args:
-            job: The job that just completed processing at a server.
-
-        Example:
-            Waiting for any job to finish processing::
-
-                job = yield shop_floor.job_processing_end
-                print(f"Job {job.id} finished an operation")
+            job: The job that just completed processing.
+            server: The server where processing completed.
         """
-        self.job_processing_end.succeed(job)
-        self.job_processing_end = self.env.event()
+        for callback in self._processing_end_callbacks:
+            callback(job, server)
 
     def signal_job_finished(self, job: ProductionJob) -> None:
         """Signal that a job has completed its entire routing.
@@ -843,7 +955,7 @@ class ShopFloor:
         as the event value, notifying any waiting processes that a job has
         finished all operations. The event is then recreated for the next signal.
 
-        Unlike signal_end_processing, this is only called once per job when
+        Unlike job_processing_end, this is only called once per job when
         it completes its final operation.
 
         Args:
@@ -868,12 +980,12 @@ class ShopFloor:
         its routing. For each server in the job's routing, it:
 
         1. Requests and acquires the server resource (queuing if busy)
-        2. Executes before_operation hooks
+        2. Executes on_before_operation hooks
         3. If a MaterialCoordinator is configured, waits for material delivery
         4. Processes the job for the specified duration
         5. Updates WIP via the configured WIP strategy
-        6. Executes after_operation hooks
-        7. Signals processing completion via signal_end_processing()
+        6. Executes on_after_operation hooks
+        7. Signals processing completion (job_processing_end event + on_processing_end callbacks)
 
         After all operations complete, it:
         - Records the finish timestamp on the job
@@ -906,7 +1018,13 @@ class ShopFloor:
 
                 # Before-operation hooks
                 for hook in self._before_operation:
-                    yield from hook(job, server, op_index, processing_time)
+                    result = hook(job, server, op_index, processing_time)
+                    if result is None:
+                        continue
+                    if inspect.isgenerator(result):
+                        yield from result
+                    else:
+                        raise TypeError(f"OperationHook must return None or a generator, got {type(result).__name__}")
 
                 # Material coordination (if configured)
                 if self.material_coordinator is not None:
@@ -922,9 +1040,15 @@ class ShopFloor:
                 if self._time_series_collector is not None:
                     self._time_series_collector.on_operation_completed(self, job, server, op_index)
 
-                # After-operation hooks
+                # After-operation hooks (server still held)
                 for hook in self._after_operation:
-                    yield from hook(job, server, op_index, processing_time)
+                    result = hook(job, server, op_index, processing_time)
+                    if result is None:
+                        continue
+                    if inspect.isgenerator(result):
+                        yield from result
+                    else:
+                        raise TypeError(f"OperationHook must return None or a generator, got {type(result).__name__}")
 
                 self.env.debug(
                     f"Job {job.id[:8]} completed op at server {server._idx}",
@@ -935,7 +1059,12 @@ class ShopFloor:
                     processing_time=processing_time,
                 )
 
-                self.signal_end_processing(job)
+                # SimPy event (server still held — preserves existing semantics)
+                self.job_processing_end.succeed(job)
+                self.job_processing_end = self.env.event()
+
+            # Server released — servers_exit_at is now stamped
+            self._fire_processing_end_callbacks(job, server)
 
         # Job completion
         job.finished_at = self.env.now

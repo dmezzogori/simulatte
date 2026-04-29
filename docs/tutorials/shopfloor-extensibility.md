@@ -2,16 +2,31 @@
 
 Goal: customize simulation behavior by composing a `ShopFloor` with hooks, WIP strategies, and metrics collectors.
 
-## Hooks: `before_operation` / `after_operation`
+## Hooks: `on_before_operation` / `on_after_operation`
 
 Hooks are called for each operation of each job:
 
-- `before_operation`: after the server is acquired, before material delivery and processing
-- `after_operation`: after processing (and WIP update), before the operation-completed signal is emitted
+- `on_before_operation`: after the server is acquired, before material delivery and processing
+- `on_after_operation`: after processing (and WIP update), before the operation-completed signal is emitted
 
-Hooks are **generator-based** (they can `yield` SimPy events).
+Hooks may be **plain synchronous functions** (returning `None`) or **generator-based** (yielding SimPy events). Both styles can coexist in the same hook list.
 
-### Example: add setup time before processing
+### Example: synchronous dispatch hook
+
+```python
+from simulatte.environment import Environment
+from simulatte.job import ProductionJob
+from simulatte.server import Server
+from simulatte.shopfloor import ShopFloor
+
+def dispatch_hook(job, server, op_index, processing_time) -> None:
+    server.sort_queue()
+
+env = Environment()
+shopfloor = ShopFloor(env=env, on_after_operation=dispatch_hook)
+```
+
+### Example: generator hook with setup time
 
 ```python
 from simulatte.environment import Environment
@@ -24,7 +39,7 @@ def setup_hook(job, server, op_index, processing_time) -> ProcessGenerator:
     yield server.env.timeout(2.0)  # fixed setup time
 
 env = Environment()
-shopfloor = ShopFloor(env=env, before_operation=setup_hook)
+shopfloor = ShopFloor(env=env, on_before_operation=setup_hook)
 server = Server(env=env, capacity=1, shopfloor=shopfloor)
 
 job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=100.0)
@@ -32,6 +47,16 @@ shopfloor.add(job)
 env.run()
 
 assert job.finished_at == 7.0
+```
+
+### Post-construction registration
+
+When the hook object needs a back-reference to the shopfloor (chicken-and-egg), register after construction:
+
+```python
+shopfloor = ShopFloor(env=env)
+shopfloor.on_after_operation(my_dispatcher.on_after_operation)
+shopfloor.on_job_finished(my_dispatcher.on_job_finished)
 ```
 
 ## WIP strategies

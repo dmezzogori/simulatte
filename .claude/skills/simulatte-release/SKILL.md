@@ -3,7 +3,7 @@ name: simulatte:release
 description: Use when preparing a new release of simulatte. Runs pre-flight checks (tests, lint, type check, docs build), bumps the version using semver, generates CHANGELOG entries from commits, updates all version references, and creates the git tag that triggers PyPI publishing. Use whenever the user mentions "release", "new version", "bump version", "publish to PyPI", or wants to cut a new release of the library.
 disable-model-invocation: true
 user-invocable: true
-model: haiku
+model: sonnet
 effort: max
 ---
 

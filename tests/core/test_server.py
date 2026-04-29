@@ -184,6 +184,64 @@ class TestServer:
 
         assert [req.job for req in server.queue] == [job_low, job_med, job_high]
 
+    def test_is_idle_no_jobs(self) -> None:
+        """is_idle should be True when server has no users and no queue."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        assert server.is_idle
+
+    def test_is_idle_while_processing(self) -> None:
+        """is_idle should be False when server is processing a job."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[100], due_date=200)
+        sf.add(job)
+        env.run(until=0.1)
+        assert not server.is_idle
+
+    def test_is_idle_with_queue(self) -> None:
+        """is_idle should be False when jobs are queued."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[100], due_date=200)
+        job2 = ProductionJob(env=env, sku="B", servers=[server], processing_times=[100], due_date=200)
+        sf.add(job1)
+        sf.add(job2)
+        env.run(until=0.1)
+        assert not server.is_idle
+
+    def test_current_jobs_empty(self) -> None:
+        """current_jobs should be empty tuple when no jobs are processing."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        assert server.current_jobs == ()
+
+    def test_current_jobs_while_processing(self) -> None:
+        """current_jobs should contain the job being processed."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[100], due_date=200)
+        sf.add(job)
+        env.run(until=0.1)
+        assert server.current_jobs == (job,)
+
+    def test_current_jobs_parallel_capacity(self) -> None:
+        """current_jobs should contain all jobs being processed in parallel."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=2, shopfloor=sf)
+        job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[100], due_date=200)
+        job2 = ProductionJob(env=env, sku="B", servers=[server], processing_times=[100], due_date=200)
+        sf.add(job1)
+        sf.add(job2)
+        env.run(until=0.1)
+        assert set(server.current_jobs) == {job1, job2}
+
     def test_empty_property(self) -> None:
         """empty should be True when queue is empty."""
         env = Environment()

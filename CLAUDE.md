@@ -57,9 +57,10 @@ Simulatte is a discrete-event simulation framework for job-shop scheduling and i
 **Environment** (`src/simulatte/environment.py`): SimPy wrapper with integrated per-environment logging. Supports JSON/text output and optional SQLite persistence.
 
 **ShopFloor** (`src/simulatte/shopfloor.py`): Central orchestrator managing job flow through the simulation. Tracks WIP, coordinates routing, maintains EMA metrics. Extensible via:
-- `OperationHook`: Generator-based hooks for before/after operations
+- `OperationHook`: Sync or generator-based hooks for before/after operations
 - `WIPStrategy`: Pluggable WIP calculation (StandardWIPStrategy, CorrectedWIPStrategy)
 - `MetricsCollector`: Pluggable metrics recording
+- `Dispatcher`: Protocol for one-call hook wiring via `attach_dispatcher()`
 
 **ProductionJob** (`src/simulatte/job.py`): Jobs with routing through servers, processing times, due dates. Also TransportJob and WarehouseJob variants.
 
@@ -68,7 +69,7 @@ Simulatte is a discrete-event simulation framework for job-shop scheduling and i
 **Policies** (`src/simulatte/policies/`): Release policies for job scheduling:
 - LumsCor: Load-based scheduling
 - SLAR: Server load adjustment rule
-- StarvationAvoidance: Prevents resource starvation
+- `starvation_avoidance`: Callback for `psp.on_arrival()` that releases jobs when first server is idle
 
 ### Supporting Modules
 
