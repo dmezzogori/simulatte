@@ -2,6 +2,12 @@
 
 All notable changes to Simulatte are documented here.
 
+## 0.5.0 — 2026-04-29
+
+- Add `SimulatteEnv` Gymnasium wrapper for RL integration (`simulatte.experimental.gymnasium`)
+- Improve web documentation structure and content
+- Bump `actions/deploy-pages` from 4 to 5
+
 ## 0.4.0 — 2026-04-29
 
 - Add `is_idle` and `current_jobs` properties to `Server`
