@@ -2,7 +2,7 @@
 
 Goal: build a small manufacturing system, run jobs through it, then inspect basic performance metrics.
 
-## 1) Build a small shopfloor with two servers
+## 1) Build a small shop floor with two servers
 
 ```python
 from simulatte.environment import Environment

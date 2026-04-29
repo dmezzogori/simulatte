@@ -1,11 +1,10 @@
-<p align="center">
+<figure>
   <img src="assets/logo.png" alt="Simulatte" width="200">
-</p>
-
-<p align="center">
-  <a href="https://github.com/dmezzogori/simulatte">GitHub</a> ·
-  <a href="https://pypi.org/project/simulatte/">PyPI</a>
-</p>
+  <figcaption>
+    <a href="https://github.com/dmezzogori/simulatte">GitHub</a> ·
+    <a href="https://pypi.org/project/simulatte/">PyPI</a>
+  </figcaption>
+</figure>
 
 # Simulatte
 
