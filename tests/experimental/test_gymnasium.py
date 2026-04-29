@@ -251,3 +251,125 @@ class TestGymnasiumCompliance:
 
         env = MinimalEnv()
         check_env(env.unwrapped, skip_render_check=True)
+
+
+class SimulatteIntegrationEnv(SimulatteEnv):
+    """A real simulatte simulation wrapped as a Gymnasium environment."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.observation_space = spaces.Box(low=0.0, high=np.inf, shape=(4,), dtype=np.float64)
+        self.action_space = spaces.Discrete(2)
+
+    def setup(self, *, seed: int | None, options: dict | None) -> None:
+        from simulatte.environment import Environment
+        from simulatte.server import Server
+        from simulatte.shopfloor import ShopFloor
+
+        self.sim_env = Environment()
+        self.shopfloor = ShopFloor(env=self.sim_env)
+        self.servers = [
+            Server(env=self.sim_env, capacity=1, shopfloor=self.shopfloor),
+            Server(env=self.sim_env, capacity=1, shopfloor=self.shopfloor),
+        ]
+        self.jobs_released = 0
+        self.total_jobs = 5
+        self._rng = self.np_random
+        self._create_pending_jobs()
+
+    def _create_pending_jobs(self) -> None:
+        from simulatte.job import ProductionJob
+
+        self._pending_jobs = [
+            ProductionJob(
+                env=self.sim_env,
+                sku="A",
+                servers=self.servers,
+                processing_times=[self._rng.uniform(1.0, 5.0), self._rng.uniform(1.0, 5.0)],
+                due_date=50.0,
+            )
+            for _ in range(self.total_jobs)
+        ]
+
+    def teardown(self) -> None:
+        self.sim_env.close()
+
+    def apply_action(self, action) -> None:
+        if action == 1 and self._pending_jobs:
+            job = self._pending_jobs.pop(0)
+            self.shopfloor.add(job)
+            self.jobs_released += 1
+        self.sim_env.run(until=self.sim_env.now + 5.0)
+
+    def get_observation(self):
+        return np.array(
+            [
+                len(self.servers[0].queue),
+                len(self.servers[1].queue),
+                self.sim_env.now,
+                len(self._pending_jobs),
+            ],
+            dtype=np.float64,
+        )
+
+    def compute_reward(self, action) -> float:
+        return -sum(1.0 for job in self.shopfloor.jobs_done if job.late)
+
+    def is_terminated(self) -> bool:
+        return len(self.shopfloor.jobs_done) >= self.total_jobs
+
+    def is_truncated(self) -> bool:
+        return self.sim_env.now > 200.0
+
+
+class TestSimulatteIntegration:
+    """Integration test using real simulatte simulation components."""
+
+    def test_full_episode(self) -> None:
+        env = SimulatteIntegrationEnv()
+        obs, info = env.reset(seed=42)
+        assert obs.shape == (4,)
+        assert info == {}
+
+        done = False
+        steps = 0
+        while not done:
+            action = 1 if obs[3] > 0 else 0  # release if pending jobs remain
+            obs, reward, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
+            steps += 1
+
+        assert steps > 0
+        assert len(env.shopfloor.jobs_done) > 0
+        env.close()
+
+    def test_multiple_episodes_with_teardown(self) -> None:
+        env = SimulatteIntegrationEnv()
+        for seed in [1, 2, 3]:
+            obs, _ = env.reset(seed=seed)
+            for _ in range(3):
+                obs, _, terminated, truncated, _ = env.step(1)
+                if terminated or truncated:
+                    break
+        env.close()
+
+    def test_deterministic_episodes(self) -> None:
+        env = SimulatteIntegrationEnv()
+
+        def run_episode(seed: int) -> list:
+            obs_list = []
+            obs, _ = env.reset(seed=seed)
+            obs_list.append(obs.copy())
+            for _ in range(5):
+                obs, _, terminated, truncated, _ = env.step(1)
+                obs_list.append(obs.copy())
+                if terminated or truncated:
+                    break
+            return obs_list
+
+        traj_1 = run_episode(seed=42)
+        traj_2 = run_episode(seed=42)
+        for o1, o2 in zip(traj_1, traj_2, strict=True):
+            np.testing.assert_array_equal(o1, o2)
+
+        env.close()
