@@ -33,7 +33,6 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 import gymnasium
-import numpy as np
 
 
 class SimulatteEnv(gymnasium.Env, ABC):
