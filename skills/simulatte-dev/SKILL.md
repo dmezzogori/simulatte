@@ -4,13 +4,14 @@ description: >
   Use when building, configuring, debugging, or running simulations with the
   Simulatte discrete-event simulation library. Trigger whenever code imports
   from `simulatte`, references Simulatte classes (Environment, ShopFloor,
-  Server, ProductionJob, Router, PreShopPool, Runner), or the user asks about
-  job-shop simulation in a Python project. Also trigger when the user mentions
-  release policies (LumsCor, SLAR, immediate release), WIP strategies,
-  workload control, dispatching rules, starvation avoidance, or multi-run
-  experiments with seed management. Even if the user just says "set up a
-  simulation" or "compare scheduling policies" in a repo that depends on
-  simulatte, use this skill.
+  Server, ProductionJob, Router, PreShopPool, Runner, SimulatteEnv), or the
+  user asks about job-shop simulation in a Python project. Also trigger when
+  the user mentions release policies (LumsCor, SLAR, immediate release), WIP
+  strategies, workload control, dispatching rules, starvation avoidance,
+  multi-run experiments with seed management, or training RL agents on
+  simulations (Gymnasium, reinforcement learning, gym environment). Even if
+  the user just says "set up a simulation", "compare scheduling policies", or
+  "train an RL agent" in a repo that depends on simulatte, use this skill.
 ---
 
 # Simulatte Development Guide
@@ -26,6 +27,8 @@ exact constructor signatures, parameter types, or configuration structures.
 > **Experimental modules** (`simulatte.experimental`) — Warehouse, AGV, and
 > MaterialCoordinator — are excluded from this guide. They are unstable and
 > subject to breaking changes. Do not use them unless the user explicitly asks.
+> The **Gymnasium wrapper** (`SimulatteEnv`) is also experimental but is
+> covered below because RL integration is a common use case.
 
 ## Understanding the request
 
@@ -37,6 +40,7 @@ Before writing code, figure out which stage the researcher is at:
 | Compare release policies               | Run multiple builders via `Runner`  |
 | Customize dispatching or hooks         | Manual composition                  |
 | Run stochastic experiments             | `Runner` with multiple seeds        |
+| Train an RL agent on a simulation      | Gymnasium wrapper section           |
 | Analyze or plot results                | Result inspection section           |
 
 ## Choosing a release policy
@@ -274,6 +278,59 @@ results = runner.run(until=10_000)
 The `builder` callable must accept `*, env` (keyword-only). The `extract_fn`
 receives the full system tuple and returns whatever metrics the researcher
 needs. Results are a list, one entry per seed, in seed order.
+
+## Gymnasium wrapper (RL integration)
+
+> **Experimental**: `SimulatteEnv` is in `simulatte.experimental` and may
+> change in future releases.
+
+`SimulatteEnv` is a thin Gymnasium ABC that wraps a simulation as a
+Gymnasium environment for RL training. Subclass it and implement six
+abstract methods — the base class handles `reset()`, `step()`, and
+`close()` lifecycle plumbing.
+
+```python
+from simulatte.experimental.gymnasium import SimulatteEnv
+from gymnasium import spaces
+import numpy as np
+
+class MyEnv(SimulatteEnv):
+    def __init__(self):
+        super().__init__()
+        self.observation_space = spaces.Box(low=0, high=np.inf, shape=(4,), dtype=np.float64)
+        self.action_space = spaces.Discrete(2)
+
+    def setup(self, *, seed, options):       # build fresh simulation
+        ...
+    def get_observation(self):               # extract state → numpy array
+        ...
+    def apply_action(self, action):          # apply action + advance sim
+        ...
+    def compute_reward(self, action):        # return float reward
+        ...
+    def is_terminated(self):                 # natural episode end?
+        ...
+    def is_truncated(self):                  # time budget exceeded?
+        ...
+```
+
+**Key points:**
+
+- `apply_action()` is where you advance the simulation (e.g.,
+  `self.sim_env.run(until=...)`). You control when the simulation pauses.
+- `compute_reward(action)` receives the action for action-dependent
+  penalties. Access simulation state via `self`.
+- `teardown()` (optional) cleans up resources between episodes. Called
+  before `setup()` on every `reset()` after the first, and from `close()`.
+- `get_info()` (optional) returns a step info dict, called last in
+  `step()` — use it for reward decomposition or diagnostics.
+- Use `self.np_random` (seeded automatically by Gymnasium) for all
+  numpy-based randomness.
+- Lifecycle guards raise `RuntimeError` if `step()` is called before
+  `reset()` or after episode end.
+
+The wrapper works with Stable-Baselines3, CleanRL, and any
+Gymnasium-compatible RL library.
 
 ## Result inspection
 

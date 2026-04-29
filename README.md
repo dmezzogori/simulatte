@@ -49,6 +49,11 @@ The library provides ready-to-use components for common manufacturing scenarios 
 - Matplotlib integration: `plot_wip()`, `plot_throughput()`, `plot_lateness()`
 - Custom time-series collectors via simple protocol
 
+### Reinforcement Learning Integration *(experimental)*
+- **Gymnasium wrapper** ([`SimulatteEnv`](https://simulatte.dev/experimental/gymnasium-wrapper/)): subclass a single ABC to turn any simulation into a Gymnasium environment (`from simulatte.experimental.gymnasium import SimulatteEnv`)
+- Can be used with Stable-Baselines3, CleanRL, and other Gymnasium-compatible RL libraries
+- Built-in lifecycle guards, seeding support, and resource cleanup
+
 ### Material Handling *(experimental)*
 - Warehouse with inventory management
 - AGV fleet coordination

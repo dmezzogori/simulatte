@@ -21,6 +21,7 @@ nav = [
   { "Agent Skill" = "ai-skill.md" },
   { "Experimental" = [
     { "Overview" = "experimental/index.md" },
+    { "Gymnasium wrapper for RL" = "experimental/gymnasium-wrapper.md" },
     { "Materials, warehouse, and AGVs" = "experimental/materials-warehouse-agvs.md" },
   ]},
 ]

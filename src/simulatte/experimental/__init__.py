@@ -9,6 +9,7 @@ Exports:
     MaterialCoordinator: Orchestrates material delivery with FIFO blocking.
     MaterialSystem: Type alias for material handling system tuple.
     MaterialSystemBuilder: Factory for building material handling systems.
+    SimulatteEnv: Gymnasium environment base class for RL integration.
     TransportJob: Job type for AGV transport operations.
     Warehouse: Warehouse server with inventory containers.
     WarehouseJob: Job type for warehouse pick/put operations.
@@ -18,6 +19,7 @@ from __future__ import annotations
 
 from simulatte.experimental.agv import AGV
 from simulatte.experimental.builders import MaterialSystemBuilder
+from simulatte.experimental.gymnasium import SimulatteEnv
 from simulatte.experimental.job import TransportJob, WarehouseJob
 from simulatte.experimental.materials import MaterialCoordinator
 from simulatte.experimental.typing import MaterialSystem
@@ -28,6 +30,7 @@ __all__ = [
     "MaterialCoordinator",
     "MaterialSystem",
     "MaterialSystemBuilder",
+    "SimulatteEnv",
     "TransportJob",
     "Warehouse",
     "WarehouseJob",

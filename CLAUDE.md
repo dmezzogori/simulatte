@@ -38,7 +38,7 @@ simulatte/
 │   ├── logger.py           # Logging with JSON/text/SQLite output
 │   ├── typing.py           # Shared type definitions
 │   ├── policies/           # Release policies (LumsCor, SLAR, StarvationAvoidance, triggers)
-│   └── experimental/       # Unstable modules (AGV, warehouse, materials, experimental builders/job/typing)
+│   └── experimental/       # Unstable modules (AGV, warehouse, materials, gymnasium wrapper, experimental builders/job/typing)
 ├── tests/
 │   ├── core/               # Tests for stable modules
 │   └── experimental/       # Tests for experimental modules
@@ -84,6 +84,7 @@ Simulatte is a discrete-event simulation framework for production planning and c
 
 Unstable APIs, subject to change:
 
+- **SimulatteEnv** (`experimental/gymnasium.py`): Gymnasium ABC for wrapping simulations as RL environments. Users subclass it and implement six abstract methods (setup, get_observation, apply_action, compute_reward, is_terminated, is_truncated). Two optional hooks: `teardown()` for resource cleanup between episodes, `get_info()` for step metadata. Base class handles reset/step/close lifecycle and state guards.
 - **MaterialCoordinator** (`experimental/materials.py`): FIFO material delivery coordination
 - **AGV** (`experimental/agv.py`): Automated guided vehicle transport
 - **Warehouse** (`experimental/warehouse.py`): Inventory management
