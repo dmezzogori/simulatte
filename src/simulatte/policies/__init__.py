@@ -1,4 +1,4 @@
-"""Policies for job-shop scheduling and PSP release."""
+"""Policies for production planning and control and PSP release."""
 
 from __future__ import annotations
 

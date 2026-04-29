@@ -10,7 +10,7 @@
 [![codecov](https://codecov.io/gh/dmezzogori/simulatte/graph/badge.svg)](https://codecov.io/gh/dmezzogori/simulatte)
 [![Docs](https://img.shields.io/badge/docs-online-blue)](https://simulatte.dev)
 
-Discrete-event simulation framework for job-shop scheduling and intralogistics, built on [SimPy](https://simpy.readthedocs.io/).
+Discrete-event simulation framework for production planning and control and intralogistics, built on [SimPy](https://simpy.readthedocs.io/).
 
 > **Note:** Simulatte is under active development. All APIs — including those outside `simulatte.experimental` — should be considered unstable and may change between releases without prior deprecation. Pin your dependency to a specific version if you need stability.
 
@@ -141,7 +141,7 @@ If you use Simulatte in your research, please cite:
 ```bibtex
 @software{Mezzogori2025Simulatte,
   author = {Mezzogori, Davide and Mercogliano, Nicola},
-  title = {{Simulatte}: A discrete-event simulation framework for job-shop scheduling and intralogistics},
+  title = {{Simulatte}: A discrete-event simulation framework for production planning and control and intralogistics},
   year = {2025},
   url = {https://github.com/dmezzogori/simulatte},
   note = {Python package version 0.4.0}

@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "Simulatte"
-abstract: "Discrete-event simulation framework for job-shop scheduling and intralogistics, built on SimPy."
+abstract: "Discrete-event simulation framework for production planning and control and intralogistics, built on SimPy."
 authors:
   - family-names: "Mezzogori"
     given-names: "Davide"
@@ -17,7 +17,7 @@ repository-code: "https://github.com/dmezzogori/simulatte"
 url: "https://simulatte.dev"
 keywords:
   - discrete-event simulation
-  - job-shop scheduling
+  - production planning and control
   - intralogistics
   - SimPy
   - Python

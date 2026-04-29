@@ -1,12 +1,12 @@
-# Release control
+# Release control and dispatching
 
-Goal: control when jobs enter the shopfloor using release policies.
+Goal: control when jobs enter the shopfloor using release policies and apply dispatching rules for queue ordering.
 
 ## 1) Push vs pull systems
 
-In a **push** system, jobs enter the shopfloor immediately upon arrival. Simple, but can lead to high WIP and long queues.
+In a **push** system, jobs enter the shopfloor immediately upon arrival. Simple, but can lead to high WIP (Work-in-Progress) and long queues.
 
-In a **pull** system, jobs wait in a Pre-Shop Pool (PSP) and are released only when conditions are met (e.g., workload below threshold, server starving). This controls WIP and improves flow times.
+In a **pull** system, jobs wait in a PSP (Pre-Shop Pool) and are released only when conditions are met (e.g., workload below threshold, server starving). This controls WIP and improves flow times.
 
 ```
 Push:  Arrivals ────────────────> ShopFloor
@@ -33,7 +33,7 @@ psp = PreShopPool(env=env, shopfloor=shopfloor)
 Key properties:
 
 - `psp.empty`: True if no jobs waiting
-- `psp.jobs`: Iterate over waiting jobs (FIFO order)
+- `psp.jobs`: Iterate over waiting jobs (FIFO — First-In-First-Out — order)
 - `psp.new_job`: Event that fires when a job is added
 
 ## 3) Composing release logic
@@ -134,10 +134,10 @@ The default parameters (`n_servers`, `arrival_rate`, `service_rate`) reflect a s
 
 Optional parameters:
 
-- `priority_policies`: A callable `(job, server) -> float` used to assign queue priorities. Lower values are served first. Pass `None` (default) for FIFO ordering.
+- `priority_policies`: A callable `(job, server) -> float` used to assign queue priorities (dispatching rules). Lower values are served first. Pass `None` (default) for FIFO ordering.
 - `collect_workload`: If `True`, attaches a `CurrentWorkLoadCollector` that records total remaining processing work over time (see [ShopFloor extensibility](shopfloor-extensibility.md#currentworkloadcollector)).
 
-A ready-made SPT (Shortest Processing Time) policy is available:
+A ready-made immediate release with SPT (Shortest Processing Time) dispatching rule is available:
 
 ```python
 from simulatte.builders import build_immediate_release_system, spt_priority_policy
@@ -149,7 +149,9 @@ _, servers, shopfloor, router = build_immediate_release_system(
 )
 ```
 
-### LumsCor (workload-based)
+### LUMS COR
+
+**Lancaster University Management School corrected order release** (Thürer et al., 2012 — [DOI](https://doi.org/10.1111/j.1937-5956.2011.01307.x)).
 
 Jobs are released only if adding them keeps corrected WIP at or below a workload norm. Combines periodic checks with starvation avoidance.
 
@@ -185,11 +187,13 @@ Release triggers wired by the builder:
     - If exactly **one job** remains in the queue, schedule a **postponed release** — the candidate is removed from PSP immediately, but enters the shopfloor after a tiny delay so the queued job acquires the server first.
 3. **Starvation avoidance** (`psp.on_arrival`): when a new job enters the PSP and its first server is completely idle (empty queue *and* no job processing), the job is released immediately.
 
-Queue ordering uses a PST (planned slack time) priority policy: jobs with lower slack are served first.
+Queue ordering uses a PST (planned slack time) priority policy: jobs with lower PST are served first.
 
-### SLAR (slack-based)
+### SLAR
 
-Event-driven release based on planned slack times (PST). No periodic checks — releases are triggered by job completions at servers.
+**Superfluous Load Avoidance Release** (Land & Gaalman, 1998 — [DOI](https://doi.org/10.1016/S0925-5273(98)00052-8)).
+
+Event-driven release based on planned slack time (PST). No periodic checks — releases are triggered by job completions at servers.
 
 ```python
 from simulatte.builders import build_slar_system
@@ -218,7 +222,7 @@ On every job completion at a server, SLAR evaluates three branches in order:
 
 Additionally, a **starvation avoidance** callback is registered via `psp.on_arrival`: when a new job arrives whose first server is completely idle (empty queue *and* no job processing), it is released immediately.
 
-Queue ordering uses a PST-based priority policy: jobs with lower slack are served first.
+Queue ordering uses a PST-based priority policy: jobs with lower PST are served first.
 
 ## 5) Comparing systems
 
@@ -264,5 +268,9 @@ for name, results in [("Immediate", immediate), ("LumsCor", lumscor), ("SLAR", s
 - Multiple callbacks and triggers can coexist on the same PSP and shopfloor.
 - `psp.on_arrival` callbacks run synchronously during `psp.add()`, before the SimPy `new_job` event fires. Process-based listeners via `on_arrival_trigger` resume after.
 - `shopfloor.on_processing_end` callbacks run after the server is released (`servers_exit_at` is stamped and `job.previous_server` is available).
-- LumsCor requires `CorrectedWIPStrategy` on the shopfloor (set automatically by the builder).
+- LUMS COR requires `CorrectedWIPStrategy` on the shopfloor (set automatically by the builder).
 - SLAR is purely event-driven (no periodic trigger).
+
+## Next
+
+- [ShopFloor extensibility](shopfloor-extensibility.md)

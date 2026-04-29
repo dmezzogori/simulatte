@@ -18,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
 def server_sampling(servers: Sequence[Server]) -> Callable[[], Sequence[Server]]:
     """Create a factory that randomly samples subsets of servers for job routing.
 
-    This is useful for simulating variable job routings in job-shop scheduling,
+    This is useful for simulating variable job routings in production planning and control,
     where each job may visit a random subset of available servers.
 
     Args:

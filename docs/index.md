@@ -1,10 +1,16 @@
-<p align="center">
+<figure>
   <img src="assets/logo.png" alt="Simulatte" width="200">
-</p>
+  <figcaption>
+    <a href="https://github.com/dmezzogori/simulatte">GitHub</a> ·
+    <a href="https://pypi.org/project/simulatte/">PyPI</a>
+  </figcaption>
+</figure>
 
 # Simulatte
 
-Discrete-event simulation framework for job-shop scheduling and intralogistics, built on [SimPy](https://simpy.readthedocs.io/).
+Discrete-event simulation framework for production planning and control and intralogistics, built on [SimPy](https://simpy.readthedocs.io/).
+
+Simulatte models the dynamics of manufacturing systems: jobs flowing through workstations, release and dispatching policies controlling shopfloor congestion, and supporting infrastructure such as warehouses and AGVs (Automated Guided Vehicles). Use it to design and benchmark scheduling policies, evaluate WIP (Work-in-Progress) control strategies, and run repeatable multi-seed experiments.
 
 - New here? Start with [Getting Started](getting-started.md).
 - Want examples? Go to [Tutorials](tutorials/index.md).
@@ -52,9 +58,7 @@ print(f"Utilization: {server.utilization_rate:.1%}")
 
 ## What's next
 
-- [Job-shop basics](tutorials/job-shop-basics.md): multiple servers, multiple jobs, common metrics.
-- [Release control](tutorials/release-control.md): pre-shop pool, release policies (LumsCor, SLAR), and triggers.
-- [ShopFloor extensibility](tutorials/shopfloor-extensibility.md): hooks, WIP strategies, and metrics collectors.
-- [Experimental: Materials, warehouse, and AGVs](experimental/materials-warehouse-agvs.md): FIFO blocking material delivery.
-- [Multi-run experiments](tutorials/multi-run-experiments.md): repeatable runs across seeds.
-- [Logging](tutorials/logging.md): trace events, debug simulations, analyze history.
+- [Getting Started](getting-started.md): from install to first simulation.
+- [Tutorials](tutorials/index.md): copy/paste-friendly walkthroughs covering the core building blocks.
+- [Agent Skill](ai-skill.md): the AI coding agent skill that helps write correct Simulatte simulations.
+- [Experimental](experimental/index.md): unstable APIs for materials, warehouse, and AGVs.
