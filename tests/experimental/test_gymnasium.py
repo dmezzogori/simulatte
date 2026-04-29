@@ -18,13 +18,16 @@ class MinimalEnv(SimulatteEnv):
         self.max_steps = 3
         self.setup_calls: list[int | None] = []
         self.teardown_calls: int = 0
+        self.call_log: list[str] = []
 
     def setup(self, *, seed: int | None, options: dict | None) -> None:
         self.step_count = 0
         self.setup_calls.append(seed)
+        self.call_log.append("setup")
 
     def teardown(self) -> None:
         self.teardown_calls += 1
+        self.call_log.append("teardown")
 
     def get_observation(self):
         return np.array([0.5, 0.5], dtype=np.float64)
@@ -82,9 +85,11 @@ class TestResetLifecycle:
     def test_second_reset_calls_teardown_before_setup(self) -> None:
         env = MinimalEnv()
         env.reset(seed=1)
+        env.call_log.clear()
         env.reset(seed=2)
         assert env.teardown_calls == 1
         assert env.setup_calls == [1, 2]
+        assert env.call_log == ["teardown", "setup"]
 
     def test_reset_after_done_resets_lifecycle(self) -> None:
         env = MinimalEnv()
@@ -92,8 +97,9 @@ class TestResetLifecycle:
         env.reset(seed=10)
         env.step(0)  # terminates
         env.reset(seed=20)  # should work, not raise
-        obs, _ = env.reset(seed=30)
-        assert obs is not None
+        obs, reward, terminated, truncated, info = env.step(0)  # should work after re-reset
+        assert isinstance(obs, np.ndarray)
+        assert terminated  # max_steps=1, so one step terminates
 
 
 class TestCloseLifecycle:
@@ -331,45 +337,54 @@ class TestSimulatteIntegration:
         assert obs.shape == (4,)
         assert info == {}
 
-        done = False
+        terminated = False
+        truncated = False
         steps = 0
-        while not done:
+        while not (terminated or truncated):
             action = 1 if obs[3] > 0 else 0  # release if pending jobs remain
             obs, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
             steps += 1
 
         assert steps > 0
-        assert len(env.shopfloor.jobs_done) > 0
+        assert terminated
+        assert not truncated
+        assert len(env.shopfloor.jobs_done) == env.total_jobs
         env.close()
 
     def test_multiple_episodes_with_teardown(self) -> None:
         env = SimulatteIntegrationEnv()
+        sim_envs_seen = []
         for seed in [1, 2, 3]:
             obs, _ = env.reset(seed=seed)
+            sim_envs_seen.append(id(env.sim_env))
             for _ in range(3):
                 obs, _, terminated, truncated, _ = env.step(1)
                 if terminated or truncated:
                     break
+        # Each episode should create a fresh sim environment
+        assert len(set(sim_envs_seen)) == 3
         env.close()
 
     def test_deterministic_episodes(self) -> None:
         env = SimulatteIntegrationEnv()
 
-        def run_episode(seed: int) -> list:
+        def run_episode(seed: int) -> tuple[list, list]:
             obs_list = []
+            reward_list = []
             obs, _ = env.reset(seed=seed)
             obs_list.append(obs.copy())
             for _ in range(5):
-                obs, _, terminated, truncated, _ = env.step(1)
+                obs, reward, terminated, truncated, _ = env.step(1)
                 obs_list.append(obs.copy())
+                reward_list.append(reward)
                 if terminated or truncated:
                     break
-            return obs_list
+            return obs_list, reward_list
 
-        traj_1 = run_episode(seed=42)
-        traj_2 = run_episode(seed=42)
-        for o1, o2 in zip(traj_1, traj_2, strict=True):
+        obs_1, rew_1 = run_episode(seed=42)
+        obs_2, rew_2 = run_episode(seed=42)
+        for o1, o2 in zip(obs_1, obs_2, strict=True):
             np.testing.assert_array_equal(o1, o2)
+        assert rew_1 == rew_2
 
         env.close()
