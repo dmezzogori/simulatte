@@ -188,6 +188,49 @@ class TestChargingStationSwap:
         # AGV2 holds slot from t=0 to t=12 (12s, including pool wait).
         assert station.total_occupied_time == pytest.approx(1.0 + 12.0)
 
+    def test_swap_with_zero_pool_blocks_until_replenished(
+        self, env: Environment, charging_node: Node, agv_type: AGVType
+    ) -> None:
+        """T10: swap_pool_size=0 means the pool starts empty. swap() blocks
+        until a battery is explicitly added to the pool."""
+        station = ChargingStation(
+            env=env,
+            name="CS-swap-empty",
+            node=charging_node,
+            n_slots=1,
+            supports_swap=True,
+            swap_pool_size=0,
+            swap_time=1.0,
+            swap_recharge_time=60.0,
+        )
+        agv = _make_agv(env, agv_type, battery_level=20.0)
+
+        finish_time: float = -1.0
+
+        def do_swap() -> None:
+            nonlocal finish_time
+            yield from station.swap(agv)
+            finish_time = env.now
+
+        def add_battery_later() -> None:
+            yield env.timeout(5.0)
+            yield station._swap_pool.put(1)
+
+        env.process(do_swap())
+        env.process(add_battery_later())
+
+        # At t=3, the swap should still be blocked (no battery in pool yet)
+        env.run(until=3.0)
+        assert finish_time == -1.0, "Swap should block when pool is empty"
+
+        # Let the simulation finish
+        env.run()
+
+        # Battery added at t=5, swap takes swap_time=1.0, so finish at t=6
+        assert finish_time == pytest.approx(6.0)
+        assert agv.battery.level == pytest.approx(agv.battery.capacity)
+        assert station.total_swaps == 1
+
     def test_swap_unsupported_raises(self, env: Environment, charging_node: Node, agv_type: AGVType) -> None:
         """Station with supports_swap=False. Calling swap() raises RuntimeError."""
         station = ChargingStation(

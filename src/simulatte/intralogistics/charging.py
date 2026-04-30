@@ -46,8 +46,8 @@ class ChargingStation:
         self._slots = simpy.Resource(env, capacity=n_slots)
 
         self._swap_pool: simpy.Container | None = None
-        if supports_swap and swap_pool_size > 0:
-            self._swap_pool = simpy.Container(env, capacity=swap_pool_size, init=swap_pool_size)
+        if supports_swap:
+            self._swap_pool = simpy.Container(env, capacity=max(swap_pool_size, 1), init=swap_pool_size)
 
         # Metrics
         self.total_recharges: int = 0
@@ -117,9 +117,8 @@ class ChargingStation:
         try:
             start = self.env.now
 
-            # Wait for a battery to be available in the pool
-            if self._swap_pool is not None:
-                yield self._swap_pool.get(1)
+            # Always wait for a battery to be available in the pool
+            yield self._swap_pool.get(1)
 
             # Perform the swap (near-instant, takes swap_time)
             yield self.env.timeout(self.swap_time)
@@ -138,13 +137,12 @@ class ChargingStation:
             )
 
             # Kick off background recharge of the depleted battery
-            if self._swap_pool is not None:
-                self.env.process(self._replenish_pool())
+            self.env.process(self._replenish_pool())
         finally:
             self._slots.release(req)
 
     def _replenish_pool(self) -> ProcessGenerator:
         """Background process: recharge a depleted battery and return it to the pool."""
         yield self.env.timeout(self.swap_recharge_time)
-        if self._swap_pool is not None:
-            yield self._swap_pool.put(1)
+        assert self._swap_pool is not None
+        yield self._swap_pool.put(1)

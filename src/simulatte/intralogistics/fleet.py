@@ -101,8 +101,8 @@ class FleetCoordinator:
         self._hooks_on_pickup_complete: list[Callable[[TransferOrder, AGV], None]] = []
         self._hooks_on_delivery_complete: list[Callable[[TransferOrder, AGV], None]] = []
         self._hooks_on_battery_low: list[Callable[[AGV], None]] = []
-        self._hooks_on_charging_started: list[Callable[[AGV], None]] = []
-        self._hooks_on_charging_complete: list[Callable[[AGV], None]] = []
+        self._hooks_on_charging_started: list[Callable[[AGV, ChargingStation], None]] = []
+        self._hooks_on_charging_complete: list[Callable[[AGV, ChargingStation], None]] = []
         self._hooks_on_agv_idle: list[Callable[[AGV], None]] = []
 
         # S1: Initial AGV placement — register starting positions with traffic manager
@@ -194,10 +194,10 @@ class FleetCoordinator:
     def on_battery_low(self, callback: Callable[[AGV], None]) -> None:
         self._hooks_on_battery_low.append(callback)
 
-    def on_charging_started(self, callback: Callable[[AGV], None]) -> None:
+    def on_charging_started(self, callback: Callable[[AGV, ChargingStation], None]) -> None:
         self._hooks_on_charging_started.append(callback)
 
-    def on_charging_complete(self, callback: Callable[[AGV], None]) -> None:
+    def on_charging_complete(self, callback: Callable[[AGV, ChargingStation], None]) -> None:
         self._hooks_on_charging_complete.append(callback)
 
     def on_agv_idle(self, callback: Callable[[AGV], None]) -> None:
@@ -295,7 +295,9 @@ class FleetCoordinator:
                 if agv.state == AGVState.STRANDED:
                     order.status = OrderStatus.FAILED
                     return
-                # Charging diversion — AGV is at new position, retry travel
+                # Charging diversion or critical battery — charge first if needed
+                if agv.battery.is_critical and self.charging_stations:
+                    yield from self._charge_agv(agv)
                 agv.transition_to(AGVState.TRAVELING_EMPTY)
 
             # 2. Pick
@@ -326,7 +328,9 @@ class FleetCoordinator:
                 if agv.state == AGVState.STRANDED:
                     order.status = OrderStatus.FAILED
                     return
-                # Charging diversion — AGV is at new position, retry travel
+                # Charging diversion or critical battery — charge first if needed
+                if agv.battery.is_critical and self.charging_stations:
+                    yield from self._charge_agv(agv)
                 agv.transition_to(AGVState.TRAVELING_LOADED)
 
             # 4. Deliver
@@ -555,6 +559,12 @@ class FleetCoordinator:
                     self._traffic_manager.leave_node(agv, current)
                     agv.current_node = next_node
                     reached_next = True
+
+                    # S3: If battery is critical after depletion, abort
+                    # travel so the retry loop in _run_mission can charge.
+                    if agv.battery.is_critical:
+                        self._traffic_manager.cancel(agv)
+                        return False
                 except simpy.Interrupt:
                     if not reached_next:
                         # Release the acquired next-node resource
@@ -629,11 +639,15 @@ class FleetCoordinator:
         for cb in self._hooks_on_battery_low:
             cb(agv)
 
-        # Fire the constructor-supplied low-battery callback (may be a generator)
+        # Fire the constructor-supplied low-battery callback (may be a generator).
+        # If the callback returns a generator, yield from it and return — the
+        # callback overrides the default charging behaviour.
         if self._on_low_battery is not None:
             result = self._on_low_battery(agv)
             if result is not None:
                 yield from result
+                self._low_battery_flags.discard(agv)
+                return
 
         # Travel to charging station
         if agv.current_node != station.node:
@@ -646,12 +660,12 @@ class FleetCoordinator:
         # Charge
         agv.transition_to(AGVState.CHARGING)
         for cb in self._hooks_on_charging_started:
-            cb(agv)
+            cb(agv, station)
 
         yield from station.recharge(agv)
 
         for cb in self._hooks_on_charging_complete:
-            cb(agv)
+            cb(agv, station)
 
         self._low_battery_flags.discard(agv)
 

@@ -1408,3 +1408,184 @@ class TestInterruptSafety:
         assert traffic._node_resources[node_far].count == 0
         assert traffic._node_resources[node_mid].count == 0
         assert traffic._node_resources[node_c].count == 0
+
+
+# ===========================================================================
+# Batch 3: Battery & Charging Correctness
+# ===========================================================================
+
+
+class TestCriticalBatteryInterruption:
+    """S3: is_critical triggers immediate mission interruption and charging."""
+
+    def test_critical_battery_triggers_charge_during_travel(
+        self, env: Environment, sku_a: SKU
+    ) -> None:
+        """AGV hits critical battery mid-travel, diverts to charge, then
+        completes the mission via the retry loop."""
+        # Graph: A -- B(charger) -- C
+        # Arc length = 5.  Default depletion = distance * 1.0.
+        # capacity=100, critical_threshold=0.05 -> critical at level ≤ 5.
+        # initial_battery=7: pre-arc check for A->B: cost=5, 7>=5 OK.
+        # After deplete: level=2, pct=0.02 ≤ 0.05 -> is_critical.
+        # _travel returns False. Retry loop charges, then re-plans from B.
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_b = Node(id="B", x=5.0, y=0.0)
+        node_c = Node(id="C", x=10.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_a, target=node_b),
+            Arc(source=node_b, target=node_c),
+        ]
+        graph = LayoutGraph([node_a, node_b, node_c], arcs)
+
+        speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
+
+        wh_a = Warehouse(
+            env=env, name="WH-A",
+            input_bays=[node_a], output_bays=[node_a],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_c = Warehouse(
+            env=env, name="WH-C",
+            input_bays=[node_c], output_bays=[node_c],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        charger = ChargingStation(env=env, name="CS-1", node=node_b, n_slots=1)
+
+        agv_type = AGVType(
+            name="test-type", speed_profile=speed,
+            battery_capacity=100.0, weight_capacity=100.0, volume_capacity=10.0,
+            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+            low_battery_threshold=0.2, critical_battery_threshold=0.05,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv.battery.level = 7.0
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_a, wh_c], charging_stations=[charger],
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_c)
+        coordinator.submit(order)
+        env.run()
+
+        # The mission should complete after the AGV charges at B
+        assert order.status == OrderStatus.COMPLETED
+        assert agv.state == AGVState.IDLE
+        # Station should have been used for recharging
+        assert charger.total_recharges >= 1
+
+
+class TestChargingHookSignature:
+    """S7: Charging hooks fire with (AGV, ChargingStation) signature."""
+
+    def test_charging_hooks_receive_agv_and_station(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """Register charging started/complete hooks. Verify they receive both
+        the AGV and ChargingStation arguments."""
+        coordinator, agv, wh_a, wh_b, charger = _build_system_with_charger(
+            env, sku_a, simple_speed, battery_capacity=100.0, initial_battery=25.0
+        )
+
+        started_args: list[tuple[AGV, ChargingStation]] = []
+        complete_args: list[tuple[AGV, ChargingStation]] = []
+
+        coordinator.on_charging_started(lambda a, cs: started_args.append((a, cs)))
+        coordinator.on_charging_complete(lambda a, cs: complete_args.append((a, cs)))
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        assert order.status == OrderStatus.COMPLETED
+        # Charging hooks should have fired with both AGV and station
+        assert len(started_args) >= 1
+        assert started_args[0][0] is agv
+        assert started_args[0][1] is charger
+        assert len(complete_args) >= 1
+        assert complete_args[0][0] is agv
+        assert complete_args[0][1] is charger
+
+
+class TestOnLowBatteryOverride:
+    """S8: on_low_battery callback overrides default charging."""
+
+    def test_on_low_battery_callback_overrides_default_charging(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """When on_low_battery returns a generator, default charging (travel to
+        station + recharge) is skipped. Verify station.total_recharges == 0."""
+        node_a_out = Node(id="WH_A_OUT", x=0.0, y=0.0)
+        node_corridor = Node(id="CORRIDOR", x=5.0, y=0.0)
+        node_b_in = Node(id="WH_B_IN", x=10.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_a_out, target=node_corridor),
+            Arc(source=node_corridor, target=node_b_in),
+        ]
+        graph = LayoutGraph([node_a_out, node_corridor, node_b_in], arcs)
+
+        wh_a = Warehouse(
+            env=env, name="WH-A",
+            input_bays=[node_a_out], output_bays=[node_a_out],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_b = Warehouse(
+            env=env, name="WH-B",
+            input_bays=[node_b_in], output_bays=[node_b_in],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        charger = ChargingStation(
+            env=env, name="CS-1", node=node_corridor, n_slots=1,
+        )
+
+        callback_called = False
+
+        def custom_low_battery(agv: AGV):
+            nonlocal callback_called
+            callback_called = True
+            # Custom handler: just recharge the battery directly (no station)
+            agv.battery.level = agv.battery.capacity
+            yield env.timeout(1.0)
+
+        agv_type = AGVType(
+            name="test-type", speed_profile=simple_speed,
+            battery_capacity=100.0, weight_capacity=100.0, volume_capacity=10.0,
+            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+            low_battery_threshold=0.2, critical_battery_threshold=0.05,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a_out)
+        agv.battery.level = 25.0  # Will be low after mission
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_a, wh_b], charging_stations=[charger],
+            on_low_battery=custom_low_battery,
+        )
+
+        # Track whether default charging hooks fired
+        charging_started_calls: list[tuple[AGV, ChargingStation]] = []
+        coordinator.on_charging_started(lambda a, cs: charging_started_calls.append((a, cs)))
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        assert order.status == OrderStatus.COMPLETED
+        assert callback_called, "on_low_battery callback should have been called"
+        # Default charging should NOT have been invoked
+        assert charger.total_recharges == 0, (
+            "Default charging should be skipped when on_low_battery returns a generator"
+        )
+        assert charging_started_calls == [], (
+            "Default charging hook should not fire when on_low_battery overrides"
+        )
