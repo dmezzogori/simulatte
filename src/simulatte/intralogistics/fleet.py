@@ -442,7 +442,10 @@ class FleetCoordinator:
                     # Try to divert to charging
                     charger = self._find_reachable_charger(agv)
                     if charger is not None:
+                        prior_state = agv.state
                         yield from self._charge_agv(agv, charger)
+                        # Restore state so travel continues correctly
+                        agv.transition_to(prior_state)
                         # After charging, re-check if we have enough
                         if agv.battery.level < energy_cost:
                             agv.transition_to(AGVState.STRANDED)
@@ -484,6 +487,12 @@ class FleetCoordinator:
 
         for cb in self._hooks_on_battery_low:
             cb(agv)
+
+        # Fire the constructor-supplied low-battery callback (may be a generator)
+        if self._on_low_battery is not None:
+            result = self._on_low_battery(agv)
+            if result is not None:
+                yield from result
 
         # Travel to charging station
         if agv.current_node != station.node:
