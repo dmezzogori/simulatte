@@ -153,3 +153,23 @@ class TestWarehouse:
     def test_repr(self, env: Environment) -> None:
         wh, _ = self._make_warehouse(env)
         assert "WH-A" in repr(wh)
+
+    def test_get_inventory_level_unknown_sku(self, env: Environment) -> None:
+        wh, _ = self._make_warehouse(env)
+        unknown = SKU(id="UNKNOWN", weight=1.0, volume=0.1)
+        with pytest.raises(KeyError, match="Unknown product"):
+            wh.get_inventory_level(unknown)
+
+    def test_pick_unknown_sku(self, env: Environment) -> None:
+        wh, _ = self._make_warehouse(env)
+        unknown = SKU(id="UNKNOWN", weight=1.0, volume=0.1)
+        with pytest.raises(KeyError, match="Unknown product"):
+            gen = wh.pick(unknown, 1)
+            next(gen)
+
+    def test_put_unknown_sku(self, env: Environment) -> None:
+        wh, _ = self._make_warehouse(env)
+        unknown = SKU(id="UNKNOWN", weight=1.0, volume=0.1)
+        with pytest.raises(KeyError, match="Unknown product"):
+            gen = wh.put(unknown, 1)
+            next(gen)

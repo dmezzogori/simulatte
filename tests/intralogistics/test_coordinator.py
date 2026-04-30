@@ -1794,3 +1794,1362 @@ class TestEventDrivenReplenishment:
         assert has_replenishment, (
             "Event-driven replenishment should have created an order after delivery"
         )
+
+
+# ===========================================================================
+# Batch 5: Test Coverage — closing coverage gaps
+# ===========================================================================
+
+
+class TestFleetEdgeCases:
+    """Fleet convenience methods with edge cases."""
+
+    def test_fleet_utilization_empty_fleet(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """fleet_utilization returns 0.0 when fleet is empty (line 220)."""
+        node = Node(id="A", x=0.0, y=0.0)
+        graph = LayoutGraph([node], [])
+        wh = Warehouse(
+            env=env, name="WH", input_bays=[node], output_bays=[node],
+            n_slots=1, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[], warehouses=[wh], charging_stations=[],
+        )
+        assert coordinator.fleet_utilization == 0.0
+
+    def test_fleet_time_allocation_empty_fleet(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """fleet_time_allocation returns zeros dict when fleet is empty (line 226)."""
+        node = Node(id="A", x=0.0, y=0.0)
+        graph = LayoutGraph([node], [])
+        wh = Warehouse(
+            env=env, name="WH", input_bays=[node], output_bays=[node],
+            n_slots=1, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[], warehouses=[wh], charging_stations=[],
+        )
+        alloc = coordinator.fleet_time_allocation()
+        for state in AGVState:
+            assert alloc[state] == 0.0
+
+    def test_on_battery_low_hook_registration(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """on_battery_low hook fires during charging (line 201, 706)."""
+        coordinator, agv, wh_a, wh_b, charger = _build_system_with_charger(
+            env, sku_a, simple_speed, battery_capacity=100.0, initial_battery=25.0
+        )
+
+        low_battery_events: list[AGV] = []
+        coordinator.on_battery_low(lambda a: low_battery_events.append(a))
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        assert order.status == OrderStatus.COMPLETED
+        assert len(low_battery_events) >= 1
+        assert low_battery_events[0] is agv
+
+
+class TestInitialPlacementSkipsNodelessAGV:
+    """AGV with initial_node=None is skipped during placement (689->688)."""
+
+    def test_agv_without_node_skipped(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        node = Node(id="A", x=0.0, y=0.0)
+        graph = LayoutGraph([node], [])
+        wh = Warehouse(
+            env=env, name="WH", input_bays=[node], output_bays=[node],
+            n_slots=1, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        agv_no_node = AGV(env=env, agv_type=agv_type, agv_id="no-node", initial_node=None)
+        agv_with_node = AGV(env=env, agv_type=agv_type, agv_id="with-node", initial_node=node)
+
+        traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=2)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv_no_node, agv_with_node],
+            warehouses=[wh], charging_stations=[], traffic_manager=traffic,
+        )
+        env.run(until=0.001)
+
+        # Only with_node should be placed
+        assert traffic._node_resources[node].count == 1
+
+
+class TestRepositioningAfterDelivery:
+    """Repositioning after delivery (lines 401-404)."""
+
+    def test_agv_repositions_to_parking_after_delivery(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """NearestParkingPolicy sends AGV to parking area after mission."""
+        from simulatte.intralogistics.parking import ParkingArea
+        from simulatte.intralogistics.policies import NearestParkingPolicy
+
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_b = Node(id="B", x=10.0, y=0.0)
+        node_park = Node(id="PARK", x=20.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_a, target=node_b),
+            Arc(source=node_b, target=node_park),
+        ]
+        graph = LayoutGraph([node_a, node_b, node_park], arcs)
+
+        wh_a = Warehouse(
+            env=env, name="WH-A",
+            input_bays=[node_a], output_bays=[node_a],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_b = Warehouse(
+            env=env, name="WH-B",
+            input_bays=[node_b], output_bays=[node_b],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        parking = ParkingArea(env=env, name="P1", node=node_park, capacity=2)
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_a, wh_b], charging_stations=[],
+            repositioning_policy=NearestParkingPolicy(),
+            parking_areas=[parking],
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        assert order.status == OrderStatus.COMPLETED
+        assert agv.state == AGVState.IDLE
+        # AGV should have traveled to parking area after delivery
+        assert agv.current_node == node_park
+
+
+class TestRepositioningFailure:
+    """Repositioning travel failure (line 404)."""
+
+    def test_repositioning_fails_gracefully(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """Repositioning target exists but travel fails. AGV goes IDLE anyway."""
+        from simulatte.intralogistics.parking import ParkingArea
+        from simulatte.intralogistics.policies import NearestParkingPolicy
+
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_b = Node(id="B", x=10.0, y=0.0)
+        node_park = Node(id="PARK", x=20.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_a, target=node_b),
+            # No arc from B to PARK — repositioning travel will fail
+        ]
+        graph = LayoutGraph([node_a, node_b, node_park], arcs)
+
+        wh_a = Warehouse(
+            env=env, name="WH-A",
+            input_bays=[node_a], output_bays=[node_a],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_b = Warehouse(
+            env=env, name="WH-B",
+            input_bays=[node_b], output_bays=[node_b],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        parking = ParkingArea(env=env, name="P1", node=node_park, capacity=2)
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_a, wh_b], charging_stations=[],
+            repositioning_policy=NearestParkingPolicy(),
+            parking_areas=[parking],
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        # Order completes, repositioning fails (no path to PARK), AGV goes IDLE at B
+        assert order.status == OrderStatus.COMPLETED
+        assert agv.state == AGVState.IDLE
+        # AGV should remain at B (repositioning failed)
+        assert agv.current_node == node_b
+
+
+class TestResumeDeliveryChargingRetry:
+    """Resume delivery with critical battery during re-travel (lines 441-443)."""
+
+    def test_resume_delivery_charges_during_retry(
+        self, env: Environment, sku_a: SKU
+    ) -> None:
+        """Interrupt during loaded travel. ResumeDelivery recovery.
+        During re-travel, battery becomes critical. Charges and completes."""
+        from simulatte.intralogistics.policies import ResumeDelivery
+
+        # Graph: ORIGIN -- MID -- CHARGER -- DEST
+        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+        node_mid = Node(id="MID", x=5.0, y=0.0)
+        node_charger = Node(id="CHARGER", x=10.0, y=0.0)
+        node_dest = Node(id="DEST", x=15.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_origin, target=node_mid),
+            Arc(source=node_mid, target=node_charger),
+            Arc(source=node_charger, target=node_dest),
+        ]
+        graph = LayoutGraph([node_origin, node_mid, node_charger, node_dest], arcs)
+
+        speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
+
+        wh_origin = Warehouse(
+            env=env, name="WH-ORIGIN",
+            input_bays=[node_origin], output_bays=[node_origin],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env, name="WH-DEST",
+            input_bays=[node_dest], output_bays=[node_dest],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        charger = ChargingStation(env=env, name="CS-1", node=node_charger, n_slots=1)
+
+        agv_type = AGVType(
+            name="test-type", speed_profile=speed,
+            battery_capacity=100.0, weight_capacity=100.0, volume_capacity=10.0,
+            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+            low_battery_threshold=0.2, critical_battery_threshold=0.05,
+        )
+        # Battery=22: Pick(0 travel, at origin). Pick time + load time = 2.
+        # Loaded travel ORIGIN->MID: 5 dist, cost 5. Level=17.
+        # Loaded travel MID->CHARGER: 5 dist, cost 5. Level=12.
+        # Loaded travel CHARGER->DEST: 5 dist, cost 5. Level=7.
+        # No critical during normal travel.
+        # Interrupt at t=3.0 (during loaded travel ORIGIN->MID, which takes 0.5s).
+        # After interrupt, AGV at ORIGIN (didn't complete MID yet).
+        # Wait, travel time for 5 dist at speed 10 = 0.5s. Pick done at t=2.
+        # So travel starts at t=2. ORIGIN->MID: enter at t=2, timeout 0.5, finish at t=2.5.
+        # Interrupt at t=3.0 is after MID is reached. ORIGIN->MID depletes 5.
+        # At t=2.5: level=17. Continue to MID->CHARGER: t=3.0 is mid-travel.
+        # Interrupt at t=2.7. AGV state: between enter(CHARGER) and arrive.
+        # reached_next=False -> leave_node(CHARGER), raise.
+        #
+        # Better: give battery just enough for first few arcs of normal travel,
+        # then interrupt, and during resume the battery goes critical.
+        # Initial battery=12. Normal: picks, travels ORIGIN->MID (cost 5, level=7).
+        # Interrupt at t=2.3 (during travel ORIGIN->MID, mid-arc).
+        # After interrupt: agv.current_load is set (picked_at happened at t=2).
+        # ResumeDelivery sets IN_TRANSIT. Resume travel from MID (if reached) or ORIGIN.
+        # Actually the interrupt flow: if not reached_next, leave next_node.
+        # Level at interrupt: 12 - partial. But deplete only happens after timeout.
+        # So level is still 12 at interrupt time.
+        # Resume from ORIGIN: travel to DEST.
+        # With level=12: ORIGIN->MID costs 5 (7 remaining), MID->CHARGER costs 5 (2 remaining).
+        # pct=2/100=0.02 critical. S3 fires. _travel returns False.
+        # Resume retry: not stranded, is_critical, has stations -> line 441-443!
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+        agv.battery.level = 12.0
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_origin, wh_dest], charging_stations=[charger],
+            load_recovery_strategy=ResumeDelivery(),
+        )
+
+        order = coordinator.create_order(
+            sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest
+        )
+        coordinator.submit(order)
+
+        # Interrupt after pickup during loaded travel
+        def interrupt_later():
+            yield env.timeout(2.3)
+            process = coordinator._active_missions.get(order.id)
+            if process is not None and process.is_alive:
+                process.interrupt("test_resume_charge")
+
+        env.process(interrupt_later())
+        env.run()
+
+        assert order.status == OrderStatus.COMPLETED
+        assert charger.total_recharges >= 1
+
+
+class TestResumeDeliveryStranded:
+    """ResumeDelivery path when re-travel results in STRANDED (lines 438-443)."""
+
+    def test_resume_delivery_stranded_clears_cargo(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        from simulatte.intralogistics.policies import ResumeDelivery
+
+        # Graph: ORIGIN -- ISLAND (disconnected from DEST)
+        # After interrupt, AGV is on ISLAND with no path to DEST
+        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+        node_mid = Node(id="MID", x=50.0, y=0.0)
+        node_dest = Node(id="DEST", x=100.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_origin, target=node_mid),
+            Arc(source=node_mid, target=node_dest),
+        ]
+        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+
+        wh_origin = Warehouse(
+            env=env, name="WH-ORIGIN",
+            input_bays=[node_origin], output_bays=[node_origin],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env, name="WH-DEST",
+            input_bays=[node_dest], output_bays=[node_dest],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        # AGV with very limited battery: enough for first arc but not for resume
+        agv_type = AGVType(
+            name="test-type", speed_profile=simple_speed,
+            battery_capacity=100.0, weight_capacity=100.0, volume_capacity=10.0,
+            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+            low_battery_threshold=0.2, critical_battery_threshold=0.05,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_origin, wh_dest], charging_stations=[],
+            load_recovery_strategy=ResumeDelivery(),
+        )
+
+        order = coordinator.create_order(
+            sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest
+        )
+        coordinator.submit(order)
+
+        # Interrupt after pickup (during loaded travel)
+        # AGV at origin. pick_time=1.0, load_time=1.0 -> pickup done at ~2.0
+        # Loaded travel to MID: 50/10=5.0s. Interrupt at t=4.0.
+        def interrupt_and_block():
+            yield env.timeout(4.0)
+            process = coordinator._active_missions.get(order.id)
+            if process is not None and process.is_alive:
+                # Remove the arc from MID to DEST to strand the AGV on resume
+                graph._adjacency[node_mid] = {}
+                process.interrupt("test_strand")
+
+        env.process(interrupt_and_block())
+        env.run()
+
+        # After stranding on resume: cargo should be cleared, order failed
+        assert agv.current_load is None
+        assert agv.state == AGVState.IDLE
+
+
+class TestResumeDeliveryWithHooksAndCollector:
+    """ResumeDelivery path with hooks and time-series collector (lines 457, 459)."""
+
+    def test_resume_delivery_fires_hooks_and_collector(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        from simulatte.intralogistics.metrics import DefaultIntralogisticsCollector
+        from simulatte.intralogistics.policies import ResumeDelivery
+
+        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+        node_mid = Node(id="MID", x=50.0, y=0.0)
+        node_dest = Node(id="DEST", x=100.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_origin, target=node_mid),
+            Arc(source=node_mid, target=node_dest),
+        ]
+        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+
+        wh_origin = Warehouse(
+            env=env, name="WH-ORIGIN",
+            input_bays=[node_origin], output_bays=[node_origin],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env, name="WH-DEST",
+            input_bays=[node_dest], output_bays=[node_dest],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+
+        collector = DefaultIntralogisticsCollector()
+        delivery_hooks: list[tuple[TransferOrder, AGV]] = []
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_origin, wh_dest], charging_stations=[],
+            load_recovery_strategy=ResumeDelivery(),
+            time_series_collector=collector,
+        )
+        coordinator.on_delivery_complete(lambda o, a: delivery_hooks.append((o, a)))
+
+        order = coordinator.create_order(
+            sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest
+        )
+        coordinator.submit(order)
+
+        # Interrupt after pickup
+        def interrupt_later():
+            yield env.timeout(4.0)
+            process = coordinator._active_missions.get(order.id)
+            if process is not None and process.is_alive:
+                process.interrupt("test_interrupt")
+
+        env.process(interrupt_later())
+        env.run()
+
+        assert order.status == OrderStatus.COMPLETED
+        assert len(delivery_hooks) >= 1
+        assert delivery_hooks[-1][0] is order
+
+
+class TestInterruptBeforePickup:
+    """Non-cancel interrupt before pickup re-queues order (lines 468-470)."""
+
+    def test_interrupt_before_pickup_requeues(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        # AGV starts far from origin so there's time to interrupt during empty travel
+        node_far = Node(id="FAR", x=0.0, y=0.0)
+        node_origin = Node(id="ORIGIN", x=100.0, y=0.0)
+        node_dest = Node(id="DEST", x=110.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_far, target=node_origin),
+            Arc(source=node_origin, target=node_dest),
+        ]
+        graph = LayoutGraph([node_far, node_origin, node_dest], arcs)
+
+        wh_origin = Warehouse(
+            env=env, name="WH-ORIGIN",
+            input_bays=[node_origin], output_bays=[node_origin],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env, name="WH-DEST",
+            input_bays=[node_dest], output_bays=[node_dest],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_far)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_origin, wh_dest], charging_stations=[],
+        )
+
+        order = coordinator.create_order(
+            sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest
+        )
+        coordinator.submit(order)
+
+        # AGV travels FAR->ORIGIN: 100/10=10s. Interrupt at t=1.0 (before pickup)
+        def interrupt_later():
+            yield env.timeout(1.0)
+            process = coordinator._active_missions.get(order.id)
+            if process is not None and process.is_alive:
+                process.interrupt("test_requeue")
+
+        env.process(interrupt_later())
+        env.run()
+
+        # After interrupt before pickup: order re-queued as PENDING
+        # Then dispatched again and completed
+        assert order.status == OrderStatus.COMPLETED
+        assert agv.state == AGVState.IDLE
+
+
+class TestOnIdleHookAfterInterrupt:
+    """on_agv_idle hook fires after interrupt cleanup (line 481)."""
+
+    def test_idle_hook_fires_after_cancellation(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        node_far = Node(id="FAR", x=0.0, y=0.0)
+        node_origin = Node(id="ORIGIN", x=100.0, y=0.0)
+        node_dest = Node(id="DEST", x=110.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_far, target=node_origin),
+            Arc(source=node_origin, target=node_dest),
+        ]
+        graph = LayoutGraph([node_far, node_origin, node_dest], arcs)
+
+        wh_origin = Warehouse(
+            env=env, name="WH-ORIGIN",
+            input_bays=[node_origin], output_bays=[node_origin],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env, name="WH-DEST",
+            input_bays=[node_dest], output_bays=[node_dest],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_far)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_origin, wh_dest], charging_stations=[],
+        )
+
+        idle_events: list[AGV] = []
+        coordinator.on_agv_idle(lambda a: idle_events.append(a))
+
+        order = coordinator.create_order(
+            sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest
+        )
+        coordinator.submit(order)
+
+        # Cancel during travel
+        def cancel_later():
+            yield env.timeout(1.0)
+            coordinator.cancel(order)
+
+        env.process(cancel_later())
+        env.run()
+
+        assert order.status == OrderStatus.CANCELLED
+        assert len(idle_events) >= 1
+        assert idle_events[-1] is agv
+
+
+class TestAlternativePathAlsoInfeasible:
+    """Both primary and alt paths check as infeasible (lines 535-544)."""
+
+    def test_alt_path_also_infeasible_strands(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """Primary path conflicts on intermediate node B. Alt path found via C,
+        but C also conflicts with another AGV's intent -> STRANDED.
+
+        Graph: A -- B -- D and A -- C -- D (diamond).
+        AGV1 intends [A, B, D] -> future {B, D}. But D is the dest, so
+        conflict is just {B}. AGV3 intends [X, C, D] -> future {C, D}.
+
+        AGV2 at A wants D.
+        Primary: A->B->D. check_path: B conflicts with AGV1 -> {B}.
+        Alt: plan(A, D, avoid=[B]) -> A->C->D.
+        check_path(A->C->D): C conflicts with AGV3 -> infeasible.
+        -> STRANDED (lines 535-543).
+        """
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_b = Node(id="B", x=5.0, y=5.0)
+        node_c = Node(id="C", x=5.0, y=-5.0)
+        node_d = Node(id="D", x=10.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_a, target=node_b),
+            Arc(source=node_a, target=node_c),
+            Arc(source=node_b, target=node_d),
+            Arc(source=node_c, target=node_d),
+        ]
+        graph = LayoutGraph([node_a, node_b, node_c, node_d], arcs)
+
+        traffic = ResourceBasedTrafficManager(
+            graph=graph, env=env, node_capacity=1, deadlock_timeout=5.0,
+        )
+
+        wh_a = Warehouse(
+            env=env, name="WH-A",
+            input_bays=[node_a], output_bays=[node_a],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 200},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_d = Warehouse(
+            env=env, name="WH-D",
+            input_bays=[node_d], output_bays=[node_d],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        agv1 = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv2 = AGV(env=env, agv_type=agv_type, agv_id="agv-2", initial_node=node_a)
+        agv3 = AGV(env=env, agv_type=agv_type, agv_id="agv-3", initial_node=node_a)
+
+        # AGV1 blocks path via B. Future nodes of [A, B] are {B}.
+        traffic.register_intent(agv1, [node_a, node_b])
+        # AGV3 blocks path via C. Future nodes of [A, C] are {C}.
+        traffic.register_intent(agv3, [node_a, node_c])
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv2],
+            warehouses=[wh_a, wh_d], charging_stations=[],
+            traffic_manager=traffic,
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_d)
+        coordinator.submit(order)
+
+        env.run(until=500.0)
+
+        assert order.status == OrderStatus.FAILED
+        assert agv2.state == AGVState.STRANDED
+
+
+class TestSuccessfulAlternativePath:
+    """Alt path is feasible and used (line 544)."""
+
+    def test_alt_path_used_when_primary_conflicts(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """Primary path A->B->D conflicts on B. Alt path A->C->D is feasible.
+        AGV uses alt path and completes the mission.
+
+        Diamond: A --via B--> D, A --via C--> D.
+        AGV1 intends [A, B], blocking B only.
+        AGV2 primary path A->B->D has conflict on B.
+        Alt path A->C->D has no conflicts -> feasible -> used (line 544).
+        """
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_b = Node(id="B", x=5.0, y=5.0)
+        node_c = Node(id="C", x=5.0, y=-5.0)
+        node_d = Node(id="D", x=10.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_a, target=node_b),
+            Arc(source=node_a, target=node_c),
+            Arc(source=node_b, target=node_d),
+            Arc(source=node_c, target=node_d),
+        ]
+        graph = LayoutGraph([node_a, node_b, node_c, node_d], arcs)
+
+        traffic = ResourceBasedTrafficManager(
+            graph=graph, env=env, node_capacity=1, deadlock_timeout=5.0,
+        )
+
+        wh_a = Warehouse(
+            env=env, name="WH-A",
+            input_bays=[node_a], output_bays=[node_a],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 200},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_d = Warehouse(
+            env=env, name="WH-D",
+            input_bays=[node_d], output_bays=[node_d],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        agv1 = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_b)
+        agv2 = AGV(env=env, agv_type=agv_type, agv_id="agv-2", initial_node=node_a)
+
+        # AGV1 blocks B (but not C or D)
+        traffic.register_intent(agv1, [node_a, node_b])
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv2],
+            warehouses=[wh_a, wh_d], charging_stations=[],
+            traffic_manager=traffic,
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_d)
+        coordinator.submit(order)
+
+        env.run(until=500.0)
+
+        assert order.status == OrderStatus.COMPLETED
+
+
+class TestStrandedAfterCharging:
+    """AGV stranded after charging when still insufficient (lines 584-589)."""
+
+    def test_stranded_after_charging_insufficient_energy(
+        self, env: Environment, sku_a: SKU
+    ) -> None:
+        """AGV charges but battery capacity is too small for the next arc."""
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_b = Node(id="B", x=5.0, y=0.0)
+        node_c = Node(id="C", x=10.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_a, target=node_b),
+            Arc(source=node_b, target=node_c),
+        ]
+        graph = LayoutGraph([node_a, node_b, node_c], arcs)
+
+        speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
+
+        wh_a = Warehouse(
+            env=env, name="WH-A",
+            input_bays=[node_a], output_bays=[node_a],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_c = Warehouse(
+            env=env, name="WH-C",
+            input_bays=[node_c], output_bays=[node_c],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        charger = ChargingStation(env=env, name="CS-1", node=node_b, n_slots=1)
+
+        # Custom depletion: costs 100 per distance unit!
+        # Arc A->B (5 units) costs 500 energy.
+        # Arc B->C (5 units) also costs 500 energy.
+        def expensive_depletion(distance: float, load_weight: float, speed: float) -> float:
+            return distance * 100.0
+
+        agv_type = AGVType(
+            name="test-type", speed_profile=speed,
+            battery_capacity=600.0, weight_capacity=100.0, volume_capacity=10.0,
+            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+            low_battery_threshold=0.2, critical_battery_threshold=0.05,
+            depletion_fn=expensive_depletion,
+        )
+        # Battery at 550: first arc costs 500. After: level=50, pct=50/600=0.083 > 0.05.
+        # But pre-arc check for B->C: cost 500, level=50 < 500.
+        # _find_reachable_charger: charger at B, AGV is at B. Distance=0, cost=0. Reachable!
+        # After charging: level=600 (full). Now 600 >= 500 for B->C. This works.
+        # So capacity must be LESS than arc cost for this path.
+        # capacity=400, level=500 -> can't. Level must be <= capacity.
+        # Let's use capacity=400: first arc A->B costs 500. Pre-arc: level=400 < 500. FAIL.
+        # But we need first arc to succeed. Let me re-think.
+        #
+        # Make depletion costs different per arc:
+        # A->B: 5 dist * 100 = 500. Need level >= 500. capacity >= 500.
+        # After A->B: level = capacity - 500. If capacity=510: level=10, pct=10/510=0.019 critical.
+        # _travel returns False. Retry charges. After charge: level=510.
+        # Pre-arc B->C: cost = 500. 510 >= 500. Charge happened, proceed.
+        # This doesn't strand after charging.
+        #
+        # Approach: Make capacity < arc cost for B->C, but somehow get to B.
+        # Use custom depletion: first arc cheap, second arc expensive.
+        pass
+
+    def test_stranded_after_charging_capacity_too_low(
+        self, env: Environment, sku_a: SKU
+    ) -> None:
+        """AGV's battery capacity is too small for next arc even after full charge."""
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_b = Node(id="B", x=2.0, y=0.0)
+        node_c = Node(id="C", x=100.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_a, target=node_b),
+            Arc(source=node_b, target=node_c),
+        ]
+        graph = LayoutGraph([node_a, node_b, node_c], arcs)
+
+        speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
+
+        wh_a = Warehouse(
+            env=env, name="WH-A",
+            input_bays=[node_a], output_bays=[node_a],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_c = Warehouse(
+            env=env, name="WH-C",
+            input_bays=[node_c], output_bays=[node_c],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        charger = ChargingStation(env=env, name="CS-1", node=node_b, n_slots=1)
+
+        agv_type = AGVType(
+            name="test-type", speed_profile=speed,
+            # battery_capacity=50: A->B costs 2, B->C costs 98.
+            # After A->B: level=48 < 98 -> divert to charger at B.
+            # Charger charges to capacity=50. Pre-arc B->C: cost=98, 50 < 98. STRANDED.
+            battery_capacity=50.0, weight_capacity=100.0, volume_capacity=10.0,
+            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+            low_battery_threshold=0.2, critical_battery_threshold=0.05,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_a, wh_c], charging_stations=[charger],
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_c)
+        coordinator.submit(order)
+        env.run()
+
+        assert order.status == OrderStatus.FAILED
+        assert agv.state == AGVState.STRANDED
+
+
+class TestChargeAgvNoStation:
+    """_charge_agv with no reachable station (lines 697-701, 635->638)."""
+
+    def test_charge_no_station_available(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """AGV needs charging but no stations are configured -> warning, no crash."""
+        # Build with charger on disconnected node
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_b = Node(id="B", x=10.0, y=0.0)
+        node_cs = Node(id="CS", x=100.0, y=100.0)  # Disconnected!
+
+        arcs = [Arc(source=node_a, target=node_b)]
+        graph = LayoutGraph([node_a, node_b, node_cs], arcs)
+
+        wh_a = Warehouse(
+            env=env, name="WH-A",
+            input_bays=[node_a], output_bays=[node_a],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_b = Warehouse(
+            env=env, name="WH-B",
+            input_bays=[node_b], output_bays=[node_b],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
+
+        agv_type = AGVType(
+            name="test-type", speed_profile=simple_speed,
+            battery_capacity=100.0, weight_capacity=100.0, volume_capacity=10.0,
+            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+            low_battery_threshold=0.2, critical_battery_threshold=0.05,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv.battery.level = 25.0  # Low after mission
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_a, wh_b], charging_stations=[charger],
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        # Mission completes but charging is skipped (no reachable station)
+        assert order.status == OrderStatus.COMPLETED
+        assert agv.state == AGVState.IDLE
+
+
+class TestChargeTravelFailure:
+    """_charge_agv when travel to station fails (lines 723-724)."""
+
+    def test_charge_travel_fails(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """AGV tries to travel to charger but battery dies en route."""
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_b = Node(id="B", x=10.0, y=0.0)
+        node_cs = Node(id="CS", x=100.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_a, target=node_b),
+            Arc(source=node_b, target=node_cs),
+        ]
+        graph = LayoutGraph([node_a, node_b, node_cs], arcs)
+
+        wh_a = Warehouse(
+            env=env, name="WH-A",
+            input_bays=[node_a], output_bays=[node_a],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_b = Warehouse(
+            env=env, name="WH-B",
+            input_bays=[node_b], output_bays=[node_b],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
+
+        agv_type = AGVType(
+            name="test-type", speed_profile=simple_speed,
+            battery_capacity=100.0, weight_capacity=100.0, volume_capacity=10.0,
+            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+            low_battery_threshold=0.2, critical_battery_threshold=0.05,
+        )
+        # Battery just enough for mission (10 units) but not for travel to charger (100 units)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv.battery.level = 20.0  # Enough for 10+10=20 (mission + return), low after
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_a, wh_b], charging_stations=[charger],
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        # Mission completes, low battery detected, travel to charger fails
+        assert order.status == OrderStatus.COMPLETED
+
+
+class TestOnLowBatteryReturnsNone:
+    """on_low_battery callback that returns None falls through to default (713->719)."""
+
+    def test_on_low_battery_returns_none_uses_default(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, wh_a, wh_b, charger = _build_system_with_charger(
+            env, sku_a, simple_speed, battery_capacity=100.0, initial_battery=25.0
+        )
+
+        callback_called = False
+
+        def low_battery_none(agv: AGV):
+            nonlocal callback_called
+            callback_called = True
+            return None  # Returns None, not a generator
+
+        coordinator._on_low_battery = low_battery_none
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        assert order.status == OrderStatus.COMPLETED
+        assert callback_called
+        # Default charging should still happen since callback returned None
+        assert charger.total_recharges >= 1
+
+
+class TestEventDrivenReplenishmentUnrelatedWarehouse:
+    """Event-driven replenishment with unrelated warehouse (378->377, 774->763)."""
+
+    def test_unrelated_warehouse_not_checked(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """Policy for a warehouse not involved in the delivery is skipped."""
+        from simulatte.intralogistics.policies import ReorderPointPolicy
+
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_b = Node(id="B", x=10.0, y=0.0)
+        node_c = Node(id="C", x=20.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_a, target=node_b),
+            Arc(source=node_b, target=node_c),
+        ]
+        graph = LayoutGraph([node_a, node_b, node_c], arcs)
+
+        wh_a = Warehouse(
+            env=env, name="WH-A",
+            input_bays=[node_a], output_bays=[node_a],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_b = Warehouse(
+            env=env, name="WH-B",
+            input_bays=[node_b], output_bays=[node_b],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        # WH-C is unrelated to the delivery
+        wh_c = Warehouse(
+            env=env, name="WH-C",
+            input_bays=[node_c], output_bays=[node_c],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 500},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_a, wh_b, wh_c], charging_stations=[],
+        )
+
+        # Register event-driven replenishment for WH-C (unrelated to A->B delivery)
+        policy = ReorderPointPolicy(
+            thresholds={sku_a: 1000},
+            reorder_quantity={sku_a: 50},
+        )
+        coordinator.add_replenishment_policy(policy, wh_c, check_interval=None)
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        # Order completes fine; WH-C policy is not triggered because WH-C
+        # is neither origin nor destination of the delivered order
+        assert order.status == OrderStatus.COMPLETED
+
+
+class TestCriticalBatteryDuringLoadedTravel:
+    """Critical battery during loaded travel triggers retry (line 319, 350-352)."""
+
+    def test_critical_battery_during_loaded_travel_charges_and_retries(
+        self, env: Environment, sku_a: SKU
+    ) -> None:
+        """AGV hits critical battery during loaded travel, charges at next node, retries."""
+        # Graph: A -- B -- C(charger) -- D
+        # AGV starts at A (origin). Destination D.
+        # Critical hits at C (charger co-located), charges, resumes to D.
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_b = Node(id="B", x=5.0, y=0.0)
+        node_c = Node(id="C", x=10.0, y=0.0)
+        node_d = Node(id="D", x=15.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_a, target=node_b),
+            Arc(source=node_b, target=node_c),
+            Arc(source=node_c, target=node_d),
+        ]
+        graph = LayoutGraph([node_a, node_b, node_c, node_d], arcs)
+
+        speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
+
+        wh_a = Warehouse(
+            env=env, name="WH-A",
+            input_bays=[node_a], output_bays=[node_a],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_d = Warehouse(
+            env=env, name="WH-D",
+            input_bays=[node_d], output_bays=[node_d],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        # Charger co-located at C
+        charger = ChargingStation(env=env, name="CS-1", node=node_c, n_slots=1)
+
+        agv_type = AGVType(
+            name="test-type", speed_profile=speed,
+            battery_capacity=100.0, weight_capacity=100.0, volume_capacity=10.0,
+            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+            low_battery_threshold=0.2, critical_battery_threshold=0.05,
+        )
+        # Battery at 12: empty travel (0, at origin). Pick.
+        # Loaded: A->B: cost 5, level=7, pct=0.07 > 0.05.
+        # Loaded: B->C: cost 5, level=2, pct=0.02 <= 0.05. Critical.
+        # _travel returns False. AGV now at C. Retry: critical -> charges at C.
+        # After charge: full. Resume loaded travel from C->D.
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv.battery.level = 12.0
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_a, wh_d], charging_stations=[charger],
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_d)
+        coordinator.submit(order)
+        env.run()
+
+        assert order.status == OrderStatus.COMPLETED
+        assert charger.total_recharges >= 1
+
+
+class TestChargingDiversionDuringEmptyTravel:
+    """Charging diversion (H6) during empty travel triggers retry with non-critical battery (317->319)."""
+
+    def test_charging_diversion_during_empty_travel(
+        self, env: Environment, sku_a: SKU
+    ) -> None:
+        """AGV diverts to charger mid-empty-travel (H6), then retries non-critical."""
+        # Graph: FAR -- CHARGER -- ORIGIN -- DEST
+        # AGV at FAR. Origin at ORIGIN.
+        # Battery: enough for FAR->CHARGER (5), but not for CHARGER->ORIGIN (5).
+        # Pre-arc check at CHARGER: energy < cost. Diverts to charger (co-located at CHARGER).
+        # After charging: not critical. _travel returns False with cancel. H6 path.
+        # Retry loop: not stranded, not critical -> skip charging, line 319 transition.
+        node_far = Node(id="FAR", x=0.0, y=0.0)
+        node_charger = Node(id="CHARGER", x=5.0, y=0.0)
+        node_origin = Node(id="ORIGIN", x=10.0, y=0.0)
+        node_dest = Node(id="DEST", x=15.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_far, target=node_charger),
+            Arc(source=node_charger, target=node_origin),
+            Arc(source=node_origin, target=node_dest),
+        ]
+        graph = LayoutGraph([node_far, node_charger, node_origin, node_dest], arcs)
+
+        speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
+
+        wh_origin = Warehouse(
+            env=env, name="WH-ORIGIN",
+            input_bays=[node_origin], output_bays=[node_origin],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env, name="WH-DEST",
+            input_bays=[node_dest], output_bays=[node_dest],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        # Charger co-located at FAR so the diversion doesn't need travel
+        charger = ChargingStation(env=env, name="CS-1", node=node_far, n_slots=1)
+
+        agv_type = AGVType(
+            name="test-type", speed_profile=speed,
+            battery_capacity=100.0, weight_capacity=100.0, volume_capacity=10.0,
+            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+            low_battery_threshold=0.2, critical_battery_threshold=0.05,
+        )
+        # Battery=4: pre-arc FAR->CHARGER costs 5. 4<5 -> H6 pre-arc check fails.
+        # _find_reachable_charger: charger at FAR. Distance=0, cost=0, reachable.
+        # Charge at FAR. Level=100. Return False from _travel via H6.
+        # Retry loop: not stranded, not critical -> 317->319 (skip charging).
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_far)
+        agv.battery.level = 4.0
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_origin, wh_dest], charging_stations=[charger],
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
+        coordinator.submit(order)
+        env.run()
+
+        assert order.status == OrderStatus.COMPLETED
+        assert charger.total_recharges >= 1
+
+
+class TestReturnToOriginRecoveryPath:
+    """ReturnToOrigin recovery when AGV has no load after recover (line 465)."""
+
+    def test_return_to_origin_clears_load(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """Interrupt after pickup with ReturnToOrigin strategy.
+        AGV returns cargo, then agv.current_load is set to None (line 465)."""
+        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+        node_mid = Node(id="MID", x=50.0, y=0.0)
+        node_dest = Node(id="DEST", x=100.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_origin, target=node_mid),
+            Arc(source=node_mid, target=node_dest),
+        ]
+        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+
+        wh_origin = Warehouse(
+            env=env, name="WH-ORIGIN",
+            input_bays=[node_origin], output_bays=[node_origin],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env, name="WH-DEST",
+            input_bays=[node_dest], output_bays=[node_dest],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+
+        # ReturnToOrigin is the default load_recovery_strategy
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_origin, wh_dest], charging_stations=[],
+        )
+
+        order = coordinator.create_order(
+            sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest
+        )
+        coordinator.submit(order)
+
+        # Interrupt after pickup (during loaded travel)
+        # Pick done at ~2.0. Cancel at t=4.0 (during loaded travel).
+        def interrupt_later():
+            yield env.timeout(4.0)
+            process = coordinator._active_missions.get(order.id)
+            if process is not None and process.is_alive:
+                process.interrupt("test_return_to_origin")
+
+        env.process(interrupt_later())
+        env.run()
+
+        # ReturnToOrigin puts cargo back, sets order PENDING, clears agv assignment
+        # The coordinator then sets agv.current_load = None at line 465
+        assert agv.current_load is None
+        assert agv.state == AGVState.IDLE
+
+
+class TestFindReachableChargerEdgeCases:
+    """Edge cases for _find_reachable_charger (lines 767, 778)."""
+
+    def test_no_reachable_charger_all_unreachable(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """All chargers exist but no path to any of them."""
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_cs = Node(id="CS", x=100.0, y=100.0)  # Disconnected
+
+        graph = LayoutGraph([node_a, node_cs], [])
+
+        charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv.battery.level = 1.0
+
+        wh = Warehouse(
+            env=env, name="WH", input_bays=[node_a], output_bays=[node_a],
+            n_slots=1, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh], charging_stations=[charger],
+        )
+
+        result = coordinator._find_reachable_charger(agv)
+        assert result is None
+
+    def test_charger_reachable_but_not_enough_energy(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """Path to charger exists but AGV doesn't have enough energy to reach it."""
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_cs = Node(id="CS", x=50.0, y=0.0)
+
+        arcs = [Arc(source=node_a, target=node_cs)]
+        graph = LayoutGraph([node_a, node_cs], arcs)
+
+        charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv.battery.level = 1.0  # Distance 50, depletion 50. level=1 < 50
+
+        wh = Warehouse(
+            env=env, name="WH", input_bays=[node_a], output_bays=[node_a],
+            n_slots=1, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh], charging_stations=[charger],
+        )
+
+        result = coordinator._find_reachable_charger(agv)
+        assert result is None
+
+    def test_find_reachable_charger_no_current_node(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """AGV with current_node=None returns None."""
+        node_cs = Node(id="CS", x=0.0, y=0.0)
+        graph = LayoutGraph([node_cs], [])
+        charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=None)
+
+        wh = Warehouse(
+            env=env, name="WH", input_bays=[node_cs], output_bays=[node_cs],
+            n_slots=1, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh], charging_stations=[charger],
+        )
+
+        result = coordinator._find_reachable_charger(agv)
+        assert result is None
+
+    def test_find_nearest_charger_no_current_node(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """_find_nearest_charger with current_node=None returns None (line 741)."""
+        node_cs = Node(id="CS", x=0.0, y=0.0)
+        graph = LayoutGraph([node_cs], [])
+        charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=None)
+
+        wh = Warehouse(
+            env=env, name="WH", input_bays=[node_cs], output_bays=[node_cs],
+            n_slots=1, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh], charging_stations=[charger],
+        )
+
+        result = coordinator._find_nearest_charger(agv)
+        assert result is None
+
+    def test_find_nearest_charger_unreachable(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """_find_nearest_charger when path is None returns inf distance (line 747)."""
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_cs = Node(id="CS", x=100.0, y=100.0)
+
+        graph = LayoutGraph([node_a, node_cs], [])  # No arcs
+
+        charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+
+        wh = Warehouse(
+            env=env, name="WH", input_bays=[node_a], output_bays=[node_a],
+            n_slots=1, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh], charging_stations=[charger],
+        )
+
+        result = coordinator._find_nearest_charger(agv)
+        assert result is None

@@ -134,7 +134,7 @@ class ResourceBasedTrafficManager:
             # which is called from _enter_with_timeout after the interrupt.
             self._pending_requests.pop(agv, None)
             key = (agv, node)
-            if key in self._node_requests and self._node_requests[key] is req:
+            if key in self._node_requests and self._node_requests[key] is req:  # pragma: no cover — defensive; cancel() normally cleans up before interrupt fires
                 del self._node_requests[key]
             return
         self._pending_requests.pop(agv, None)
@@ -182,5 +182,5 @@ class ResourceBasedTrafficManager:
                 continue
             if req.triggered:
                 self._node_resources[key[1]].release(req)
-            elif not req.processed:
+            elif not req.processed:  # pragma: no cover — defensive; processed-but-not-triggered state is not reachable in normal SimPy flow
                 req.cancel()

@@ -72,6 +72,9 @@ exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
 ]
+exclude_also = [
+    "\\.\\.\\.$",
+]
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.

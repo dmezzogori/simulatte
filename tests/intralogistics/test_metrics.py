@@ -248,6 +248,71 @@ class TestCollectorReceivesStateTransitions:
             assert isinstance(util, (int, float))
 
 
+class TestEMAOrderMetricsNoDelivery:
+    """EMA record with no delivered_at: skips fulfillment and late checks."""
+
+    def test_no_delivered_at_skips_fulfillment_and_late(self) -> None:
+        m = EMAOrderMetrics(alpha=0.1)
+        order = _make_order(
+            created_at=0.0,
+            dispatched_at=1.0,
+            picked_at=3.0,
+            delivered_at=None,
+        )
+        m.record(order)
+
+        # fulfillment_time skipped (needs delivered_at)
+        assert m.ema_fulfillment_time == 0.0
+        # dispatch_delay still computed
+        assert m.ema_dispatch_delay == 0.1 * 1.0
+        # travel_time_empty still computed
+        assert m.ema_travel_time_empty == 0.1 * 2.0
+        # travel_time_loaded skipped (needs delivered_at)
+        assert m.ema_travel_time_loaded == 0.0
+        # late_orders skipped
+        assert m.ema_late_orders == 0.0
+
+
+class TestDefaultCollectorEdgeCases:
+    """DefaultIntralogisticsCollector methods with missing timestamps."""
+
+    def test_on_order_dispatched_no_dispatched_at(self) -> None:
+        """dispatched_at is None -> skip (89->exit)."""
+        c = DefaultIntralogisticsCollector()
+        order = _make_order(created_at=0.0, dispatched_at=None)
+        agv = MagicMock()
+        coordinator = SimpleNamespace(_pending_queue=[])
+
+        c.on_order_dispatched(coordinator, order, agv)
+
+        # No entry added to pending_orders_ts
+        assert len(c.pending_orders_ts) == 0
+
+    def test_on_pickup_complete_no_picked_at(self) -> None:
+        """picked_at is None -> skip (93->exit)."""
+        c = DefaultIntralogisticsCollector()
+        order = _make_order(created_at=0.0, picked_at=None)
+        agv = MagicMock()
+        coordinator = SimpleNamespace()
+
+        c.on_pickup_complete(coordinator, order, agv)
+
+        # No entry added to inventory_ts
+        assert len(c.inventory_ts) == 0
+
+    def test_on_delivery_complete_no_delivered_at(self) -> None:
+        """delivered_at is None -> skip (98->exit)."""
+        c = DefaultIntralogisticsCollector()
+        order = _make_order(created_at=0.0, delivered_at=None)
+        agv = MagicMock()
+        coordinator = SimpleNamespace()
+
+        c.on_delivery_complete(coordinator, order, agv)
+
+        # throughput_ts should still have just the initial entry
+        assert len(c.throughput_ts) == 1
+
+
 class TestProtocolConformance:
     """Protocol conformance: isinstance checks for both built-ins."""
 

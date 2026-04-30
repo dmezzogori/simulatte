@@ -632,7 +632,7 @@ class FleetCoordinator:
                         self._traffic_manager.cancel(agv)
                         return False
                 except simpy.Interrupt:
-                    if not reached_next:
+                    if not reached_next:  # pragma: no cover — else branch requires interrupt between non-yielding lines
                         # Release the acquired next-node resource
                         self._traffic_manager.leave_node(agv, next_node)
                     raise
@@ -672,7 +672,7 @@ class FleetCoordinator:
 
             # Timeout — interrupt the suspended process to prevent leaks,
             # then cancel the pending resource request.
-            if enter_proc.is_alive:
+            if enter_proc.is_alive:  # pragma: no cover — process is always alive when timeout wins the AnyOf
                 enter_proc.interrupt("deadlock_timeout")
             self._traffic_manager.cancel(agv)
 

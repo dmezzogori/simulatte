@@ -183,6 +183,31 @@ class TestNearestIdleStrategy:
         strategy = NearestIdleStrategy()
         assert strategy.select(order, [agv], graph) is None
 
+    def test_unreachable_agv_gets_inf_distance(
+        self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
+    ) -> None:
+        """An idle AGV on a disconnected node gets inf distance.
+        If it's the only candidate, it is still selected."""
+        # Disconnected graph: N0 alone, N1 alone
+        n0 = Node(id="N0", x=0.0, y=0.0)
+        n1 = Node(id="N1", x=10.0, y=0.0)
+        graph = LayoutGraph([n0, n1], [])
+
+        wh = _make_warehouse(env, "WH", [n0], [n0], [sku_a])
+        wh_dest = _make_warehouse(env, "WH_DEST", [n1], [n1], [sku_a])
+
+        # AGV at n1 which is disconnected from n0 (output bay)
+        agv = _make_agv(env, speed_profile, "agv-disconnected", n1)
+
+        order = TransferOrder(
+            sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0
+        )
+
+        strategy = NearestIdleStrategy()
+        selected = strategy.select(order, [agv], graph)
+        # Only one candidate, so it is selected despite inf distance
+        assert selected is agv
+
 
 # ── DispatchStrategy: RoundRobinStrategy ──────────────────────────────
 
@@ -335,6 +360,70 @@ class TestNearestParkingPolicy:
 
         policy = NearestParkingPolicy()
         assert policy.reposition(agv, context) is None
+
+    def test_returns_none_when_current_node_is_none(
+        self, env: Environment, speed_profile: TrapezoidalProfile
+    ) -> None:
+        """AGV with current_node=None -> return None immediately."""
+        nodes, graph = _make_linear_graph()
+        park = ParkingArea(env=env, name="P1", node=nodes[1], capacity=2)
+        agv = _make_agv(env, speed_profile, "agv-no-node", nodes[0])
+        agv.current_node = None  # Force None
+
+        context = RepositioningContext(
+            graph=graph,
+            parking_areas=[park],
+            charging_stations=[],
+            fleet=[agv],
+        )
+
+        policy = NearestParkingPolicy()
+        assert policy.reposition(agv, context) is None
+
+    def test_parking_distance_calculation(
+        self, env: Environment, speed_profile: TrapezoidalProfile
+    ) -> None:
+        """Test that distance is computed along graph path and nearest is chosen."""
+        nodes, graph = _make_linear_graph()
+        # AGV at N2 (20,0); parking at N1 (10,0) distance=10, N3 (30,0) distance=10
+        agv = _make_agv(env, speed_profile, "agv-1", nodes[2])
+        park_1 = ParkingArea(env=env, name="P1", node=nodes[1], capacity=2)
+        park_3 = ParkingArea(env=env, name="P3", node=nodes[3], capacity=2)
+
+        context = RepositioningContext(
+            graph=graph,
+            parking_areas=[park_1, park_3],
+            charging_stations=[],
+            fleet=[agv],
+        )
+
+        policy = NearestParkingPolicy()
+        result = policy.reposition(agv, context)
+        # Both are equidistant; min picks the first with equal key
+        assert result in (nodes[1], nodes[3])
+
+    def test_parking_unreachable_gets_inf_distance(
+        self, env: Environment, speed_profile: TrapezoidalProfile
+    ) -> None:
+        """Parking area on disconnected node -> inf distance, still picked if only option."""
+        n0 = Node(id="N0", x=0.0, y=0.0)
+        n_island = Node(id="ISLAND", x=100.0, y=100.0)
+        graph = LayoutGraph([n0, n_island], [])  # No arcs
+
+        agv = _make_agv(env, speed_profile, "agv-1", n0)
+        park = ParkingArea(env=env, name="P-ISLAND", node=n_island, capacity=2)
+
+        context = RepositioningContext(
+            graph=graph,
+            parking_areas=[park],
+            charging_stations=[],
+            fleet=[agv],
+        )
+
+        policy = NearestParkingPolicy()
+        # Only option is unreachable, but min still returns it
+        result = policy.reposition(agv, context)
+        assert result == n_island
 
 
 # ── ReplenishmentPolicy: ReorderPointPolicy ──────────────────────────
@@ -516,6 +605,24 @@ class TestReorderPointPolicy:
         # effective_stock = 45 + 0 = 45 < 50 → new order
         assert len(orders) == 1
 
+    def test_no_other_warehouses_skips(
+        self, env: Environment, sku_a: SKU
+    ) -> None:
+        """When the only warehouse is the monitored one, no source exists -> skip."""
+        nodes, _ = _make_linear_graph()
+        wh_only = _make_warehouse(
+            env, "WH_ONLY", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 5}
+        )
+
+        policy = ReorderPointPolicy(
+            thresholds={sku_a: 10},
+            reorder_quantity={sku_a: 50},
+        )
+        orders = policy.check(wh_only, [wh_only], in_transit_orders=[])
+
+        # No other warehouses to source from -> no orders
+        assert len(orders) == 0
+
     def test_no_order_when_above_threshold(
         self, env: Environment, sku_a: SKU
     ) -> None:
@@ -539,6 +646,33 @@ class TestReorderPointPolicy:
 
 
 class TestReturnToOrigin:
+    def test_with_empty_load_skips_put(
+        self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
+    ) -> None:
+        """When agv.current_load is falsy (None), the put loop is skipped."""
+        nodes, _ = _make_linear_graph()
+        wh_orig = _make_warehouse(env, "WH_O", [nodes[0]], [nodes[0]], [sku_a])
+        wh_dest = _make_warehouse(env, "WH_D", [nodes[3]], [nodes[3]], [sku_a])
+        agv = _make_agv(env, speed_profile, "agv-1", nodes[1])
+        agv.current_load = None
+
+        order = TransferOrder(
+            sku=sku_a,
+            quantity=1,
+            origin=wh_orig,
+            destination=wh_dest,
+            created_at=0.0,
+            status=OrderStatus.IN_TRANSIT,
+            assigned_agv=agv,
+        )
+
+        strategy = ReturnToOrigin()
+        gen = strategy.recover(order, agv, None)  # type: ignore[arg-type]
+        list(gen)
+
+        assert order.status == OrderStatus.PENDING
+        assert order.assigned_agv is None
+
     def test_sets_pending_and_clears_agv(
         self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
     ) -> None:
@@ -564,6 +698,40 @@ class TestReturnToOrigin:
 
         assert order.status == OrderStatus.PENDING
         assert order.assigned_agv is None
+
+    def test_with_cargo_puts_back_to_origin(
+        self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
+    ) -> None:
+        """When agv.current_load has cargo, ReturnToOrigin puts it back."""
+        nodes, _ = _make_linear_graph()
+        wh_orig = _make_warehouse(
+            env, "WH_O", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 100}
+        )
+        wh_dest = _make_warehouse(env, "WH_D", [nodes[3]], [nodes[3]], [sku_a])
+        agv = _make_agv(env, speed_profile, "agv-1", nodes[1])
+        agv.current_load = {sku_a: 10}
+
+        order = TransferOrder(
+            sku=sku_a,
+            quantity=10,
+            origin=wh_orig,
+            destination=wh_dest,
+            created_at=0.0,
+            status=OrderStatus.IN_TRANSIT,
+            assigned_agv=agv,
+        )
+
+        strategy = ReturnToOrigin()
+
+        def do_recover():
+            yield from strategy.recover(order, agv, None)  # type: ignore[arg-type]
+
+        env.process(do_recover())
+        env.run()
+
+        assert order.status == OrderStatus.PENDING
+        assert order.assigned_agv is None
+        assert wh_orig.get_inventory_level(sku_a) == 110  # 100 + 10 returned
 
 
 # ── LoadRecoveryStrategy: ResumeDelivery ─────────────────────────────

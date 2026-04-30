@@ -294,6 +294,157 @@ class TestResourceBasedTrafficManager:
         result = tm.check_path(agv, [n1, n2])
         assert result.feasible is True
 
+    def test_enter_node_interrupt_key_already_cleaned(self) -> None:
+        """Line 138: enter_node interrupted after key was already deleted
+        from _node_requests (e.g. via cancel() before interrupt fires)."""
+        env = Environment()
+        n1 = Node(id="N1", x=0.0, y=0.0)
+        n2 = Node(id="N2", x=1.0, y=0.0)
+        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
+        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
+
+        agv_blocker = _make_agv(env, n2)
+        agv_waiter = _make_agv(env, n1)
+
+        def block_forever():
+            yield from tm.place(agv_blocker, n2)
+            yield env.timeout(100.0)
+
+        def enter_then_get_interrupted():
+            # Start entering n2 - will block
+            enter_proc = env.process(tm.enter_node(agv_waiter, n2))
+            yield env.timeout(1.0)
+            # Before interrupt: delete the key from _node_requests to simulate
+            # cancel() cleaning up first
+            key = (agv_waiter, n2)
+            if key in tm._node_requests:
+                del tm._node_requests[key]
+            # Now interrupt the enter_node process
+            if enter_proc.is_alive:
+                enter_proc.interrupt("test")
+            yield env.timeout(0.1)
+
+        env.process(block_forever())
+        env.process(enter_then_get_interrupted())
+        env.run(until=5.0)
+
+        # Should not raise — the interrupt handler handles missing key gracefully
+        assert (agv_waiter, n2) not in tm._node_requests
+
+    def test_cancel_stale_node_requests_not_triggered_not_processed(self) -> None:
+        """Lines 185-186: cancel() with _node_requests entry that is not triggered
+        and not processed, and NOT in _pending_requests."""
+        env = Environment()
+        n1 = Node(id="N1", x=0.0, y=0.0)
+        n2 = Node(id="N2", x=1.0, y=0.0)
+        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
+        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
+
+        agv_blocker = _make_agv(env, n2)
+        agv_stale = _make_agv(env, n1)
+
+        def setup():
+            # Blocker occupies n2
+            yield from tm.place(agv_blocker, n2)
+
+        env.process(setup())
+        env.run()
+
+        # Manually insert a stale request for agv_stale on n2 (pending, not processed)
+        # This simulates a state where _pending_requests was already cleaned up
+        # but _node_requests still has the entry
+        resource = tm._node_resources[n2]
+        req = resource.request()
+        tm._node_requests[(agv_stale, n2)] = req
+        # Verify it's not triggered (blocked by blocker)
+        assert not req.triggered
+        # Do NOT add to _pending_requests — simulating the stale cleanup path
+
+        # Now cancel should clean up via the stale-keys loop
+        tm.cancel(agv_stale)
+
+        assert (agv_stale, n2) not in tm._node_requests
+        assert agv_stale not in tm._pending_requests
+
+    def test_cancel_pending_request_already_triggered(self) -> None:
+        """Line 173->178: cancel() when pending_request is already triggered
+        (already acquired the resource)."""
+        env = Environment()
+        n1 = Node(id="N1", x=0.0, y=0.0)
+        graph = LayoutGraph([n1], [])
+        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=2)
+
+        agv = _make_agv(env, n1)
+
+        def setup():
+            # Place AGV: request triggers immediately (capacity=2, no contention)
+            yield from tm.place(agv, n1)
+            # After placement, the request is triggered
+            # Manually add it to _pending_requests to simulate the state
+            req = tm._node_requests[(agv, n1)]
+            tm._pending_requests[agv] = req
+            assert req.triggered  # it's already triggered/acquired
+
+        env.process(setup())
+        env.run()
+
+        # cancel() should handle the triggered pending request
+        tm.cancel(agv)
+        assert agv not in tm._pending_requests
+
+    def test_cancel_stale_triggered_request_in_node_requests(self) -> None:
+        """Line 184: cancel() releases a triggered (acquired) request found in
+        _node_requests stale-keys loop."""
+        env = Environment()
+        n1 = Node(id="N1", x=0.0, y=0.0)
+        n2 = Node(id="N2", x=1.0, y=0.0)
+        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
+        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=2)
+
+        agv = _make_agv(env, n1)
+
+        def setup():
+            # Place AGV at n1 (triggered, acquired)
+            yield from tm.place(agv, n1)
+            # Also enter n2 (triggered, acquired since capacity=2)
+            yield from tm.enter_node(agv, n2)
+
+        env.process(setup())
+        env.run()
+
+        # Now we have two _node_requests for agv: (agv, n1) and (agv, n2)
+        # Both are triggered. _pending_requests should be empty (cleared after yield req)
+        assert agv not in tm._pending_requests
+        assert (agv, n1) in tm._node_requests
+        assert (agv, n2) in tm._node_requests
+
+        # cancel() should release both via the stale-keys loop (line 184)
+        tm.cancel(agv)
+
+        # Resources should be freed
+        assert tm._node_resources[n1].count == 0
+        assert tm._node_resources[n2].count == 0
+        assert (agv, n1) not in tm._node_requests
+        assert (agv, n2) not in tm._node_requests
+
+    def test_leave_node_without_node_request_entry(self) -> None:
+        """Line 148->155: leave_node when there's no entry in _node_requests
+        for the given (agv, node) pair."""
+        env = Environment()
+        n1 = Node(id="N1", x=0.0, y=0.0)
+        n2 = Node(id="N2", x=1.0, y=0.0)
+        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
+        tm = ResourceBasedTrafficManager(graph=graph, env=env)
+
+        agv = _make_agv(env, n1)
+        tm.register_intent(agv, [n1, n2])
+
+        # leave_node without any prior place/enter -> no key in _node_requests
+        tm.leave_node(agv, n1)
+
+        # Should not crash; intent for n1 should be removed
+        assert n1 not in tm._intents[agv]
+
     def test_leave_node_cancels_untriggered_request(self) -> None:
         """leave_node on a pending (untriggered) request should cancel it, not release it."""
         env = Environment()

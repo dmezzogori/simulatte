@@ -68,3 +68,13 @@ class TestBattery:
         b = Battery(capacity=100.0, initial_level=90.0)
         b.recharge(amount=50.0)
         assert b.level == pytest.approx(100.0)
+
+    def test_recharge_time_already_at_target(self) -> None:
+        b = Battery(capacity=100.0, initial_level=100.0)
+        t = b.recharge_time(target_pct=1.0)
+        assert t == 0.0
+
+    def test_recharge_time_above_target(self) -> None:
+        b = Battery(capacity=100.0, initial_level=80.0)
+        t = b.recharge_time(target_pct=0.5)
+        assert t == 0.0

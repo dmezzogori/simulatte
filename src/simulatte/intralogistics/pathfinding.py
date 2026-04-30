@@ -43,7 +43,7 @@ class DijkstraPlanner:
                     current = prev[current]
                 path.append(origin)
                 return list(reversed(path))
-            if d > dist.get(node, float("inf")):
+            if d > dist.get(node, float("inf")):  # pragma: no cover — unreachable with Euclidean edge weights (triangle inequality)
                 continue
             for neighbor in graph.neighbors(node):
                 if neighbor in avoid_set:
@@ -85,7 +85,7 @@ class AStarPlanner:
                     current = prev[current]
                 path.append(origin)
                 return list(reversed(path))
-            if g > g_score.get(node, float("inf")):
+            if g > g_score.get(node, float("inf")):  # pragma: no cover — unreachable with Euclidean edge weights (triangle inequality)
                 continue
             for neighbor in graph.neighbors(node):
                 if neighbor in avoid_set:

@@ -248,6 +248,47 @@ class TestChargingStationSwap:
             next(gen)
 
 
+class TestChargingStationRechargeEdgeCases:
+    def test_recharge_already_at_target(
+        self, env: Environment, charging_node: Node, agv_type: AGVType
+    ) -> None:
+        """Recharging an AGV already at target_pct should be a no-op (duration=0)."""
+        station = ChargingStation(
+            env=env, name="CS-noop", node=charging_node, n_slots=1,
+        )
+        agv = _make_agv(env, agv_type, battery_level=100.0)
+
+        def process() -> None:
+            yield from station.recharge(agv, target_pct=1.0)
+
+        env.process(process())
+        env.run()
+
+        assert env.now == pytest.approx(0.0)
+        assert agv.battery.level == pytest.approx(100.0)
+        assert station.total_recharges == 1
+
+    def test_recharge_without_station_recharge_fn(
+        self, env: Environment, charging_node: Node, agv_type: AGVType
+    ) -> None:
+        """Station with no recharge_fn falls back to battery.recharge_time()."""
+        station = ChargingStation(
+            env=env, name="CS-default", node=charging_node, n_slots=1,
+            recharge_fn=None,
+        )
+        agv = _make_agv(env, agv_type, battery_level=50.0)
+
+        def process() -> None:
+            yield from station.recharge(agv, target_pct=1.0)
+
+        env.process(process())
+        env.run()
+
+        # Default battery recharge_fn: (target - current) * 1.0 = 50.0
+        assert env.now == pytest.approx(50.0)
+        assert agv.battery.level == pytest.approx(100.0)
+
+
 class TestChargingStationMetrics:
     def test_metrics_tracking(self, env: Environment, charging_node: Node, agv_type: AGVType) -> None:
         """total_recharges, total_swaps, total_occupied_time accumulate correctly."""

@@ -61,6 +61,14 @@ class TestDijkstraPlanner:
         assert path == [nodes["A"]]
 
 
+class TestDijkstraPlannerEdgeCases:
+
+    def test_protocol_conformance(self) -> None:
+        from simulatte.intralogistics.pathfinding import PathPlanner
+
+        assert isinstance(DijkstraPlanner(), PathPlanner)
+
+
 class TestAStarPlanner:
     def test_shortest_path(self) -> None:
         nodes, graph = _make_grid()
@@ -83,6 +91,32 @@ class TestAStarPlanner:
         graph = LayoutGraph([n1, n2], [])
         planner = AStarPlanner()
         assert planner.plan(graph, n1, n2) is None
+
+    def test_same_node(self) -> None:
+        n1 = Node(id="A", x=0.0, y=0.0)
+        graph = LayoutGraph([n1], [])
+        planner = AStarPlanner()
+        assert planner.plan(graph, n1, n1) == [n1]
+
+    def test_stale_heap_entry_skipped(self) -> None:
+        """Same graph as Dijkstra test: forces a stale entry in A*."""
+        a = Node(id="A", x=0.0, y=0.0)
+        b = Node(id="B", x=1.0, y=0.0)
+        c = Node(id="C", x=1.1, y=0.1)
+        d = Node(id="D", x=2.0, y=0.0)
+        arcs = [
+            Arc(source=a, target=b),
+            Arc(source=a, target=c),
+            Arc(source=b, target=c),
+            Arc(source=b, target=d),
+            Arc(source=c, target=d),
+        ]
+        graph = LayoutGraph([a, b, c, d], arcs)
+        planner = AStarPlanner()
+        path = planner.plan(graph, a, d)
+        assert path is not None
+        assert path[0] == a
+        assert path[-1] == d
 
 
 class TestLayoutGraphShortestPath:
