@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import simpy
+import simpy.resources.resource
 from simpy.events import ProcessGenerator
 
 if TYPE_CHECKING:
@@ -60,8 +61,4 @@ class ParkingArea:
         )
 
     def __repr__(self) -> str:
-        return (
-            f"ParkingArea(name={self.name!r}, "
-            f"node={self.node.id!r}, "
-            f"capacity={self._resource.capacity})"
-        )
+        return f"ParkingArea(name={self.name!r}, node={self.node.id!r}, capacity={self._resource.capacity})"

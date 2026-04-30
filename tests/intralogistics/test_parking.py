@@ -35,9 +35,7 @@ def _make_agv(env: Environment, agv_type: AGVType, agv_id: str | None = None) ->
 
 
 class TestEnterLeaveLifecycle:
-    def test_enter_occupies_slot_leave_frees_it(
-        self, env: Environment, parking_node: Node, agv_type: AGVType
-    ) -> None:
+    def test_enter_occupies_slot_leave_frees_it(self, env: Environment, parking_node: Node, agv_type: AGVType) -> None:
         """AGV enters parking, slot is occupied. After leave, a new AGV can enter immediately."""
         area = ParkingArea(env=env, name="P1", node=parking_node, capacity=1)
         agv1 = _make_agv(env, agv_type, agv_id="agv-1")
@@ -93,9 +91,7 @@ class TestBlockingWhenFull:
 
 
 class TestPerAGVRequestTracking:
-    def test_correct_agv_is_released(
-        self, env: Environment, parking_node: Node, agv_type: AGVType
-    ) -> None:
+    def test_correct_agv_is_released(self, env: Environment, parking_node: Node, agv_type: AGVType) -> None:
         """Capacity=2, two AGVs parked. Leave one; a third AGV enters immediately."""
         area = ParkingArea(env=env, name="P2", node=parking_node, capacity=2)
         agv_a = _make_agv(env, agv_type, agv_id="agv-A")
