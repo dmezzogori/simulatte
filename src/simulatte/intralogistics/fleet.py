@@ -101,6 +101,9 @@ class FleetCoordinator:
         self._hooks_on_charging_complete: list[Callable[[AGV], None]] = []
         self._hooks_on_agv_idle: list[Callable[[AGV], None]] = []
 
+        # S1: Initial AGV placement — register starting positions with traffic manager
+        self.env.process(self._initial_placement())
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -281,10 +284,15 @@ class FleetCoordinator:
             # 1. Travel empty to origin output bay
             # (order.status, dispatched_at, and AGV state are set eagerly in _dispatch)
             origin_output_bay = order.origin.nearest_output_bay(agv.current_node, self.graph)
-            yield from self._travel(agv, agv.current_node, origin_output_bay, loaded=False)
-            if agv.state == AGVState.STRANDED:
-                order.status = OrderStatus.FAILED
-                return
+            while True:
+                success = yield from self._travel(agv, agv.current_node, origin_output_bay, loaded=False)
+                if success:
+                    break
+                if agv.state == AGVState.STRANDED:
+                    order.status = OrderStatus.FAILED
+                    return
+                # Charging diversion — AGV is at new position, retry travel
+                agv.transition_to(AGVState.TRAVELING_EMPTY)
 
             # 2. Pick
             order.status = OrderStatus.PICKING
@@ -305,10 +313,15 @@ class FleetCoordinator:
             agv.transition_to(AGVState.TRAVELING_LOADED)
 
             dest_input_bay = order.destination.nearest_input_bay(agv.current_node, self.graph)
-            yield from self._travel(agv, agv.current_node, dest_input_bay, loaded=True)
-            if agv.state == AGVState.STRANDED:
-                order.status = OrderStatus.FAILED
-                return
+            while True:
+                success = yield from self._travel(agv, agv.current_node, dest_input_bay, loaded=True)
+                if success:
+                    break
+                if agv.state == AGVState.STRANDED:
+                    order.status = OrderStatus.FAILED
+                    return
+                # Charging diversion — AGV is at new position, retry travel
+                agv.transition_to(AGVState.TRAVELING_LOADED)
 
             # 4. Deliver
             order.status = OrderStatus.DELIVERING
@@ -393,29 +406,57 @@ class FleetCoordinator:
         to_node: Node,
         loaded: bool,
     ) -> ProcessGenerator:
-        """Move the AGV along the graph from ``from_node`` to ``to_node``."""
-        if from_node == to_node:
-            return
+        """Move the AGV along the graph from ``from_node`` to ``to_node``.
 
+        Returns ``True`` on success, ``False`` on failure. When ``False``
+        is returned, callers should check ``agv.state``: if
+        ``AGVState.STRANDED`` the travel failed permanently; otherwise a
+        charging diversion moved the AGV and the caller should retry from
+        the AGV's new ``current_node``.
+        """
+        if from_node == to_node:
+            return True
+
+        # H1: return False (with STRANDED) when no path exists
         path = self._path_planner.plan(self.graph, from_node, to_node)
         if path is None:
             self.env.error(
                 f"No path from {from_node.id} to {to_node.id} for {agv.agv_id}",
                 component="FleetCoordinator",
             )
-            return
+            agv.transition_to(AGVState.STRANDED)
+            return False
 
-        # Check path feasibility with traffic manager
+        # H2: Check path feasibility with traffic manager. If infeasible,
+        # try to re-plan avoiding conflict nodes. If the alternative is
+        # also infeasible or unavailable, fall back to the original path —
+        # the actual resource constraints are enforced at enter_node time
+        # (where S2's deadlock timeout handles true blocking).
         result = self._traffic_manager.check_path(agv, path)
         if not result.feasible and result.conflict_nodes:
-            # Re-plan avoiding conflict nodes
             alt_path = self._path_planner.plan(
                 self.graph, from_node, to_node, avoid=result.conflict_nodes
             )
             if alt_path is not None:
-                path = alt_path
+                alt_result = self._traffic_manager.check_path(agv, alt_path)
+                if alt_result.feasible:
+                    path = alt_path
+                else:
+                    self.env.warning(
+                        f"Alternative path also has conflicts from {from_node.id} to {to_node.id} "
+                        f"for {agv.agv_id} — proceeding with original path",
+                        component="FleetCoordinator",
+                    )
+            else:
+                self.env.warning(
+                    f"No alternative path from {from_node.id} to {to_node.id} for {agv.agv_id} "
+                    f"— proceeding with original path despite conflicts",
+                    component="FleetCoordinator",
+                )
 
         self._traffic_manager.register_intent(agv, path)
+
+        deadlock_timeout = self._traffic_manager.deadlock_timeout
 
         try:
             for i in range(len(path) - 1):
@@ -431,8 +472,12 @@ class FleetCoordinator:
                 else:
                     load_weight = 0.0
 
+                # M1: Fetch arc speed limit and pass it to speed profile
+                arc = self.graph.arc_between(current, next_node)
+                arc_speed_limit = arc.speed_limit if arc is not None else None
+
                 travel_time = agv.agv_type.speed_profile.travel_time(
-                    distance, load_weight, agv.battery.level_pct
+                    distance, load_weight, agv.battery.level_pct, speed_limit=arc_speed_limit
                 )
                 avg_speed = distance / travel_time if travel_time > 0 else 0.0
                 energy_cost = agv.battery._depletion_fn(distance, load_weight, avg_speed)
@@ -444,7 +489,6 @@ class FleetCoordinator:
                     if charger is not None:
                         prior_state = agv.state
                         yield from self._charge_agv(agv, charger)
-                        # Restore state so travel continues correctly
                         agv.transition_to(prior_state)
                         # After charging, re-check if we have enough
                         if agv.battery.level < energy_cost:
@@ -453,17 +497,35 @@ class FleetCoordinator:
                                 f"{agv.agv_id} STRANDED at {current.id} — insufficient energy even after charging",
                                 component="FleetCoordinator",
                             )
-                            return
+                            return False
+                        # H6: Charging diversion moved the AGV — cancel old
+                        # intent and return False so _run_mission retries
+                        # from the AGV's new current_node.
+                        self._traffic_manager.cancel(agv)
+                        return False
                     else:
                         agv.transition_to(AGVState.STRANDED)
                         self.env.error(
                             f"{agv.agv_id} STRANDED at {current.id} — no reachable charger",
                             component="FleetCoordinator",
                         )
-                        return
+                        return False
 
-                # Enter next node (may block for traffic)
-                yield from self._traffic_manager.enter_node(agv, next_node)
+                # S2: Enter next node with deadlock timeout when applicable
+                if deadlock_timeout is not None:
+                    entered = yield from self._enter_with_timeout(
+                        agv, next_node, current, from_node, to_node, deadlock_timeout
+                    )
+                    if not entered:
+                        agv.transition_to(AGVState.STRANDED)
+                        self.env.error(
+                            f"{agv.agv_id} STRANDED — deadlock at node {next_node.id}",
+                            component="FleetCoordinator",
+                        )
+                        return False
+                else:
+                    yield from self._traffic_manager.enter_node(agv, next_node)
+
                 yield self.env.timeout(travel_time)
                 agv.battery.deplete(distance, load_weight, avg_speed)
                 self._traffic_manager.leave_node(agv, current)
@@ -471,6 +533,82 @@ class FleetCoordinator:
 
         finally:
             self._traffic_manager.cancel(agv)
+
+        return True
+
+    def _enter_with_timeout(
+        self,
+        agv: AGV,
+        next_node: Node,
+        current_node: Node,
+        final_dest: Node,
+        original_dest: Node,
+        timeout: float,
+        _max_retries: int = 3,
+    ) -> ProcessGenerator:
+        """Try to enter ``next_node`` with a deadlock timeout.
+
+        On timeout, attempt to reroute around the blocked node. Uses
+        exponential backoff up to ``_max_retries`` before giving up.
+
+        Returns ``True`` if the node was entered, ``False`` if all
+        attempts were exhausted.
+        """
+        for attempt in range(_max_retries):
+            enter_proc = self.env.process(
+                self._traffic_manager.enter_node(agv, next_node)
+            )
+            timer = self.env.timeout(timeout)
+            yield enter_proc | timer
+
+            if enter_proc.triggered:
+                # Successfully entered
+                return True
+
+            # Timeout — interrupt the suspended process to prevent leaks,
+            # then cancel the pending resource request.
+            if enter_proc.is_alive:
+                enter_proc.interrupt("deadlock_timeout")
+            self._traffic_manager.cancel(agv)
+
+            # Try to reroute avoiding the blocked node
+            alt_path = self._path_planner.plan(
+                self.graph, current_node, original_dest, avoid=[next_node]
+            )
+            if alt_path is not None and len(alt_path) >= 2:
+                # Found alternative — update next_node target for the
+                # next attempt.  Re-register intent and try the first
+                # step of the new path.
+                self._traffic_manager.register_intent(agv, alt_path)
+                next_node = alt_path[1]
+                enter_proc2 = self.env.process(
+                    self._traffic_manager.enter_node(agv, next_node)
+                )
+                timer2 = self.env.timeout(timeout)
+                yield enter_proc2 | timer2
+                if enter_proc2.triggered:
+                    return True
+                if enter_proc2.is_alive:
+                    enter_proc2.interrupt("deadlock_timeout")
+                self._traffic_manager.cancel(agv)
+
+            # Exponential backoff before retrying original node
+            backoff = timeout * (2 ** attempt)
+            yield self.env.timeout(backoff)
+            # Re-register intent for original path
+            remaining_path = self._path_planner.plan(self.graph, current_node, original_dest)
+            if remaining_path is not None:
+                self._traffic_manager.register_intent(agv, remaining_path)
+                if len(remaining_path) >= 2:
+                    next_node = remaining_path[1]
+
+        return False
+
+    def _initial_placement(self) -> ProcessGenerator:
+        """Register starting positions of all AGVs with the traffic manager (S1)."""
+        for agv in self.fleet:
+            if agv.current_node is not None:
+                yield from self._traffic_manager.place(agv, agv.current_node)
 
     def _charge_agv(self, agv: AGV, station: ChargingStation | None = None) -> ProcessGenerator:
         """Navigate to a charging station and recharge."""

@@ -25,6 +25,8 @@ class PathCheckResult:
 
 @runtime_checkable
 class TrafficManager(Protocol):
+    @property
+    def deadlock_timeout(self) -> float | None: ...
     def place(self, agv: AGV, node: Node) -> ProcessGenerator: ...
     def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult: ...
     def register_intent(self, agv: AGV, path: list[Node]) -> None: ...
@@ -34,6 +36,10 @@ class TrafficManager(Protocol):
 
 
 class FreeTrafficManager:
+    @property
+    def deadlock_timeout(self) -> float | None:
+        return None
+
     def place(self, agv: AGV, node: Node) -> ProcessGenerator:  # noqa: ARG002
         return
         yield  # make it a generator
@@ -78,6 +84,10 @@ class ResourceBasedTrafficManager:
         for node in graph._nodes:
             self._node_resources[node] = simpy.Resource(env, capacity=node_capacity)
 
+    @property
+    def deadlock_timeout(self) -> float | None:
+        return self._deadlock_timeout
+
     def place(self, agv: AGV, node: Node) -> ProcessGenerator:
         resource = self._node_resources[node]
         req = resource.request()
@@ -116,7 +126,17 @@ class ResourceBasedTrafficManager:
         req = resource.request()
         self._node_requests[(agv, node)] = req
         self._pending_requests[agv] = req
-        yield req
+        try:
+            yield req
+        except simpy.Interrupt:
+            # Interrupted by deadlock timeout — clean up local state only.
+            # The actual resource request cancellation is handled by cancel()
+            # which is called from _enter_with_timeout after the interrupt.
+            self._pending_requests.pop(agv, None)
+            key = (agv, node)
+            if key in self._node_requests and self._node_requests[key] is req:
+                del self._node_requests[key]
+            return
         self._pending_requests.pop(agv, None)
         self._env.debug(
             f"{agv.agv_id} entered node {node.id}",
@@ -145,3 +165,7 @@ class ResourceBasedTrafficManager:
             req = self._pending_requests.pop(agv)
             if not req.triggered:
                 req.cancel()
+            # Also clean up the _node_requests entry for this pending request
+            stale_keys = [k for k, v in self._node_requests.items() if k[0] is agv and v is req]
+            for key in stale_keys:
+                del self._node_requests[key]
