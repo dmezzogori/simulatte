@@ -749,11 +749,12 @@ class TestTravelCorrectness:
     def test_infeasible_check_path_no_alternative_order_failed(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
-        """T6: When check_path finds conflict and no alternative route exists,
-        the order should eventually FAIL or complete via timeout/reroute."""
+        """T6: When check_path finds a conflict and no alternative route exists
+        on a linear graph, the second AGV's order must be FAILED."""
         # Linear graph: A -- B -- C.  Two AGVs both at A, trying to go to C.
-        # With node_capacity=1, the first AGV occupies B.  The second AGV's
-        # path through B is infeasible and there's no alternative.
+        # AGV-1 registers intent [A, B, C].  AGV-2's check_path detects
+        # conflict on {B, C}.  No alternative route exists (linear graph),
+        # so H2 sets STRANDED and returns False.
         node_a = Node(id="A", x=0.0, y=0.0)
         node_b = Node(id="B", x=5.0, y=0.0)
         node_c = Node(id="C", x=10.0, y=0.0)
@@ -797,14 +798,12 @@ class TestTravelCorrectness:
         coordinator.submit(order1)
         coordinator.submit(order2)
 
-        # Run with a generous time bound
         env.run(until=500.0)
 
-        # At least one order should complete; the other may fail or also complete
-        # (the first AGV frees nodes as it moves, so the second may eventually
-        # succeed via timeout/reroute). The key assertion: no infinite hang.
-        statuses = {order1.status, order2.status}
-        assert OrderStatus.COMPLETED in statuses or OrderStatus.FAILED in statuses
+        # First order completes; second order FAILS because H2 cannot
+        # find an alternative path on this linear topology.
+        assert order1.status == OrderStatus.COMPLETED
+        assert order2.status == OrderStatus.FAILED
 
     def test_arc_speed_limit_passed_to_speed_profile(
         self, env: Environment, sku_a: SKU
@@ -1051,32 +1050,30 @@ class TestTravelCorrectness:
         timeout path. A stationary AGV (placed, no intent) occupies a
         chokepoint node. The traveling AGV's check_path sees no conflict
         (no intent from the stationary AGV), but enter_node blocks on the
-        occupied resource. The timeout must fire and the AGV must either
-        reroute or gracefully fail.
+        occupied resource.
+
+        ``_enter_with_timeout`` retries the same node with exponential
+        backoff.  After exhausting retries (3 by default), the AGV is
+        STRANDED and the order FAILS gracefully — no infinite hang.
 
         Graph:  START -- CHOKE -- END
-                  \\              /
-                   -- ALT ------
 
         Stationary AGV is placed on CHOKE (capacity=1). Traveling AGV
         plans START-CHOKE-END, check_path passes, enter_node blocks.
-        After timeout, it should reroute through ALT.
         """
         node_start = Node(id="START", x=0.0, y=0.0)
         node_choke = Node(id="CHOKE", x=5.0, y=0.0)
-        node_alt = Node(id="ALT", x=5.0, y=5.0)
         node_end = Node(id="END", x=10.0, y=0.0)
 
         arcs = [
             Arc(source=node_start, target=node_choke),
             Arc(source=node_choke, target=node_end),
-            Arc(source=node_start, target=node_alt),
-            Arc(source=node_alt, target=node_end),
         ]
-        graph = LayoutGraph([node_start, node_choke, node_alt, node_end], arcs)
+        graph = LayoutGraph([node_start, node_choke, node_end], arcs)
 
+        deadlock_timeout = 2.0
         traffic = ResourceBasedTrafficManager(
-            graph=graph, env=env, node_capacity=1, deadlock_timeout=2.0,
+            graph=graph, env=env, node_capacity=1, deadlock_timeout=deadlock_timeout,
         )
 
         wh_start = Warehouse(
@@ -1094,7 +1091,7 @@ class TestTravelCorrectness:
 
         agv_type = _make_agv_type(simple_speed)
 
-        # Stationary AGV: placed on CHOKE, never dispatched, no intent registered
+        # Stationary AGV: placed on CHOKE, never dispatched, no intent
         agv_blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=node_choke)
         # Traveling AGV: starts at START, mission to END
         agv_traveler = AGV(env=env, agv_type=agv_type, agv_id="traveler", initial_node=node_start)
@@ -1109,16 +1106,20 @@ class TestTravelCorrectness:
         env.run(until=0.001)
         assert traffic._node_resources[node_choke].count == 1
 
+        t_before = env.now
         order = coordinator.create_order(
             sku=sku_a, quantity=10, origin=wh_start, destination=wh_end
         )
         coordinator.submit(order)
 
-        # Run with generous time limit
+        # Run with generous time limit — must NOT hang
         env.run(until=500.0)
 
-        # The traveler should have rerouted through ALT and completed,
-        # or failed gracefully if reroute also didn't work
-        assert order.status in {OrderStatus.COMPLETED, OrderStatus.FAILED}
-        # With the ALT route available, it should complete
-        assert order.status == OrderStatus.COMPLETED
+        # After exhausting retries the order must FAIL gracefully
+        assert order.status == OrderStatus.FAILED
+        assert agv_traveler.state == AGVState.STRANDED
+
+        # Verify that time actually passed (timeout + backoff was applied)
+        # 3 retries: timeout(2) + backoff(2), timeout(2) + backoff(4), timeout(2)
+        # = 2 + 2 + 2 + 4 + 2 = 12 seconds minimum
+        assert env.now - t_before >= deadlock_timeout

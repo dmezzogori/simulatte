@@ -429,30 +429,30 @@ class FleetCoordinator:
 
         # H2: Check path feasibility with traffic manager. If infeasible,
         # try to re-plan avoiding conflict nodes. If the alternative is
-        # also infeasible or unavailable, fall back to the original path —
-        # the actual resource constraints are enforced at enter_node time
-        # (where S2's deadlock timeout handles true blocking).
+        # also unavailable or infeasible, STRAND — do NOT register and
+        # drive the original infeasible path.
         result = self._traffic_manager.check_path(agv, path)
         if not result.feasible and result.conflict_nodes:
             alt_path = self._path_planner.plan(
                 self.graph, from_node, to_node, avoid=result.conflict_nodes
             )
-            if alt_path is not None:
-                alt_result = self._traffic_manager.check_path(agv, alt_path)
-                if alt_result.feasible:
-                    path = alt_path
-                else:
-                    self.env.warning(
-                        f"Alternative path also has conflicts from {from_node.id} to {to_node.id} "
-                        f"for {agv.agv_id} — proceeding with original path",
-                        component="FleetCoordinator",
-                    )
-            else:
-                self.env.warning(
-                    f"No alternative path from {from_node.id} to {to_node.id} for {agv.agv_id} "
-                    f"— proceeding with original path despite conflicts",
+            if alt_path is None:
+                self.env.error(
+                    f"No alternative path from {from_node.id} to {to_node.id} for {agv.agv_id}",
                     component="FleetCoordinator",
                 )
+                agv.transition_to(AGVState.STRANDED)
+                return False
+            alt_result = self._traffic_manager.check_path(agv, alt_path)
+            if not alt_result.feasible:
+                self.env.error(
+                    f"Alternative path also infeasible from {from_node.id} to {to_node.id} "
+                    f"for {agv.agv_id}",
+                    component="FleetCoordinator",
+                )
+                agv.transition_to(AGVState.STRANDED)
+                return False
+            path = alt_path
 
         self._traffic_manager.register_intent(agv, path)
 
@@ -514,7 +514,7 @@ class FleetCoordinator:
                 # S2: Enter next node with deadlock timeout when applicable
                 if deadlock_timeout is not None:
                     entered = yield from self._enter_with_timeout(
-                        agv, next_node, current, from_node, to_node, deadlock_timeout
+                        agv, next_node, deadlock_timeout
                     )
                     if not entered:
                         agv.transition_to(AGVState.STRANDED)
@@ -539,24 +539,23 @@ class FleetCoordinator:
     def _enter_with_timeout(
         self,
         agv: AGV,
-        next_node: Node,
-        current_node: Node,
-        final_dest: Node,
-        original_dest: Node,
+        node: Node,
         timeout: float,
         _max_retries: int = 3,
     ) -> ProcessGenerator:
-        """Try to enter ``next_node`` with a deadlock timeout.
+        """Try to enter ``node`` with a deadlock timeout.
 
-        On timeout, attempt to reroute around the blocked node. Uses
-        exponential backoff up to ``_max_retries`` before giving up.
+        Retries the *same* node up to ``_max_retries`` times with
+        exponential backoff.  Does **not** attempt rerouting — if all
+        retries are exhausted the caller (``_travel``) returns ``False``
+        so ``_run_mission``'s retry loop can re-plan from scratch.
 
         Returns ``True`` if the node was entered, ``False`` if all
         attempts were exhausted.
         """
         for attempt in range(_max_retries):
             enter_proc = self.env.process(
-                self._traffic_manager.enter_node(agv, next_node)
+                self._traffic_manager.enter_node(agv, node)
             )
             timer = self.env.timeout(timeout)
             yield enter_proc | timer
@@ -571,36 +570,10 @@ class FleetCoordinator:
                 enter_proc.interrupt("deadlock_timeout")
             self._traffic_manager.cancel(agv)
 
-            # Try to reroute avoiding the blocked node
-            alt_path = self._path_planner.plan(
-                self.graph, current_node, original_dest, avoid=[next_node]
-            )
-            if alt_path is not None and len(alt_path) >= 2:
-                # Found alternative — update next_node target for the
-                # next attempt.  Re-register intent and try the first
-                # step of the new path.
-                self._traffic_manager.register_intent(agv, alt_path)
-                next_node = alt_path[1]
-                enter_proc2 = self.env.process(
-                    self._traffic_manager.enter_node(agv, next_node)
-                )
-                timer2 = self.env.timeout(timeout)
-                yield enter_proc2 | timer2
-                if enter_proc2.triggered:
-                    return True
-                if enter_proc2.is_alive:
-                    enter_proc2.interrupt("deadlock_timeout")
-                self._traffic_manager.cancel(agv)
-
-            # Exponential backoff before retrying original node
-            backoff = timeout * (2 ** attempt)
-            yield self.env.timeout(backoff)
-            # Re-register intent for original path
-            remaining_path = self._path_planner.plan(self.graph, current_node, original_dest)
-            if remaining_path is not None:
-                self._traffic_manager.register_intent(agv, remaining_path)
-                if len(remaining_path) >= 2:
-                    next_node = remaining_path[1]
+            # Exponential backoff before retrying the same node
+            if attempt < _max_retries - 1:
+                backoff = timeout * (2 ** attempt)
+                yield self.env.timeout(backoff)
 
         return False
 
