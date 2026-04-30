@@ -48,7 +48,10 @@
 | `tests/intralogistics/test_policies.py` | Tests for policy protocols + built-in implementations |
 | `tests/intralogistics/test_coordinator.py` | Tests for FleetCoordinator |
 | `tests/intralogistics/test_metrics.py` | Tests for metrics collectors |
+| `tests/intralogistics/test_builders.py` | Tests for builders and public API surface |
 | `tests/intralogistics/test_integration.py` | End-to-end integration tests |
+| `tests/intralogistics/test_logging.py` | Tests for env.debug() logging in all components |
+| `tests/intralogistics/test_import_audit.py` | Tests for dependency rule enforcement |
 
 ### Files to modify
 
@@ -95,7 +98,9 @@ Task 13: Metrics ─── depends on Tasks 6, 11          │
 Task 14: FleetCoordinator ─── depends on ALL above ──┤
 Task 15: Builders + __init__.py ─── depends on ALL   │
 Task 16: Cleanup experimental/ ───────────────────────┤
-Task 17: Integration Tests ───────────────────────────┘
+Task 17: Integration Tests ───────────────────────────┤
+Task 18: Logging ─── depends on ALL above ────────────┤
+Task 19: Import Audit ────────────────────────────────┘
 ```
 
 ---
@@ -306,21 +311,11 @@ class TestLayoutGraph:
         nodes, graph = self._make_line_graph()
         assert graph.arc_between(nodes[0], nodes[2]) is None
 
-    def test_shortest_path(self) -> None:
+    def test_shortest_path_not_available_yet(self) -> None:
+        """shortest_path is added in Task 3 after DijkstraPlanner exists."""
         nodes, graph = self._make_line_graph()
-        path = graph.shortest_path(nodes[0], nodes[3])
-        assert path == [nodes[0], nodes[1], nodes[2], nodes[3]]
-
-    def test_shortest_path_no_route(self) -> None:
-        n1 = Node(id="A", x=0.0, y=0.0)
-        n2 = Node(id="B", x=1.0, y=0.0)
-        graph = LayoutGraph([n1, n2], [])
-        assert graph.shortest_path(n1, n2) is None
-
-    def test_shortest_path_same_node(self) -> None:
-        n1 = Node(id="A", x=0.0, y=0.0)
-        graph = LayoutGraph([n1], [])
-        assert graph.shortest_path(n1, n1) == [n1]
+        with pytest.raises(NotImplementedError):
+            graph.shortest_path(nodes[0], nodes[3])
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -334,7 +329,6 @@ Expected: FAIL — `ModuleNotFoundError`
 # src/simulatte/intralogistics/graph.py
 from __future__ import annotations
 
-import heapq
 import math
 from collections import defaultdict
 from dataclasses import dataclass
@@ -380,31 +374,7 @@ class LayoutGraph:
         return math.hypot(target.x - source.x, target.y - source.y)
 
     def shortest_path(self, source: Node, target: Node) -> list[Node] | None:
-        if source == target:
-            return [source]
-        dist: dict[Node, float] = {source: 0.0}
-        prev: dict[Node, Node] = {}
-        heap: list[tuple[float, str, Node]] = [(0.0, source.id, source)]
-        while heap:
-            d, _, node = heapq.heappop(heap)
-            if node == target:
-                path = []
-                current = target
-                while current in prev:
-                    path.append(current)
-                    current = prev[current]
-                path.append(source)
-                return list(reversed(path))
-            if d > dist.get(node, float("inf")):
-                continue
-            for neighbor in self.neighbors(node):
-                edge_dist = math.hypot(neighbor.x - node.x, neighbor.y - node.y)
-                new_dist = d + edge_dist
-                if new_dist < dist.get(neighbor, float("inf")):
-                    dist[neighbor] = new_dist
-                    prev[neighbor] = node
-                    heapq.heappush(heap, (new_dist, neighbor.id, neighbor))
-        return None
+        raise NotImplementedError("shortest_path requires DijkstraPlanner — added in Task 3")
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -635,11 +605,52 @@ class AStarPlanner:
 Run: `uv run pytest tests/intralogistics/test_pathfinding.py -v`
 Expected: All 9 tests PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Add shortest_path to LayoutGraph using DijkstraPlanner**
+
+Now that `DijkstraPlanner` exists, update `LayoutGraph.shortest_path()` to delegate to it, and add tests:
+
+Update `src/simulatte/intralogistics/graph.py` — replace the `NotImplementedError` stub:
+
+```python
+    def shortest_path(self, source: Node, target: Node) -> list[Node] | None:
+        from simulatte.intralogistics.pathfinding import DijkstraPlanner
+        return DijkstraPlanner().plan(self, source, target)
+```
+
+Add tests to `tests/intralogistics/test_pathfinding.py`:
+
+```python
+class TestLayoutGraphShortestPath:
+    def test_shortest_path_delegates_to_dijkstra(self) -> None:
+        nodes, graph = _make_grid()
+        path = graph.shortest_path(nodes["A"], nodes["D"])
+        assert path is not None
+        assert path == [nodes["A"], nodes["B"], nodes["D"]] or path == [nodes["A"], nodes["C"], nodes["D"]]
+
+    def test_shortest_path_no_route(self) -> None:
+        n1 = Node(id="A", x=0.0, y=0.0)
+        n2 = Node(id="B", x=1.0, y=0.0)
+        graph = LayoutGraph([n1, n2], [])
+        assert graph.shortest_path(n1, n2) is None
+
+    def test_shortest_path_same_node(self) -> None:
+        n1 = Node(id="A", x=0.0, y=0.0)
+        graph = LayoutGraph([n1], [])
+        assert graph.shortest_path(n1, n1) == [n1]
+```
+
+Run: `uv run pytest tests/intralogistics/test_pathfinding.py tests/intralogistics/test_graph.py -v`
+Expected: All tests PASS (including the old Task 2 graph test which now no longer raises NotImplementedError)
+
+- [ ] **Step 6: Update Task 2 graph test to expect working shortest_path**
+
+Remove the `test_shortest_path_not_available_yet` test from `test_graph.py` since `shortest_path` now works.
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/simulatte/intralogistics/pathfinding.py tests/intralogistics/test_pathfinding.py
-git commit -m "feat(intralogistics): add PathPlanner protocol with Dijkstra and A* implementations"
+git add src/simulatte/intralogistics/graph.py src/simulatte/intralogistics/pathfinding.py tests/intralogistics/test_pathfinding.py tests/intralogistics/test_graph.py
+git commit -m "feat(intralogistics): add PathPlanner protocol with Dijkstra/A*, wire LayoutGraph.shortest_path"
 ```
 
 ---
@@ -875,6 +886,17 @@ class TestTrapezoidalProfile:
         t_loaded = profile.travel_time(distance=10.0, load_weight=50.0)
         assert t_loaded > t_empty
 
+    def test_zero_battery_infinite_time(self) -> None:
+        profile = TrapezoidalProfile(max_speed=2.0, acceleration=1.0, deceleration=1.0)
+        t = profile.travel_time(distance=10.0, battery_level=0.0)
+        assert t == float("inf")
+
+    def test_default_battery_degradation_is_linear(self) -> None:
+        profile = TrapezoidalProfile(max_speed=2.0, acceleration=1.0, deceleration=1.0)
+        t_full = profile.travel_time(distance=10.0, battery_level=1.0)
+        t_half = profile.travel_time(distance=10.0, battery_level=0.5)
+        assert t_half > t_full
+
     def test_protocol_conformance(self) -> None:
         from simulatte.intralogistics.speed import SpeedProfile
         profile = TrapezoidalProfile(max_speed=2.0, acceleration=1.0, deceleration=1.0)
@@ -922,7 +944,7 @@ class TrapezoidalProfile:
         self._max_speed = max_speed
         self._acceleration = acceleration
         self._deceleration = deceleration
-        self._battery_degradation_fn = battery_degradation_fn or (lambda _: 1.0)
+        self._battery_degradation_fn = battery_degradation_fn or (lambda level: level)
         self._load_speed_factor_fn = load_speed_factor_fn or (lambda _: 1.0)
 
     def travel_time(
@@ -937,17 +959,16 @@ class TrapezoidalProfile:
 
         battery_factor = self._battery_degradation_fn(battery_level)
         load_factor = self._load_speed_factor_fn(load_weight)
-        factor = battery_factor * load_factor
 
-        if factor <= 0:
+        if battery_factor <= 0 or load_factor <= 0:
             return float("inf")
 
-        v_max = self._max_speed * factor
+        v_max = self._max_speed * battery_factor * load_factor
         if speed_limit is not None:
             v_max = min(v_max, speed_limit)
 
-        accel = self._acceleration * factor
-        decel = self._deceleration * factor
+        accel = self._acceleration * battery_factor
+        decel = self._deceleration
 
         d_accel = v_max**2 / (2 * accel)
         d_decel = v_max**2 / (2 * decel)
@@ -1116,6 +1137,11 @@ class TestAGV:
     def test_can_carry_exceeds_weight(self, env: Environment, simple_speed_profile: TrapezoidalProfile, steel_sku: SKU) -> None:
         agv = self._make_agv(env, simple_speed_profile)
         assert agv.can_carry(steel_sku, quantity=100) is False
+
+    def test_can_carry_exceeds_volume(self, env: Environment, simple_speed_profile: TrapezoidalProfile) -> None:
+        bulky = SKU(id="BULKY", weight=0.1, volume=1.5)
+        agv = self._make_agv(env, simple_speed_profile)
+        assert agv.can_carry(bulky, quantity=2) is False
 
     def test_can_carry_incompatible_sku(self, env: Environment, simple_speed_profile: TrapezoidalProfile) -> None:
         agv_type = AGVType(
@@ -1469,6 +1495,82 @@ class TestResourceBasedTrafficManager:
         result = tm.check_path(agv2, [n3, n2, n1])
         assert result.feasible is False
         assert result.conflict_nodes is not None
+        assert n2 in result.conflict_nodes
+
+    def test_check_path_detects_shared_destination(self) -> None:
+        env = Environment()
+        n1 = Node(id="N1", x=0.0, y=0.0)
+        n2 = Node(id="N2", x=1.0, y=0.0)
+        n3 = Node(id="N3", x=2.0, y=0.0)
+        graph = LayoutGraph([n1, n2, n3], [
+            Arc(source=n1, target=n2),
+            Arc(source=n3, target=n2),
+        ])
+        tm = ResourceBasedTrafficManager(graph=graph, env=env)
+        agv1 = _make_agv(env, n1)
+        agv2 = _make_agv(env, n3)
+
+        tm.register_intent(agv1, [n1, n2])
+        result = tm.check_path(agv2, [n3, n2])
+        assert result.feasible is False
+        assert n2 in result.conflict_nodes
+
+    def test_cancel_removes_pending_request(self) -> None:
+        env = Environment()
+        n1 = Node(id="N1", x=0.0, y=0.0)
+        n2 = Node(id="N2", x=1.0, y=0.0)
+        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
+        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
+
+        agv_blocker = _make_agv(env, n2)
+        agv_waiter = _make_agv(env, n1)
+        cancel_happened = []
+
+        def block():
+            yield from tm.place(agv_blocker, n2)
+            yield env.timeout(100.0)
+
+        def try_then_cancel():
+            tm.register_intent(agv_waiter, [n1, n2])
+            req = tm._node_resources[n2].request()
+            tm._node_requests[(agv_waiter, n2)] = req
+            tm._pending_requests[agv_waiter] = req
+            yield env.timeout(2.0)
+            tm.cancel(agv_waiter)
+            cancel_happened.append(True)
+
+        env.process(block())
+        env.process(try_then_cancel())
+        env.run(until=5.0)
+
+        assert cancel_happened
+        assert agv_waiter not in tm._intents
+        assert agv_waiter not in tm._pending_requests
+
+    def test_leave_node_updates_intent(self) -> None:
+        env = Environment()
+        n1 = Node(id="N1", x=0.0, y=0.0)
+        n2 = Node(id="N2", x=1.0, y=0.0)
+        n3 = Node(id="N3", x=2.0, y=0.0)
+        graph = LayoutGraph([n1, n2, n3], [
+            Arc(source=n1, target=n2),
+            Arc(source=n2, target=n3),
+        ])
+        tm = ResourceBasedTrafficManager(graph=graph, env=env)
+        agv = _make_agv(env, n1)
+
+        tm.register_intent(agv, [n1, n2, n3])
+        assert tm._intents[agv] == [n1, n2, n3]
+
+        def move():
+            yield from tm.place(agv, n1)
+            yield from tm.enter_node(agv, n2)
+            tm.leave_node(agv, n1)
+
+        env.process(move())
+        env.run()
+
+        assert n1 not in tm._intents[agv]
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1553,6 +1655,7 @@ class ResourceBasedTrafficManager:
         self._priority_fn = priority_fn or (lambda agv: 0.0)
         self._node_resources: dict[Node, simpy.Resource] = {}
         self._node_requests: dict[tuple[AGV, Node], simpy.resources.resource.Request] = {}
+        self._pending_requests: dict[AGV, simpy.resources.resource.Request] = {}
         self._intents: dict[AGV, list[Node]] = {}
 
         for node in graph._nodes:
@@ -1568,38 +1671,20 @@ class ResourceBasedTrafficManager:
         if len(path) < 2:
             return PathCheckResult(feasible=True)
 
-        path_set = set(path[1:])
+        path_future = set(path[1:])
         conflict_nodes: list[Node] = []
 
         for other_agv, other_path in self._intents.items():
             if other_agv is agv:
                 continue
-            other_set = set(other_path)
-            shared = path_set & other_set
-            if not shared:
-                continue
-            for node in path:
-                if node in other_set:
-                    other_idx = other_path.index(node) if node in other_path else -1
-                    path_idx = path.index(node)
-                    if other_idx >= 0 and path_idx >= 0:
-                        if self._is_head_on(path, other_path, node):
-                            conflict_nodes.append(node)
+            other_future = set(other_path[1:])
+            shared = path_future & other_future
+            if shared:
+                conflict_nodes.extend(shared)
 
         if conflict_nodes:
-            return PathCheckResult(feasible=False, conflict_nodes=conflict_nodes)
+            return PathCheckResult(feasible=False, conflict_nodes=list(set(conflict_nodes)))
         return PathCheckResult(feasible=True)
-
-    def _is_head_on(self, path_a: list[Node], path_b: list[Node], shared_node: Node) -> bool:
-        try:
-            idx_a = path_a.index(shared_node)
-            idx_b = path_b.index(shared_node)
-        except ValueError:
-            return False
-        if idx_a > 0 and idx_b > 0:
-            if path_a[idx_a - 1] in path_b[idx_b:] or path_b[idx_b - 1] in path_a[idx_a:]:
-                return True
-        return False
 
     def register_intent(self, agv: AGV, path: list[Node]) -> None:
         self._intents[agv] = list(path)
@@ -1608,16 +1693,28 @@ class ResourceBasedTrafficManager:
         resource = self._node_resources[node]
         req = resource.request()
         self._node_requests[(agv, node)] = req
+        self._pending_requests[agv] = req
         yield req
+        self._pending_requests.pop(agv, None)
 
     def leave_node(self, agv: AGV, node: Node) -> None:
         key = (agv, node)
         if key in self._node_requests:
+            req = self._node_requests.pop(key)
             resource = self._node_resources[node]
-            resource.release(self._node_requests.pop(key))
+            if req.triggered:
+                resource.release(req)
+            else:
+                req.cancel()
+        if agv in self._intents and node in self._intents[agv]:
+            self._intents[agv].remove(node)
 
     def cancel(self, agv: AGV) -> None:
         self._intents.pop(agv, None)
+        if agv in self._pending_requests:
+            req = self._pending_requests.pop(agv)
+            if not req.triggered:
+                req.cancel()
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -1758,25 +1855,27 @@ class TestWarehouse:
         assert "put" in completed
         assert "pick" in completed
 
-    def test_nearest_output_bay(self, env: Environment) -> None:
+    def test_nearest_output_bay_uses_graph_distance(self, env: Environment) -> None:
+        """OUT2 is Euclidean-closer to AGV but only reachable via a long detour."""
+        #  AGV(8,0) --direct-- OUT1(0,0)   Euclidean=8, graph=8
+        #  AGV(8,0) -> D(8,5) -> OUT2(9,0) Euclidean=1, graph=8+5+sqrt(26)≈13.1
         out1 = Node(id="OUT1", x=0.0, y=0.0)
-        out2 = Node(id="OUT2", x=10.0, y=0.0)
-        in1 = Node(id="IN1", x=5.0, y=5.0)
-        agv_pos = Node(id="AGV", x=9.0, y=0.0)
+        out2 = Node(id="OUT2", x=9.0, y=0.0)
+        detour = Node(id="D", x=8.0, y=5.0)
+        agv_pos = Node(id="AGV", x=8.0, y=0.0)
         steel = SKU(id="S", weight=1.0, volume=0.1)
-        nodes = [out1, out2, in1, agv_pos]
         arcs = [
             Arc(source=agv_pos, target=out1),
-            Arc(source=agv_pos, target=out2),
-            Arc(source=agv_pos, target=in1),
+            Arc(source=agv_pos, target=detour),
+            Arc(source=detour, target=out2),
         ]
-        graph = LayoutGraph(nodes, arcs)
+        graph = LayoutGraph([out1, out2, detour, agv_pos], arcs)
         wh = Warehouse(
-            env=env, name="WH", input_bays=[in1], output_bays=[out1, out2],
+            env=env, name="WH", input_bays=[], output_bays=[out1, out2],
             n_slots=1, products=[steel], pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
         )
         nearest = wh.nearest_output_bay(agv_pos, graph)
-        assert nearest == out2
+        assert nearest == out1
 
     def test_metrics(self, env: Environment) -> None:
         wh, _ = self._make_warehouse(env)
@@ -1888,8 +1987,16 @@ class Warehouse:
         return self._nearest_bay(from_node, self.output_bays, graph)
 
     @staticmethod
-    def _nearest_bay(from_node: Node, bays: list[Node], graph: LayoutGraph) -> Node:  # noqa: ARG004
-        return min(bays, key=lambda bay: math.hypot(bay.x - from_node.x, bay.y - from_node.y))
+    def _nearest_bay(from_node: Node, bays: list[Node], graph: LayoutGraph) -> Node:
+        def _graph_distance(bay: Node) -> float:
+            path = graph.shortest_path(from_node, bay)
+            if path is None:
+                return float("inf")
+            return sum(
+                math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y)
+                for i in range(len(path) - 1)
+            )
+        return min(bays, key=_graph_distance)
 
     @property
     def average_pick_time(self) -> float:
@@ -1923,9 +2030,26 @@ git commit -m "feat(intralogistics): add Warehouse with deadlock-safe pick/put"
 - Create: `src/simulatte/intralogistics/charging.py`
 - Create: `tests/intralogistics/test_charging.py`
 
-Implementation: `ChargingStation` with `recharge()` and `swap()` methods, SimPy resource for slots, swap pool modeled as a `simpy.Container`. `swap()` raises `RuntimeError` if `supports_swap` is False. Tests cover: basic recharge timing, slot blocking, swap with available pool, swap with empty pool wait, swap unsupported raises, metrics tracking.
+Implementation details:
+- `ChargingStation` with `recharge(agv, target_pct)` and `swap(agv)` methods
+- `n_slots` as `simpy.Resource` capacity
+- Swap pool modeled as `simpy.Container` with `swap_pool_size` initial level
+- Depleted batteries re-enter the pool after `swap_recharge_time` via a background SimPy process
+- `swap()` raises `RuntimeError("Swap not supported by this station")` if `supports_swap` is False
+- `recharge_fn` on station overrides AGV battery's recharge_fn
+- Metrics: `total_recharges: int`, `total_swaps: int`, `total_occupied_time: float`
+- All operations use `env.debug()` with `component="ChargingStation"`
 
-- [ ] **Step 1: Write charging station tests** (full test code for recharge, swap, slot blocking, error cases, metrics)
+Tests must cover:
+- Basic recharge: AGV arrives with 50% battery, recharges to 100%, verify timing and battery level
+- Slot blocking: 1-slot station, two AGVs, second waits
+- Swap with available pool: near-instant swap, battery restored to full
+- Swap with empty pool: AGV waits for pool replenishment (swap_recharge_time)
+- Swap unsupported: raises RuntimeError
+- Station recharge_fn overrides AGV battery recharge_fn
+- Metrics accumulate correctly
+
+- [ ] **Step 1: Write charging station tests**
 - [ ] **Step 2: Run tests to verify they fail**
 - [ ] **Step 3: Implement ChargingStation**
 - [ ] **Step 4: Run tests to verify they pass**
@@ -1939,7 +2063,16 @@ Implementation: `ChargingStation` with `recharge()` and `swap()` methods, SimPy 
 - Create: `src/simulatte/intralogistics/parking.py`
 - Create: `tests/intralogistics/test_parking.py`
 
-Implementation: Simple SimPy resource wrapper. Tests cover: enter/leave, blocking when full, capacity tracking.
+Implementation details:
+- `ParkingArea` with `enter(agv) -> ProcessGenerator` and `leave(agv) -> None`
+- `capacity` as `simpy.Resource` capacity
+- Track per-AGV requests so `leave()` releases the correct slot
+- `env.debug()` with `component="ParkingArea"` on enter/leave
+
+Tests must cover:
+- Enter/leave lifecycle
+- Blocking when full (2 AGVs, capacity=1, second blocks until first leaves)
+- Leave releases the correct AGV's slot
 
 - [ ] **Step 1: Write parking area tests**
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1955,7 +2088,17 @@ Implementation: Simple SimPy resource wrapper. Tests cover: enter/leave, blockin
 - Create: `src/simulatte/intralogistics/order.py`
 - Create: `tests/intralogistics/test_order.py`
 
-Implementation: `OrderStatus` enum (8 values), `TransferOrder` dataclass with auto-generated UUID, status tracking, lifecycle timestamps. Tests cover: creation with defaults, auto-id generation, status transitions, all OrderStatus values exist.
+Implementation details:
+- `OrderStatus` enum: PENDING, DISPATCHED, PICKING, IN_TRANSIT, DELIVERING, COMPLETED, FAILED, CANCELLED (8 values)
+- `TransferOrder` dataclass with fields: `sku: SKU`, `quantity: int`, `origin: Warehouse`, `destination: Warehouse`, `created_at: float`, `id: str` (default_factory UUID), `due_date: float | None`, `priority: float = 0.0`, `status: OrderStatus = PENDING`, `dispatched_at: float | None`, `picked_at: float | None`, `delivered_at: float | None`, `assigned_agv: AGV | None`
+- Use `TYPE_CHECKING` guard for `AGV` and `Warehouse` imports to avoid circular deps
+
+Tests must cover:
+- Creation with defaults (auto-id generated, status=PENDING)
+- Two orders have different auto-generated IDs
+- All 8 OrderStatus values exist
+- Status field can be updated
+- Lifecycle timestamps default to None
 
 - [ ] **Step 1: Write order tests**
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1971,7 +2114,29 @@ Implementation: `OrderStatus` enum (8 values), `TransferOrder` dataclass with au
 - Create: `src/simulatte/intralogistics/policies.py`
 - Create: `tests/intralogistics/test_policies.py`
 
-Implementation: Protocol definitions for `DispatchStrategy`, `ReplenishmentPolicy`, `RepositioningPolicy`, `LoadRecoveryStrategy`. `RepositioningContext` dataclass. Built-in implementations: `NearestIdleStrategy`, `RoundRobinStrategy`, `StayInPlace`, `NearestParkingPolicy`, `ReorderPointPolicy`, `ReturnToOrigin`, `ResumeDelivery`. Tests cover: each built-in strategy's core behavior, protocol conformance, edge cases (no idle AGV, no parking with capacity, in-transit deduplication for reorder point).
+Implementation details:
+- Protocol definitions: `DispatchStrategy`, `ReplenishmentPolicy`, `RepositioningPolicy`, `LoadRecoveryStrategy`
+- `RepositioningContext` dataclass with `graph`, `parking_areas`, `charging_stations`, `fleet`
+- Use `TYPE_CHECKING` for `FleetCoordinator` in `LoadRecoveryStrategy` to avoid circular imports
+- Built-in `DispatchStrategy` implementations:
+  - `NearestIdleStrategy`: filters fleet by `agv.state == IDLE`, `agv.can_carry(sku, qty)`, finds closest to origin warehouse's nearest output bay by graph distance. Ties broken by `agv.agv_id`.
+  - `RoundRobinStrategy`: cycles through compatible idle AGVs via internal cursor
+- Built-in `RepositioningPolicy` implementations:
+  - `StayInPlace`: returns `None`
+  - `NearestParkingPolicy`: finds nearest parking area with `resource.count < resource.capacity`, returns its node
+- Built-in `ReplenishmentPolicy` implementations:
+  - `ReorderPointPolicy(thresholds, reorder_quantity)`: checks inventory level minus in-transit quantities; if below threshold, creates order from warehouse with highest stock of that SKU
+- Built-in `LoadRecoveryStrategy` implementations:
+  - `ReturnToOrigin`: returns cargo to origin warehouse, order → PENDING
+  - `ResumeDelivery`: continues original delivery
+
+Tests must cover:
+- `NearestIdleStrategy`: selects closest idle compatible AGV, returns None when no idle AGV, tie-break by agv_id
+- `RoundRobinStrategy`: cycles through AGVs
+- `StayInPlace`: returns None
+- `NearestParkingPolicy`: returns nearest parking node with capacity, returns None when all full
+- `ReorderPointPolicy`: triggers order below threshold, accounts for in-transit quantities (no duplicate order), picks source warehouse with highest stock
+- Protocol conformance for all built-ins
 
 - [ ] **Step 1: Write policy tests**
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1987,7 +2152,19 @@ Implementation: Protocol definitions for `DispatchStrategy`, `ReplenishmentPolic
 - Create: `src/simulatte/intralogistics/metrics.py`
 - Create: `tests/intralogistics/test_metrics.py`
 
-Implementation: `OrderMetricsCollector` protocol, `EMAOrderMetrics` built-in. `IntralogisticsTimeSeriesCollector` protocol, `DefaultIntralogisticsCollector` built-in. Tests cover: EMA computation correctness, time-series recording, protocol conformance.
+Implementation details:
+- `OrderMetricsCollector` protocol: `record(order: TransferOrder) -> None`
+- `EMAOrderMetrics(alpha=0.01)` built-in with fields: `ema_fulfillment_time`, `ema_dispatch_delay`, `ema_travel_time_empty`, `ema_travel_time_loaded`, `ema_late_orders`
+- `IntralogisticsTimeSeriesCollector` protocol with methods: `on_order_submitted(coordinator, order)`, `on_order_dispatched(coordinator, order, agv)`, `on_pickup_complete(coordinator, order, agv)`, `on_delivery_complete(coordinator, order, agv)`, `on_agv_state_changed(coordinator, agv, old, new)`
+- `DefaultIntralogisticsCollector` built-in with fields: `fleet_utilization_ts`, `pending_orders_ts`, `throughput_ts`, `inventory_ts` — each as `list[tuple[float, ...]]`
+- Plot methods: `plot_fleet_utilization()`, `plot_pending_orders()`, `plot_throughput()`, `plot_inventory(warehouse)` with matplotlib
+- Use `TYPE_CHECKING` for `FleetCoordinator` import
+
+Tests must cover:
+- `EMAOrderMetrics.record()`: verify EMA computation (first record sets value, subsequent records smooth)
+- `EMAOrderMetrics` correctly computes `ema_late_orders` from `due_date` vs `delivered_at`
+- `DefaultIntralogisticsCollector`: each callback appends to correct time-series list
+- Protocol conformance
 
 - [ ] **Step 1: Write metrics tests**
 - [ ] **Step 2: Run tests to verify they fail**
@@ -2003,46 +2180,64 @@ Implementation: `OrderMetricsCollector` protocol, `EMAOrderMetrics` built-in. `I
 - Create: `src/simulatte/intralogistics/coordinator.py`
 - Create: `tests/intralogistics/test_coordinator.py`
 
-This is the largest and most complex task. Implementation includes:
-- Constructor with all policy/strategy defaults
-- `submit()` and `cancel()` with process ownership
-- `create_order()` factory
-- `_run_mission()` SimPy process implementing the full mission lifecycle
-- `_travel()` helper implementing the movement loop with pre-arc battery check
-- `_handle_interruption()` for interrupt cleanup
-- Battery management (low/critical/stranded detection)
-- Lifecycle hook registration and firing
-- `add_replenishment_policy()` with periodic/event-driven checking
-- Pending order queue with wake-on-idle
-- Fleet-level convenience properties
+This is the largest and most complex task. Split into 5 sub-commits.
 
-Tests should cover:
-- Simple end-to-end mission (submit order → AGV travels → picks → travels → delivers)
-- Order queuing when no AGV available
-- Mission cancellation
-- Battery depletion during travel
-- Low battery → charge after mission
-- Pre-arc battery check → divert to charging
-- Lifecycle hook firing order
-- Replenishment policy triggering
-- `create_order()` factory
-- Fleet utilization and time allocation
+Implementation includes:
+- Constructor with all policy/strategy defaults (FreeTrafficManager, DijkstraPlanner, NearestIdleStrategy, StayInPlace, ReturnToOrigin, EMAOrderMetrics)
+- `_active_missions: dict[TransferOrder, simpy.Process]` and `_agv_mission: dict[AGV, TransferOrder]`
+- `submit(order)`: dispatches AGV via DispatchStrategy, spawns SimPy process, stores handle. If no AGV: order enters `_pending_queue`. Configurable `max_dispatch_retries` — if exceeded, order → FAILED.
+- `cancel(order)`: checks `process.is_alive` before `process.interrupt("cancelled")`, cleans up
+- `create_order(sku, quantity, origin, destination, **kwargs) -> TransferOrder`
+- `_run_mission(order, agv)`: full lifecycle with `try/except simpy.Interrupt` — status transitions (DISPATCHED → PICKING → IN_TRANSIT → DELIVERING → COMPLETED), AGV state transitions, hook firing
+- `_travel(agv, origin_node, dest_node, loaded)`: implements movement loop from spec §4 — path planning, check_path/register_intent, pre-arc battery feasibility check (`energy_cost = depletion_fn(distance, load_weight, avg_speed)`; if `battery.level < energy_cost` → divert to charging or STRANDED), hop-by-hop enter/leave, battery deplete
+- `_handle_interruption(order, agv, cause)`: inspects `agv.current_load` — empty → re-queue order; present → delegate to `LoadRecoveryStrategy`. Cleans up traffic reservations via `cancel()`.
+- `_charge_agv(agv)`: navigate to nearest charging station, recharge, return
+- Battery management: after each arc, check `is_low` flag for post-mission charge. Pre-arc check catches insufficient energy.
+- `add_replenishment_policy(policy, warehouse, check_interval)`: periodic (SimPy process) or event-driven (hook on warehouse pick)
+- Pending queue: checked when AGV transitions to IDLE
+- Hook registration: all 8 hooks from spec §9
+- Fleet convenience: `fleet_utilization`, `fleet_time_allocation`, `agv_report`
+- All operations use `env.debug()` with `component="FleetCoordinator"`
+- `_travel()` cleanup: `try/except/finally` ensuring AGV never releases physically occupied node but cancels unreached requests
 
-- [ ] **Step 1: Write coordinator tests** (start with the simplest end-to-end test)
+Tests must cover (sub-commit 1 — basic lifecycle):
+- Simple end-to-end: 2 warehouses, 1 AGV, submit order → AGV travels → picks → travels → delivers → COMPLETED
+- Order status transitions verified at each stage
+- AGV state transitions verified
+- `create_order()` factory sets `created_at` to `env.now`
+
+Tests (sub-commit 2 — cancellation and battery):
+- Cancel order mid-travel (before pickup): order → CANCELLED, AGV → IDLE
+- Cancel order after pickup: LoadRecoveryStrategy.recover() called (ReturnToOrigin default)
+- Low battery after mission → AGV charges before going idle
+- Pre-arc battery check: insufficient energy → divert to charging (state sequence: TRAVELING_EMPTY → TRAVELING_EMPTY to charger → CHARGING → resume)
+- Stranded AGV: no reachable charging station → AGV → STRANDED, order handled
+- Interrupted during Warehouse.pick(): inventory rolled back (committed quantity returned to Container)
+- `process.is_alive` check: cancelling already-completed order does not raise
+
+Tests (sub-commit 3 — hooks, replenishment, pending queue, fleet metrics):
+- All 8 lifecycle hooks fire with correct arguments
+- Replenishment policy triggers TransferOrder when inventory drops below threshold
+- Pending queue: submit 2 orders with 1 AGV, second order waits, completes after first
+- Unfulfillable order: no compatible AGV → order → FAILED after retries
+- `fleet_utilization` and `fleet_time_allocation` return correct values
+- Traffic deadlock handling in coordinator: two AGVs on shared corridor, Layer 2 reroute via avoid parameter
+
+- [ ] **Step 1: Write basic lifecycle coordinator tests**
 - [ ] **Step 2: Run tests to verify they fail**
-- [ ] **Step 3: Implement FleetCoordinator core** (constructor, submit, _run_mission with basic lifecycle)
+- [ ] **Step 3: Implement FleetCoordinator core** (constructor, submit, _run_mission, _travel)
 - [ ] **Step 4: Run tests to verify they pass**
 - [ ] **Step 5: Commit** — `git commit -m "feat(intralogistics): add FleetCoordinator with mission lifecycle"`
-- [ ] **Step 6: Write tests for cancellation and battery management**
+- [ ] **Step 6: Write cancellation and battery tests**
 - [ ] **Step 7: Run tests to verify they fail**
-- [ ] **Step 8: Implement cancel(), battery management, interrupt handling**
+- [ ] **Step 8: Implement cancel(), _handle_interruption(), _charge_agv(), battery management, interrupt-safe Warehouse.pick() rollback**
 - [ ] **Step 9: Run tests to verify they pass**
-- [ ] **Step 10: Commit** — `git commit -m "feat(intralogistics): add mission cancellation and battery management"`
-- [ ] **Step 11: Write tests for hooks, replenishment, pending queue, fleet metrics**
+- [ ] **Step 10: Commit** — `git commit -m "feat(intralogistics): add mission cancellation, battery management, interrupt safety"`
+- [ ] **Step 11: Write hooks, replenishment, pending queue, deadlock, fleet metrics tests**
 - [ ] **Step 12: Run tests to verify they fail**
-- [ ] **Step 13: Implement hooks, replenishment policy wiring, pending queue, fleet convenience**
+- [ ] **Step 13: Implement hooks, replenishment policy wiring, pending queue, fleet convenience, deadlock handling in _travel()**
 - [ ] **Step 14: Run tests to verify they pass**
-- [ ] **Step 15: Commit** — `git commit -m "feat(intralogistics): add lifecycle hooks, replenishment policies, fleet metrics"`
+- [ ] **Step 15: Commit** — `git commit -m "feat(intralogistics): add lifecycle hooks, replenishment, pending queue, fleet metrics"`
 
 ---
 
@@ -2051,10 +2246,18 @@ Tests should cover:
 **Files:**
 - Modify: `src/simulatte/intralogistics/__init__.py`
 - Create: `src/simulatte/intralogistics/builders.py`
+- Create: `tests/intralogistics/test_builders.py`
 
-Implementation: `__init__.py` exports all public types. `builders.py` provides convenience factory functions for common configurations (e.g., `build_simple_system()` that creates a graph, warehouses, AGVs, and coordinator with sensible defaults).
+Implementation details:
+- `__init__.py` with `__all__` listing all public types: `Node`, `Arc`, `LayoutGraph`, `PathPlanner`, `DijkstraPlanner`, `AStarPlanner`, `PathCheckResult`, `TrafficManager`, `FreeTrafficManager`, `ResourceBasedTrafficManager`, `SKU`, `AGV`, `AGVType`, `AGVState`, `SpeedProfile`, `TrapezoidalProfile`, `Battery`, `Warehouse`, `ChargingStation`, `ParkingArea`, `OrderStatus`, `TransferOrder`, `DispatchStrategy`, `NearestIdleStrategy`, `RoundRobinStrategy`, `ReplenishmentPolicy`, `ReorderPointPolicy`, `RepositioningPolicy`, `RepositioningContext`, `StayInPlace`, `NearestParkingPolicy`, `LoadRecoveryStrategy`, `ReturnToOrigin`, `ResumeDelivery`, `FleetCoordinator`, `OrderMetricsCollector`, `EMAOrderMetrics`, `IntralogisticsTimeSeriesCollector`, `DefaultIntralogisticsCollector`
+- `builders.py` provides `build_simple_system()` factory
 
-- [ ] **Step 1: Write builder tests**
+Tests must cover:
+- All public types importable from `simulatte.intralogistics`
+- `build_simple_system()` creates a working coordinator with graph, warehouses, AGVs
+- No forbidden imports (Server, ShopFloor, ProductionJob) in any intralogistics module
+
+- [ ] **Step 1: Write builder and import surface tests**
 - [ ] **Step 2: Run tests to verify they fail**
 - [ ] **Step 3: Implement builders and __init__.py exports**
 - [ ] **Step 4: Run tests to verify they pass**
@@ -2122,20 +2325,108 @@ git commit -m "refactor: remove experimental AGV/Warehouse/MaterialCoordinator (
 **Files:**
 - Create: `tests/intralogistics/test_integration.py`
 
-End-to-end tests that exercise the full system:
-1. Two warehouses, one AGV, one transfer order — complete mission lifecycle
-2. Multiple AGVs, concurrent orders, verify FIFO completion
-3. AGV battery runs low during mission — charges then completes
-4. Replenishment policy triggers automatic transfer orders
-5. Order cancellation mid-mission
-6. Traffic management with two AGVs on shared corridor
+End-to-end tests that exercise the full system. Write tests first (they should fail if any component is broken), then verify they pass.
+
+Tests must cover:
+1. **Full mission lifecycle**: Two warehouses (WH-A with steel, WH-B empty), one AGV, one transfer order. Verify: order PENDING → DISPATCHED → PICKING → IN_TRANSIT → DELIVERING → COMPLETED, AGV state sequence, inventory changes, timestamps set.
+2. **Concurrent orders**: 3 AGVs, 5 orders submitted simultaneously. All orders complete. Verify order of completion is reasonable.
+3. **Battery management**: AGV with limited battery (enough for ~2 arcs). Order requires 4-arc trip. Verify AGV charges mid-mission and completes delivery.
+4. **Replenishment**: WH-B has ReorderPointPolicy with threshold=10 for steel. Picks deplete to below threshold. Verify automatic transfer order created from WH-A.
+5. **Order cancellation**: Cancel order after dispatch but before pickup. Verify AGV goes idle, order → CANCELLED.
+6. **Traffic with ResourceBasedTrafficManager**: Two AGVs on a 3-node corridor. Both need to traverse. Verify both complete without deadlock.
+7. **Stranded AGV**: AGV with near-zero battery, no reachable charging station. Verify AGV → STRANDED, order handled.
+8. **Warehouse stockout does not deadlock**: pick blocks on empty inventory, put restocks, pick completes. Single-slot warehouse.
 
 - [ ] **Step 1: Write integration tests**
-- [ ] **Step 2: Run tests to verify they pass** (everything is already implemented)
+- [ ] **Step 2: Run tests to verify they pass**
 - [ ] **Step 3: Commit** — `git commit -m "test(intralogistics): add end-to-end integration tests"`
 
 ---
 
+## Task 18: Logging
+
+**Files:**
+- Modify: all `src/simulatte/intralogistics/*.py` files
+- Create: `tests/intralogistics/test_logging.py`
+
+Add `env.debug()` calls with appropriate `component` tags to all intralogistics components, as required by spec §10:
+- `component="FleetCoordinator"`: order submitted/dispatched/completed, mission start/end, battery events
+- `component="AGV"`: state transitions
+- `component="Warehouse"`: pick started/completed, put started/completed, inventory levels
+- `component="TrafficManager"`: path check results, node enter/leave, conflict detection
+- `component="ChargingStation"`: recharge started/completed, swap started/completed
+
+Tests must cover:
+- Run a simple simulation, query `env.log_history` for events with each component tag
+- Verify `env.logger.disable_component("AGV")` suppresses AGV logs but not others
+
+- [ ] **Step 1: Write logging tests**
+- [ ] **Step 2: Add env.debug() calls to all components**
+- [ ] **Step 3: Run tests to verify they pass**
+- [ ] **Step 4: Commit** — `git commit -m "feat(intralogistics): add env.debug() logging to all components"`
+
+---
+
+## Task 19: Import Audit
+
+**Files:**
+- Create: `tests/intralogistics/test_import_audit.py`
+
+A test that programmatically verifies the dependency rules from spec §2:
+- No intralogistics module imports from `simulatte.server`, `simulatte.shopfloor`, `simulatte.job`, `simulatte.typing`, `simulatte.policies`, `simulatte.psp`, `simulatte.router`, or `simulatte.builders`
+- All intralogistics modules have `from __future__ import annotations`
+
+```python
+# tests/intralogistics/test_import_audit.py
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+
+
+INTRALOGISTICS_DIR = Path("src/simulatte/intralogistics")
+FORBIDDEN_IMPORTS = {
+    "simulatte.server", "simulatte.shopfloor", "simulatte.job",
+    "simulatte.typing", "simulatte.policies", "simulatte.psp",
+    "simulatte.router", "simulatte.builders",
+}
+
+
+class TestImportAudit:
+    def test_no_forbidden_imports(self) -> None:
+        violations = []
+        for py_file in INTRALOGISTICS_DIR.glob("*.py"):
+            tree = ast.parse(py_file.read_text())
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    for forbidden in FORBIDDEN_IMPORTS:
+                        if node.module == forbidden or node.module.startswith(forbidden + "."):
+                            violations.append(f"{py_file.name}: imports {node.module}")
+        assert violations == [], f"Forbidden imports found:\n" + "\n".join(violations)
+
+    def test_future_annotations(self) -> None:
+        missing = []
+        for py_file in INTRALOGISTICS_DIR.glob("*.py"):
+            content = py_file.read_text()
+            if "from __future__ import annotations" not in content:
+                missing.append(py_file.name)
+        assert missing == [], f"Missing future annotations:\n" + "\n".join(missing)
+```
+
+- [ ] **Step 1: Write import audit tests** (code above)
+- [ ] **Step 2: Run tests to verify they pass** (should pass if all prior tasks followed the rules)
+- [ ] **Step 3: Commit** — `git commit -m "test(intralogistics): add import audit for dependency rules"`
+
+---
+
+## Coding Standards (applies to all tasks)
+
+Every new file in `src/simulatte/intralogistics/` must:
+- Start with `from __future__ import annotations`
+- Use `TYPE_CHECKING` guards for imports that would create circular dependencies
+- Import `ProcessGenerator` from `simpy.events`, not from `simulatte.typing`
+- Never import from `Server`, `ShopFloor`, `ProductionJob`, or other production-oriented modules
+
 ## Coverage Note
 
-The project requires 99% code coverage (`--cov-fail-under=99` in pyproject.toml). Every module must have thorough tests. Tasks 9-13 use abbreviated step descriptions but must include complete test code when implemented — no placeholders allowed.
+The project requires 99% code coverage (`--cov-fail-under=99` in pyproject.toml). Every module must have thorough tests. The implementing agent must write complete test code for every task — no placeholders allowed.
