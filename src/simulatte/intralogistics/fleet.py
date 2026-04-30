@@ -88,8 +88,7 @@ class FleetCoordinator:
         # Internal state (keyed by order.id because TransferOrder is unhashable)
         self._active_missions: dict[str, simpy.Process] = {}
         self._agv_mission: dict[AGV, TransferOrder] = {}
-        self._pending_queue: list[TransferOrder] = {}  # type: ignore[assignment]
-        self._pending_queue = []
+        self._pending_queue: list[TransferOrder] = []
         self._low_battery_flags: set[AGV] = set()
 
         # Lifecycle hook registries
