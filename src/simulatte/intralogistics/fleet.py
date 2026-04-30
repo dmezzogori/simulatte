@@ -421,7 +421,12 @@ class FleetCoordinator:
                     self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
                     outcome = yield from self._travel(agv, agv.current_node, target, loaded=False)
                     if outcome is _TravelOutcome.BATTERY_STRANDED:
-                        pass
+                        return
+                    if outcome is _TravelOutcome.MISSION_FAILED:
+                        self.env.warning(
+                            f"Repositioning failed for {agv.agv_id} — no path to {target.id}",
+                            component="FleetCoordinator",
+                        )
 
             # Go IDLE
             self._transition_agv(agv, AGVState.IDLE)
@@ -713,7 +718,7 @@ class FleetCoordinator:
     def _charge_agv(self, agv: AGV, station: ChargingStation | None = None) -> ProcessGenerator:
         """Navigate to a charging station and recharge."""
         if station is None:
-            station = self._find_nearest_charger(agv)
+            station = self._find_reachable_charger(agv) or self._find_nearest_charger(agv)
         if station is None:
             self.env.warning(
                 f"No charging station available for {agv.agv_id}",
@@ -815,7 +820,9 @@ class FleetCoordinator:
                 continue
             total_dist = self.graph.path_distance(path)
             # Estimate energy cost to get there
-            energy_needed = agv.battery.estimate_energy(total_dist, 0.0, 0.0)
+            est_travel_time = agv.agv_type.speed_profile.travel_time(total_dist, 0.0, agv.battery.level_pct)
+            est_avg_speed = total_dist / est_travel_time if est_travel_time > 0 else 0.0
+            energy_needed = agv.battery.estimate_energy(total_dist, 0.0, est_avg_speed)
             if agv.battery.level >= energy_needed:
                 reachable.append((total_dist, cs))
 

@@ -4564,3 +4564,88 @@ class TestCancelWithCargoReturn:
         assert agv.current_node == node_origin
         # Inventory conservation
         assert wh_origin.get_inventory_level(sku_a) == 100
+
+
+class TestRepositioningStranded:
+    """M2: AGV that becomes BATTERY_STRANDED during repositioning stays STRANDED (not IDLE)."""
+
+    def test_stranded_during_repositioning_stays_stranded(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """AGV has just enough battery for delivery but not for a long reposition.
+
+        After delivery, NearestParkingPolicy sends the AGV to a distant parking
+        area.  The first repositioning arc requires more energy than remaining
+        battery.  Because no charging stations exist, ``_find_reachable_charger``
+        returns ``None`` and ``_travel`` transitions the AGV to STRANDED.  With
+        the M2 fix the ``return`` prevents the subsequent ``IDLE`` transition.
+        """
+        from simulatte.intralogistics.parking import ParkingArea
+        from simulatte.intralogistics.policies import NearestParkingPolicy
+
+        # Graph: A(0,0) -> B(10,0) -> PARK(310,0)
+        # Arc A->B distance = 10; Arc B->PARK distance = 300
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_b = Node(id="B", x=10.0, y=0.0)
+        node_park = Node(id="PARK", x=310.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_a, target=node_b),
+            Arc(source=node_b, target=node_park),
+        ]
+        graph = LayoutGraph([node_a, node_b, node_park], arcs)
+
+        wh_a = Warehouse(
+            env=env,
+            name="WH-A",
+            input_bays=[node_a],
+            output_bays=[node_a],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+        wh_b = Warehouse(
+            env=env,
+            name="WH-B",
+            input_bays=[node_b],
+            output_bays=[node_b],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+
+        parking = ParkingArea(env=env, name="P1", node=node_park, capacity=2)
+
+        # Battery: capacity=1000, initial_level=250.
+        # Default depletion = distance * 1.0.
+        # Loaded travel A->B costs 10 -> remaining = 240.
+        # 240/1000 = 24% > low_threshold (20%) -> no charging diversion.
+        # Reposition B->PARK costs 300 > 240 -> STRANDED.
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv.battery.level = 250.0
+
+        coordinator = FleetCoordinator(
+            env=env,
+            graph=graph,
+            fleet=[agv],
+            warehouses=[wh_a, wh_b],
+            charging_stations=[],  # No chargers -> _find_reachable_charger returns None
+            repositioning_policy=NearestParkingPolicy(),
+            parking_areas=[parking],
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        # Order should complete (delivery succeeded)
+        assert order.status == OrderStatus.COMPLETED
+        # AGV must stay STRANDED (not IDLE) — the M2 fix returns before IDLE transition
+        assert agv.state == AGVState.STRANDED
+        # AGV remains at B (could not reach parking)
+        assert agv.current_node == node_b
