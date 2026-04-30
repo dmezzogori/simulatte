@@ -193,11 +193,11 @@ class SKU:
     id: str
     weight: float                          # kg per unit
     volume: float                          # m³ per unit
-    attributes: dict[str, Any] = field(default_factory=dict)
+    attributes: tuple[tuple[str, Any], ...] = ()
 ```
 
 - `weight` and `volume` are first-class for AGV capacity checks.
-- `attributes` is the extensibility bag for domain-specific properties (fragility, temperature class, hazmat flag, etc.).
+- `attributes` stores domain-specific properties (fragility, temperature class, hazmat flag, etc.) as an immutable tuple of key-value pairs. A convenience `get_attribute(key)` method provides dict-like lookup. This keeps SKU frozen and hashable.
 - Frozen and hashable: usable as dict keys.
 - AGV/SKU compatibility is determined by `AGVType.compatibility_fn(sku) -> bool`.
 
