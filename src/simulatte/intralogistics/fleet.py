@@ -439,7 +439,7 @@ class FleetCoordinator:
             committed = self._committed_picks.pop(order.id, None)
             if committed is not None:
                 wh, sku, qty = committed
-                self.env.process(wh.put(sku, qty))
+                yield from wh.put(sku, qty)
 
             if order.status != OrderStatus.CANCELLED:
                 # Not an explicit cancellation — handle gracefully
@@ -489,12 +489,11 @@ class FleetCoordinator:
                     self._pending_queue.append(order)
                     self._ensure_pending_retry_loop()
             else:
-                # Explicit cancellation — clear the AGV load if any
+                # Explicit cancellation — physically return cargo to origin
                 if agv.current_load is not None:
-                    # Return inventory to origin before clearing load
-                    for sku, qty in agv.current_load.items():
-                        self.env.process(order.origin.put(sku, qty))
-                    agv.current_load = None
+                    yield from self._return_cargo_to_origin(order, agv)
+                # Ensure status stays CANCELLED (may have been changed by _return_cargo_to_origin)
+                order.status = OrderStatus.CANCELLED
 
             self._transition_agv(agv, AGVState.IDLE)
             for cb in self._hooks_on_agv_idle:

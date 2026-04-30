@@ -1639,9 +1639,9 @@ class TestInterruptSafety:
         assert order.status == OrderStatus.CANCELLED
         assert agv.state == AGVState.IDLE
         assert agv.current_load is None
-        # Inventory should be returned to origin.
-        # The put process is fire-and-forget via env.process, so let it complete.
-        env.run()
+        # AGV should have navigated back to origin
+        assert agv.current_node == node_origin
+        # Inventory should be returned to origin synchronously.
         assert wh_origin.get_inventory_level(sku_a) == 100
         assert wh_dest.get_inventory_level(sku_a) == 0
 
@@ -1712,9 +1712,7 @@ class TestInterruptSafety:
         assert order.status == OrderStatus.CANCELLED
         assert agv.state == AGVState.IDLE
         assert agv.current_load is None
-        # Committed pick should have been rolled back.
-        # The put process is fire-and-forget, let it finish.
-        env.run()
+        # Committed pick should have been rolled back synchronously.
         assert wh_origin.get_inventory_level(sku_a) == 100
 
     def test_cancel_cleans_up_all_node_requests(
@@ -2726,6 +2724,194 @@ class TestResumeDeliveryStranded:
         # After stranding on resume: cargo should be cleared, order failed
         assert agv.current_load is None
         assert agv.state == AGVState.IDLE
+
+        # H1 fix: inventory conservation - cargo must be somewhere.
+        # The test fixture severed ALL arcs from MID, so return-to-origin also
+        # fails and cargo is dropped at MID.
+        origin_level = wh_origin.get_inventory_level(sku_a)
+        dest_level = wh_dest.get_inventory_level(sku_a)
+        dropped = coordinator._dropped_cargo
+
+        # Total inventory must be conserved: 100 (initial) = origin + dest + dropped
+        total = origin_level + dest_level + sum(qty for _, _, _, qty in dropped)
+        assert total == 100
+
+
+class TestResumeDeliveryFallbackToReturn:
+    """H1: When ResumeDelivery re-travel fails but return-to-origin succeeds, cargo goes back to origin."""
+
+    def test_resume_fails_return_succeeds(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        from simulatte.intralogistics.policies import ResumeDelivery
+
+        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+        node_mid = Node(id="MID", x=50.0, y=0.0)
+        node_dest = Node(id="DEST", x=100.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_origin, target=node_mid),
+            Arc(source=node_mid, target=node_dest),
+        ]
+        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+
+        wh_origin = Warehouse(
+            env=env,
+            name="WH-ORIGIN",
+            input_bays=[node_origin],
+            output_bays=[node_origin],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env,
+            name="WH-DEST",
+            input_bays=[node_dest],
+            output_bays=[node_dest],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = AGVType(
+            name="test-type",
+            speed_profile=simple_speed,
+            battery_capacity=100.0,
+            weight_capacity=100.0,
+            volume_capacity=10.0,
+            load_time_fn=lambda: 1.0,
+            unload_time_fn=lambda: 1.0,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+
+        coordinator = FleetCoordinator(
+            env=env,
+            graph=graph,
+            fleet=[agv],
+            warehouses=[wh_origin, wh_dest],
+            charging_stations=[],
+            load_recovery_strategy=ResumeDelivery(),
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
+        coordinator.submit(order)
+
+        def interrupt_and_sever_dest():
+            yield env.timeout(4.0)
+            process = coordinator._active_missions.get(order.id)
+            if process is not None and process.is_alive:
+                # Sever only MID->DEST, keep MID->ORIGIN intact
+                graph._adjacency[node_mid].pop(node_dest, None)
+                process.interrupt("test_sever_dest_only")
+
+        env.process(interrupt_and_sever_dest())
+        env.run()
+
+        # Re-travel to DEST fails, fallback to return-to-origin succeeds
+        assert agv.current_load is None
+        assert order.status == OrderStatus.FAILED
+        # Cargo returned to origin - not delivered, not dropped
+        assert wh_origin.get_inventory_level(sku_a) == 100  # 100 - 10 picked + 10 returned
+        assert wh_dest.get_inventory_level(sku_a) == 0
+        assert len(coordinator._dropped_cargo) == 0
+
+
+class TestResumeDeliveryFallbackChain:
+    """H1: ResumeDelivery -> ReturnToOrigin -> Drop cargo."""
+
+    def test_resume_and_return_both_fail_drops_cargo(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        from simulatte.intralogistics.policies import ResumeDelivery
+
+        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+        node_mid = Node(id="MID", x=50.0, y=0.0)
+        node_dest = Node(id="DEST", x=100.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_origin, target=node_mid),
+            Arc(source=node_mid, target=node_dest),
+        ]
+        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+
+        wh_origin = Warehouse(
+            env=env,
+            name="WH-ORIGIN",
+            input_bays=[node_origin],
+            output_bays=[node_origin],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env,
+            name="WH-DEST",
+            input_bays=[node_dest],
+            output_bays=[node_dest],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = AGVType(
+            name="test-type",
+            speed_profile=simple_speed,
+            battery_capacity=100.0,
+            weight_capacity=100.0,
+            volume_capacity=10.0,
+            load_time_fn=lambda: 1.0,
+            unload_time_fn=lambda: 1.0,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+
+        coordinator = FleetCoordinator(
+            env=env,
+            graph=graph,
+            fleet=[agv],
+            warehouses=[wh_origin, wh_dest],
+            charging_stations=[],
+            load_recovery_strategy=ResumeDelivery(),
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
+        coordinator.submit(order)
+
+        def interrupt_and_isolate():
+            yield env.timeout(4.0)
+            process = coordinator._active_missions.get(order.id)
+            if process is not None and process.is_alive:
+                # Remove ALL arcs from MID - AGV is completely isolated
+                graph._adjacency[node_mid] = {}
+                graph._adjacency[node_origin].pop(node_mid, None)
+                graph._adjacency[node_dest].pop(node_mid, None)
+                process.interrupt("test_full_strand")
+
+        env.process(interrupt_and_isolate())
+        env.run()
+
+        # Cargo should be dropped (not silently destroyed)
+        assert agv.current_load is None
+        assert len(coordinator._dropped_cargo) == 1
+        _, drop_node, drop_sku, drop_qty = coordinator._dropped_cargo[0]
+        assert drop_sku is sku_a
+        assert drop_qty == 10
+
+        # Inventory conservation: 100 - 10 (picked) + 0 (not returned) + 10 (dropped) = 100
+        total = (
+            wh_origin.get_inventory_level(sku_a)
+            + wh_dest.get_inventory_level(sku_a)
+            + sum(qty for _, _, _, qty in coordinator._dropped_cargo)
+        )
+        assert total == 100
 
 
 class TestResumeDeliveryWithHooksAndCollector:
@@ -4294,3 +4480,84 @@ class TestReturnToOriginPhysicalReturn:
         # return added 10 back (to 90).
         assert wh_origin.get_inventory_level(sku_a) == 90
         assert agv.current_load is None
+
+
+class TestCancelWithCargoReturn:
+    """H5: Cancellation with cargo must physically return inventory (not fire-and-forget)."""
+
+    def test_cancel_with_cargo_navigates_and_puts(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+        node_mid = Node(id="MID", x=50.0, y=0.0)
+        node_dest = Node(id="DEST", x=100.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_origin, target=node_mid),
+            Arc(source=node_mid, target=node_dest),
+        ]
+        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+
+        wh_origin = Warehouse(
+            env=env,
+            name="WH-ORIGIN",
+            input_bays=[node_origin],
+            output_bays=[node_origin],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env,
+            name="WH-DEST",
+            input_bays=[node_dest],
+            output_bays=[node_dest],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = AGVType(
+            name="test-type",
+            speed_profile=simple_speed,
+            battery_capacity=1000.0,
+            weight_capacity=100.0,
+            volume_capacity=10.0,
+            load_time_fn=lambda: 1.0,
+            unload_time_fn=lambda: 1.0,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+
+        coordinator = FleetCoordinator(
+            env=env,
+            graph=graph,
+            fleet=[agv],
+            warehouses=[wh_origin, wh_dest],
+            charging_stations=[],
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
+        coordinator.submit(order)
+
+        # Cancel after pickup (AGV has cargo, mid-travel loaded)
+        # pick_time=1, load_time=1 -> pickup done at t=2.
+        # Loaded travel ORIGIN->MID: distance=50, speed=10 -> 5s, arrives MID at t=7.
+        # MID->DEST: distance=50, speed=10 -> 5s, arrives DEST at t=12.
+        # Cancel at t=4.0 — during loaded travel (before reaching MID).
+        def cancel_after_pickup():
+            yield env.timeout(4.0)
+            coordinator.cancel(order)
+
+        env.process(cancel_after_pickup())
+        env.run()
+
+        assert order.status == OrderStatus.CANCELLED
+        assert agv.current_load is None
+        # AGV should have navigated back to origin
+        assert agv.current_node == node_origin
+        # Inventory conservation
+        assert wh_origin.get_inventory_level(sku_a) == 100
