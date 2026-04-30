@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from simpy.events import ProcessGenerator
 
 from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVType
@@ -50,7 +51,7 @@ class TestChargingStationRecharge:
         # Default recharge_fn: (target - current) * 1.0 = (100 - 50) * 1.0 = 50.0
         expected_time = 50.0
 
-        def process() -> None:
+        def process() -> ProcessGenerator:
             yield from station.recharge(agv, target_pct=1.0)
 
         env.process(process())
@@ -75,7 +76,7 @@ class TestChargingStationRecharge:
 
         finish_times: list[float] = []
 
-        def recharge_agv(agv: AGV) -> None:
+        def recharge_agv(agv: AGV) -> ProcessGenerator:
             yield from station.recharge(agv, target_pct=1.0)
             finish_times.append(env.now)
 
@@ -95,6 +96,7 @@ class TestChargingStationRecharge:
         self, env: Environment, charging_node: Node, agv_type: AGVType
     ) -> None:
         """Station with custom recharge_fn produces different timing than AGV default."""
+
         # Custom recharge: twice as fast
         def fast_recharge(current_level: float, target_level: float) -> float:
             return (target_level - current_level) * 0.5
@@ -111,7 +113,7 @@ class TestChargingStationRecharge:
         # Station override: (100 - 50) * 0.5 = 25.0 (vs battery default 50.0)
         expected_time = 25.0
 
-        def process() -> None:
+        def process() -> ProcessGenerator:
             yield from station.recharge(agv, target_pct=1.0)
 
         env.process(process())
@@ -138,7 +140,7 @@ class TestChargingStationSwap:
 
         finish_time: float = -1.0
 
-        def process() -> None:
+        def process() -> ProcessGenerator:
             nonlocal finish_time
             yield from station.swap(agv)
             finish_time = env.now
@@ -168,7 +170,7 @@ class TestChargingStationSwap:
 
         finish_times: list[float] = []
 
-        def swap_agv(agv: AGV) -> None:
+        def swap_agv(agv: AGV) -> ProcessGenerator:
             yield from station.swap(agv)
             finish_times.append(env.now)
 
@@ -207,13 +209,14 @@ class TestChargingStationSwap:
 
         finish_time: float = -1.0
 
-        def do_swap() -> None:
+        def do_swap() -> ProcessGenerator:
             nonlocal finish_time
             yield from station.swap(agv)
             finish_time = env.now
 
-        def add_battery_later() -> None:
+        def add_battery_later() -> ProcessGenerator:
             yield env.timeout(5.0)
+            assert station._swap_pool is not None
             yield station._swap_pool.put(1)
 
         env.process(do_swap())
@@ -249,16 +252,17 @@ class TestChargingStationSwap:
 
 
 class TestChargingStationRechargeEdgeCases:
-    def test_recharge_already_at_target(
-        self, env: Environment, charging_node: Node, agv_type: AGVType
-    ) -> None:
+    def test_recharge_already_at_target(self, env: Environment, charging_node: Node, agv_type: AGVType) -> None:
         """Recharging an AGV already at target_pct should be a no-op (duration=0)."""
         station = ChargingStation(
-            env=env, name="CS-noop", node=charging_node, n_slots=1,
+            env=env,
+            name="CS-noop",
+            node=charging_node,
+            n_slots=1,
         )
         agv = _make_agv(env, agv_type, battery_level=100.0)
 
-        def process() -> None:
+        def process() -> ProcessGenerator:
             yield from station.recharge(agv, target_pct=1.0)
 
         env.process(process())
@@ -273,12 +277,15 @@ class TestChargingStationRechargeEdgeCases:
     ) -> None:
         """Station with no recharge_fn falls back to battery.recharge_time()."""
         station = ChargingStation(
-            env=env, name="CS-default", node=charging_node, n_slots=1,
+            env=env,
+            name="CS-default",
+            node=charging_node,
+            n_slots=1,
             recharge_fn=None,
         )
         agv = _make_agv(env, agv_type, battery_level=50.0)
 
-        def process() -> None:
+        def process() -> ProcessGenerator:
             yield from station.recharge(agv, target_pct=1.0)
 
         env.process(process())
@@ -307,10 +314,10 @@ class TestChargingStationMetrics:
         agv2 = _make_agv(env, agv_type, battery_level=60.0)
         agv3 = _make_agv(env, agv_type, battery_level=10.0)
 
-        def recharge_agv(agv: AGV) -> None:
+        def recharge_agv(agv: AGV) -> ProcessGenerator:
             yield from station.recharge(agv, target_pct=1.0)
 
-        def swap_agv(agv: AGV) -> None:
+        def swap_agv(agv: AGV) -> ProcessGenerator:
             yield from station.swap(agv)
 
         env.process(recharge_agv(agv1))  # recharge: (100-50)*1.0 = 50s

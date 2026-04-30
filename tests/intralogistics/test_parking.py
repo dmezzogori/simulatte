@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from simpy.events import ProcessGenerator
 
 from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVType
@@ -43,14 +44,14 @@ class TestEnterLeaveLifecycle:
 
         enter_times: dict[str, float] = {}
 
-        def park_and_wait(agv: AGV) -> None:
+        def park_and_wait(agv: AGV) -> ProcessGenerator:
             yield from area.enter(agv)
             enter_times[agv.agv_id] = env.now
             # Stay parked for 10 time units, then leave
             yield env.timeout(10)
             area.leave(agv)
 
-        def park_after(agv: AGV) -> None:
+        def park_after(agv: AGV) -> ProcessGenerator:
             # Start entering at time 0 -- will block until slot is free
             yield from area.enter(agv)
             enter_times[agv.agv_id] = env.now
@@ -75,7 +76,7 @@ class TestBlockingWhenFull:
 
         enter_times: list[float] = []
 
-        def park_briefly(agv: AGV, stay: float) -> None:
+        def park_briefly(agv: AGV, stay: float) -> ProcessGenerator:
             yield from area.enter(agv)
             enter_times.append(env.now)
             yield env.timeout(stay)
@@ -100,7 +101,7 @@ class TestPerAGVRequestTracking:
 
         enter_time_c: float = -1.0
 
-        def park_both_then_release_a() -> None:
+        def park_both_then_release_a() -> ProcessGenerator:
             nonlocal enter_time_c
             # Both enter at t=0
             yield from area.enter(agv_a)
@@ -109,7 +110,7 @@ class TestPerAGVRequestTracking:
             yield env.timeout(5)
             area.leave(agv_a)
 
-        def try_enter_c() -> None:
+        def try_enter_c() -> ProcessGenerator:
             nonlocal enter_time_c
             # C tries to enter at t=0, but area is full at t=0 (both A and B enter first)
             # Wait a tiny bit so A and B definitely get in first
@@ -141,7 +142,7 @@ class TestAvailableCapacity:
         area = ParkingArea(env=env, name="P1", node=parking_node, capacity=2)
         agv = _make_agv(env, agv_type, agv_id="agv-1")
 
-        def park(agv: AGV) -> None:
+        def park(agv: AGV) -> ProcessGenerator:
             yield from area.enter(agv)
 
         env.process(park(agv))
@@ -154,7 +155,7 @@ class TestAvailableCapacity:
         area = ParkingArea(env=env, name="P1", node=parking_node, capacity=1)
         agv = _make_agv(env, agv_type, agv_id="agv-1")
 
-        def park_and_leave(agv: AGV) -> None:
+        def park_and_leave(agv: AGV) -> ProcessGenerator:
             yield from area.enter(agv)
             area.leave(agv)
 

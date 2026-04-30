@@ -323,14 +323,20 @@ class FleetCoordinator:
         if self._time_series_collector is not None:
             self._time_series_collector.on_order_dispatched(self, order, agv)
 
+    def _require_current_node(self, agv: AGV) -> Node:
+        """Return the AGV's current node, or fail on a broken mission invariant."""
+        if agv.current_node is None:
+            raise RuntimeError(f"{agv.agv_id} has no current node")
+        return agv.current_node
+
     def _run_mission(self, order: TransferOrder, agv: AGV) -> ProcessGenerator:
         """Full mission lifecycle as a SimPy process."""
         try:
             # 1. Travel empty to origin output bay
             # (order.status, dispatched_at, and AGV state are set eagerly in _dispatch)
-            origin_output_bay = order.origin.nearest_output_bay(agv.current_node, self.graph)
+            origin_output_bay = order.origin.nearest_output_bay(self._require_current_node(agv), self.graph)
             while True:
-                outcome = yield from self._travel(agv, agv.current_node, origin_output_bay, loaded=False)
+                outcome = yield from self._travel(agv, self._require_current_node(agv), origin_output_bay, loaded=False)
                 if outcome is _TravelOutcome.ARRIVED:
                     break
                 if outcome is _TravelOutcome.BATTERY_STRANDED:
@@ -369,9 +375,9 @@ class FleetCoordinator:
             self._trigger_event_driven_replenishment(order.origin)
             self._transition_agv(agv, AGVState.TRAVELING_LOADED)
 
-            dest_input_bay = order.destination.nearest_input_bay(agv.current_node, self.graph)
+            dest_input_bay = order.destination.nearest_input_bay(self._require_current_node(agv), self.graph)
             while True:
-                outcome = yield from self._travel(agv, agv.current_node, dest_input_bay, loaded=True)
+                outcome = yield from self._travel(agv, self._require_current_node(agv), dest_input_bay, loaded=True)
                 if outcome is _TravelOutcome.ARRIVED:
                     break
                 if outcome is _TravelOutcome.BATTERY_STRANDED:
@@ -427,7 +433,7 @@ class FleetCoordinator:
                 target = self._repositioning_policy.reposition(agv, repo_ctx)
                 if target is not None and target != agv.current_node:
                     self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
-                    outcome = yield from self._travel(agv, agv.current_node, target, loaded=False)
+                    outcome = yield from self._travel(agv, self._require_current_node(agv), target, loaded=False)
                     if outcome is _TravelOutcome.BATTERY_STRANDED:
                         return
                     if outcome is _TravelOutcome.MISSION_FAILED:
@@ -462,10 +468,14 @@ class FleetCoordinator:
 
                     if order.status == OrderStatus.IN_TRANSIT and agv.current_load is not None:
                         # S6: ResumeDelivery — re-travel to destination from current position
-                        dest_input_bay = order.destination.nearest_input_bay(agv.current_node, self.graph)
+                        dest_input_bay = order.destination.nearest_input_bay(
+                            self._require_current_node(agv), self.graph
+                        )
                         self._transition_agv(agv, AGVState.TRAVELING_LOADED)
                         while True:
-                            outcome = yield from self._travel(agv, agv.current_node, dest_input_bay, loaded=True)
+                            outcome = yield from self._travel(
+                                agv, self._require_current_node(agv), dest_input_bay, loaded=True
+                            )
                             if outcome is _TravelOutcome.ARRIVED:
                                 break
                             if outcome in (_TravelOutcome.BATTERY_STRANDED, _TravelOutcome.MISSION_FAILED):
@@ -671,7 +681,7 @@ class FleetCoordinator:
                 self._traffic_manager.cancel(agv)
 
             if reroute_requested:
-                from_node = agv.current_node
+                from_node = self._require_current_node(agv)
                 continue
 
             return _TravelOutcome.ARRIVED
@@ -753,9 +763,10 @@ class FleetCoordinator:
         if agv.current_node is None:
             self._low_battery_flags.discard(agv)
             return
-        if agv.current_node != station.node:
+        current_node = agv.current_node
+        if current_node != station.node:
             self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
-            outcome = yield from self._travel(agv, agv.current_node, station.node, loaded=False)
+            outcome = yield from self._travel(agv, current_node, station.node, loaded=False)
             if outcome is not _TravelOutcome.ARRIVED:
                 self._low_battery_flags.discard(agv)
                 return
@@ -786,10 +797,11 @@ class FleetCoordinator:
         if not agv.current_load:
             return
 
-        origin_bay = order.origin.nearest_input_bay(agv.current_node, self.graph)
-        if agv.current_node != origin_bay:
+        current_node = self._require_current_node(agv)
+        origin_bay = order.origin.nearest_input_bay(current_node, self.graph)
+        if current_node != origin_bay:
             self._transition_agv(agv, AGVState.TRAVELING_LOADED)
-            outcome = yield from self._travel(agv, agv.current_node, origin_bay, loaded=True)
+            outcome = yield from self._travel(agv, current_node, origin_bay, loaded=True)
             if outcome is not _TravelOutcome.ARRIVED:
                 self._drop_cargo(agv)
                 order.status = OrderStatus.FAILED

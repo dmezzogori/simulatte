@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
 
-from simulatte.intralogistics.agv import AGVState
+from simulatte.intralogistics.agv import AGV, AGVState
+from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.metrics import (
     DefaultIntralogisticsCollector,
     EMAOrderMetrics,
@@ -14,6 +16,10 @@ from simulatte.intralogistics.metrics import (
 )
 from simulatte.intralogistics.order import TransferOrder
 from simulatte.intralogistics.sku import SKU
+
+
+def _make_coordinator_stub(**attrs: object) -> FleetCoordinator:
+    return cast(FleetCoordinator, SimpleNamespace(**attrs))
 
 
 def _make_order(
@@ -140,7 +146,7 @@ class TestDefaultCollectorOnOrderSubmitted:
     def test_appends_to_pending_orders_ts(self) -> None:
         c = DefaultIntralogisticsCollector()
         order = _make_order(created_at=5.0)
-        coordinator = SimpleNamespace(_pending_queue=[order])
+        coordinator = _make_coordinator_stub(_pending_queue=[order])
 
         c.on_order_submitted(coordinator, order)
 
@@ -156,8 +162,8 @@ class TestDefaultCollectorOnDeliveryComplete:
     def test_appends_to_throughput_ts(self) -> None:
         c = DefaultIntralogisticsCollector()
         order = _make_order(created_at=0.0, delivered_at=10.0)
-        agv = MagicMock()
-        coordinator = SimpleNamespace()
+        agv = cast(AGV, MagicMock())
+        coordinator = _make_coordinator_stub()
 
         c.on_delivery_complete(coordinator, order, agv)
 
@@ -172,13 +178,15 @@ class TestDefaultCollectorOnAGVStateChanged:
     def test_appends_to_fleet_utilization_ts(self) -> None:
         c = DefaultIntralogisticsCollector()
 
-        agv1 = MagicMock()
-        agv1.utilization.return_value = 0.5
-        agv1.env.now = 10.0
-        agv2 = MagicMock()
-        agv2.utilization.return_value = 0.3
+        agv1_mock = MagicMock()
+        agv1_mock.utilization.return_value = 0.5
+        agv1_mock.env.now = 10.0
+        agv2_mock = MagicMock()
+        agv2_mock.utilization.return_value = 0.3
+        agv1 = cast(AGV, agv1_mock)
+        agv2 = cast(AGV, agv2_mock)
 
-        coordinator = SimpleNamespace(fleet=[agv1, agv2])
+        coordinator = _make_coordinator_stub(fleet=[agv1, agv2])
 
         c.on_agv_state_changed(coordinator, agv1, AGVState.IDLE, AGVState.TRAVELING_EMPTY)
 
@@ -300,8 +308,8 @@ class TestDefaultCollectorEdgeCases:
         """dispatched_at is None -> skip (89->exit)."""
         c = DefaultIntralogisticsCollector()
         order = _make_order(created_at=0.0, dispatched_at=None)
-        agv = MagicMock()
-        coordinator = SimpleNamespace(_pending_queue=[])
+        agv = cast(AGV, MagicMock())
+        coordinator = _make_coordinator_stub(_pending_queue=[])
 
         c.on_order_dispatched(coordinator, order, agv)
 
@@ -312,8 +320,8 @@ class TestDefaultCollectorEdgeCases:
         """picked_at is None -> skip (93->exit)."""
         c = DefaultIntralogisticsCollector()
         order = _make_order(created_at=0.0, picked_at=None)
-        agv = MagicMock()
-        coordinator = SimpleNamespace()
+        agv = cast(AGV, MagicMock())
+        coordinator = _make_coordinator_stub()
 
         c.on_pickup_complete(coordinator, order, agv)
 
@@ -324,8 +332,8 @@ class TestDefaultCollectorEdgeCases:
         """delivered_at is None -> skip (98->exit)."""
         c = DefaultIntralogisticsCollector()
         order = _make_order(created_at=0.0, delivered_at=None)
-        agv = MagicMock()
-        coordinator = SimpleNamespace()
+        agv = cast(AGV, MagicMock())
+        coordinator = _make_coordinator_stub()
 
         c.on_delivery_complete(coordinator, order, agv)
 

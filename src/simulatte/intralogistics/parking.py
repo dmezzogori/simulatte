@@ -36,7 +36,7 @@ class ParkingArea:
 
     @property
     def available_capacity(self) -> int:
-        return self._resource.capacity - self._resource.count
+        return int(self._resource.capacity - self._resource.count)
 
     def enter(self, agv: AGV) -> ProcessGenerator:
         """Request a parking slot. Blocks if the area is full."""
