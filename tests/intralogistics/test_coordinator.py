@@ -2740,9 +2740,7 @@ class TestResumeDeliveryStranded:
 class TestResumeDeliveryFallbackToReturn:
     """H1: When ResumeDelivery re-travel fails but return-to-origin succeeds, cargo goes back to origin."""
 
-    def test_resume_fails_return_succeeds(
-        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
-    ) -> None:
+    def test_resume_fails_return_succeeds(self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile) -> None:
         from simulatte.intralogistics.policies import ResumeDelivery
 
         node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
@@ -2781,7 +2779,7 @@ class TestResumeDeliveryFallbackToReturn:
         agv_type = AGVType(
             name="test-type",
             speed_profile=simple_speed,
-            battery_capacity=100.0,
+            battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
             load_time_fn=lambda: 1.0,
@@ -2802,11 +2800,14 @@ class TestResumeDeliveryFallbackToReturn:
         coordinator.submit(order)
 
         def interrupt_and_sever_dest():
-            yield env.timeout(4.0)
+            # AGV timeline: pick=1.0, load=1.0, travel ORIGIN->MID=5.0 (arrives t=7)
+            # travel MID->DEST starts at t=7. Interrupt at t=8 -> AGV at MID.
+            yield env.timeout(8.0)
             process = coordinator._active_missions.get(order.id)
             if process is not None and process.is_alive:
                 # Sever only MID->DEST, keep MID->ORIGIN intact
                 graph._adjacency[node_mid].pop(node_dest, None)
+                graph._adjacency[node_dest].pop(node_mid, None)
                 process.interrupt("test_sever_dest_only")
 
         env.process(interrupt_and_sever_dest())
@@ -2865,7 +2866,7 @@ class TestResumeDeliveryFallbackChain:
         agv_type = AGVType(
             name="test-type",
             speed_profile=simple_speed,
-            battery_capacity=100.0,
+            battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
             load_time_fn=lambda: 1.0,
@@ -2886,7 +2887,9 @@ class TestResumeDeliveryFallbackChain:
         coordinator.submit(order)
 
         def interrupt_and_isolate():
-            yield env.timeout(4.0)
+            # AGV timeline: pick=1.0, load=1.0, travel ORIGIN->MID=5.0 (arrives t=7)
+            # travel MID->DEST starts at t=7. Interrupt at t=8 -> AGV at MID.
+            yield env.timeout(8.0)
             process = coordinator._active_missions.get(order.id)
             if process is not None and process.is_alive:
                 # Remove ALL arcs from MID - AGV is completely isolated
