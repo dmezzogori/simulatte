@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 from simulatte.environment import Environment
-from simulatte.experimental import AGV, MaterialCoordinator, Warehouse
 from simulatte.job import ProductionJob
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
@@ -126,84 +125,6 @@ def test_corrected_wip_strategy() -> None:
     assert shopfloor.wip[server1] == 0
     assert shopfloor.wip[server2] == 0
     assert shopfloor.wip[server3] == 0
-
-
-def test_automatic_material_handling_via_shopfloor() -> None:
-    """ShopFloor with material_coordinator should handle materials automatically."""
-    env = Environment()
-    sf = ShopFloor(env=env)
-    server = Server(env=env, capacity=1, shopfloor=sf)
-
-    warehouse = Warehouse(
-        env=env,
-        n_bays=1,
-        products=["steel"],
-        initial_inventory={"steel": 100},
-        pick_time_fn=lambda: 1.0,
-        put_time_fn=lambda: 0.5,
-        shopfloor=sf,
-    )
-
-    agv = AGV(
-        env=env,
-        travel_time_fn=lambda o, d: 2.0,
-        shopfloor=sf,
-    )
-
-    coordinator = MaterialCoordinator(
-        env=env,
-        warehouse=warehouse,
-        agvs=[agv],
-        shopfloor=sf,
-    )
-
-    # Wire coordinator to shopfloor
-    sf.material_coordinator = coordinator
-
-    # Create job with material requirements
-    job = ProductionJob(
-        env=env,
-        sku="A",
-        servers=[server],
-        processing_times=[3.0],
-        due_date=100,
-        material_requirements={0: {"steel": 5}},
-    )
-
-    # Add job via shopfloor - materials should be handled automatically
-    sf.add(job)
-    env.run()
-
-    assert job.done
-    # Time = pick (1.0) + travel (2.0) + processing (3.0) = 6.0
-    assert job.finished_at == pytest.approx(6.0)
-    assert warehouse.get_inventory_level("steel") == 95
-    assert coordinator.total_deliveries == 1
-    assert agv.trip_count == 1
-
-
-def test_shopfloor_without_coordinator_works() -> None:
-    """ShopFloor without material_coordinator should work normally."""
-    env = Environment()
-    sf = ShopFloor(env=env)
-    server = Server(env=env, capacity=1, shopfloor=sf)
-
-    # Job with material requirements but no coordinator configured
-    job = ProductionJob(
-        env=env,
-        sku="A",
-        servers=[server],
-        processing_times=[5.0],
-        due_date=100,
-        material_requirements={0: {"steel": 5}},  # Will be ignored
-    )
-
-    sf.add(job)
-    env.run()
-
-    assert job.done
-    # No material handling, just processing time
-    assert job.finished_at == pytest.approx(5.0)
 
 
 def test_average_time_in_system_no_jobs_done() -> None:

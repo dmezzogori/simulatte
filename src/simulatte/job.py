@@ -21,15 +21,13 @@ class JobType(Enum):
     """Enumeration of job types in the simulation."""
 
     PRODUCTION = auto()
-    TRANSPORT = auto()
-    WAREHOUSE = auto()
 
 
 class BaseJob(ABC):
     """Abstract base class for jobs flowing through the simulation.
 
     This class defines the common interface and state tracking for all job types.
-    Concrete implementations (ProductionJob, TransportJob, WarehouseJob) extend this
+    Concrete implementations (e.g. ProductionJob) extend this
     with type-specific attributes and behavior.
     """
 
@@ -69,7 +67,7 @@ class BaseJob(ABC):
 
         Args:
             env: The simulation environment.
-            job_type: Type of job (PRODUCTION, TRANSPORT, or WAREHOUSE).
+            job_type: Type of job (e.g. PRODUCTION).
             sku: Stock keeping unit identifier for the job.
             servers: Sequence of servers defining the job's routing.
             processing_times: Processing time at each server (must match servers length).

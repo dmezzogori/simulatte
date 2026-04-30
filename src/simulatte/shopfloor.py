@@ -9,7 +9,7 @@ for job lifecycle events.
 The ShopFloor integrates with:
 - Server: Processing resources that handle jobs
 - ProductionJob: Jobs flowing through the shop floor
-- MaterialCoordinator: Optional material delivery before processing
+- MaterialCoordinator: Optional material delivery coordination (protocol)
 - Environment: The SimPy-based simulation environment
 
 Extensibility is provided through:
@@ -27,7 +27,6 @@ from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 from simulatte.environment import Environment
 
 if TYPE_CHECKING:  # pragma: no cover
-    from simulatte.experimental.materials import MaterialCoordinator
     from simulatte.job import ProductionJob
     from simulatte.psp import PreShopPool
     from simulatte.server import Server
@@ -224,6 +223,35 @@ class TimeSeriesCollector(Protocol):
         Args:
             shopfloor: The ShopFloor instance.
             job: The job that just finished.
+        """
+        ...
+
+
+@runtime_checkable
+class MaterialCoordinator(Protocol):
+    """Protocol for material delivery coordination.
+
+    A material coordinator ensures that required materials are delivered
+    to a server before processing begins. Implementations must provide
+    an ``ensure`` method that yields SimPy events to block until delivery
+    is complete.
+    """
+
+    def ensure(
+        self,
+        job: ProductionJob,
+        server: Server,
+        op_index: int,
+    ) -> ProcessGenerator:
+        """Ensure materials are delivered before processing can begin.
+
+        Args:
+            job: The production job requiring materials.
+            server: The server where processing will occur.
+            op_index: The operation index (0-based).
+
+        Yields:
+            SimPy events for the delivery process.
         """
         ...
 
