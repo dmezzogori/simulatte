@@ -469,4 +469,6 @@ class TestBuildSimpleSystemE2E:
         assert order.dispatched_at is not None
         assert order.picked_at is not None
         assert order.delivered_at is not None
-        assert agvs[0].state == AGVState.IDLE or agvs[1].state == AGVState.IDLE
+        # The AGV that executed the order should be idle
+        assert order.assigned_agv is not None
+        assert order.assigned_agv.state == AGVState.IDLE
