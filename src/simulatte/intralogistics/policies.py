@@ -64,7 +64,10 @@ class NearestIdleStrategy:
             d = graph.path_distance(path)
             return (d, agv.agv_id)
 
-        return min(candidates, key=_distance)
+        best = min(candidates, key=_distance)
+        if _distance(best)[0] == float("inf"):
+            return None
+        return best
 
 
 class RoundRobinStrategy:
@@ -179,7 +182,7 @@ class ReorderPointPolicy:
             in_transit_qty = sum(
                 o.quantity
                 for o in in_transit_orders
-                if o.sku is sku
+                if o.sku == sku
                 and o.destination is warehouse
                 and o.status not in (OrderStatus.COMPLETED, OrderStatus.FAILED, OrderStatus.CANCELLED)
             )

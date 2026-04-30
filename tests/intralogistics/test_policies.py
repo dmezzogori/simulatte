@@ -203,7 +203,7 @@ class TestNearestIdleStrategy:
         self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
     ) -> None:
         """An idle AGV on a disconnected node gets inf distance.
-        If it's the only candidate, it is still selected."""
+        When the only candidate is unreachable, select() returns None."""
         # Disconnected graph: N0 alone, N1 alone
         n0 = Node(id="N0", x=0.0, y=0.0)
         n1 = Node(id="N1", x=10.0, y=0.0)
@@ -219,8 +219,31 @@ class TestNearestIdleStrategy:
 
         strategy = NearestIdleStrategy()
         selected = strategy.select(order, [agv], graph)
-        # Only one candidate, so it is selected despite inf distance
-        assert selected is agv
+        # Only candidate is unreachable, so select() returns None
+        assert selected is None
+
+    def test_returns_none_when_all_unreachable(
+        self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
+    ) -> None:
+        """M6: When all candidates have infinite distance, select() must return None."""
+        island = Node(id="ISLAND", x=0.0, y=0.0)
+        mainland = Node(id="MAINLAND", x=100.0, y=0.0)
+        graph = LayoutGraph([island, mainland], [])  # disconnected
+
+        wh = _make_warehouse(env, "WH", [mainland], [mainland], [sku_a])
+        agv = _make_agv(env, speed_profile, "agv-1", island)
+
+        order = TransferOrder(
+            sku=sku_a,
+            quantity=1,
+            origin=wh,
+            destination=wh,
+            created_at=0.0,
+        )
+
+        strategy = NearestIdleStrategy()
+        result = strategy.select(order, [agv], graph)
+        assert result is None
 
 
 # ── DispatchStrategy: RoundRobinStrategy ──────────────────────────────
@@ -565,6 +588,33 @@ class TestReorderPointPolicy:
         orders = policy.check(wh_only, [wh_only], in_transit_orders=[])
 
         # No other warehouses to source from -> no orders
+        assert len(orders) == 0
+
+    def test_in_transit_check_uses_equality_not_identity(self, env: Environment, sku_a: SKU) -> None:
+        """L1: ReorderPointPolicy must use == for SKU comparison, not 'is'."""
+        sku_a_copy = SKU(id=sku_a.id, weight=sku_a.weight, volume=sku_a.volume)
+        assert sku_a == sku_a_copy
+        assert sku_a is not sku_a_copy
+
+        node = Node(id="N", x=0.0, y=0.0)
+        wh_monitored = _make_warehouse(env, "WH-M", [node], [node], [sku_a], {sku_a: 5})
+        wh_source = _make_warehouse(env, "WH-S", [node], [node], [sku_a], {sku_a: 100})
+
+        policy = ReorderPointPolicy(
+            thresholds={sku_a: 20},
+            reorder_quantity={sku_a: 15},
+        )
+
+        in_transit = TransferOrder(
+            sku=sku_a_copy,
+            quantity=15,
+            origin=wh_source,
+            destination=wh_monitored,
+            created_at=0.0,
+            status=OrderStatus.IN_TRANSIT,
+        )
+
+        orders = policy.check(wh_monitored, [wh_monitored, wh_source], [in_transit])
         assert len(orders) == 0
 
     def test_no_order_when_above_threshold(self, env: Environment, sku_a: SKU) -> None:
