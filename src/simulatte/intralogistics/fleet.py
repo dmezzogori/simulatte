@@ -112,6 +112,8 @@ class FleetCoordinator:
         self._agv_mission: dict[AGV, TransferOrder] = {}
         self._pending_queue: list[TransferOrder] = []
         self._low_battery_flags: set[AGV] = set()
+        self._dropped_cargo: list[tuple[float, Node, SKU, int]] = []
+        self._hooks_on_cargo_dropped: list[Callable[[AGV, Node, SKU, int], None]] = []
 
         # H5: Track inventory deducted but not yet loaded onto AGV.
         # Maps order.id -> (warehouse, sku, quantity) for rollback on interrupt.
@@ -225,6 +227,9 @@ class FleetCoordinator:
 
     def on_agv_idle(self, callback: Callable[[AGV], None]) -> None:
         self._hooks_on_agv_idle.append(callback)
+
+    def on_cargo_dropped(self, callback: Callable[[AGV, Node, SKU, int], None]) -> None:
+        self._hooks_on_cargo_dropped.append(callback)
 
     # ------------------------------------------------------------------
     # Fleet convenience
@@ -758,6 +763,33 @@ class FleetCoordinator:
             cb(agv, station)
 
         self._low_battery_flags.discard(agv)
+
+    def _drop_cargo(self, agv: AGV) -> None:
+        """Record dropped cargo at AGV's current location and clear the load."""
+        if agv.current_load and agv.current_node is not None:
+            for sku, qty in agv.current_load.items():
+                self._dropped_cargo.append((self.env.now, agv.current_node, sku, qty))
+                for cb in self._hooks_on_cargo_dropped:
+                    cb(agv, agv.current_node, sku, qty)
+        agv.current_load = None
+
+    def _return_cargo_to_origin(self, order: TransferOrder, agv: AGV) -> ProcessGenerator:
+        """Navigate AGV to origin and put cargo back. Falls back to drop if travel fails."""
+        if not agv.current_load:
+            return
+
+        origin_bay = order.origin.nearest_input_bay(agv.current_node, self.graph)
+        if agv.current_node != origin_bay:
+            self._transition_agv(agv, AGVState.TRAVELING_LOADED)
+            outcome = yield from self._travel(agv, agv.current_node, origin_bay, loaded=True)
+            if outcome is not _TravelOutcome.ARRIVED:
+                self._drop_cargo(agv)
+                order.status = OrderStatus.FAILED
+                return
+
+        for sku, qty in agv.current_load.items():
+            yield from order.origin.put(sku, qty)
+        agv.current_load = None
 
     def _find_nearest_charger(self, agv: AGV) -> ChargingStation | None:
         """Find the nearest charging station by graph distance."""

@@ -3833,3 +3833,215 @@ class TestFindReachableChargerEdgeCases:
 
         result = coordinator._find_nearest_charger(agv)
         assert result is None
+
+
+# ===========================================================================
+# Dropped cargo infrastructure
+# ===========================================================================
+
+
+class TestDropCargo:
+    """Dropped cargo infrastructure for recovery fallback."""
+
+    def test_drop_cargo_records_inventory(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed)
+        agv.current_load = {sku_a: 5}
+
+        coordinator._drop_cargo(agv)
+
+        assert agv.current_load is None
+        assert len(coordinator._dropped_cargo) == 1
+        timestamp, node, sku, qty = coordinator._dropped_cargo[0]
+        assert node == agv.current_node
+        assert sku is sku_a
+        assert qty == 5
+
+    def test_on_cargo_dropped_hook_fires(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed)
+        agv.current_load = {sku_a: 3}
+
+        events: list[tuple] = []
+        coordinator.on_cargo_dropped(lambda a, n, s, q: events.append((a, n, s, q)))
+
+        coordinator._drop_cargo(agv)
+
+        assert len(events) == 1
+        assert events[0] == (agv, agv.current_node, sku_a, 3)
+
+
+class TestReturnCargoToOrigin:
+    def test_successful_return(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """AGV navigates to origin, puts cargo back."""
+        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+        node_mid = Node(id="MID", x=5.0, y=0.0)
+        arcs = [Arc(source=node_origin, target=node_mid)]
+        graph = LayoutGraph([node_origin, node_mid], arcs)
+
+        wh_origin = Warehouse(
+            env=env,
+            name="WH-O",
+            input_bays=[node_origin],
+            output_bays=[node_origin],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 90},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env,
+            name="WH-D",
+            input_bays=[node_mid],
+            output_bays=[node_mid],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = AGVType(
+            name="test-type",
+            speed_profile=simple_speed,
+            battery_capacity=1000.0,
+            weight_capacity=100.0,
+            volume_capacity=10.0,
+            load_time_fn=lambda: 1.0,
+            unload_time_fn=lambda: 1.0,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_mid)
+        agv.current_load = {sku_a: 10}
+
+        coordinator = FleetCoordinator(
+            env=env,
+            graph=graph,
+            fleet=[agv],
+            warehouses=[wh_origin, wh_dest],
+            charging_stations=[],
+        )
+
+        order = TransferOrder(
+            sku=sku_a,
+            quantity=10,
+            origin=wh_origin,
+            destination=wh_dest,
+            created_at=0.0,
+            status=OrderStatus.IN_TRANSIT,
+            assigned_agv=agv,
+        )
+
+        def do_return():
+            yield from coordinator._return_cargo_to_origin(order, agv)
+
+        env.process(do_return())
+        env.run()
+
+        assert agv.current_load is None
+        assert agv.current_node == node_origin
+        assert wh_origin.get_inventory_level(sku_a) == 100  # 90 + 10
+
+    def test_travel_fails_drops_cargo(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """No path back to origin -- cargo is dropped at current node."""
+        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+        node_mid = Node(id="MID", x=5.0, y=0.0)
+        # One-way only -- can't get back from MID to ORIGIN
+        arcs = [Arc(source=node_origin, target=node_mid, bidirectional=False)]
+        graph = LayoutGraph([node_origin, node_mid], arcs)
+
+        wh_origin = Warehouse(
+            env=env,
+            name="WH-O",
+            input_bays=[node_origin],
+            output_bays=[node_origin],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 90},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env,
+            name="WH-D",
+            input_bays=[node_mid],
+            output_bays=[node_mid],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = AGVType(
+            name="test-type",
+            speed_profile=simple_speed,
+            battery_capacity=1000.0,
+            weight_capacity=100.0,
+            volume_capacity=10.0,
+            load_time_fn=lambda: 1.0,
+            unload_time_fn=lambda: 1.0,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_mid)
+        agv.current_load = {sku_a: 10}
+
+        coordinator = FleetCoordinator(
+            env=env,
+            graph=graph,
+            fleet=[agv],
+            warehouses=[wh_origin, wh_dest],
+            charging_stations=[],
+        )
+
+        order = TransferOrder(
+            sku=sku_a,
+            quantity=10,
+            origin=wh_origin,
+            destination=wh_dest,
+            created_at=0.0,
+            status=OrderStatus.IN_TRANSIT,
+            assigned_agv=agv,
+        )
+
+        def do_return():
+            yield from coordinator._return_cargo_to_origin(order, agv)
+
+        env.process(do_return())
+        env.run()
+
+        assert agv.current_load is None
+        assert order.status == OrderStatus.FAILED
+        assert len(coordinator._dropped_cargo) == 1
+        assert coordinator._dropped_cargo[0][1] == node_mid
+
+    def test_no_cargo_early_return(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """When AGV has no cargo, _return_cargo_to_origin returns immediately."""
+        coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed)
+        agv.current_load = None
+
+        order = TransferOrder(
+            sku=sku_a,
+            quantity=10,
+            origin=wh_a,
+            destination=wh_b,
+            created_at=0.0,
+            status=OrderStatus.IN_TRANSIT,
+            assigned_agv=agv,
+        )
+
+        def do_return():
+            yield from coordinator._return_cargo_to_origin(order, agv)
+
+        env.process(do_return())
+        env.run()
+
+        assert agv.current_load is None
+        assert len(coordinator._dropped_cargo) == 0
