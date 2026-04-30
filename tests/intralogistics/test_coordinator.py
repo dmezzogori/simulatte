@@ -1589,3 +1589,208 @@ class TestOnLowBatteryOverride:
         assert charging_started_calls == [], (
             "Default charging hook should not fire when on_low_battery overrides"
         )
+
+
+# ===========================================================================
+# Batch 4: Spec Compliance — Policies & Metrics
+# ===========================================================================
+
+
+class TestUnfulfillableOrderRetries:
+    """S4: Unfulfillable orders are marked FAILED after max dispatch retries."""
+
+    def test_unfulfillable_order_fails_after_max_retries(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """An order whose SKU weight exceeds all AGV capacities can never be
+        dispatched. After enough pending-queue checks (driven by other
+        orders completing), it should be marked FAILED."""
+        coordinator, agv, wh_a, wh_b = _build_simple_system(
+            env, sku_a, simple_speed, origin_inventory=200
+        )
+        # Override max_dispatch_retries to a small value for the test
+        coordinator._max_dispatch_retries = 3
+
+        # Create a heavy SKU that exceeds the AGV's weight capacity (100.0)
+        heavy_sku = SKU(id="HEAVY", weight=200.0, volume=0.01)
+        # Add the heavy SKU to warehouse inventory so it is a valid product
+        wh_a.inventory[heavy_sku] = wh_a.inventory[sku_a].__class__(
+            env=env, capacity=100
+        )
+        wh_a.inventory[heavy_sku]._level = 50  # type: ignore[attr-defined]
+
+        unfulfillable_order = coordinator.create_order(
+            sku=heavy_sku, quantity=1, origin=wh_a, destination=wh_b
+        )
+        coordinator.submit(unfulfillable_order)
+        assert unfulfillable_order.status == OrderStatus.PENDING
+
+        # Now submit and complete 3 normal orders to drive pending-queue checks
+        for _ in range(3):
+            normal_order = coordinator.create_order(
+                sku=sku_a, quantity=1, origin=wh_a, destination=wh_b
+            )
+            coordinator.submit(normal_order)
+            env.run()
+
+        # After 3 completed missions (3 pending-queue checks), the unfulfillable
+        # order should have been retried 3 times and marked FAILED
+        assert unfulfillable_order.status == OrderStatus.FAILED
+        assert unfulfillable_order not in coordinator._pending_queue
+
+
+class TestResumeDeliveryRecovery:
+    """S6: ResumeDelivery actually resumes travel after interrupt."""
+
+    def test_resume_delivery_completes_after_interrupt(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """Interrupt a mission after pickup (during loaded travel).
+        With ResumeDelivery strategy, the order should eventually complete."""
+        from simulatte.intralogistics.policies import ResumeDelivery
+
+        # Longer graph so loaded travel takes time: ORIGIN -- MID -- DEST
+        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+        node_mid = Node(id="MID", x=50.0, y=0.0)
+        node_dest = Node(id="DEST", x=100.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_origin, target=node_mid),
+            Arc(source=node_mid, target=node_dest),
+        ]
+        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+
+        wh_origin = Warehouse(
+            env=env, name="WH-ORIGIN",
+            input_bays=[node_origin], output_bays=[node_origin],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env, name="WH-DEST",
+            input_bays=[node_dest], output_bays=[node_dest],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_origin, wh_dest], charging_stations=[],
+            load_recovery_strategy=ResumeDelivery(),
+        )
+
+        order = coordinator.create_order(
+            sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest
+        )
+        coordinator.submit(order)
+
+        # AGV at origin. pick_time=1.0, load_time=1.0 -> pickup done at ~2.0.
+        # Loaded travel ORIGIN->MID: distance=50, speed=10 -> 5.0s.
+        # Interrupt at t=4.0 — during loaded travel (after pickup).
+        def interrupt_later():
+            yield env.timeout(4.0)
+            process = coordinator._active_missions.get(order.id)
+            if process is not None and process.is_alive:
+                process.interrupt("test_interrupt")
+
+        env.process(interrupt_later())
+        env.run()
+
+        # The order should complete via ResumeDelivery recovery
+        assert order.status == OrderStatus.COMPLETED
+        assert order.delivered_at is not None
+        assert agv.state == AGVState.IDLE
+        assert agv.current_load is None
+        # Inventory should have been transferred
+        assert wh_origin.get_inventory_level(sku_a) == 90
+        assert wh_dest.get_inventory_level(sku_a) == 10
+
+
+class TestEventDrivenReplenishment:
+    """S9: Event-driven replenishment fires after delivery."""
+
+    def test_event_driven_replenishment_after_delivery(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """Add a replenishment policy with check_interval=None. Complete a
+        delivery that drains the origin warehouse below threshold. Verify
+        replenishment orders are submitted."""
+        from simulatte.intralogistics.policies import ReorderPointPolicy
+
+        # Two warehouses: WH-A (origin, starts with 100) and WH-B (destination).
+        # A third warehouse WH-C acts as replenishment source.
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_b = Node(id="B", x=10.0, y=0.0)
+        node_c = Node(id="C", x=20.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_a, target=node_b),
+            Arc(source=node_b, target=node_c),
+        ]
+        graph = LayoutGraph([node_a, node_b, node_c], arcs)
+
+        wh_a = Warehouse(
+            env=env, name="WH-A",
+            input_bays=[node_a], output_bays=[node_a],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_b = Warehouse(
+            env=env, name="WH-B",
+            input_bays=[node_b], output_bays=[node_b],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_c = Warehouse(
+            env=env, name="WH-C",
+            input_bays=[node_c], output_bays=[node_c],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 500},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_a, wh_b, wh_c], charging_stations=[],
+        )
+
+        # Drain WH-A below threshold first, so after delivery completes
+        # the event-driven policy will detect the shortfall.
+        def drain():
+            yield from wh_a.pick(sku_a, 60)  # WH-A goes to 40
+
+        env.process(drain())
+        env.run()  # let drain finish
+
+        # Register event-driven replenishment policy for WH-A
+        # Threshold 50 means WH-A (now at 40) needs replenishment
+        policy = ReorderPointPolicy(
+            thresholds={sku_a: 50},
+            reorder_quantity={sku_a: 30},
+        )
+        coordinator.add_replenishment_policy(policy, wh_a, check_interval=None)
+
+        # Submit a normal order (WH-A -> WH-B) that picks 10 more, bringing WH-A to 30
+        order = coordinator.create_order(
+            sku=sku_a, quantity=10, origin=wh_a, destination=wh_b
+        )
+        coordinator.submit(order)
+
+        # Run until first order completes — this triggers event-driven check
+        env.run()
+
+        # After the first delivery completes, the event-driven policy should
+        # have submitted a replenishment order (WH-C -> WH-A)
+        has_replenishment = (
+            len(coordinator._active_missions) > 0
+            or len(coordinator._pending_queue) > 0
+            or wh_a.get_inventory_level(sku_a) > 30
+        )
+        assert has_replenishment, (
+            "Event-driven replenishment should have created an order after delivery"
+        )

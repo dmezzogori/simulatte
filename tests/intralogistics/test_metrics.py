@@ -185,6 +185,69 @@ class TestDefaultCollectorOnAGVStateChanged:
         assert avg_util == (0.5 + 0.3) / 2
 
 
+class TestCollectorReceivesStateTransitions:
+    """S10: DefaultIntralogisticsCollector receives state transitions from FleetCoordinator."""
+
+    def test_fleet_utilization_ts_populated_after_mission(self) -> None:
+        """Attach a DefaultIntralogisticsCollector as time_series_collector.
+        Run a mission. Verify fleet_utilization_ts is populated."""
+        from simulatte.environment import Environment
+        from simulatte.intralogistics.agv import AGV, AGVType
+        from simulatte.intralogistics.fleet import FleetCoordinator
+        from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
+        from simulatte.intralogistics.sku import SKU
+        from simulatte.intralogistics.speed import TrapezoidalProfile
+        from simulatte.intralogistics.warehouse import Warehouse
+
+        env = Environment()
+        sku = SKU(id="SKU-A", weight=5.0, volume=0.1)
+        speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
+
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_b = Node(id="B", x=10.0, y=0.0)
+        arcs = [Arc(source=node_a, target=node_b)]
+        graph = LayoutGraph([node_a, node_b], arcs)
+
+        wh_a = Warehouse(
+            env=env, name="WH-A",
+            input_bays=[node_a], output_bays=[node_a],
+            n_slots=2, products=[sku], initial_inventory={sku: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_b = Warehouse(
+            env=env, name="WH-B",
+            input_bays=[node_b], output_bays=[node_b],
+            n_slots=2, products=[sku], initial_inventory={sku: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = AGVType(
+            name="test-type", speed_profile=speed,
+            battery_capacity=1000.0, weight_capacity=100.0, volume_capacity=10.0,
+            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+
+        collector = DefaultIntralogisticsCollector()
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_a, wh_b], charging_stations=[],
+            time_series_collector=collector,
+        )
+
+        order = coordinator.create_order(sku=sku, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        assert order.status == "COMPLETED" or order.status.name == "COMPLETED"
+        # fleet_utilization_ts should have been populated by on_agv_state_changed
+        assert len(collector.fleet_utilization_ts) > 0
+        # Each entry should be a (time, utilization) tuple
+        for time, util in collector.fleet_utilization_ts:
+            assert isinstance(time, (int, float))
+            assert isinstance(util, (int, float))
+
+
 class TestProtocolConformance:
     """Protocol conformance: isinstance checks for both built-ins."""
 

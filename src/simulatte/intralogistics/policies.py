@@ -192,14 +192,17 @@ class ReorderPointPolicy:
 
         for sku, threshold in self._thresholds.items():
             level = warehouse.get_inventory_level(sku)
-            if level >= threshold:
-                continue
 
-            # Check if there is already an in-transit order for this SKU to this warehouse
-            already_in_transit = any(
-                o.destination is warehouse and o.sku is sku for o in in_transit_orders
+            # Sum in-transit quantities for this SKU to this warehouse
+            in_transit_qty = sum(
+                o.quantity
+                for o in in_transit_orders
+                if o.sku is sku
+                and o.destination is warehouse
+                and o.status not in (OrderStatus.COMPLETED, OrderStatus.FAILED, OrderStatus.CANCELLED)
             )
-            if already_in_transit:
+            effective_stock = level + in_transit_qty
+            if effective_stock >= threshold:
                 continue
 
             # Find the source warehouse with the highest stock (excluding the monitored one)

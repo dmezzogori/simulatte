@@ -421,6 +421,101 @@ class TestReorderPointPolicy:
         assert len(orders) == 1
         assert orders[0].origin is wh_high
 
+    def test_sums_in_transit_quantities(
+        self, env: Environment, sku_a: SKU
+    ) -> None:
+        """S5: Policy sums in-transit quantities. With 45 on hand and 10
+        in-transit (effective=55), threshold=50 should NOT trigger a new order."""
+        nodes, _ = _make_linear_graph()
+        wh_low = _make_warehouse(
+            env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 45}
+        )
+        wh_high = _make_warehouse(
+            env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 100}
+        )
+
+        # In-transit order with 10 units heading to wh_low
+        in_transit = TransferOrder(
+            sku=sku_a,
+            quantity=10,
+            origin=wh_high,
+            destination=wh_low,
+            created_at=0.0,
+            status=OrderStatus.IN_TRANSIT,
+        )
+
+        policy = ReorderPointPolicy(
+            thresholds={sku_a: 50},
+            reorder_quantity={sku_a: 30},
+        )
+        orders = policy.check(wh_low, [wh_low, wh_high], in_transit_orders=[in_transit])
+
+        # effective_stock = 45 + 10 = 55 >= 50 → no new order
+        assert len(orders) == 0
+
+    def test_triggers_order_when_in_transit_insufficient(
+        self, env: Environment, sku_a: SKU
+    ) -> None:
+        """S5: When in-transit quantities are not enough, a new order is still created."""
+        nodes, _ = _make_linear_graph()
+        wh_low = _make_warehouse(
+            env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 30}
+        )
+        wh_high = _make_warehouse(
+            env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 100}
+        )
+
+        # In-transit order with 10 units — effective = 30 + 10 = 40 < 50
+        in_transit = TransferOrder(
+            sku=sku_a,
+            quantity=10,
+            origin=wh_high,
+            destination=wh_low,
+            created_at=0.0,
+            status=OrderStatus.IN_TRANSIT,
+        )
+
+        policy = ReorderPointPolicy(
+            thresholds={sku_a: 50},
+            reorder_quantity={sku_a: 30},
+        )
+        orders = policy.check(wh_low, [wh_low, wh_high], in_transit_orders=[in_transit])
+
+        # effective_stock = 30 + 10 = 40 < 50 → new order
+        assert len(orders) == 1
+        assert orders[0].quantity == 30
+
+    def test_excludes_completed_in_transit_from_sum(
+        self, env: Environment, sku_a: SKU
+    ) -> None:
+        """S5: Completed/failed/cancelled in-transit orders are not counted."""
+        nodes, _ = _make_linear_graph()
+        wh_low = _make_warehouse(
+            env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 45}
+        )
+        wh_high = _make_warehouse(
+            env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 100}
+        )
+
+        # Completed in-transit order — should NOT be counted
+        completed_order = TransferOrder(
+            sku=sku_a,
+            quantity=10,
+            origin=wh_high,
+            destination=wh_low,
+            created_at=0.0,
+            status=OrderStatus.COMPLETED,
+        )
+
+        policy = ReorderPointPolicy(
+            thresholds={sku_a: 50},
+            reorder_quantity={sku_a: 30},
+        )
+        orders = policy.check(wh_low, [wh_low, wh_high], in_transit_orders=[completed_order])
+
+        # effective_stock = 45 + 0 = 45 < 50 → new order
+        assert len(orders) == 1
+
     def test_no_order_when_above_threshold(
         self, env: Environment, sku_a: SKU
     ) -> None:
