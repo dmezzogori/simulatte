@@ -118,6 +118,7 @@ class ChargingStation:
             start = self.env.now
 
             # Always wait for a battery to be available in the pool
+            assert self._swap_pool is not None
             yield self._swap_pool.get(1)
 
             # Perform the swap (near-instant, takes swap_time)
