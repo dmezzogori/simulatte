@@ -116,7 +116,7 @@ class NearestParkingPolicy:
     """Send the AGV to the nearest parking area that has available capacity."""
 
     def reposition(self, agv: AGV, context: RepositioningContext) -> Node | None:
-        available = [pa for pa in context.parking_areas if pa._resource.count < pa._resource.capacity]
+        available = [pa for pa in context.parking_areas if pa.available_capacity > 0]
         if not available:
             return None
 

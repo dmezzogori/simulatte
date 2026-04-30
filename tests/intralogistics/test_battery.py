@@ -78,3 +78,18 @@ class TestBattery:
         b = Battery(capacity=100.0, initial_level=80.0)
         t = b.recharge_time(target_pct=0.5)
         assert t == 0.0
+
+
+class TestEstimateEnergy:
+    def test_estimate_energy_default_depletion(self) -> None:
+        battery = Battery(capacity=100.0)
+        result = battery.estimate_energy(distance=10.0, load_weight=5.0, speed=2.0)
+        assert result == 10.0
+
+    def test_estimate_energy_custom_depletion(self) -> None:
+        def custom_depletion(distance: float, load_weight: float, speed: float) -> float:
+            return distance * 0.5 + load_weight * 0.1 + speed * 0.01
+
+        battery = Battery(capacity=100.0, depletion_fn=custom_depletion)
+        result = battery.estimate_energy(distance=10.0, load_weight=5.0, speed=2.0)
+        assert result == pytest.approx(5.52)

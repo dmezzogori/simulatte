@@ -597,7 +597,7 @@ class FleetCoordinator:
                         distance, load_weight, agv.battery.level_pct, speed_limit=arc_speed_limit
                     )
                     avg_speed = distance / travel_time if travel_time > 0 else 0.0
-                    energy_cost = agv.battery._depletion_fn(distance, load_weight, avg_speed)
+                    energy_cost = agv.battery.estimate_energy(distance, load_weight, avg_speed)
 
                     if agv.battery.level < energy_cost:
                         charger = self._find_reachable_charger(agv)
@@ -698,7 +698,7 @@ class FleetCoordinator:
                     return _EnterOutcome.REROUTE
 
             priority = self._traffic_manager.priority(agv)
-            backoff_multiplier = attempt + 1 if priority > 0 else 2 ** attempt
+            backoff_multiplier = attempt + 1 if priority > 0 else 2**attempt
             yield self.env.timeout(timeout * backoff_multiplier)
 
         return _EnterOutcome.GAVE_UP
@@ -789,7 +789,7 @@ class FleetCoordinator:
                 math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y) for i in range(len(path) - 1)
             )
             # Estimate energy cost to get there
-            energy_needed = agv.battery._depletion_fn(total_dist, 0.0, 0.0)
+            energy_needed = agv.battery.estimate_energy(total_dist, 0.0, 0.0)
             if agv.battery.level >= energy_needed:
                 reachable.append((total_dist, cs))
 

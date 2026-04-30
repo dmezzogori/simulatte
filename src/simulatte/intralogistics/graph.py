@@ -33,6 +33,10 @@ class LayoutGraph:
             if arc.bidirectional:
                 self._adjacency[arc.target][arc.source] = arc
 
+    @property
+    def nodes(self) -> frozenset[Node]:
+        return frozenset(self._nodes)
+
     def neighbors(self, node: Node) -> list[Node]:
         return list(self._adjacency[node].keys())
 

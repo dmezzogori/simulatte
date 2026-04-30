@@ -85,7 +85,7 @@ class ResourceBasedTrafficManager:
         self._pending_requests: dict[AGV, Request] = {}
         self._intents: dict[AGV, list[Node]] = {}
 
-        for node in graph._nodes:
+        for node in graph.nodes:
             self._node_resources[node] = simpy.Resource(env, capacity=node_capacity)
 
     @property

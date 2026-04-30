@@ -90,3 +90,16 @@ class TestLayoutGraph:
     def test_arc_between_none(self) -> None:
         nodes, graph = self._make_line_graph()
         assert graph.arc_between(nodes[0], nodes[2]) is None
+
+    def test_nodes_returns_frozenset_of_all_nodes(self) -> None:
+        nodes, graph = self._make_line_graph()
+        result = graph.nodes
+        assert isinstance(result, frozenset)
+        assert result == frozenset(nodes)
+
+    def test_nodes_frozenset_is_defensive_copy(self) -> None:
+        nodes, graph = self._make_line_graph()
+        result1 = graph.nodes
+        result2 = graph.nodes
+        assert result1 == result2
+        assert result1 is not graph._nodes

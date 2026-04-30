@@ -34,6 +34,10 @@ class ParkingArea:
         self._resource = simpy.Resource(env, capacity=capacity)
         self._agv_requests: dict[AGV, simpy.resources.resource.Request] = {}
 
+    @property
+    def available_capacity(self) -> int:
+        return self._resource.capacity - self._resource.count
+
     def enter(self, agv: AGV) -> ProcessGenerator:
         """Request a parking slot. Blocks if the area is full."""
         self.env.debug(

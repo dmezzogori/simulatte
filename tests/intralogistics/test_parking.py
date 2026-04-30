@@ -130,6 +130,40 @@ class TestPerAGVRequestTracking:
         assert agv_a not in area._agv_requests
 
 
+class TestAvailableCapacity:
+    def test_full_capacity_when_empty(self, env: Environment, parking_node: Node) -> None:
+        """Available capacity equals total capacity when no AGVs are parked."""
+        area = ParkingArea(env=env, name="P1", node=parking_node, capacity=3)
+        assert area.available_capacity == 3
+
+    def test_decremented_after_enter(self, env: Environment, parking_node: Node, agv_type: AGVType) -> None:
+        """Available capacity decreases by one after an AGV enters."""
+        area = ParkingArea(env=env, name="P1", node=parking_node, capacity=2)
+        agv = _make_agv(env, agv_type, agv_id="agv-1")
+
+        def park(agv: AGV) -> None:
+            yield from area.enter(agv)
+
+        env.process(park(agv))
+        env.run()
+
+        assert area.available_capacity == 1
+
+    def test_restored_after_leave(self, env: Environment, parking_node: Node, agv_type: AGVType) -> None:
+        """Available capacity is restored after an AGV leaves."""
+        area = ParkingArea(env=env, name="P1", node=parking_node, capacity=1)
+        agv = _make_agv(env, agv_type, agv_id="agv-1")
+
+        def park_and_leave(agv: AGV) -> None:
+            yield from area.enter(agv)
+            area.leave(agv)
+
+        env.process(park_and_leave(agv))
+        env.run()
+
+        assert area.available_capacity == 1
+
+
 class TestRepr:
     def test_repr_contains_name(self, parking_node: Node) -> None:
         """Repr includes the parking area name."""

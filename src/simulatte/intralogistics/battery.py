@@ -43,6 +43,9 @@ class Battery:
     def is_critical(self) -> bool:
         return self.level_pct <= self.critical_threshold
 
+    def estimate_energy(self, distance: float, load_weight: float, speed: float) -> float:
+        return self._depletion_fn(distance, load_weight, speed)
+
     def deplete(self, distance: float, load_weight: float, speed: float) -> None:
         consumed = self._depletion_fn(distance, load_weight, speed)
         self.level = max(0.0, self.level - consumed)
