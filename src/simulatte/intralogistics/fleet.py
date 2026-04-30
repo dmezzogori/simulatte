@@ -83,6 +83,7 @@ class FleetCoordinator:
         time_series_collector: IntralogisticsTimeSeriesCollector | None = None,
         on_low_battery: Callable[[AGV], ProcessGenerator | None] | None = None,
         max_dispatch_retries: int = 10,
+        pending_retry_delay: float = 0.001,
     ) -> None:
         self.env = env
         self.graph = graph
@@ -102,7 +103,7 @@ class FleetCoordinator:
         self._max_dispatch_retries = max_dispatch_retries
         self._dispatch_retries: dict[str, int] = {}
         self._pending_retry_scheduled = False
-        self._pending_retry_delay = 0.001
+        self._pending_retry_delay = pending_retry_delay
 
         # Event-driven replenishment policies (checked after each pick)
         self._event_driven_policies: list[tuple[ReplenishmentPolicy, Warehouse]] = []
@@ -836,14 +837,13 @@ class FleetCoordinator:
         # Try to dispatch each pending order
         dispatched: list[TransferOrder] = []
         failed: list[TransferOrder] = []
-        idle_agvs = [agv for agv in self.fleet if agv.state == AGVState.IDLE]
         for order in list(self._pending_queue):
             agv = self._dispatch_strategy.select(order, self.fleet, self.graph)
             if agv is not None:
                 dispatched.append(order)
                 self._dispatch_retries.pop(order.id, None)
                 self._dispatch(order, agv)
-            elif idle_agvs:
+            elif not any(a.can_carry(order.sku, order.quantity) for a in self.fleet):
                 self._dispatch_retries[order.id] = self._dispatch_retries.get(order.id, 0) + 1
                 if self._dispatch_retries[order.id] >= self._max_dispatch_retries:
                     failed.append(order)
