@@ -84,10 +84,15 @@ class AGV:
         return self._state
 
     def transition_to(self, new_state: AGVState) -> None:
+        old_state = self._state
         elapsed = self.env.now - self._state_entered_at
-        self.state_durations[self._state] += elapsed
+        self.state_durations[old_state] += elapsed
         self._state = new_state
         self._state_entered_at = self.env.now
+        self.env.debug(
+            f"{self.agv_id} {old_state.name} -> {new_state.name}",
+            component="AGV",
+        )
 
     def can_carry(self, sku: SKU, quantity: int) -> bool:
         if not self.agv_type.compatibility_fn(sku):

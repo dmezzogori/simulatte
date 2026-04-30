@@ -56,6 +56,10 @@ class Warehouse:
     def pick(self, sku: SKU, quantity: int) -> ProcessGenerator:
         if sku not in self.inventory:
             raise KeyError(f"Unknown product: {sku.id}")
+        self.env.debug(
+            f"[{self.name}] Pick started (sku={sku.id}, qty={quantity})",
+            component="Warehouse",
+        )
         # Wait for inventory FIRST (no slot held — prevents deadlock with put)
         yield self.inventory[sku].get(quantity)
         # Then acquire a slot for the physical pick operation
@@ -65,10 +69,18 @@ class Warehouse:
             yield self.env.timeout(pick_time)
             self.total_picks += 1
             self._total_pick_time += pick_time
+            self.env.debug(
+                f"[{self.name}] Pick completed (sku={sku.id}, qty={quantity})",
+                component="Warehouse",
+            )
 
     def put(self, sku: SKU, quantity: int) -> ProcessGenerator:
         if sku not in self.inventory:
             raise KeyError(f"Unknown product: {sku.id}")
+        self.env.debug(
+            f"[{self.name}] Put started (sku={sku.id}, qty={quantity})",
+            component="Warehouse",
+        )
         with self._slots.request() as req:
             yield req
             put_time = self.put_time_fn(sku, quantity)
@@ -76,6 +88,10 @@ class Warehouse:
             yield self.inventory[sku].put(quantity)
             self.total_puts += 1
             self._total_put_time += put_time
+            self.env.debug(
+                f"[{self.name}] Put completed (sku={sku.id}, qty={quantity})",
+                component="Warehouse",
+            )
 
     def nearest_input_bay(self, from_node: Node, graph: LayoutGraph) -> Node:
         return self._nearest_bay(from_node, self.input_bays, graph)

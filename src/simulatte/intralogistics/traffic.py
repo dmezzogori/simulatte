@@ -100,7 +100,12 @@ class ResourceBasedTrafficManager:
                 conflict_nodes.extend(shared)
 
         if conflict_nodes:
-            return PathCheckResult(feasible=False, conflict_nodes=list(set(conflict_nodes)))
+            unique_conflicts = list(set(conflict_nodes))
+            self._env.debug(
+                f"Path conflict for {agv.agv_id}: {[n.id for n in unique_conflicts]}",
+                component="TrafficManager",
+            )
+            return PathCheckResult(feasible=False, conflict_nodes=unique_conflicts)
         return PathCheckResult(feasible=True)
 
     def register_intent(self, agv: AGV, path: list[Node]) -> None:
@@ -113,6 +118,10 @@ class ResourceBasedTrafficManager:
         self._pending_requests[agv] = req
         yield req
         self._pending_requests.pop(agv, None)
+        self._env.debug(
+            f"{agv.agv_id} entered node {node.id}",
+            component="TrafficManager",
+        )
 
     def leave_node(self, agv: AGV, node: Node) -> None:
         key = (agv, node)
@@ -125,6 +134,10 @@ class ResourceBasedTrafficManager:
                 req.cancel()
         if agv in self._intents and node in self._intents[agv]:
             self._intents[agv].remove(node)
+        self._env.debug(
+            f"{agv.agv_id} left node {node.id}",
+            component="TrafficManager",
+        )
 
     def cancel(self, agv: AGV) -> None:
         self._intents.pop(agv, None)
