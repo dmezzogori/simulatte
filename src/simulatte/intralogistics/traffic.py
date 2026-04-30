@@ -1,0 +1,134 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
+import simpy
+from simpy.resources.resource import Request
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from simpy.events import ProcessGenerator
+
+    from simulatte.environment import Environment
+    from simulatte.intralogistics.agv import AGV
+    from simulatte.intralogistics.graph import LayoutGraph, Node
+
+
+@dataclass
+class PathCheckResult:
+    feasible: bool
+    conflict_nodes: list[Node] | None = None
+    delay_until: float | None = None
+
+
+@runtime_checkable
+class TrafficManager(Protocol):
+    def place(self, agv: AGV, node: Node) -> ProcessGenerator: ...
+    def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult: ...
+    def register_intent(self, agv: AGV, path: list[Node]) -> None: ...
+    def enter_node(self, agv: AGV, node: Node) -> ProcessGenerator: ...
+    def leave_node(self, agv: AGV, node: Node) -> None: ...
+    def cancel(self, agv: AGV) -> None: ...
+
+
+class FreeTrafficManager:
+    def place(self, agv: AGV, node: Node) -> ProcessGenerator:  # noqa: ARG002
+        return
+        yield  # make it a generator
+
+    def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult:  # noqa: ARG002
+        return PathCheckResult(feasible=True)
+
+    def register_intent(self, agv: AGV, path: list[Node]) -> None:  # noqa: ARG002
+        pass
+
+    def enter_node(self, agv: AGV, node: Node) -> ProcessGenerator:  # noqa: ARG002
+        return
+        yield  # make it a generator
+
+    def leave_node(self, agv: AGV, node: Node) -> None:  # noqa: ARG002
+        pass
+
+    def cancel(self, agv: AGV) -> None:  # noqa: ARG002
+        pass
+
+
+class ResourceBasedTrafficManager:
+    def __init__(
+        self,
+        *,
+        graph: LayoutGraph,
+        env: Environment,
+        node_capacity: int = 1,
+        deadlock_timeout: float = 30.0,
+        priority_fn: Callable[[AGV], float] | None = None,
+    ) -> None:
+        self._env = env
+        self._graph = graph
+        self._node_capacity = node_capacity
+        self._deadlock_timeout = deadlock_timeout
+        self._priority_fn = priority_fn or (lambda agv: 0.0)  # noqa: ARG005
+        self._node_resources: dict[Node, simpy.Resource] = {}
+        self._node_requests: dict[tuple[AGV, Node], Request] = {}
+        self._pending_requests: dict[AGV, Request] = {}
+        self._intents: dict[AGV, list[Node]] = {}
+
+        for node in graph._nodes:
+            self._node_resources[node] = simpy.Resource(env, capacity=node_capacity)
+
+    def place(self, agv: AGV, node: Node) -> ProcessGenerator:
+        resource = self._node_resources[node]
+        req = resource.request()
+        self._node_requests[(agv, node)] = req
+        yield req
+
+    def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult:
+        if len(path) < 2:
+            return PathCheckResult(feasible=True)
+
+        path_future = set(path[1:])
+        conflict_nodes: list[Node] = []
+
+        for other_agv, other_path in self._intents.items():
+            if other_agv is agv:
+                continue
+            other_future = set(other_path[1:])
+            shared = path_future & other_future
+            if shared:
+                conflict_nodes.extend(shared)
+
+        if conflict_nodes:
+            return PathCheckResult(feasible=False, conflict_nodes=list(set(conflict_nodes)))
+        return PathCheckResult(feasible=True)
+
+    def register_intent(self, agv: AGV, path: list[Node]) -> None:
+        self._intents[agv] = list(path)
+
+    def enter_node(self, agv: AGV, node: Node) -> ProcessGenerator:
+        resource = self._node_resources[node]
+        req = resource.request()
+        self._node_requests[(agv, node)] = req
+        self._pending_requests[agv] = req
+        yield req
+        self._pending_requests.pop(agv, None)
+
+    def leave_node(self, agv: AGV, node: Node) -> None:
+        key = (agv, node)
+        if key in self._node_requests:
+            req = self._node_requests.pop(key)
+            resource = self._node_resources[node]
+            if req.triggered:
+                resource.release(req)
+            else:
+                req.cancel()
+        if agv in self._intents and node in self._intents[agv]:
+            self._intents[agv].remove(node)
+
+    def cancel(self, agv: AGV) -> None:
+        self._intents.pop(agv, None)
+        if agv in self._pending_requests:
+            req = self._pending_requests.pop(agv)
+            if not req.triggered:
+                req.cancel()
