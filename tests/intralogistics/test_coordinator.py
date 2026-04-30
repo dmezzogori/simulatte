@@ -507,3 +507,191 @@ class TestBattery:
         # After diverting to charge (co-located), it should have enough to complete
         assert order.status == OrderStatus.COMPLETED
         assert agv.state == AGVState.IDLE
+
+
+# ===========================================================================
+# Sub-commit 3: Hooks, replenishment, pending queue, fleet metrics
+# ===========================================================================
+
+
+class TestLifecycleHooks:
+    """Lifecycle hooks fire at the right times."""
+
+    def test_on_order_submitted_fires(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed)
+        submitted: list[TransferOrder] = []
+        coordinator.on_order_submitted(lambda o: submitted.append(o))
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        assert len(submitted) == 1
+        assert submitted[0] is order
+
+    def test_on_delivery_complete_fires(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed)
+        delivered: list[tuple[TransferOrder, AGV]] = []
+        coordinator.on_delivery_complete(lambda o, a: delivered.append((o, a)))
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        assert len(delivered) == 1
+        assert delivered[0][0] is order
+        assert delivered[0][1] is agv
+
+    def test_on_agv_idle_fires(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed)
+        idle_events: list[AGV] = []
+        coordinator.on_agv_idle(lambda a: idle_events.append(a))
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        assert len(idle_events) >= 1
+        assert idle_events[0] is agv
+
+    def test_on_order_dispatched_fires(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed)
+        dispatched: list[tuple[TransferOrder, AGV]] = []
+        coordinator.on_order_dispatched(lambda o, a: dispatched.append((o, a)))
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        assert len(dispatched) == 1
+        assert dispatched[0][0] is order
+
+    def test_on_pickup_complete_fires(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed)
+        pickups: list[tuple[TransferOrder, AGV]] = []
+        coordinator.on_pickup_complete(lambda o, a: pickups.append((o, a)))
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        assert len(pickups) == 1
+        assert pickups[0][0] is order
+
+
+class TestPendingQueue:
+    """Pending queue: orders dispatched when AGVs become available."""
+
+    def test_second_order_completes_after_first(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """With 1 AGV and 2 orders, the second completes after the first."""
+        coordinator, agv, wh_a, wh_b = _build_simple_system(
+            env, sku_a, simple_speed, origin_inventory=200
+        )
+        order1 = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        order2 = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+
+        coordinator.submit(order1)
+        coordinator.submit(order2)
+
+        env.run()
+
+        assert order1.status == OrderStatus.COMPLETED
+        assert order2.status == OrderStatus.COMPLETED
+        assert order1.delivered_at is not None
+        assert order2.delivered_at is not None
+        assert order2.delivered_at > order1.delivered_at
+
+
+class TestFleetMetrics:
+    """Fleet convenience methods."""
+
+    def test_fleet_utilization_nonzero_after_mission(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed)
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        util = coordinator.fleet_utilization
+        assert 0.0 < util <= 1.0
+
+    def test_fleet_time_allocation_sums_to_one(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed)
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        alloc = coordinator.fleet_time_allocation()
+        total = sum(alloc.values())
+        assert total == pytest.approx(1.0, abs=0.01)
+
+    def test_agv_report(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed)
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        report = coordinator.agv_report()
+        assert len(report) == 1
+        assert report[0]["agv_id"] == "agv-1"
+        assert report[0]["state"] == "IDLE"
+        assert isinstance(report[0]["utilization"], float)
+
+
+class TestReplenishment:
+    """Replenishment policy periodic check."""
+
+    def test_periodic_replenishment(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """Periodic replenishment check creates and submits orders when inventory is low."""
+        from simulatte.intralogistics.policies import ReorderPointPolicy
+
+        coordinator, agv, wh_a, wh_b = _build_simple_system(
+            env, sku_a, simple_speed, origin_inventory=200
+        )
+        # Put initial inventory in WH-B so it can serve as source
+        wh_b.inventory[sku_a]._level = 100  # type: ignore[attr-defined]
+
+        # Set up reorder policy: when WH-A drops below 150, reorder 50 from WH-B
+        policy = ReorderPointPolicy(
+            thresholds={sku_a: 150},
+            reorder_quantity={sku_a: 50},
+        )
+
+        coordinator.add_replenishment_policy(policy, wh_a, check_interval=10.0)
+
+        # First drain some inventory from WH-A
+        def drain():
+            yield from wh_a.pick(sku_a, 60)  # WH-A goes to 140 < 150
+
+        env.process(drain())
+        # Run for enough time for one replenishment check
+        env.run(until=15.0)
+
+        # The replenishment policy should have submitted an order
+        # (either already dispatched or in pending queue)
+        # Check that WH-A is being restocked or there's an active/pending order
+        has_replenishment = (
+            len(coordinator._active_missions) > 0
+            or len(coordinator._pending_queue) > 0
+            or wh_a.get_inventory_level(sku_a) > 140
+        )
+        assert has_replenishment
