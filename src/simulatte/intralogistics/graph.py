@@ -45,4 +45,6 @@ class LayoutGraph:
         return math.hypot(target.x - source.x, target.y - source.y)
 
     def shortest_path(self, source: Node, target: Node) -> list[Node] | None:
-        raise NotImplementedError("shortest_path requires DijkstraPlanner — added in Task 3")
+        from simulatte.intralogistics.pathfinding import DijkstraPlanner
+
+        return DijkstraPlanner().plan(self, source, target)

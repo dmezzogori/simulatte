@@ -90,9 +90,3 @@ class TestLayoutGraph:
     def test_arc_between_none(self) -> None:
         nodes, graph = self._make_line_graph()
         assert graph.arc_between(nodes[0], nodes[2]) is None
-
-    def test_shortest_path_not_available_yet(self) -> None:
-        """shortest_path is added in Task 3 after DijkstraPlanner exists."""
-        nodes, graph = self._make_line_graph()
-        with pytest.raises(NotImplementedError):
-            graph.shortest_path(nodes[0], nodes[3])
