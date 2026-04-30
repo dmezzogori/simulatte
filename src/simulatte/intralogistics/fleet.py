@@ -51,6 +51,12 @@ class _TravelOutcome(Enum):
     BATTERY_STRANDED = auto()
 
 
+class _EnterOutcome(Enum):
+    ENTERED = auto()
+    REROUTE = auto()
+    GAVE_UP = auto()
+
+
 class FleetCoordinator:
     """Central orchestrator for AGV fleet operations and mission lifecycle.
 
@@ -517,105 +523,98 @@ class FleetCoordinator:
         if from_node == to_node:
             return _TravelOutcome.ARRIVED
 
-        path = self._path_planner.plan(self.graph, from_node, to_node)
-        if path is None:
-            self.env.error(
-                f"No path from {from_node.id} to {to_node.id} for {agv.agv_id}",
-                component="FleetCoordinator",
-            )
-            return _TravelOutcome.MISSION_FAILED
+        avoid_nodes: list[Node] | None = None
 
-        # Resolve path feasibility before registering intent.
         while True:
-            result = self._traffic_manager.check_path(agv, path)
-            if result.feasible:
-                break
-
-            if result.conflict_nodes:
-                alt_path = self._path_planner.plan(self.graph, from_node, to_node, avoid=result.conflict_nodes)
-                if alt_path is None:
-                    self.env.error(
-                        f"No alternative path from {from_node.id} to {to_node.id} for {agv.agv_id}",
-                        component="FleetCoordinator",
-                    )
-                    return _TravelOutcome.MISSION_FAILED
-                alt_result = self._traffic_manager.check_path(agv, alt_path)
-                if alt_result.feasible:
-                    path = alt_path
-                    break
-                if alt_result.delay_until is not None:
-                    wait = max(0.0, alt_result.delay_until - self.env.now)
-                    if wait > 0:
-                        yield self.env.timeout(wait)
-                    path = alt_path
-                    continue
+            path = self._path_planner.plan(self.graph, from_node, to_node, avoid=avoid_nodes)
+            if path is None:
                 self.env.error(
-                    f"Alternative path also infeasible from {from_node.id} to {to_node.id} for {agv.agv_id}",
+                    f"No path from {from_node.id} to {to_node.id} for {agv.agv_id}",
                     component="FleetCoordinator",
                 )
                 return _TravelOutcome.MISSION_FAILED
 
-            if result.delay_until is not None:
-                wait = max(0.0, result.delay_until - self.env.now)
-                if wait > 0:
-                    yield self.env.timeout(wait)
-                continue
+            while True:
+                result = self._traffic_manager.check_path(agv, path)
+                if result.feasible:
+                    break
 
-            self.env.error(
-                f"Infeasible path from {from_node.id} to {to_node.id} for {agv.agv_id} "
-                f"with no reroute or delay guidance",
-                component="FleetCoordinator",
-            )
-            return _TravelOutcome.MISSION_FAILED
+                if result.conflict_nodes:
+                    alt_path = self._path_planner.plan(self.graph, from_node, to_node, avoid=result.conflict_nodes)
+                    if alt_path is None:
+                        self.env.error(
+                            f"No alternative path from {from_node.id} to {to_node.id} for {agv.agv_id}",
+                            component="FleetCoordinator",
+                        )
+                        return _TravelOutcome.MISSION_FAILED
+                    alt_result = self._traffic_manager.check_path(agv, alt_path)
+                    if alt_result.feasible:
+                        path = alt_path
+                        break
+                    if alt_result.delay_until is not None:
+                        wait = max(0.0, alt_result.delay_until - self.env.now)
+                        if wait > 0:
+                            yield self.env.timeout(wait)
+                        path = alt_path
+                        continue
+                    self.env.error(
+                        f"Alternative path also infeasible from {from_node.id} to {to_node.id} for {agv.agv_id}",
+                        component="FleetCoordinator",
+                    )
+                    return _TravelOutcome.MISSION_FAILED
 
-        self._traffic_manager.register_intent(agv, path)
+                if result.delay_until is not None:
+                    wait = max(0.0, result.delay_until - self.env.now)
+                    if wait > 0:
+                        yield self.env.timeout(wait)
+                    continue
 
-        deadlock_timeout = self._traffic_manager.deadlock_timeout
-
-        try:
-            for i in range(len(path) - 1):
-                current = path[i]
-                next_node = path[i + 1]
-
-                distance = math.hypot(next_node.x - current.x, next_node.y - current.y)
-
-                if loaded and agv.current_load:
-                    load_weight = sum(sku.weight * qty for sku, qty in agv.current_load.items())
-                else:
-                    load_weight = 0.0
-
-                # M1: Fetch arc speed limit and pass it to speed profile
-                arc = self.graph.arc_between(current, next_node)
-                arc_speed_limit = arc.speed_limit if arc is not None else None
-
-                travel_time = agv.agv_type.speed_profile.travel_time(
-                    distance, load_weight, agv.battery.level_pct, speed_limit=arc_speed_limit
+                self.env.error(
+                    f"Infeasible path from {from_node.id} to {to_node.id} for {agv.agv_id} "
+                    f"with no reroute or delay guidance",
+                    component="FleetCoordinator",
                 )
-                avg_speed = distance / travel_time if travel_time > 0 else 0.0
-                energy_cost = agv.battery._depletion_fn(distance, load_weight, avg_speed)
+                return _TravelOutcome.MISSION_FAILED
 
-                # Pre-arc battery check
-                if agv.battery.level < energy_cost:
-                    # Try to divert to charging
-                    charger = self._find_reachable_charger(agv)
-                    if charger is not None:
-                        prior_state = agv.state
-                        yield from self._charge_agv(agv, charger)
-                        self._transition_agv(agv, prior_state)
-                        # After charging, re-check if we have enough
-                        if agv.battery.level < energy_cost:
-                            self._transition_agv(agv, AGVState.STRANDED)
-                            self.env.error(
-                                f"{agv.agv_id} STRANDED at {current.id} — insufficient energy even after charging",
-                                component="FleetCoordinator",
-                            )
-                            return _TravelOutcome.BATTERY_STRANDED
-                        # H6: Charging diversion moved the AGV — cancel old
-                        # intent and return a retry outcome so _run_mission
-                        # restarts from the AGV's new current_node.
-                        self._traffic_manager.cancel(agv)
-                        return _TravelOutcome.RETRY_FROM_CURRENT_POSITION
+            self._traffic_manager.register_intent(agv, path)
+            deadlock_timeout = self._traffic_manager.deadlock_timeout
+            reroute_requested = False
+
+            try:
+                for i in range(len(path) - 1):
+                    current = path[i]
+                    next_node = path[i + 1]
+
+                    distance = math.hypot(next_node.x - current.x, next_node.y - current.y)
+                    if loaded and agv.current_load:
+                        load_weight = sum(sku.weight * qty for sku, qty in agv.current_load.items())
                     else:
+                        load_weight = 0.0
+
+                    arc = self.graph.arc_between(current, next_node)
+                    arc_speed_limit = arc.speed_limit if arc is not None else None
+                    travel_time = agv.agv_type.speed_profile.travel_time(
+                        distance, load_weight, agv.battery.level_pct, speed_limit=arc_speed_limit
+                    )
+                    avg_speed = distance / travel_time if travel_time > 0 else 0.0
+                    energy_cost = agv.battery._depletion_fn(distance, load_weight, avg_speed)
+
+                    if agv.battery.level < energy_cost:
+                        charger = self._find_reachable_charger(agv)
+                        if charger is not None:
+                            prior_state = agv.state
+                            yield from self._charge_agv(agv, charger)
+                            self._transition_agv(agv, prior_state)
+                            if agv.battery.level < energy_cost:
+                                self._transition_agv(agv, AGVState.STRANDED)
+                                self.env.error(
+                                    f"{agv.agv_id} STRANDED at {current.id} — insufficient energy even after charging",
+                                    component="FleetCoordinator",
+                                )
+                                return _TravelOutcome.BATTERY_STRANDED
+                            self._traffic_manager.cancel(agv)
+                            return _TravelOutcome.RETRY_FROM_CURRENT_POSITION
+
                         self._transition_agv(agv, AGVState.STRANDED)
                         self.env.error(
                             f"{agv.agv_id} STRANDED at {current.id} — no reachable charger",
@@ -623,61 +622,62 @@ class FleetCoordinator:
                         )
                         return _TravelOutcome.BATTERY_STRANDED
 
-                # H3: Track whether the AGV physically reached the next node.
-                # If interrupted after enter_node but before arrival, release
-                # the acquired next-node resource to prevent leaks.
-                reached_next = False
-                try:
-                    # S2: Enter next node with deadlock timeout when applicable
-                    if deadlock_timeout is not None:
-                        entered = yield from self._enter_with_timeout(agv, next_node, deadlock_timeout)
-                        if not entered:
-                            self.env.error(
-                                f"{agv.agv_id} could not enter node {next_node.id} after deadlock retries",
-                                component="FleetCoordinator",
+                    reached_next = False
+                    try:
+                        if deadlock_timeout is not None:
+                            enter_outcome = yield from self._enter_with_timeout(
+                                agv, next_node, deadlock_timeout, destination=to_node
                             )
-                            return _TravelOutcome.MISSION_FAILED
-                    else:
-                        yield from self._traffic_manager.enter_node(agv, next_node)
+                            if enter_outcome is _EnterOutcome.REROUTE:
+                                avoid_nodes = [next_node]
+                                reroute_requested = True
+                                break
+                            if enter_outcome is _EnterOutcome.GAVE_UP:
+                                self.env.error(
+                                    f"{agv.agv_id} could not enter node {next_node.id} after deadlock retries",
+                                    component="FleetCoordinator",
+                                )
+                                return _TravelOutcome.MISSION_FAILED
+                        else:
+                            yield from self._traffic_manager.enter_node(agv, next_node)
 
-                    yield self.env.timeout(travel_time)
-                    agv.battery.deplete(distance, load_weight, avg_speed)
-                    self._traffic_manager.leave_node(agv, current)
-                    agv.current_node = next_node
-                    reached_next = True
+                        yield self.env.timeout(travel_time)
+                        agv.battery.deplete(distance, load_weight, avg_speed)
+                        self._traffic_manager.leave_node(agv, current)
+                        agv.current_node = next_node
+                        reached_next = True
 
-                    # S3: If battery is critical after depletion, abort
-                    # travel so the retry loop in _run_mission can charge.
-                    if agv.battery.is_critical:
-                        self._traffic_manager.cancel(agv)
-                        return _TravelOutcome.RETRY_FROM_CURRENT_POSITION
-                except simpy.Interrupt:
-                    if not reached_next:  # pragma: no cover — else branch requires interrupt between non-yielding lines
-                        # Release the acquired next-node resource
-                        self._traffic_manager.leave_node(agv, next_node)
-                    raise
+                        if agv.battery.is_critical:
+                            self._traffic_manager.cancel(agv)
+                            return _TravelOutcome.RETRY_FROM_CURRENT_POSITION
+                    except simpy.Interrupt:
+                        if not reached_next:  # pragma: no cover
+                            self._traffic_manager.leave_node(agv, next_node)
+                        raise
+            finally:
+                self._traffic_manager.cancel(agv)
 
-        finally:
-            self._traffic_manager.cancel(agv)
+            if reroute_requested:
+                from_node = agv.current_node
+                continue
 
-        return _TravelOutcome.ARRIVED
+            return _TravelOutcome.ARRIVED
 
     def _enter_with_timeout(
         self,
         agv: AGV,
         node: Node,
         timeout: float,
+        *,
+        destination: Node,
         _max_retries: int = 3,
     ) -> ProcessGenerator:
-        """Try to enter ``node`` with a deadlock timeout.
+        """Try to enter ``node`` with timeout, reroute, and priority backoff.
 
-        Retries the *same* node up to ``_max_retries`` times with
-        exponential backoff.  Does **not** attempt rerouting — if all
-        retries are exhausted the caller (``_travel``) returns ``False``
-        so ``_run_mission``'s retry loop can re-plan from scratch.
-
-        Returns ``True`` if the node was entered, ``False`` if all
-        attempts were exhausted.
+        On timeout, first try a reroute that avoids the blocked node. If no
+        alternative exists, wait with exponential backoff and retry. Returns an
+        ``_EnterOutcome`` indicating whether the node was entered, travel should
+        be rerouted, or the coordinator should give up.
         """
         for attempt in range(_max_retries):
             enter_proc = self.env.process(self._traffic_manager.enter_node(agv, node))
@@ -685,21 +685,23 @@ class FleetCoordinator:
             yield enter_proc | timer
 
             if enter_proc.triggered:
-                # Successfully entered
-                return True
+                return _EnterOutcome.ENTERED
 
-            # Timeout — interrupt the suspended process to prevent leaks,
-            # then cancel the pending resource request.
-            if enter_proc.is_alive:  # pragma: no cover — process is always alive when timeout wins the AnyOf
+            if enter_proc.is_alive:  # pragma: no cover
                 enter_proc.interrupt("deadlock_timeout")
             self._traffic_manager.cancel(agv)
 
-            # Exponential backoff before retrying the same node
-            if attempt < _max_retries - 1:
-                backoff = timeout * (2**attempt)
-                yield self.env.timeout(backoff)
+            current_node = agv.current_node
+            if current_node is not None:
+                alt_path = self._path_planner.plan(self.graph, current_node, destination, avoid=[node])
+                if alt_path is not None:
+                    return _EnterOutcome.REROUTE
 
-        return False
+            priority = self._traffic_manager.priority(agv)
+            backoff_multiplier = attempt + 1 if priority > 0 else 2 ** attempt
+            yield self.env.timeout(timeout * backoff_multiplier)
+
+        return _EnterOutcome.GAVE_UP
 
     def _initial_placement(self) -> ProcessGenerator:
         """Register starting positions of all AGVs with the traffic manager (S1)."""
@@ -734,10 +736,13 @@ class FleetCoordinator:
                 return
 
         # Travel to charging station
+        if agv.current_node is None:
+            self._low_battery_flags.discard(agv)
+            return
         if agv.current_node != station.node:
             self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
-            success = yield from self._travel(agv, agv.current_node, station.node, loaded=False)
-            if not success:
+            outcome = yield from self._travel(agv, agv.current_node, station.node, loaded=False)
+            if outcome is not _TravelOutcome.ARRIVED:
                 self._low_battery_flags.discard(agv)
                 return
 

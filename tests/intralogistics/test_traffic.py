@@ -77,6 +77,11 @@ class TestFreeTrafficManager:
         agv = _make_agv(Environment())
         tm.cancel(agv)
 
+    def test_priority_default_zero(self) -> None:
+        tm = FreeTrafficManager()
+        agv = _make_agv(Environment())
+        assert tm.priority(agv) == 0.0
+
 
 class TestResourceBasedTrafficManager:
     def test_place_acquires_node(self) -> None:
@@ -131,6 +136,14 @@ class TestResourceBasedTrafficManager:
         assert agv in tm._intents
         tm.cancel(agv)
         assert agv not in tm._intents
+
+    def test_priority_uses_priority_fn(self) -> None:
+        env = Environment()
+        n1 = Node(id="N1", x=0.0, y=0.0)
+        graph = LayoutGraph([n1], [])
+        tm = ResourceBasedTrafficManager(graph=graph, env=env, priority_fn=lambda agv: 7.5 if agv.agv_id else 0.0)
+        agv = _make_agv(env, n1)
+        assert tm.priority(agv) == 7.5
 
     def test_check_path_detects_head_on_conflict(self) -> None:
         env = Environment()

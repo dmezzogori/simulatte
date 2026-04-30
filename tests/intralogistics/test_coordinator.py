@@ -1335,9 +1335,116 @@ class TestTravelCorrectness:
         assert agv_traveler.state == AGVState.IDLE
 
         # Verify that time actually passed (timeout + backoff was applied)
-        # 3 retries: timeout(2) + backoff(2), timeout(2) + backoff(4), timeout(2)
-        # = 2 + 2 + 2 + 4 + 2 = 12 seconds minimum
         assert env.now - t_before >= deadlock_timeout
+
+    def test_deadlock_timeout_reroutes_when_alternative_exists(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        node_start = Node(id="START", x=0.0, y=0.0)
+        node_blocked = Node(id="BLOCKED", x=5.0, y=0.0)
+        node_alt = Node(id="ALT", x=8.0, y=4.0)
+        node_end = Node(id="END", x=10.0, y=0.0)
+
+        graph = LayoutGraph(
+            [node_start, node_blocked, node_alt, node_end],
+            [
+                Arc(source=node_start, target=node_blocked),
+                Arc(source=node_blocked, target=node_end),
+                Arc(source=node_start, target=node_alt),
+                Arc(source=node_alt, target=node_end),
+            ],
+        )
+        traffic = ResourceBasedTrafficManager(
+            graph=graph, env=env, node_capacity=1, deadlock_timeout=1.0,
+        )
+
+        wh_start = Warehouse(
+            env=env, name="WH-START",
+            input_bays=[node_start], output_bays=[node_start],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_end = Warehouse(
+            env=env, name="WH-END",
+            input_bays=[node_end], output_bays=[node_end],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        agv_type = _make_agv_type(simple_speed)
+        blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=node_blocked)
+        traveler = AGV(env=env, agv_type=agv_type, agv_id="traveler", initial_node=node_start)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[traveler, blocker],
+            warehouses=[wh_start, wh_end], charging_stations=[],
+            traffic_manager=traffic,
+        )
+        env.run(until=0.001)
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_start, destination=wh_end)
+        coordinator.submit(order)
+        env.run(until=200.0)
+
+        assert order.status == OrderStatus.COMPLETED
+        assert traveler.state == AGVState.IDLE
+        assert traveler.current_node == node_end
+
+    def test_lower_priority_waits_and_then_proceeds(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        node_start = Node(id="START", x=0.0, y=0.0)
+        node_choke = Node(id="CHOKE", x=5.0, y=0.0)
+        node_end = Node(id="END", x=10.0, y=0.0)
+
+        graph = LayoutGraph(
+            [node_start, node_choke, node_end],
+            [Arc(source=node_start, target=node_choke), Arc(source=node_choke, target=node_end)],
+        )
+        traffic = ResourceBasedTrafficManager(
+            graph=graph,
+            env=env,
+            node_capacity=1,
+            deadlock_timeout=1.0,
+            priority_fn=lambda agv: 10.0 if agv.agv_id == "high" else 0.0,
+        )
+
+        wh_start = Warehouse(
+            env=env, name="WH-START",
+            input_bays=[node_start], output_bays=[node_start],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_end = Warehouse(
+            env=env, name="WH-END",
+            input_bays=[node_end], output_bays=[node_end],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=node_choke)
+        high = AGV(env=env, agv_type=agv_type, agv_id="high", initial_node=node_start)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[high, blocker],
+            warehouses=[wh_start, wh_end], charging_stations=[],
+            traffic_manager=traffic,
+        )
+        env.run(until=0.001)
+
+        def release_blocker():
+            yield env.timeout(4.0)
+            traffic.leave_node(blocker, node_choke)
+            blocker.current_node = node_start
+
+        env.process(release_blocker())
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_start, destination=wh_end)
+        coordinator.submit(order)
+        env.run(until=200.0)
+
+        assert order.status == OrderStatus.COMPLETED
+        assert high.current_node == node_end
+        assert env.now >= 4.0
 
 
 # ===========================================================================

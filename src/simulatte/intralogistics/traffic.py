@@ -27,6 +27,7 @@ class PathCheckResult:
 class TrafficManager(Protocol):
     @property
     def deadlock_timeout(self) -> float | None: ...
+    def priority(self, agv: AGV) -> float: ...
     def place(self, agv: AGV, node: Node) -> ProcessGenerator: ...
     def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult: ...
     def register_intent(self, agv: AGV, path: list[Node]) -> None: ...
@@ -39,6 +40,9 @@ class FreeTrafficManager:
     @property
     def deadlock_timeout(self) -> float | None:
         return None
+
+    def priority(self, agv: AGV) -> float:  # noqa: ARG002
+        return 0.0
 
     def place(self, agv: AGV, node: Node) -> ProcessGenerator:  # noqa: ARG002
         return
@@ -87,6 +91,9 @@ class ResourceBasedTrafficManager:
     @property
     def deadlock_timeout(self) -> float | None:
         return self._deadlock_timeout
+
+    def priority(self, agv: AGV) -> float:
+        return self._priority_fn(agv)
 
     def place(self, agv: AGV, node: Node) -> ProcessGenerator:
         resource = self._node_resources[node]
