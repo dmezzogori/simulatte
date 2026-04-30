@@ -3,6 +3,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from simulatte.intralogistics.agv import AGVState
 from simulatte.intralogistics.metrics import (
     DefaultIntralogisticsCollector,
@@ -11,6 +13,7 @@ from simulatte.intralogistics.metrics import (
     OrderMetricsCollector,
 )
 from simulatte.intralogistics.order import TransferOrder
+from simulatte.intralogistics.sku import SKU
 
 
 def _make_order(
@@ -43,7 +46,7 @@ def _make_order(
 
 
 class TestEMAOrderMetricsRecord:
-    """EMAOrderMetrics.record(): First record sets EMA to alpha * value. Second record smooths further."""
+    """EMAOrderMetrics.record(): First record initializes EMA directly. Second record smooths."""
 
     def test_first_and_second_record(self) -> None:
         m = EMAOrderMetrics(alpha=0.1)
@@ -56,12 +59,12 @@ class TestEMAOrderMetricsRecord:
         )
         m.record(order1)
 
-        # First record: ema = 0.0 + 0.1 * (value - 0.0) = 0.1 * value
-        assert m.ema_fulfillment_time == 0.1 * 5.0  # 0.5
-        assert m.ema_dispatch_delay == 0.1 * 1.0  # 0.1
-        assert m.ema_travel_time_empty == 0.1 * 2.0  # 0.2
-        assert m.ema_travel_time_loaded == 0.1 * 2.0  # 0.2
-        # No due_date → on-time (0), ema_late_orders = 0.1 * 0 = 0.0
+        # First record: EMA initialized directly to value (no bias)
+        assert m.ema_fulfillment_time == 5.0
+        assert m.ema_dispatch_delay == 1.0
+        assert m.ema_travel_time_empty == 2.0
+        assert m.ema_travel_time_loaded == 2.0
+        # No due_date → on-time (0), ema_late_orders initialized to 0.0
         assert m.ema_late_orders == 0.0
 
         order2 = _make_order(
@@ -73,7 +76,7 @@ class TestEMAOrderMetricsRecord:
         m.record(order2)
 
         # Second record: ema = ema + alpha * (value - ema)
-        expected_fulfillment = 0.5 + 0.1 * (10.0 - 0.5)
+        expected_fulfillment = 5.0 + 0.1 * (10.0 - 5.0)
         assert m.ema_fulfillment_time == expected_fulfillment
 
 
@@ -92,7 +95,7 @@ class TestEMAOrderMetricsLate:
             due_date=10.0,
         )
         m.record(order_on_time)
-        assert m.ema_late_orders == 0.0  # 0.1 * 0 = 0.0
+        assert m.ema_late_orders == 0.0  # First observation: initialized to 0.0
 
         # Late order
         order_late = _make_order(
@@ -122,13 +125,13 @@ class TestEMAOrderMetricsIncomplete:
         m.record(order)
 
         # fulfillment_time still computed (created_at and delivered_at present)
-        assert m.ema_fulfillment_time == 0.1 * 5.0
-        # dispatch_delay skipped
-        assert m.ema_dispatch_delay == 0.0
-        # travel_time_empty skipped (needs dispatched_at and picked_at)
-        assert m.ema_travel_time_empty == 0.0
-        # travel_time_loaded skipped (needs picked_at)
-        assert m.ema_travel_time_loaded == 0.0
+        assert m.ema_fulfillment_time == 5.0  # First observation: initialized directly
+        # dispatch_delay skipped — still None
+        assert m.ema_dispatch_delay is None
+        # travel_time_empty skipped (needs dispatched_at and picked_at) — still None
+        assert m.ema_travel_time_empty is None
+        # travel_time_loaded skipped (needs picked_at) — still None
+        assert m.ema_travel_time_loaded is None
 
 
 class TestDefaultCollectorOnOrderSubmitted:
@@ -209,29 +212,46 @@ class TestCollectorReceivesStateTransitions:
         graph = LayoutGraph([node_a, node_b], arcs)
 
         wh_a = Warehouse(
-            env=env, name="WH-A",
-            input_bays=[node_a], output_bays=[node_a],
-            n_slots=2, products=[sku], initial_inventory={sku: 100},
-            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+            env=env,
+            name="WH-A",
+            input_bays=[node_a],
+            output_bays=[node_a],
+            n_slots=2,
+            products=[sku],
+            initial_inventory={sku: 100},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
         )
         wh_b = Warehouse(
-            env=env, name="WH-B",
-            input_bays=[node_b], output_bays=[node_b],
-            n_slots=2, products=[sku], initial_inventory={sku: 0},
-            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+            env=env,
+            name="WH-B",
+            input_bays=[node_b],
+            output_bays=[node_b],
+            n_slots=2,
+            products=[sku],
+            initial_inventory={sku: 0},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
         )
 
         agv_type = AGVType(
-            name="test-type", speed_profile=speed,
-            battery_capacity=1000.0, weight_capacity=100.0, volume_capacity=10.0,
-            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+            name="test-type",
+            speed_profile=speed,
+            battery_capacity=1000.0,
+            weight_capacity=100.0,
+            volume_capacity=10.0,
+            load_time_fn=lambda: 1.0,
+            unload_time_fn=lambda: 1.0,
         )
         agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
 
         collector = DefaultIntralogisticsCollector()
         coordinator = FleetCoordinator(
-            env=env, graph=graph, fleet=[agv],
-            warehouses=[wh_a, wh_b], charging_stations=[],
+            env=env,
+            graph=graph,
+            fleet=[agv],
+            warehouses=[wh_a, wh_b],
+            charging_stations=[],
             time_series_collector=collector,
         )
 
@@ -261,16 +281,16 @@ class TestEMAOrderMetricsNoDelivery:
         )
         m.record(order)
 
-        # fulfillment_time skipped (needs delivered_at)
-        assert m.ema_fulfillment_time == 0.0
-        # dispatch_delay still computed
-        assert m.ema_dispatch_delay == 0.1 * 1.0
-        # travel_time_empty still computed
-        assert m.ema_travel_time_empty == 0.1 * 2.0
-        # travel_time_loaded skipped (needs delivered_at)
-        assert m.ema_travel_time_loaded == 0.0
-        # late_orders skipped
-        assert m.ema_late_orders == 0.0
+        # fulfillment_time skipped (needs delivered_at) — still None
+        assert m.ema_fulfillment_time is None
+        # dispatch_delay still computed — first observation initialized directly
+        assert m.ema_dispatch_delay == 1.0
+        # travel_time_empty still computed — first observation initialized directly
+        assert m.ema_travel_time_empty == 2.0
+        # travel_time_loaded skipped (needs delivered_at) — still None
+        assert m.ema_travel_time_loaded is None
+        # late_orders skipped — still None
+        assert m.ema_late_orders is None
 
 
 class TestDefaultCollectorEdgeCases:
@@ -311,6 +331,60 @@ class TestDefaultCollectorEdgeCases:
 
         # throughput_ts should still have just the initial entry
         assert len(c.throughput_ts) == 1
+
+
+class TestEMAFirstObservation:
+    """M9: EMA fields initialize from first observation, not from 0.0."""
+
+    def test_first_record_initializes_ema(self) -> None:
+        metrics = EMAOrderMetrics(alpha=0.1)
+        order = TransferOrder(
+            sku=SKU(id="X", weight=1.0, volume=0.1),
+            quantity=1,
+            origin=None,  # type: ignore[arg-type]
+            destination=None,  # type: ignore[arg-type]
+            created_at=0.0,
+        )
+        order.dispatched_at = 1.0
+        order.picked_at = 3.0
+        order.delivered_at = 10.0
+        metrics.record(order)
+        assert metrics.ema_fulfillment_time == pytest.approx(10.0)
+        assert metrics.ema_dispatch_delay == pytest.approx(1.0)
+        assert metrics.ema_travel_time_empty == pytest.approx(2.0)
+        assert metrics.ema_travel_time_loaded == pytest.approx(7.0)
+
+    def test_uninitialized_fields_are_none(self) -> None:
+        metrics = EMAOrderMetrics()
+        assert metrics.ema_fulfillment_time is None
+
+    def test_per_field_initialization_partial_order(self) -> None:
+        metrics = EMAOrderMetrics(alpha=0.1)
+        order1 = TransferOrder(
+            sku=SKU(id="X", weight=1.0, volume=0.1),
+            quantity=1,
+            origin=None,  # type: ignore[arg-type]
+            destination=None,  # type: ignore[arg-type]
+            created_at=0.0,
+        )
+        order1.dispatched_at = 1.0
+        metrics.record(order1)
+        assert metrics.ema_dispatch_delay == pytest.approx(1.0)
+        assert metrics.ema_fulfillment_time is None  # not yet seen
+
+        order2 = TransferOrder(
+            sku=SKU(id="X", weight=1.0, volume=0.1),
+            quantity=1,
+            origin=None,  # type: ignore[arg-type]
+            destination=None,  # type: ignore[arg-type]
+            created_at=0.0,
+        )
+        order2.dispatched_at = 2.0
+        order2.picked_at = 4.0
+        order2.delivered_at = 10.0
+        metrics.record(order2)
+        assert metrics.ema_fulfillment_time == pytest.approx(10.0)
+        assert metrics.ema_dispatch_delay == pytest.approx(1.0 + 0.1 * (2.0 - 1.0))
 
 
 class TestProtocolConformance:
