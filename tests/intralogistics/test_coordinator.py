@@ -244,3 +244,266 @@ class TestBasicLifecycle:
         # order2 should be pending
         assert order2.status == OrderStatus.PENDING
         assert order2 in coordinator._pending_queue
+
+
+# ===========================================================================
+# Sub-commit 2: Cancellation and battery
+# ===========================================================================
+
+
+def _build_system_with_charger(
+    env: Environment,
+    sku: SKU,
+    speed: TrapezoidalProfile,
+    *,
+    battery_capacity: float = 1000.0,
+    initial_battery: float | None = None,
+    origin_inventory: int = 100,
+) -> tuple[FleetCoordinator, AGV, Warehouse, Warehouse, ChargingStation]:
+    """3-node linear graph with a charging station at the corridor node."""
+    node_a_out = Node(id="WH_A_OUT", x=0.0, y=0.0)
+    node_corridor = Node(id="CORRIDOR", x=5.0, y=0.0)
+    node_b_in = Node(id="WH_B_IN", x=10.0, y=0.0)
+
+    arcs = [
+        Arc(source=node_a_out, target=node_corridor),
+        Arc(source=node_corridor, target=node_b_in),
+    ]
+    graph = LayoutGraph([node_a_out, node_corridor, node_b_in], arcs)
+
+    wh_a = Warehouse(
+        env=env,
+        name="WH-A",
+        input_bays=[node_a_out],
+        output_bays=[node_a_out],
+        n_slots=2,
+        products=[sku],
+        initial_inventory={sku: origin_inventory},
+        pick_time_fn=lambda s, q: 1.0,
+        put_time_fn=lambda s, q: 1.0,
+    )
+
+    wh_b = Warehouse(
+        env=env,
+        name="WH-B",
+        input_bays=[node_b_in],
+        output_bays=[node_b_in],
+        n_slots=2,
+        products=[sku],
+        initial_inventory={sku: 0},
+        pick_time_fn=lambda s, q: 1.0,
+        put_time_fn=lambda s, q: 1.0,
+    )
+
+    charger = ChargingStation(
+        env=env,
+        name="CS-1",
+        node=node_corridor,
+        n_slots=1,
+    )
+
+    agv_type = AGVType(
+        name="test-type",
+        speed_profile=speed,
+        battery_capacity=battery_capacity,
+        weight_capacity=100.0,
+        volume_capacity=10.0,
+        load_time_fn=lambda: 1.0,
+        unload_time_fn=lambda: 1.0,
+        low_battery_threshold=0.2,
+        critical_battery_threshold=0.05,
+    )
+    agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a_out)
+    if initial_battery is not None:
+        agv.battery.level = initial_battery
+
+    coordinator = FleetCoordinator(
+        env=env,
+        graph=graph,
+        fleet=[agv],
+        warehouses=[wh_a, wh_b],
+        charging_stations=[charger],
+    )
+
+    return coordinator, agv, wh_a, wh_b, charger
+
+
+class TestCancellation:
+    """Cancellation tests for orders in various states."""
+
+    def test_cancel_pending_order(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """Cancel a pending (queued) order."""
+        coordinator, agv, wh_a, wh_b = _build_simple_system(
+            env, sku_a, simple_speed, origin_inventory=200
+        )
+        order1 = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        order2 = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order1)
+        coordinator.submit(order2)
+
+        # order2 is pending — cancel it
+        coordinator.cancel(order2)
+        assert order2.status == OrderStatus.CANCELLED
+        assert order2 not in coordinator._pending_queue
+
+    def test_cancel_mid_travel_before_pickup(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """Cancel an order while AGV is traveling empty (before pickup).
+        Order should be CANCELLED, AGV should go IDLE.
+        """
+        # Build a graph where the AGV starts far away so travel takes time
+        node_far = Node(id="FAR", x=0.0, y=0.0)
+        node_a_out = Node(id="WH_A_OUT", x=100.0, y=0.0)
+        node_b_in = Node(id="WH_B_IN", x=110.0, y=0.0)
+        arcs = [
+            Arc(source=node_far, target=node_a_out),
+            Arc(source=node_a_out, target=node_b_in),
+        ]
+        graph = LayoutGraph([node_far, node_a_out, node_b_in], arcs)
+
+        wh_a = Warehouse(
+            env=env, name="WH-A", input_bays=[node_a_out], output_bays=[node_a_out],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_b = Warehouse(
+            env=env, name="WH-B", input_bays=[node_b_in], output_bays=[node_b_in],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        agv_type = AGVType(
+            name="test-type", speed_profile=simple_speed,
+            battery_capacity=10000.0, weight_capacity=100.0, volume_capacity=10.0,
+            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_far)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_a, wh_b], charging_stations=[],
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+
+        # Travel to WH_A_OUT is 100 units at speed 10 = ~10 time units. Cancel at t=1.
+        def cancel_later():
+            yield env.timeout(1.0)
+            coordinator.cancel(order)
+
+        env.process(cancel_later())
+        env.run()
+
+        assert order.status == OrderStatus.CANCELLED
+        assert agv.state == AGVState.IDLE
+
+    def test_cancel_completed_order_is_noop(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """Cancelling an already completed order doesn't raise."""
+        coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed)
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        assert order.status == OrderStatus.COMPLETED
+        # Cancel after completion — should not raise
+        coordinator.cancel(order)
+        assert order.status == OrderStatus.CANCELLED  # status updated but no side effects
+
+
+class TestBattery:
+    """Battery management: low-battery charging, pre-arc checks, stranded detection."""
+
+    def test_low_battery_after_mission_triggers_charge(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """AGV with low battery after mission should charge before going idle."""
+        # Use depletion that consumes battery based on distance (1 unit per distance unit)
+        # Total travel: ~10 units (WH_A_OUT to CORRIDOR to WH_B_IN).
+        # With battery_capacity=100 and initial=25, after mission the battery
+        # will be low (< 20%).
+        coordinator, agv, wh_a, wh_b, charger = _build_system_with_charger(
+            env, sku_a, simple_speed, battery_capacity=100.0, initial_battery=25.0
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        # After mission + charging, AGV should be idle with full battery
+        assert agv.state == AGVState.IDLE
+        assert order.status == OrderStatus.COMPLETED
+        # Battery should have been recharged
+        assert agv.battery.level_pct > 0.2
+
+    def test_pre_arc_insufficient_energy_stranded(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """AGV runs out of battery mid-travel with no charger reachable -> STRANDED."""
+        coordinator, agv, wh_a, wh_b = _build_simple_system(
+            env, sku_a, simple_speed, battery_capacity=100.0, initial_battery=1.0
+        )
+        # No charging stations available
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        # AGV can't reach the destination — STRANDED, order FAILED
+        assert agv.state == AGVState.STRANDED
+        assert order.status == OrderStatus.FAILED
+
+    def test_pre_arc_divert_to_charger(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """AGV with insufficient energy for next arc diverts to nearby charger."""
+        # Place charger at WH_A_OUT (same as AGV starting position)
+        node_a_out = Node(id="WH_A_OUT", x=0.0, y=0.0)
+        node_corridor = Node(id="CORRIDOR", x=5.0, y=0.0)
+        node_b_in = Node(id="WH_B_IN", x=10.0, y=0.0)
+        arcs = [
+            Arc(source=node_a_out, target=node_corridor),
+            Arc(source=node_corridor, target=node_b_in),
+        ]
+        graph = LayoutGraph([node_a_out, node_corridor, node_b_in], arcs)
+
+        wh_a = Warehouse(
+            env=env, name="WH-A", input_bays=[node_a_out], output_bays=[node_a_out],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_b = Warehouse(
+            env=env, name="WH-B", input_bays=[node_b_in], output_bays=[node_b_in],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        # Charger is at the same node as the AGV (no travel needed to reach it)
+        charger = ChargingStation(
+            env=env, name="CS-1", node=node_a_out, n_slots=1,
+        )
+
+        agv_type = AGVType(
+            name="test-type", speed_profile=simple_speed,
+            battery_capacity=100.0, weight_capacity=100.0, volume_capacity=10.0,
+            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+        )
+        # Battery starts at 3.0 — enough for nothing (5-unit arc costs 5 energy)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a_out)
+        agv.battery.level = 3.0
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_a, wh_b], charging_stations=[charger],
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+        env.run()
+
+        # After diverting to charge (co-located), it should have enough to complete
+        assert order.status == OrderStatus.COMPLETED
+        assert agv.state == AGVState.IDLE

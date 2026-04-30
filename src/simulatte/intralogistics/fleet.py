@@ -283,6 +283,9 @@ class FleetCoordinator:
             # (order.status, dispatched_at, and AGV state are set eagerly in _dispatch)
             origin_output_bay = order.origin.nearest_output_bay(agv.current_node, self.graph)
             yield from self._travel(agv, agv.current_node, origin_output_bay, loaded=False)
+            if agv.state == AGVState.STRANDED:
+                order.status = OrderStatus.FAILED
+                return
 
             # 2. Pick
             order.status = OrderStatus.PICKING
@@ -304,6 +307,9 @@ class FleetCoordinator:
 
             dest_input_bay = order.destination.nearest_input_bay(agv.current_node, self.graph)
             yield from self._travel(agv, agv.current_node, dest_input_bay, loaded=True)
+            if agv.state == AGVState.STRANDED:
+                order.status = OrderStatus.FAILED
+                return
 
             # 4. Deliver
             order.status = OrderStatus.DELIVERING
@@ -353,15 +359,21 @@ class FleetCoordinator:
                 f"Order {order.id} interrupted (agv={agv.agv_id})",
                 component="FleetCoordinator",
             )
-            if agv.current_load is not None:
-                # Has cargo — delegate to load recovery strategy
-                yield from self._load_recovery_strategy.recover(order, agv, self)
-                agv.current_load = None
+            if order.status != OrderStatus.CANCELLED:
+                # Not an explicit cancellation — handle gracefully
+                if agv.current_load is not None:
+                    # Has cargo — delegate to load recovery strategy
+                    yield from self._load_recovery_strategy.recover(order, agv, self)
+                    agv.current_load = None
+                else:
+                    # Before pickup — re-queue
+                    order.status = OrderStatus.PENDING
+                    order.assigned_agv = None
+                    self._pending_queue.append(order)
             else:
-                # Before pickup — re-queue
-                order.status = OrderStatus.PENDING
-                order.assigned_agv = None
-                self._pending_queue.append(order)
+                # Explicit cancellation — clear the AGV load if any
+                if agv.current_load is not None:
+                    agv.current_load = None
 
             agv.transition_to(AGVState.IDLE)
             for cb in self._hooks_on_agv_idle:
