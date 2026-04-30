@@ -103,3 +103,23 @@ class TestLayoutGraph:
         result2 = graph.nodes
         assert result1 == result2
         assert result1 is not graph._nodes
+
+
+class TestPathDistance:
+    def test_single_arc_distance(self) -> None:
+        n1 = Node(id="A", x=0.0, y=0.0)
+        n2 = Node(id="B", x=3.0, y=4.0)
+        assert LayoutGraph.path_distance([n1, n2]) == pytest.approx(5.0)
+
+    def test_multi_arc_distance(self) -> None:
+        n1 = Node(id="A", x=0.0, y=0.0)
+        n2 = Node(id="B", x=3.0, y=0.0)
+        n3 = Node(id="C", x=3.0, y=4.0)
+        assert LayoutGraph.path_distance([n1, n2, n3]) == pytest.approx(7.0)
+
+    def test_single_node_returns_zero(self) -> None:
+        n1 = Node(id="A", x=0.0, y=0.0)
+        assert LayoutGraph.path_distance([n1]) == 0.0
+
+    def test_empty_path_returns_zero(self) -> None:
+        assert LayoutGraph.path_distance([]) == 0.0

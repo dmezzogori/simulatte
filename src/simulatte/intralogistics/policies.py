@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
@@ -62,7 +61,7 @@ class NearestIdleStrategy:
             path = graph.shortest_path(agv.current_node, output_bay)
             if path is None:
                 return (float("inf"), agv.agv_id)
-            d = sum(math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y) for i in range(len(path) - 1))
+            d = graph.path_distance(path)
             return (d, agv.agv_id)
 
         return min(candidates, key=_distance)
@@ -129,7 +128,7 @@ class NearestParkingPolicy:
             path = context.graph.shortest_path(current, pa.node)
             if path is None:
                 return float("inf")
-            return sum(math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y) for i in range(len(path) - 1))
+            return context.graph.path_distance(path)
 
         nearest = min(available, key=_distance)
         return nearest.node

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
 import simpy
@@ -39,8 +38,7 @@ class Warehouse:
 
         initial = initial_inventory or {}
         self.inventory: dict[SKU, simpy.Container] = {
-            product: simpy.Container(env, capacity=float("inf"), init=initial.get(product, 0))
-            for product in products
+            product: simpy.Container(env, capacity=float("inf"), init=initial.get(product, 0)) for product in products
         }
 
         self.total_picks: int = 0
@@ -105,10 +103,8 @@ class Warehouse:
             path = graph.shortest_path(from_node, bay)
             if path is None:
                 return float("inf")
-            return sum(
-                math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y)
-                for i in range(len(path) - 1)
-            )
+            return graph.path_distance(path)
+
         return min(bays, key=_graph_distance)
 
     @property

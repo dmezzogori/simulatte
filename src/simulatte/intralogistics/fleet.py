@@ -768,7 +768,7 @@ class FleetCoordinator:
             path = self.graph.shortest_path(agv.current_node, cs.node)
             if path is None:
                 return float("inf")
-            return sum(math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y) for i in range(len(path) - 1))
+            return self.graph.path_distance(path)
 
         best = min(self.charging_stations, key=_distance)
         d = _distance(best)
@@ -785,9 +785,7 @@ class FleetCoordinator:
             path = self.graph.shortest_path(agv.current_node, cs.node)
             if path is None:
                 continue
-            total_dist = sum(
-                math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y) for i in range(len(path) - 1)
-            )
+            total_dist = self.graph.path_distance(path)
             # Estimate energy cost to get there
             energy_needed = agv.battery.estimate_energy(total_dist, 0.0, 0.0)
             if agv.battery.level >= energy_needed:
