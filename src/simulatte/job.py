@@ -334,7 +334,7 @@ class BaseJob(ABC):
             pst -= processing_time + allowance
             if srv is server:
                 return pst
-        return None
+        return None  # pragma: no cover
 
     def priority(self, server: Server) -> float:
         """Get priority value for this job at the given server.

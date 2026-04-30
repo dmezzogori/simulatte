@@ -442,6 +442,37 @@ class TestResourceBasedTrafficManager:
         assert tm._node_resources[n1].count == 0
         assert tm._node_resources[n2].count == 0
 
+    def test_cancel_releases_triggered_pending_for_stale_node(self) -> None:
+        """cancel() releases a triggered pending request that maps to a node
+        different from the AGV's current_node (lines 179-180)."""
+        env = Environment()
+        n1 = Node(id="N1", x=0.0, y=0.0)
+        n2 = Node(id="N2", x=1.0, y=0.0)
+        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
+        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=2)
+
+        agv = _make_agv(env, n1)
+
+        def setup():
+            yield from tm.place(agv, n1)
+            yield from tm.enter_node(agv, n2)
+
+        env.process(setup())
+        env.run()
+
+        # Both nodes occupied. Simulate a pending request that references n2
+        # while current_node is n1 (stale next-node request after an interrupt).
+        req = tm._node_requests[(agv, n2)]
+        assert req.triggered
+        tm._pending_requests[agv] = req
+        agv.current_node = n1
+
+        tm.cancel(agv)
+
+        # n2 should be released (stale), n1 should be kept (current occupancy)
+        assert agv not in tm._pending_requests
+        assert (agv, n2) not in tm._node_requests
+
     def test_leave_node_without_node_request_entry(self) -> None:
         """Line 148->155: leave_node when there's no entry in _node_requests
         for the given (agv, node) pair."""

@@ -1057,6 +1057,27 @@ def test_hook_returning_non_generator_raises_type_error() -> None:
         env.run()
 
 
+def test_set_metrics_collector() -> None:
+    """set_metrics_collector should replace the collector."""
+
+    class SimpleCollector:
+        def __init__(self) -> None:
+            self.jobs_recorded: list[ProductionJob] = []
+
+        def record(self, job: ProductionJob) -> None:
+            self.jobs_recorded.append(job)
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+
+    collector = SimpleCollector()
+    sf.set_metrics_collector(collector)
+    assert sf.metrics_collector is collector
+
+    sf.set_metrics_collector(None)
+    assert sf.metrics_collector is None
+
+
 def test_after_hook_returning_non_generator_raises_type_error() -> None:
     """An after-operation hook that returns non-None/non-generator should raise TypeError."""
 
