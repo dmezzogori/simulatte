@@ -51,7 +51,7 @@ class Warehouse:
             raise KeyError(f"Unknown product: {sku.id}")
         return self.inventory[sku].level
 
-    def pick(self, sku: SKU, quantity: int) -> ProcessGenerator:
+    def pick(self, sku: SKU, quantity: int, *, on_committed: Callable[[], None] | None = None) -> ProcessGenerator:
         if sku not in self.inventory:
             raise KeyError(f"Unknown product: {sku.id}")
         self.env.debug(
@@ -59,7 +59,15 @@ class Warehouse:
             component="Warehouse",
         )
         # Wait for inventory FIRST (no slot held — prevents deadlock with put)
-        yield self.inventory[sku].get(quantity)
+        get_event = self.inventory[sku].get(quantity)
+        try:
+            yield get_event
+        except simpy.Interrupt:
+            if not get_event.triggered:
+                get_event.cancel()
+            raise
+        if on_committed is not None:
+            on_committed()
         # Then acquire a slot for the physical pick operation
         with self._slots.request() as req:
             yield req

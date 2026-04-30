@@ -159,27 +159,33 @@ class ResourceBasedTrafficManager:
         )
 
     def cancel(self, agv: AGV) -> None:
-        self._intents.pop(agv, None)
+        def _cancel_request(req: Request) -> None:
+            try:
+                req.cancel()
+            except ValueError:
+                # SimPy removes the request from the queue when an interrupted
+                # enter_node process resumes; stale cleanup may arrive after that.
+                pass
 
-        # Track requests already handled via _pending_requests to avoid
-        # double-cancelling (cancel() on a non-triggered request leaves
-        # ``processed`` as False, so identity checks are needed).
-        already_handled: set[int] = set()
+        self._intents.pop(agv, None)
 
         if agv in self._pending_requests:
             req = self._pending_requests.pop(agv)
-            already_handled.add(id(req))
-            if not req.triggered:
-                req.cancel()
+            if req.triggered:
+                stale_keys = [k for k, v in self._node_requests.items() if k[0] is agv and v is req]
+                for key in stale_keys:
+                    if key[1] == agv.current_node:
+                        continue
+                    self._node_requests.pop(key, None)
+                    self._node_resources[key[1]].release(req)
+            else:
+                _cancel_request(req)
 
-        # Clean up ALL _node_requests for this AGV, releasing resources
-        # for triggered (acquired) requests and cancelling pending ones.
+        # Clean up stale pending entries for this AGV. Triggered node requests
+        # represent physical occupancy and must be released only by leave_node().
         stale_keys = [k for k in self._node_requests if k[0] is agv]
         for key in stale_keys:
-            req = self._node_requests.pop(key)
-            if id(req) in already_handled:
-                continue
-            if req.triggered:
-                self._node_resources[key[1]].release(req)
-            elif not req.processed:  # pragma: no cover - defensive unreachable state
-                req.cancel()
+            req = self._node_requests[key]
+            if not req.triggered:
+                self._node_requests.pop(key)
+                _cancel_request(req)

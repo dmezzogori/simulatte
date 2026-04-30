@@ -348,8 +348,11 @@ class FleetCoordinator:
             # 2. Pick
             order.status = OrderStatus.PICKING
             self._transition_agv(agv, AGVState.WAITING_LOAD)
-            self._committed_picks[order.id] = (order.origin, order.sku, order.quantity)
-            yield from order.origin.pick(order.sku, order.quantity)
+
+            def _mark_pick_committed() -> None:
+                self._committed_picks[order.id] = (order.origin, order.sku, order.quantity)
+
+            yield from order.origin.pick(order.sku, order.quantity, on_committed=_mark_pick_committed)
             agv.current_load = {order.sku: order.quantity}
             del self._committed_picks[order.id]
             order.picked_at = self.env.now
@@ -372,9 +375,14 @@ class FleetCoordinator:
                 if outcome is _TravelOutcome.ARRIVED:
                     break
                 if outcome is _TravelOutcome.BATTERY_STRANDED:
+                    if agv.current_load is not None:
+                        yield from self._return_cargo_to_origin(order, agv)
                     order.status = OrderStatus.FAILED
+                    self._transition_agv(agv, AGVState.STRANDED)
                     return
                 if outcome is _TravelOutcome.MISSION_FAILED:
+                    if agv.current_load is not None:
+                        yield from self._return_cargo_to_origin(order, agv)
                     order.status = OrderStatus.FAILED
                     self._transition_agv(agv, AGVState.IDLE)
                     return
@@ -844,7 +852,11 @@ class FleetCoordinator:
                 dispatched.append(order)
                 self._dispatch_retries.pop(order.id, None)
                 self._dispatch(order, agv)
-            elif not any(a.can_carry(order.sku, order.quantity) for a in self.fleet):
+            else:
+                capable_agvs = [a for a in self.fleet if a.can_carry(order.sku, order.quantity)]
+                idle_capable_agvs = [a for a in capable_agvs if a.state == AGVState.IDLE]
+                if capable_agvs and not idle_capable_agvs:
+                    continue
                 self._dispatch_retries[order.id] = self._dispatch_retries.get(order.id, 0) + 1
                 if self._dispatch_retries[order.id] >= self._max_dispatch_retries:
                     failed.append(order)

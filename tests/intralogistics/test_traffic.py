@@ -404,9 +404,8 @@ class TestResourceBasedTrafficManager:
         tm.cancel(agv)
         assert agv not in tm._pending_requests
 
-    def test_cancel_stale_triggered_request_in_node_requests(self) -> None:
-        """Line 184: cancel() releases a triggered (acquired) request found in
-        _node_requests stale-keys loop."""
+    def test_cancel_preserves_triggered_node_requests(self) -> None:
+        """cancel() clears intents/pending requests but does not release occupied nodes."""
         env = Environment()
         n1 = Node(id="N1", x=0.0, y=0.0)
         n2 = Node(id="N2", x=1.0, y=0.0)
@@ -430,14 +429,18 @@ class TestResourceBasedTrafficManager:
         assert (agv, n1) in tm._node_requests
         assert (agv, n2) in tm._node_requests
 
-        # cancel() should release both via the stale-keys loop (line 184)
         tm.cancel(agv)
 
-        # Resources should be freed
+        # Triggered requests represent physical occupancy and remain until leave_node().
+        assert tm._node_resources[n1].count == 1
+        assert tm._node_resources[n2].count == 1
+        assert (agv, n1) in tm._node_requests
+        assert (agv, n2) in tm._node_requests
+
+        tm.leave_node(agv, n1)
+        tm.leave_node(agv, n2)
         assert tm._node_resources[n1].count == 0
         assert tm._node_resources[n2].count == 0
-        assert (agv, n1) not in tm._node_requests
-        assert (agv, n2) not in tm._node_requests
 
     def test_leave_node_without_node_request_entry(self) -> None:
         """Line 148->155: leave_node when there's no entry in _node_requests
