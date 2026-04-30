@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
@@ -28,7 +29,7 @@ class DispatchStrategy(Protocol):
     def select(
         self,
         order: TransferOrder,
-        fleet: list[AGV],
+        fleet: Sequence[AGV],
         graph: LayoutGraph,
     ) -> AGV | None: ...
 
@@ -44,7 +45,7 @@ class NearestIdleStrategy:
     def select(
         self,
         order: TransferOrder,
-        fleet: list[AGV],
+        fleet: Sequence[AGV],
         graph: LayoutGraph,
     ) -> AGV | None:
         candidates = [
@@ -71,7 +72,14 @@ class NearestIdleStrategy:
 
 
 class RoundRobinStrategy:
-    """Cycle through compatible idle AGVs via an internal cursor."""
+    """Cycle through compatible idle AGVs via an internal cursor.
+
+    The cursor increments monotonically. If fleet composition changes
+    mid-simulation, cycling order over the filtered candidate list
+    becomes non-deterministic. This is by design -- the modulo arithmetic
+    prevents errors, but strict round-robin fairness is not guaranteed
+    across fleet changes.
+    """
 
     def __init__(self) -> None:
         self._cursor: int = 0
@@ -79,7 +87,7 @@ class RoundRobinStrategy:
     def select(
         self,
         order: TransferOrder,
-        fleet: list[AGV],
+        fleet: Sequence[AGV],
         graph: LayoutGraph,
     ) -> AGV | None:
         candidates = [agv for agv in fleet if agv.state == AGVState.IDLE and agv.can_carry(order.sku, order.quantity)]
@@ -97,9 +105,9 @@ class RoundRobinStrategy:
 @dataclass
 class RepositioningContext:
     graph: LayoutGraph
-    parking_areas: list[ParkingArea]
-    charging_stations: list[ChargingStation]
-    fleet: list[AGV]
+    parking_areas: Sequence[ParkingArea]
+    charging_stations: Sequence[ChargingStation]
+    fleet: Sequence[AGV]
 
 
 @runtime_checkable
@@ -145,7 +153,7 @@ class ReplenishmentPolicy(Protocol):
     def check(
         self,
         warehouse: Warehouse,
-        all_warehouses: list[Warehouse],
+        all_warehouses: Sequence[Warehouse],
         in_transit_orders: list[TransferOrder],
     ) -> list[TransferOrder]: ...
 
@@ -170,7 +178,7 @@ class ReorderPointPolicy:
     def check(
         self,
         warehouse: Warehouse,
-        all_warehouses: list[Warehouse],
+        all_warehouses: Sequence[Warehouse],
         in_transit_orders: list[TransferOrder],
     ) -> list[TransferOrder]:
         orders: list[TransferOrder] = []

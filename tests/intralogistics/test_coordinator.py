@@ -4649,3 +4649,73 @@ class TestRepositioningStranded:
         assert agv.state == AGVState.STRANDED
         # AGV remains at B (could not reach parking)
         assert agv.current_node == node_b
+
+
+# ===========================================================================
+# M11: submit() before env.run() under ResourceBasedTrafficManager
+# ===========================================================================
+
+
+class TestSubmitBeforeRun:
+    """M11: submit() before env.run() must work under ResourceBasedTrafficManager."""
+
+    def test_submit_before_run_with_resource_traffic_manager(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        node_a = Node(id="WH_A_OUT", x=0.0, y=0.0)
+        node_b = Node(id="WH_B_IN", x=10.0, y=0.0)
+        arcs = [Arc(source=node_a, target=node_b)]
+        graph = LayoutGraph([node_a, node_b], arcs)
+
+        wh_a = Warehouse(
+            env=env,
+            name="WH-A",
+            input_bays=[node_a],
+            output_bays=[node_a],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+        wh_b = Warehouse(
+            env=env,
+            name="WH-B",
+            input_bays=[node_b],
+            output_bays=[node_b],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = AGVType(
+            name="test-type",
+            speed_profile=simple_speed,
+            battery_capacity=1000.0,
+            weight_capacity=100.0,
+            volume_capacity=10.0,
+            load_time_fn=lambda: 1.0,
+            unload_time_fn=lambda: 1.0,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+
+        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=2)
+        coordinator = FleetCoordinator(
+            env=env,
+            graph=graph,
+            fleet=[agv],
+            warehouses=[wh_a, wh_b],
+            charging_stations=[],
+            traffic_manager=tm,
+        )
+
+        # Submit BEFORE env.run()
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        coordinator.submit(order)
+
+        # Run — placement should happen before mission
+        env.run()
+
+        assert order.status == OrderStatus.COMPLETED

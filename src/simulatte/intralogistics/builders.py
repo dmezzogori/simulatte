@@ -6,6 +6,7 @@ from simulatte.intralogistics.agv import AGV, AGVType
 from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
+from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.pathfinding import DijkstraPlanner
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
@@ -117,10 +118,15 @@ def build_simple_system(
     )
 
     # -- Fleet --
-    agvs: list[AGV] = [
-        AGV(env=env, agv_type=agv_type, agv_id=f"agv-{i}", initial_node=n1)
-        for i in range(n_agvs)
-    ]
+    agvs: list[AGV] = [AGV(env=env, agv_type=agv_type, agv_id=f"agv-{i}", initial_node=n1) for i in range(n_agvs)]
+
+    # -- Parking area at N1 --
+    parking_area = ParkingArea(
+        env=env,
+        name="PA-N1",
+        node=n1,
+        capacity=n_agvs,
+    )
 
     # -- Coordinator --
     coordinator = FleetCoordinator(
@@ -129,6 +135,7 @@ def build_simple_system(
         fleet=agvs,
         warehouses=[warehouse_a, warehouse_b],
         charging_stations=[charging_station],
+        parking_areas=[parking_area],
         traffic_manager=FreeTrafficManager(),
         path_planner=DijkstraPlanner(),
     )

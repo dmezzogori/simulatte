@@ -227,9 +227,7 @@ class TestCustomConfiguration:
         from simulatte.intralogistics import build_simple_system
 
         custom_products = [SKU("X", 3.0, 0.3), SKU("Y", 4.0, 0.4)]
-        coordinator, agvs, wh_a, wh_b, _ = build_simple_system(
-            env, products=custom_products
-        )
+        coordinator, agvs, wh_a, wh_b, _ = build_simple_system(env, products=custom_products)
 
         # Warehouses should know about the custom products
         for sku in custom_products:
@@ -241,9 +239,7 @@ class TestCustomConfiguration:
         from simulatte.intralogistics import build_simple_system
 
         custom_sku = SKU("CUSTOM", 2.0, 0.2)
-        coordinator, agvs, wh_a, wh_b, _ = build_simple_system(
-            env, products=[custom_sku]
-        )
+        coordinator, agvs, wh_a, wh_b, _ = build_simple_system(env, products=[custom_sku])
 
         order = coordinator.create_order(
             sku=custom_sku,
@@ -269,3 +265,18 @@ class TestCustomConfiguration:
 
         assert wh_a.get_inventory_level(sku_x) == 50
         assert wh_b.get_inventory_level(sku_x) == 25
+
+
+# ---------------------------------------------------------------------------
+# Part 4: Parking area included
+# ---------------------------------------------------------------------------
+
+
+class TestBuildSimpleSystemParkingArea:
+    def test_coordinator_has_parking_areas(self) -> None:
+        from simulatte.environment import Environment
+        from simulatte.intralogistics.builders import build_simple_system
+
+        env = Environment()
+        coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env)
+        assert len(coordinator.parking_areas) > 0

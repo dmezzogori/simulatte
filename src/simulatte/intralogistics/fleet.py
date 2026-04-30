@@ -87,10 +87,10 @@ class FleetCoordinator:
     ) -> None:
         self.env = env
         self.graph = graph
-        self.fleet = fleet
-        self.warehouses = warehouses
-        self.charging_stations = charging_stations
-        self.parking_areas = parking_areas or []
+        self.fleet = tuple(fleet)
+        self.warehouses = tuple(warehouses)
+        self.charging_stations = tuple(charging_stations)
+        self.parking_areas = tuple(parking_areas or [])
 
         self._traffic_manager: TrafficManager = traffic_manager or FreeTrafficManager()
         self._path_planner: PathPlanner = path_planner or DijkstraPlanner()
