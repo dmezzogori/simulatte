@@ -91,6 +91,10 @@ class FleetCoordinator:
         self._pending_queue: list[TransferOrder] = []
         self._low_battery_flags: set[AGV] = set()
 
+        # H5: Track inventory deducted but not yet loaded onto AGV.
+        # Maps order.id -> (warehouse, sku, quantity) for rollback on interrupt.
+        self._committed_picks: dict[str, tuple[Warehouse, SKU, int]] = {}
+
         # Lifecycle hook registries
         self._hooks_on_order_submitted: list[Callable[[TransferOrder], None]] = []
         self._hooks_on_order_dispatched: list[Callable[[TransferOrder, AGV], None]] = []
@@ -297,8 +301,10 @@ class FleetCoordinator:
             # 2. Pick
             order.status = OrderStatus.PICKING
             agv.transition_to(AGVState.WAITING_LOAD)
+            self._committed_picks[order.id] = (order.origin, order.sku, order.quantity)
             yield from order.origin.pick(order.sku, order.quantity)
             agv.current_load = {order.sku: order.quantity}
+            del self._committed_picks[order.id]
             order.picked_at = self.env.now
             yield self.env.timeout(agv.agv_type.load_time_fn())
 
@@ -359,7 +365,9 @@ class FleetCoordinator:
                 target = self._repositioning_policy.reposition(agv, repo_ctx)
                 if target is not None and target != agv.current_node:
                     agv.transition_to(AGVState.TRAVELING_EMPTY)
-                    yield from self._travel(agv, agv.current_node, target, loaded=False)
+                    success = yield from self._travel(agv, agv.current_node, target, loaded=False)
+                    if not success:
+                        pass  # repositioning failed; proceed to IDLE
 
             # Go IDLE
             agv.transition_to(AGVState.IDLE)
@@ -371,6 +379,14 @@ class FleetCoordinator:
                 f"Order {order.id} interrupted (agv={agv.agv_id})",
                 component="FleetCoordinator",
             )
+
+            # H5: Roll back committed but unloaded pick (inventory deducted
+            # inside warehouse.pick() but not yet assigned to agv.current_load).
+            committed = self._committed_picks.pop(order.id, None)
+            if committed is not None:
+                wh, sku, qty = committed
+                self.env.process(wh.put(sku, qty))
+
             if order.status != OrderStatus.CANCELLED:
                 # Not an explicit cancellation — handle gracefully
                 if agv.current_load is not None:
@@ -385,6 +401,9 @@ class FleetCoordinator:
             else:
                 # Explicit cancellation — clear the AGV load if any
                 if agv.current_load is not None:
+                    # Return inventory to origin before clearing load
+                    for sku, qty in agv.current_load.items():
+                        self.env.process(order.origin.put(sku, qty))
                     agv.current_load = None
 
             agv.transition_to(AGVState.IDLE)
@@ -511,25 +530,36 @@ class FleetCoordinator:
                         )
                         return False
 
-                # S2: Enter next node with deadlock timeout when applicable
-                if deadlock_timeout is not None:
-                    entered = yield from self._enter_with_timeout(
-                        agv, next_node, deadlock_timeout
-                    )
-                    if not entered:
-                        agv.transition_to(AGVState.STRANDED)
-                        self.env.error(
-                            f"{agv.agv_id} STRANDED — deadlock at node {next_node.id}",
-                            component="FleetCoordinator",
+                # H3: Track whether the AGV physically reached the next node.
+                # If interrupted after enter_node but before arrival, release
+                # the acquired next-node resource to prevent leaks.
+                reached_next = False
+                try:
+                    # S2: Enter next node with deadlock timeout when applicable
+                    if deadlock_timeout is not None:
+                        entered = yield from self._enter_with_timeout(
+                            agv, next_node, deadlock_timeout
                         )
-                        return False
-                else:
-                    yield from self._traffic_manager.enter_node(agv, next_node)
+                        if not entered:
+                            agv.transition_to(AGVState.STRANDED)
+                            self.env.error(
+                                f"{agv.agv_id} STRANDED — deadlock at node {next_node.id}",
+                                component="FleetCoordinator",
+                            )
+                            return False
+                    else:
+                        yield from self._traffic_manager.enter_node(agv, next_node)
 
-                yield self.env.timeout(travel_time)
-                agv.battery.deplete(distance, load_weight, avg_speed)
-                self._traffic_manager.leave_node(agv, current)
-                agv.current_node = next_node
+                    yield self.env.timeout(travel_time)
+                    agv.battery.deplete(distance, load_weight, avg_speed)
+                    self._traffic_manager.leave_node(agv, current)
+                    agv.current_node = next_node
+                    reached_next = True
+                except simpy.Interrupt:
+                    if not reached_next:
+                        # Release the acquired next-node resource
+                        self._traffic_manager.leave_node(agv, next_node)
+                    raise
 
         finally:
             self._traffic_manager.cancel(agv)
@@ -608,7 +638,10 @@ class FleetCoordinator:
         # Travel to charging station
         if agv.current_node != station.node:
             agv.transition_to(AGVState.TRAVELING_EMPTY)
-            yield from self._travel(agv, agv.current_node, station.node, loaded=False)
+            success = yield from self._travel(agv, agv.current_node, station.node, loaded=False)
+            if not success:
+                self._low_battery_flags.discard(agv)
+                return
 
         # Charge
         agv.transition_to(AGVState.CHARGING)

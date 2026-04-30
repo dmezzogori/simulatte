@@ -236,10 +236,10 @@ class LoadRecoveryStrategy(Protocol):
 
 
 class ReturnToOrigin:
-    """Reset the order to PENDING and clear the AGV assignment.
+    """Return cargo to the origin warehouse, then reset the order.
 
-    The actual navigation back to the origin is orchestrated by
-    ``FleetCoordinator``.
+    Iterates over the AGV's current load and puts each SKU back into
+    the origin warehouse before resetting the order to PENDING.
     """
 
     def recover(
@@ -248,6 +248,9 @@ class ReturnToOrigin:
         agv: AGV,
         coordinator: FleetCoordinator,
     ) -> ProcessGenerator:
+        if agv.current_load:
+            for sku, qty in agv.current_load.items():
+                yield from order.origin.put(sku, qty)
         order.status = OrderStatus.PENDING
         order.assigned_agv = None
         return

@@ -161,11 +161,26 @@ class ResourceBasedTrafficManager:
 
     def cancel(self, agv: AGV) -> None:
         self._intents.pop(agv, None)
+
+        # Track requests already handled via _pending_requests to avoid
+        # double-cancelling (cancel() on a non-triggered request leaves
+        # ``processed`` as False, so identity checks are needed).
+        already_handled: set[int] = set()
+
         if agv in self._pending_requests:
             req = self._pending_requests.pop(agv)
+            already_handled.add(id(req))
             if not req.triggered:
                 req.cancel()
-            # Also clean up the _node_requests entry for this pending request
-            stale_keys = [k for k, v in self._node_requests.items() if k[0] is agv and v is req]
-            for key in stale_keys:
-                del self._node_requests[key]
+
+        # Clean up ALL _node_requests for this AGV, releasing resources
+        # for triggered (acquired) requests and cancelling pending ones.
+        stale_keys = [k for k in self._node_requests if k[0] is agv]
+        for key in stale_keys:
+            req = self._node_requests.pop(key)
+            if id(req) in already_handled:
+                continue
+            if req.triggered:
+                self._node_resources[key[1]].release(req)
+            elif not req.processed:
+                req.cancel()

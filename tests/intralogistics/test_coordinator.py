@@ -1123,3 +1123,288 @@ class TestTravelCorrectness:
         # 3 retries: timeout(2) + backoff(2), timeout(2) + backoff(4), timeout(2)
         # = 2 + 2 + 2 + 4 + 2 = 12 seconds minimum
         assert env.now - t_before >= deadlock_timeout
+
+
+# ===========================================================================
+# Batch 2: Interrupt safety and inventory rollback
+# ===========================================================================
+
+
+class TestInterruptSafety:
+    """Tests for H3, M2, H4, H5: interrupt safety and resource cleanup."""
+
+    def test_cancel_during_travel_releases_next_node_resource(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """T4: Cancelling a mission while the AGV is mid-travel between
+        enter_node and leave_node releases the acquired next-node resource.
+
+        Graph:  FAR -- NEXT -- END (AGV starts at FAR, origin warehouse
+        output bay is at END, so AGV must travel through NEXT).
+        ResourceBasedTrafficManager with node_capacity=1.
+        Cancel during the travel timeout after entering NEXT.
+        """
+        node_far = Node(id="FAR", x=0.0, y=0.0)
+        node_next = Node(id="NEXT", x=5.0, y=0.0)
+        node_end = Node(id="END", x=10.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_far, target=node_next),
+            Arc(source=node_next, target=node_end),
+        ]
+        graph = LayoutGraph([node_far, node_next, node_end], arcs)
+
+        traffic = ResourceBasedTrafficManager(
+            graph=graph, env=env, node_capacity=1, deadlock_timeout=30.0,
+        )
+
+        # Origin warehouse is at END so the AGV must travel FAR -> NEXT -> END
+        wh_origin = Warehouse(
+            env=env, name="WH-ORIGIN",
+            input_bays=[node_end], output_bays=[node_end],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env, name="WH-DEST",
+            input_bays=[node_far], output_bays=[node_far],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_far)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_origin, wh_dest], charging_stations=[],
+            traffic_manager=traffic,
+        )
+
+        # Let initial placement complete
+        env.run(until=0.001)
+        assert traffic._node_resources[node_far].count == 1
+
+        order = coordinator.create_order(
+            sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest
+        )
+        coordinator.submit(order)
+
+        # Travel from FAR to NEXT: distance=5, speed=10 -> travel_time=0.5s
+        # enter_node happens nearly instantly, then timeout(0.5).
+        # Cancel at t=0.2 — mid-travel, after entering NEXT but before arriving.
+        def cancel_later():
+            yield env.timeout(0.2)
+            coordinator.cancel(order)
+
+        env.process(cancel_later())
+        env.run()
+
+        # After cancellation, the next-node resource should be released (count=0).
+        assert traffic._node_resources[node_next].count == 0
+        assert order.status == OrderStatus.CANCELLED
+        assert agv.state == AGVState.IDLE
+
+    def test_cancel_after_pickup_returns_inventory_to_origin(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """T3: When the AGV is cancelled during loaded travel (after pickup),
+        inventory should be returned to the origin warehouse.
+
+        Graph: ORIGIN -- MID -- DEST (longer to widen the loaded-travel window).
+        """
+        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+        node_mid = Node(id="MID", x=50.0, y=0.0)
+        node_dest = Node(id="DEST", x=100.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_origin, target=node_mid),
+            Arc(source=node_mid, target=node_dest),
+        ]
+        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+
+        wh_origin = Warehouse(
+            env=env, name="WH-ORIGIN",
+            input_bays=[node_origin], output_bays=[node_origin],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env, name="WH-DEST",
+            input_bays=[node_dest], output_bays=[node_dest],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_origin, wh_dest], charging_stations=[],
+        )
+
+        order = coordinator.create_order(
+            sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest
+        )
+        coordinator.submit(order)
+
+        # AGV starts at origin. pick_time=1.0, load_time=1.0, then loaded travel.
+        # Travel to MID: distance=50, speed=10 -> 5.0s.
+        # Pickup finishes at ~2.0 (pick_time=1 + load_time=1).
+        # Cancel at t=4.0 — during loaded travel.
+        def cancel_later():
+            yield env.timeout(4.0)
+            coordinator.cancel(order)
+
+        env.process(cancel_later())
+        env.run()
+
+        assert order.status == OrderStatus.CANCELLED
+        assert agv.state == AGVState.IDLE
+        assert agv.current_load is None
+        # Inventory should be returned to origin.
+        # The put process is fire-and-forget via env.process, so let it complete.
+        env.run()
+        assert wh_origin.get_inventory_level(sku_a) == 100
+        assert wh_dest.get_inventory_level(sku_a) == 0
+
+    def test_interrupt_during_pick_rolls_back_inventory(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """H5: Interrupting a mission during warehouse.pick() (after
+        container.get but before agv.current_load assignment) should
+        roll back inventory via the committed picks mechanism.
+
+        The AGV starts at origin. Pick begins with inventory.get(qty),
+        then slot request, then timeout(pick_time=1.0). Interrupt during
+        that timeout window.
+        """
+        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+        node_dest = Node(id="DEST", x=50.0, y=0.0)
+
+        arcs = [Arc(source=node_origin, target=node_dest)]
+        graph = LayoutGraph([node_origin, node_dest], arcs)
+
+        wh_origin = Warehouse(
+            env=env, name="WH-ORIGIN",
+            input_bays=[node_origin], output_bays=[node_origin],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 2.0,  # 2s pick time to widen the window
+            put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env, name="WH-DEST",
+            input_bays=[node_dest], output_bays=[node_dest],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_origin, wh_dest], charging_stations=[],
+        )
+
+        order = coordinator.create_order(
+            sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest
+        )
+        coordinator.submit(order)
+
+        # AGV is at origin, so no empty travel. Pick starts immediately:
+        # inventory.get(10) is instant (100 in stock), slot request is instant,
+        # then timeout(2.0) for pick_time. Interrupt at t=1.0 — mid-pick.
+        def cancel_later():
+            yield env.timeout(1.0)
+            coordinator.cancel(order)
+
+        env.process(cancel_later())
+        env.run()
+
+        assert order.status == OrderStatus.CANCELLED
+        assert agv.state == AGVState.IDLE
+        assert agv.current_load is None
+        # Committed pick should have been rolled back.
+        # The put process is fire-and-forget, let it finish.
+        env.run()
+        assert wh_origin.get_inventory_level(sku_a) == 100
+
+    def test_cancel_cleans_up_all_node_requests(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """M2: cancel() should clean up ALL _node_requests for the AGV,
+        including already-triggered ones, and release their resources.
+
+        Use ResourceBasedTrafficManager. AGV starts at FAR and must travel
+        to the origin warehouse at node C. Cancel mid-travel so the
+        _travel() finally block invokes cancel(), which must clean up
+        all _node_requests entries for the AGV.
+
+        Graph: FAR -- MID -- C  (AGV starts at FAR, origin output bay at C).
+        """
+        node_far = Node(id="FAR", x=0.0, y=0.0)
+        node_mid = Node(id="MID", x=5.0, y=0.0)
+        node_c = Node(id="C", x=10.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_far, target=node_mid),
+            Arc(source=node_mid, target=node_c),
+        ]
+        graph = LayoutGraph([node_far, node_mid, node_c], arcs)
+
+        traffic = ResourceBasedTrafficManager(
+            graph=graph, env=env, node_capacity=1, deadlock_timeout=30.0,
+        )
+
+        wh_origin = Warehouse(
+            env=env, name="WH-ORIGIN",
+            input_bays=[node_c], output_bays=[node_c],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 100},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env, name="WH-DEST",
+            input_bays=[node_far], output_bays=[node_far],
+            n_slots=2, products=[sku_a], initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = _make_agv_type(simple_speed)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_far)
+
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv],
+            warehouses=[wh_origin, wh_dest], charging_stations=[],
+            traffic_manager=traffic,
+        )
+
+        # Let initial placement complete
+        env.run(until=0.001)
+        # AGV placed at FAR
+        assert traffic._node_resources[node_far].count == 1
+
+        order = coordinator.create_order(
+            sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest
+        )
+        coordinator.submit(order)
+
+        # Travel FAR->MID: distance=5, speed=10 -> 0.5s. Cancel at t=0.2, mid-arc.
+        def cancel_later():
+            yield env.timeout(0.2)
+            coordinator.cancel(order)
+
+        env.process(cancel_later())
+        env.run()
+
+        # After cancellation, no _node_requests entries should exist for this AGV.
+        # cancel() in the _travel() finally block should have cleaned up all entries,
+        # including the initial placement at FAR and the mid-travel entry at MID.
+        agv_node_requests = [k for k in traffic._node_requests if k[0] is agv]
+        assert len(agv_node_requests) == 0
+
+        # All node resources should be fully released (count=0)
+        assert traffic._node_resources[node_far].count == 0
+        assert traffic._node_resources[node_mid].count == 0
+        assert traffic._node_resources[node_c].count == 0
