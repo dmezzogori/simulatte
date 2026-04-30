@@ -51,24 +51,18 @@ class NearestIdleStrategy:
         candidates = [
             agv
             for agv in fleet
-            if agv.state == AGVState.IDLE
-            and agv.current_node is not None
-            and agv.can_carry(order.sku, order.quantity)
+            if agv.state == AGVState.IDLE and agv.current_node is not None and agv.can_carry(order.sku, order.quantity)
         ]
         if not candidates:
             return None
 
-        output_bay = order.origin.nearest_output_bay(candidates[0].current_node, graph)
-
         def _distance(agv: AGV) -> tuple[float, str]:
             assert agv.current_node is not None
+            output_bay = order.origin.nearest_output_bay(agv.current_node, graph)
             path = graph.shortest_path(agv.current_node, output_bay)
             if path is None:
                 return (float("inf"), agv.agv_id)
-            d = sum(
-                math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y)
-                for i in range(len(path) - 1)
-            )
+            d = sum(math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y) for i in range(len(path) - 1))
             return (d, agv.agv_id)
 
         return min(candidates, key=_distance)
@@ -86,11 +80,7 @@ class RoundRobinStrategy:
         fleet: list[AGV],
         graph: LayoutGraph,
     ) -> AGV | None:
-        candidates = [
-            agv
-            for agv in fleet
-            if agv.state == AGVState.IDLE and agv.can_carry(order.sku, order.quantity)
-        ]
+        candidates = [agv for agv in fleet if agv.state == AGVState.IDLE and agv.can_carry(order.sku, order.quantity)]
         if not candidates:
             return None
 
@@ -126,11 +116,7 @@ class NearestParkingPolicy:
     """Send the AGV to the nearest parking area that has available capacity."""
 
     def reposition(self, agv: AGV, context: RepositioningContext) -> Node | None:
-        available = [
-            pa
-            for pa in context.parking_areas
-            if pa._resource.count < pa._resource.capacity
-        ]
+        available = [pa for pa in context.parking_areas if pa._resource.count < pa._resource.capacity]
         if not available:
             return None
 
@@ -143,10 +129,7 @@ class NearestParkingPolicy:
             path = context.graph.shortest_path(current, pa.node)
             if path is None:
                 return float("inf")
-            return sum(
-                math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y)
-                for i in range(len(path) - 1)
-            )
+            return sum(math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y) for i in range(len(path) - 1))
 
         nearest = min(available, key=_distance)
         return nearest.node

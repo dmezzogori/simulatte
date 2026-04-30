@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 import simpy
@@ -41,6 +42,13 @@ if TYPE_CHECKING:
     from simulatte.intralogistics.sku import SKU
     from simulatte.intralogistics.traffic import TrafficManager
     from simulatte.intralogistics.warehouse import Warehouse
+
+
+class _TravelOutcome(Enum):
+    ARRIVED = auto()
+    RETRY_FROM_CURRENT_POSITION = auto()
+    MISSION_FAILED = auto()
+    BATTERY_STRANDED = auto()
 
 
 class FleetCoordinator:
@@ -87,8 +95,10 @@ class FleetCoordinator:
         self._on_low_battery = on_low_battery
         self._max_dispatch_retries = max_dispatch_retries
         self._dispatch_retries: dict[str, int] = {}
+        self._pending_retry_scheduled = False
+        self._pending_retry_delay = 0.001
 
-        # Event-driven replenishment policies (checked after each delivery)
+        # Event-driven replenishment policies (checked after each pick)
         self._event_driven_policies: list[tuple[ReplenishmentPolicy, Warehouse]] = []
 
         # Internal state (keyed by order.id because TransferOrder is unhashable)
@@ -160,6 +170,7 @@ class FleetCoordinator:
         else:
             order.status = OrderStatus.PENDING
             self._pending_queue.append(order)
+            self._ensure_pending_retry_loop()
             self.env.debug(
                 f"Order {order.id} queued (no idle AGV)",
                 component="FleetCoordinator",
@@ -307,11 +318,15 @@ class FleetCoordinator:
             # (order.status, dispatched_at, and AGV state are set eagerly in _dispatch)
             origin_output_bay = order.origin.nearest_output_bay(agv.current_node, self.graph)
             while True:
-                success = yield from self._travel(agv, agv.current_node, origin_output_bay, loaded=False)
-                if success:
+                outcome = yield from self._travel(agv, agv.current_node, origin_output_bay, loaded=False)
+                if outcome is _TravelOutcome.ARRIVED:
                     break
-                if agv.state == AGVState.STRANDED:
+                if outcome is _TravelOutcome.BATTERY_STRANDED:
                     order.status = OrderStatus.FAILED
+                    return
+                if outcome is _TravelOutcome.MISSION_FAILED:
+                    order.status = OrderStatus.FAILED
+                    self._transition_agv(agv, AGVState.IDLE)
                     return
                 # Charging diversion or critical battery — charge first if needed
                 if agv.battery.is_critical and self.charging_stations:
@@ -336,15 +351,20 @@ class FleetCoordinator:
 
             # 3. Travel loaded to destination input bay
             order.status = OrderStatus.IN_TRANSIT
+            self._trigger_event_driven_replenishment(order.origin)
             self._transition_agv(agv, AGVState.TRAVELING_LOADED)
 
             dest_input_bay = order.destination.nearest_input_bay(agv.current_node, self.graph)
             while True:
-                success = yield from self._travel(agv, agv.current_node, dest_input_bay, loaded=True)
-                if success:
+                outcome = yield from self._travel(agv, agv.current_node, dest_input_bay, loaded=True)
+                if outcome is _TravelOutcome.ARRIVED:
                     break
-                if agv.state == AGVState.STRANDED:
+                if outcome is _TravelOutcome.BATTERY_STRANDED:
                     order.status = OrderStatus.FAILED
+                    return
+                if outcome is _TravelOutcome.MISSION_FAILED:
+                    order.status = OrderStatus.FAILED
+                    self._transition_agv(agv, AGVState.IDLE)
                     return
                 # Charging diversion or critical battery — charge first if needed
                 if agv.battery.is_critical and self.charging_stations:
@@ -373,18 +393,6 @@ class FleetCoordinator:
                 component="FleetCoordinator",
             )
 
-            # S9: Event-driven replenishment — check policies tied to affected warehouses
-            for policy, monitored_wh in self._event_driven_policies:
-                if monitored_wh is order.destination or monitored_wh is order.origin:
-                    in_transit = [
-                        o
-                        for o in self._agv_mission.values()
-                        if o.status not in {OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.FAILED}
-                    ]
-                    new_orders = policy.check(monitored_wh, self.warehouses, in_transit)
-                    for new_order in new_orders:
-                        self.submit(new_order)
-
             # Battery check after mission
             if agv.battery.is_low and self.charging_stations:
                 yield from self._charge_agv(agv)
@@ -399,9 +407,9 @@ class FleetCoordinator:
                 target = self._repositioning_policy.reposition(agv, repo_ctx)
                 if target is not None and target != agv.current_node:
                     self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
-                    success = yield from self._travel(agv, agv.current_node, target, loaded=False)
-                    if not success:
-                        pass  # repositioning failed; proceed to IDLE
+                    outcome = yield from self._travel(agv, agv.current_node, target, loaded=False)
+                    if outcome is _TravelOutcome.BATTERY_STRANDED:
+                        pass
 
             # Go IDLE
             self._transition_agv(agv, AGVState.IDLE)
@@ -432,11 +440,15 @@ class FleetCoordinator:
                         dest_input_bay = order.destination.nearest_input_bay(agv.current_node, self.graph)
                         self._transition_agv(agv, AGVState.TRAVELING_LOADED)
                         while True:
-                            success = yield from self._travel(agv, agv.current_node, dest_input_bay, loaded=True)
-                            if success:
+                            outcome = yield from self._travel(agv, agv.current_node, dest_input_bay, loaded=True)
+                            if outcome is _TravelOutcome.ARRIVED:
                                 break
-                            if agv.state == AGVState.STRANDED:
+                            if outcome is _TravelOutcome.BATTERY_STRANDED:
                                 order.status = OrderStatus.FAILED
+                                break
+                            if outcome is _TravelOutcome.MISSION_FAILED:
+                                order.status = OrderStatus.FAILED
+                                self._transition_agv(agv, AGVState.IDLE)
                                 break
                             if agv.battery.is_critical and self.charging_stations:
                                 yield from self._charge_agv(agv)
@@ -468,6 +480,7 @@ class FleetCoordinator:
                     order.status = OrderStatus.PENDING
                     order.assigned_agv = None
                     self._pending_queue.append(order)
+                    self._ensure_pending_retry_loop()
             else:
                 # Explicit cancellation — clear the AGV load if any
                 if agv.current_load is not None:
@@ -497,51 +510,63 @@ class FleetCoordinator:
     ) -> ProcessGenerator:
         """Move the AGV along the graph from ``from_node`` to ``to_node``.
 
-        Returns ``True`` on success, ``False`` on failure. When ``False``
-        is returned, callers should check ``agv.state``: if
-        ``AGVState.STRANDED`` the travel failed permanently; otherwise a
-        charging diversion moved the AGV and the caller should retry from
-        the AGV's new ``current_node``.
+        Returns a ``_TravelOutcome`` describing whether the AGV arrived,
+        should retry from its current position, failed for mission-routing
+        reasons, or became battery-stranded.
         """
         if from_node == to_node:
-            return True
+            return _TravelOutcome.ARRIVED
 
-        # H1: return False (with STRANDED) when no path exists
         path = self._path_planner.plan(self.graph, from_node, to_node)
         if path is None:
             self.env.error(
                 f"No path from {from_node.id} to {to_node.id} for {agv.agv_id}",
                 component="FleetCoordinator",
             )
-            self._transition_agv(agv, AGVState.STRANDED)
-            return False
+            return _TravelOutcome.MISSION_FAILED
 
-        # H2: Check path feasibility with traffic manager. If infeasible,
-        # try to re-plan avoiding conflict nodes. If the alternative is
-        # also unavailable or infeasible, STRAND — do NOT register and
-        # drive the original infeasible path.
-        result = self._traffic_manager.check_path(agv, path)
-        if not result.feasible and result.conflict_nodes:
-            alt_path = self._path_planner.plan(
-                self.graph, from_node, to_node, avoid=result.conflict_nodes
+        # Resolve path feasibility before registering intent.
+        while True:
+            result = self._traffic_manager.check_path(agv, path)
+            if result.feasible:
+                break
+
+            if result.conflict_nodes:
+                alt_path = self._path_planner.plan(self.graph, from_node, to_node, avoid=result.conflict_nodes)
+                if alt_path is None:
+                    self.env.error(
+                        f"No alternative path from {from_node.id} to {to_node.id} for {agv.agv_id}",
+                        component="FleetCoordinator",
+                    )
+                    return _TravelOutcome.MISSION_FAILED
+                alt_result = self._traffic_manager.check_path(agv, alt_path)
+                if alt_result.feasible:
+                    path = alt_path
+                    break
+                if alt_result.delay_until is not None:
+                    wait = max(0.0, alt_result.delay_until - self.env.now)
+                    if wait > 0:
+                        yield self.env.timeout(wait)
+                    path = alt_path
+                    continue
+                self.env.error(
+                    f"Alternative path also infeasible from {from_node.id} to {to_node.id} for {agv.agv_id}",
+                    component="FleetCoordinator",
+                )
+                return _TravelOutcome.MISSION_FAILED
+
+            if result.delay_until is not None:
+                wait = max(0.0, result.delay_until - self.env.now)
+                if wait > 0:
+                    yield self.env.timeout(wait)
+                continue
+
+            self.env.error(
+                f"Infeasible path from {from_node.id} to {to_node.id} for {agv.agv_id} "
+                f"with no reroute or delay guidance",
+                component="FleetCoordinator",
             )
-            if alt_path is None:
-                self.env.error(
-                    f"No alternative path from {from_node.id} to {to_node.id} for {agv.agv_id}",
-                    component="FleetCoordinator",
-                )
-                self._transition_agv(agv, AGVState.STRANDED)
-                return False
-            alt_result = self._traffic_manager.check_path(agv, alt_path)
-            if not alt_result.feasible:
-                self.env.error(
-                    f"Alternative path also infeasible from {from_node.id} to {to_node.id} "
-                    f"for {agv.agv_id}",
-                    component="FleetCoordinator",
-                )
-                self._transition_agv(agv, AGVState.STRANDED)
-                return False
-            path = alt_path
+            return _TravelOutcome.MISSION_FAILED
 
         self._traffic_manager.register_intent(agv, path)
 
@@ -555,9 +580,7 @@ class FleetCoordinator:
                 distance = math.hypot(next_node.x - current.x, next_node.y - current.y)
 
                 if loaded and agv.current_load:
-                    load_weight = sum(
-                        sku.weight * qty for sku, qty in agv.current_load.items()
-                    )
+                    load_weight = sum(sku.weight * qty for sku, qty in agv.current_load.items())
                 else:
                     load_weight = 0.0
 
@@ -586,19 +609,19 @@ class FleetCoordinator:
                                 f"{agv.agv_id} STRANDED at {current.id} — insufficient energy even after charging",
                                 component="FleetCoordinator",
                             )
-                            return False
+                            return _TravelOutcome.BATTERY_STRANDED
                         # H6: Charging diversion moved the AGV — cancel old
-                        # intent and return False so _run_mission retries
-                        # from the AGV's new current_node.
+                        # intent and return a retry outcome so _run_mission
+                        # restarts from the AGV's new current_node.
                         self._traffic_manager.cancel(agv)
-                        return False
+                        return _TravelOutcome.RETRY_FROM_CURRENT_POSITION
                     else:
                         self._transition_agv(agv, AGVState.STRANDED)
                         self.env.error(
                             f"{agv.agv_id} STRANDED at {current.id} — no reachable charger",
                             component="FleetCoordinator",
                         )
-                        return False
+                        return _TravelOutcome.BATTERY_STRANDED
 
                 # H3: Track whether the AGV physically reached the next node.
                 # If interrupted after enter_node but before arrival, release
@@ -607,16 +630,13 @@ class FleetCoordinator:
                 try:
                     # S2: Enter next node with deadlock timeout when applicable
                     if deadlock_timeout is not None:
-                        entered = yield from self._enter_with_timeout(
-                            agv, next_node, deadlock_timeout
-                        )
+                        entered = yield from self._enter_with_timeout(agv, next_node, deadlock_timeout)
                         if not entered:
-                            self._transition_agv(agv, AGVState.STRANDED)
                             self.env.error(
-                                f"{agv.agv_id} STRANDED — deadlock at node {next_node.id}",
+                                f"{agv.agv_id} could not enter node {next_node.id} after deadlock retries",
                                 component="FleetCoordinator",
                             )
-                            return False
+                            return _TravelOutcome.MISSION_FAILED
                     else:
                         yield from self._traffic_manager.enter_node(agv, next_node)
 
@@ -630,7 +650,7 @@ class FleetCoordinator:
                     # travel so the retry loop in _run_mission can charge.
                     if agv.battery.is_critical:
                         self._traffic_manager.cancel(agv)
-                        return False
+                        return _TravelOutcome.RETRY_FROM_CURRENT_POSITION
                 except simpy.Interrupt:
                     if not reached_next:  # pragma: no cover — else branch requires interrupt between non-yielding lines
                         # Release the acquired next-node resource
@@ -640,7 +660,7 @@ class FleetCoordinator:
         finally:
             self._traffic_manager.cancel(agv)
 
-        return True
+        return _TravelOutcome.ARRIVED
 
     def _enter_with_timeout(
         self,
@@ -660,9 +680,7 @@ class FleetCoordinator:
         attempts were exhausted.
         """
         for attempt in range(_max_retries):
-            enter_proc = self.env.process(
-                self._traffic_manager.enter_node(agv, node)
-            )
+            enter_proc = self.env.process(self._traffic_manager.enter_node(agv, node))
             timer = self.env.timeout(timeout)
             yield enter_proc | timer
 
@@ -678,7 +696,7 @@ class FleetCoordinator:
 
             # Exponential backoff before retrying the same node
             if attempt < _max_retries - 1:
-                backoff = timeout * (2 ** attempt)
+                backoff = timeout * (2**attempt)
                 yield self.env.timeout(backoff)
 
         return False
@@ -745,10 +763,7 @@ class FleetCoordinator:
             path = self.graph.shortest_path(agv.current_node, cs.node)
             if path is None:
                 return float("inf")
-            return sum(
-                math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y)
-                for i in range(len(path) - 1)
-            )
+            return sum(math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y) for i in range(len(path) - 1))
 
         best = min(self.charging_stations, key=_distance)
         d = _distance(best)
@@ -766,8 +781,7 @@ class FleetCoordinator:
             if path is None:
                 continue
             total_dist = sum(
-                math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y)
-                for i in range(len(path) - 1)
+                math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y) for i in range(len(path) - 1)
             )
             # Estimate energy cost to get there
             energy_needed = agv.battery._depletion_fn(total_dist, 0.0, 0.0)
@@ -786,13 +800,14 @@ class FleetCoordinator:
         # Try to dispatch each pending order
         dispatched: list[TransferOrder] = []
         failed: list[TransferOrder] = []
+        idle_agvs = [agv for agv in self.fleet if agv.state == AGVState.IDLE]
         for order in list(self._pending_queue):
             agv = self._dispatch_strategy.select(order, self.fleet, self.graph)
             if agv is not None:
                 dispatched.append(order)
                 self._dispatch_retries.pop(order.id, None)
                 self._dispatch(order, agv)
-            else:
+            elif idle_agvs:
                 self._dispatch_retries[order.id] = self._dispatch_retries.get(order.id, 0) + 1
                 if self._dispatch_retries[order.id] >= self._max_dispatch_retries:
                     failed.append(order)
@@ -805,6 +820,34 @@ class FleetCoordinator:
             self._dispatch_retries.pop(order.id, None)
             order.status = OrderStatus.FAILED
 
+        if self._pending_queue:
+            self._ensure_pending_retry_loop()
+
+    def _ensure_pending_retry_loop(self) -> None:
+        if self._pending_queue and not self._pending_retry_scheduled:
+            self._pending_retry_scheduled = True
+            self.env.process(self._pending_retry_loop())
+
+    def _pending_retry_loop(self) -> ProcessGenerator:
+        while self._pending_queue:
+            yield self.env.timeout(self._pending_retry_delay)
+            self._check_pending_queue()
+        self._pending_retry_scheduled = False
+
+    def _in_transit_orders(self) -> list[TransferOrder]:
+        return [
+            order
+            for order in self._agv_mission.values()
+            if order.status not in {OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.FAILED}
+        ]
+
+    def _trigger_event_driven_replenishment(self, warehouse: Warehouse) -> None:
+        for policy, monitored_wh in self._event_driven_policies:
+            if monitored_wh is warehouse:
+                new_orders = policy.check(warehouse, self.warehouses, self._in_transit_orders())
+                for order in new_orders:
+                    self.submit(order)
+
     def _replenishment_loop(
         self,
         policy: ReplenishmentPolicy,
@@ -814,11 +857,6 @@ class FleetCoordinator:
         """Periodic process that checks a replenishment policy and submits orders."""
         while True:
             yield self.env.timeout(interval)
-            in_transit = [
-                order
-                for order in self._agv_mission.values()
-                if order.status not in {OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.FAILED}
-            ]
-            new_orders = policy.check(warehouse, self.warehouses, in_transit)
+            new_orders = policy.check(warehouse, self.warehouses, self._in_transit_orders())
             for order in new_orders:
                 self.submit(order)

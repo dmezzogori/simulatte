@@ -119,9 +119,7 @@ class TestNearestIdleStrategy:
         agv_close = _make_agv(env, speed_profile, "agv-close", nodes[1])
         agv_far = _make_agv(env, speed_profile, "agv-far", nodes[3])
 
-        order = TransferOrder(
-            sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0
-        )
+        order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = NearestIdleStrategy()
         selected = strategy.select(order, [agv_far, agv_close], graph)
@@ -134,20 +132,14 @@ class TestNearestIdleStrategy:
         wh = _make_warehouse(env, "WH", [nodes[0]], [nodes[0]], [sku_a])
         wh_dest = _make_warehouse(env, "WH_DEST", [nodes[3]], [nodes[3]], [sku_a])
 
-        agv = _make_agv(
-            env, speed_profile, "agv-busy", nodes[1], state=AGVState.TRAVELING_LOADED
-        )
+        agv = _make_agv(env, speed_profile, "agv-busy", nodes[1], state=AGVState.TRAVELING_LOADED)
 
-        order = TransferOrder(
-            sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0
-        )
+        order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = NearestIdleStrategy()
         assert strategy.select(order, [agv], graph) is None
 
-    def test_tie_break_by_agv_id(
-        self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
-    ) -> None:
+    def test_tie_break_by_agv_id(self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU) -> None:
         nodes, graph = _make_linear_graph()
         wh = _make_warehouse(env, "WH", [nodes[0]], [nodes[0]], [sku_a])
         wh_dest = _make_warehouse(env, "WH_DEST", [nodes[3]], [nodes[3]], [sku_a])
@@ -156,13 +148,41 @@ class TestNearestIdleStrategy:
         agv_b = _make_agv(env, speed_profile, "b-agv", nodes[1])
         agv_a = _make_agv(env, speed_profile, "a-agv", nodes[1])
 
-        order = TransferOrder(
-            sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0
-        )
+        order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = NearestIdleStrategy()
         selected = strategy.select(order, [agv_b, agv_a], graph)
         assert selected is agv_a  # "a-agv" < "b-agv" lexicographically
+
+    def test_uses_per_agv_nearest_output_bay(
+        self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
+    ) -> None:
+        node_a = Node(id="A", x=0.0, y=0.0)
+        node_a_bay = Node(id="A_BAY", x=0.0, y=1.0)
+        node_far = Node(id="FAR", x=100.0, y=0.0)
+        node_far_bay = Node(id="FAR_BAY", x=100.0, y=1.0)
+        node_dest = Node(id="DEST", x=50.0, y=50.0)
+        graph = LayoutGraph(
+            [node_a, node_a_bay, node_far, node_far_bay, node_dest],
+            [
+                Arc(source=node_a, target=node_a_bay),
+                Arc(source=node_far, target=node_far_bay),
+                Arc(source=node_a_bay, target=node_dest),
+                Arc(source=node_far_bay, target=node_dest),
+                Arc(source=node_a, target=node_far),
+            ],
+        )
+        wh = _make_warehouse(env, "WH", [node_dest], [node_a_bay, node_far_bay], [sku_a])
+        wh_dest = _make_warehouse(env, "WH_DEST", [node_dest], [node_dest], [sku_a])
+
+        agv_near_a = _make_agv(env, speed_profile, "agv-a", node_a)
+        agv_at_far_bay = _make_agv(env, speed_profile, "agv-b", node_far_bay)
+
+        order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
+
+        strategy = NearestIdleStrategy()
+        selected = strategy.select(order, [agv_near_a, agv_at_far_bay], graph)
+        assert selected is agv_at_far_bay
 
     def test_returns_none_when_no_compatible_agv(
         self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
@@ -172,13 +192,9 @@ class TestNearestIdleStrategy:
         wh_dest = _make_warehouse(env, "WH_DEST", [nodes[3]], [nodes[3]], [sku_a])
 
         # AGV with too-small capacity
-        agv = _make_agv(
-            env, speed_profile, "agv-weak", nodes[1], weight_capacity=0.1
-        )
+        agv = _make_agv(env, speed_profile, "agv-weak", nodes[1], weight_capacity=0.1)
 
-        order = TransferOrder(
-            sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0
-        )
+        order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = NearestIdleStrategy()
         assert strategy.select(order, [agv], graph) is None
@@ -199,9 +215,7 @@ class TestNearestIdleStrategy:
         # AGV at n1 which is disconnected from n0 (output bay)
         agv = _make_agv(env, speed_profile, "agv-disconnected", n1)
 
-        order = TransferOrder(
-            sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0
-        )
+        order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = NearestIdleStrategy()
         selected = strategy.select(order, [agv], graph)
@@ -213,9 +227,7 @@ class TestNearestIdleStrategy:
 
 
 class TestRoundRobinStrategy:
-    def test_cycles_through_agvs(
-        self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
-    ) -> None:
+    def test_cycles_through_agvs(self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU) -> None:
         nodes, graph = _make_linear_graph()
         wh = _make_warehouse(env, "WH", [nodes[0]], [nodes[0]], [sku_a])
         wh_dest = _make_warehouse(env, "WH_DEST", [nodes[3]], [nodes[3]], [sku_a])
@@ -224,9 +236,7 @@ class TestRoundRobinStrategy:
         agv2 = _make_agv(env, speed_profile, "agv-2", nodes[1])
         agv3 = _make_agv(env, speed_profile, "agv-3", nodes[2])
 
-        order = TransferOrder(
-            sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0
-        )
+        order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
         fleet = [agv1, agv2, agv3]
 
         strategy = RoundRobinStrategy()
@@ -247,17 +257,11 @@ class TestRoundRobinStrategy:
         wh = _make_warehouse(env, "WH", [nodes[0]], [nodes[0]], [sku_a])
         wh_dest = _make_warehouse(env, "WH_DEST", [nodes[3]], [nodes[3]], [sku_a])
 
-        agv_busy = _make_agv(
-            env, speed_profile, "agv-busy", nodes[0], state=AGVState.TRAVELING_LOADED
-        )
-        agv_weak = _make_agv(
-            env, speed_profile, "agv-weak", nodes[1], weight_capacity=0.1
-        )
+        agv_busy = _make_agv(env, speed_profile, "agv-busy", nodes[0], state=AGVState.TRAVELING_LOADED)
+        agv_weak = _make_agv(env, speed_profile, "agv-weak", nodes[1], weight_capacity=0.1)
         agv_ok = _make_agv(env, speed_profile, "agv-ok", nodes[2])
 
-        order = TransferOrder(
-            sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0
-        )
+        order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = RoundRobinStrategy()
         selected = strategy.select(order, [agv_busy, agv_weak, agv_ok], graph)
@@ -270,13 +274,9 @@ class TestRoundRobinStrategy:
         wh = _make_warehouse(env, "WH", [nodes[0]], [nodes[0]], [sku_a])
         wh_dest = _make_warehouse(env, "WH_DEST", [nodes[3]], [nodes[3]], [sku_a])
 
-        agv_busy = _make_agv(
-            env, speed_profile, "agv-busy", nodes[0], state=AGVState.CHARGING
-        )
+        agv_busy = _make_agv(env, speed_profile, "agv-busy", nodes[0], state=AGVState.CHARGING)
 
-        order = TransferOrder(
-            sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0
-        )
+        order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = RoundRobinStrategy()
         assert strategy.select(order, [agv_busy], graph) is None
@@ -286,9 +286,7 @@ class TestRoundRobinStrategy:
 
 
 class TestStayInPlace:
-    def test_returns_none(
-        self, env: Environment, speed_profile: TrapezoidalProfile
-    ) -> None:
+    def test_returns_none(self, env: Environment, speed_profile: TrapezoidalProfile) -> None:
         nodes, graph = _make_linear_graph()
         agv = _make_agv(env, speed_profile, "agv-1", nodes[0])
         context = RepositioningContext(
@@ -324,9 +322,7 @@ class TestNearestParkingPolicy:
         policy = NearestParkingPolicy()
         assert policy.reposition(agv, context) == nodes[1]
 
-    def test_returns_none_when_all_full(
-        self, env: Environment, speed_profile: TrapezoidalProfile
-    ) -> None:
+    def test_returns_none_when_all_full(self, env: Environment, speed_profile: TrapezoidalProfile) -> None:
         nodes, graph = _make_linear_graph()
         agv = _make_agv(env, speed_profile, "agv-1", nodes[0])
         park = ParkingArea(env=env, name="P1", node=nodes[1], capacity=1)
@@ -345,9 +341,7 @@ class TestNearestParkingPolicy:
         policy = NearestParkingPolicy()
         assert policy.reposition(agv, context) is None
 
-    def test_returns_none_when_no_parking_areas(
-        self, env: Environment, speed_profile: TrapezoidalProfile
-    ) -> None:
+    def test_returns_none_when_no_parking_areas(self, env: Environment, speed_profile: TrapezoidalProfile) -> None:
         nodes, graph = _make_linear_graph()
         agv = _make_agv(env, speed_profile, "agv-1", nodes[0])
 
@@ -361,9 +355,7 @@ class TestNearestParkingPolicy:
         policy = NearestParkingPolicy()
         assert policy.reposition(agv, context) is None
 
-    def test_returns_none_when_current_node_is_none(
-        self, env: Environment, speed_profile: TrapezoidalProfile
-    ) -> None:
+    def test_returns_none_when_current_node_is_none(self, env: Environment, speed_profile: TrapezoidalProfile) -> None:
         """AGV with current_node=None -> return None immediately."""
         nodes, graph = _make_linear_graph()
         park = ParkingArea(env=env, name="P1", node=nodes[1], capacity=2)
@@ -380,9 +372,7 @@ class TestNearestParkingPolicy:
         policy = NearestParkingPolicy()
         assert policy.reposition(agv, context) is None
 
-    def test_parking_distance_calculation(
-        self, env: Environment, speed_profile: TrapezoidalProfile
-    ) -> None:
+    def test_parking_distance_calculation(self, env: Environment, speed_profile: TrapezoidalProfile) -> None:
         """Test that distance is computed along graph path and nearest is chosen."""
         nodes, graph = _make_linear_graph()
         # AGV at N2 (20,0); parking at N1 (10,0) distance=10, N3 (30,0) distance=10
@@ -402,9 +392,7 @@ class TestNearestParkingPolicy:
         # Both are equidistant; min picks the first with equal key
         assert result in (nodes[1], nodes[3])
 
-    def test_parking_unreachable_gets_inf_distance(
-        self, env: Environment, speed_profile: TrapezoidalProfile
-    ) -> None:
+    def test_parking_unreachable_gets_inf_distance(self, env: Environment, speed_profile: TrapezoidalProfile) -> None:
         """Parking area on disconnected node -> inf distance, still picked if only option."""
         n0 = Node(id="N0", x=0.0, y=0.0)
         n_island = Node(id="ISLAND", x=100.0, y=100.0)
@@ -430,18 +418,12 @@ class TestNearestParkingPolicy:
 
 
 class TestReorderPointPolicy:
-    def test_triggers_order_below_threshold(
-        self, env: Environment, sku_a: SKU
-    ) -> None:
+    def test_triggers_order_below_threshold(self, env: Environment, sku_a: SKU) -> None:
         nodes, _ = _make_linear_graph()
         # Monitored warehouse: low stock (5), threshold 10
-        wh_low = _make_warehouse(
-            env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 5}
-        )
+        wh_low = _make_warehouse(env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 5})
         # Source warehouse: high stock (100)
-        wh_high = _make_warehouse(
-            env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 100}
-        )
+        wh_high = _make_warehouse(env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 100})
 
         policy = ReorderPointPolicy(
             thresholds={sku_a: 10},
@@ -457,16 +439,10 @@ class TestReorderPointPolicy:
         assert order.destination is wh_low
         assert order.status == OrderStatus.PENDING
 
-    def test_no_duplicate_when_in_transit_exists(
-        self, env: Environment, sku_a: SKU
-    ) -> None:
+    def test_no_duplicate_when_in_transit_exists(self, env: Environment, sku_a: SKU) -> None:
         nodes, _ = _make_linear_graph()
-        wh_low = _make_warehouse(
-            env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 5}
-        )
-        wh_high = _make_warehouse(
-            env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 100}
-        )
+        wh_low = _make_warehouse(env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 5})
+        wh_high = _make_warehouse(env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 100})
 
         # Existing in-transit order for same sku to same destination
         existing = TransferOrder(
@@ -485,43 +461,27 @@ class TestReorderPointPolicy:
         orders = policy.check(wh_low, [wh_low, wh_high], in_transit_orders=[existing])
         assert len(orders) == 0
 
-    def test_picks_source_with_highest_stock(
-        self, env: Environment, sku_a: SKU
-    ) -> None:
+    def test_picks_source_with_highest_stock(self, env: Environment, sku_a: SKU) -> None:
         nodes, _ = _make_linear_graph()
-        wh_low = _make_warehouse(
-            env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 5}
-        )
-        wh_medium = _make_warehouse(
-            env, "WH_MED", [nodes[1]], [nodes[1]], [sku_a], {sku_a: 50}
-        )
-        wh_high = _make_warehouse(
-            env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 200}
-        )
+        wh_low = _make_warehouse(env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 5})
+        wh_medium = _make_warehouse(env, "WH_MED", [nodes[1]], [nodes[1]], [sku_a], {sku_a: 50})
+        wh_high = _make_warehouse(env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 200})
 
         policy = ReorderPointPolicy(
             thresholds={sku_a: 10},
             reorder_quantity={sku_a: 30},
         )
-        orders = policy.check(
-            wh_low, [wh_low, wh_medium, wh_high], in_transit_orders=[]
-        )
+        orders = policy.check(wh_low, [wh_low, wh_medium, wh_high], in_transit_orders=[])
 
         assert len(orders) == 1
         assert orders[0].origin is wh_high
 
-    def test_sums_in_transit_quantities(
-        self, env: Environment, sku_a: SKU
-    ) -> None:
+    def test_sums_in_transit_quantities(self, env: Environment, sku_a: SKU) -> None:
         """S5: Policy sums in-transit quantities. With 45 on hand and 10
         in-transit (effective=55), threshold=50 should NOT trigger a new order."""
         nodes, _ = _make_linear_graph()
-        wh_low = _make_warehouse(
-            env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 45}
-        )
-        wh_high = _make_warehouse(
-            env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 100}
-        )
+        wh_low = _make_warehouse(env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 45})
+        wh_high = _make_warehouse(env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 100})
 
         # In-transit order with 10 units heading to wh_low
         in_transit = TransferOrder(
@@ -542,17 +502,11 @@ class TestReorderPointPolicy:
         # effective_stock = 45 + 10 = 55 >= 50 → no new order
         assert len(orders) == 0
 
-    def test_triggers_order_when_in_transit_insufficient(
-        self, env: Environment, sku_a: SKU
-    ) -> None:
+    def test_triggers_order_when_in_transit_insufficient(self, env: Environment, sku_a: SKU) -> None:
         """S5: When in-transit quantities are not enough, a new order is still created."""
         nodes, _ = _make_linear_graph()
-        wh_low = _make_warehouse(
-            env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 30}
-        )
-        wh_high = _make_warehouse(
-            env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 100}
-        )
+        wh_low = _make_warehouse(env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 30})
+        wh_high = _make_warehouse(env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 100})
 
         # In-transit order with 10 units — effective = 30 + 10 = 40 < 50
         in_transit = TransferOrder(
@@ -574,17 +528,11 @@ class TestReorderPointPolicy:
         assert len(orders) == 1
         assert orders[0].quantity == 30
 
-    def test_excludes_completed_in_transit_from_sum(
-        self, env: Environment, sku_a: SKU
-    ) -> None:
+    def test_excludes_completed_in_transit_from_sum(self, env: Environment, sku_a: SKU) -> None:
         """S5: Completed/failed/cancelled in-transit orders are not counted."""
         nodes, _ = _make_linear_graph()
-        wh_low = _make_warehouse(
-            env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 45}
-        )
-        wh_high = _make_warehouse(
-            env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 100}
-        )
+        wh_low = _make_warehouse(env, "WH_LOW", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 45})
+        wh_high = _make_warehouse(env, "WH_HIGH", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 100})
 
         # Completed in-transit order — should NOT be counted
         completed_order = TransferOrder(
@@ -605,14 +553,10 @@ class TestReorderPointPolicy:
         # effective_stock = 45 + 0 = 45 < 50 → new order
         assert len(orders) == 1
 
-    def test_no_other_warehouses_skips(
-        self, env: Environment, sku_a: SKU
-    ) -> None:
+    def test_no_other_warehouses_skips(self, env: Environment, sku_a: SKU) -> None:
         """When the only warehouse is the monitored one, no source exists -> skip."""
         nodes, _ = _make_linear_graph()
-        wh_only = _make_warehouse(
-            env, "WH_ONLY", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 5}
-        )
+        wh_only = _make_warehouse(env, "WH_ONLY", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 5})
 
         policy = ReorderPointPolicy(
             thresholds={sku_a: 10},
@@ -623,16 +567,10 @@ class TestReorderPointPolicy:
         # No other warehouses to source from -> no orders
         assert len(orders) == 0
 
-    def test_no_order_when_above_threshold(
-        self, env: Environment, sku_a: SKU
-    ) -> None:
+    def test_no_order_when_above_threshold(self, env: Environment, sku_a: SKU) -> None:
         nodes, _ = _make_linear_graph()
-        wh = _make_warehouse(
-            env, "WH", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 100}
-        )
-        wh_source = _make_warehouse(
-            env, "WH_SRC", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 200}
-        )
+        wh = _make_warehouse(env, "WH", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 100})
+        wh_source = _make_warehouse(env, "WH_SRC", [nodes[3]], [nodes[3]], [sku_a], {sku_a: 200})
 
         policy = ReorderPointPolicy(
             thresholds={sku_a: 10},
@@ -646,9 +584,7 @@ class TestReorderPointPolicy:
 
 
 class TestReturnToOrigin:
-    def test_with_empty_load_skips_put(
-        self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
-    ) -> None:
+    def test_with_empty_load_skips_put(self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU) -> None:
         """When agv.current_load is falsy (None), the put loop is skipped."""
         nodes, _ = _make_linear_graph()
         wh_orig = _make_warehouse(env, "WH_O", [nodes[0]], [nodes[0]], [sku_a])
@@ -673,9 +609,7 @@ class TestReturnToOrigin:
         assert order.status == OrderStatus.PENDING
         assert order.assigned_agv is None
 
-    def test_sets_pending_and_clears_agv(
-        self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
-    ) -> None:
+    def test_sets_pending_and_clears_agv(self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU) -> None:
         nodes, _ = _make_linear_graph()
         wh_orig = _make_warehouse(env, "WH_O", [nodes[0]], [nodes[0]], [sku_a])
         wh_dest = _make_warehouse(env, "WH_D", [nodes[3]], [nodes[3]], [sku_a])
@@ -704,9 +638,7 @@ class TestReturnToOrigin:
     ) -> None:
         """When agv.current_load has cargo, ReturnToOrigin puts it back."""
         nodes, _ = _make_linear_graph()
-        wh_orig = _make_warehouse(
-            env, "WH_O", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 100}
-        )
+        wh_orig = _make_warehouse(env, "WH_O", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 100})
         wh_dest = _make_warehouse(env, "WH_D", [nodes[3]], [nodes[3]], [sku_a])
         agv = _make_agv(env, speed_profile, "agv-1", nodes[1])
         agv.current_load = {sku_a: 10}
@@ -738,9 +670,7 @@ class TestReturnToOrigin:
 
 
 class TestResumeDelivery:
-    def test_keeps_in_transit_status(
-        self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
-    ) -> None:
+    def test_keeps_in_transit_status(self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU) -> None:
         nodes, _ = _make_linear_graph()
         wh_orig = _make_warehouse(env, "WH_O", [nodes[0]], [nodes[0]], [sku_a])
         wh_dest = _make_warehouse(env, "WH_D", [nodes[3]], [nodes[3]], [sku_a])
