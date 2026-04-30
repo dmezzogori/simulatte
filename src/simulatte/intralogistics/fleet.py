@@ -577,7 +577,7 @@ class FleetCoordinator:
                 return _TravelOutcome.MISSION_FAILED
 
             self._traffic_manager.register_intent(agv, path)
-            deadlock_timeout = self._traffic_manager.deadlock_timeout
+            deadlock_timeout = getattr(self._traffic_manager, "deadlock_timeout", None)
             reroute_requested = False
 
             try:
@@ -697,7 +697,8 @@ class FleetCoordinator:
                 if alt_path is not None:
                     return _EnterOutcome.REROUTE
 
-            priority = self._traffic_manager.priority(agv)
+            priority_fn = getattr(self._traffic_manager, "priority", None)
+            priority = priority_fn(agv) if priority_fn is not None else 0.0
             backoff_multiplier = attempt + 1 if priority > 0 else 2**attempt
             yield self.env.timeout(timeout * backoff_multiplier)
 

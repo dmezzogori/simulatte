@@ -77,10 +77,9 @@ class TestFreeTrafficManager:
         agv = _make_agv(Environment())
         tm.cancel(agv)
 
-    def test_priority_default_zero(self) -> None:
+    def test_no_priority_method(self) -> None:
         tm = FreeTrafficManager()
-        agv = _make_agv(Environment())
-        assert tm.priority(agv) == 0.0
+        assert not hasattr(tm, "priority")
 
 
 class TestResourceBasedTrafficManager:
@@ -490,3 +489,33 @@ class TestResourceBasedTrafficManager:
         env.process(block_forever())
         env.process(try_enter_then_leave())
         env.run(until=10.0)
+
+
+class TestMinimalTrafficManager:
+    """A TrafficManager with only the 6 core methods should satisfy the protocol."""
+
+    def test_minimal_implementation_satisfies_protocol(self) -> None:
+        from simulatte.intralogistics.traffic import TrafficManager
+
+        class MinimalTM:
+            def place(self, agv, node):
+                return
+                yield
+
+            def check_path(self, agv, path):
+                return PathCheckResult(feasible=True)
+
+            def register_intent(self, agv, path):
+                pass
+
+            def enter_node(self, agv, node):
+                return
+                yield
+
+            def leave_node(self, agv, node):
+                pass
+
+            def cancel(self, agv):
+                pass
+
+        assert isinstance(MinimalTM(), TrafficManager)
