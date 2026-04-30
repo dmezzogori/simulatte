@@ -4210,3 +4210,87 @@ class TestConfigurableRetryDelay:
             charging_stations=[],
         )
         assert coordinator._pending_retry_delay == 0.001
+
+
+class TestReturnToOriginPhysicalReturn:
+    """H4: ReturnToOrigin must physically navigate AGV back to origin."""
+
+    def test_agv_navigates_to_origin_before_put(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+        node_mid = Node(id="MID", x=50.0, y=0.0)
+        node_dest = Node(id="DEST", x=100.0, y=0.0)
+
+        arcs = [
+            Arc(source=node_origin, target=node_mid),
+            Arc(source=node_mid, target=node_dest),
+        ]
+        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+
+        wh_origin = Warehouse(
+            env=env,
+            name="WH-ORIGIN",
+            input_bays=[node_origin],
+            output_bays=[node_origin],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 90},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+        wh_dest = Warehouse(
+            env=env,
+            name="WH-DEST",
+            input_bays=[node_dest],
+            output_bays=[node_dest],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 0},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
+        )
+
+        agv_type = AGVType(
+            name="test-type",
+            speed_profile=simple_speed,
+            battery_capacity=1000.0,
+            weight_capacity=100.0,
+            volume_capacity=10.0,
+            load_time_fn=lambda: 1.0,
+            unload_time_fn=lambda: 1.0,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+
+        from simulatte.intralogistics.policies import ReturnToOrigin
+
+        coordinator = FleetCoordinator(
+            env=env,
+            graph=graph,
+            fleet=[agv],
+            warehouses=[wh_origin, wh_dest],
+            charging_stations=[],
+            load_recovery_strategy=ReturnToOrigin(),
+        )
+
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
+        coordinator.submit(order)
+
+        # AGV starts at origin. pick_time=1.0, load_time=1.0 -> pickup done at ~2.0
+        # Loaded travel ORIGIN->MID: distance=50, speed=10 -> 5.0s, arrives MID at t=7.0.
+        # Interrupt at t=8.0 — during MID->DEST travel (AGV current_node=MID).
+        def interrupt_at_mid():
+            yield env.timeout(8.0)
+            process = coordinator._active_missions.get(order.id)
+            if process is not None and process.is_alive:
+                process.interrupt("test_return_to_origin")
+
+        env.process(interrupt_at_mid())
+        env.run()
+
+        # AGV must have physically returned to origin
+        assert agv.current_node == node_origin
+        # Inventory conservation: initial=90, pick removed 10 (to 80),
+        # return added 10 back (to 90).
+        assert wh_origin.get_inventory_level(sku_a) == 90
+        assert agv.current_load is None

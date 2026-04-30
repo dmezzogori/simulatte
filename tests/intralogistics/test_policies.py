@@ -633,10 +633,8 @@ class TestReturnToOrigin:
         assert order.status == OrderStatus.PENDING
         assert order.assigned_agv is None
 
-    def test_with_cargo_puts_back_to_origin(
-        self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
-    ) -> None:
-        """When agv.current_load has cargo, ReturnToOrigin puts it back."""
+    def test_with_cargo_sets_pending(self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU) -> None:
+        """ReturnToOrigin sets status to PENDING (physical return is coordinator's job)."""
         nodes, _ = _make_linear_graph()
         wh_orig = _make_warehouse(env, "WH_O", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 100})
         wh_dest = _make_warehouse(env, "WH_D", [nodes[3]], [nodes[3]], [sku_a])
@@ -654,16 +652,13 @@ class TestReturnToOrigin:
         )
 
         strategy = ReturnToOrigin()
-
-        def do_recover():
-            yield from strategy.recover(order, agv, None)  # type: ignore[arg-type]
-
-        env.process(do_recover())
-        env.run()
+        gen = strategy.recover(order, agv, None)  # type: ignore[arg-type]
+        list(gen)
 
         assert order.status == OrderStatus.PENDING
         assert order.assigned_agv is None
-        assert wh_orig.get_inventory_level(sku_a) == 110  # 100 + 10 returned
+        # Cargo is NOT returned by the strategy — coordinator handles it
+        assert agv.current_load == {sku_a: 10}
 
 
 # ── LoadRecoveryStrategy: ResumeDelivery ─────────────────────────────

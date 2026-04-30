@@ -444,7 +444,7 @@ class FleetCoordinator:
             if order.status != OrderStatus.CANCELLED:
                 # Not an explicit cancellation — handle gracefully
                 if agv.current_load is not None:
-                    # Has cargo — delegate to load recovery strategy
+                    # Has cargo — delegate to load recovery strategy for intent
                     yield from self._load_recovery_strategy.recover(order, agv, self)
 
                     if order.status == OrderStatus.IN_TRANSIT and agv.current_load is not None:
@@ -455,12 +455,10 @@ class FleetCoordinator:
                             outcome = yield from self._travel(agv, agv.current_node, dest_input_bay, loaded=True)
                             if outcome is _TravelOutcome.ARRIVED:
                                 break
-                            if outcome is _TravelOutcome.BATTERY_STRANDED:
+                            if outcome in (_TravelOutcome.BATTERY_STRANDED, _TravelOutcome.MISSION_FAILED):
+                                # H1 fix: fall back to return-to-origin, then drop
+                                yield from self._return_cargo_to_origin(order, agv)
                                 order.status = OrderStatus.FAILED
-                                break
-                            if outcome is _TravelOutcome.MISSION_FAILED:
-                                order.status = OrderStatus.FAILED
-                                self._transition_agv(agv, AGVState.IDLE)
                                 break
                             if agv.battery.is_critical and self.charging_stations:
                                 yield from self._charge_agv(agv)
@@ -481,12 +479,9 @@ class FleetCoordinator:
                                 cb(order, agv)
                             if self._time_series_collector is not None:
                                 self._time_series_collector.on_delivery_complete(self, order, agv)
-                        else:
-                            # Resume failed (STRANDED) — clear cargo
-                            agv.current_load = None
-                    else:
-                        # ReturnToOrigin or similar — cargo was returned/cleared
-                        agv.current_load = None
+                    elif agv.current_load is not None:
+                        # ReturnToOrigin (or similar) — physically return cargo
+                        yield from self._return_cargo_to_origin(order, agv)
                 else:
                     # Before pickup — re-queue
                     order.status = OrderStatus.PENDING
