@@ -24,11 +24,10 @@ This skill helps you write correct Simulatte code. Read
 `references/api-reference.md` (in this skill's directory) whenever you need
 exact constructor signatures, parameter types, or configuration structures.
 
-> **Experimental modules** (`simulatte.experimental`) — Warehouse, AGV, and
-> MaterialCoordinator — are excluded from this guide. They are unstable and
-> subject to breaking changes. Do not use them unless the user explicitly asks.
-> The **Gymnasium wrapper** (`SimulatteEnv`) is also experimental but is
-> covered below because RL integration is a common use case.
+> **Intralogistics** (`simulatte.intralogistics`) — warehouses, AGV fleets,
+> and material transport — is covered by the `simulatte-intralogistics` skill.
+> Use that skill for warehouse layouts, fleet coordination, and transport
+> policies.
 
 ## Understanding the request
 
