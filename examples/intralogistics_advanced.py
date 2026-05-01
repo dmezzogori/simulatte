@@ -15,8 +15,8 @@ from simulatte.intralogistics import (
     EMAOrderMetrics,
     FleetCoordinator,
     LayoutGraph,
-    NearestIdleStrategy,
     NearestParkingPolicy,
+    RoundRobinStrategy,
     Node,
     OrderStatus,
     ParkingArea,
@@ -26,10 +26,6 @@ from simulatte.intralogistics import (
     TrapezoidalProfile,
     Warehouse,
 )
-
-
-def fmt_time(value: float | None) -> str:
-    return "-" if value is None else f"{value:7.1f}"
 
 
 def fmt_ema(value: float | None) -> str:
@@ -240,7 +236,7 @@ def main() -> None:
             warehouses=[receiving, bulk_storage, dispatch],
             charging_stations=[charging_station],
             parking_areas=[parking_area],
-            dispatch_strategy=NearestIdleStrategy(),
+            dispatch_strategy=RoundRobinStrategy(),
             repositioning_policy=NearestParkingPolicy(),
             load_recovery_strategy=ReturnToOrigin(),
             order_metrics_collector=order_metrics,
@@ -268,10 +264,12 @@ def main() -> None:
         )
         coordinator.add_replenishment_policy(replenishment, bulk_storage)
 
-        # Record initial inventory
+        # Record initial inventory and seed time-series baseline
         initial_inv = {
             wh: {sku: wh.get_inventory_level(sku) for sku in skus} for wh in [receiving, bulk_storage, dispatch]
         }
+        for wh in [receiving, bulk_storage, dispatch]:
+            ts_collector.inventory_ts[wh] = [(0.0, {sku: float(c.level) for sku, c in wh.inventory.items()})]
 
         # Track all orders (outbound + replenishment) via hook
         all_orders: list = []
@@ -298,10 +296,13 @@ def main() -> None:
 
         # --- Classify orders ---
         replenishment_orders = [o for o in all_orders if o not in outbound_orders]
-        completed = [o for o in all_orders if o.status is OrderStatus.COMPLETED]
-        failed = [o for o in all_orders if o.status is OrderStatus.FAILED]
-
         completed_outbound = [o for o in outbound_orders if o.status is OrderStatus.COMPLETED]
+        failed_out = sum(1 for o in outbound_orders if o.status is OrderStatus.FAILED)
+        completed_repl = sum(1 for o in replenishment_orders if o.status is OrderStatus.COMPLETED)
+        failed_repl = sum(1 for o in replenishment_orders if o.status is OrderStatus.FAILED)
+        total_completed = len(completed_outbound) + completed_repl
+        total_failed = failed_out + failed_repl
+
         avg_fulfillment = 0.0
         if completed_outbound:
             avg_fulfillment = sum(
@@ -319,7 +320,9 @@ def main() -> None:
         n_out = len(outbound_orders)
         n_repl = len(replenishment_orders)
         print(f"  Total orders: {len(all_orders)} ({n_out} outbound, {n_repl} replenishment)")
-        print(f"  Completed: {len(completed)}, Failed: {len(failed)}")
+        print(f"  Completed: {total_completed}, Failed: {total_failed}")
+        print(f"  Outbound:      {len(completed_outbound)} completed, {failed_out} failed")
+        print(f"  Replenishment: {completed_repl} completed, {failed_repl} failed")
         print(f"  Avg outbound fulfillment time: {avg_fulfillment:.1f}s ({avg_fulfillment / 60:.1f} min)")
         print()
 

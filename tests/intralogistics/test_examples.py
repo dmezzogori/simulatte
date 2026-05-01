@@ -31,6 +31,7 @@ def test_intralogistics_intermediate_example_runs(monkeypatch, capsys) -> None:
     assert "10 nodes" in captured.out
     assert "3 AGVs" in captured.out
     assert "8 submitted" in captured.out
+    assert "8 completed" in captured.out
     assert "0 failed" in captured.out
     assert "Fleet report:" in captured.out
     assert "Warehouse inventory:" in captured.out
@@ -52,10 +53,15 @@ def test_intralogistics_advanced_example_runs(monkeypatch, capsys) -> None:
     assert "16 nodes" in captured.out
     assert "5 AGVs" in captured.out
     assert "Shift summary:" in captured.out
+    assert "0 failed" in captured.out
+    assert "replenishment)" in captured.out
+    assert "Outbound:" in captured.out
+    assert "Replenishment:" in captured.out
     assert "Warehouse inventory" in captured.out
-    assert "Fleet report:" in captured.out
-    assert "EMA metrics:" in captured.out
     assert "Receiving:" in captured.out
     assert "Bulk Storage:" in captured.out
     assert "Dispatch:" in captured.out
-    assert "replenishment" in captured.out
+    assert "Fleet report:" in captured.out
+    assert "Fleet utilization:" in captured.out
+    assert "EMA metrics:" in captured.out
+    assert "Fulfillment time:" in captured.out

@@ -401,7 +401,13 @@ class TestDefaultCollectorPlotInventory:
     def test_plot_inventory_with_data(self, monkeypatch) -> None:
         import matplotlib.pyplot
 
+        step_calls: list = []
         monkeypatch.setattr(matplotlib.pyplot, "show", lambda: None)
+        monkeypatch.setattr(matplotlib.pyplot, "step", lambda *a, **kw: step_calls.append(kw.get("label")))
+        monkeypatch.setattr(matplotlib.pyplot, "xlabel", lambda *a: None)
+        monkeypatch.setattr(matplotlib.pyplot, "ylabel", lambda *a: None)
+        monkeypatch.setattr(matplotlib.pyplot, "title", lambda *a: None)
+        monkeypatch.setattr(matplotlib.pyplot, "legend", lambda: None)
 
         c = DefaultIntralogisticsCollector()
         sku_a = SKU(id="A", weight=1.0, volume=0.1)
@@ -415,10 +421,15 @@ class TestDefaultCollectorPlotInventory:
         ]
         c.plot_inventory()
 
+        assert len(step_calls) == 2
+        assert "WH-Test / A" in step_calls
+        assert "WH-Test / B" in step_calls
+
     def test_plot_inventory_nonempty_but_no_snapshots(self, monkeypatch) -> None:
         import matplotlib.pyplot
 
-        monkeypatch.setattr(matplotlib.pyplot, "show", lambda: None)
+        show_calls: list = []
+        monkeypatch.setattr(matplotlib.pyplot, "show", lambda: show_calls.append(1))
 
         c = DefaultIntralogisticsCollector()
         wh = MagicMock()
@@ -426,13 +437,18 @@ class TestDefaultCollectorPlotInventory:
         c.inventory_ts[wh] = []
         c.plot_inventory()
 
+        assert len(show_calls) == 0
+
     def test_plot_inventory_empty_data(self, monkeypatch) -> None:
         import matplotlib.pyplot
 
-        monkeypatch.setattr(matplotlib.pyplot, "show", lambda: None)
+        show_calls: list = []
+        monkeypatch.setattr(matplotlib.pyplot, "show", lambda: show_calls.append(1))
 
         c = DefaultIntralogisticsCollector()
         c.plot_inventory()
+
+        assert len(show_calls) == 0
 
 
 class TestProtocolConformance:

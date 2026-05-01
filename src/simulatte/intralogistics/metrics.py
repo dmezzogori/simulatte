@@ -154,6 +154,7 @@ class DefaultIntralogisticsCollector:
 
         if not any(self.inventory_ts.values()):
             return
+        has_series = False
         for warehouse, snapshots in self.inventory_ts.items():
             if not snapshots:
                 continue
@@ -161,7 +162,11 @@ class DefaultIntralogisticsCollector:
             for sku in sorted(all_skus, key=lambda s: s.id):
                 times = [t for t, inv in snapshots if sku in inv]
                 levels = [inv[sku] for t, inv in snapshots if sku in inv]
-                plt.step(times, levels, where="post", label=f"{warehouse.name} / {sku.id}")
+                if times:
+                    plt.step(times, levels, where="post", label=f"{warehouse.name} / {sku.id}")
+                    has_series = True
+        if not has_series:
+            return
         plt.xlabel("Time")
         plt.ylabel("Inventory Level")
         plt.title("Inventory Levels Over Time")
