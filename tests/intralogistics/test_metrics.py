@@ -395,6 +395,35 @@ class TestEMAFirstObservation:
         assert metrics.ema_dispatch_delay == pytest.approx(1.0 + 0.1 * (2.0 - 1.0))
 
 
+class TestDefaultCollectorPlotInventory:
+    """DefaultIntralogisticsCollector.plot_inventory renders without error."""
+
+    def test_plot_inventory_with_data(self, monkeypatch) -> None:
+        import matplotlib.pyplot
+
+        monkeypatch.setattr(matplotlib.pyplot, "show", lambda: None)
+
+        c = DefaultIntralogisticsCollector()
+        sku_a = SKU(id="A", weight=1.0, volume=0.1)
+        sku_b = SKU(id="B", weight=2.0, volume=0.2)
+        wh = MagicMock()
+        wh.name = "WH-Test"
+        c.inventory_ts[wh] = [
+            (0.0, {sku_a: 100.0, sku_b: 50.0}),
+            (10.0, {sku_a: 90.0, sku_b: 45.0}),
+            (20.0, {sku_a: 80.0, sku_b: 40.0}),
+        ]
+        c.plot_inventory()
+
+    def test_plot_inventory_empty_data(self, monkeypatch) -> None:
+        import matplotlib.pyplot
+
+        monkeypatch.setattr(matplotlib.pyplot, "show", lambda: None)
+
+        c = DefaultIntralogisticsCollector()
+        c.plot_inventory()
+
+
 class TestProtocolConformance:
     """Protocol conformance: isinstance checks for both built-ins."""
 

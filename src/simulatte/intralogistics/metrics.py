@@ -148,3 +148,22 @@ class DefaultIntralogisticsCollector:
         plt.ylabel("Cumulative Completed")
         plt.title("Throughput Over Time")
         plt.show()
+
+    def plot_inventory(self) -> None:  # pragma: no cover
+        import matplotlib.pyplot as plt
+
+        if not self.inventory_ts:
+            return
+        for warehouse, snapshots in self.inventory_ts.items():
+            if not snapshots:
+                continue
+            all_skus = {sku for _, inv in snapshots for sku in inv}
+            for sku in sorted(all_skus, key=lambda s: s.id):
+                times = [t for t, inv in snapshots if sku in inv]
+                levels = [inv[sku] for t, inv in snapshots if sku in inv]
+                plt.step(times, levels, where="post", label=f"{warehouse.name} / {sku.id}")
+        plt.xlabel("Time")
+        plt.ylabel("Inventory Level")
+        plt.title("Inventory Levels Over Time")
+        plt.legend()
+        plt.show()
