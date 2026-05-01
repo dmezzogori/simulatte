@@ -1,10 +1,10 @@
-# AI Coding Agent Skill
+# AI Coding Agent Skills
 
-Simulatte ships **simulatte:dev**, a skill for AI coding agents that teaches them how to write correct Simulatte simulations. When installed, the agent automatically knows how to choose release policies, configure Router distributions, compose triggers, avoid common pitfalls, and set up multi-run experiments.
+Simulatte ships two skills for AI coding agents — one for production planning simulations and one for intralogistics. When installed, the agent automatically knows how to choose policies, configure systems, avoid common pitfalls, and interpret results.
 
 ## Supported agents
 
-The skill works with any agent that supports the [Vercel Skills](https://github.com/vercel-labs/skills) format, including:
+The skills work with any agent that supports the [Vercel Skills](https://github.com/vercel-labs/skills) format, including:
 
 - [Claude Code](https://claude.ai/code)
 - Cursor
@@ -13,23 +13,30 @@ The skill works with any agent that supports the [Vercel Skills](https://github.
 
 ## Installation
 
-Install the skill using the Vercel Skills CLI:
+Install using the Vercel Skills CLI:
 
 ```bash
+# Production planning (job-shop, release policies, dispatching)
 npx skills add https://github.com/dmezzogori/simulatte/tree/main/skills/simulatte-dev
+
+# Intralogistics (warehouses, AGV fleets, material transport)
+npx skills add https://github.com/dmezzogori/simulatte/tree/main/skills/simulatte-intralogistics
 ```
 
-This downloads the skill into your project's agent skills directory.
+Install one or both depending on what you're building.
 
 ## Usage
 
-Once installed, the skill triggers automatically when the agent detects Simulatte-related code or requests. You can also invoke it explicitly:
+Skills trigger automatically when the agent detects relevant imports or requests. You can also invoke them explicitly:
 
 ```
-/simulatte:dev
+/simulatte:dev                    # production planning
+/simulatte-intralogistics         # intralogistics
 ```
 
-### What the skill covers
+## simulatte:dev — Production Planning
+
+Covers job-shop simulation with release control and dispatching:
 
 - **Policy selection** — guidance on when to use Immediate Release, LumsCor, or SLAR, and which parameters to vary in experiments
 - **Build workflow** — using builder functions for quick setup or manual composition for custom configurations
@@ -40,17 +47,32 @@ Once installed, the skill triggers automatically when the agent detects Simulatt
 - **Gymnasium wrapper** — wrapping simulations as Gymnasium environments for RL training with `SimulatteEnv`
 - **Common pitfalls** — generator hooks, absolute due dates, arrival rate semantics, lambda closures, and more
 
-### What the skill does NOT cover
+## simulatte-intralogistics — Warehouse and AGV Simulation
 
-The skill does not cover the Gymnasium wrapper (`SimulatteEnv`) in detail beyond basic setup guidance, since RL integration is highly use-case specific.
+Covers the `simulatte.intralogistics` subpackage:
+
+- **Layout design** — constructing warehouse graphs with nodes, arcs, and pathfinding; avoiding common topology traps (one-way dead ends, placement deadlocks)
+- **Fleet configuration** — AGV types, trapezoidal speed profiles, battery lifecycle, capacity constraints
+- **FleetCoordinator wiring** — the 10-step manual composition sequence for custom systems
+- **Policies** — dispatch strategies (NearestIdle, RoundRobin), repositioning, replenishment (ReorderPointPolicy), and load recovery
+- **Battery management** — depletion sanity checks, charging stations, automatic vs custom charging behavior
+- **Capacity checks** — weight AND volume validation for orders and replenishment quantities
+- **Metrics and plots** — EMA order metrics, time-series collection, fleet utilization / throughput / inventory plots
+- **Tracking and debugging** — order-to-AGV mapping, diagnosing silent dispatch failures
+- **Common pitfalls** — 7 specific failure modes discovered during development, with fixes
 
 ## Skill structure
 
 ```
-skills/simulatte-dev/
-├── SKILL.md                        # Decision-making guidance and workflow
-└── references/
-    └── api-reference.md            # Exact API signatures and configuration patterns
+skills/
+├── simulatte-dev/
+│   ├── SKILL.md                        # Production planning guidance
+│   └── references/
+│       └── api-reference.md            # Core API signatures
+└── simulatte-intralogistics/
+    ├── SKILL.md                        # Intralogistics guidance
+    └── references/
+        └── api-reference.md            # Intralogistics API signatures
 ```
 
-The agent loads `SKILL.md` when the skill triggers, and reads `api-reference.md` on demand when it needs exact constructor signatures or parameter types.
+The agent loads `SKILL.md` when a skill triggers, and reads `api-reference.md` on demand for exact constructor signatures and parameter types.
