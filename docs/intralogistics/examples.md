@@ -16,8 +16,9 @@ Three runnable scripts in [`examples/`](https://github.com/dmezzogori/simulatte/
 
 The minimal starting point. Uses `build_simple_system()` to create a 5-node linear graph with two warehouses and two AGVs. Submits four transfer orders and prints results.
 
-```
-[WH_A] -- [N1] -- [N2] -- [N3] -- [WH_B]
+```mermaid
+graph LR
+    WH_A --- N1 --- N2 --- N3 --- WH_B
 ```
 
 **What it demonstrates:**
@@ -40,15 +41,16 @@ uv run python examples/intralogistics_simple.py
 
 A manufacturing plant with Raw Materials and Finished Goods warehouses connected by a corridor with production floor branches. Builds everything manually --- no builder functions.
 
-```
-                    [P] Parking
-                     |
-[RM_IN]--[RM_OUT]--[C1]--[C2]--[C3]--[FG_IN]--[FG_OUT]
-                     |                 |
-                  [PROD_A]----------[PROD_B]
+```mermaid
+graph LR
+    RM_IN --- RM_OUT --- C1 --- C2 --- C3 --- FG_IN --- FG_OUT
+    C1 --- P[P<br>Parking]
+    C1 --- PROD_A
+    C3 --- PROD_B
+    PROD_A -->|one-way| PROD_B
 ```
 
-All corridor arcs are bidirectional. `PROD_A --> PROD_B` is one-way, providing a forward bypass when the main corridor is busy.
+All corridor arcs are bidirectional. `PROD_A → PROD_B` is one-way, providing a forward bypass when the main corridor is busy.
 
 **What it demonstrates:**
 
@@ -106,19 +108,16 @@ uv run python examples/intralogistics_intermediate.py
 
 A distribution hub with three warehouses --- Receiving (inbound), Bulk Storage (central), and Dispatch (outbound) --- running a full 8-hour shift. Goods flow inbound via automatic replenishment and outbound via continuous customer orders.
 
-```
-[RCV_IN]--[RCV_OUT]--[R1]--[R2]--[BULK_IN]
-                             |
-                       [CHRG]--[PARK]
-                             |
-          [BULK_OUT]--[B1]--[B2]--[B3]--[DSP_IN]--[DSP_OUT]
-                             |
-                           [B4]
-                             |
-                       [B5]--[B6]
+```mermaid
+graph LR
+    RCV_IN --- RCV_OUT --- R1 --- R2 --- BULK_IN
+    R2 --- CHRG[CHRG<br>Charger] --- PARK[PARK<br>Parking]
+    R2 --- B2
+    BULK_OUT --- B1 --- B2 --- B3 --- DSP_IN --- DSP_OUT
+    B2 -->|one-way| B4 --> B5 --> B6 -->|one-way| B3
 ```
 
-Main corridors are bidirectional. The `B2 --> B4 --> B5 --> B6 --> B3` alternate route is one-way, giving the pathfinder a forward bypass option.
+Main corridors are bidirectional. The `B2 → B4 → B5 → B6 → B3` alternate route is one-way, giving the pathfinder a forward bypass option.
 
 **What it demonstrates:**
 

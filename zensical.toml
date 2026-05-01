@@ -36,6 +36,9 @@ provider = "custom"
 use_pygments = true
 
 [project.markdown_extensions."pymdownx.superfences"]
+custom_fences = [
+  { name = "mermaid", class = "mermaid" },
+]
 
 [project.theme]
 custom_dir = "overrides"
