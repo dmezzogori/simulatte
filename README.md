@@ -54,10 +54,13 @@ The library provides ready-to-use components for common manufacturing scenarios 
 - Can be used with Stable-Baselines3, CleanRL, and other Gymnasium-compatible RL libraries
 - Built-in lifecycle guards, seeding support, and resource cleanup
 
-### Material Handling *(experimental)*
-- Warehouse with inventory management
-- AGV fleet coordination
-- FIFO blocking semantics for realistic material flow
+### Intralogistics
+- **Warehouse** with per-SKU inventory, finite pick/put slots, input/output bays
+- **AGV fleet** with trapezoidal speed profiles, battery lifecycle, and charging stations
+- **FleetCoordinator** orchestrating dispatch, travel, pick, transit, deliver, reposition, and charge
+- Pluggable policies: dispatch (`NearestIdleStrategy`, `RoundRobinStrategy`), repositioning, replenishment (`ReorderPointPolicy`), load recovery
+- Time-series metrics with `plot_fleet_utilization()`, `plot_throughput()`, `plot_pending_orders()`, `plot_inventory()`
+- Three progressive [examples](https://github.com/dmezzogori/simulatte/tree/main/examples): simple setup, manufacturing plant floor, multi-warehouse distribution hub
 
 ### Logging
 - Per-component event logging (Server, ShopFloor, Router, Warehouse, AGV)

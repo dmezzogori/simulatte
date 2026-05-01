@@ -38,9 +38,12 @@ simulatte/
 │   ├── logger.py           # Logging with JSON/text/SQLite output
 │   ├── typing.py           # Shared type definitions
 │   ├── policies/           # Release policies (LumsCor, SLAR, StarvationAvoidance, triggers)
-│   └── experimental/       # Unstable modules (AGV, warehouse, materials, gymnasium wrapper, experimental builders/job/typing)
+│   ├── intralogistics/     # Warehouse, AGV fleet, material transport (graph, pathfinding, traffic, fleet coordinator, metrics, policies)
+│   └── experimental/       # Unstable modules (gymnasium wrapper)
+├── examples/               # Runnable example scripts (intralogistics_simple, _intermediate, _advanced)
 ├── tests/
 │   ├── core/               # Tests for stable modules
+│   ├── intralogistics/     # Tests for intralogistics modules
 │   └── experimental/       # Tests for experimental modules
 ├── docs/                   # Website sources (simulatte.dev), built with Zensical
 ├── overrides/              # MkDocs theme overrides
@@ -80,15 +83,25 @@ Simulatte is a discrete-event simulation framework for production planning and c
 - **Distributions** (`distributions.py`): Statistical distribution helpers
 - **Triggers** (`policies/triggers.py`): Event-driven triggers for release policies
 
+### Intralogistics (`intralogistics/`)
+
+Warehouse-to-warehouse material transport via AGV fleets:
+
+- **LayoutGraph** (`intralogistics/graph.py`): Directed graph of `Node`/`Arc` with Dijkstra and A* pathfinding
+- **Warehouse** (`intralogistics/warehouse.py`): Per-SKU inventory, finite pick/put slots, input/output bays
+- **AGV** (`intralogistics/agv.py`): State machine (IDLE, TRAVELING_EMPTY/LOADED, WAITING_LOAD/UNLOAD, CHARGING, STRANDED) with battery and speed profile
+- **FleetCoordinator** (`intralogistics/fleet.py`): Central orchestrator for AGV missions — dispatch, travel, pick, deliver, reposition, charge. Pluggable strategies for dispatch, repositioning, replenishment, and load recovery
+- **Policies** (`intralogistics/policies.py`): `NearestIdleStrategy`, `RoundRobinStrategy`, `NearestParkingPolicy`, `ReorderPointPolicy`, `ReturnToOrigin`, `ResumeDelivery`
+- **Metrics** (`intralogistics/metrics.py`): `EMAOrderMetrics` (fulfillment time, dispatch delay, travel times) and `DefaultIntralogisticsCollector` (time-series with `plot_fleet_utilization()`, `plot_throughput()`, `plot_pending_orders()`, `plot_inventory()`)
+- **Traffic** (`intralogistics/traffic.py`): `ResourceBasedTrafficManager` with node capacity enforcement and deadlock resolution
+- **Facilities**: `ChargingStation` (`charging.py`), `ParkingArea` (`parking.py`)
+- **Builders** (`intralogistics/builders.py`): `build_simple_system()` for quick setup
+
 ### Experimental Modules (`experimental/`)
 
 Unstable APIs, subject to change:
 
 - **SimulatteEnv** (`experimental/gymnasium.py`): Gymnasium ABC for wrapping simulations as RL environments. Users subclass it and implement six abstract methods (setup, get_observation, apply_action, compute_reward, is_terminated, is_truncated). Two optional hooks: `teardown()` for resource cleanup between episodes, `get_info()` for step metadata. Base class handles reset/step/close lifecycle and state guards.
-- **MaterialCoordinator** (`experimental/materials.py`): FIFO material delivery coordination
-- **AGV** (`experimental/agv.py`): Automated guided vehicle transport
-- **Warehouse** (`experimental/warehouse.py`): Inventory management
-- **MaterialSystemBuilder** (`experimental/builders.py`): Builder for material-aware systems
 
 
 ## CI/CD

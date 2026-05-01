@@ -42,7 +42,7 @@ Once installed, the skill triggers automatically when the agent detects Simulatt
 
 ### What the skill does NOT cover
 
-The skill excludes most experimental modules (Warehouse, AGV, MaterialCoordinator) since they are unstable and subject to breaking changes. The Gymnasium wrapper (`SimulatteEnv`) is an exception — it is covered because RL integration is a common use case.
+The skill does not cover the Gymnasium wrapper (`SimulatteEnv`) in detail beyond basic setup guidance, since RL integration is highly use-case specific.
 
 ## Skill structure
 
