@@ -30,12 +30,13 @@ graph but are not order endpoints — all orders flow Raw Materials → Finished
 
 - RM_IN / RM_OUT: Raw Materials warehouse input/output bays.
 - FG_IN / FG_OUT: Finished Goods warehouse input/output bays.
-- C1, C2, C3: Central corridor nodes. Main corridor arcs are one-way (left → right).
-  Branch arcs (to PROD_A, PROD_B, P) are bidirectional.
+- C1, C2, C3: Central corridor nodes. All corridor arcs are bidirectional; traffic
+  management with `node_capacity=1` creates congestion (two AGVs can't occupy the
+  same node, so they wait or reroute).
 - PROD_A, PROD_B: Production floor nodes branching off the corridor.
-  Connected by a one-way arc PROD_A → PROD_B, creating an alternate route
-  C1 → PROD_A → PROD_B → C3 that AGVs can take when the main corridor is
-  congested. These are not warehouse endpoints.
+  Connected by a one-way arc PROD_A → PROD_B, creating a forward-only alternate
+  route C1 → PROD_A → PROD_B → C3 that AGVs can use as a bypass when the main
+  corridor is congested. These are not warehouse endpoints.
 - P: Parking area for idle AGVs.
 
 Node coordinates (meters, approximate):
@@ -73,7 +74,8 @@ These are chosen so that weight and volume capacities matter for dispatch decisi
   intermediate scenario — we want to focus on traffic and dispatch).
 - Weight capacity: 100 kg, volume capacity: 1.0 m3.
 - Load time: 10s, unload time: 8s.
-- Starting positions: all at C1.
+- Starting positions: AGV-1 at RM_OUT, AGV-2 at C2, AGV-3 at P (spread across
+  different nodes to avoid placement deadlock with `node_capacity=1`).
 
 ### Traffic Management
 
@@ -218,12 +220,13 @@ Node coordinates (meters, approximate):
 | B6       | 110 | -20 |
 
 Arc directionality:
-- Upper corridor (RCV_OUT → R1 → R2 → BULK_IN): one-way.
-- Lower main corridor (BULK_OUT → B1 → B2 → B3 → DSP_IN): one-way.
-- Alternate route (B2 → B4, B4 → B5, B5 → B6, B6 → B3): one-way.
+- Upper corridor (RCV_OUT ↔ R1 ↔ R2 ↔ BULK_IN): bidirectional.
+- Lower main corridor (BULK_OUT ↔ B1 ↔ B2 ↔ B3 ↔ DSP_IN): bidirectional.
+- Alternate route (B2 → B4, B4 → B5, B5 → B6, B6 → B3): one-way forward bypass.
 - Branches to CHRG, PARK: bidirectional from R2 and CHRG respectively.
-- Warehouse bays: bidirectional (IN ↔ OUT within each warehouse).
+- Warehouse bays: bidirectional (IN ↔ OUT for adjacent pairs RCV and DSP).
 - Vertical connector R2 ↔ B2 (bidirectional, links upper and lower corridors).
+- Traffic management with `node_capacity=1` creates congestion on bidirectional arcs.
 
 ### SKUs
 
@@ -250,7 +253,8 @@ Arc directionality:
 - Low battery threshold: 20%, critical: 5%.
 - Weight capacity: 150 kg, volume capacity: 1.5 m3.
 - Load time: 12s, unload time: 10s.
-- Starting positions: 3 at PARK, 2 at BULK_OUT.
+- Starting positions: AGV-1 at PARK, AGV-2 at BULK_OUT, AGV-3 at B1, AGV-4 at R1,
+  AGV-5 at B3 (spread to avoid placement deadlock with `node_capacity=1`).
 
 ### Traffic Management
 
@@ -309,7 +313,8 @@ def outbound_order_stream(env, coordinator, bulk_storage, dispatch, skus, rng):
     while True:
         yield env.timeout(rng.uniform(300, 600))  # every 5-10 minutes
         sku = rng.choice(skus)
-        quantity = rng.integers(1, 4)
+        max_qty = int(weight_capacity // sku.weight)
+        quantity = rng.integers(1, min(4, max_qty + 1))
         due_date = env.now + rng.uniform(1800, 3600)  # 30-60 min from now
         order = coordinator.create_order(
             sku=sku, quantity=quantity,
