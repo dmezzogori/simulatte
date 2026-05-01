@@ -175,7 +175,7 @@ Bulk Storage via replenishment, then outbound from Bulk Storage to Dispatch via
 customer orders. The system runs continuously over an 8-hour shift, managing battery
 life, automatic replenishment, and producing operational analytics.
 
-### Layout (15 nodes)
+### Layout (16 nodes)
 
 ```
 [RCV_IN]--[RCV_OUT]--[R1]--[R2]--[BULK_IN]
