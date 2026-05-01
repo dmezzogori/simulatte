@@ -152,7 +152,7 @@ class DefaultIntralogisticsCollector:
     def plot_inventory(self) -> None:  # pragma: no cover
         import matplotlib.pyplot as plt
 
-        if not self.inventory_ts:
+        if not any(self.inventory_ts.values()):
             return
         for warehouse, snapshots in self.inventory_ts.items():
             if not snapshots:

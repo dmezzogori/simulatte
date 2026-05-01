@@ -415,6 +415,17 @@ class TestDefaultCollectorPlotInventory:
         ]
         c.plot_inventory()
 
+    def test_plot_inventory_nonempty_but_no_snapshots(self, monkeypatch) -> None:
+        import matplotlib.pyplot
+
+        monkeypatch.setattr(matplotlib.pyplot, "show", lambda: None)
+
+        c = DefaultIntralogisticsCollector()
+        wh = MagicMock()
+        wh.name = "WH-Empty"
+        c.inventory_ts[wh] = []
+        c.plot_inventory()
+
     def test_plot_inventory_empty_data(self, monkeypatch) -> None:
         import matplotlib.pyplot
 
