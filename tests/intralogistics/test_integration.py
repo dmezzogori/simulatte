@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVState, AGVType
 from simulatte.intralogistics.charging import ChargingStation
@@ -110,10 +108,7 @@ def _build_test_system(
         unload_time_fn=lambda: 1.0,
     )
 
-    agvs: list[AGV] = [
-        AGV(env=env, agv_type=agv_type, agv_id=f"agv-{i}", initial_node=node_b)
-        for i in range(n_agvs)
-    ]
+    agvs: list[AGV] = [AGV(env=env, agv_type=agv_type, agv_id=f"agv-{i}", initial_node=node_b) for i in range(n_agvs)]
 
     if traffic_manager is None:
         traffic_manager = FreeTrafficManager()
@@ -144,7 +139,10 @@ class TestFullMissionLifecycle:
         coordinator, agvs, wh_a, wh_b, graph, sku, _ = _build_test_system(env)
 
         order = coordinator.create_order(
-            sku=sku, quantity=10, origin=wh_a, destination=wh_b,
+            sku=sku,
+            quantity=10,
+            origin=wh_a,
+            destination=wh_b,
         )
         coordinator.submit(order)
         env.run()
@@ -153,10 +151,15 @@ class TestFullMissionLifecycle:
 
     def test_inventory_changes(self, env: Environment) -> None:
         coordinator, agvs, wh_a, wh_b, _, sku, _ = _build_test_system(
-            env, initial_inventory_a=100, initial_inventory_b=0,
+            env,
+            initial_inventory_a=100,
+            initial_inventory_b=0,
         )
         order = coordinator.create_order(
-            sku=sku, quantity=10, origin=wh_a, destination=wh_b,
+            sku=sku,
+            quantity=10,
+            origin=wh_a,
+            destination=wh_b,
         )
         coordinator.submit(order)
         env.run()
@@ -167,7 +170,10 @@ class TestFullMissionLifecycle:
     def test_lifecycle_timestamps_set(self, env: Environment) -> None:
         coordinator, agvs, wh_a, wh_b, _, sku, _ = _build_test_system(env)
         order = coordinator.create_order(
-            sku=sku, quantity=10, origin=wh_a, destination=wh_b,
+            sku=sku,
+            quantity=10,
+            origin=wh_a,
+            destination=wh_b,
         )
         coordinator.submit(order)
         env.run()
@@ -180,7 +186,10 @@ class TestFullMissionLifecycle:
     def test_agv_returns_to_idle(self, env: Environment) -> None:
         coordinator, agvs, wh_a, wh_b, _, sku, _ = _build_test_system(env)
         order = coordinator.create_order(
-            sku=sku, quantity=10, origin=wh_a, destination=wh_b,
+            sku=sku,
+            quantity=10,
+            origin=wh_a,
+            destination=wh_b,
         )
         coordinator.submit(order)
         env.run()
@@ -198,13 +207,18 @@ class TestConcurrentOrders:
 
     def test_all_orders_complete(self, env: Environment) -> None:
         coordinator, agvs, wh_a, wh_b, _, sku, _ = _build_test_system(
-            env, n_agvs=3, initial_inventory_a=500,
+            env,
+            n_agvs=3,
+            initial_inventory_a=500,
         )
 
         orders: list[TransferOrder] = []
         for i in range(5):
             order = coordinator.create_order(
-                sku=sku, quantity=10, origin=wh_a, destination=wh_b,
+                sku=sku,
+                quantity=10,
+                origin=wh_a,
+                destination=wh_b,
             )
             coordinator.submit(order)
             orders.append(order)
@@ -233,12 +247,16 @@ class TestBatteryManagement:
         # Pre-arc C->D: cost=5, battery=0 -> diverts to charger AT C -> recharges
         # Then continues D->E, delivery.
         coordinator, agvs, wh_a, wh_b, _, sku, _ = _build_test_system(
-            env, battery_capacity=15.0,
+            env,
+            battery_capacity=15.0,
         )
         agv = agvs[0]
 
         order = coordinator.create_order(
-            sku=sku, quantity=1, origin=wh_a, destination=wh_b,
+            sku=sku,
+            quantity=1,
+            origin=wh_a,
+            destination=wh_b,
         )
         coordinator.submit(order)
         env.run()
@@ -261,7 +279,10 @@ class TestReplenishmentPolicy:
     def test_replenishment_triggered(self, env: Environment) -> None:
         # WH_B starts with 100 units, WH_A starts with 200 (source for replenishment).
         coordinator, agvs, wh_a, wh_b, _, sku, _ = _build_test_system(
-            env, n_agvs=2, initial_inventory_a=200, initial_inventory_b=100,
+            env,
+            n_agvs=2,
+            initial_inventory_a=200,
+            initial_inventory_b=100,
         )
 
         # Policy: when WH_B drops below 50, reorder 30 from the warehouse
@@ -276,7 +297,10 @@ class TestReplenishmentPolicy:
         orders_to_drain: list[TransferOrder] = []
         for _ in range(6):
             o = coordinator.create_order(
-                sku=sku, quantity=10, origin=wh_b, destination=wh_a,
+                sku=sku,
+                quantity=10,
+                origin=wh_b,
+                destination=wh_a,
             )
             coordinator.submit(o)
             orders_to_drain.append(o)
@@ -307,7 +331,10 @@ class TestOrderCancellation:
         coordinator, agvs, wh_a, wh_b, _, sku, _ = _build_test_system(env)
 
         order = coordinator.create_order(
-            sku=sku, quantity=10, origin=wh_a, destination=wh_b,
+            sku=sku,
+            quantity=10,
+            origin=wh_a,
+            destination=wh_b,
         )
         coordinator.submit(order)
 
@@ -358,40 +385,63 @@ class TestTrafficManagement:
         sku = SKU(id="TEST-SKU", weight=1.0, volume=0.1)
 
         wh_a = Warehouse(
-            env=env, name="WH-A",
-            input_bays=[node_a], output_bays=[node_a],
-            n_slots=4, products=[sku], initial_inventory={sku: 200},
-            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+            env=env,
+            name="WH-A",
+            input_bays=[node_a],
+            output_bays=[node_a],
+            n_slots=4,
+            products=[sku],
+            initial_inventory={sku: 200},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
         )
         wh_b = Warehouse(
-            env=env, name="WH-B",
-            input_bays=[node_e], output_bays=[node_e],
-            n_slots=4, products=[sku], initial_inventory={sku: 0},
-            pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+            env=env,
+            name="WH-B",
+            input_bays=[node_e],
+            output_bays=[node_e],
+            n_slots=4,
+            products=[sku],
+            initial_inventory={sku: 0},
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
         )
 
         charging_station = ChargingStation(
-            env=env, name="CS-CENTER", node=node_c, n_slots=2,
+            env=env,
+            name="CS-CENTER",
+            node=node_c,
+            n_slots=2,
         )
 
         traffic_mgr = ResourceBasedTrafficManager(
-            graph=graph, env=env, node_capacity=2,
+            graph=graph,
+            env=env,
+            node_capacity=2,
         )
 
         speed_profile = TrapezoidalProfile(
-            max_speed=2.0, acceleration=1.0, deceleration=1.0,
+            max_speed=2.0,
+            acceleration=1.0,
+            deceleration=1.0,
         )
         agv_type = AGVType(
-            name="test", speed_profile=speed_profile,
-            battery_capacity=1000.0, weight_capacity=500.0, volume_capacity=10.0,
-            load_time_fn=lambda: 1.0, unload_time_fn=lambda: 1.0,
+            name="test",
+            speed_profile=speed_profile,
+            battery_capacity=1000.0,
+            weight_capacity=500.0,
+            volume_capacity=10.0,
+            load_time_fn=lambda: 1.0,
+            unload_time_fn=lambda: 1.0,
         )
 
         agv1 = AGV(env=env, agv_type=agv_type, agv_id="agv-0", initial_node=node_b)
         agv2 = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_b)
 
         coordinator = FleetCoordinator(
-            env=env, graph=graph, fleet=[agv1, agv2],
+            env=env,
+            graph=graph,
+            fleet=[agv1, agv2],
             warehouses=[wh_a, wh_b],
             charging_stations=[charging_station],
             traffic_manager=traffic_mgr,
@@ -399,10 +449,16 @@ class TestTrafficManagement:
         )
 
         order1 = coordinator.create_order(
-            sku=sku, quantity=5, origin=wh_a, destination=wh_b,
+            sku=sku,
+            quantity=5,
+            origin=wh_a,
+            destination=wh_b,
         )
         order2 = coordinator.create_order(
-            sku=sku, quantity=5, origin=wh_a, destination=wh_b,
+            sku=sku,
+            quantity=5,
+            origin=wh_a,
+            destination=wh_b,
         )
         coordinator.submit(order1)
         coordinator.submit(order2)
@@ -427,11 +483,15 @@ class TestWarehouseStockout:
 
     def test_pick_waits_for_put(self, env: Environment) -> None:
         coordinator, agvs, wh_a, wh_b, _, sku, _ = _build_test_system(
-            env, initial_inventory_a=0,
+            env,
+            initial_inventory_a=0,
         )
 
         order = coordinator.create_order(
-            sku=sku, quantity=5, origin=wh_a, destination=wh_b,
+            sku=sku,
+            quantity=5,
+            origin=wh_a,
+            destination=wh_b,
         )
         coordinator.submit(order)
 
@@ -464,7 +524,10 @@ class TestBuildSimpleSystemE2E:
         sku_a = SKU("A", 1.0, 0.1)
 
         order = coordinator.create_order(
-            sku=sku_a, quantity=5, origin=wh_a, destination=wh_b,
+            sku=sku_a,
+            quantity=5,
+            origin=wh_a,
+            destination=wh_b,
         )
         coordinator.submit(order)
         env.run()
