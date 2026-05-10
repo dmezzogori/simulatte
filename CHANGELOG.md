@@ -2,6 +2,33 @@
 
 All notable changes to Simulatte are documented here.
 
+## 0.6.0 — 2026-05-10
+
+### Added
+- **Intralogistics subsystem** (`simulatte.intralogistics`): full warehouse-to-warehouse material transport via AGV fleets, including:
+  - `LayoutGraph` with `Node`/`Arc` and Dijkstra/A* pathfinding
+  - `Warehouse` with per-SKU inventory, finite pick/put slots, and deadlock-safe operations
+  - `AGV` with state machine, trapezoidal speed profiles, and battery lifecycle
+  - `FleetCoordinator` orchestrating dispatch, travel, pick, deliver, reposition, and charge
+  - `TrafficManager` protocol with `FreeTrafficManager` and `ResourceBasedTrafficManager` (node capacity enforcement and deadlock resolution)
+  - `ChargingStation` (recharge and swap) and `ParkingArea`
+  - Pluggable policies: `NearestIdleStrategy`, `RoundRobinStrategy`, `NearestParkingPolicy`, `ReorderPointPolicy`, `ReturnToOrigin`, `ResumeDelivery`
+  - `EMAOrderMetrics` and `DefaultIntralogisticsCollector` with `plot_fleet_utilization()`, `plot_throughput()`, `plot_pending_orders()`, `plot_inventory()`
+  - `build_simple_system()` builder for quick setup
+- **ConWIP release policy** (`simulatte.policies.conwip`): Constant Work-In-Process release with shop-wide job count cap and EDD selection
+- **ContinuousRelease policy** (`simulatte.policies.continuous_release`): workload-controlled continuous release using corrected aggregate load norms
+- Three progressive intralogistics examples: simple, intermediate (manufacturing plant floor), and advanced (multi-warehouse distribution hub)
+- AI coding agent skill for intralogistics (`simulatte-intralogistics`)
+- Intralogistics documentation section with overview and examples walkthrough
+
+### Removed
+- Experimental AGV, Warehouse, and MaterialCoordinator modules (`simulatte.experimental.agv`, `simulatte.experimental.warehouse`, `simulatte.experimental.materials`, `simulatte.experimental.builders`, `simulatte.experimental.job`, `simulatte.experimental.typing`) — replaced by the `simulatte.intralogistics` subsystem
+
+### Fixed
+- Fleet pending-queue starvation: retry counter now increments even when capable AGVs exist but none are idle
+- Default `pending_retry_delay` changed from 0.001 to 1.0 for realistic retry behavior
+- `DefaultIntralogisticsCollector` no longer accesses private `_pending_queue` (uses `pending_count` property)
+
 ## 0.5.0 — 2026-04-29
 
 - Add `SimulatteEnv` Gymnasium wrapper for RL integration (`simulatte.experimental.gymnasium`)

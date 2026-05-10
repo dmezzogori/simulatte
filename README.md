@@ -152,7 +152,7 @@ If you use Simulatte in your research, please cite:
   title = {{Simulatte}: A discrete-event simulation framework for production planning and control and intralogistics},
   year = {2025},
   url = {https://github.com/dmezzogori/simulatte},
-  note = {Python package version 0.5.0}
+  note = {Python package version 0.6.0}
 }
 ```
 
