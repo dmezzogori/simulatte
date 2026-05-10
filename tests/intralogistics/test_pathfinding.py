@@ -62,7 +62,6 @@ class TestDijkstraPlanner:
 
 
 class TestDijkstraPlannerEdgeCases:
-
     def test_protocol_conformance(self) -> None:
         from simulatte.intralogistics.pathfinding import PathPlanner
 

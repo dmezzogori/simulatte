@@ -132,8 +132,7 @@ class ChargingStation:
             self.total_swaps += 1
 
             self.env.debug(
-                f"[{self.name}] Swap complete for {agv.agv_id} "
-                f"(swap_time={self.swap_time:.2f})",
+                f"[{self.name}] Swap complete for {agv.agv_id} (swap_time={self.swap_time:.2f})",
                 component="ChargingStation",
             )
 

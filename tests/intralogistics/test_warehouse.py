@@ -128,8 +128,14 @@ class TestWarehouse:
         ]
         graph = LayoutGraph([out1, out2, detour, agv_pos], arcs)
         wh = Warehouse(
-            env=env, name="WH", input_bays=[], output_bays=[out1, out2],
-            n_slots=1, products=[steel], pick_time_fn=lambda s, q: 1.0, put_time_fn=lambda s, q: 1.0,
+            env=env,
+            name="WH",
+            input_bays=[],
+            output_bays=[out1, out2],
+            n_slots=1,
+            products=[steel],
+            pick_time_fn=lambda s, q: 1.0,
+            put_time_fn=lambda s, q: 1.0,
         )
         nearest = wh.nearest_output_bay(agv_pos, graph)
         assert nearest == out1  # graph distance: AGV→OUT1 = 8.0, AGV→D→OUT2 ≈ 5+5.1 = 10.1
