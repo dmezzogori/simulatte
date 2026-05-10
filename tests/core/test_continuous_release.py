@@ -225,3 +225,75 @@ def test_continuous_release_corrected_load_multi_server() -> None:
 
     # Should NOT be released: s1 contribution = 4.0 > norm = 3.0
     assert job in psp
+
+
+def test_continuous_release_validate_strategy_passes() -> None:
+    """No error when CorrectedWIPStrategy is active and all servers have norms."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.set_wip_strategy(CorrectedWIPStrategy())
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    cr = ContinuousRelease(wl_norm={server: 5.0}, allowance_factor=2)
+    cr.validate_strategy(sf)  # Should not raise
+
+
+def test_continuous_release_on_arrival_skips_busy_server() -> None:
+    """Job stays in PSP when first server is busy."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.set_wip_strategy(CorrectedWIPStrategy())
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    cr = ContinuousRelease(wl_norm={server: 100.0}, allowance_factor=2)
+    psp.on_arrival(cr.on_arrival_release)
+
+    # Occupy the server first
+    blocker = ProductionJob(env=env, sku="A", servers=[server], processing_times=[100.0], due_date=200.0)
+    sf.add(blocker)
+    env.run(until=0.1)  # Let the blocker start processing
+
+    assert not server.is_idle
+
+    # Now add a job — should stay in PSP because server is busy
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
+    psp.add(job)
+
+    assert job in psp
+
+
+def test_continuous_release_on_completion_rejects_wrong_strategy() -> None:
+    """TypeError when on_completion_release called without CorrectedWIPStrategy."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    cr = ContinuousRelease(wl_norm={server: 5.0}, allowance_factor=2)
+    dummy_job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
+
+    with pytest.raises(TypeError, match="ContinuousRelease requires CorrectedWIPStrategy"):
+        cr.on_completion_release(dummy_job, psp)
+
+
+def test_continuous_release_corrected_load_multi_server_releases() -> None:
+    """Verify multi-op job IS released when contributions fit within norms."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    sf.set_wip_strategy(CorrectedWIPStrategy())
+    server1 = Server(env=env, capacity=1, shopfloor=sf)
+    server2 = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    # Norms generous enough: s1 contribution = 2/1 = 2.0 <= 5.0, s2 = 4/2 = 2.0 <= 5.0
+    cr = ContinuousRelease(wl_norm={server1: 5.0, server2: 5.0}, allowance_factor=2)
+    psp.on_arrival(cr.on_arrival_release)
+
+    assert server1.is_idle
+
+    job = ProductionJob(env=env, sku="A", servers=[server1, server2], processing_times=[2.0, 4.0], due_date=30.0)
+    psp.add(job)
+
+    # Should be released: both contributions within norms
+    assert job not in psp
+    assert job in sf.jobs

@@ -224,9 +224,9 @@ Additionally, a **starvation avoidance** callback is registered via `psp.on_arri
 
 Queue ordering uses a PST-based priority policy: jobs with lower PST are served first.
 
-## 5) Comparing systems
+## 5) Comparing builder-based systems
 
-Run all three systems and compare:
+Run the three builder-based systems and compare:
 
 ```python
 from simulatte.builders import (
@@ -270,6 +270,44 @@ for name, results in [("Immediate", immediate), ("LumsCor", lumscor), ("SLAR", s
 - `shopfloor.on_processing_end` callbacks run after the server is released (`servers_exit_at` is stamped and `job.previous_server` is available).
 - LUMS COR requires `CorrectedWIPStrategy` on the shopfloor (set automatically by the builder).
 - SLAR is purely event-driven (no periodic trigger).
+
+## 6) Additional policies
+
+Simulatte also provides two additional release policies:
+
+### ConWIP (Constant Work-In-Process)
+
+ConWIP maintains a shop-wide WIP cap based on job count. Jobs are released from the PSP whenever the shopfloor job count drops below the cap, with selection by earliest due date (EDD).
+
+```python
+from simulatte.policies.conwip import ConWIP
+from simulatte.policies.triggers import on_completion_trigger
+
+conwip = ConWIP(wip_cap=12)
+psp = PreShopPool(env=env, shopfloor=shopfloor)
+psp.on_arrival(conwip.on_arrival_release)
+env.process(on_completion_trigger(shopfloor, psp, conwip.on_completion_release))
+```
+
+Reference: Spearman, M. L., Woodruff, D. L. & Hopp, W. J. (1990). *CONWIP: a pull alternative to kanban*. International Journal of Production Research, 28(5), 879-894.
+
+### Continuous Release
+
+Continuous Release is a workload-controlled policy where jobs may be released at any moment when a server's corrected workload drops below its norm. It uses corrected aggregate load: the contribution at routing position *i* is PT / (*i* + 1). Requires `CorrectedWIPStrategy` on the shopfloor.
+
+```python
+from simulatte.policies.continuous_release import ContinuousRelease
+from simulatte.policies.triggers import on_completion_trigger
+from simulatte.shopfloor import CorrectedWIPStrategy
+
+shopfloor.set_wip_strategy(CorrectedWIPStrategy())
+cr = ContinuousRelease(wl_norm={server1: 5.0, server2: 5.0}, allowance_factor=2)
+psp = PreShopPool(env=env, shopfloor=shopfloor)
+psp.on_arrival(cr.on_arrival_release)
+env.process(on_completion_trigger(shopfloor, psp, cr.on_completion_release))
+```
+
+Reference: Fernandes, N. O. & Carmo-Silva, S. (2011). *Workload control under continuous order release*. International Journal of Production Economics, 131(1), 257-262.
 
 ## Next
 

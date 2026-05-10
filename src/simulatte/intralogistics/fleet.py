@@ -83,7 +83,7 @@ class FleetCoordinator:
         time_series_collector: IntralogisticsTimeSeriesCollector | None = None,
         on_low_battery: Callable[[AGV], ProcessGenerator | None] | None = None,
         max_dispatch_retries: int = 10,
-        pending_retry_delay: float = 0.001,
+        pending_retry_delay: float = 1.0,
     ) -> None:
         self.env = env
         self.graph = graph
@@ -235,6 +235,11 @@ class FleetCoordinator:
     # ------------------------------------------------------------------
     # Fleet convenience
     # ------------------------------------------------------------------
+
+    @property
+    def pending_count(self) -> int:
+        """Number of orders waiting in the pending queue."""
+        return len(self._pending_queue)
 
     @property
     def fleet_utilization(self) -> float:
@@ -867,9 +872,9 @@ class FleetCoordinator:
             else:
                 capable_agvs = [a for a in self.fleet if a.can_carry(order.sku, order.quantity)]
                 idle_capable_agvs = [a for a in capable_agvs if a.state == AGVState.IDLE]
+                self._dispatch_retries[order.id] = self._dispatch_retries.get(order.id, 0) + 1
                 if capable_agvs and not idle_capable_agvs:
                     continue
-                self._dispatch_retries[order.id] = self._dispatch_retries.get(order.id, 0) + 1
                 if self._dispatch_retries[order.id] >= self._max_dispatch_retries:
                     failed.append(order)
 

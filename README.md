@@ -33,7 +33,7 @@ The library provides ready-to-use components for common manufacturing scenarios 
 
 ### Release Control
 - **Pre-Shop Pool (PSP)** for workload-based job release
-- Built-in policies: Immediate Release, LumsCor, SLAR
+- Built-in policies: Immediate Release, LumsCor, SLAR, ConWIP, Continuous Release
 - Event callbacks (`psp.on_arrival`, `shopfloor.on_processing_end`) and composable triggers
 - Starvation avoidance mechanisms
 

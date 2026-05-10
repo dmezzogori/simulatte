@@ -56,28 +56,6 @@ def test_conwip_on_completion_blocks_at_cap() -> None:
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
 
-    conwip = ConWIP(wip_cap=2)
-    env.process(on_completion_trigger(sf, psp, conwip.on_completion_release))
-
-    # Add two long jobs to the shopfloor (WIP stays at 2)
-    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[10.0], due_date=100.0)
-    job2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[10.0], due_date=100.0)
-    sf.add(job1)
-    sf.add(job2)
-
-    # Add a candidate in PSP
-    job3 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=50.0)
-    psp.add(job3)
-
-    # Run until job1 finishes (t=10); at that point WIP is still 2 (job2 active + job3 if released)
-    # Actually when job1 finishes at t=10, job1 exits sf.jobs, so WIP = 1 (just job2)
-    # So job3 should be released. Let's set cap=1 to block.
-    # Restart the test with cap=1 and 2 long-running jobs
-    env = Environment()
-    sf = ShopFloor(env=env)
-    server = Server(env=env, capacity=1, shopfloor=sf)
-    psp = PreShopPool(env=env, shopfloor=sf)
-
     conwip = ConWIP(wip_cap=1)
     env.process(on_completion_trigger(sf, psp, conwip.on_completion_release))
 
@@ -131,27 +109,6 @@ def test_conwip_on_completion_releases_multiple() -> None:
 
 def test_conwip_on_completion_selects_by_edd() -> None:
     """Earliest due date job selected first."""
-    env = Environment()
-    sf = ShopFloor(env=env)
-    server = Server(env=env, capacity=1, shopfloor=sf)
-    psp = PreShopPool(env=env, shopfloor=sf)
-
-    conwip = ConWIP(wip_cap=2)
-    env.process(on_completion_trigger(sf, psp, conwip.on_completion_release))
-
-    # One job on shopfloor
-    job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
-    sf.add(job1)
-
-    # Two PSP candidates — job_late added first, job_early added second
-    job_late = ProductionJob(env=env, sku="A", servers=[server], processing_times=[10.0], due_date=50.0)
-    job_early = ProductionJob(env=env, sku="A", servers=[server], processing_times=[10.0], due_date=5.0)
-    psp.add(job_late)
-    psp.add(job_early)
-
-    # After job1 finishes at t=1, sf.jobs is empty. Cap=2, so one release fills to 1.
-    # With cap=2 and sf.jobs=0 after completion, both could be released.
-    # To test ordering, set cap so only 1 is released:
     env = Environment()
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)

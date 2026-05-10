@@ -72,6 +72,8 @@ Simulatte is a discrete-event simulation framework for production planning and c
 **Policies** (`src/simulatte/policies/`): Release policies for job scheduling:
 - LumsCor: Load-based scheduling
 - SLAR: Server load adjustment rule
+- ConWIP: Constant Work-In-Process release (shop-wide job count cap)
+- ContinuousRelease: Workload-controlled continuous release (corrected aggregate load norms)
 - `starvation_avoidance`: Callback for `psp.on_arrival()` that releases jobs when first server is idle
 
 ### Supporting Modules
@@ -82,6 +84,8 @@ Simulatte is a discrete-event simulation framework for production planning and c
 - **Builders** (`builders.py`): Factory functions (`build_immediate_release_system`, `build_lumscor_system`, `build_slar_system`)
 - **Distributions** (`distributions.py`): Statistical distribution helpers
 - **Triggers** (`policies/triggers.py`): Event-driven triggers for release policies
+- **ConWIP** (`policies/conwip.py`): Constant WIP release policy with EDD selection
+- **ContinuousRelease** (`policies/continuous_release.py`): Workload-controlled continuous release
 
 ### Intralogistics (`intralogistics/`)
 

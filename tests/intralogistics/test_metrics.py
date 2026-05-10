@@ -19,7 +19,9 @@ from simulatte.intralogistics.sku import SKU
 
 
 def _make_coordinator_stub(**attrs: object) -> FleetCoordinator:
-    return cast(FleetCoordinator, SimpleNamespace(**attrs))
+    ns = SimpleNamespace(**attrs)
+    ns.pending_count = len(getattr(ns, "_pending_queue", []))
+    return cast(FleetCoordinator, ns)
 
 
 def _make_order(

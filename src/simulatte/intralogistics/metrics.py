@@ -90,11 +90,11 @@ class DefaultIntralogisticsCollector:
     inventory_ts: dict[Warehouse, list[tuple[float, dict[SKU, float]]]] = field(default_factory=dict)
 
     def on_order_submitted(self, coordinator: FleetCoordinator, order: TransferOrder) -> None:
-        self.pending_orders_ts.append((order.created_at, len(coordinator._pending_queue)))
+        self.pending_orders_ts.append((order.created_at, coordinator.pending_count))
 
     def on_order_dispatched(self, coordinator: FleetCoordinator, order: TransferOrder, agv: AGV) -> None:
         if order.dispatched_at is not None:
-            self.pending_orders_ts.append((order.dispatched_at, len(coordinator._pending_queue)))
+            self.pending_orders_ts.append((order.dispatched_at, coordinator.pending_count))
 
     def on_pickup_complete(self, coordinator: FleetCoordinator, order: TransferOrder, agv: AGV) -> None:
         if order.picked_at is not None:

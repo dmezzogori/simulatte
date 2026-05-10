@@ -4569,7 +4569,7 @@ class TestConfigurableRetryDelay:
             warehouses=[wh],
             charging_stations=[],
         )
-        assert coordinator._pending_retry_delay == 0.001
+        assert coordinator._pending_retry_delay == 1.0
 
 
 class TestReturnToOriginPhysicalReturn:

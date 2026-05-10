@@ -1092,3 +1092,18 @@ def test_after_hook_returning_non_generator_raises_type_error() -> None:
 
     with pytest.raises(TypeError, match="OperationHook must return None or a generator"):
         env.run()
+
+
+def test_attach_dispatcher_without_on_psp_arrival() -> None:
+    """Dispatcher without on_psp_arrival attribute skips PSP wiring."""
+    from simulatte.psp import PreShopPool
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    class MinimalDispatcher:
+        pass
+
+    sf.attach_dispatcher(MinimalDispatcher(), psp=psp)
+    # No error — the missing on_psp_arrival is simply skipped
