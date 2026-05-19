@@ -352,7 +352,7 @@ def build_draco_system(
     *,
     wip_target: int,
     loop_target: int,
-    focus_weights: tuple[float, float, float, float] = (0.25, 0.25, 0.25, 0.25),
+    focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     total_impact_weights: tuple[float, float, float] = (1.0 / 3, 1.0 / 3, 1.0 / 3),
     n_servers: int = 6,
     arrival_rate: float = 1 / 0.648,
@@ -382,7 +382,7 @@ def build_draco_system(
         loop_target: Target overlapping loop ``ε_{k,u}``. Scalar applied
             to every pair; for per-pair targets, instantiate :class:`Draco`
             directly with a ``dict[(Server, Server), int]``.
-        focus_weights: FOCUS mechanism weights ``(w1, w2, w3, w4)``.
+        focus_weights: FOCUS mechanism weights ``(w1, w2, w3, w4, w5)``.
         total_impact_weights: ``(w^R, w^A, w^D)`` for the DRACO total
             impact; must sum to 1.
         n_servers: Number of production servers.

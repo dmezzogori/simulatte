@@ -24,22 +24,36 @@ from simulatte.shopfloor import ShopFloor
 
 def test_focus_init_validates_weights_sum_to_one() -> None:
     with pytest.raises(ValueError, match="sum to 1"):
-        Focus(weights=(0.5, 0.5, 0.5, 0.5))
+        Focus(weights=(0.5, 0.5, 0.5, 0.5, 0.5))
 
 
 def test_focus_init_validates_weights_count() -> None:
-    with pytest.raises(ValueError, match="4 elements"):
+    with pytest.raises(ValueError, match="5 elements"):
         Focus(weights=(0.5, 0.5))  # type: ignore[arg-type]
 
 
 def test_focus_init_validates_weights_range() -> None:
     with pytest.raises(ValueError, match=r"\[0, 1\]"):
-        Focus(weights=(-0.1, 0.5, 0.3, 0.3))
+        Focus(weights=(-0.1, 0.5, 0.3, 0.3, 0.0))
 
 
-def test_focus_init_accepts_default_equal_weights() -> None:
+def test_focus_init_accepts_default_weights() -> None:
     focus = Focus()
     assert focus.w1 == focus.w2 == focus.w3 == focus.w4 == 0.25
+    assert focus.w5 == 0.0
+
+
+def test_focus_init_accepts_all_five_active() -> None:
+    focus = Focus(weights=(0.2, 0.2, 0.2, 0.2, 0.2))
+    assert focus.w5 == pytest.approx(0.2)
+
+
+def test_focus_init_accepts_zero_weights() -> None:
+    """A weight of 0 disables the corresponding mechanism; non-zeros must sum to 1."""
+    focus = Focus(weights=(0.0, 0.0, 0.0, 0.0, 1.0))
+    assert focus.w5 == 1.0
+    focus2 = Focus(weights=(0.5, 0.5, 0.0, 0.0, 0.0))
+    assert focus2.w1 == focus2.w2 == 0.5
 
 
 # ----- FocusContext aggregates -----
@@ -329,7 +343,7 @@ def test_focus_score_in_unit_interval() -> None:
     j = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[3.0, 5.0], due_date=50.0)
     sf.add(j)
 
-    focus = Focus(weights=(0.4, 0.2, 0.3, 0.1))
+    focus = Focus(weights=(0.4, 0.2, 0.3, 0.1, 0.0))
     ctx = focus.build_context(sf, now=0.0)
     score = focus.score(j, s1, ctx, now=0.0)
     assert 0.0 <= score <= 1.0
@@ -344,7 +358,29 @@ def test_focus_score_is_exact_weighted_average() -> None:
     j = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[3.0, 5.0], due_date=50.0)
     sf.add(j)
 
-    focus = Focus(weights=(0.4, 0.2, 0.3, 0.1))
+    focus = Focus(weights=(0.3, 0.2, 0.2, 0.1, 0.2))
+    ctx = focus.build_context(sf, now=0.0)
+    expected = (
+        0.3 * focus.pi(j, s1, ctx)
+        + 0.2 * focus.omega(j, s1, ctx)
+        + 0.2 * focus.psi(j, ctx, now=0.0)
+        + 0.1 * focus.gamma(j, ctx, now=0.0)
+        + 0.2 * focus.beta(j, s1, ctx)
+    )
+    assert focus.score(j, s1, ctx, now=0.0) == pytest.approx(expected)
+
+
+def test_focus_score_beta_off_matches_four_mechanism_sum() -> None:
+    """With w5=0, score equals exactly the pi/omega/psi/gamma weighted sum (regression)."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    j = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[3.0, 5.0], due_date=50.0)
+    sf.add(j)
+
+    focus = Focus(weights=(0.4, 0.2, 0.3, 0.1, 0.0))
     ctx = focus.build_context(sf, now=0.0)
     expected = (
         0.4 * focus.pi(j, s1, ctx)
@@ -536,6 +572,276 @@ def test_focus_gamma_returns_one_when_max_positive_pacing_zero() -> None:
 
 
 def test_focus_context_is_frozen_dataclass() -> None:
-    ctx = FocusContext(max_pij=1.0, empty_queue_servers=frozenset(), max_positive_slack=0.0, max_positive_pacing=0.0)
+    ctx = FocusContext(
+        max_pij=1.0,
+        empty_queue_servers=frozenset(),
+        max_positive_slack=0.0,
+        max_positive_pacing=0.0,
+        workloads=(),
+        server_index={},
+        pre_entropy=0.0,
+        max_positive_c=0.0,
+    )
     with pytest.raises((AttributeError, Exception)):
         ctx.max_pij = 2.0  # type: ignore[misc]
+
+
+# ----- _entropy helper -----
+
+
+def test_entropy_all_zero_vector_returns_zero() -> None:
+    from simulatte.dispatching_rules.focus import _entropy
+
+    assert _entropy([0.0, 0.0, 0.0]) == 0.0
+
+
+def test_entropy_uniform_vector_equals_log_n() -> None:
+    from simulatte.dispatching_rules.focus import _entropy
+
+    assert _entropy([1.0, 1.0, 1.0, 1.0]) == pytest.approx(math.log(4))
+
+
+def test_entropy_one_hot_vector_returns_zero() -> None:
+    from simulatte.dispatching_rules.focus import _entropy
+
+    assert _entropy([0.0, 5.0, 0.0]) == pytest.approx(0.0)
+
+
+def test_entropy_mixed_matches_hand_computed() -> None:
+    from simulatte.dispatching_rules.focus import _entropy
+
+    # Two-bin: p=[0.25, 0.75], H = -(0.25*ln 0.25 + 0.75*ln 0.75)
+    expected = -(0.25 * math.log(0.25) + 0.75 * math.log(0.75))
+    assert _entropy([1.0, 3.0]) == pytest.approx(expected)
+
+
+# ----- FocusContext beta aggregates -----
+
+
+def test_focus_context_workloads_empty_shop() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    Server(env=env, capacity=1, shopfloor=sf)
+    Server(env=env, capacity=1, shopfloor=sf)
+
+    ctx = Focus.build_context(sf, now=0.0)
+    assert ctx.workloads == (0.0, 0.0)
+    assert ctx.pre_entropy == 0.0
+    assert ctx.max_positive_c == 0.0
+
+
+def test_focus_context_workloads_queue_and_users() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    # blocker at s1: gets the user slot, p=1000
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    sf.add(blocker)
+    env.run(until=0.001)
+
+    # j_q queues behind blocker at s1 (p_s1=7), routes to s2 next (p_s2=3)
+    j_q = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[7.0, 3.0], due_date=200.0)
+    sf.add(j_q)
+    env.run(until=0.002)
+    assert len(s1.queue) == 1  # j_q queued
+
+    ctx = Focus.build_context(sf, now=0.002)
+    s1_idx = ctx.server_index[s1]
+    s2_idx = ctx.server_index[s2]
+    # blocker (user, 1000) + j_q (queue, 7) = 1007 at s1
+    assert ctx.workloads[s1_idx] == pytest.approx(1007.0)
+    # j_q has not yet entered s2 → s2 workload is 0
+    assert ctx.workloads[s2_idx] == 0.0
+
+
+def test_focus_context_pre_entropy_balanced_two_server_shop() -> None:
+    """Two servers with equal workload → e_minus = ln(2)."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    # Block both servers with equal-length processing jobs
+    b1 = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[10.0], due_date=100.0)
+    b2 = ProductionJob(env=env, sku="A", servers=[s2], processing_times=[10.0], due_date=100.0)
+    sf.add(b1)
+    sf.add(b2)
+    env.run(until=0.001)
+
+    ctx = Focus.build_context(sf, now=0.001)
+    assert ctx.pre_entropy == pytest.approx(math.log(2))
+
+
+# ----- beta semantics -----
+
+
+def test_focus_beta_returns_zero_for_idle_shop() -> None:
+    """Empty shop: pre_entropy=0, every c(i)=0 → beta=0 for all candidates."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    j = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[3.0, 4.0], due_date=100.0)
+    sf.add(j)
+
+    focus = Focus()
+    ctx = focus.build_context(sf, now=0.0)
+    # Job is in queue at s1 with no other work → workload at s1=3, elsewhere 0.
+    # pre_entropy = entropy of [3, 0] = 0 (one-hot). Dispatch perturbation
+    # makes W'[s1] = max(0, 3-3) = 0, W'[s2] = 0+4 = 4 → another one-hot → e_i=0.
+    # c_i = 0 → beta = 0.
+    assert focus.beta(j, s1, ctx) == 0.0
+
+
+def test_focus_beta_returns_one_when_candidate_only_positive() -> None:
+    """If only the candidate has c(i') > 0, beta = c/c = 1.
+
+    Scenario: s1 heavily loaded (W=110), s2 idle (W=0).
+    - blocker at s1 (last op) → dispatch only decrements s1 → still one-hot → c=0.
+    - candidate `j` (s1→s2) → dispatch pulls p_i,s1=10 from s1, adds p_i,s2=10 to s2
+      → vector becomes [100, 10] → positive entropy → c > 0.
+    Since only `j` has positive c, max_positive_c = c(j) → beta(j) = 1.
+    """
+    from simulatte.dispatching_rules.focus import _delta_entropy_value
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=1000.0)
+    sf.add(blocker)
+    env.run(until=0.001)
+
+    j = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[10.0, 10.0], due_date=200.0)
+    sf.add(j)
+    env.run(until=0.002)
+
+    focus = Focus()
+    ctx = focus.build_context(sf, now=0.002)
+
+    c_candidate = _delta_entropy_value(
+        job=j,
+        server=s1,
+        workloads=ctx.workloads,
+        server_index=ctx.server_index,
+        pre_entropy=ctx.pre_entropy,
+    )
+    assert c_candidate > 0.0
+    assert ctx.max_positive_c == pytest.approx(c_candidate)
+    assert focus.beta(j, s1, ctx) == pytest.approx(1.0)
+
+
+def test_focus_beta_returns_zero_when_c_non_positive() -> None:
+    """When dispatching the candidate worsens (or doesn't change) balance, beta = 0."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    # Two balanced loaded servers → any dispatch creates imbalance → c_i ≤ 0.
+    b1 = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[10.0], due_date=100.0)
+    b2 = ProductionJob(env=env, sku="A", servers=[s2], processing_times=[10.0], due_date=100.0)
+    sf.add(b1)
+    sf.add(b2)
+    env.run(until=0.001)
+
+    focus = Focus()
+    ctx = focus.build_context(sf, now=0.001)
+    # b1 is at s1 (last op) → dispatching b1 only does -p_ik at s1 → vector becomes [0, 10] → e=0 < ln(2) → c<0
+    assert focus.beta(b1, s1, ctx) == 0.0
+
+
+def test_focus_beta_last_op_no_u_term() -> None:
+    """For a last-operation candidate, only the -p_ik term applies (no +p_iu)."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    Server(env=env, capacity=1, shopfloor=sf)  # s2: registered for shop index, unreferenced
+
+    # Imbalanced shop: s1 heavily loaded, s2 idle.
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=1000.0)
+    sf.add(blocker)
+    env.run(until=0.001)
+
+    # Last-op candidate at s1 (only one server in routing)
+    last_op = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[20.0], due_date=200.0)
+    sf.add(last_op)
+    env.run(until=0.002)
+
+    focus = Focus()
+    ctx = focus.build_context(sf, now=0.002)
+    # W = [120, 0]. Dispatch last_op at s1: W' = [120-20, 0] = [100, 0]. Still one-hot. e_i = 0.
+    # pre_entropy = entropy of [120, 0] = 0. c_i = 0 → beta = 0.
+    assert focus.beta(last_op, s1, ctx) == 0.0
+
+
+def test_focus_beta_psp_candidate_clamps() -> None:
+    """PSP candidate where W[k] < p_ik: clamp keeps W'[k] >= 0."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    # All servers idle → W = [0, 0]
+    psp_job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[5.0, 3.0], due_date=100.0)
+    psp.add(psp_job)
+
+    focus = Focus()
+    ctx = focus.build_context(sf, now=0.0, psp=psp)
+    # The clamp prevents NaN: should not raise, and beta should return 0
+    # (release into idle k creates imbalance, c_i ≤ 0).
+    result = focus.beta(psp_job, s1, ctx)
+    assert math.isfinite(result)
+    assert result == 0.0
+
+
+def test_focus_beta_positive_when_balance_improves() -> None:
+    """Concrete scenario: candidate's dispatch increases entropy → positive beta."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    # s1 heavily loaded (W=100), s2 idle (W=0). Imbalanced.
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=1000.0)
+    sf.add(blocker)
+    env.run(until=0.001)
+
+    # A two-op job at s1 with small p_ik=10 and big p_iu=40 → dispatching moves 10
+    # from s1 (still 90 left) and adds 40 to s2 → balance improves a lot.
+    rebal = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[10.0, 40.0], due_date=200.0)
+    sf.add(rebal)
+    env.run(until=0.002)
+
+    focus = Focus()
+    ctx = focus.build_context(sf, now=0.002)
+    assert focus.beta(rebal, s1, ctx) > 0.0
+    assert focus.beta(rebal, s1, ctx) <= 1.0
+
+
+# ----- score: beta only -----
+
+
+def test_focus_score_beta_only_equals_beta() -> None:
+    """With weights=(0,0,0,0,1), score == beta exactly."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=1000.0)
+    sf.add(blocker)
+    env.run(until=0.001)
+
+    j = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[10.0, 40.0], due_date=200.0)
+    sf.add(j)
+    env.run(until=0.002)
+
+    focus = Focus(weights=(0.0, 0.0, 0.0, 0.0, 1.0))
+    ctx = focus.build_context(sf, now=0.002)
+    assert focus.score(j, s1, ctx, now=0.002) == pytest.approx(focus.beta(j, s1, ctx))

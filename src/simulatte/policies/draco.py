@@ -80,7 +80,7 @@ class Draco:
         shopfloor: The shopfloor against which DRACO's contexts and
             count-WIP are computed. Required (unlike SLAR which is
             stateless against shop state).
-        focus_weights: ``(w1, w2, w3, w4)`` for FOCUS's four pieces.
+        focus_weights: ``(w1, w2, w3, w4, w5)`` for FOCUS's five pieces.
         total_impact_weights: ``(w^R, w^A, w^D)``, must sum to 1.
         wip_target: Target shop WIP ``τ`` (count of jobs). Spec §3.1.
         loop_target: Target overlapping loop ``ε_{k,u}``. Spec §3.2.
@@ -103,7 +103,7 @@ class Draco:
         self,
         *,
         shopfloor: ShopFloor,
-        focus_weights: tuple[float, float, float, float] = (0.25, 0.25, 0.25, 0.25),
+        focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
         total_impact_weights: tuple[float, float, float] = (1.0 / 3, 1.0 / 3, 1.0 / 3),
         wip_target: int,
         loop_target: int | dict[tuple[Server, Server], int],

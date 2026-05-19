@@ -421,7 +421,7 @@ def test_draco_winner_via_R_boost_still_processes_first() -> None:
     draco = Draco(
         shopfloor=sf,
         psp=psp,
-        focus_weights=(0.25, 0.25, 0.25, 0.25),
+        focus_weights=(0.25, 0.25, 0.25, 0.25, 0.0),
         total_impact_weights=(0.7, 0.15, 0.15),
         wip_target=20,
         loop_target=5,
@@ -549,3 +549,68 @@ def test_build_draco_system_wires_starvation_avoidance() -> None:
     # Starvation avoidance fires synchronously inside psp.add → job should be gone.
     assert job not in psp
     assert job in shop_floor.jobs
+
+
+# ----- focus_weights (5-tuple, beta) integration -----
+
+
+def test_draco_default_focus_weights_disables_beta() -> None:
+    """Default focus_weights should keep beta dormant (w5 = 0.0)."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    draco = Draco(shopfloor=sf, wip_target=10, loop_target=5)
+    assert draco.focus.w5 == 0.0
+    assert draco.focus.w1 == draco.focus.w2 == draco.focus.w3 == draco.focus.w4 == 0.25
+
+
+def test_draco_accepts_five_tuple_focus_weights() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    draco = Draco(
+        shopfloor=sf,
+        focus_weights=(0.2, 0.2, 0.2, 0.2, 0.2),
+        wip_target=10,
+        loop_target=5,
+    )
+    assert draco.focus.w5 == pytest.approx(0.2)
+
+
+def test_draco_rejects_invalid_focus_weights() -> None:
+    """Validation runs in Focus.__init__ — DRACO surfaces the error."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    with pytest.raises(ValueError, match="5 elements"):
+        Draco(shopfloor=sf, focus_weights=(0.5, 0.5), wip_target=10, loop_target=5)  # type: ignore[arg-type]
+
+
+def test_draco_beta_only_focus_weights_runs_without_error() -> None:
+    """End-to-end smoke test: DRACO with beta-only FOCUS dispatch (w5=1) runs cleanly."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    draco = Draco(
+        shopfloor=sf,
+        psp=psp,
+        focus_weights=(0.0, 0.0, 0.0, 0.0, 1.0),
+        wip_target=10,
+        loop_target=5,
+    )
+    env.process(on_completion_trigger(sf, psp, draco.decide_next_job))
+    policy = _policy_factory(draco)
+
+    # A mix of jobs across both servers — DRACO + beta-only FOCUS should
+    # complete without raising and dispatch every job.
+    j_a = ProductionJob(
+        env=env, sku="A", servers=[s1, s2], processing_times=[3.0, 4.0], due_date=100.0, priority_policy=policy
+    )
+    j_b = ProductionJob(
+        env=env, sku="A", servers=[s2, s1], processing_times=[5.0, 2.0], due_date=100.0, priority_policy=policy
+    )
+    sf.add(j_a)
+    sf.add(j_b)
+    env.run()
+
+    assert j_a.servers_exit_at[s2] is not None
+    assert j_b.servers_exit_at[s1] is not None
