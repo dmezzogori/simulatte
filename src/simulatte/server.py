@@ -280,6 +280,21 @@ class Server(simpy.PriorityResource):
             req.key = (fresh_priority, req.time, not req.preempt)
         queue_list.sort(key=lambda req: req.key)
 
+    def _trigger_put(self, get_event) -> None:  # type: ignore[no-untyped-def]
+        """Refresh queue priorities before SimPy iterates the put queue.
+
+        Overrides :meth:`simpy.resources.base.BaseResource._trigger_put` to
+        call :meth:`sort_queue` (which re-evaluates ``job.priority_policy``
+        for every queued request and rewrites ``req.key``) before delegating
+        to SimPy. SimPy invokes ``_trigger_put`` from two call sites:
+        :meth:`simpy.resources.base.Put.__init__` (after a new arrival is
+        appended to ``put_queue``) and as a callback on every Release event
+        (``simpy.resources.base.Get.__init__`` registers it). Refreshing
+        here therefore covers both the new-arrival and release dispatch paths.
+        """
+        self.sort_queue()
+        super()._trigger_put(get_event)
+
     def plot_qt(self) -> None:  # pragma: no cover
         """Display a step plot of queue length over simulation time.
 
