@@ -257,13 +257,27 @@ class Server(simpy.PriorityResource):
         self.worked_time += processing_time
 
     def sort_queue(self) -> None:
-        """Reorder the queue by priority keys.
+        """Refresh queued requests' priority keys and resort.
 
-        Sorts waiting requests in ascending order by their priority key.
-        Typically used by scheduling policies to resequence jobs after
-        priorities change.
+        For each request in the queue, calls ``req.job.priority(req.server)``
+        to obtain the current priority and rewrites ``req.key`` accordingly,
+        then sorts the queue in ascending order by the refreshed keys.
+
+        Invoked by callers who want to resequence after priority changes
+        (e.g. after mutating ``priority_policy`` on queued jobs).
+
+        Note: ``req.priority`` is not refreshed; it remains the snapshot
+        taken at request construction. To inspect a queued job's current
+        priority, call ``req.job.priority(req.server)`` directly.
+
+        Requires that every queued request expose ``job``, ``server``,
+        ``time``, and ``preempt`` attributes (which :class:`ServerPriorityRequest`
+        does).
         """
         queue_list = cast(list, self.queue)
+        for req in queue_list:
+            fresh_priority = req.job.priority(req.server)
+            req.key = (fresh_priority, req.time, not req.preempt)
         queue_list.sort(key=lambda req: req.key)
 
     def plot_qt(self) -> None:  # pragma: no cover
