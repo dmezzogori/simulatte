@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import random
+
 from simpy.resources.resource import Request
 
 from simulatte.environment import Environment
@@ -615,3 +617,111 @@ class TestDynamicPriorityRefresh:
         assert b_exit < a_exit, (
             f"Expected B to be dispatched before A after priority flip; got A exit={a_exit}, B exit={b_exit}"
         )
+
+    def test_new_arrival_sorted_against_fresh_keys_of_queued_jobs(self) -> None:
+        """When a new request arrives, queued jobs' priorities are refreshed
+        so the new arrival lands in the position implied by current priorities,
+        not by stale snapshots."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+
+        state = {"A": 10.0, "B": 20.0}
+
+        blocker = self._make_job(env, server, "BLOCK", lambda j, s: -1.0, processing_time=1000.0)
+        sf.add(blocker)
+        env.run(until=0.01)
+
+        job_a = self._make_job(env, server, "A", lambda j, s: state["A"])
+        job_b = self._make_job(env, server, "B", lambda j, s: state["B"])
+        sf.add(job_a)
+        sf.add(job_b)
+        env.run(until=0.02)
+        assert [_as_priority_request(r).job.sku for r in server.queue] == ["A", "B"]
+
+        # Flip priorities. Then introduce C with a value between the new A and B.
+        state["A"] = 30.0
+        state["B"] = 5.0
+
+        job_c = self._make_job(env, server, "C", lambda j, s: 15.0)
+        sf.add(job_c)
+        env.run(until=0.03)
+
+        # Expected order after refresh+sort: B (5) < C (15) < A (30).
+        assert [_as_priority_request(r).job.sku for r in server.queue] == ["B", "C", "A"]
+
+    def test_policy_reassignment_affects_next_dispatch(self) -> None:
+        """Reassigning job.priority_policy on a queued job changes its
+        position at the next dispatch decision."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+
+        blocker = self._make_job(env, server, "BLOCK", lambda j, s: -1.0, processing_time=10.0)
+        sf.add(blocker)
+        env.run(until=0.01)
+
+        job_a = self._make_job(env, server, "A", lambda j, s: 5.0)
+        job_b = self._make_job(env, server, "B", lambda j, s: 10.0)
+        sf.add(job_a)
+        sf.add(job_b)
+        env.run(until=0.02)
+        assert [_as_priority_request(r).job.sku for r in server.queue] == ["A", "B"]
+
+        # Reassign A's policy so it now ranks lower (higher value) than B.
+        job_a.priority_policy = lambda j, s: 99.0
+
+        # Run past the blocker's release. B should be dispatched first.
+        env.run()
+        a_exit = job_a.servers_exit_at[server]
+        b_exit = job_b.servers_exit_at[server]
+        assert a_exit is not None and b_exit is not None
+        assert b_exit < a_exit
+
+    def test_explicit_sort_queue_observes_new_order_before_dispatch(self) -> None:
+        """Callers can invoke sort_queue() after mutating policies to
+        observe the new queue order before the next dispatch event."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+
+        blocker = self._make_job(env, server, "BLOCK", lambda j, s: -1.0, processing_time=1000.0)
+        sf.add(blocker)
+        env.run(until=0.01)
+
+        state = {"A": 1.0, "B": 2.0, "C": 3.0}
+        for sku in ("A", "B", "C"):
+            sf.add(self._make_job(env, server, sku, lambda j, s, k=sku: state[k]))
+        env.run(until=0.02)
+
+        assert [_as_priority_request(r).job.sku for r in server.queue] == ["A", "B", "C"]
+
+        # Flip order via state mutation; queue order is stale until refresh.
+        state["A"] = 30.0
+        state["B"] = 20.0
+        state["C"] = 10.0
+
+        server.sort_queue()
+        assert [_as_priority_request(r).job.sku for r in server.queue] == ["C", "B", "A"]
+
+    def test_stochastic_policy_does_not_crash(self) -> None:
+        """A policy that violates the purity contract (consumes RNG) must
+        not raise; ordering is unspecified but every job is eventually serviced."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        rng = random.Random(42)
+
+        blocker = self._make_job(env, server, "BLOCK", lambda j, s: -1.0, processing_time=10.0)
+        sf.add(blocker)
+        env.run(until=0.01)
+
+        queued = [self._make_job(env, server, sku, lambda j, s: rng.random()) for sku in ("A", "B", "C")]
+        for job in queued:
+            sf.add(job)
+
+        env.run()  # must complete without raising
+
+        # All four jobs should have been serviced; ordering is unspecified.
+        assert blocker.servers_exit_at[server] is not None
+        assert all(j.servers_exit_at[server] is not None for j in queued)
