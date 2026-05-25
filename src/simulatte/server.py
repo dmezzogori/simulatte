@@ -313,7 +313,7 @@ class Server(simpy.PriorityResource):
             req.key = (fresh_priority, req.time, not req.preempt)
         queue_list.sort(key=lambda req: req.key)
 
-    def _trigger_put(self, get_event) -> None:  # type: ignore[no-untyped-def]
+    def _trigger_put(self, get_event: Release | None) -> None:
         """Refresh queue priorities before SimPy iterates the put queue.
 
         Overrides :meth:`simpy.resources.base.BaseResource._trigger_put` to
