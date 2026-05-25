@@ -505,3 +505,61 @@ class TestPriorityQueueOrdering:
         exit_times = {sku: j.servers_exit_at[server] for sku, j in jobs.items()}
         assert all(v is not None for v in exit_times.values())
         assert exit_times["A"] < exit_times["B"] < exit_times["C"] < exit_times["D"] < exit_times["E"]
+
+
+class TestDynamicPriorityRefresh:
+    """Tests for the dynamic-priority queue refresh behavior of Server.
+
+    These tests verify the contract documented in
+    docs/superpowers/specs/2026-05-25-dynamic-priority-queue-refresh-design.md:
+    at every dispatch decision (and on explicit sort_queue() calls), each
+    queued request's priority is re-evaluated from job.priority_policy and
+    the queue is resorted by the refreshed values.
+    """
+
+    @staticmethod
+    def _make_job(
+        env: Environment,
+        server: Server,
+        sku: str,
+        policy,
+        processing_time: float = 3.0,
+    ) -> ProductionJob:
+        return ProductionJob(
+            env=env,
+            sku=sku,
+            servers=[server],
+            processing_times=[processing_time],
+            due_date=1000.0,
+            priority_policy=policy,
+        )
+
+    def test_sort_queue_refreshes_keys_from_current_policy(self) -> None:
+        """sort_queue must re-evaluate priority_policy for every queued request."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+
+        # Blocker holds the only slot so other requests stay queued.
+        blocker = self._make_job(env, server, "BLOCK", lambda j, s: 0.0, processing_time=1000.0)
+        sf.add(blocker)
+        env.run(until=0.01)
+
+        state = {"A": 10.0, "B": 20.0}
+        job_a = self._make_job(env, server, "A", lambda j, s: state["A"])
+        job_b = self._make_job(env, server, "B", lambda j, s: state["B"])
+        sf.add(job_a)
+        sf.add(job_b)
+        env.run(until=0.02)
+
+        # Initial order: A (10) before B (20).
+        assert [_as_priority_request(r).job.sku for r in server.queue] == ["A", "B"]
+
+        # Flip the relative priorities of the queued jobs.
+        state["A"] = 30.0
+        state["B"] = 5.0
+
+        # Without refresh, sort_queue would re-sort by the stale stored keys
+        # and leave the order unchanged. With refresh, B should move ahead.
+        server.sort_queue()
+        assert [_as_priority_request(r).job.sku for r in server.queue] == ["B", "A"]
