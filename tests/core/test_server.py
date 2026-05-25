@@ -572,3 +572,46 @@ class TestDynamicPriorityRefresh:
         # and leave the order unchanged. With refresh, B should move ahead.
         server.sort_queue()
         assert [_as_priority_request(r).job.sku for r in server.queue] == ["B", "A"]
+
+    def test_release_dispatches_by_live_priority_not_stale_order(self) -> None:
+        """A release must refresh queued priorities before granting the next slot.
+
+        Setup: blocker holds the slot. Jobs A and B queue with policies
+        reading from a shared dict. Before the blocker finishes, the
+        dict is mutated so B should overtake A. When the blocker releases,
+        the server must dispatch B, not A.
+        """
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+
+        state = {"A": 10.0, "B": 20.0}
+
+        blocker = self._make_job(env, server, "BLOCK", lambda j, s: -1.0, processing_time=10.0)
+        sf.add(blocker)
+        env.run(until=0.01)
+
+        job_a = self._make_job(env, server, "A", lambda j, s: state["A"])
+        job_b = self._make_job(env, server, "B", lambda j, s: state["B"])
+        sf.add(job_a)
+        sf.add(job_b)
+        env.run(until=0.02)
+
+        # Initial queue: A before B.
+        assert [_as_priority_request(r).job.sku for r in server.queue] == ["A", "B"]
+
+        # Flip the priorities while both jobs sit in the queue.
+        env.run(until=5.0)
+        state["A"] = 30.0
+        state["B"] = 5.0
+
+        # Blocker finishes at t=10. The release-driven _trigger_put must
+        # refresh priorities and grant the slot to B (now lower-priority value).
+        env.run()
+
+        a_exit = job_a.servers_exit_at[server]
+        b_exit = job_b.servers_exit_at[server]
+        assert a_exit is not None and b_exit is not None
+        assert b_exit < a_exit, (
+            f"Expected B to be dispatched before A after priority flip; got A exit={a_exit}, B exit={b_exit}"
+        )
