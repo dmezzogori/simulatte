@@ -31,7 +31,27 @@ class ServerPriorityRequest(PriorityRequest):
 
     This extends SimPy's PriorityRequest to associate a job with each request,
     enabling priority-based queueing where jobs compete for server access.
-    The priority is computed from the job's priority_policy at request time.
+
+    Priority semantics:
+
+    - ``self.priority`` is set once at construction (via the parent class's
+      ``__init__``) from ``job.priority(server)`` and is never refreshed.
+      Treat it as the priority at queue-entry time only.
+    - ``self.key`` is rewritten at every dispatch decision by
+      :meth:`Server.sort_queue`, which re-evaluates
+      ``job.priority(req.server)`` for every queued request. The queue is
+      sorted by ``self.key``; this is what makes dynamic priorities work.
+    - To read a queued job's *current* priority value, call
+      ``req.job.priority(req.server)`` directly.
+
+    The order of attribute assignment in ``__init__`` matters: ``self.server``
+    and ``self.job`` must be set before ``super().__init__()``. The superclass
+    chain calls ``Put.__init__``, which appends the new request to
+    ``put_queue`` and then synchronously calls ``Server._trigger_put`` →
+    :meth:`Server.sort_queue`. ``sort_queue`` reads
+    ``req.job.priority(req.server)`` for every queued request including the
+    one being constructed, so ``server`` and ``job`` must already be set on
+    ``self`` by then.
     """
 
     def __init__(self, resource: Server, job: BaseJob, preempt: bool = True) -> None:  # noqa: FBT001, FBT002
@@ -59,6 +79,17 @@ class Server(simpy.PriorityResource):
     queueing. It tracks queue lengths, utilization rates, and optionally records
     time-series data for visualization. When attached to a ShopFloor, the server
     is automatically registered and assigned an index for identification.
+
+    Dynamic priorities: queued jobs' priorities are refreshed before every
+    dispatch decision. :meth:`sort_queue` re-evaluates each queued request's
+    ``job.priority_policy`` and rewrites ``req.key``; :meth:`_trigger_put`
+    (the SimPy hook invoked on both new-arrival and release paths) calls
+    :meth:`sort_queue` before delegating to SimPy. Callers may also invoke
+    :meth:`sort_queue` explicitly to observe the resulting order between
+    events. The cost per dispatch decision is one ``priority_policy`` call
+    per queued request; policies must be deterministic given ``(job, server)`` and the
+    current simulation state at call time, per the contract documented in
+    ``docs/superpowers/specs/2026-05-25-dynamic-priority-queue-refresh-design.md``.
     """
 
     def __init__(
@@ -263,8 +294,10 @@ class Server(simpy.PriorityResource):
         to obtain the current priority and rewrites ``req.key`` accordingly,
         then sorts the queue in ascending order by the refreshed keys.
 
-        Invoked by callers who want to resequence after priority changes
-        (e.g. after mutating ``priority_policy`` on queued jobs).
+        Called automatically before every dispatch decision via
+        :meth:`_trigger_put`. May also be invoked explicitly by user code
+        that has mutated ``priority_policy`` and wants to observe the new
+        order before the next dispatch event.
 
         Note: ``req.priority`` is not refreshed; it remains the snapshot
         taken at request construction. To inspect a queued job's current
