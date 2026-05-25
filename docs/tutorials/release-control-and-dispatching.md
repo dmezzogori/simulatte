@@ -309,6 +309,67 @@ env.process(on_completion_trigger(shopfloor, psp, cr.on_completion_release))
 
 Reference: Fernandes, N. O. & Carmo-Silva, S. (2011). *Workload control under continuous order release*. International Journal of Production Economics, 131(1), 257-262.
 
+## 7) Dynamic priorities
+
+A job's priority comes from `job.priority_policy`, which simulatte calls
+as `policy(job, server)` and which returns a float (lower = more urgent).
+This policy is re-evaluated on every dispatch decision: every time a new
+job enters a server's queue and every time a job releases a server. Three
+patterns are supported first-class:
+
+- **Time-dependent policies** — the value depends on `env.now` (e.g. planned
+  slack time, which decreases as the simulation progresses).
+- **Policy reassignment** — `job.priority_policy = new_fn` at any time
+  reorders the job's position in any queue it is currently waiting in.
+- **Mutable external state** — the policy reads from shared state owned by
+  user code (e.g. a dispatcher's score table); updates to that state become
+  visible at the next dispatch decision.
+
+### Contract
+
+`priority_policy(job, server)` must be a **deterministic function of
+`(job, server, current simulation state)`**: repeated calls at the same
+`env.now` with the same external state must return the same value. Do not
+consume RNG inside the policy and do not mutate state from inside the
+policy. If a policy violates this contract, the simulation still runs but
+queue ordering becomes unspecified.
+
+### Cost
+
+simulatte calls `priority_policy` once per queued request per dispatch
+decision, so the per-event cost scales linearly with the queue length.
+Keep policies cheap.
+
+### Example
+
+```python
+state = {"A": 10.0, "B": 20.0}
+
+job_a = ProductionJob(
+    env=env, sku="A", servers=[server], processing_times=[3.0],
+    due_date=1000.0, priority_policy=lambda j, s: state["A"],
+)
+job_b = ProductionJob(
+    env=env, sku="B", servers=[server], processing_times=[3.0],
+    due_date=1000.0, priority_policy=lambda j, s: state["B"],
+)
+
+# Both queue with A ahead of B.
+shopfloor.add(job_a)
+shopfloor.add(job_b)
+
+# Mutate the shared state; at the next dispatch decision the queue
+# is re-sorted and B will be served before A.
+state["A"] = 30.0
+state["B"] = 5.0
+```
+
+`Server.sort_queue()` can also be called explicitly if you want the new
+order to be observable immediately (between events).
+
+Runnable end-to-end examples live in
+`tests/core/test_server.py::TestDynamicPriorityRefresh`.
+
 ## Next
 
 - [ShopFloor extensibility](shopfloor-extensibility.md)
