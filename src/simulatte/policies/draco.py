@@ -18,7 +18,7 @@ dispatching component — see :class:`simulatte.dispatching_rules.Focus`.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from simulatte.dispatching_rules.focus import Focus, FocusContext
 
@@ -199,10 +199,12 @@ class Draco:
         winner = max(all_scores, key=lambda j: all_scores[j])
 
         if winner in psp_scores:
+            # winner came from psp.jobs (Iterable[ProductionJob]), so the cast is safe.
+            psp_winner: ProductionJob = cast("ProductionJob", winner)
             # Force absolute first-dispatch via the one-shot flag.
-            self._forced_at_server[server_k] = winner  # type: ignore[assignment]
-            psp.remove(job=winner)
-            psp.shopfloor.add(winner)
+            self._forced_at_server[server_k] = psp_winner
+            psp.remove(job=psp_winner)
+            psp.shopfloor.add(psp_winner)
         # else: queue winner — the imminent Release event's _trigger_put will
         # call sort_queue, which re-evaluates priority_policy (live) for every
         # queued request and yields the correct order.

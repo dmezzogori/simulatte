@@ -211,10 +211,10 @@ def test_draco_authorization_uses_per_pair_dict_when_provided() -> None:
     assert draco._authorization_impact(job, s1) == pytest.approx(0.75)
 
 
-# ----- priority_rule force flag -----
+# ----- priority_policy force flag -----
 
 
-def test_draco_priority_rule_returns_neg_inf_when_forced() -> None:
+def test_draco_priority_policy_returns_neg_inf_when_forced() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
@@ -228,7 +228,7 @@ def test_draco_priority_rule_returns_neg_inf_when_forced() -> None:
     assert draco._forced_at_server[s1] is job
 
 
-def test_draco_priority_rule_returns_normal_score_when_not_forced() -> None:
+def test_draco_priority_policy_returns_normal_score_when_not_forced() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
@@ -243,7 +243,7 @@ def test_draco_priority_rule_returns_normal_score_when_not_forced() -> None:
     assert score <= 0.0
 
 
-def test_draco_priority_rule_flag_persists_across_calls() -> None:
+def test_draco_priority_policy_flag_persists_across_calls() -> None:
     """Flag stays set across repeated priority_policy calls while active.
 
     Under the persistent-flag design, successive calls at the same
@@ -278,7 +278,7 @@ def test_draco_priority_rule_flag_persists_across_calls() -> None:
     assert s1 not in draco._forced_at_server
 
 
-def test_draco_priority_rule_force_flag_is_per_server() -> None:
+def test_draco_priority_policy_force_flag_is_per_server() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
