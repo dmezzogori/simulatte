@@ -5,6 +5,7 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING
 
+from simulatte.dispatching_rules import planned_slack_time
 from simulatte.distributions import server_sampling, truncated_2erlang
 from simulatte.environment import Environment
 from simulatte.policies.lumscor import LumsCor
@@ -176,7 +177,7 @@ def build_lumscor_system(
             },
         },
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
-        priority_policies=lambda job, server: lumscor.pst_priority_policy(job, server) or 0.0,
+        priority_policies=planned_slack_time(allowance=float(allowance_factor)),
     )
 
     # Compose release triggers
@@ -237,7 +238,6 @@ def build_slar_system(
         time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
     )
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
-    slar = Slar(allowance_factor=allowance_factor)
     psp = PreShopPool(env=env, shopfloor=shop_floor)
     router = Router(
         env=env,
@@ -257,12 +257,8 @@ def build_slar_system(
             },
         },
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
-        priority_policies=lambda job, server: slar.pst_priority_policy(job, server) or 0.0,
     )
-
-    # Compose release triggers (event-driven only, no periodic)
-    shop_floor.on_processing_end(lambda job, server: slar.decide_next_job(job, psp))
-    psp.on_arrival(starvation_avoidance)
+    Slar(shopfloor=shop_floor, psp=psp, router=router, allowance_factor=allowance_factor)
 
     return psp, servers, shop_floor, router
 
@@ -324,10 +320,6 @@ def build_slar_limit_system(
     )
     shop_floor.set_wip_strategy(CorrectedWIPStrategy())
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
-    slar_limit = SlarLimit(
-        allowance_factor=allowance_factor,
-        wl_norm=dict.fromkeys(servers, float(wl_norm_level)),
-    )
     psp = PreShopPool(env=env, shopfloor=shop_floor)
     router = Router(
         env=env,
@@ -347,11 +339,13 @@ def build_slar_limit_system(
             },
         },
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
-        priority_policies=lambda job, server: slar_limit.pst_priority_policy(job, server) or 0.0,
     )
-
-    # Compose release triggers (event-driven only, no periodic)
-    shop_floor.on_processing_end(lambda job, server: slar_limit.decide_next_job(job, psp))
-    psp.on_arrival(starvation_avoidance)
+    SlarLimit(
+        shopfloor=shop_floor,
+        psp=psp,
+        router=router,
+        wl_norm=dict.fromkeys(servers, float(wl_norm_level)),
+        allowance_factor=allowance_factor,
+    )
 
     return psp, servers, shop_floor, router
