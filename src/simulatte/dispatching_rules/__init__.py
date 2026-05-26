@@ -1,15 +1,18 @@
-"""Common dispatching rules.
+"""Common dispatching rules from the production-planning literature.
 
 This package hosts dispatching rules — pure ``(job, server) -> float``
 callables for queue ordering. Pass them as the ``priority_policies``
-argument to `Router`, or as the
-``priority_policy`` argument to `ProductionJob`.
-Lower numeric value = served first.
+argument to :class:`~simulatte.router.Router`, or as the ``priority_policy``
+argument to :class:`~simulatte.job.ProductionJob`. Lower numeric value = served first.
+
+Tier 1 — stateless functions grouped in :mod:`.basic`.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
+from .basic import cr, edd, fcfs, modd, odd, spt
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
@@ -18,7 +21,15 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.server import Server
 
 
-__all__ = ["planned_slack_time"]
+__all__ = [
+    "cr",
+    "edd",
+    "fcfs",
+    "modd",
+    "odd",
+    "planned_slack_time",
+    "spt",
+]
 
 
 def planned_slack_time(allowance: float = 0.0) -> Callable[[BaseJob, Server], float]:

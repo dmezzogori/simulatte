@@ -25,11 +25,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.typing import PullSystem, PushSystem
 
 
-def spt_priority_policy(job: ProductionJob, server: Server) -> float:
-    """Shortest Processing Time dispatching: priority = processing time at server."""
-    return job.routing[server]
-
-
 def build_immediate_release_system(
     env: Environment,
     *,

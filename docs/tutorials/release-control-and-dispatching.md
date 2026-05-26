@@ -140,12 +140,13 @@ Optional parameters:
 A ready-made immediate release with SPT (Shortest Processing Time) dispatching rule is available:
 
 ```python
-from simulatte.builders import build_immediate_release_system, spt_priority_policy
+from simulatte.builders import build_immediate_release_system
+from simulatte.dispatching_rules import spt
 
 _, servers, shopfloor, router = build_immediate_release_system(
     env,
     n_servers=6,
-    priority_policies=spt_priority_policy,
+    priority_policies=spt,
 )
 ```
 
