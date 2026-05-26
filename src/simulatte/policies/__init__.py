@@ -6,6 +6,7 @@ from .continuous_release import ContinuousRelease
 from .conwip import ConWIP
 from .lumscor import LumsCor
 from .slar import Slar
+from .slar_limit import SlarLimit
 from .starvation_avoidance import starvation_avoidance
 from .triggers import on_arrival_trigger, on_completion_trigger, periodic_trigger
 
@@ -14,6 +15,7 @@ __all__ = [
     "ConWIP",
     "LumsCor",
     "Slar",
+    "SlarLimit",
     "on_arrival_trigger",
     "on_completion_trigger",
     "periodic_trigger",

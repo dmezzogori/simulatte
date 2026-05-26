@@ -3,6 +3,7 @@ from __future__ import annotations
 from simulatte.builders import (
     build_immediate_release_system,
     build_lumscor_system,
+    build_slar_limit_system,
     build_slar_system,
     spt_priority_policy,
 )
@@ -87,6 +88,24 @@ class TestPullSystemBuilders:
         assert shop_floor is not None
         assert router is not None
 
+    def test_build_slar_limit_system(self) -> None:
+        from simulatte.shopfloor import CorrectedWIPStrategy
+
+        env = Environment()
+        psp, servers, shop_floor, router = build_slar_limit_system(
+            env,
+            allowance_factor=3.0,
+            wl_norm_level=5.0,
+        )
+
+        assert isinstance(psp, PreShopPool)
+        assert router.psp is psp
+        assert len(servers) == 6  # Default n_servers
+        assert shop_floor is not None
+        assert router is not None
+        # SLAR-Limit requires CorrectedWIPStrategy
+        assert isinstance(shop_floor.wip_strategy, CorrectedWIPStrategy)
+
 
 class TestCollectWorkload:
     """Tests for the collect_workload parameter on all builder functions."""
@@ -119,4 +138,16 @@ class TestCollectWorkload:
 
         env = Environment()
         _, _, shop_floor, _ = build_slar_system(env, allowance_factor=3.0, collect_workload=True)
+        assert isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
+
+    def test_build_slar_limit_collect_workload_true(self) -> None:
+        from simulatte.shopfloor import CurrentWorkLoadCollector
+
+        env = Environment()
+        _, _, shop_floor, _ = build_slar_limit_system(
+            env,
+            allowance_factor=3.0,
+            wl_norm_level=5.0,
+            collect_workload=True,
+        )
         assert isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)

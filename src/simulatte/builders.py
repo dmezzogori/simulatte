@@ -9,6 +9,7 @@ from simulatte.distributions import server_sampling, truncated_2erlang
 from simulatte.environment import Environment
 from simulatte.policies.lumscor import LumsCor
 from simulatte.policies.slar import Slar
+from simulatte.policies.slar_limit import SlarLimit
 from simulatte.policies.starvation_avoidance import starvation_avoidance
 from simulatte.policies.triggers import periodic_trigger
 from simulatte.psp import PreShopPool
@@ -261,6 +262,96 @@ def build_slar_system(
 
     # Compose release triggers (event-driven only, no periodic)
     shop_floor.on_processing_end(lambda job, server: slar.decide_next_job(job, psp))
+    psp.on_arrival(starvation_avoidance)
+
+    return psp, servers, shop_floor, router
+
+
+def build_slar_limit_system(
+    env: Environment,
+    allowance_factor: float,
+    *,
+    wl_norm_level: float,
+    n_servers: int = 6,
+    arrival_rate: float = 1 / 0.648,
+    service_rate: float = 2.0,
+    collect_workload: bool = False,
+) -> PullSystem:
+    """Build a SLAR-Limit (load-bounded SLAR) pull system.
+
+    Creates a pull system using SLAR-Limit release policy. SLAR-Limit
+    extends classic SLAR by adding a workload-norm limit to the urgent
+    insertion branch: urgent PSP candidates are iterated in ascending SPT
+    order and the first whose corrected workload contribution PT/(i+1)
+    fits all server norms is released. If none fits, the policy falls back
+    to the standard SLAR postponed-starvation branch.
+
+    Uses ``CorrectedWIPStrategy`` on the shopfloor (required by the norm check).
+
+    Args:
+        env: The simulation environment.
+        allowance_factor: Slack allowance per operation (parameter 'k' in
+            the SLAR paper).
+        wl_norm_level: Workload norm threshold applied uniformly to every
+            server. An urgent PSP candidate is released only if adding its
+            corrected contribution keeps every server in its routing at or
+            below this level.
+        n_servers: Number of production servers.
+        arrival_rate: Inter-arrival rate (lambda for exponential distribution).
+        service_rate: Service rate (lambda for truncated 2-Erlang distribution).
+        collect_workload: If True, attach a ``CurrentWorkLoadCollector`` to
+            the shopfloor for workload time-series.
+
+    Returns:
+        Tuple of (psp, servers, shop_floor, router).
+
+    Example:
+        >>> env = Environment()
+        >>> psp, servers, shop_floor, router = build_slar_limit_system(
+        ...     env, allowance_factor=3.0, wl_norm_level=5.0
+        ... )
+        >>> env.run(until=1000)
+
+    References:
+        Thürer, M. & Stevenson, M. (2021). Improving superfluous load
+        avoidance release (SLAR): A new load-based SLAR mechanism.
+        International Journal of Production Economics, 231, 107881.
+        https://doi.org/10.1016/j.ijpe.2020.107881
+    """
+    shop_floor = ShopFloor(
+        env=env,
+        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+    )
+    shop_floor.set_wip_strategy(CorrectedWIPStrategy())
+    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
+    slar_limit = SlarLimit(
+        allowance_factor=allowance_factor,
+        wl_norm=dict.fromkeys(servers, float(wl_norm_level)),
+    )
+    psp = PreShopPool(env=env, shopfloor=shop_floor)
+    router = Router(
+        env=env,
+        shopfloor=shop_floor,
+        servers=servers,
+        psp=psp,
+        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
+        sku_distributions={"F1": 1},
+        sku_routings={"F1": server_sampling(servers)},
+        sku_service_times={
+            "F1": {
+                server: lambda: truncated_2erlang(
+                    lam=service_rate,
+                    max_value=4.0,
+                )
+                for server in servers
+            },
+        },
+        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+        priority_policies=lambda job, server: slar_limit.pst_priority_policy(job, server) or 0.0,
+    )
+
+    # Compose release triggers (event-driven only, no periodic)
+    shop_floor.on_processing_end(lambda job, server: slar_limit.decide_next_job(job, psp))
     psp.on_arrival(starvation_avoidance)
 
     return psp, servers, shop_floor, router

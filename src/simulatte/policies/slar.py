@@ -117,6 +117,9 @@ class Slar:
         immediately. Branch 3 schedules a postponed sub-process and returns
         None.
 
+        Each branch is delegated to a dedicated helper so subclasses can
+        override a single branch in isolation (see :class:`SlarLimit`).
+
         Args:
             server: The server where the job completion triggered this check.
             psp: The Pre-Shop Pool containing candidate jobs.
@@ -129,34 +132,53 @@ class Slar:
         if not psp_candidates:
             return None
 
-        # Branch 1: empty queue — release the most urgent PSP candidate.
-        if server.empty:
-            return min(
-                psp_candidates,
-                key=lambda j: self.pst_priority_policy(j, server),
-            )
+        candidate = self._branch_empty_queue(server, psp_candidates)
+        if candidate is not None:
+            return candidate
 
-        # Branch 2: urgent insertion — release an urgent PSP candidate when
-        # all queued jobs are non-urgent.
-        if all(self.pst_priority_policy(j, server) > 0 for j in server.queueing_jobs):
-            urgent = min(
-                (j for j in psp_candidates if self.pst_priority_policy(j, server) < 0),
-                default=None,
-                key=lambda j: j.processing_times[0],
-            )
-            if urgent is not None:
-                return urgent
+        candidate = self._branch_urgent_insertion(server, psp_candidates, psp)
+        if candidate is not None:
+            return candidate
 
-        # Branch 3: postponed starvation avoidance — schedule a delayed
-        # release when exactly one job remains in the queue.
-        if len(server.queue) == 1:
-            candidate = min(
-                psp_candidates,
-                key=lambda j: self.pst_priority_policy(j, server),
-            )
-            psp.env.process(self._postponed_release(candidate, psp))
-
+        self._branch_postponed_starvation(server, psp_candidates, psp)
         return None
+
+    def _branch_empty_queue(
+        self,
+        server: Server,
+        candidates: tuple[ProductionJob, ...],
+    ) -> ProductionJob | None:
+        """Branch 1: release the most urgent candidate when the queue is empty."""
+        if not server.empty:
+            return None
+        return min(candidates, key=lambda j: self.pst_priority_policy(j, server))
+
+    def _branch_urgent_insertion(
+        self,
+        server: Server,
+        candidates: tuple[ProductionJob, ...],
+        psp: PreShopPool,  # noqa: ARG002
+    ) -> ProductionJob | None:
+        """Branch 2: release the min-SPT urgent candidate when all queued jobs are non-urgent."""
+        if not all(self.pst_priority_policy(j, server) > 0 for j in server.queueing_jobs):
+            return None
+        return min(
+            (j for j in candidates if self.pst_priority_policy(j, server) < 0),
+            default=None,
+            key=lambda j: j.processing_times[0],
+        )
+
+    def _branch_postponed_starvation(
+        self,
+        server: Server,
+        candidates: tuple[ProductionJob, ...],
+        psp: PreShopPool,
+    ) -> None:
+        """Branch 3: schedule a postponed release when exactly one job remains in the queue."""
+        if len(server.queue) != 1:
+            return
+        candidate = min(candidates, key=lambda j: self.pst_priority_policy(j, server))
+        psp.env.process(self._postponed_release(candidate, psp))
 
     def _postponed_release(self, job: ProductionJob, psp: PreShopPool) -> ProcessGenerator:
         """Release *job* from PSP after a tiny delay.
