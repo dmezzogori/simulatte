@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from unittest.mock import Mock
 
 import pytest
 
@@ -26,28 +27,28 @@ def _make_corrected_system() -> tuple[Environment, ShopFloor, PreShopPool]:
 def test_slar_limit_rejects_empty_norms() -> None:
     _, sf, psp = _make_corrected_system()
     with pytest.raises(ValueError, match="wl_norm must not be empty"):
-        SlarLimit(shopfloor=sf, psp=psp, router=None, wl_norm={})
+        SlarLimit(shopfloor=sf, psp=psp, router=Mock(), wl_norm={})
 
 
 def test_slar_limit_rejects_non_positive_norm() -> None:
     env, sf, psp = _make_corrected_system()
     server = Server(env=env, capacity=1, shopfloor=sf)
     with pytest.raises(ValueError, match="must be positive and finite"):
-        SlarLimit(shopfloor=sf, psp=psp, router=None, wl_norm={server: 0.0})
+        SlarLimit(shopfloor=sf, psp=psp, router=Mock(), wl_norm={server: 0.0})
 
 
 def test_slar_limit_rejects_negative_norm() -> None:
     env, sf, psp = _make_corrected_system()
     server = Server(env=env, capacity=1, shopfloor=sf)
     with pytest.raises(ValueError, match="must be positive and finite"):
-        SlarLimit(shopfloor=sf, psp=psp, router=None, wl_norm={server: -1.0})
+        SlarLimit(shopfloor=sf, psp=psp, router=Mock(), wl_norm={server: -1.0})
 
 
 def test_slar_limit_rejects_infinite_norm() -> None:
     env, sf, psp = _make_corrected_system()
     server = Server(env=env, capacity=1, shopfloor=sf)
     with pytest.raises(ValueError, match="must be positive and finite"):
-        SlarLimit(shopfloor=sf, psp=psp, router=None, wl_norm={server: math.inf})
+        SlarLimit(shopfloor=sf, psp=psp, router=Mock(), wl_norm={server: math.inf})
 
 
 def test_slar_limit_rejects_wrong_wip_strategy() -> None:
@@ -61,7 +62,7 @@ def test_slar_limit_rejects_wrong_wip_strategy() -> None:
         SlarLimit(
             shopfloor=sf,
             psp=psp,
-            router=None,
+            router=Mock(),
             wl_norm={server: 5.0},
             allowance_factor=2,
         )
@@ -77,7 +78,7 @@ def test_slar_limit_rejects_missing_server() -> None:
         SlarLimit(
             shopfloor=sf,
             psp=psp,
-            router=None,
+            router=Mock(),
             wl_norm={server_a: 5.0},
             allowance_factor=2,
         )
@@ -91,7 +92,7 @@ def test_slar_limit_constructs_when_all_servers_have_norms() -> None:
     SlarLimit(
         shopfloor=sf,
         psp=psp,
-        router=None,
+        router=Mock(),
         wl_norm={server: 5.0},
         allowance_factor=2,
     )
@@ -113,7 +114,7 @@ def test_slar_limit_urgent_insertion_skipped_when_urgent_job_in_queue() -> None:
     SlarLimit(
         shopfloor=sf,
         psp=psp,
-        router=None,
+        router=Mock(),
         wl_norm={server: 10.0},
         allowance_factor=2,
     )
@@ -159,7 +160,7 @@ def test_slar_limit_high_norm_matches_slar_branch2_selection() -> None:
     SlarLimit(
         shopfloor=sf,
         psp=psp,
-        router=None,
+        router=Mock(),
         wl_norm={server: 1e9},
         allowance_factor=2,
     )
@@ -214,7 +215,7 @@ def test_slar_limit_branch2_norm_filter_releases_larger_spt() -> None:
     SlarLimit(
         shopfloor=sf,
         psp=psp,
-        router=None,
+        router=Mock(),
         wl_norm={server_a: 1e9, server_b: 10.0},
         allowance_factor=2,
     )
@@ -273,7 +274,7 @@ def test_slar_limit_branch2_no_fit_falls_to_branch3_postponed_release() -> None:
     SlarLimit(
         shopfloor=sf,
         psp=psp,
-        router=None,
+        router=Mock(),
         wl_norm={server_a: 1e9, server_b: 1.0},
         allowance_factor=2,
     )
@@ -315,7 +316,7 @@ def test_slar_limit_branch1_releases_regardless_of_norms() -> None:
     SlarLimit(
         shopfloor=sf,
         psp=psp,
-        router=None,
+        router=Mock(),
         wl_norm={server_a: 1e9, server_b: 1.0},
         allowance_factor=2,
     )

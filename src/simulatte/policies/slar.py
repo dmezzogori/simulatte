@@ -65,7 +65,7 @@ class Slar:
         *,
         shopfloor: ShopFloor,
         psp: PreShopPool,
-        router: Router | None,
+        router: Router,
         allowance_factor: float = 2.0,
     ) -> None:
         """Initialize the SLAR release policy and wire it into the system.
@@ -76,10 +76,9 @@ class Slar:
             psp: The Pre-Shop Pool to release jobs from. Also registered
                 for ``on_arrival(starvation_avoidance)`` so jobs whose
                 first server is idle are released immediately.
-            router: The router whose ``priority_policies`` should be set
-                to PST. Pass ``None`` only if you manage queue priority
-                per-job manually — without PST-based priority the policy
-                is incorrect.
+            router: The router whose ``priority_policies`` is set to the
+                PST dispatching rule. Required: SLAR's queue-dispatch
+                semantics depend on PST-based priority on every job.
             allowance_factor: Per-operation queue-time allowance ``k``
                 in PST (parameter 'k' in the paper). Higher values yield
                 more conservative (later) release timing.
@@ -90,8 +89,7 @@ class Slar:
         self.allowance_factor = allowance_factor
 
         self._pst: Callable[[BaseJob, Server], float] = planned_slack_time(allowance=allowance_factor)
-        if router is not None:
-            router.priority_policies = self._pst
+        router.priority_policies = self._pst
         shopfloor.on_processing_end(self._consider_release)
         psp.on_arrival(starvation_avoidance)
 

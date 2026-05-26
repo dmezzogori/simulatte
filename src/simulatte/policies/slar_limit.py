@@ -60,7 +60,7 @@ class SlarLimit(Slar):
         *,
         shopfloor: ShopFloor,
         psp: PreShopPool,
-        router: Router | None,
+        router: Router,
         wl_norm: dict[Server, float],
         allowance_factor: float = 2.0,
     ) -> None:

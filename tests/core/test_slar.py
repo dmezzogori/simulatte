@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import Mock
+
 from simulatte.dispatching_rules import planned_slack_time
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
@@ -14,7 +16,7 @@ def test_slar_release_when_server_empty() -> None:
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-    Slar(shopfloor=sf, psp=psp, router=None, allowance_factor=2)
+    Slar(shopfloor=sf, psp=psp, router=Mock(), allowance_factor=2)
 
     # Add a job to shopfloor and process it
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
@@ -42,7 +44,7 @@ def test_slar_release_when_queue_has_one() -> None:
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-    Slar(shopfloor=sf, psp=psp, router=None, allowance_factor=2)
+    Slar(shopfloor=sf, psp=psp, router=Mock(), allowance_factor=2)
 
     # Add two jobs to shopfloor - one processing, one waiting
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=10.0)
@@ -71,7 +73,7 @@ def test_slar_no_release_when_no_candidates() -> None:
     server1 = Server(env=env, capacity=1, shopfloor=sf)
     server2 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-    Slar(shopfloor=sf, psp=psp, router=None, allowance_factor=2)
+    Slar(shopfloor=sf, psp=psp, router=Mock(), allowance_factor=2)
 
     # Add jobs to server1 and server2 so neither is idle when psp.add fires
     # the on_arrival(starvation_avoidance) callback.
@@ -97,7 +99,7 @@ def test_slar_selects_minimum_pst_job() -> None:
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-    Slar(shopfloor=sf, psp=psp, router=None, allowance_factor=2)
+    Slar(shopfloor=sf, psp=psp, router=Mock(), allowance_factor=2)
 
     # Add processing job
     job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
@@ -136,7 +138,7 @@ def test_slar_negative_pst_release() -> None:
     # Use capacity=2 so multiple jobs can queue while two are processing
     server = Server(env=env, capacity=2, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-    Slar(shopfloor=sf, psp=psp, router=None, allowance_factor=2)
+    Slar(shopfloor=sf, psp=psp, router=Mock(), allowance_factor=2)
 
     # Two long-running jobs with far due dates (positive PST)
     processing_job1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=1000.0)
@@ -186,7 +188,7 @@ def test_slar_no_release_when_urgent_job_in_queue() -> None:
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-    Slar(shopfloor=sf, psp=psp, router=None, allowance_factor=2)
+    Slar(shopfloor=sf, psp=psp, router=Mock(), allowance_factor=2)
 
     # Processing job, slow, non-urgent due date
     job_proc = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=1000.0)
@@ -222,7 +224,7 @@ def test_slar_no_psp_candidate_for_postponed_release() -> None:
     server_a = Server(env=env, capacity=1, shopfloor=sf)
     server_b = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-    Slar(shopfloor=sf, psp=psp, router=None, allowance_factor=2)
+    Slar(shopfloor=sf, psp=psp, router=Mock(), allowance_factor=2)
 
     # Two jobs on server_a (one processes, one queues) -> queue == 1 at completion.
     # Block server_b too so starvation_avoidance doesn't release other_psp on arrival.
@@ -253,7 +255,7 @@ def test_slar_postponed_release_delay() -> None:
     sf = ShopFloor(env=env)
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-    Slar(shopfloor=sf, psp=psp, router=None, allowance_factor=2)
+    Slar(shopfloor=sf, psp=psp, router=Mock(), allowance_factor=2)
 
     # Two jobs on server: one processing, one queued -> queue will have exactly 1
     # when job1 finishes.
@@ -360,7 +362,7 @@ def test_slar_urgent_psp_job_processes_before_non_urgent_queued() -> None:
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
     pst_policy = planned_slack_time(allowance=2.0)
-    Slar(shopfloor=sf, psp=psp, router=None, allowance_factor=2)
+    Slar(shopfloor=sf, psp=psp, router=Mock(), allowance_factor=2)
 
     job1 = ProductionJob(
         env=env,
