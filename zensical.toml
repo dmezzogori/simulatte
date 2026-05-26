@@ -9,6 +9,8 @@ site_dir = "site"
 nav = [
   { "Home" = "index.md" },
   { "Getting Started" = "getting-started.md" },
+  { "API Reference" = "reference.md" },
+  { "Agent Skill" = "ai-skill.md" },
   { "Tutorials" = [
     { "Overview" = "tutorials/index.md" },
     { "Basic manufacturing system" = "tutorials/basic-manufacturing-system.md" },
@@ -22,8 +24,6 @@ nav = [
     { "Overview" = "intralogistics/index.md" },
     { "Examples" = "intralogistics/examples.md" },
   ]},
-  { "API Reference" = "reference.md" },
-  { "Agent Skill" = "ai-skill.md" },
   { "Experimental" = [
     { "Overview" = "experimental/index.md" },
     { "Gymnasium wrapper for RL" = "experimental/gymnasium-wrapper.md" },
