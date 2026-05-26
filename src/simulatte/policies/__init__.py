@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .continuous_release import ContinuousRelease
 from .conwip import ConWIP
+from .draco import Draco
 from .lumscor import LumsCor
 from .slar import Slar
 from .slar_limit import SlarLimit
@@ -13,6 +14,7 @@ from .triggers import on_arrival_trigger, on_completion_trigger, periodic_trigge
 __all__ = [
     "ContinuousRelease",
     "ConWIP",
+    "Draco",
     "LumsCor",
     "Slar",
     "SlarLimit",

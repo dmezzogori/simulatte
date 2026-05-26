@@ -8,11 +8,12 @@ from typing import TYPE_CHECKING
 from simulatte.dispatching_rules import planned_slack_time
 from simulatte.distributions import server_sampling, truncated_2erlang
 from simulatte.environment import Environment
+from simulatte.policies.draco import Draco
 from simulatte.policies.lumscor import LumsCor
 from simulatte.policies.slar import Slar
 from simulatte.policies.slar_limit import SlarLimit
 from simulatte.policies.starvation_avoidance import starvation_avoidance
-from simulatte.policies.triggers import periodic_trigger
+from simulatte.policies.triggers import on_completion_trigger, periodic_trigger
 from simulatte.psp import PreShopPool
 from simulatte.router import Router
 from simulatte.server import Server
@@ -342,5 +343,104 @@ def build_slar_limit_system(
         wl_norm=dict.fromkeys(servers, float(wl_norm_level)),
         allowance_factor=allowance_factor,
     )
+
+    return psp, servers, shop_floor, router
+
+
+def build_draco_system(
+    env: Environment,
+    *,
+    wip_target: int,
+    loop_target: int,
+    focus_weights: tuple[float, float, float, float] = (0.25, 0.25, 0.25, 0.25),
+    total_impact_weights: tuple[float, float, float] = (1.0 / 3, 1.0 / 3, 1.0 / 3),
+    n_servers: int = 6,
+    arrival_rate: float = 1 / 0.648,
+    service_rate: float = 2.0,
+    collect_workload: bool = False,
+) -> PullSystem:
+    """Build a DRACO (non-hierarchical WIP control) pull system.
+
+    Creates a pull system using the DRACO policy (Kasper, Land, Teunter
+    2023, IJPE 257, 108768) that merges release, authorization, and
+    dispatching into a single per-server decision. On every job
+    completion at any server ``k``, DRACO scores every candidate in
+    ``Q_k ∪ P_k`` by a weighted total impact ``w^R·R + w^A·A + w^D·D``
+    and selects the maximum. The winner is dispatched to ``k`` next.
+
+    Wiring:
+        - ``priority_policy``: ``Draco.priority_policy`` (queue-side
+          DRACO score; returns ``-inf`` one-shot for forced PSP winners
+          to preserve strict paper semantics).
+        - ``on_completion_trigger``: ``Draco.decide_next_job``.
+        - ``psp.on_arrival(starvation_avoidance)``: prevents idle-server
+          starvation when a new arrival's first server is idle.
+
+    Args:
+        env: The simulation environment.
+        wip_target: Target shop WIP ``τ`` (count of jobs).
+        loop_target: Target overlapping loop ``ε_{k,u}``. Scalar applied
+            to every pair; for per-pair targets, instantiate :class:`Draco`
+            directly with a ``dict[(Server, Server), int]``.
+        focus_weights: FOCUS mechanism weights ``(w1, w2, w3, w4)``.
+        total_impact_weights: ``(w^R, w^A, w^D)`` for the DRACO total
+            impact; must sum to 1.
+        n_servers: Number of production servers.
+        arrival_rate: Inter-arrival rate (lambda for exponential).
+        service_rate: Service rate (lambda for truncated 2-Erlang).
+        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+
+    Returns:
+        Tuple of ``(psp, servers, shop_floor, router)``.
+
+    Example:
+        >>> env = Environment()
+        >>> psp, servers, shop_floor, router = build_draco_system(
+        ...     env, wip_target=8, loop_target=4
+        ... )
+        >>> env.run(until=1000)
+
+    References:
+        Kasper, A., Land, M., Teunter, R. (2023). Non-hierarchical
+        work-in-progress control in manufacturing. *International
+        Journal of Production Economics*, 257, 108768.
+    """
+    shop_floor = ShopFloor(
+        env=env,
+        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+    )
+    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
+    psp = PreShopPool(env=env, shopfloor=shop_floor)
+    draco = Draco(
+        shopfloor=shop_floor,
+        psp=psp,
+        focus_weights=focus_weights,
+        total_impact_weights=total_impact_weights,
+        wip_target=wip_target,
+        loop_target=loop_target,
+    )
+    router = Router(
+        env=env,
+        shopfloor=shop_floor,
+        servers=servers,
+        psp=psp,
+        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
+        sku_distributions={"F1": 1},
+        sku_routings={"F1": server_sampling(servers)},
+        sku_service_times={
+            "F1": {
+                server: lambda: truncated_2erlang(
+                    lam=service_rate,
+                    max_value=4.0,
+                )
+                for server in servers
+            },
+        },
+        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+        priority_policies=lambda job, server: draco.priority_policy(job, server),
+    )
+
+    env.process(on_completion_trigger(shop_floor, psp, draco.decide_next_job))
+    psp.on_arrival(starvation_avoidance)
 
     return psp, servers, shop_floor, router
