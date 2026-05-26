@@ -46,10 +46,12 @@ class Slar:
     priority wiring that the algorithm depends on.
 
     Example:
-        >>> slar = Slar(
-        ...     shopfloor=shop_floor, psp=psp, router=router,
-        ...     allowance_factor=3.0,
-        ... )
+        ```python
+        slar = Slar(
+            shopfloor=shop_floor, psp=psp, router=router,
+            allowance_factor=3.0,
+        )
+        ```
 
     Reference:
         Land, M.J. & Gaalman, G.J.C. (1998). The performance of workload

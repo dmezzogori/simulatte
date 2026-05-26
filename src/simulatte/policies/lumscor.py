@@ -39,12 +39,15 @@ class LumsCor:
     workload when computing WIP at each server.
 
     Example:
-        >>> from simulatte.policies.triggers import periodic_trigger, on_completion_trigger
-        >>> lumscor = LumsCor(wl_norm={server: 10.0}, allowance_factor=2)
-        >>> shopfloor.set_wip_strategy(CorrectedWIPStrategy())
-        >>> psp = PreShopPool(env=env, shopfloor=shopfloor)
-        >>> env.process(periodic_trigger(psp, 1.0, lumscor.periodic_release))
-        >>> env.process(on_completion_trigger(shopfloor, psp, lumscor.starvation_release))
+        ```python
+        from simulatte.policies.triggers import periodic_trigger, on_completion_trigger
+
+        lumscor = LumsCor(wl_norm={server: 10.0}, allowance_factor=2)
+        shopfloor.set_wip_strategy(CorrectedWIPStrategy())
+        psp = PreShopPool(env=env, shopfloor=shopfloor)
+        env.process(periodic_trigger(psp, 1.0, lumscor.periodic_release))
+        env.process(on_completion_trigger(shopfloor, psp, lumscor.starvation_release))
+        ```
     """
 
     _POSTPONED_DELAY: float = 0.001

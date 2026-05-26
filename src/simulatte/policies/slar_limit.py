@@ -39,14 +39,17 @@ class SlarLimit(Slar):
     are checked eagerly at construction.
 
     Example:
-        >>> from simulatte.policies.slar_limit import SlarLimit
-        >>> from simulatte.shopfloor import CorrectedWIPStrategy
-        >>> shop_floor.set_wip_strategy(CorrectedWIPStrategy())
-        >>> slar_limit = SlarLimit(
-        ...     shopfloor=shop_floor, psp=psp, router=router,
-        ...     wl_norm={s: 5.0 for s in servers},
-        ...     allowance_factor=3.0,
-        ... )
+        ```python
+        from simulatte.policies.slar_limit import SlarLimit
+        from simulatte.shopfloor import CorrectedWIPStrategy
+
+        shop_floor.set_wip_strategy(CorrectedWIPStrategy())
+        slar_limit = SlarLimit(
+            shopfloor=shop_floor, psp=psp, router=router,
+            wl_norm={s: 5.0 for s in servers},
+            allowance_factor=3.0,
+        )
+        ```
 
     Reference:
         Thürer, M. & Stevenson, M. (2021). Improving superfluous load
