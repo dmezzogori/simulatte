@@ -224,15 +224,63 @@ Additionally, a **starvation avoidance** callback is registered via `psp.on_arri
 
 Queue ordering uses a PST-based priority policy: jobs with lower PST are served first.
 
+### SLAR-Limit
+
+**SLAR with a workload-norm limit on urgent insertion** (Thürer & Stevenson, 2021 — [DOI](https://doi.org/10.1016/j.ijpe.2020.107881)).
+
+Extends classic SLAR by gating the urgent-insertion branch with a workload-norm check: an urgent PSP candidate is released only if its corrected workload contribution ``PT / (i + 1)`` keeps every server in its routing at or below its configured norm. The idle-prevention and drain-safety-net branches are inherited unchanged from SLAR.
+
+```python
+from simulatte.builders import build_slar_limit_system
+from simulatte.environment import Environment
+
+env = Environment()
+psp, servers, shopfloor, router = build_slar_limit_system(
+    env,
+    allowance_factor=3.0,   # Slack per operation
+    wl_norm_level=5.0,      # Workload norm per server
+)
+env.run(until=1000)
+
+print(f"Jobs completed: {len(shopfloor.jobs_done)}")
+```
+
+Key parameters:
+
+- `allowance_factor`: Slack allowance per operation (higher = more buffer time)
+- `wl_norm_level`: Workload norm applied uniformly to every server. An urgent PSP candidate is released only if adding its corrected contribution keeps every server in its routing at or below this level.
+- `collect_workload`: If `True`, attaches a `CurrentWorkLoadCollector` (see [ShopFloor extensibility](shopfloor-extensibility.md#currentworkloadcollector))
+
+**How it differs from SLAR:** when the urgent-insertion branch fires, SLAR releases the urgent PSP candidate with the shortest processing time unconditionally. SLAR-Limit iterates urgent candidates in ascending SPT order and releases the *first* that fits within all server workload norms. If no urgent candidate fits, the branch returns without releasing — the drain-safety-net may still fire on the same event.
+
+**Requirements:** SLAR-Limit requires `CorrectedWIPStrategy` on the shopfloor (set automatically by the builder).
+
+### Dispatching rules
+
+Dispatching rules (priority policies) are ``(job, server) -> float`` callables that determine queue ordering (lower = more urgent). Simulatte provides reusable rules in the `simulatte.dispatching_rules` package:
+
+```python
+from simulatte.dispatching_rules import planned_slack_time
+
+# Create a PST rule with per-operation queue-time allowance k=2.0
+pst = planned_slack_time(allowance=2.0)
+
+# Use it with a Router, builders, or individual ProductionJob
+router = Router(..., priority_policies=pst)
+```
+
+`planned_slack_time` returns ``inf`` for servers outside the job's routing or already exited — making it safe for priority comparisons and ``min()`` calls.
+
 ## 5) Comparing builder-based systems
 
-Run the three builder-based systems and compare:
+Run the builder-based systems and compare:
 
 ```python
 from simulatte.builders import (
     build_immediate_release_system,
     build_lumscor_system,
     build_slar_system,
+    build_slar_limit_system,
 )
 from simulatte.environment import Environment
 from simulatte.runner import Runner
@@ -257,8 +305,10 @@ def run_system(builder_fn, builder_kwargs, until=1000):
 immediate = run_system(build_immediate_release_system, {"n_servers": 6, "arrival_rate": 1.5})
 lumscor = run_system(build_lumscor_system, {"check_timeout": 10, "wl_norm_level": 5, "allowance_factor": 2})
 slar = run_system(build_slar_system, {"allowance_factor": 3})
+slar_limit = run_system(build_slar_limit_system, {"allowance_factor": 3, "wl_norm_level": 5})
 
-for name, results in [("Immediate", immediate), ("LumsCor", lumscor), ("SLAR", slar)]:
+policies = [("Immediate", immediate), ("LumsCor", lumscor), ("SLAR", slar), ("SLAR-Limit", slar_limit)]
+for name, results in policies:
     avg_tis = sum(r["avg_time_in_system"] for r in results) / len(results)
     print(f"{name}: avg time in system = {avg_tis:.2f}")
 ```
@@ -268,7 +318,7 @@ for name, results in [("Immediate", immediate), ("LumsCor", lumscor), ("SLAR", s
 - Multiple callbacks and triggers can coexist on the same PSP and shopfloor.
 - `psp.on_arrival` callbacks run synchronously during `psp.add()`, before the SimPy `new_job` event fires. Process-based listeners via `on_arrival_trigger` resume after.
 - `shopfloor.on_processing_end` callbacks run after the server is released (`servers_exit_at` is stamped and `job.previous_server` is available).
-- LUMS COR requires `CorrectedWIPStrategy` on the shopfloor (set automatically by the builder).
+- LUMS COR and SLAR-Limit require `CorrectedWIPStrategy` on the shopfloor (set automatically by the builder).
 - SLAR is purely event-driven (no periodic trigger).
 
 ## 6) Additional policies
