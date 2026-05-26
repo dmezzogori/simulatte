@@ -5,7 +5,8 @@ callables for queue ordering. Pass them as the ``priority_policies``
 argument to :class:`~simulatte.router.Router`, or as the ``priority_policy``
 argument to :class:`~simulatte.job.ProductionJob`. Lower numeric value = served first.
 
-Tier 1 — stateless functions grouped in :mod:`.basic`.
+- **Tier 1** — stateless functions grouped in :mod:`.basic`.
+- **Tier 2** — parameterized callable classes in :mod:`.parametrized`.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .basic import cr, edd, fcfs, modd, odd, spt
+from .parametrized import Pst, Sopn
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
@@ -22,6 +24,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 __all__ = [
+    "Pst",
+    "Sopn",
     "cr",
     "edd",
     "fcfs",
