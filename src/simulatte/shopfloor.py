@@ -51,10 +51,10 @@ class OperationHook(Protocol):
     in the same hook list and execute in registration order.
 
     Examples:
-        A synchronous dispatch hook::
+        A synchronous logging hook::
 
-            def dispatch_hook(job, server, op_index, processing_time):
-                server.sort_queue()
+            def log_hook(job, server, op_index, processing_time):
+                print(f"t={server.env.now}: {job.sku} op {op_index} on {server}")
 
         A generator hook that adds setup time::
 
