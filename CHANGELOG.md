@@ -2,6 +2,25 @@
 
 All notable changes to Simulatte are documented here.
 
+## 0.7.0 — 2026-05-26
+
+### New
+
+- **`SlarLimit` release policy** — SLAR with per-server workload-norm upper bounds, preventing superfluous load even when SLAR's base rule would allow a release. Derived from Thürer & Stevenson (2021), *Int. J. Production Economics*, 231, 107881. Available via `simulatte.policies.SlarLimit` and `build_slar_limit_system()`.
+- **`simulatte.dispatching_rules` package** — new home for dispatching-rule callables. Introduces `planned_slack_time(allowance)`, a factory producing `(job, server) → float` PST priority callbacks (Land & Gaalman, 1998).
+
+### Changed (breaking)
+
+- **`Slar` constructor** now accepts `shopfloor`, `psp`, and optional `router` and self-registers its completion trigger and starvation-avoidance hook on construction. Previous pattern of `Slar(allowance_factor=k)` + manual `env.process(on_completion_trigger(…))` no longer works as-is; replace with `Slar(shopfloor=sf, psp=psp, router=router, allowance_factor=k)`.
+- `Slar.pst_priority_policy` removed; use `simulatte.dispatching_rules.planned_slack_time` instead.
+- `LumsCor.pst_priority_policy` removed; use `simulatte.dispatching_rules.planned_slack_time` instead.
+
+### Documentation
+
+- Auto-generated API reference page (`/reference`) powered by mkdocstrings.
+- New tutorial section covering SLAR-Limit usage and dispatching rules.
+- Updated builder comparison table in the release-control tutorial.
+
 ## 0.6.1 — 2026-05-26
 
 ### Fixed
