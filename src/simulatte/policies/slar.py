@@ -23,7 +23,7 @@ class Slar:
 
     Implements the SLAR algorithm from Land & Gaalman (1998) extended with
     a starvation-avoidance sub-trigger. On every job-completion event at a
-    server, :meth:`_consider_release` evaluates three branches (in order):
+    server, `_consider_release` evaluates three branches (in order):
 
     1. **Idle prevention** (paper rule): if the server queue is empty,
        release the most urgent PSP candidate (lowest PST) to prevent the
@@ -161,7 +161,7 @@ class Slar:
     ) -> None:
         """Schedule a postponed release when exactly one job remains in the queue.
 
-        Mutually exclusive with :meth:`_release_urgent_insertion` — if
+        Mutually exclusive with `_release_urgent_insertion` — if
         that branch already released a job, this one is skipped to avoid
         superfluous load (the just-released job will refill the queue).
         """

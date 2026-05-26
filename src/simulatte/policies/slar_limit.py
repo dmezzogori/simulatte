@@ -20,7 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
 class SlarLimit(Slar):
     """SLAR augmented with a workload-norm limit on urgent insertion.
 
-    Identical to :class:`Slar` except for the urgent-insertion branch:
+    Identical to `Slar` except for the urgent-insertion branch:
 
     - Classic SLAR releases the urgent PSP candidate (negative PST) with
       the shortest processing time, unconditionally.
@@ -28,12 +28,12 @@ class SlarLimit(Slar):
       releases the **first** whose corrected workload contribution
       ``PT / (i + 1)`` keeps every server in its routing at or below its
       configured norm. If no urgent candidate fits, the drain safety-net
-      branch may still fire — same as in :class:`Slar`.
+      branch may still fire — same as in `Slar`.
 
     The idle-prevention and drain-safety-net branches, the PST priority
     rule, and the postponed-release mechanism are inherited unchanged.
 
-    Requires :class:`~simulatte.shopfloor.CorrectedWIPStrategy` on the
+    Requires `CorrectedWIPStrategy` on the
     shopfloor — the corrected contribution formula ``PT / (i + 1)`` only
     makes sense under that strategy. The strategy and the norm coverage
     are checked eagerly at construction.
@@ -69,23 +69,23 @@ class SlarLimit(Slar):
         Args:
             shopfloor: The shopfloor whose completion events drive release
                 decisions. Must already be configured with
-                :class:`CorrectedWIPStrategy`.
+                `CorrectedWIPStrategy`.
             psp: The Pre-Shop Pool to release jobs from.
             router: The router whose ``priority_policies`` should be set
-                to PST. See :class:`Slar` for details.
+                to PST. See `Slar` for details.
             wl_norm: Workload norm for each server. In the urgent-insertion
                 branch, an urgent PSP candidate is released only if its
                 corrected workload contribution keeps each server in its
                 routing at or below its norm. Must cover every shopfloor
                 server with a positive, finite value.
             allowance_factor: Slack allowance per operation (parameter
-                ``k`` in the SLAR paper). Forwarded to :class:`Slar`.
+                ``k`` in the SLAR paper). Forwarded to `Slar`.
 
         Raises:
             ValueError: If ``wl_norm`` is empty, contains non-positive or
                 non-finite values, or misses any shopfloor server.
             TypeError: If ``shopfloor`` is not configured with
-                :class:`CorrectedWIPStrategy`.
+                `CorrectedWIPStrategy`.
         """
         if not wl_norm:
             msg = "wl_norm must not be empty"
@@ -143,8 +143,8 @@ class SlarLimit(Slar):
 
         Uses corrected aggregate load: contribution at position ``i`` in
         the routing is ``PT / (i + 1)``. Same formula as
-        :meth:`ContinuousRelease._fits_norms` and the inline check in
-        :meth:`LumsCor.periodic_release`.
+        `ContinuousRelease._fits_norms` and the inline check in
+        `LumsCor.periodic_release`.
         """
         for i, (server, processing_time) in enumerate(job.server_processing_times):
             contributed_load = processing_time / (i + 1)

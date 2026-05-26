@@ -2,8 +2,8 @@
 
 This package hosts dispatching rules — pure ``(job, server) -> float``
 callables for queue ordering. Pass them as the ``priority_policies``
-argument to :class:`~simulatte.router.Router`, or as the
-``priority_policy`` argument to :class:`~simulatte.job.ProductionJob`.
+argument to `Router`, or as the
+``priority_policy`` argument to `ProductionJob`.
 Lower numeric value = served first.
 """
 
@@ -41,8 +41,8 @@ def planned_slack_time(allowance: float = 0.0) -> Callable[[BaseJob, Server], fl
 
     Returns:
         A ``(job, server) -> float`` callable suitable for use as a
-        ``priority_policies`` on :class:`~simulatte.router.Router` or
-        ``priority_policy`` on :class:`~simulatte.job.ProductionJob`.
+        ``priority_policies`` on `Router` or
+        ``priority_policy`` on `ProductionJob`.
 
     Raises:
         ValueError: If ``allowance`` is negative.
