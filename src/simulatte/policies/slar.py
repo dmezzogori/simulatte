@@ -92,8 +92,7 @@ class Slar:
 
         candidate = self._select_psp_candidate_job(server_triggered, psp)
         if candidate is not None:
-            psp.remove(job=candidate)
-            psp.shopfloor.add(candidate)
+            psp.release(job=candidate)
 
     def _select_psp_candidate_job(self, server: Server, psp: PreShopPool) -> ProductionJob | None:
         """Select a PSP job to release (if any) after a job completion at *server*.
