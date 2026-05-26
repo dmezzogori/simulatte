@@ -28,10 +28,11 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable, Mapping, Sequence
 
     from simulatte.job import BaseJob
     from simulatte.psp import PreShopPool
@@ -61,12 +62,12 @@ def _entropy(workloads: Iterable[float]) -> float:
     return -sum((w / total) * math.log(w / total) for w in workloads if w > 0)
 
 
-def _delta_entropy_value(
+def _delta_entropy(
     *,
     job: BaseJob,
     server: Server,
     workloads: Sequence[float],
-    server_index: dict[Server, int],
+    server_index: Mapping[Server, int],
     pre_entropy: float,
 ) -> float:
     """Change in workload-entropy from hypothetically dispatching *job* at *server*.
@@ -143,8 +144,10 @@ class FocusContext:
         workloads: Per-server workload ``W_j = sum p_xj`` over jobs in
             ``server.queue ∪ server.users`` (full processing time). Indexed
             by ``server_index[server]``.
-        server_index: Mapping ``Server -> index into workloads``. Tightly
-            coupled with ``workloads``; same lifetime.
+        server_index: Read-only mapping ``Server -> index into workloads``.
+            Wrapped in :class:`types.MappingProxyType` so shallow
+            mutation of the index is detected at runtime. Tightly coupled
+            with ``workloads``; same lifetime.
         pre_entropy: Shop-wide workload entropy at the snapshot instant
             (``e_minus`` in the beta spec). See :func:`_entropy` for the
             empty-shop convention.
@@ -158,7 +161,7 @@ class FocusContext:
     max_positive_slack: float
     max_positive_pacing: float
     workloads: tuple[float, ...]
-    server_index: dict[Server, int]
+    server_index: Mapping[Server, int]
     pre_entropy: float
     max_positive_c: float
 
@@ -213,7 +216,12 @@ class Focus:
         """Compute the shop-wide aggregates needed by FOCUS at *now*.
 
         The set ``O`` (arrived orders not yet completed) is taken to be
-        the union of ``shopfloor.jobs`` and (if provided) ``psp.jobs``.
+        the union of jobs currently waiting in any server's queue and
+        (if provided) ``psp.jobs``.  Jobs that are *currently being
+        processed* (in ``server.users``) are deliberately excluded:
+        their processing time is already captured in ``workloads``, so
+        re-including them in the ``max_positive_c`` scan would inflate
+        the normaliser and dilute beta scores for genuine candidates.
         Pass *psp* when scoring decisions that include PSP candidates
         (e.g. DRACO); omit it for standalone-FOCUS dispatching where the
         scored set is queue-only.
@@ -239,7 +247,7 @@ class Focus:
         ]
         pre_entropy = _entropy(workloads)
 
-        jobs: list[BaseJob] = list(shopfloor.jobs)
+        jobs: list[BaseJob] = [j for s in shopfloor.servers for j in s.queueing_jobs]
         if psp is not None:
             jobs.extend(psp.jobs)
 
@@ -264,7 +272,7 @@ class Focus:
 
             # Beta: c(i) at the job's first uncompleted server.
             k = remaining[0]
-            c_i = _delta_entropy_value(
+            c_i = _delta_entropy(
                 job=job,
                 server=k,
                 workloads=workloads,
@@ -280,7 +288,7 @@ class Focus:
             max_positive_slack=max_positive_slack,
             max_positive_pacing=max_positive_pacing,
             workloads=tuple(workloads),
-            server_index=server_index,
+            server_index=MappingProxyType(server_index),
             pre_entropy=pre_entropy,
             max_positive_c=max_positive_c,
         )
@@ -351,17 +359,14 @@ class Focus:
         ``c(i) = e(i) - ctx.pre_entropy`` is the change in shop-wide
         workload entropy from hypothetically dispatching *job* at
         *server*. See :func:`_entropy` for the empty-shop convention and
-        :func:`_delta_entropy_value` for the perturbation formula.
+        :func:`_delta_entropy` for the perturbation formula.
 
-        Invariant: when ``c(i) > 0``, the candidate is itself in the
-        pool ``O`` used to compute ``ctx.max_positive_c``, so
-        ``ctx.max_positive_c ≥ c(i) > 0`` — the denominator is never
-        zero in the dividing branch. The invariant holds for every
-        existing call path because the scoring server is always the
-        candidate's first uncompleted server in routing (i.e. the same
-        server used by :meth:`build_context` when computing the max).
+        Guard: if ``ctx.max_positive_c <= 0`` (no candidate in the
+        snapshot improved balance), beta returns ``0`` immediately,
+        preventing a ``ZeroDivisionError`` for future callers that build
+        a context with a candidate set disjoint from the one used here.
         """
-        c_i = _delta_entropy_value(
+        c_i = _delta_entropy(
             job=job,
             server=server,
             workloads=ctx.workloads,
@@ -369,6 +374,8 @@ class Focus:
             pre_entropy=ctx.pre_entropy,
         )
         if c_i <= 0.0:
+            return 0.0
+        if ctx.max_positive_c <= 0:
             return 0.0
         return c_i / ctx.max_positive_c
 

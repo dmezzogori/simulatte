@@ -59,18 +59,28 @@ def test_focus_init_accepts_zero_weights() -> None:
 
 
 def test_focus_context_max_pij_basic() -> None:
+    # O = jobs currently in server queues (candidates). Jobs being *processed*
+    # (in users) are excluded — their load is already in workloads.
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
 
-    j1 = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[3.0, 7.0], due_date=100.0)
+    # j1 will grab s1's user slot; j2 and j3 will queue behind it.
+    # j2: p=[5, 2] → remaining ops have max 5.  j3: p=[3, 9] → remaining op max 9.
+    # After env.run: j1 in users (excluded), j2 and j3 in queue (candidates).
+    j1 = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1000.0, 1.0], due_date=10000.0)
     j2 = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[5.0, 2.0], due_date=100.0)
+    j3 = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[3.0, 9.0], due_date=100.0)
     sf.add(j1)
     sf.add(j2)
+    sf.add(j3)
+    env.run(until=0.001)
+    assert len(s1.queue) == 2  # j2 and j3 queued
 
-    ctx = Focus.build_context(sf, now=0.0)
-    assert ctx.max_pij == 7.0
+    ctx = Focus.build_context(sf, now=0.001)
+    # max over candidates j2 (ops: 5,2) and j3 (ops: 3,9) → 9.0
+    assert ctx.max_pij == 9.0
 
 
 def test_focus_context_max_pij_zero_when_no_jobs() -> None:
@@ -115,24 +125,40 @@ def test_focus_context_empty_queue_servers_excludes_loaded_server() -> None:
 
 
 def test_focus_context_max_positive_slack_and_pacing() -> None:
+    # O = jobs in server queues only (candidates). A blocker holds s1's user slot;
+    # j1, j2, j3 queue behind it and form the candidate set.
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
 
-    # j1: due=100, total_p=4 → S=96, |R|=2 → V=48
-    # j2: due=20, total_p=4 → S=16, |R|=2 → V=8
-    # j3: due=2, total_p=4 → S=-2 (negative, excluded)
+    # Blocker: long job grabs s1 so the three candidates must queue.
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    sf.add(blocker)
+    env.run(until=0.001)
+
+    # Candidates (queued at s1):
+    # j1: due=100, total_p=4 → S=100-0.001-4=95.999, |R|=2 → V≈48
+    # j2: due=20, total_p=4 → S=20-0.001-4=15.999, |R|=2 → V≈8
+    # j3: due=2, total_p=4 → S=2-0.001-4<0 (negative, excluded)
     j1 = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[2.0, 2.0], due_date=100.0)
     j2 = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[2.0, 2.0], due_date=20.0)
     j3 = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[2.0, 2.0], due_date=2.0)
     sf.add(j1)
     sf.add(j2)
     sf.add(j3)
+    env.run(until=0.002)
+    assert len(s1.queue) == 3  # all three queued behind blocker
 
-    ctx = Focus.build_context(sf, now=0.0)
-    assert ctx.max_positive_slack == 96.0
-    assert ctx.max_positive_pacing == 48.0
+    now = 0.002
+    ctx = Focus.build_context(sf, now=now)
+    # j1: S = 100 - now - 4 ≈ 95.998 (largest positive slack)
+    # j2: S = 20 - now - 4 ≈ 15.998 (positive but smaller)
+    # j3: S = 2 - now - 4 < 0 (excluded)
+    expected_slack = 100.0 - now - 4.0  # j1 dominates
+    expected_pacing = expected_slack / 2  # |R| = 2 for j1
+    assert ctx.max_positive_slack == pytest.approx(expected_slack)
+    assert ctx.max_positive_pacing == pytest.approx(expected_pacing)
 
 
 def test_focus_context_includes_psp_jobs_when_passed() -> None:
@@ -155,15 +181,26 @@ def test_focus_context_includes_psp_jobs_when_passed() -> None:
 
 
 def test_focus_pi_zero_when_pij_equals_max() -> None:
+    # job must be a candidate (in queue) for max_pij to reflect it.
+    # Use capacity=2 so job enters queue rather than users when added alone.
     env = Environment()
     sf = ShopFloor(env=env)
+    # capacity=2 but we use a blocker to force job into queue
     s1 = Server(env=env, capacity=1, shopfloor=sf)
+
+    # Blocker grabs the single slot; job queues behind it.
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    sf.add(blocker)
+    env.run(until=0.001)
 
     job = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[5.0], due_date=100.0)
     sf.add(job)
+    env.run(until=0.002)
+    assert len(s1.queue) == 1  # job queued as candidate
 
     focus = Focus()
-    ctx = focus.build_context(sf, now=0.0)
+    ctx = focus.build_context(sf, now=0.002)
+    # Only candidate is `job` with p=5 → max_pij=5, pi = 1 - 5/5 = 0.
     assert focus.pi(job, s1, ctx) == 0.0
 
 
@@ -182,19 +219,30 @@ def test_focus_pi_one_when_max_pij_zero() -> None:
 
 
 def test_focus_pi_intermediate_value() -> None:
+    # Both j_short and j_long must be candidates (in queues).
+    # Use blockers to force each into its respective queue.
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
 
-    # j_short has p_ik=2 at s1; another job has p_ij=8 elsewhere → max=8
+    # Block both servers so the test jobs queue as candidates.
+    b1 = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    b2 = ProductionJob(env=env, sku="A", servers=[s2], processing_times=[1000.0], due_date=10000.0)
+    sf.add(b1)
+    sf.add(b2)
+    env.run(until=0.001)
+
+    # j_short has p_ik=2 at s1; j_long has p_ij=8 at s2 → max over candidates = 8
     j_short = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[2.0], due_date=100.0)
     j_long = ProductionJob(env=env, sku="A", servers=[s2], processing_times=[8.0], due_date=100.0)
     sf.add(j_short)
     sf.add(j_long)
+    env.run(until=0.002)
+    assert len(s1.queue) == 1 and len(s2.queue) == 1
 
     focus = Focus()
-    ctx = focus.build_context(sf, now=0.0)
+    ctx = focus.build_context(sf, now=0.002)
     assert focus.pi(j_short, s1, ctx) == pytest.approx(1.0 - 2.0 / 8.0)
 
 
@@ -273,22 +321,34 @@ def test_focus_psi_saturates_for_tardy_jobs() -> None:
 
 
 def test_focus_psi_intermediate_value() -> None:
+    # Both jobs must be candidates (in queue). Use a blocker to force queuing.
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
 
-    # urgent: S=5; relaxed: S=50 → max_positive_slack=50
-    urgent = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=6.0)  # S=6-0-1=5
-    relaxed = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=51.0)  # S=51-0-1=50
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    sf.add(blocker)
+    env.run(until=0.001)
+
+    # At now=0.001: urgent S=6-0.001-1=4.999; relaxed S=51-0.001-1=49.999
+    # max_positive_slack = 49.999 (from relaxed)
+    urgent = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=6.0)
+    relaxed = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=51.0)
     sf.add(urgent)
     sf.add(relaxed)
+    env.run(until=0.002)
+    assert len(s1.queue) == 2
 
+    now = 0.002
     focus = Focus()
-    ctx = focus.build_context(sf, now=0.0)
-    # urgent: 1 - 5/50 = 0.9 (high urgency)
-    assert focus.psi(urgent, ctx, now=0.0) == pytest.approx(1.0 - 5.0 / 50.0)
-    # relaxed: 1 - 50/50 = 0 (least urgent)
-    assert focus.psi(relaxed, ctx, now=0.0) == pytest.approx(0.0)
+    ctx = focus.build_context(sf, now=now)
+    s_urgent = 6.0 - now - 1.0  # S_urgent
+    s_relaxed = 51.0 - now - 1.0  # S_relaxed = max_positive_slack
+    assert ctx.max_positive_slack == pytest.approx(s_relaxed)
+    # urgent: 1 - s_urgent / s_relaxed
+    assert focus.psi(urgent, ctx, now=now) == pytest.approx(1.0 - s_urgent / s_relaxed)
+    # relaxed: 1 - s_relaxed / s_relaxed = 0
+    assert focus.psi(relaxed, ctx, now=now) == pytest.approx(0.0)
 
 
 # ----- gamma (Pacing) -----
@@ -308,25 +368,33 @@ def test_focus_gamma_saturates_for_tardy_jobs() -> None:
 
 
 def test_focus_gamma_pacing_penalises_long_routing() -> None:
+    # Both jobs must be candidates (in queue). Blocker forces them to queue.
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
     s3 = Server(env=env, capacity=1, shopfloor=sf)
 
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    sf.add(blocker)
+    env.run(until=0.001)
+
     # Same slack, different |R|:
-    # short_route: 1 op,  S=10  → V=10
-    # long_route:  3 ops, S=7   (10 - 3 processing) → V=7/3 ≈ 2.33
-    # but max_positive_pacing across both = 10 → long_route is "behind" pace
+    # short_route: 1 op,  S≈10  → V≈10
+    # long_route:  3 ops, S≈7   (10 - 3 processing) → V≈7/3 ≈ 2.33
+    # max_positive_pacing ≈ 10 → long_route is "behind" pace
     short_route = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=11.0)
     long_route = ProductionJob(env=env, sku="A", servers=[s1, s2, s3], processing_times=[1.0, 1.0, 1.0], due_date=10.0)
     sf.add(short_route)
     sf.add(long_route)
+    env.run(until=0.002)
+    assert len(s1.queue) == 2
 
+    now = 0.002
     focus = Focus()
-    ctx = focus.build_context(sf, now=0.0)
-    gamma_short = focus.gamma(short_route, ctx, now=0.0)
-    gamma_long = focus.gamma(long_route, ctx, now=0.0)
+    ctx = focus.build_context(sf, now=now)
+    gamma_short = focus.gamma(short_route, ctx, now=now)
+    gamma_long = focus.gamma(long_route, ctx, now=now)
     assert gamma_long > gamma_short  # long routing → behind pace → higher impact
 
 
@@ -334,17 +402,25 @@ def test_focus_gamma_pacing_penalises_long_routing() -> None:
 
 
 def test_focus_score_in_unit_interval() -> None:
+    # j must be a candidate (in queue) for ctx aggregates to be non-trivial.
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
 
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    sf.add(blocker)
+    env.run(until=0.001)
+
     j = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[3.0, 5.0], due_date=50.0)
     sf.add(j)
+    env.run(until=0.002)
+    assert len(s1.queue) == 1
 
+    now = 0.002
     focus = Focus(weights=(0.4, 0.2, 0.3, 0.1, 0.0))
-    ctx = focus.build_context(sf, now=0.0)
-    score = focus.score(j, s1, ctx, now=0.0)
+    ctx = focus.build_context(sf, now=now)
+    score = focus.score(j, s1, ctx, now=now)
     assert 0.0 <= score <= 1.0
 
 
@@ -638,7 +714,7 @@ def test_focus_beta_returns_one_when_candidate_only_positive() -> None:
       → vector becomes [100, 10] → positive entropy → c > 0.
     Since only `j` has positive c, max_positive_c = c(j) → beta(j) = 1.
     """
-    from simulatte.dispatching_rules.focus import _delta_entropy_value
+    from simulatte.dispatching_rules.focus import _delta_entropy
 
     env = Environment()
     sf = ShopFloor(env=env)
@@ -656,7 +732,7 @@ def test_focus_beta_returns_one_when_candidate_only_positive() -> None:
     focus = Focus()
     ctx = focus.build_context(sf, now=0.002)
 
-    c_candidate = _delta_entropy_value(
+    c_candidate = _delta_entropy(
         job=j,
         server=s1,
         workloads=ctx.workloads,
@@ -686,6 +762,38 @@ def test_focus_beta_returns_zero_when_c_non_positive() -> None:
     ctx = focus.build_context(sf, now=0.001)
     # b1 is at s1 (last op) → dispatching b1 only does -p_ik at s1 → vector becomes [0, 10] → e=0 < ln(2) → c<0
     assert focus.beta(b1, s1, ctx) == 0.0
+
+
+def test_focus_beta_returns_zero_when_max_positive_c_nonpositive(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Defensive guard: when c_i > 0 but ctx.max_positive_c is non-positive, return 0 (not ZeroDivisionError)."""
+    from simulatte.dispatching_rules import focus as focus_module
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[5.0, 5.0], due_date=100.0)
+
+    # Force c_i > 0 by patching _delta_entropy; meanwhile hand-craft ctx with max_positive_c = 0.
+    monkeypatch.setattr(
+        focus_module,
+        "_delta_entropy",
+        lambda *, job, server, workloads, server_index, pre_entropy: 1.0,
+    )
+
+    ctx = FocusContext(
+        max_pij=5.0,
+        empty_queue_servers=frozenset(),
+        max_positive_slack=0.0,
+        max_positive_pacing=0.0,
+        workloads=(0.0, 0.0),
+        server_index={s1: 0, s2: 1},
+        pre_entropy=0.0,
+        max_positive_c=0.0,
+    )
+
+    focus = Focus()
+    assert focus.beta(job, s1, ctx) == 0.0
 
 
 def test_focus_beta_last_op_no_u_term() -> None:
