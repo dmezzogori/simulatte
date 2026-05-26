@@ -399,18 +399,14 @@ class FocusPriorityRule:
     :class:`simpy.resources.resource.PriorityResource` sorts ascending
     (lower key = served first).
 
-    Staleness caveat:
-        simulatte's protocol computes ``req.key`` once at queue-entry
-        (``server.py:49``). FOCUS aggregates evolve discretely on every
-        shop event, so a key keyed at queue entry can be arbitrarily
-        stale by the time the request is dispatched. Pair this adapter
-        with :func:`refresh_focus_queue` (e.g. via
-        ``shopfloor.on_processing_end``) when FOCUS is used as a
-        standalone dispatching rule.
-
-        Inside :class:`simulatte.policies.draco.Draco` this is *not* an
-        issue: DRACO uses :meth:`Focus.score` directly with a fresh
-        ``ctx`` at every decision.
+    Liveness guarantee:
+        :meth:`simulatte.server.Server.sort_queue` re-evaluates
+        ``priority_policy`` for every queued request before every
+        dispatch event (auto-called by ``_trigger_put``). Because
+        :meth:`__call__` rebuilds ``ctx`` per invocation against the
+        live shopfloor state, the key returned at dispatch time always
+        reflects current shop aggregates — no external refresh helper is
+        needed.
 
     Args:
         focus: A :class:`Focus` instance.
@@ -429,32 +425,3 @@ class FocusPriorityRule:
         now = self.shopfloor.env.now
         ctx = self.focus.build_context(self.shopfloor, now, psp=self.psp)
         return -self.focus.score(job, server, ctx, now)
-
-
-def refresh_focus_queue(
-    server: Server,
-    focus: Focus,
-    shopfloor: ShopFloor,
-    *,
-    psp: PreShopPool | None = None,
-) -> None:
-    """Re-key every queued request at *server* with a fresh FOCUS score.
-
-    Builds a fresh :class:`FocusContext`, assigns a fresh
-    ``priority_policy`` closure to every queued job, then calls
-    :meth:`simulatte.server.Server.sort_queue` to restore the sorted
-    invariant. Used as the companion refresh hook for standalone-FOCUS
-    dispatching (see staleness caveat on :class:`FocusPriorityRule`).
-
-    Args:
-        server: The server whose queue is to be refreshed.
-        focus: The Focus instance.
-        shopfloor: Shopfloor used to build the FocusContext.
-        psp: Optional PreShopPool to include in the context's aggregates.
-    """
-    now = shopfloor.env.now
-    ctx = focus.build_context(shopfloor, now, psp=psp)
-    fresh_rule = lambda j, s: -focus.score(j, s, ctx, now)  # noqa: E731
-    for req in server.queue:
-        req.job.priority_policy = fresh_rule
-    server.sort_queue()

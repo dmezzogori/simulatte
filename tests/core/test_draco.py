@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from simulatte.builders import build_draco_system
+from simulatte.dispatching_rules.focus import Focus
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.policies.draco import Draco
@@ -456,47 +457,6 @@ def test_draco_winner_via_R_boost_still_processes_first() -> None:
     assert psp_relaxed.servers_entry_at[s1] == 10.0
 
 
-def test_draco_refresh_queue_keys_get_updated() -> None:
-    """After decide_next_job, queued requests should have fresh DRACO keys."""
-    env = Environment()
-    sf = ShopFloor(env=env)
-    s1 = Server(env=env, capacity=1, shopfloor=sf)
-    psp = PreShopPool(env=env, shopfloor=sf)
-    draco = Draco(shopfloor=sf, psp=psp, wip_target=10, loop_target=5)
-    env.process(on_completion_trigger(sf, psp, draco.decide_next_job))
-    policy = _policy_factory(draco)
-
-    # Block s1 so two jobs queue behind
-    blocker = ProductionJob(
-        env=env, sku="A", servers=[s1], processing_times=[2.0], due_date=100.0, priority_policy=policy
-    )
-    j_a = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10.0, priority_policy=policy)
-    j_b = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=20.0, priority_policy=policy)
-    sf.add(blocker)
-    sf.add(j_a)
-    sf.add(j_b)
-    env.run(until=0.5)
-    assert len(s1.queue) == 2
-
-    pre_keys = {req.job.id: req.key for req in s1.queue}
-
-    # Trigger an on_completion event by running past blocker's finish
-    env.run(until=2.5)
-
-    # After decide_next_job ran at t=2, queue had been refreshed and one job
-    # got dispatched. The remaining queued request should have a key that
-    # was set/refreshed by DRACO (not the queue-entry key).
-    if len(s1.queue) >= 1:
-        remaining = s1.queue[0]
-        # The remaining request's key is from DRACO's refresh (called during
-        # decide_next_job) — it may equal its entry-time key by chance, but
-        # the queue is at least guaranteed to be sorted ascending.
-        assert isinstance(remaining.key, tuple)
-        assert len(remaining.key) == 3
-    # Pre-keys recorded; not all jobs that were in the queue are still there
-    assert pre_keys  # silence unused-var checker
-
-
 def test_draco_decide_next_job_returns_when_no_previous_server() -> None:
     """Defensive: triggering_job with previous_server=None is a no-op."""
     env = Environment()
@@ -614,3 +574,49 @@ def test_draco_beta_only_focus_weights_runs_without_error() -> None:
 
     assert j_a.servers_exit_at[s2] is not None
     assert j_b.servers_exit_at[s1] is not None
+
+
+# ----- priority_policy: liveness (ctx rebuilt per call / per server) -----
+
+
+def test_draco_priority_policy_rebuilds_ctx_per_server(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Draco.priority_policy rebuilds ctx on every call — no stale-closure leak.
+
+    Main's :meth:`~simulatte.server.Server.sort_queue` calls
+    ``job.priority_policy(job, server)`` before every dispatch. When a job
+    travels through a multi-server routing, ``priority_policy`` is invoked at
+    each server in turn. Each call must build a fresh FocusContext — not reuse
+    a snapshot frozen at an earlier instant.
+
+    Regression guard: if ``_refresh_queue`` were reintroduced and its stale
+    closure assigned to ``job.priority_policy``, the closure would call
+    ``Focus.score`` with the pre-baked ctx instead of rebuilding it, and
+    ``build_context`` would not be called at dispatch time at all.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+    draco = Draco(shopfloor=sf, wip_target=10, loop_target=5)
+
+    job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[2.0, 3.0], due_date=50.0)
+    sf.add(job)
+
+    call_count = 0
+    real_build = Focus.build_context
+
+    def counting_build(shopfloor, now, *, psp=None):  # type: ignore[no-untyped-def]
+        nonlocal call_count
+        call_count += 1
+        return real_build(shopfloor, now, psp=psp)
+
+    monkeypatch.setattr(Focus, "build_context", staticmethod(counting_build))
+
+    draco.priority_policy(job, s1)
+    draco.priority_policy(job, s2)
+
+    assert call_count == 2, (
+        f"Expected build_context to be called twice (once per server), got {call_count}. "
+        "A stale-closure regression (e.g. reintroduced _refresh_queue) would produce "
+        "call_count == 0 (closure calls Focus.score directly with frozen ctx)."
+    )

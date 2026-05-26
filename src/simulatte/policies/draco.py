@@ -71,10 +71,10 @@ class Draco:
         grants the slot immediately. The Release event then fires with
         nothing to dispatch. Net result: the PSP winner has the server.
 
-    For the queue-winner case, :meth:`_refresh_queue` re-keys every
-    queued request with the current DRACO queue-side score and re-sorts;
-    when the Release event finally fires ``_trigger_put``, ``queue[0]``
-    is DRACO's queue winner.
+    For the queue-winner case, the imminent Release event's
+    ``_trigger_put`` calls :meth:`~simulatte.server.Server.sort_queue`,
+    which re-evaluates ``priority_policy`` (live) for every queued
+    request and yields the correct queue order.
 
     Args:
         shopfloor: The shopfloor against which DRACO's contexts and
@@ -164,10 +164,10 @@ class Draco:
 
         Scores every candidate in ``Q_k ∪ P_k`` using the full DRACO
         formula (``ro^P`` for PSP candidates, ``ro^Q`` for queued ones),
-        refreshes existing queue keys at ``k`` with current queue-side
-        scores, then either releases the PSP winner (with the
-        force-flag staged) or relies on the just-refreshed queue order
-        to make the queue winner ``queue[0]``.
+        then either releases the PSP winner (with the force-flag staged)
+        or relies on the imminent Release event's ``_trigger_put`` call to
+        :meth:`~simulatte.server.Server.sort_queue` (which re-evaluates
+        ``priority_policy`` live) to make the queue winner ``queue[0]``.
         """
         server_k = triggering_job.previous_server
         if server_k is None:
@@ -196,10 +196,6 @@ class Draco:
         if not all_scores:
             return
 
-        # Refresh existing queue keys so that the imminent Release event's
-        # _trigger_put picks the correct queue winner if no PSP release.
-        self._refresh_queue(server_k, ctx=ctx, wip=wip)
-
         winner = max(all_scores, key=lambda j: all_scores[j])
 
         if winner in psp_scores:
@@ -207,7 +203,9 @@ class Draco:
             self._forced_at_server[server_k] = winner  # type: ignore[assignment]
             psp.remove(job=winner)
             psp.shopfloor.add(winner)
-        # else: queue winner — refresh+sort guarantees queue[0] = winner.
+        # else: queue winner — the imminent Release event's _trigger_put will
+        # call sort_queue, which re-evaluates priority_policy (live) for every
+        # queued request and yields the correct order.
 
     # ----- Internal helpers (R, A, scoring) -----
 
@@ -297,29 +295,3 @@ class Draco:
         ctx = self.focus.build_context(self._shopfloor, now, psp=self._psp)
         wip = self._count_wip()
         return self._full_score(job, server, ctx, now, wip, in_psp=False)
-
-    def _refresh_queue(
-        self,
-        server: Server,
-        *,
-        ctx: FocusContext,
-        wip: int,
-    ) -> None:
-        """Re-key every queued request at *server* with a fresh queue-side score.
-
-        Same shape as
-        :func:`simulatte.dispatching_rules.focus.refresh_focus_queue`,
-        but uses the full DRACO queue-side score (``R = ro^Q``,
-        authorization, FOCUS) rather than FOCUS alone — so it cannot
-        delegate to ``refresh_focus_queue``. Assigns a fresh
-        ``priority_policy`` closure to each queued job then calls
-        :meth:`simulatte.server.Server.sort_queue`.
-
-        Called for the triggered server only in :meth:`decide_next_job`;
-        other servers refresh themselves at their own next completion.
-        """
-        now = self._shopfloor.env.now
-        fresh_rule = lambda j, s: -self._full_score(j, s, ctx, now, wip, in_psp=False)  # noqa: E731
-        for req in server.queue:
-            req.job.priority_policy = fresh_rule
-        server.sort_queue()

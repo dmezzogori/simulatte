@@ -16,7 +16,7 @@ Rules are grouped by scheduling family:
 from __future__ import annotations
 
 from .due_date import earliest_due_date, modified_operational_due_date, operational_due_date
-from .focus import Focus, FocusContext, FocusPriorityRule, refresh_focus_queue
+from .focus import Focus, FocusContext, FocusPriorityRule
 from .processing import first_come_first_served, shortest_processing_time
 from .slack import critical_ratio, planned_slack_time, slack_per_remaining_operation
 
@@ -30,7 +30,6 @@ __all__ = [
     "modified_operational_due_date",
     "operational_due_date",
     "planned_slack_time",
-    "refresh_focus_queue",
     "shortest_processing_time",
     "slack_per_remaining_operation",
 ]

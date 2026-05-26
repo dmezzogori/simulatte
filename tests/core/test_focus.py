@@ -1,4 +1,4 @@
-"""Tests for the FOCUS dispatching rule and its adapter / refresh helper."""
+"""Tests for the FOCUS dispatching rule and its adapter."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from simulatte.dispatching_rules import (
     Focus,
     FocusContext,
     FocusPriorityRule,
-    refresh_focus_queue,
 )
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
@@ -428,72 +427,6 @@ def test_focus_priority_rule_includes_psp_jobs_when_provided() -> None:
     assert score == pytest.approx(focus.score(queued_job, s1, focus.build_context(sf, sf.env.now, psp=psp), sf.env.now))
 
 
-# ----- refresh_focus_queue -----
-
-
-def test_refresh_focus_queue_reorders_after_shop_state_change() -> None:
-    env = Environment()
-    sf = ShopFloor(env=env)
-    s1 = Server(env=env, capacity=1, shopfloor=sf)
-
-    focus = Focus()
-    # Use FocusPriorityRule so initial priorities are computed via FOCUS.
-    adapter = FocusPriorityRule(focus, sf)
-
-    # Block s1 with a long-running job; queue several behind it.
-    blocker = ProductionJob(
-        env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=5000.0, priority_policy=adapter
-    )
-    sf.add(blocker)
-    env.run(until=0.001)
-
-    j_a = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[5.0], due_date=100.0, priority_policy=adapter)
-    j_b = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[2.0], due_date=200.0, priority_policy=adapter)
-    sf.add(j_a)
-    sf.add(j_b)
-    env.run(until=0.01)
-    assert len(s1.queue) == 2
-
-    refresh_focus_queue(s1, focus, sf)
-    post_keys = [req.key for req in s1.queue]
-    assert post_keys == sorted(post_keys, key=lambda k: k[0])
-    # And keys actually got recomputed (priorities may differ from pre_keys
-    # which were keyed at entry time — at minimum they're consistent).
-    for req in s1.queue:
-        assert isinstance(req.key, tuple)
-        assert len(req.key) == 3
-
-
-def test_refresh_focus_queue_uses_current_now() -> None:
-    """Refreshing should pick up the current env.now, not the entry-time."""
-    env = Environment()
-    sf = ShopFloor(env=env)
-    s1 = Server(env=env, capacity=1, shopfloor=sf)
-    focus = Focus()
-    adapter = FocusPriorityRule(focus, sf)
-
-    blocker = ProductionJob(
-        env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=5000.0, priority_policy=adapter
-    )
-    sf.add(blocker)
-
-    # An urgent-ish job entered very early
-    j = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10.0, priority_policy=adapter)
-    sf.add(j)
-    env.run(until=0.01)
-    assert len(s1.queue) == 1
-
-    entry_priority = s1.queue[0].key[0]
-    env.run(until=5.0)  # advance time without dispatching (blocker still running)
-    refresh_focus_queue(s1, focus, sf)
-    refreshed_priority = s1.queue[0].key[0]
-
-    # As `now` advances, the slack S_i decreases, so psi → 1 (more urgent),
-    # so the negated score becomes smaller (more negative or just smaller).
-    # Strict assertion: priorities differ between entry-time and refreshed-time.
-    assert not math.isclose(entry_priority, refreshed_priority, rel_tol=1e-9, abs_tol=1e-9)
-
-
 def test_focus_next_server_after_returns_none_for_unrelated_server() -> None:
     """Defensive: _next_server_after on a server not in routing returns None."""
     from simulatte.dispatching_rules.focus import _next_server_after
@@ -845,3 +778,49 @@ def test_focus_score_beta_only_equals_beta() -> None:
     focus = Focus(weights=(0.0, 0.0, 0.0, 0.0, 1.0))
     ctx = focus.build_context(sf, now=0.002)
     assert focus.score(j, s1, ctx, now=0.002) == pytest.approx(focus.beta(j, s1, ctx))
+
+
+# ----- FocusPriorityRule: liveness (ctx rebuilt per call) -----
+
+
+def test_focus_priority_rule_rebuilds_ctx_per_server(monkeypatch: pytest.MonkeyPatch) -> None:
+    """FocusPriorityRule rebuilds ctx on every call — no stale-closure leak.
+
+    Main's :meth:`~simulatte.server.Server.sort_queue` calls
+    ``job.priority_policy(job, server)`` before every dispatch. When the
+    same adapter is used across multiple servers in a multi-server routing,
+    each call must build a fresh FocusContext against the *current* server
+    and shopfloor state — not a snapshot frozen at an earlier instant.
+
+    Regression guard: if a stale-closure were reintroduced (e.g.
+    ``adapter(job, s1)`` caches ctx and reuses it for ``adapter(job, s2)``),
+    ``build_context`` would be called only ONCE and the assertion would fail.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[3.0, 5.0], due_date=50.0)
+    sf.add(job)
+
+    focus = Focus()
+    adapter = FocusPriorityRule(focus, sf)
+
+    call_count = 0
+    real_build = Focus.build_context
+
+    def counting_build(shopfloor, now, *, psp=None):  # type: ignore[no-untyped-def]
+        nonlocal call_count
+        call_count += 1
+        return real_build(shopfloor, now, psp=psp)
+
+    monkeypatch.setattr(Focus, "build_context", staticmethod(counting_build))
+
+    adapter(job, s1)
+    adapter(job, s2)
+
+    assert call_count == 2, (
+        f"Expected build_context to be called twice (once per server), got {call_count}. "
+        "A stale-closure regression would produce call_count == 1."
+    )
