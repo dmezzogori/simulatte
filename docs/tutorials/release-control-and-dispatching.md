@@ -256,6 +256,38 @@ Key parameters:
 
 **Requirements:** SLAR-Limit requires `CorrectedWIPStrategy` on the shopfloor (set automatically by the builder).
 
+### DRACO
+
+**Dispatching, Release, and Authorization for Controlled Order flow** (Kasper, Land & Teunter, 2023 — [DOI](https://doi.org/10.1016/j.ijpe.2022.108768)).
+
+DRACO is *non-hierarchical*: it merges release, authorization, and dispatching into a single per-server decision taken on every job completion. At each completion at server `k`, DRACO scores every candidate in `Q_k ∪ P_k` (jobs queued at `k`, plus PSP jobs whose first server is `k`) by a weighted total impact `w^R·R + w^A·A + w^D·D` and selects the maximum. The dispatching component `D` is the FOCUS rule (below).
+
+```python
+from simulatte.builders import build_draco_system
+from simulatte.environment import Environment
+
+env = Environment()
+psp, servers, shopfloor, router = build_draco_system(
+    env,
+    wip_target=8,    # target shop WIP (job count), tau
+    loop_target=4,   # target overlapping loop per server pair, epsilon
+)
+env.run(until=1000)
+
+print(f"Jobs completed: {len(shopfloor.jobs_done)}")
+```
+
+Key parameters:
+
+- `wip_target` (`τ`): target shop WIP as a **job count** (sum of queued + in-process jobs across servers). This is independent of any `WIPStrategy` workload metric.
+- `loop_target` (`ε`): target overlapping loop per `(k, u)` server pair. Pass a scalar for a uniform target; instantiate `Draco` directly with a `dict[(Server, Server), int]` for per-pair targets.
+- `focus_weights`: the five FOCUS mechanism weights used for `D`.
+- `total_impact_weights`: `(w^R, w^A, w^D)`, must sum to 1.
+
+**How it differs:** classic workload control separates release (PSP → shop) from dispatching (queue ordering). DRACO makes one combined choice per completion, so a PSP job can be released *and* placed first at the freed server in a single decision. A `_forced_at_server` flag guarantees a PSP winner is dispatched before any queued job, even when the queued job has a higher queue-side priority.
+
+**Cold start:** the decision fires only on completions, so `build_draco_system` also wires `psp.on_arrival(starvation_avoidance)` to release a job when an arrival's first server is idle — a liveness provision that prevents a cold-start deadlock.
+
 ### Dispatching rules
 
 Dispatching rules (priority policies) are ``(job, server) -> float`` callables that determine queue ordering (lower = more urgent). Simulatte ships a catalog of literature-standard rules in the `simulatte.dispatching_rules` package, split into two tiers.
@@ -296,12 +328,26 @@ router = Router(..., priority_policies=pst)
 
 The routing-aware rules return ``inf`` for servers outside the job's routing or already exited — making them safe for priority comparisons and ``min()`` calls.
 
+**Tier 3 — system-state rules.** `Focus` (Kasper, Land & Teunter, 2023 — [DOI](https://doi.org/10.1016/j.omega.2022.102726)) is a *self-establishing* rule: a weighted combination of five mechanisms — SPT (`pi`), starvation response (`omega`), slack timing (`psi`), pacing (`gamma`), and WIP balancing (`beta`), each in `[0, 1]`. Unlike Tier 1/2 it is a class (it exposes per-mechanism methods and a shared `build_context`), adapted to the `priority_policy` contract by `FocusPriorityRule`. A ready-made push system that dispatches with FOCUS is available:
+
+```python
+from simulatte.builders import build_focus_system
+
+_, servers, shopfloor, router = build_focus_system(
+    env,
+    focus_weights=(0.25, 0.25, 0.25, 0.25, 0.0),  # beta dormant (default)
+)
+```
+
+FOCUS is also the dispatching component of DRACO (above).
+
 ## 5) Comparing builder-based systems
 
 Run the builder-based systems and compare:
 
 ```python
 from simulatte.builders import (
+    build_draco_system,
     build_immediate_release_system,
     build_lumscor_system,
     build_slar_system,
@@ -331,8 +377,15 @@ immediate = run_system(build_immediate_release_system, {"n_servers": 6, "arrival
 lumscor = run_system(build_lumscor_system, {"check_timeout": 10, "wl_norm_level": 5, "allowance_factor": 2})
 slar = run_system(build_slar_system, {"allowance_factor": 3})
 slar_limit = run_system(build_slar_limit_system, {"allowance_factor": 3, "wl_norm_level": 5})
+draco = run_system(build_draco_system, {"wip_target": 8, "loop_target": 4})
 
-policies = [("Immediate", immediate), ("LumsCor", lumscor), ("SLAR", slar), ("SLAR-Limit", slar_limit)]
+policies = [
+    ("Immediate", immediate),
+    ("LumsCor", lumscor),
+    ("SLAR", slar),
+    ("SLAR-Limit", slar_limit),
+    ("DRACO", draco),
+]
 for name, results in policies:
     avg_tis = sum(r["avg_time_in_system"] for r in results) / len(results)
     print(f"{name}: avg time in system = {avg_tis:.2f}")

@@ -32,6 +32,15 @@ see the [Tutorials](tutorials/index.md).
       heading_level: 4
       members: false
 
+### Draco
+
+::: simulatte.policies.Draco
+    options:
+      show_root_heading: false
+      show_root_toc_entry: false
+      heading_level: 4
+      members: false
+
 ## Dispatching Rules
 
 ### Tier 1 — stateless rules
@@ -104,6 +113,35 @@ see the [Tutorials](tutorials/index.md).
 #### slack_per_remaining_operation
 
 ::: simulatte.dispatching_rules.slack_per_remaining_operation
+    options:
+      show_root_heading: false
+      show_root_toc_entry: false
+      heading_level: 5
+      members: false
+
+### Tier 3 — system-state rules
+
+#### Focus
+
+::: simulatte.dispatching_rules.Focus
+    options:
+      show_root_heading: false
+      show_root_toc_entry: false
+      heading_level: 5
+      members: false
+
+#### FocusContext
+
+::: simulatte.dispatching_rules.FocusContext
+    options:
+      show_root_heading: false
+      show_root_toc_entry: false
+      heading_level: 5
+      members: false
+
+#### FocusPriorityRule
+
+::: simulatte.dispatching_rules.FocusPriorityRule
     options:
       show_root_heading: false
       show_root_toc_entry: false
