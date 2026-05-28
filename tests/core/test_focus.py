@@ -916,6 +916,9 @@ def test_focus_build_context_skips_beta_pass_when_disabled() -> None:
     assert ctx_skip.max_pij == ctx_full.max_pij
     assert ctx_skip.max_positive_slack == ctx_full.max_positive_slack
     assert ctx_skip.max_positive_pacing == ctx_full.max_positive_pacing
+    # A direct beta() call on a gated context is safe (max_positive_c<=0 guard).
+    focus_beta = Focus(weights=(0.2, 0.2, 0.2, 0.2, 0.2))
+    assert focus_beta.beta(rebal, s1, ctx_skip) == 0.0
 
 
 def test_focus_score_identical_with_beta_off_regardless_of_compute_beta() -> None:

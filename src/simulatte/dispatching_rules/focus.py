@@ -216,7 +216,8 @@ class Focus:
         scored set is queue-only.
 
         Cost: ``O(|O| · |J|)`` (the ``|J|`` factor comes from the beta
-        entropy pass — one ``_entropy`` evaluation per job in ``O``).
+        entropy pass — one ``_entropy`` evaluation per job in ``O``);
+        ``O(|O|)`` when ``compute_beta=False``.
 
         Pass ``compute_beta=False`` to skip the per-job workload-entropy
         pass when the beta mechanism is inactive (weight 0). ``workloads``,
