@@ -200,6 +200,7 @@ class Focus:
         now: float,
         *,
         psp: PreShopPool | None = None,
+        compute_beta: bool = True,
     ) -> FocusContext:
         """Compute the shop-wide aggregates needed by FOCUS at *now*.
 
@@ -216,6 +217,12 @@ class Focus:
 
         Cost: ``O(|O| · |J|)`` (the ``|J|`` factor comes from the beta
         entropy pass — one ``_entropy`` evaluation per job in ``O``).
+
+        Pass ``compute_beta=False`` to skip the per-job workload-entropy
+        pass when the beta mechanism is inactive (weight 0). ``workloads``,
+        ``server_index`` and ``pre_entropy`` are still populated (cheap), so
+        a direct ``beta`` call is still safe and returns ``0`` via its
+        ``max_positive_c <= 0`` guard.
 
         Note on the empty-shop case: when every server is idle, the
         workload vector is all zero. By convention ``_entropy``
@@ -258,17 +265,20 @@ class Focus:
                 if v_i > max_positive_pacing:
                     max_positive_pacing = v_i
 
-            # Beta: c(i) at the job's first uncompleted server.
-            k = remaining[0]
-            c_i = _delta_entropy(
-                job=job,
-                server=k,
-                workloads=workloads,
-                server_index=server_index,
-                pre_entropy=pre_entropy,
-            )
-            if c_i > max_positive_c:
-                max_positive_c = c_i
+            # Beta: c(i) at the job's first uncompleted server. Skipped when
+            # beta is disabled (compute_beta=False) — the dominant per-rebuild
+            # cost, pure waste when the beta weight is 0.
+            if compute_beta:
+                k = remaining[0]
+                c_i = _delta_entropy(
+                    job=job,
+                    server=k,
+                    workloads=workloads,
+                    server_index=server_index,
+                    pre_entropy=pre_entropy,
+                )
+                if c_i > max_positive_c:
+                    max_positive_c = c_i
 
         return FocusContext(
             max_pij=max_pij,
@@ -369,12 +379,13 @@ class Focus:
 
     def score(self, job: BaseJob, server: Server, ctx: FocusContext, now: float) -> float:
         """Aggregate weighted score of the five mechanisms; value in ``[0, 1]``."""
+        beta_term = self.w5 * self.beta(job, server, ctx) if self.w5 != 0.0 else 0.0
         return (
             self.w1 * self.pi(job, server, ctx)
             + self.w2 * self.omega(job, server, ctx)
             + self.w3 * self.psi(job, ctx, now)
             + self.w4 * self.gamma(job, ctx, now)
-            + self.w5 * self.beta(job, server, ctx)
+            + beta_term
         )
 
     @staticmethod
@@ -417,5 +428,5 @@ class FocusPriorityRule:
 
     def __call__(self, job: BaseJob, server: Server) -> float:
         now = self.shopfloor.env.now
-        ctx = self.focus.build_context(self.shopfloor, now, psp=self.psp)
+        ctx = self.focus.build_context(self.shopfloor, now, psp=self.psp, compute_beta=self.focus.w5 != 0.0)
         return -self.focus.score(job, server, ctx, now)

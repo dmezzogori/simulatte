@@ -592,10 +592,10 @@ def test_draco_priority_policy_rebuilds_ctx_per_server(monkeypatch: pytest.Monke
     call_count = 0
     real_build = Focus.build_context
 
-    def counting_build(shopfloor, now, *, psp=None):  # type: ignore[no-untyped-def]
+    def counting_build(shopfloor, now, *, psp=None, compute_beta=True):  # type: ignore[no-untyped-def]
         nonlocal call_count
         call_count += 1
-        return real_build(shopfloor, now, psp=psp)
+        return real_build(shopfloor, now, psp=psp, compute_beta=compute_beta)
 
     monkeypatch.setattr(Focus, "build_context", staticmethod(counting_build))
 

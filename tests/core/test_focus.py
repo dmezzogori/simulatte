@@ -891,6 +891,52 @@ def test_focus_score_beta_only_equals_beta() -> None:
 # ----- FocusPriorityRule: liveness (ctx rebuilt per call) -----
 
 
+def test_focus_build_context_skips_beta_pass_when_disabled() -> None:
+    """compute_beta=False gates only the beta normalizer (max_positive_c)."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    # Blocker holds s1; the queued job's s1->s2 routing moves load to the
+    # empty server, improving balance => c(i) > 0 under the full pass.
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=10000.0)
+    sf.add(blocker)
+    env.run(until=0.001)
+    rebal = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[10.0, 40.0], due_date=200.0)
+    sf.add(rebal)
+    env.run(until=0.002)
+
+    ctx_full = Focus.build_context(sf, now=0.002, compute_beta=True)
+    ctx_skip = Focus.build_context(sf, now=0.002, compute_beta=False)
+
+    assert ctx_full.max_positive_c > 0.0
+    assert ctx_skip.max_positive_c == 0.0
+    # Non-beta aggregates are identical — only the beta normalizer is gated.
+    assert ctx_skip.max_pij == ctx_full.max_pij
+    assert ctx_skip.max_positive_slack == ctx_full.max_positive_slack
+    assert ctx_skip.max_positive_pacing == ctx_full.max_positive_pacing
+
+
+def test_focus_score_identical_with_beta_off_regardless_of_compute_beta() -> None:
+    """With w5=0, the score is identical whether ctx skipped the beta pass."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=10000.0)
+    sf.add(blocker)
+    env.run(until=0.001)
+    j = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[10.0, 40.0], due_date=200.0)
+    sf.add(j)
+    env.run(until=0.002)
+
+    focus = Focus()  # default weights -> w5 == 0
+    ctx_full = focus.build_context(sf, now=0.002, compute_beta=True)
+    ctx_skip = focus.build_context(sf, now=0.002, compute_beta=False)
+    assert focus.score(j, s1, ctx_skip, now=0.002) == pytest.approx(focus.score(j, s1, ctx_full, now=0.002))
+
+
 def test_focus_priority_rule_rebuilds_ctx_per_server(monkeypatch: pytest.MonkeyPatch) -> None:
     """FocusPriorityRule rebuilds ctx on every call — no stale-closure leak.
 
@@ -918,10 +964,10 @@ def test_focus_priority_rule_rebuilds_ctx_per_server(monkeypatch: pytest.MonkeyP
     call_count = 0
     real_build = Focus.build_context
 
-    def counting_build(shopfloor, now, *, psp=None):  # type: ignore[no-untyped-def]
+    def counting_build(shopfloor, now, *, psp=None, compute_beta=True):  # type: ignore[no-untyped-def]
         nonlocal call_count
         call_count += 1
-        return real_build(shopfloor, now, psp=psp)
+        return real_build(shopfloor, now, psp=psp, compute_beta=compute_beta)
 
     monkeypatch.setattr(Focus, "build_context", staticmethod(counting_build))
 

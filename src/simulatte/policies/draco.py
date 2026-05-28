@@ -178,7 +178,7 @@ class Draco:
 
         now = self._shopfloor.env.now
         wip = self._count_wip()
-        ctx = self.focus.build_context(self._shopfloor, now, psp=psp)
+        ctx = self.focus.build_context(self._shopfloor, now, psp=psp, compute_beta=self.focus.w5 != 0.0)
 
         queue_jobs = [req.job for req in server_k.queue]
         queue_scores: dict[BaseJob, float] = {
@@ -282,6 +282,6 @@ class Draco:
         to ``_full_score`` directly to avoid rebuilding.
         """
         now = self._shopfloor.env.now
-        ctx = self.focus.build_context(self._shopfloor, now, psp=self._psp)
+        ctx = self.focus.build_context(self._shopfloor, now, psp=self._psp, compute_beta=self.focus.w5 != 0.0)
         wip = self._count_wip()
         return self._full_score(job, server, ctx, now, wip, in_psp=False)
