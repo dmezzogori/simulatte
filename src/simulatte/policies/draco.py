@@ -30,6 +30,11 @@ if TYPE_CHECKING:  # pragma: no cover
 class Draco:
     """Non-hierarchical DRACO release/dispatch policy.
 
+    Design note: DRACO is a class (not a dispatching-rule factory) because
+    it holds shop-coupled state (the WIP target, per-pair loop targets, the
+    embedded ``Focus``, and the one-shot force flags) and exposes both a
+    ``priority_policy`` and an ``on_completion`` callback.
+
     Trigger: ``on_completion_trigger`` — same trigger as SLAR. On every
     job exit from any server ``k``, ``decide_next_job`` runs and
     selects the next job to be processed at ``k`` from
@@ -210,7 +215,12 @@ class Draco:
     # ----- Internal helpers (R, A, scoring) -----
 
     def _count_wip(self) -> int:
-        """``W = Σ(|Q_j| + |H_j|)`` over all servers (spec §3.1)."""
+        """``W = Σ(|Q_j| + |H_j|)`` over all servers (spec §3.1).
+
+        Count-based (jobs), independent of the shopfloor's ``WIPStrategy``
+        (Standard/Corrected), which measures *workload*. The two metrics
+        will not match numerically — DRACO's ``τ`` is a job count.
+        """
         return sum(len(s.queue) + s.count for s in self._shopfloor.servers)
 
     def _ro_P(self, wip: int) -> float:

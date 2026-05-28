@@ -167,6 +167,14 @@ class Focus:
     ``score`` is the weighted average of the five pieces and also
     lies in ``[0, 1]``.
 
+    Design note: unlike the stateless dispatching-rule factories (e.g.
+    ``planned_slack_time``), FOCUS is a class because it exposes each
+    mechanism as an independently testable method and a shared per-decision
+    ``build_context`` consumed by higher-level policies (DRACO). A bare
+    ``(job, server) -> float`` closure cannot expose these. Use
+    ``FocusPriorityRule`` to adapt a ``Focus`` to the ``priority_policy``
+    contract.
+
     Args:
         weights: ``(w1, w2, w3, w4, w5)`` for the five mechanisms; must
             each be in ``[0, 1]`` and sum to ``1`` (within floating-point
@@ -364,6 +372,14 @@ class Focus:
         snapshot improved balance), beta returns ``0`` immediately,
         preventing a ``ZeroDivisionError`` for future callers that build
         a context with a candidate set disjoint from the one used here.
+
+        Invariant: callers must pass *server* equal to *job*'s first
+        uncompleted server (``job.unfinished_routing[0]``) — the server at
+        which ``ctx.max_positive_c`` was normalized in ``build_context``. All
+        built-in call paths satisfy this (queue ordering scores a job at the
+        server whose queue it sits in; PSP candidates start at *server* via
+        ``starts_at``), which keeps ``beta`` in ``[0, 1]``. Passing any other
+        server can yield ``beta > 1``.
         """
         c_i = _delta_entropy(
             job=job,
