@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING
 
-from simulatte.dispatching_rules import planned_slack_time
+from simulatte.dispatching_rules import Focus, FocusPriorityRule, planned_slack_time
 from simulatte.distributions import server_sampling, truncated_2erlang
 from simulatte.environment import Environment
 from simulatte.policies.draco import Draco
@@ -97,6 +97,74 @@ def build_immediate_release_system(
         },
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
         priority_policies=priority_policies,
+    )
+    return None, servers, shop_floor, router
+
+
+def build_focus_system(
+    env: Environment,
+    *,
+    focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
+    n_servers: int = 6,
+    arrival_rate: float = 1 / 0.648,
+    service_rate: float = 2.0,
+    collect_workload: bool = False,
+) -> PushSystem:
+    """Build an immediate-release (push) system that dispatches with FOCUS.
+
+    Jobs enter the shopfloor on arrival (no release control); queue ordering
+    at every server uses the FOCUS self-establishing rule (Kasper, Land,
+    Teunter 2023, Omega 114, 102726) via ``FocusPriorityRule``. Use this to
+    study FOCUS as a standalone dispatching rule, independent of DRACO.
+
+    Args:
+        env: The simulation environment.
+        focus_weights: FOCUS mechanism weights ``(w1, w2, w3, w4, w5)`` for
+            (pi, omega, psi, gamma, beta); must each be in ``[0, 1]`` and sum
+            to 1. Defaults to beta-dormant ``(0.25, 0.25, 0.25, 0.25, 0.0)``.
+        n_servers: Number of production servers.
+        arrival_rate: Inter-arrival rate (lambda for exponential).
+        service_rate: Service rate (lambda for truncated 2-Erlang).
+        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+
+    Returns:
+        Tuple of ``(None, servers, shop_floor, router)`` (push system; no PSP).
+
+    Example:
+        >>> env = Environment()
+        >>> _, servers, shop_floor, router = build_focus_system(env)
+        >>> env.run(until=1000)
+
+    References:
+        Kasper, A., Land, M., Teunter, R. (2023). Towards system state
+        dispatching in high-variety manufacturing. *Omega*, 114, 102726.
+    """
+    shop_floor = ShopFloor(
+        env=env,
+        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+    )
+    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
+    focus = Focus(weights=focus_weights)
+    priority = FocusPriorityRule(focus, shop_floor)
+    router = Router(
+        env=env,
+        shopfloor=shop_floor,
+        servers=servers,
+        psp=None,
+        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
+        sku_distributions={"F1": 1},
+        sku_routings={"F1": server_sampling(servers)},
+        sku_service_times={
+            "F1": {
+                server: lambda: truncated_2erlang(
+                    lam=service_rate,
+                    max_value=4.0,
+                )
+                for server in servers
+            },
+        },
+        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+        priority_policies=priority,
     )
     return None, servers, shop_floor, router
 
@@ -437,7 +505,7 @@ def build_draco_system(
             },
         },
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
-        priority_policies=lambda job, server: draco.priority_policy(job, server),
+        priority_policies=draco.priority_policy,
     )
 
     env.process(on_completion_trigger(shop_floor, psp, draco.decide_next_job))

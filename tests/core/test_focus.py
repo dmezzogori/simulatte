@@ -1023,3 +1023,17 @@ def test_focus_priority_rule_rebuilds_ctx_per_server(monkeypatch: pytest.MonkeyP
         f"Expected build_context to be called twice (once per server), got {call_count}. "
         "A stale-closure regression would produce call_count == 1."
     )
+
+
+# ----- build_focus_system builder -----
+
+
+def test_build_focus_system_runs_and_completes_jobs() -> None:
+    from simulatte.builders import build_focus_system
+
+    env = Environment()
+    psp, servers, shopfloor, router = build_focus_system(env, n_servers=4, arrival_rate=1.0)
+    assert psp is None  # push system
+    assert len(servers) == 4
+    env.run(until=200.0)
+    assert len(shopfloor.jobs_done) > 0
