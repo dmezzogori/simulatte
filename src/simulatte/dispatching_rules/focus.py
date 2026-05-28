@@ -99,18 +99,6 @@ def _delta_entropy(
     return _entropy(w_prime) - pre_entropy
 
 
-def _remaining_after_completion(job: BaseJob) -> list[Server]:
-    """Servers in *job*'s routing that have not been completed (exited) yet.
-
-    Spec-compliant definition of FOCUS's ``R_i``: every server at which the
-    job has yet to be *processed*. Differs from
-    ``simulatte.job.BaseJob.remaining_routing``, which excludes
-    servers already entered into the queue but not yet exited — FOCUS's
-    ``R_i`` keeps them included as long as the operation has not finished.
-    """
-    return [srv for srv in job.servers if job.servers_exit_at[srv] is None]
-
-
 def _next_server_after(job: BaseJob, server: Server) -> Server | None:
     """The server after *server* in *job*'s routing, or ``None`` if last."""
     servers = job.servers
@@ -253,7 +241,7 @@ class Focus:
 
         max_positive_c = 0.0
         for job in jobs:
-            remaining = _remaining_after_completion(job)
+            remaining = job.unfinished_routing
             if not remaining:
                 continue
             sum_remaining_pt = 0.0
@@ -340,7 +328,7 @@ class Focus:
         ``1`` for jobs with no remaining operations or when there are no
         positive-pacing jobs (defensive).
         """
-        remaining = _remaining_after_completion(job)
+        remaining = job.unfinished_routing
         if not remaining:
             return 1.0
         s_i = job.due_date - now - sum(job.routing[srv] for srv in remaining)
@@ -391,9 +379,8 @@ class Focus:
 
     @staticmethod
     def _slack(job: BaseJob, now: float) -> float:
-        """``S_i = d_i - now - sum(p_ij for j in R_i)``."""
-        remaining = _remaining_after_completion(job)
-        return job.due_date - now - sum(job.routing[srv] for srv in remaining)
+        """``S_i = d_i - now - sum(p_ij for j in R_i)`` over ``job.unfinished_routing``."""
+        return job.due_date - now - sum(job.routing[srv] for srv in job.unfinished_routing)
 
 
 class FocusPriorityRule:
