@@ -237,7 +237,6 @@ LumsCor(
 **Methods:**
 - `lumscor.periodic_release(psp)` — release jobs within norms (for periodic_trigger)
 - `lumscor.starvation_release(triggering_job, psp)` — release on starvation (for on_completion_trigger)
-- `lumscor.pst_priority_policy(job, server) -> float` — PST dispatching
 
 Requires `CorrectedWIPStrategy` on the shopfloor.
 
@@ -246,12 +245,17 @@ Requires `CorrectedWIPStrategy` on the shopfloor.
 ```python
 from simulatte.policies.slar import Slar
 
-Slar(allowance_factor: float = 2.0)
+Slar(
+    *,
+    shopfloor: ShopFloor,
+    psp: PreShopPool,
+    router: Router,
+    allowance_factor: float = 2.0,
+)
 ```
 
-**Methods:**
-- `slar.decide_next_job(triggering_job, psp)` — main release callback (for on_completion_trigger)
-- `slar.pst_priority_policy(job, server) -> float` — PST dispatching
+Construction is active: wires `shopfloor.on_processing_end`, `psp.on_arrival(starvation_avoidance)`,
+and sets `router.priority_policies` to PST dispatching automatically. No separate method calls needed.
 
 ## Trigger Functions
 
@@ -372,7 +376,6 @@ from simulatte.builders import (
     build_immediate_release_system,
     build_lumscor_system,
     build_slar_system,
-    spt_priority_policy,
 )
 ```
 
@@ -425,13 +428,63 @@ build_slar_system(
 Note: `allowance_factor` is positional in `build_slar_system` but keyword-only
 in `build_lumscor_system`.
 
-### spt_priority_policy
+## Dispatching Rules
 
 ```python
-spt_priority_policy(job: ProductionJob, server: Server) -> float
+from simulatte.dispatching_rules import (
+    # Tier 1 — stateless plain functions
+    shortest_processing_time,
+    earliest_due_date,
+    operational_due_date,
+    modified_operational_due_date,
+    critical_ratio,
+    first_come_first_served,
+    # Tier 2 — factory functions (call with allowance, get callable back)
+    planned_slack_time,
+    slack_per_remaining_operation,
+)
 ```
 
-Returns `job.routing[server]` — Shortest Processing Time dispatching.
+All rules are `(job, server) -> float` callables. Lower value = served first
+(matches SimPy `PriorityResource` ascending sort). Pass to
+`Router(priority_policies=...)` or `ProductionJob(priority_policy=...)`.
+
+### Tier 1 — stateless functions
+
+| Rule | Returns | Description |
+|------|---------|-------------|
+| `shortest_processing_time(job, server)` | `job.routing[server]` | SPT: shorter processing time first |
+| `earliest_due_date(job, server)` | `job.due_date` | EDD: earlier due date first (server-agnostic) |
+| `operational_due_date(job, server)` | `float` | ODD: distributes shop-floor slack across operations |
+| `modified_operational_due_date(job, server)` | `float` | MODD: `max(ODD, now + p_ij)` — switches between ODD and SPT regimes |
+| `critical_ratio(job, server)` | `float` | CR: `(due_date - now) / remaining_processing_time` |
+| `first_come_first_served(job, server)` | `0.0` | FCFS: tiebreaking falls to SimPy entry timestamp |
+
+### Tier 2 — factory functions
+
+Call the factory with a per-operation allowance to get the dispatching callable:
+
+```python
+# planned_slack_time: PST = (due_date - now) - sum(p_ik + k for k in remaining ops)
+pst_rule = planned_slack_time(allowance=2.0)          # returns (job, server) -> float
+router = Router(..., priority_policies=pst_rule)
+
+# slack_per_remaining_operation: S/OPN = PST / count(remaining ops)
+sopn_rule = slack_per_remaining_operation(allowance=2.0)
+```
+
+```python
+planned_slack_time(allowance: float = 0.0) -> Callable[[job, Server], float]
+slack_per_remaining_operation(allowance: float = 0.0) -> Callable[[job, Server], float]
+```
+
+Both raise `ValueError` if `allowance < 0`. Both return `inf` for servers not
+in the job's routing or already exited (safe for `min()` comparisons).
+
+> **Note:** `job.planned_slack_time` (property) and
+> `job.planned_slack_time_at(server, allowance=0)` (method) are separate
+> job-level attributes — not dispatching rules. The `planned_slack_time`
+> factory above wraps the method into a router-compatible callable.
 
 ## Distribution Helpers
 

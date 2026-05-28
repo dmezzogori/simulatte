@@ -148,18 +148,36 @@ values get higher priority. Pass them to `Router(priority_policies=...)` for
 stochastic jobs, or directly to `ProductionJob(priority_policy=...)` for
 hand-crafted jobs.
 
-```python
-# Shortest Processing Time
-def spt(job, server):
-    return job.routing[server]
+Simulatte ships a full catalog in `simulatte.dispatching_rules`:
 
-# Earliest Due Date
-def edd(job, server):
-    return job.due_date
+```python
+from simulatte.dispatching_rules import (
+    shortest_processing_time,    # SPT
+    earliest_due_date,           # EDD
+    operational_due_date,        # ODD
+    modified_operational_due_date,  # MODD
+    critical_ratio,              # CR
+    first_come_first_served,     # FCFS
+    planned_slack_time,          # PST factory — call with allowance=k
+    slack_per_remaining_operation,  # S/OPN factory — call with allowance=k
+)
+
+# Tier-1: pass directly
+router = Router(..., priority_policies=shortest_processing_time)
+
+# Tier-2: call the factory first to fix the allowance parameter
+pst_rule = planned_slack_time(allowance=2.0)
+router = Router(..., priority_policies=pst_rule)
 ```
 
-The built-in policies (LumsCor and SLAR) use Planned Slack Time (PST) for
-dispatching, computed via `job.planned_slack_time_at(server, allowance=k)`.
+The built-in release policies (LumsCor and SLAR) use PST dispatching internally.
+`Slar` wires `planned_slack_time(allowance=allowance_factor)` automatically on
+construction; `build_lumscor_system` also sets it on the router. You can also
+use any dispatching rule with `build_immediate_release_system` via its
+`priority_policies=` argument.
+
+See `references/api-reference.md` — "Dispatching Rules" section — for full
+signatures and the rule table.
 
 ## Operation hooks
 
