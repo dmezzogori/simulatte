@@ -9,10 +9,8 @@ decision triggered on every job completion: at each completion at server
 at ``k`` plus PSP jobs whose first server is ``k``) by a weighted total
 impact ``w^R·R + w^A·A + w^D·D`` and selects the maximum.
 
-Spec source-of-truth: ``docs/superpowers/draco_spec.md``.
-
 DRACO uses FOCUS (Kasper et al. 2023, Omega 114, 102726) as its
-dispatching component — see :class:`simulatte.dispatching_rules.Focus`.
+dispatching component — see ``simulatte.dispatching_rules.Focus``.
 """
 
 from __future__ import annotations
@@ -33,7 +31,7 @@ class Draco:
     """Non-hierarchical DRACO release/dispatch policy.
 
     Trigger: ``on_completion_trigger`` — same trigger as SLAR. On every
-    job exit from any server ``k``, :meth:`decide_next_job` runs and
+    job exit from any server ``k``, ``decide_next_job`` runs and
     selects the next job to be processed at ``k`` from
     ``Q_k ∪ P_k``.
 
@@ -46,12 +44,12 @@ class Draco:
         uses ``ro^Q`` like everyone else) might be worse than ``j``'s,
         and SimPy's ``_trigger_put`` would dispatch ``j`` first —
         violating DRACO's decision. To preserve strict paper semantics,
-        DRACO sets a :pyattr:`_forced_at_server` flag for the PSP
-        winner; :meth:`priority_policy` returns ``-inf`` for the forced
+        DRACO sets a ``_forced_at_server`` flag for the PSP
+        winner; ``priority_policy`` returns ``-inf`` for the forced
         job at that server for as long as the flag is set, guaranteeing
         ``queue[0] = winner`` across every ``sort_queue`` re-evaluation.
         The flag is cleared at the START of the next
-        :meth:`decide_next_job` call for the same server (not on first
+        ``decide_next_job`` call for the same server (not on first
         read), so repeated ``_trigger_put`` sorts cannot wipe it out.
 
     Timing — why this is correct without any ``shopfloor.py`` changes:
@@ -72,7 +70,7 @@ class Draco:
         nothing to dispatch. Net result: the PSP winner has the server.
 
     For the queue-winner case, the imminent Release event's
-    ``_trigger_put`` calls :meth:`~simulatte.server.Server.sort_queue`,
+    ``_trigger_put`` calls ``sort_queue``,
     which re-evaluates ``priority_policy`` (live) for every queued
     request and yields the correct queue order.
 
@@ -140,8 +138,8 @@ class Draco:
 
         Returns ``-inf`` when DRACO has elected *job* as the PSP winner
         at *server* and the force flag is still set.  The flag is set in
-        :meth:`decide_next_job` and cleared at the START of the next
-        :meth:`decide_next_job` call for the same server — not on first
+        ``decide_next_job`` and cleared at the START of the next
+        ``decide_next_job`` call for the same server — not on first
         read — so every ``sort_queue`` re-evaluation triggered by SimPy's
         ``_trigger_put`` consistently keeps the winner at ``queue[0]``
         until it is dispatched.
@@ -166,7 +164,7 @@ class Draco:
         formula (``ro^P`` for PSP candidates, ``ro^Q`` for queued ones),
         then either releases the PSP winner (with the force-flag staged)
         or relies on the imminent Release event's ``_trigger_put`` call to
-        :meth:`~simulatte.server.Server.sort_queue` (which re-evaluates
+        ``sort_queue`` (which re-evaluates
         ``priority_policy`` live) to make the queue winner ``queue[0]``.
         """
         server_k = triggering_job.previous_server
@@ -288,10 +286,10 @@ class Draco:
         """Queue-side DRACO total impact (``R = ro^Q``).
 
         Rebuilds ``ctx`` and ``wip`` against current shopfloor state at
-        O(|O|) cost per call. Called from :meth:`priority_policy` for
+        O(|O|) cost per call. Called from ``priority_policy`` for
         single-job priority computation at queue entry. Inside
-        :meth:`decide_next_job`, the cached ``ctx``/``wip`` are forwarded
-        to :meth:`_full_score` directly to avoid rebuilding.
+        ``decide_next_job``, the cached ``ctx``/``wip`` are forwarded
+        to ``_full_score`` directly to avoid rebuilding.
         """
         now = self._shopfloor.env.now
         ctx = self.focus.build_context(self._shopfloor, now, psp=self._psp)

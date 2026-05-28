@@ -7,7 +7,7 @@ each valued in ``[0, 1]``. The total score is their weighted average,
 also in ``[0, 1]``.
 
 The rule is also a building block for higher-level non-hierarchical
-policies (see :class:`simulatte.policies.draco.Draco`).
+policies (see ``simulatte.policies.draco.Draco``).
 
 Mechanism activation:
     Any subset of mechanisms can be deactivated by setting the
@@ -46,13 +46,13 @@ def _entropy(workloads: Iterable[float]) -> float:
     Uses the ``0 · ln 0 = 0`` convention for empty bins. When the total
     workload is zero (idle shop — e.g. at ``t=0`` or briefly between
     jobs), entropy is mathematically undefined; this helper returns
-    ``0`` by convention. Downstream, that makes :meth:`Focus.beta`
+    ``0`` by convention. Downstream, that makes ``Focus.beta``
     return ``0`` for every candidate in the empty-shop regime,
     deferring the decision to ``pi``/``omega``/``psi``/``gamma`` — which
     is consistent with the intuition that "WIP balance" is meaningless
     when there is no WIP. An alternative convention (treating the
     all-zero vector as uniform with ``e = ln |J|``) yields the same
-    dispatch outcome (all candidates clip to 0 in :meth:`Focus.beta`),
+    dispatch outcome (all candidates clip to 0 in ``Focus.beta``),
     so the choice is purely cosmetic — convention (a) keeps the code
     uniform with the bin-level ``0 · ln 0 = 0`` rule.
     """
@@ -104,7 +104,7 @@ def _remaining_after_completion(job: BaseJob) -> list[Server]:
 
     Spec-compliant definition of FOCUS's ``R_i``: every server at which the
     job has yet to be *processed*. Differs from
-    :pyattr:`simulatte.job.BaseJob.remaining_routing`, which excludes
+    ``simulatte.job.BaseJob.remaining_routing``, which excludes
     servers already entered into the queue but not yet exited — FOCUS's
     ``R_i`` keeps them included as long as the operation has not finished.
     """
@@ -127,7 +127,7 @@ def _next_server_after(job: BaseJob, server: Server) -> Server | None:
 class FocusContext:
     """Snapshot of shop-wide aggregates at a single decision instant.
 
-    Built once per decision via :meth:`Focus.build_context` and reused
+    Built once per decision via ``Focus.build_context`` and reused
     across all candidates being scored at that instant. Computing this
     object is ``O(|O| · |J|)`` (the ``|J|`` factor comes from the beta
     entropy pass; without beta the cost is ``O(|O|)``).
@@ -145,11 +145,11 @@ class FocusContext:
             ``server.queue ∪ server.users`` (full processing time). Indexed
             by ``server_index[server]``.
         server_index: Read-only mapping ``Server -> index into workloads``.
-            Wrapped in :class:`types.MappingProxyType` so shallow
+            Wrapped in ``types.MappingProxyType`` so shallow
             mutation of the index is detected at runtime. Tightly coupled
             with ``workloads``; same lifetime.
         pre_entropy: Shop-wide workload entropy at the snapshot instant
-            (``e_minus`` in the beta spec). See :func:`_entropy` for the
+            (``e_minus`` in the beta spec). See ``_entropy`` for the
             empty-shop convention.
         max_positive_c: Max of ``c(i) = e(i) - pre_entropy`` across all
             jobs ``i`` in ``O`` with ``c(i) > 0``; ``0`` if no improving
@@ -176,7 +176,7 @@ class Focus:
 
     All five mechanisms return values in ``[0, 1]`` with ``1`` indicating
     a "relevant" impact and ``0`` an "irrelevant" one. The aggregated
-    :meth:`score` is the weighted average of the five pieces and also
+    ``score`` is the weighted average of the five pieces and also
     lies in ``[0, 1]``.
 
     Args:
@@ -230,10 +230,10 @@ class Focus:
         entropy pass — one ``_entropy`` evaluation per job in ``O``).
 
         Note on the empty-shop case: when every server is idle, the
-        workload vector is all zero. By convention :func:`_entropy`
+        workload vector is all zero. By convention ``_entropy``
         returns ``0`` in that case, so ``pre_entropy = 0`` and every
         candidate's ``c(i) = 0``, producing ``beta = 0`` shop-wide. See
-        :func:`_entropy` for the rationale.
+        ``_entropy`` for the rationale.
         """
         max_pij = 0.0
         max_positive_slack = 0.0
@@ -358,8 +358,8 @@ class Focus:
 
         ``c(i) = e(i) - ctx.pre_entropy`` is the change in shop-wide
         workload entropy from hypothetically dispatching *job* at
-        *server*. See :func:`_entropy` for the empty-shop convention and
-        :func:`_delta_entropy` for the perturbation formula.
+        *server*. See ``_entropy`` for the empty-shop convention and
+        ``_delta_entropy`` for the perturbation formula.
 
         Guard: if ``ctx.max_positive_c <= 0`` (no candidate in the
         snapshot improved balance), beta returns ``0`` immediately,
@@ -397,26 +397,26 @@ class Focus:
 
 
 class FocusPriorityRule:
-    """Adapter exposing :class:`Focus` as a simulatte ``priority_policy``.
+    """Adapter exposing ``Focus`` as a simulatte ``priority_policy``.
 
-    Wraps a :class:`Focus` and a :class:`~simulatte.shopfloor.ShopFloor`
+    Wraps a ``Focus`` and a ``ShopFloor``
     into a ``(job, server) -> float`` callable suitable for
-    :pyattr:`simulatte.router.Router.priority_policies`. The returned value
+    ``simulatte.router.Router.priority_policies``. The returned value
     is the *negated* FOCUS score because simulatte's
-    :class:`simpy.resources.resource.PriorityResource` sorts ascending
+    ``simpy.resources.resource.PriorityResource`` sorts ascending
     (lower key = served first).
 
     Liveness guarantee:
-        :meth:`simulatte.server.Server.sort_queue` re-evaluates
+        ``simulatte.server.Server.sort_queue`` re-evaluates
         ``priority_policy`` for every queued request before every
         dispatch event (auto-called by ``_trigger_put``). Because
-        :meth:`__call__` rebuilds ``ctx`` per invocation against the
+        ``__call__`` rebuilds ``ctx`` per invocation against the
         live shopfloor state, the key returned at dispatch time always
         reflects current shop aggregates — no external refresh helper is
         needed.
 
     Args:
-        focus: A :class:`Focus` instance.
+        focus: A ``Focus`` instance.
         shopfloor: The shopfloor against which ``ctx`` is built per call.
         psp: Optional PreShopPool; when provided its jobs are included
             in the ``O`` aggregate (so PSP candidates show up in FOCUS

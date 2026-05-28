@@ -380,7 +380,7 @@ def build_draco_system(
         env: The simulation environment.
         wip_target: Target shop WIP ``τ`` (count of jobs).
         loop_target: Target overlapping loop ``ε_{k,u}``. Scalar applied
-            to every pair; for per-pair targets, instantiate :class:`Draco`
+            to every pair; for per-pair targets, instantiate ``Draco``
             directly with a ``dict[(Server, Server), int]``.
         focus_weights: FOCUS mechanism weights ``(w1, w2, w3, w4, w5)``.
         total_impact_weights: ``(w^R, w^A, w^D)`` for the DRACO total
