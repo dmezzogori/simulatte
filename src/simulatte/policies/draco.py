@@ -79,6 +79,17 @@ class Draco:
     which re-evaluates ``priority_policy`` (live) for every queued
     request and yields the correct queue order.
 
+    Cold start / bootstrapping:
+        DRACO's decision is triggered *only* on job completions. In an idle
+        or lightly loaded shop, no completion fires, so an arriving job would
+        sit in the PSP indefinitely. ``build_draco_system`` therefore also
+        wires ``psp.on_arrival(starvation_avoidance)``: when a new arrival's
+        first server is completely idle, the job is released immediately,
+        bypassing the ``R/A/D`` scoring. This is a liveness provision, not a
+        DRACO decision — in steady state, completion-triggered decisions
+        dominate. (Faithfulness of this provision to Kasper et al. 2023 has
+        not been verified against the primary source.)
+
     Args:
         shopfloor: The shopfloor against which DRACO's contexts and
             count-WIP are computed. Required (unlike SLAR which is
