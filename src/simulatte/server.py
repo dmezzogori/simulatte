@@ -38,7 +38,7 @@ class ServerPriorityRequest(PriorityRequest):
       ``__init__``) from ``job.priority(server)`` and is never refreshed.
       Treat it as the priority at queue-entry time only.
     - ``self.key`` is rewritten at every dispatch decision by
-      :meth:`Server.sort_queue`, which re-evaluates
+      ``Server.sort_queue``, which re-evaluates
       ``job.priority(req.server)`` for every queued request. The queue is
       sorted by ``self.key``; this is what makes dynamic priorities work.
     - To read a queued job's *current* priority value, call
@@ -48,7 +48,7 @@ class ServerPriorityRequest(PriorityRequest):
     and ``self.job`` must be set before ``super().__init__()``. The superclass
     chain calls ``Put.__init__``, which appends the new request to
     ``put_queue`` and then synchronously calls ``Server._trigger_put`` →
-    :meth:`Server.sort_queue`. ``sort_queue`` reads
+    ``Server.sort_queue``. ``sort_queue`` reads
     ``req.job.priority(req.server)`` for every queued request including the
     one being constructed, so ``server`` and ``job`` must already be set on
     ``self`` by then.
@@ -81,11 +81,11 @@ class Server(simpy.PriorityResource):
     is automatically registered and assigned an index for identification.
 
     Dynamic priorities: queued jobs' priorities are refreshed before every
-    dispatch decision. :meth:`sort_queue` re-evaluates each queued request's
-    ``job.priority_policy`` and rewrites ``req.key``; :meth:`_trigger_put`
+    dispatch decision. ``sort_queue`` re-evaluates each queued request's
+    ``job.priority_policy`` and rewrites ``req.key``; ``_trigger_put``
     (the SimPy hook invoked on both new-arrival and release paths) calls
-    :meth:`sort_queue` before delegating to SimPy. Callers may also invoke
-    :meth:`sort_queue` explicitly to observe the resulting order between
+    ``sort_queue`` before delegating to SimPy. Callers may also invoke
+    ``sort_queue`` explicitly to observe the resulting order between
     events. The cost per dispatch decision is one ``priority_policy`` call
     per queued request; policies must be deterministic given ``(job, server)`` and the
     current simulation state at call time, per the contract documented in
@@ -295,7 +295,7 @@ class Server(simpy.PriorityResource):
         then sorts the queue in ascending order by the refreshed keys.
 
         Called automatically before every dispatch decision via
-        :meth:`_trigger_put`. May also be invoked explicitly by user code
+        ``_trigger_put``. May also be invoked explicitly by user code
         that has mutated ``priority_policy`` and wants to observe the new
         order before the next dispatch event.
 
@@ -304,7 +304,7 @@ class Server(simpy.PriorityResource):
         priority, call ``req.job.priority(req.server)`` directly.
 
         Requires that every queued request expose ``job``, ``server``,
-        ``time``, and ``preempt`` attributes (which :class:`ServerPriorityRequest`
+        ``time``, and ``preempt`` attributes (which ``ServerPriorityRequest``
         does).
         """
         queue_list = cast(list, self.queue)
@@ -316,11 +316,11 @@ class Server(simpy.PriorityResource):
     def _trigger_put(self, get_event: Release | None) -> None:
         """Refresh queue priorities before SimPy iterates the put queue.
 
-        Overrides :meth:`simpy.resources.base.BaseResource._trigger_put` to
-        call :meth:`sort_queue` (which re-evaluates ``job.priority_policy``
+        Overrides ``simpy.resources.base.BaseResource._trigger_put`` to
+        call ``sort_queue`` (which re-evaluates ``job.priority_policy``
         for every queued request and rewrites ``req.key``) before delegating
         to SimPy. SimPy invokes ``_trigger_put`` from two call sites:
-        :meth:`simpy.resources.base.Put.__init__` (after a new arrival is
+        ``simpy.resources.base.Put.__init__`` (after a new arrival is
         appended to ``put_queue``) and as a callback on every Release event
         (``simpy.resources.base.Get.__init__`` registers it). Refreshing
         here therefore covers both the new-arrival and release dispatch paths.

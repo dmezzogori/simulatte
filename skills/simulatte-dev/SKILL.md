@@ -63,8 +63,9 @@ _, servers, shopfloor, router = build_immediate_release_system(env)
 Jobs wait in a Pre-Shop Pool and are released only when adding them would keep
 each server's corrected WIP at or below a configured norm. Two triggers run
 concurrently: a **periodic** check every `check_timeout` time units, and a
-**starvation** trigger that fires when a server's queue empties after a job
-completion.
+**starvation** trigger that fires on each job completion, releasing a PSP
+candidate when the completing server's queue is empty or about to drain (only
+one job left).
 
 Use LumsCor when the researcher wants to study **WIP-limiting behavior** or
 **workload balancing**. Key parameters to vary in experiments:
@@ -79,15 +80,19 @@ psp, servers, shopfloor, router = build_lumscor_system(
 )
 ```
 
-LumsCor automatically sets `CorrectedWIPStrategy` on the shopfloor, which
+`build_lumscor_system` sets `CorrectedWIPStrategy` on the shopfloor, which
 discounts downstream workload by position (1st op: full, 2nd: 1/2, 3rd: 1/3).
+LumsCor requires this strategy and validates it on each release, but does not
+set it itself (see the manual-composition note below).
 
 ### SLAR (slack-based pull)
 
-Jobs are released from the PSP only on job-completion events — no periodic
-checks. Release decisions are based on planned slack time (PST): when a server
-queue empties, the most urgent PSP candidate is released; when all queued jobs
-are non-urgent, an urgent candidate is inserted.
+Jobs are released from the PSP on job-completion events and on PSP arrival (via
+a starvation-avoidance hook) — no periodic checks. Release decisions are based
+on planned slack time (PST): when a server queue empties, the most urgent PSP
+candidate is released; when no queued job is urgent, an urgent candidate is
+inserted; and when only one job remains queued, a postponed release replenishes
+the queue before it drains.
 
 Use SLAR when the researcher wants **due-date-driven, event-triggered release**.
 Key parameter to vary:

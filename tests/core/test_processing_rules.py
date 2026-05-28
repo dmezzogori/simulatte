@@ -1,4 +1,4 @@
-"""Tests for processing-time / baseline rules in :mod:`simulatte.dispatching_rules.processing`."""
+"""Tests for processing-time / baseline rules in ``simulatte.dispatching_rules.processing``."""
 
 from __future__ import annotations
 

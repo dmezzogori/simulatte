@@ -1,4 +1,4 @@
-"""Tests for due-date dispatching rules in :mod:`simulatte.dispatching_rules.due_date`."""
+"""Tests for due-date dispatching rules in ``simulatte.dispatching_rules.due_date``."""
 
 from __future__ import annotations
 

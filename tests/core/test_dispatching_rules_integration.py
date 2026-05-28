@@ -5,10 +5,10 @@ The per-family unit tests (``test_processing_rules.py``, ``test_due_date_rules.p
 These tests instead wire a rule in as a job's ``priority_policy`` and run an
 actual simulation, asserting that jobs come out of a single contended queue in
 the order the rule prescribes. The mechanism under test is
-:meth:`Server.sort_queue`, which re-evaluates ``job.priority(server)`` for every
+``Server.sort_queue``, which re-evaluates ``job.priority(server)`` for every
 queued request at each dispatch decision and serves the lowest value first.
 
-Pattern (mirrors the FCFS arrival-order test in ``test_basic_rules.py``): seize
+Pattern (mirrors the FCFS arrival-order test in ``test_processing_rules.py``): seize
 the server with a long blocker, pile up jobs behind it, run to completion, then
 assert the processing order via ``job.servers_exit_at[server]``. Each scenario
 is built so the expected order differs from the jobs' arrival order — otherwise

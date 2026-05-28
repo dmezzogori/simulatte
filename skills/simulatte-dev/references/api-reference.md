@@ -147,7 +147,8 @@ ProductionJob(
 - `job.time_in_psp: float` — time in Pre-Shop Pool
 - `job.total_queue_time: float` — sum of queue waits (only when done)
 - `job.slack_time: float` — `due_date - env.now`
-- `job.remaining_routing: tuple[Server, ...]` — servers not yet visited
+- `job.remaining_routing: tuple[Server, ...]` — servers not yet entered (entry-based)
+- `job.unfinished_routing: tuple[Server, ...]` — servers not yet exited, includes the in-progress operation (exit-based)
 - `job.next_server: Server | None`
 - `job.previous_server: Server | None`
 - `job.routing: dict[Server, float]` — server-to-processing-time mapping

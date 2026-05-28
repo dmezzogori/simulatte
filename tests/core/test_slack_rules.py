@@ -1,4 +1,4 @@
-"""Tests for slack / ratio dispatching rules in :mod:`simulatte.dispatching_rules.slack`."""
+"""Tests for slack / ratio dispatching rules in ``simulatte.dispatching_rules.slack``."""
 
 from __future__ import annotations
 

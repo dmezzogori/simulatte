@@ -6,7 +6,13 @@ All notable changes to Simulatte are documented here.
 
 ### New
 
-- **Dispatching-rule catalog** in `simulatte.dispatching_rules`. Adds six stateless Tier-1 rules — `shortest_processing_time`, `earliest_due_date`, `operational_due_date` (Land, Stevenson & Thürer, 2014), `modified_operational_due_date` (Baker & Kanet, 1983), `critical_ratio` (Berry & Rao, 1975) and `first_come_first_served` — plus a second parameterized Tier-2 factory `slack_per_remaining_operation(allowance)` (Kanet, 1982) alongside the existing `planned_slack_time`. All are `(job, server) → float` callables usable as `Router(priority_policies=…)` or `ProductionJob(priority_policy=…)`. Stateless rules live in `dispatching_rules.basic`; parameterized factories in `dispatching_rules.parametrized`.
+- **Dispatching-rule catalog** in `simulatte.dispatching_rules`. Adds six stateless rules — `shortest_processing_time`, `earliest_due_date`, `operational_due_date` (Land, Stevenson & Thürer, 2014), `modified_operational_due_date` (Baker & Kanet, 1983), `critical_ratio` (Berry & Rao, 1975) and `first_come_first_served` — plus a parameterized factory `slack_per_remaining_operation(allowance)` (Kanet, 1982) alongside the existing `planned_slack_time`. All are `(job, server) → float` callables usable as `Router(priority_policies=…)` or `ProductionJob(priority_policy=…)`. Rules are grouped by scheduling family across `dispatching_rules.processing`, `dispatching_rules.due_date`, and `dispatching_rules.slack`.
+- **`BaseJob.unfinished_routing`** — property returning the servers whose operations have not yet completed (servers not yet exited), including the in-progress one. Used by `critical_ratio` and `slack_per_remaining_operation` to compute remaining processing time and the remaining-operation count.
+
+### Changed (breaking)
+
+- `builders.spt_priority_policy` removed; use `simulatte.dispatching_rules.shortest_processing_time` instead.
+- `BaseJob.planned_slack_time` property removed; use `BaseJob.planned_slack_time_at(server, allowance=…)` or the `simulatte.dispatching_rules.planned_slack_time(allowance)` rule factory instead.
 
 ## 0.7.0 — 2026-05-26
 

@@ -2,7 +2,7 @@
 
 ``(job, server) -> float`` rules that order a queue by a job's remaining slack
 relative to the work it has left. Includes the parameterized factories
-(:func:`planned_slack_time`, :func:`slack_per_remaining_operation`) — call them
+(``planned_slack_time``, ``slack_per_remaining_operation``) — call them
 with a per-operation allowance to obtain the callable. Lower numeric value =
 served first.
 """
@@ -63,8 +63,8 @@ def planned_slack_time(allowance: float = 0.0) -> Callable[[BaseJob, Server], fl
 
     Returns:
         A ``(job, server) -> float`` callable suitable for use as a
-        ``priority_policies`` on `Router` or
-        ``priority_policy`` on `ProductionJob`.
+        ``priority_policies`` on ``Router`` or
+        ``priority_policy`` on ``ProductionJob``.
 
     Raises:
         ValueError: If ``allowance`` is negative.
@@ -88,7 +88,7 @@ def slack_per_remaining_operation(allowance: float = 0.0) -> Callable[[BaseJob, 
     """Build a Slack per Remaining Operation (S/OPN) dispatching rule.
 
     Defined as ``sopn_ij = pst_ij(k) / |R_i|`` where ``pst_ij`` is the
-    Planned Slack Time (see :func:`planned_slack_time`) and ``|R_i|`` is
+    Planned Slack Time (see ``planned_slack_time``) and ``|R_i|`` is
     the count of operations not yet completed (servers not yet exited),
     including the current one. Lower S/OPN = more urgent.
 
@@ -101,8 +101,8 @@ def slack_per_remaining_operation(allowance: float = 0.0) -> Callable[[BaseJob, 
 
     Returns:
         A ``(job, server) -> float`` callable suitable for use as a
-        ``priority_policies`` on `Router` or
-        ``priority_policy`` on `ProductionJob`.
+        ``priority_policies`` on ``Router`` or
+        ``priority_policy`` on ``ProductionJob``.
 
     Raises:
         ValueError: If ``allowance`` is negative.

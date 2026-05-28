@@ -2,14 +2,14 @@
 
 This package hosts dispatching rules — pure ``(job, server) -> float``
 callables for queue ordering. Pass them as the ``priority_policies``
-argument to :class:`~simulatte.router.Router`, or as the ``priority_policy``
-argument to :class:`~simulatte.job.ProductionJob`. Lower numeric value = served first.
+argument to ``Router``, or as the ``priority_policy`` argument to
+``ProductionJob``. Lower numeric value = served first.
 
 Rules are grouped by scheduling family:
 
-- :mod:`.processing` — processing-time and baseline rules.
-- :mod:`.due_date` — due-date-based rules.
-- :mod:`.slack` — slack- and ratio-based rules, including the parameterized factories.
+- ``processing`` — processing-time and baseline rules.
+- ``due_date`` — due-date-based rules.
+- ``slack`` — slack- and ratio-based rules, including the parameterized factories.
 """
 
 from __future__ import annotations
