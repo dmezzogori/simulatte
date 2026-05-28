@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, cast
 
-from simulatte.dispatching_rules.focus import Focus, FocusContext
+from simulatte.dispatching_rules.focus import Focus, FocusContext, _next_server_after
 
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.job import BaseJob, ProductionJob
@@ -221,16 +221,6 @@ class Draco:
         """``ro^Q = min(1, W/(2τ))`` (spec §3.1, queue-side R term)."""
         return min(1.0, wip / (2.0 * self.tau))
 
-    def _next_server_after(self, job: BaseJob, server: Server) -> Server | None:
-        servers = job.servers
-        try:
-            idx = servers.index(server)
-        except ValueError:
-            return None
-        if idx + 1 >= len(servers):
-            return None
-        return servers[idx + 1]
-
     def _overlapping_loop_count(self, server_k: Server, server_u: Server) -> int:
         """``a_{k,u} = |H_k| + |Q_u| + |H_u|`` (spec §3.2).
 
@@ -254,7 +244,7 @@ class Draco:
         routing (hard-coded per spec). Otherwise:
         ``A = max(0, 1 - a_{k,u} / ε_{k,u})``.
         """
-        u = self._next_server_after(job, server_k)
+        u = _next_server_after(job, server_k)
         if u is None:
             return 1.0
         a = self._overlapping_loop_count(server_k, u)

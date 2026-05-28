@@ -472,19 +472,6 @@ def test_draco_decide_next_job_returns_when_no_previous_server() -> None:
     assert not draco._forced_at_server
 
 
-def test_draco_next_server_after_returns_none_for_unrelated_server() -> None:
-    """Defensive: _next_server_after on a server not in the routing returns None."""
-    env = Environment()
-    sf = ShopFloor(env=env)
-    s1 = Server(env=env, capacity=1, shopfloor=sf)
-    s2 = Server(env=env, capacity=1, shopfloor=sf)
-    s_other = Server(env=env, capacity=1, shopfloor=sf)
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target=5)
-
-    job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1.0, 1.0], due_date=10.0)
-    assert draco._next_server_after(job, s_other) is None
-
-
 # ----- build_draco_system -----
 
 
