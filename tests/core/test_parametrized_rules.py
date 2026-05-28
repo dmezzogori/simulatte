@@ -141,3 +141,11 @@ class TestSlackPerRemainingOperation:
         s2 = Server(env=env, capacity=1, shopfloor=sf)
         job = ProductionJob(env=env, sku="F1", servers=[s1, s2], processing_times=[2.0, 3.0], due_date=30.0)
         assert slack_per_remaining_operation(allowance=1.0)(job, s1) == 11.5
+
+    def test_returns_inf_for_unrouted_server(self) -> None:
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server_a = Server(env=env, capacity=1, shopfloor=sf)
+        server_b = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[server_a], processing_times=[5.0], due_date=20.0)
+        assert slack_per_remaining_operation(allowance=2.0)(job, server_b) == float("inf")

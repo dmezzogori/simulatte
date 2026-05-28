@@ -64,6 +64,11 @@ def operational_due_date(job: BaseJob, server: Server) -> float:
     Reference: Land, Stevenson & Thürer (2014), Integrating load-based
     order release and priority dispatching, IJPR 52(4), 1059-1073.
     https://doi.org/10.1080/00207543.2013.836614
+
+    Note: this rule assumes each server appears at most once in a job's
+    routing, so ``.index()`` always finds the correct step. This holds in
+    practice because ``ProductionJob.routing`` is a ``dict`` keyed by
+    server, which structurally prevents duplicate entries.
     """
     t_r = job.psp_exit_at if job.psp_exit_at is not None else job.created_at
     n_ij = job.servers.index(server) + 1
@@ -76,7 +81,7 @@ def modified_operational_due_date(job: BaseJob, server: Server) -> float:
     """Modified Operational Due Date at *server*.
 
     Defined as ``m_ij = max(o_ij, now + p_ij)`` where ``o_ij`` is the
-    ODD (see :func:`operational_due_date`) and ``p_ij = job.routing[server]``. Switches
+    ODD (see :func:`~simulatte.dispatching_rules.operational_due_date`) and ``p_ij = job.routing[server]``. Switches
     dynamically between ODD-driven dispatching (slack-timing regime,
     when ``o_ij > now + p_ij``) and SPT-driven dispatching (when the
     job is late w.r.t. its operational due date and the SPT term
