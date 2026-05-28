@@ -88,8 +88,7 @@ class Server(simpy.PriorityResource):
     ``sort_queue`` explicitly to observe the resulting order between
     events. The cost per dispatch decision is one ``priority_policy`` call
     per queued request; policies must be deterministic given ``(job, server)`` and the
-    current simulation state at call time, per the contract documented in
-    ``docs/superpowers/specs/2026-05-25-dynamic-priority-queue-refresh-design.md``.
+    current simulation state at call time.
     """
 
     def __init__(

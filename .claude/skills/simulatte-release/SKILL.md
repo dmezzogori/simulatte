@@ -19,7 +19,8 @@ Run these in order. Stop immediately if any check fails — the point is to catc
 2. **Tests**: `uv run pytest`
 3. **Linting**: `uv run ruff check src tests`
 4. **Type checking**: `uv run ty check src`
-5. **Docs build**: `uv run zensical build` — a broken docs build means the release would ship with stale documentation on simulatte.dev.
+5. **No internal planning docs in the published tree**: `docs/superpowers/` must NOT exist. The superpowers brainstorming/writing-plans/review skills write specs, plans, and reviews under `docs/superpowers/`, and zensical has no way to exclude a subdirectory — it builds and publishes every `.md` under `docs/` as orphan pages, which leak onto simulatte.dev and into its search index. Run `test ! -d docs/superpowers && echo OK`. If the folder exists, remove it (`git rm -r docs/superpowers`) and commit before proceeding — the artifacts stay recoverable from git history.
+6. **Docs build**: `uv run zensical build` — a broken docs build means the release would ship with stale documentation on simulatte.dev.
 
 If any step fails, report the failure clearly and stop. Do not proceed to the release phase.
 

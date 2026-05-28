@@ -521,11 +521,10 @@ class TestPriorityQueueOrdering:
 class TestDynamicPriorityRefresh:
     """Tests for the dynamic-priority queue refresh behavior of Server.
 
-    These tests verify the contract documented in
-    docs/superpowers/specs/2026-05-25-dynamic-priority-queue-refresh-design.md:
-    at every dispatch decision (and on explicit sort_queue() calls), each
-    queued request's priority is re-evaluated from job.priority_policy and
-    the queue is resorted by the refreshed values.
+    These tests verify the contract: at every dispatch decision (and on
+    explicit sort_queue() calls), each queued request's priority is
+    re-evaluated from job.priority_policy and the queue is resorted by the
+    refreshed values.
     """
 
     @staticmethod
