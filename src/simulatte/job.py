@@ -248,14 +248,6 @@ class BaseJob(ABC):
         raise ValueError("Job is not done or missing finish time. Cannot calculate lateness.")
 
     @property
-    def planned_slack_time(self) -> float:
-        """Slack time minus total remaining processing time.
-
-        NOTE: this is valid only for jobs that have not yet started processing at their first server.
-        """
-        return self.slack_time - sum(self._processing_times)
-
-    @property
     def virtual_lateness(self) -> float:
         """Projected lateness if the job finished at current simulation time."""
         return self._env.now - self.due_date

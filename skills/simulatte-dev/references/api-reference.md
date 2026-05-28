@@ -147,7 +147,6 @@ ProductionJob(
 - `job.time_in_psp: float` — time in Pre-Shop Pool
 - `job.total_queue_time: float` — sum of queue waits (only when done)
 - `job.slack_time: float` — `due_date - env.now`
-- `job.planned_slack_time: float` — slack minus total remaining processing
 - `job.remaining_routing: tuple[Server, ...]` — servers not yet visited
 - `job.next_server: Server | None`
 - `job.previous_server: Server | None`
@@ -499,10 +498,10 @@ slack_per_remaining_operation(allowance: float = 0.0) -> Callable[[job, Server],
 Both raise `ValueError` if `allowance < 0`. Both return `inf` for servers not
 in the job's routing or already exited (safe for `min()` comparisons).
 
-> **Note:** `job.planned_slack_time` (property) and
-> `job.planned_slack_time_at(server, allowance=0)` (method) are separate
-> job-level attributes — not dispatching rules. The `planned_slack_time`
-> factory above wraps the method into a router-compatible callable.
+> **Note:** `job.planned_slack_time_at(server, allowance=0)` is a job-level
+> method (returns the raw slack value, or `None` for an out-of-routing/exited
+> server), not a dispatching rule. The `planned_slack_time` factory above wraps
+> it into a router-compatible callable (mapping `None` to `inf`).
 
 ## Distribution Helpers
 

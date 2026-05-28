@@ -381,18 +381,6 @@ class TestJobProperties:
         env.run(until=50)
         assert job.virtual_in_window  # At exactly due_date
 
-    def test_planned_slack_time(self) -> None:
-        """planned_slack_time should be slack_time minus sum of processing times."""
-        env = Environment()
-        sf = ShopFloor(env=env)
-        s1 = Server(env=env, capacity=1, shopfloor=sf)
-        s2 = Server(env=env, capacity=1, shopfloor=sf)
-        job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[5, 3], due_date=50)
-
-        # At t=0: slack_time = 50 - 0 = 50
-        # planned_slack_time = 50 - (5 + 3) = 42
-        assert job.planned_slack_time == 42.0
-
     def test_planned_slack_time_at(self) -> None:
         """planned_slack_time_at should compute backward slack at a specific server."""
         env = Environment()
