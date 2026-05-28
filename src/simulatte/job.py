@@ -222,6 +222,16 @@ class BaseJob(ABC):
         return tuple(srv for srv in self._servers if self.servers_entry_at[srv] is None)
 
     @property
+    def unfinished_routing(self) -> tuple[Server, ...]:
+        """Tuple of servers whose operation is not yet completed.
+
+        Includes the operation currently in progress (entered but not exited),
+        unlike the entry-based `remaining_routing`. This is the set of
+        operations whose work still has to be done.
+        """
+        return tuple(srv for srv in self._servers if self.servers_exit_at[srv] is None)
+
+    @property
     def next_server(self) -> Server | None:
         """Next server to visit, or None if routing is complete."""
         if not self.is_in_psp:

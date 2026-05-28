@@ -421,3 +421,52 @@ class TestJobProperties:
         job = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[5], due_date=50)
 
         assert job.planned_slack_time_at(s_other) is None
+
+    def test_unfinished_routing_includes_all_servers_before_start(self) -> None:
+        """Before any operation completes, every server is still unfinished."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s1 = Server(env=env, capacity=1, shopfloor=sf)
+        s2 = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1, 1], due_date=100)
+
+        assert job.unfinished_routing == (s1, s2)
+
+    def test_unfinished_routing_excludes_exited_servers(self) -> None:
+        """A server drops out of unfinished_routing once it has been exited."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s1 = Server(env=env, capacity=1, shopfloor=sf)
+        s2 = Server(env=env, capacity=1, shopfloor=sf)
+        s3 = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[s1, s2, s3], processing_times=[1, 1, 1], due_date=100)
+        job.servers_exit_at[s1] = 5.0
+
+        assert job.unfinished_routing == (s2, s3)
+
+    def test_unfinished_routing_includes_in_progress_server(self) -> None:
+        """Unlike entry-based remaining_routing, unfinished_routing keeps the
+        operation currently in progress, whose work is not yet complete."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s1 = Server(env=env, capacity=1, shopfloor=sf)
+        s2 = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1, 5], due_date=100)
+
+        sf.add(job)
+        env.run(until=2)  # s1 done, s2 in progress (entered, not yet exited)
+
+        assert job.unfinished_routing == (s2,)
+        assert job.remaining_routing == ()  # s2 already entered, so excluded here
+
+    def test_unfinished_routing_empty_when_all_exited(self) -> None:
+        """Once every operation has exited, unfinished_routing is empty."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s1 = Server(env=env, capacity=1, shopfloor=sf)
+        s2 = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1, 1], due_date=100)
+        job.servers_exit_at[s1] = 5.0
+        job.servers_exit_at[s2] = 6.0
+
+        assert job.unfinished_routing == ()

@@ -97,7 +97,9 @@ def slack_per_remaining_operation(allowance: float = 0.0) -> Callable[[BaseJob, 
         pst = job.planned_slack_time_at(server, allowance=allowance)
         if pst is None:
             return float("inf")
-        r_i = sum(1 for s in job.servers if job.servers_exit_at[s] is None)
+        # pst is not None => the server is unfinished, so unfinished_routing is
+        # non-empty and the division below cannot divide by zero.
+        r_i = len(job.unfinished_routing)
         return pst / r_i
 
     return _sopn
