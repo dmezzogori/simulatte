@@ -18,6 +18,41 @@ from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
 
 
+def _loaded_two_server_shop() -> tuple[ShopFloor, Server, Server, ProductionJob, ProductionJob]:
+    """A 2-server shop with a blocker on s1 and two queued candidates.
+
+    Hand-computed FOCUS values at now=0.0 (blocker is in users -> excluded
+    from the candidate set O; only `cand` and `other` are candidates):
+
+      Aggregates: max_pij=8 (other's op), max_positive_slack=20 (cand),
+      max_positive_pacing=10 (both jobs tie at V=10).
+
+      cand  (routing s1->s2, p=[4,6], due=30): S=20, V=10
+        pi   = 1 - 4/8 = 0.5
+        omega= 0.5      (next server s2 has an empty queue; omega == pi)
+        psi  = 1 - 20/20 = 0.0
+        gamma= 1 - 10/10 = 0.0
+        beta = 1.0      (sole balance-improving candidate -> own normalizer)
+
+      other (routing s1, p=[8], due=18): S=10, V=10
+        pi   = 1 - 8/8 = 0.0
+        psi  = 1 - 10/20 = 0.5
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=10000.0)
+    sf.add(blocker)
+    env.run(until=0.001)
+    cand = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[4.0, 6.0], due_date=30.0)
+    other = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[8.0], due_date=18.0)
+    sf.add(cand)
+    sf.add(other)
+    env.run(until=0.002)
+    return sf, s1, s2, cand, other
+
+
 # ----- Init validation -----
 
 
@@ -425,24 +460,31 @@ def test_focus_score_in_unit_interval() -> None:
 
 
 def test_focus_score_is_exact_weighted_average() -> None:
-    env = Environment()
-    sf = ShopFloor(env=env)
-    s1 = Server(env=env, capacity=1, shopfloor=sf)
-    s2 = Server(env=env, capacity=1, shopfloor=sf)
-
-    j = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[3.0, 5.0], due_date=50.0)
-    sf.add(j)
+    """Score equals the hand-computed weighted average of independent constants."""
+    sf, s1, _s2, cand, _other = _loaded_two_server_shop()
 
     focus = Focus(weights=(0.3, 0.2, 0.2, 0.1, 0.2))
     ctx = focus.build_context(sf, now=0.0)
-    expected = (
-        0.3 * focus.pi(j, s1, ctx)
-        + 0.2 * focus.omega(j, s1, ctx)
-        + 0.2 * focus.psi(j, ctx, now=0.0)
-        + 0.1 * focus.gamma(j, ctx, now=0.0)
-        + 0.2 * focus.beta(j, s1, ctx)
-    )
-    assert focus.score(j, s1, ctx, now=0.0) == pytest.approx(expected)
+    # pi=0.5, omega=0.5, psi=0.0, gamma=0.0, beta=1.0 (see helper docstring).
+    expected = 0.3 * 0.5 + 0.2 * 0.5 + 0.2 * 0.0 + 0.1 * 0.0 + 0.2 * 1.0  # = 0.45
+    assert focus.score(cand, s1, ctx, now=0.0) == pytest.approx(0.45)
+    assert expected == pytest.approx(0.45)
+
+
+def test_focus_score_pi_only_equals_known_constant() -> None:
+    """weights=(1,0,0,0,0) -> score == pi == 0.5 for cand (independent constant)."""
+    sf, s1, _s2, cand, _other = _loaded_two_server_shop()
+    focus = Focus(weights=(1.0, 0.0, 0.0, 0.0, 0.0))
+    ctx = focus.build_context(sf, now=0.0)
+    assert focus.score(cand, s1, ctx, now=0.0) == pytest.approx(0.5)
+
+
+def test_focus_score_psi_only_equals_known_constant() -> None:
+    """weights=(0,0,1,0,0) -> score == psi == 0.5 for other (independent constant)."""
+    sf, s1, _s2, _cand, other = _loaded_two_server_shop()
+    focus = Focus(weights=(0.0, 0.0, 1.0, 0.0, 0.0))
+    ctx = focus.build_context(sf, now=0.0)
+    assert focus.score(other, s1, ctx, now=0.0) == pytest.approx(0.5)
 
 
 def test_focus_score_beta_off_matches_four_mechanism_sum() -> None:

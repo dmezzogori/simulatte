@@ -108,6 +108,32 @@ def test_draco_count_wip_uses_count_not_workload() -> None:
     assert draco._count_wip() == 3
 
 
+def test_draco_count_wip_spans_multiple_servers() -> None:
+    """_count_wip sums |Q|+|H| across servers, including a mid-routing job.
+
+    j1 (s1->s2) finishes s1 at t=1 and occupies s2 thereafter; j2 then holds
+    s1 while j3 queues behind it. At t=1.5: s1 -> count 1 (j2) + queue 1 (j3),
+    s2 -> count 1 (j1). Total W = 3.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+    draco = Draco(shopfloor=sf, wip_target=10, loop_target=5)
+
+    j1 = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1.0, 100.0], due_date=10000.0)
+    j2 = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=10000.0)
+    j3 = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=10000.0)
+    sf.add(j1)
+    sf.add(j2)
+    sf.add(j3)
+    env.run(until=1.5)
+
+    assert j1.servers_exit_at[s1] is not None  # j1 finished s1
+    assert j1.servers_exit_at[s2] is None  # j1 still at s2
+    assert draco._count_wip() == 3
+
+
 # ----- ro^P and ro^Q -----
 
 
@@ -211,6 +237,41 @@ def test_draco_authorization_uses_per_pair_dict_when_provided() -> None:
     assert draco._authorization_impact(job, s1) == pytest.approx(0.75)
 
 
+def test_draco_full_score_matches_hand_computed_total_impact() -> None:
+    """_full_score = w^R*R + w^A*A + w^D*D against independent constants.
+
+    Setup: s1 only, a blocker in users, two queued jobs (cand p=4, other p=8)
+    so max_pij=8 and pi(cand)=1-4/8=0.5. FOCUS uses pi-only weights, so the
+    dispatching impact D = focus.score(cand) = 0.5. A(cand)=1.0 (single op).
+    wip is passed explicitly (=4): ro^Q=min(1,4/20)=0.2, ro^P=max(0,1-4/20)=0.8.
+    With equal total-impact weights (1/3 each):
+      queue side  = (0.2 + 1.0 + 0.5)/3 = 1.7/3
+      psp side    = (0.8 + 1.0 + 0.5)/3 = 2.3/3
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    cand = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[4.0], due_date=10000.0)
+    other = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[8.0], due_date=10000.0)
+    sf.add(blocker)
+    sf.add(cand)
+    sf.add(other)
+    env.run(until=0.001)
+
+    draco = Draco(
+        shopfloor=sf,
+        focus_weights=(1.0, 0.0, 0.0, 0.0, 0.0),
+        total_impact_weights=(1.0 / 3, 1.0 / 3, 1.0 / 3),
+        wip_target=10,
+        loop_target=5,
+    )
+    ctx = draco.focus.build_context(sf, now=0.0)
+
+    assert draco._full_score(cand, s1, ctx, now=0.0, wip=4, in_psp=False) == pytest.approx(1.7 / 3)
+    assert draco._full_score(cand, s1, ctx, now=0.0, wip=4, in_psp=True) == pytest.approx(2.3 / 3)
+
+
 # ----- priority_policy force flag -----
 
 
@@ -291,6 +352,37 @@ def test_draco_priority_policy_force_flag_is_per_server() -> None:
     # Forced at s1 only — s2 returns normal score
     assert draco.priority_policy(job, s2) != float("-inf")
     assert draco.priority_policy(job, s1) == float("-inf")
+
+
+def test_draco_force_flag_set_on_psp_win() -> None:
+    """A PSP candidate that wins decide_next_job sets the one-shot force flag.
+
+    Under-target shop (tau=100) with a high w^R makes ro^P dominate, so the
+    PSP candidate outscores the queued job. Directly assert the flag is set
+    to the PSP winner and the winner was released from the PSP.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    draco = Draco(shopfloor=sf, psp=psp, wip_target=100, loop_target=5, total_impact_weights=(0.8, 0.1, 0.1))
+
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    queued = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[2.0], due_date=10000.0)
+    sf.add(blocker)
+    sf.add(queued)
+    env.run(until=0.001)
+
+    psp_cand = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10000.0)
+    psp.add(psp_cand)
+
+    class _FakeTrigger:
+        previous_server = s1
+
+    draco.decide_next_job(_FakeTrigger(), psp)  # type: ignore[arg-type]
+
+    assert draco._forced_at_server.get(s1) is psp_cand
+    assert psp_cand not in psp
 
 
 # ----- decide_next_job: integration -----
