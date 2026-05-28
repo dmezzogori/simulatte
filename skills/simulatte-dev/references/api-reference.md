@@ -257,6 +257,48 @@ Slar(
 Construction is active: wires `shopfloor.on_processing_end`, `psp.on_arrival(starvation_avoidance)`,
 and sets `router.priority_policies` to PST dispatching automatically. No separate method calls needed.
 
+### SlarLimit
+
+```python
+from simulatte.policies.slar_limit import SlarLimit
+
+SlarLimit(
+    *,
+    shopfloor: ShopFloor,
+    psp: PreShopPool,
+    router: Router,
+    wl_norm: dict[Server, float],
+    allowance_factor: float = 2.0,
+)
+```
+
+SLAR variant that gates urgent insertion by a workload norm. Requires
+`CorrectedWIPStrategy`. Construction is active (wires triggers + PST dispatching).
+
+### Draco
+
+```python
+from simulatte.policies.draco import Draco
+
+Draco(
+    *,
+    shopfloor: ShopFloor,
+    focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
+    total_impact_weights: tuple[float, float, float] = (1/3, 1/3, 1/3),
+    wip_target: int,                                  # tau (job count)
+    loop_target: int | dict[tuple[Server, Server], int],  # epsilon
+    psp: PreShopPool | None = None,
+)
+```
+
+**Methods:**
+- `draco.priority_policy(job, server)` — queue-side priority (`-inf` for a forced PSP winner); pass as `Router(priority_policies=...)`
+- `draco.decide_next_job(triggering_job, psp)` — the non-hierarchical decision (for `on_completion_trigger`)
+
+Non-hierarchical: scores `Q_k ∪ P_k` by `w^R·R + w^A·A + w^D·D` on each completion. `D` is FOCUS. `build_draco_system` wires both the priority policy and the completion trigger, plus `starvation_avoidance` for cold start.
+
+> Note: ConWIP and Continuous Release are also available (`simulatte.policies.conwip.ConWIP`, `simulatte.policies.continuous_release.ContinuousRelease`) for manual composition via triggers.
+
 ## Trigger Functions
 
 ```python
@@ -374,9 +416,11 @@ from simulatte.shopfloor import (
 ```python
 from simulatte.builders import (
     build_immediate_release_system,
+    build_focus_system,
     build_lumscor_system,
     build_slar_system,
     build_slar_limit_system,
+    build_draco_system,
 )
 ```
 
@@ -446,6 +490,41 @@ build_slar_limit_system(
 
 Requires `CorrectedWIPStrategy` on the shopfloor (set automatically by the builder).
 
+### build_focus_system
+
+```python
+build_focus_system(
+    env: Environment,
+    *,
+    focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
+    n_servers: int = 6,
+    arrival_rate: float = 1 / 0.648,
+    service_rate: float = 2.0,
+    collect_workload: bool = False,
+) -> PushSystem  # (None, servers, shopfloor, router)
+```
+
+Immediate-release push system whose queue ordering is FOCUS (via `FocusPriorityRule`).
+
+### build_draco_system
+
+```python
+build_draco_system(
+    env: Environment,
+    *,
+    wip_target: int,                                  # tau (job count)
+    loop_target: int,                                 # epsilon (scalar; use Draco() for per-pair)
+    focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
+    total_impact_weights: tuple[float, float, float] = (1/3, 1/3, 1/3),
+    n_servers: int = 6,
+    arrival_rate: float = 1 / 0.648,
+    service_rate: float = 2.0,
+    collect_workload: bool = False,
+) -> PullSystem  # (psp, servers, shopfloor, router)
+```
+
+Non-hierarchical release+dispatch. Wires `Draco.priority_policy`, `on_completion_trigger(... Draco.decide_next_job)`, and `psp.on_arrival(starvation_avoidance)`.
+
 ## Dispatching Rules
 
 ```python
@@ -503,6 +582,20 @@ in the job's routing or already exited (safe for `min()` comparisons).
 > method (returns the raw slack value, or `None` for an out-of-routing/exited
 > server), not a dispatching rule. The `planned_slack_time` factory above wraps
 > it into a router-compatible callable (mapping `None` to `inf`).
+
+### Tier 3 — system-state rules
+
+```python
+from simulatte.dispatching_rules import Focus, FocusContext, FocusPriorityRule
+```
+
+`Focus(weights=(w1, w2, w3, w4, w5))` — five mechanisms (pi/omega/psi/gamma/beta),
+each in `[0, 1]`, weights sum to 1. A class, not a `(job, server) -> float`
+callable. Key methods: `focus.build_context(shopfloor, now, *, psp=None,
+compute_beta=True)` (shared per-decision aggregates) and `focus.score(job,
+server, ctx, now)`. Adapt to the router with `FocusPriorityRule(focus,
+shopfloor, *, psp=None)` (negates the score; lower = served first), or use
+`build_focus_system`. FOCUS is also DRACO's dispatching component.
 
 ## Distribution Helpers
 

@@ -44,8 +44,9 @@ Before writing code, figure out which stage the researcher is at:
 
 ## Choosing a release policy
 
-Simulatte ships three system configurations. The choice depends on what the
-researcher wants to study.
+Simulatte ships several system configurations (Immediate, LumsCor, SLAR,
+SLAR-Limit, DRACO, plus ConWIP and Continuous Release for manual
+composition). The choice depends on what the researcher wants to study.
 
 ### Immediate Release (push system)
 
@@ -105,6 +106,32 @@ psp, servers, shopfloor, router = build_slar_system(
     env, allowance_factor=3.0,
 )
 ```
+
+### DRACO (non-hierarchical WIP control)
+
+DRACO merges release, authorization, and dispatching into one per-server
+decision taken on every job completion. At each completion at server `k`, it
+scores every candidate in `Q_k ∪ P_k` by `w^R·R + w^A·A + w^D·D` and dispatches
+the maximum; its dispatching term `D` is the FOCUS rule. A PSP winner is forced
+to dispatch first via a one-shot per-server flag.
+
+Use DRACO when the researcher wants a **single integrated release+dispatch
+policy** rather than separate workload-control and dispatching layers. Key
+parameters to vary:
+- `wip_target` (`τ`): target shop WIP as a job count (not a workload metric)
+- `loop_target` (`ε`): target overlapping loop per server pair
+- `total_impact_weights`: `(w^R, w^A, w^D)` — release vs. authorization vs. dispatch
+
+```python
+from simulatte.builders import build_draco_system
+
+psp, servers, shopfloor, router = build_draco_system(
+    env, wip_target=8, loop_target=4,
+)
+```
+
+`build_draco_system` also wires `psp.on_arrival(starvation_avoidance)` to avoid
+a cold-start deadlock (the decision fires only on completions).
 
 ## Build workflow
 
@@ -182,6 +209,14 @@ is added separately by the `build_lumscor_system` builder — when composing
 `LumsCor` by hand you must set `router.priority_policies` yourself. You can also
 use any dispatching rule with `build_immediate_release_system` via its
 `priority_policies=` argument.
+
+**FOCUS (system-state rule).** `simulatte.dispatching_rules.Focus` is a
+self-establishing rule combining five weighted mechanisms (SPT, starvation,
+slack timing, pacing, WIP balance). Unlike the Tier-1/2 rules it is a class
+(it exposes per-mechanism methods and a shared `build_context`), wrapped for
+the router by `FocusPriorityRule`. For a ready-made push system that
+dispatches with FOCUS, use `build_focus_system(env, focus_weights=...)`. FOCUS
+is also DRACO's dispatching component.
 
 See `references/api-reference.md` — "Dispatching Rules" section — for full
 signatures and the rule table.
