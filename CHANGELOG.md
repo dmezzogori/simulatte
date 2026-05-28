@@ -2,7 +2,7 @@
 
 All notable changes to Simulatte are documented here.
 
-## Unreleased
+## 0.8.0 — 2026-05-28
 
 ### New
 
