@@ -141,12 +141,12 @@ A ready-made immediate release with SPT (Shortest Processing Time) dispatching r
 
 ```python
 from simulatte.builders import build_immediate_release_system
-from simulatte.dispatching_rules import spt
+from simulatte.dispatching_rules import shortest_processing_time
 
 _, servers, shopfloor, router = build_immediate_release_system(
     env,
     n_servers=6,
-    priority_policies=spt,
+    priority_policies=shortest_processing_time,
 )
 ```
 
@@ -258,7 +258,31 @@ Key parameters:
 
 ### Dispatching rules
 
-Dispatching rules (priority policies) are ``(job, server) -> float`` callables that determine queue ordering (lower = more urgent). Simulatte provides reusable rules in the `simulatte.dispatching_rules` package:
+Dispatching rules (priority policies) are ``(job, server) -> float`` callables that determine queue ordering (lower = more urgent). Simulatte ships a catalog of literature-standard rules in the `simulatte.dispatching_rules` package, split into two tiers.
+
+**Tier 1 — stateless rules** are plain functions you pass directly:
+
+| Rule | Function |
+|------|----------|
+| Shortest Processing Time | `shortest_processing_time` |
+| Earliest Due Date | `earliest_due_date` |
+| Operational Due Date | `operational_due_date` |
+| Modified Operational Due Date | `modified_operational_due_date` |
+| Critical Ratio | `critical_ratio` |
+| First Come First Served | `first_come_first_served` |
+
+```python
+from simulatte.dispatching_rules import earliest_due_date
+
+router = Router(..., priority_policies=earliest_due_date)
+```
+
+**Tier 2 — parameterized rules** are factory functions: call them with a per-operation allowance ``k`` to build the callable.
+
+| Rule | Factory |
+|------|---------|
+| Planned Slack Time | `planned_slack_time(allowance=k)` |
+| Slack per Remaining Operation | `slack_per_remaining_operation(allowance=k)` |
 
 ```python
 from simulatte.dispatching_rules import planned_slack_time
@@ -270,7 +294,7 @@ pst = planned_slack_time(allowance=2.0)
 router = Router(..., priority_policies=pst)
 ```
 
-`planned_slack_time` returns ``inf`` for servers outside the job's routing or already exited — making it safe for priority comparisons and ``min()`` calls.
+The routing-aware rules return ``inf`` for servers outside the job's routing or already exited — making them safe for priority comparisons and ``min()`` calls.
 
 ## 5) Comparing builder-based systems
 

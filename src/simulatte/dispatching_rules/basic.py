@@ -22,7 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 # ----- Processing-time-based -----
 
 
-def spt(job: BaseJob, server: Server) -> float:
+def shortest_processing_time(job: BaseJob, server: Server) -> float:
     """Shortest Processing Time at *server*.
 
     Returns ``job.routing[server]``. Jobs with shorter processing times
@@ -36,7 +36,7 @@ def spt(job: BaseJob, server: Server) -> float:
 # ----- Due-date-based -----
 
 
-def edd(job: BaseJob, server: Server) -> float:  # noqa: ARG001
+def earliest_due_date(job: BaseJob, server: Server) -> float:  # noqa: ARG001
     """Earliest Due Date.
 
     Returns ``job.due_date``. Jobs with earlier due dates are served
@@ -45,7 +45,7 @@ def edd(job: BaseJob, server: Server) -> float:  # noqa: ARG001
     return job.due_date
 
 
-def odd(job: BaseJob, server: Server) -> float:
+def operational_due_date(job: BaseJob, server: Server) -> float:
     """Operational Due Date at *server*.
 
     Distributes the planned shop-floor slack across the operations of
@@ -72,11 +72,11 @@ def odd(job: BaseJob, server: Server) -> float:
     return t_r + n_ij * slack_per_op
 
 
-def modd(job: BaseJob, server: Server) -> float:
+def modified_operational_due_date(job: BaseJob, server: Server) -> float:
     """Modified Operational Due Date at *server*.
 
     Defined as ``m_ij = max(o_ij, now + p_ij)`` where ``o_ij`` is the
-    ODD (see :func:`odd`) and ``p_ij = job.routing[server]``. Switches
+    ODD (see :func:`operational_due_date`) and ``p_ij = job.routing[server]``. Switches
     dynamically between ODD-driven dispatching (slack-timing regime,
     when ``o_ij > now + p_ij``) and SPT-driven dispatching (when the
     job is late w.r.t. its operational due date and the SPT term
@@ -87,13 +87,13 @@ def modd(job: BaseJob, server: Server) -> float:
     https://doi.org/10.1016/0272-6963(83)90022-0
     """
     now = server.env.now
-    return max(odd(job, server), now + job.routing[server])
+    return max(operational_due_date(job, server), now + job.routing[server])
 
 
 # ----- Slack / ratio-based -----
 
 
-def cr(job: BaseJob, server: Server) -> float:
+def critical_ratio(job: BaseJob, server: Server) -> float:
     """Critical Ratio at *server*.
 
     Defined as ``cr_ij = (d_i - now) / sum(p_ij for j in R_i)`` — the
@@ -120,7 +120,7 @@ def cr(job: BaseJob, server: Server) -> float:
 # ----- FCFS / default -----
 
 
-def fcfs(job: BaseJob, server: Server) -> float:  # noqa: ARG001
+def first_come_first_served(job: BaseJob, server: Server) -> float:  # noqa: ARG001
     """First Come First Served.
 
     Returns ``0.0`` for every job, so the SimPy key tuple's ``time``

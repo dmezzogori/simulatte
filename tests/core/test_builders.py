@@ -6,7 +6,7 @@ from simulatte.builders import (
     build_slar_limit_system,
     build_slar_system,
 )
-from simulatte.dispatching_rules import spt
+from simulatte.dispatching_rules import shortest_processing_time
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.psp import PreShopPool
@@ -15,17 +15,17 @@ from simulatte.psp import PreShopPool
 class TestBuildImmediateReleaseSystem:
     """Tests for the build_immediate_release_system function."""
 
-    def test_spt_returns_processing_time(self) -> None:
+    def test_shortest_processing_time_returns_processing_time(self) -> None:
         env = Environment()
         _, servers, _, _ = build_immediate_release_system(env, n_servers=1)
         server = servers[0]
         job = ProductionJob(env=env, sku="F1", servers=[server], processing_times=[2.5], due_date=100.0)
-        assert spt(job, server) == 2.5
+        assert shortest_processing_time(job, server) == 2.5
 
-    def test_build_immediate_release_system_with_spt(self) -> None:
+    def test_build_immediate_release_system_with_shortest_processing_time(self) -> None:
         env = Environment()
-        _, _, _, router = build_immediate_release_system(env, n_servers=3, priority_policies=spt)
-        assert router.priority_policies is spt
+        _, _, _, router = build_immediate_release_system(env, n_servers=3, priority_policies=shortest_processing_time)
+        assert router.priority_policies is shortest_processing_time
 
     def test_build_immediate_release_system_basic(self) -> None:
         env = Environment()

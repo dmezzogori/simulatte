@@ -2,6 +2,12 @@
 
 All notable changes to Simulatte are documented here.
 
+## Unreleased
+
+### New
+
+- **Dispatching-rule catalog** in `simulatte.dispatching_rules`. Adds six stateless Tier-1 rules — `shortest_processing_time`, `earliest_due_date`, `operational_due_date` (Land, Stevenson & Thürer, 2014), `modified_operational_due_date` (Baker & Kanet, 1983), `critical_ratio` (Berry & Rao, 1975) and `first_come_first_served` — plus a second parameterized Tier-2 factory `slack_per_remaining_operation(allowance)` (Kanet, 1982) alongside the existing `planned_slack_time`. All are `(job, server) → float` callables usable as `Router(priority_policies=…)` or `ProductionJob(priority_policy=…)`. Stateless rules live in `dispatching_rules.basic`; parameterized factories in `dispatching_rules.parametrized`.
+
 ## 0.7.0 — 2026-05-26
 
 ### New
