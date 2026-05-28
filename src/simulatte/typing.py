@@ -23,7 +23,6 @@ type PullSystem = System[PreShopPool]
 
 type Builder[S] = Callable[..., S]
 
-
 __all__ = [
     "Builder",
     "DiscreteDistribution",

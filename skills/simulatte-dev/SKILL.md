@@ -170,9 +170,11 @@ pst_rule = planned_slack_time(allowance=2.0)
 router = Router(..., priority_policies=pst_rule)
 ```
 
-The built-in release policies (LumsCor and SLAR) use PST dispatching internally.
-`Slar` wires `planned_slack_time(allowance=allowance_factor)` automatically on
-construction; `build_lumscor_system` also sets it on the router. You can also
+`Slar` wires `planned_slack_time(allowance=allowance_factor)` onto the router
+automatically on construction. `LumsCor` does **not**: it sorts the PSP by
+planned release date and never touches `priority_policies`, so PST dispatching
+is added separately by the `build_lumscor_system` builder — when composing
+`LumsCor` by hand you must set `router.priority_policies` yourself. You can also
 use any dispatching rule with `build_immediate_release_system` via its
 `priority_policies=` argument.
 

@@ -376,6 +376,7 @@ from simulatte.builders import (
     build_immediate_release_system,
     build_lumscor_system,
     build_slar_system,
+    build_slar_limit_system,
 )
 ```
 
@@ -427,6 +428,23 @@ build_slar_system(
 
 Note: `allowance_factor` is positional in `build_slar_system` but keyword-only
 in `build_lumscor_system`.
+
+### build_slar_limit_system
+
+```python
+build_slar_limit_system(
+    env: Environment,
+    allowance_factor: float,                    # Slack allowance per operation
+    *,
+    wl_norm_level: float,                       # Workload norm per server
+    n_servers: int = 6,
+    arrival_rate: float = 1 / 0.648,
+    service_rate: float = 2.0,
+    collect_workload: bool = False,
+) -> PullSystem  # (psp, servers, shopfloor, router)
+```
+
+Requires `CorrectedWIPStrategy` on the shopfloor (set automatically by the builder).
 
 ## Dispatching Rules
 
