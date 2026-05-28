@@ -1,12 +1,10 @@
-"""Tier-2 dispatching rules: parameterized factory functions for queue ordering.
+"""Slack- and ratio-based dispatching rules.
 
-Each factory here takes construction-time configuration (typically a
-per-operation allowance) and returns a ``(job, server) -> float`` callable.
-Lower numeric value = served first.
-
-Pass the returned callable to :class:`~simulatte.router.Router` as the
-``priority_policies`` argument, e.g.
-``Router(priority_policies=planned_slack_time(allowance=2.0))``.
+``(job, server) -> float`` rules that order a queue by a job's remaining slack
+relative to the work it has left. Includes the parameterized factories
+(:func:`planned_slack_time`, :func:`slack_per_remaining_operation`) — call them
+with a per-operation allowance to obtain the callable. Lower numeric value =
+served first.
 """
 
 from __future__ import annotations
@@ -18,6 +16,30 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from simulatte.job import BaseJob
     from simulatte.server import Server
+
+
+def critical_ratio(job: BaseJob, server: Server) -> float:
+    """Critical Ratio at *server*.
+
+    Defined as ``cr_ij = (d_i - now) / sum(p_ij for j in R_i)`` — the
+    ratio of the job's slack time to its remaining processing time.
+    Lower values (jobs that are running out of slack relative to the
+    work left) are served first. ``R_i`` is the set of operations not
+    yet completed (i.e. servers not yet exited), including the current
+    one.
+
+    Returns ``inf`` if the remaining processing time is zero (defensive;
+    a queued job always has at least its current operation pending).
+
+    Reference: Berry & Rao (1975), Critical Ratio Scheduling: An
+    Experimental Analysis, *Management Science*, 22(2), 192-201.
+    https://doi.org/10.1287/mnsc.22.2.192
+    """
+    now = server.env.now
+    remaining_pt = sum(job.routing[s] for s in job.unfinished_routing)
+    if remaining_pt <= 0:
+        return float("inf")
+    return (job.due_date - now) / remaining_pt
 
 
 def planned_slack_time(allowance: float = 0.0) -> Callable[[BaseJob, Server], float]:

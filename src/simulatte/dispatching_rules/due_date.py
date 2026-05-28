@@ -1,13 +1,7 @@
-"""Tier-1 dispatching rules: simple, parameter-free queue-ordering rules.
+"""Due-date-based dispatching rules.
 
-Each rule here is a small ``(job, server) -> float`` function. Lower
-numeric value = served first (matches SimPy's ``PriorityResource``
-ascending sort).
-
-Pass any of these to :class:`~simulatte.router.Router` as the
-``priority_policies`` argument, or to
-:class:`~simulatte.job.ProductionJob` as the ``priority_policy`` argument
-for hand-built jobs.
+Stateless ``(job, server) -> float`` rules that order a queue by operation
+due dates derived from the job's due date. Lower numeric value = served first.
 """
 
 from __future__ import annotations
@@ -17,23 +11,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.job import BaseJob
     from simulatte.server import Server
-
-
-# ----- Processing-time-based -----
-
-
-def shortest_processing_time(job: BaseJob, server: Server) -> float:
-    """Shortest Processing Time at *server*.
-
-    Returns ``job.routing[server]``. Jobs with shorter processing times
-    at the candidate server are served first.
-
-    Reference: Conway, Maxwell & Miller (1967), Theory of Scheduling.
-    """
-    return job.routing[server]
-
-
-# ----- Due-date-based -----
 
 
 def earliest_due_date(job: BaseJob, server: Server) -> float:  # noqa: ARG001
@@ -93,43 +70,3 @@ def modified_operational_due_date(job: BaseJob, server: Server) -> float:
     """
     now = server.env.now
     return max(operational_due_date(job, server), now + job.routing[server])
-
-
-# ----- Slack / ratio-based -----
-
-
-def critical_ratio(job: BaseJob, server: Server) -> float:
-    """Critical Ratio at *server*.
-
-    Defined as ``cr_ij = (d_i - now) / sum(p_ij for j in R_i)`` — the
-    ratio of the job's slack time to its remaining processing time.
-    Lower values (jobs that are running out of slack relative to the
-    work left) are served first. ``R_i`` is the set of operations not
-    yet completed (i.e. servers not yet exited), including the current
-    one.
-
-    Returns ``inf`` if the remaining processing time is zero (defensive;
-    a queued job always has at least its current operation pending).
-
-    Reference: Berry & Rao (1975), Critical Ratio Scheduling: An
-    Experimental Analysis, *Management Science*, 22(2), 192-201.
-    https://doi.org/10.1287/mnsc.22.2.192
-    """
-    now = server.env.now
-    remaining_pt = sum(job.routing[s] for s in job.unfinished_routing)
-    if remaining_pt <= 0:
-        return float("inf")
-    return (job.due_date - now) / remaining_pt
-
-
-# ----- FCFS / default -----
-
-
-def first_come_first_served(job: BaseJob, server: Server) -> float:  # noqa: ARG001
-    """First Come First Served.
-
-    Returns ``0.0`` for every job, so the SimPy key tuple's ``time``
-    component (entry timestamp) does the tiebreaking. Equivalent to
-    the Router's no-rule default but explicit at the call site.
-    """
-    return 0.0

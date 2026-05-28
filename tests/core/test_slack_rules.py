@@ -1,14 +1,47 @@
-"""Tests for Tier-2 dispatching rules in :mod:`simulatte.dispatching_rules.parametrized`."""
+"""Tests for slack / ratio dispatching rules in :mod:`simulatte.dispatching_rules.slack`."""
 
 from __future__ import annotations
 
 import pytest
 
-from simulatte.dispatching_rules import planned_slack_time, slack_per_remaining_operation
+from simulatte.dispatching_rules import critical_ratio, planned_slack_time, slack_per_remaining_operation
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
+
+
+class TestCriticalRatio:
+    """Critical Ratio — Berry & Rao (1975)."""
+
+    def test_returns_slack_over_remaining_pt(self) -> None:
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s1 = Server(env=env, capacity=1, shopfloor=sf)
+        s2 = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="F1", servers=[s1, s2], processing_times=[2.0, 3.0], due_date=30.0)
+        # (30 - 0) / (2 + 3) = 6
+        assert critical_ratio(job, s1) == 6.0
+
+    def test_uses_dynamic_remaining_processing_time(self) -> None:
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s1 = Server(env=env, capacity=1, shopfloor=sf)
+        s2 = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="F1", servers=[s1, s2], processing_times=[2.0, 3.0], due_date=30.0)
+        assert critical_ratio(job, s2) == 6.0
+        # Simulate s1 done: remaining_pt = 3 only.
+        job.servers_exit_at[s1] = 5.0
+        assert critical_ratio(job, s2) == 10.0
+
+    def test_returns_inf_when_no_remaining_processing_time(self) -> None:
+        """Defensive: when every operation has been exited, remaining PT is 0 → inf."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="F1", servers=[server], processing_times=[2.0], due_date=30.0)
+        job.servers_exit_at[server] = 5.0
+        assert critical_ratio(job, server) == float("inf")
 
 
 class TestPlannedSlackTime:

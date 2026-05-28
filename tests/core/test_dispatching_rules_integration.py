@@ -1,7 +1,7 @@
 """Integration tests driving dispatch order through the real Server queue.
 
-The pure-function tests in ``test_basic_rules.py`` and
-``test_parametrized_rules.py`` check each rule's returned float in isolation.
+The per-family unit tests (``test_processing_rules.py``, ``test_due_date_rules.py``,
+``test_slack_rules.py``) check each rule's returned float in isolation.
 These tests instead wire a rule in as a job's ``priority_policy`` and run an
 actual simulation, asserting that jobs come out of a single contended queue in
 the order the rule prescribes. The mechanism under test is
