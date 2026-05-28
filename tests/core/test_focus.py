@@ -459,7 +459,7 @@ def test_focus_score_in_unit_interval() -> None:
     assert 0.0 <= score <= 1.0
 
 
-def test_focus_score_is_exact_weighted_average() -> None:
+def test_focus_score_equals_hand_computed_constant() -> None:
     """Score equals the hand-computed weighted average of independent constants."""
     sf, s1, _s2, cand, _other = _loaded_two_server_shop()
 
