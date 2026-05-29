@@ -239,8 +239,9 @@ def test_draco_authorization_uses_per_pair_dict_when_provided() -> None:
 def test_draco_full_score_matches_hand_computed_total_impact() -> None:
     """_full_score = w^R*R + w^A*A + w^D*D against independent constants.
 
-    Setup: s1 only, a blocker in users, two queued jobs (cand p=4, other p=8)
-    so max_pij=8 and pi(cand)=1-4/8=0.5. FOCUS uses pi-only weights, so the
+    Setup: s1 only, an in-process blocker (op=1, in O), two queued jobs
+    (cand p=4, other p=8); other's op sets max_pij=8 (the blocker's op=1 is
+    smaller), so pi(cand)=1-4/8=0.5. FOCUS uses pi-only weights, so the
     dispatching impact D = focus.score(cand) = 0.5. A(cand)=1.0 (single op).
     wip is passed explicitly (=4): ro^Q=min(1,4/20)=0.2, ro^P=max(0,1-4/20)=0.8.
     With equal total-impact weights (1/3 each):
@@ -250,7 +251,8 @@ def test_draco_full_score_matches_hand_computed_total_impact() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
-    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    # In-process blocker: in O but short (op=1) so `other` (op=8) sets max_pij.
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10000.0)
     cand = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[4.0], due_date=10000.0)
     other = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[8.0], due_date=10000.0)
     sf.add(blocker)

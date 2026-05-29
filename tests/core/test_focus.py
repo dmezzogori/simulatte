@@ -19,13 +19,18 @@ from simulatte.shopfloor import ShopFloor
 
 
 def _loaded_two_server_shop() -> tuple[ShopFloor, Server, Server, ProductionJob, ProductionJob]:
-    """A 2-server shop with a blocker on s1 and two queued candidates.
+    """A 2-server shop with an in-process blocker on s1 and two queued candidates.
 
-    Hand-computed FOCUS values at now=0.0 (blocker is in users -> excluded
-    from the candidate set O; only `cand` and `other` are candidates):
+    The blocker occupies s1's user slot, so it belongs to the order book O
+    (H_j ⊆ O). It is deliberately tardy (due=0) and short (p=1) so it neither
+    dominates max_pij nor contributes positive slack/pacing — the hand-computed
+    candidate aggregates below are therefore unaffected by its presence in O.
 
-      Aggregates: max_pij=8 (other's op), max_positive_slack=20 (cand),
-      max_positive_pacing=10 (both jobs tie at V=10).
+    Hand-computed FOCUS values at now=0.0 over O = {blocker, cand, other}:
+
+      Aggregates: max_pij=8 (other's op; blocker's op=1 is smaller),
+      max_positive_slack=20 (cand), max_positive_pacing=10 (cand & other tie
+      at V=10; blocker is tardy → excluded).
 
       cand  (routing s1->s2, p=[4,6], due=30): S=20, V=10
         pi   = 1 - 4/8 = 0.5
@@ -42,7 +47,9 @@ def _loaded_two_server_shop() -> tuple[ShopFloor, Server, Server, ProductionJob,
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
-    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=10000.0)
+    # In-process blocker: belongs to O, but tardy (due=0) and short (p=1) so it
+    # does not dominate any normalizer — keeps the focus on cand/other.
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=0.0)
     sf.add(blocker)
     env.run(until=0.001)
     cand = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[4.0, 6.0], due_date=30.0)
@@ -94,16 +101,16 @@ def test_focus_init_accepts_zero_weights() -> None:
 
 
 def test_focus_context_max_pij_basic() -> None:
-    # O = jobs currently in server queues (candidates). Jobs being *processed*
-    # (in users) are excluded — their load is already in workloads.
+    # O includes in-process orders (H_j ⊆ O): a job being *processed* (in users)
+    # contributes its remaining ops — including the one in progress — to max_pij.
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
 
     # j1 will grab s1's user slot; j2 and j3 will queue behind it.
-    # j2: p=[5, 2] → remaining ops have max 5.  j3: p=[3, 9] → remaining op max 9.
-    # After env.run: j1 in users (excluded), j2 and j3 in queue (candidates).
+    # j1 (in process): remaining ops [1000 (in progress), 1] → max 1000.
+    # j2: p=[5, 2] → remaining ops max 5.  j3: p=[3, 9] → remaining op max 9.
     j1 = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1000.0, 1.0], due_date=10000.0)
     j2 = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[5.0, 2.0], due_date=100.0)
     j3 = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[3.0, 9.0], due_date=100.0)
@@ -112,10 +119,11 @@ def test_focus_context_max_pij_basic() -> None:
     sf.add(j3)
     env.run(until=0.001)
     assert len(s1.queue) == 2  # j2 and j3 queued
+    assert j1 in s1.current_jobs  # j1 in process, still in O
 
     ctx = Focus.build_context(sf, now=0.001)
-    # max over candidates j2 (ops: 5,2) and j3 (ops: 3,9) → 9.0
-    assert ctx.max_pij == 9.0
+    # in-process j1's in-progress op (1000) dominates the queued candidates' ops.
+    assert ctx.max_pij == 1000.0
 
 
 def test_focus_context_max_pij_zero_when_no_jobs() -> None:
@@ -160,15 +168,16 @@ def test_focus_context_empty_queue_servers_excludes_loaded_server() -> None:
 
 
 def test_focus_context_max_positive_slack_and_pacing() -> None:
-    # O = jobs in server queues only (candidates). A blocker holds s1's user slot;
-    # j1, j2, j3 queue behind it and form the candidate set.
+    # The in-process blocker holds s1's user slot and belongs to O, but is tardy
+    # → excluded from the positive-slack/pacing normalizers, which j1/j2/j3 set.
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
 
-    # Blocker: long job grabs s1 so the three candidates must queue.
-    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    # Blocker grabs s1 so the three candidates must queue. In O but tardy (due=0),
+    # so it contributes no positive slack/pacing.
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=0.0)
     sf.add(blocker)
     env.run(until=0.001)
 
@@ -212,6 +221,36 @@ def test_focus_context_includes_psp_jobs_when_passed() -> None:
     assert ctx_with.max_pij == 42.0
 
 
+def test_focus_context_includes_in_process_orders() -> None:
+    """In-process orders belong to the order book O (H_j ⊆ O, Omega 2023, §3).
+
+    Their remaining operations — including the one currently in progress —
+    must range over the normalizers alongside queued candidates. Guard
+    against regressing to the old behaviour that excluded ``current_jobs``.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+
+    # in_process grabs s1's user slot; its in-progress op (50) and downstream
+    # op (3) both belong to O. queued waits behind it with much smaller values.
+    in_process = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[50.0, 3.0], due_date=1000.0)
+    queued = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[5.0, 2.0], due_date=20.0)
+    sf.add(in_process)
+    sf.add(queued)
+    env.run(until=0.001)
+    assert in_process in s1.current_jobs  # in process, not queued
+    assert len(s1.queue) == 1  # queued waits
+
+    ctx = Focus.build_context(sf, now=0.001)
+    # in_process's in-progress op (50) dominates the queued candidate's ops (5, 2).
+    assert ctx.max_pij == 50.0
+    # in_process's slack (~947) dominates the queued candidate's slack (~13).
+    expected_slack = 1000.0 - 0.001 - (50.0 + 3.0)
+    assert ctx.max_positive_slack == pytest.approx(expected_slack)
+
+
 # ----- pi (SPT mechanism) -----
 
 
@@ -223,8 +262,9 @@ def test_focus_pi_zero_when_pij_equals_max() -> None:
     # capacity=2 but we use a blocker to force job into queue
     s1 = Server(env=env, capacity=1, shopfloor=sf)
 
-    # Blocker grabs the single slot; job queues behind it.
-    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    # In-process blocker grabs the single slot; job queues behind it. The blocker
+    # is in O but short (op=1), so `job` (p=5) sets max_pij.
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=0.0)
     sf.add(blocker)
     env.run(until=0.001)
 
@@ -235,7 +275,7 @@ def test_focus_pi_zero_when_pij_equals_max() -> None:
 
     focus = Focus()
     ctx = focus.build_context(sf, now=0.002)
-    # Only candidate is `job` with p=5 → max_pij=5, pi = 1 - 5/5 = 0.
+    # `job` (p=5) dominates the blocker's op (1) → max_pij=5, pi = 1 - 5/5 = 0.
     assert focus.pi(job, s1, ctx) == 0.0
 
 
@@ -261,14 +301,15 @@ def test_focus_pi_intermediate_value() -> None:
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
 
-    # Block both servers so the test jobs queue as candidates.
-    b1 = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
-    b2 = ProductionJob(env=env, sku="A", servers=[s2], processing_times=[1000.0], due_date=10000.0)
+    # In-process blockers occupy both servers so the test jobs queue. They are
+    # in O but short (op=1), so they don't dominate max_pij (j_long's 8 does).
+    b1 = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=0.0)
+    b2 = ProductionJob(env=env, sku="A", servers=[s2], processing_times=[1.0], due_date=0.0)
     sf.add(b1)
     sf.add(b2)
     env.run(until=0.001)
 
-    # j_short has p_ik=2 at s1; j_long has p_ij=8 at s2 → max over candidates = 8
+    # j_short has p_ik=2 at s1; j_long has p_ij=8 at s2 → max over O = 8
     j_short = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[2.0], due_date=100.0)
     j_long = ProductionJob(env=env, sku="A", servers=[s2], processing_times=[8.0], due_date=100.0)
     sf.add(j_short)
@@ -361,12 +402,14 @@ def test_focus_psi_intermediate_value() -> None:
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
 
-    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    # In-process blocker: in O but tardy (due=0) → excluded from the slack
+    # normalizer, so `relaxed` sets max_positive_slack.
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=0.0)
     sf.add(blocker)
     env.run(until=0.001)
 
-    # At now=0.001: urgent S=6-0.001-1=4.999; relaxed S=51-0.001-1=49.999
-    # max_positive_slack = 49.999 (from relaxed)
+    # At now=0.002: urgent S=6-0.002-1=4.998; relaxed S=51-0.002-1=49.998
+    # max_positive_slack = 49.998 (from relaxed; blocker is tardy → excluded)
     urgent = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=6.0)
     relaxed = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=51.0)
     sf.add(urgent)

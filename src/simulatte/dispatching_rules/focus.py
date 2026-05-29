@@ -267,18 +267,20 @@ class Focus:
     ) -> FocusContext:
         """Compute the shop-wide aggregates needed by FOCUS at *now*.
 
-        The scored set ``O`` used here is the union of jobs currently
-        waiting in any server's queue and (if provided) ``psp.jobs``. Jobs
-        that are *currently being processed* (in ``server.users``) are
-        excluded from this scan: their processing time is already captured
-        in ``workloads``, so re-including them in the ``max_positive_c``
-        scan would inflate the normaliser and dilute beta scores for genuine
-        candidates. (Whether ``O`` should instead span *all* arrived,
-        not-yet-completed orders — including those in process — is the open
-        question flagged by the ``TODO`` below.)
+        The order book ``O`` scanned here is every arrived, not-yet-completed
+        order: jobs queued at any server (``server.queue``), jobs in process
+        (``server.users``), and — if provided — ``psp.jobs``. This matches
+        the FOCUS paper, which defines ``H_j ⊆ O`` and ``W_j = Q_j ∪ H_j``
+        (Kasper et al. 2023, Omega §3): in-process orders belong to ``O`` and
+        therefore to every normalizer (``max_pij``, ``max_positive_slack``,
+        ``max_positive_pacing``, beta's ``max_positive_c``) and to the
+        ``workloads``/``pre_entropy`` baseline, so all aggregates range over
+        one consistent population. An in-process order's currently-executing
+        operation counts as remaining (it is in ``unfinished_routing``),
+        consistent with ``workloads`` already counting its full ``p_ij``.
         Pass *psp* when scoring decisions that include PSP candidates
-        (e.g. DRACO); omit it for standalone-FOCUS dispatching where the
-        scored set is queue-only.
+        (e.g. DRACO); omit it for standalone-FOCUS dispatching where there
+        is no pool.
 
         Cost: ``O(|O| · |J|)`` (the ``|J|`` factor comes from the beta
         entropy pass — one ``_entropy`` evaluation per job in ``O``);
@@ -308,13 +310,16 @@ class Focus:
         ]
         pre_entropy = _entropy(workloads)
 
-        # TODO(draco-focus): revisit the population of O against Kasper et al.
-        # (2023). O is currently the queued jobs (+ PSP candidates), which
-        # excludes jobs in process (server.users) from the slack/pacing/SPT/beta
-        # normalizers. The spec's wording ("arrived orders not yet completed")
-        # may intend the in-process orders to be included; confirm against the
-        # primary source before changing, as it shifts all four normalizers.
-        jobs: list[BaseJob] = [j for s in shopfloor.servers for j in s.queueing_jobs]
+        # O is the order book: every arrived, not-yet-completed order. Per
+        # Kasper et al. (2023, Omega §3) H_j ⊆ O, so in-process orders
+        # (server.users) belong to it alongside queued orders (server.queue)
+        # and — when scoring release decisions — PSP candidates. All four
+        # normalizers (max_pij, slack, pacing, beta's max_positive_c) and the
+        # workload/entropy baseline therefore range over one population. An
+        # in-process order's currently-executing operation counts as remaining
+        # (via unfinished_routing), consistent with the workload vector above
+        # which already includes its full p_ij (W_j = Q_j ∪ H_j, Eq 2).
+        jobs: list[BaseJob] = [j for s in shopfloor.servers for j in (*s.queueing_jobs, *s.current_jobs)]
         if psp is not None:
             jobs.extend(psp.jobs)
 
