@@ -13,7 +13,7 @@ from simulatte.policies.lumscor import LumsCor
 from simulatte.policies.slar import Slar
 from simulatte.policies.slar_limit import SlarLimit
 from simulatte.policies.starvation_avoidance import starvation_avoidance
-from simulatte.policies.triggers import on_completion_trigger, periodic_trigger
+from simulatte.policies.triggers import periodic_trigger
 from simulatte.psp import PreShopPool
 from simulatte.router import Router
 from simulatte.server import Server
@@ -440,7 +440,7 @@ def build_draco_system(
         - ``priority_policy``: ``Draco.priority_policy`` (queue-side
           DRACO score; returns ``-inf`` one-shot for forced PSP winners
           to preserve strict paper semantics).
-        - ``on_completion_trigger``: ``Draco.decide_next_job``.
+        - ``shop_floor.on_processing_end``: ``Draco.decide_next_job``.
         - ``psp.on_arrival(starvation_avoidance)``: prevents idle-server
           starvation when a new arrival's first server is idle.
 
@@ -508,7 +508,7 @@ def build_draco_system(
         priority_policies=draco.priority_policy,
     )
 
-    env.process(on_completion_trigger(shop_floor, psp, draco.decide_next_job))
+    shop_floor.on_processing_end(draco.decide_next_job)
     psp.on_arrival(starvation_avoidance)
 
     return psp, servers, shop_floor, router

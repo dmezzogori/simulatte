@@ -293,9 +293,9 @@ Draco(
 
 **Methods:**
 - `draco.priority_policy(job, server)` — queue-side priority (`-inf` for a forced PSP winner); pass as `Router(priority_policies=...)`
-- `draco.decide_next_job(triggering_job, psp)` — the non-hierarchical decision (for `on_completion_trigger`)
+- `draco.decide_next_job(triggering_job, server)` — the non-hierarchical decision (for `shopfloor.on_processing_end`)
 
-Non-hierarchical: scores `Q_k ∪ P_k` by `w^R·R + w^A·A + w^D·D` on each completion. `D` is FOCUS. `build_draco_system` wires both the priority policy and the completion trigger, plus `starvation_avoidance` for cold start.
+Non-hierarchical: scores `Q_k ∪ P_k` by `w^R·R + w^A·A + w^D·D` on each completion. `D` is FOCUS. `build_draco_system` wires both the priority policy and the completion callback (`shopfloor.on_processing_end`), plus `starvation_avoidance` for cold start.
 
 > Note: ConWIP and Continuous Release are also available (`simulatte.policies.conwip.ConWIP`, `simulatte.policies.continuous_release.ContinuousRelease`) for manual composition via triggers.
 
@@ -523,7 +523,7 @@ build_draco_system(
 ) -> PullSystem  # (psp, servers, shopfloor, router)
 ```
 
-Non-hierarchical release+dispatch. Wires `Draco.priority_policy`, `on_completion_trigger(... Draco.decide_next_job)`, and `psp.on_arrival(starvation_avoidance)`.
+Non-hierarchical release+dispatch. Wires `Draco.priority_policy`, `shopfloor.on_processing_end(Draco.decide_next_job)`, and `psp.on_arrival(starvation_avoidance)`.
 
 ## Dispatching Rules
 

@@ -212,13 +212,15 @@ class Focus:
     ) -> FocusContext:
         """Compute the shop-wide aggregates needed by FOCUS at *now*.
 
-        The set ``O`` (arrived orders not yet completed) is taken to be
-        the union of jobs currently waiting in any server's queue and
-        (if provided) ``psp.jobs``.  Jobs that are *currently being
-        processed* (in ``server.users``) are deliberately excluded:
-        their processing time is already captured in ``workloads``, so
-        re-including them in the ``max_positive_c`` scan would inflate
-        the normaliser and dilute beta scores for genuine candidates.
+        The scored set ``O`` used here is the union of jobs currently
+        waiting in any server's queue and (if provided) ``psp.jobs``. Jobs
+        that are *currently being processed* (in ``server.users``) are
+        excluded from this scan: their processing time is already captured
+        in ``workloads``, so re-including them in the ``max_positive_c``
+        scan would inflate the normaliser and dilute beta scores for genuine
+        candidates. (Whether ``O`` should instead span *all* arrived,
+        not-yet-completed orders — including those in process — is the open
+        question flagged by the ``TODO`` below.)
         Pass *psp* when scoring decisions that include PSP candidates
         (e.g. DRACO); omit it for standalone-FOCUS dispatching where the
         scored set is queue-only.
@@ -251,6 +253,12 @@ class Focus:
         ]
         pre_entropy = _entropy(workloads)
 
+        # TODO(draco-focus): revisit the population of O against Kasper et al.
+        # (2023). O is currently the queued jobs (+ PSP candidates), which
+        # excludes jobs in process (server.users) from the slack/pacing/SPT/beta
+        # normalizers. The spec's wording ("arrived orders not yet completed")
+        # may intend the in-process orders to be included; confirm against the
+        # primary source before changing, as it shifts all four normalizers.
         jobs: list[BaseJob] = [j for s in shopfloor.servers for j in s.queueing_jobs]
         if psp is not None:
             jobs.extend(psp.jobs)

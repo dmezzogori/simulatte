@@ -9,7 +9,6 @@ from simulatte.dispatching_rules.focus import Focus
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.policies.draco import Draco
-from simulatte.policies.triggers import on_completion_trigger
 from simulatte.psp import PreShopPool
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
@@ -328,14 +327,10 @@ def test_draco_priority_policy_flag_persists_across_calls() -> None:
     assert s1 in draco._forced_at_server
 
     # Simulate a new completion at s1: decide_next_job must clear the flag.
-    # Re-arm the flag and then call decide_next_job with a minimal fake
-    # triggering job (no queue/PSP candidates, so it pops and returns early).
+    # Re-arm the flag and then call decide_next_job for s1 (no queue/PSP
+    # candidates, so it pops the flag and returns early).
     draco._forced_at_server[s1] = job  # type: ignore[assignment]  # re-arm
-
-    class _FakeTrigger:
-        previous_server = s1
-
-    draco.decide_next_job(_FakeTrigger(), psp)  # type: ignore[arg-type]
+    draco.decide_next_job(job, s1)
     assert s1 not in draco._forced_at_server
 
 
@@ -376,10 +371,8 @@ def test_draco_force_flag_set_on_psp_win() -> None:
     psp_cand = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10000.0)
     psp.add(psp_cand)
 
-    class _FakeTrigger:
-        previous_server = s1
-
-    draco.decide_next_job(_FakeTrigger(), psp)  # type: ignore[arg-type]
+    # blocker stands in for the job that just completed at s1.
+    draco.decide_next_job(blocker, s1)
 
     assert draco._forced_at_server.get(s1) is psp_cand
     assert psp_cand not in psp
@@ -402,7 +395,7 @@ def test_draco_decide_next_job_empty_no_op() -> None:
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
     draco = Draco(shopfloor=sf, psp=psp, wip_target=10, loop_target=5)
-    env.process(on_completion_trigger(sf, psp, draco.decide_next_job))
+    sf.on_processing_end(draco.decide_next_job)
 
     job = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10.0)
     sf.add(job)
@@ -425,7 +418,7 @@ def test_draco_psp_winner_processes_immediately() -> None:
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
     draco = Draco(shopfloor=sf, psp=psp, wip_target=10, loop_target=5)
-    env.process(on_completion_trigger(sf, psp, draco.decide_next_job))
+    sf.on_processing_end(draco.decide_next_job)
     policy = _policy_factory(draco)
 
     current = ProductionJob(
@@ -466,7 +459,7 @@ def test_draco_queue_winner_dispatched_correctly() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     # Tiny tau → shop is over-target → ro^Q is high, ro^P is low
     draco = Draco(shopfloor=sf, psp=psp, wip_target=1, loop_target=5, total_impact_weights=(0.7, 0.15, 0.15))
-    env.process(on_completion_trigger(sf, psp, draco.decide_next_job))
+    sf.on_processing_end(draco.decide_next_job)
     policy = _policy_factory(draco)
 
     current = ProductionJob(
@@ -519,7 +512,7 @@ def test_draco_winner_via_R_boost_still_processes_first() -> None:
         wip_target=20,
         loop_target=5,
     )
-    env.process(on_completion_trigger(sf, psp, draco.decide_next_job))
+    sf.on_processing_end(draco.decide_next_job)
     policy = _policy_factory(draco)
 
     # Currently processing — finishes at t=10
@@ -549,19 +542,79 @@ def test_draco_winner_via_R_boost_still_processes_first() -> None:
     assert psp_relaxed.servers_entry_at[s1] == 10.0
 
 
-def test_draco_decide_next_job_returns_when_no_previous_server() -> None:
-    """Defensive: triggering_job with previous_server=None is a no-op."""
+def test_draco_queue_winner_is_force_flagged() -> None:
+    """The decision is authoritative for queue winners too (force-pinned).
+
+    DRACO force-pins whichever job wins decide_next_job — queue or PSP — so
+    the imminent Release-event sort_queue cannot re-derive a different order
+    from the (post-re-enqueue) queue-side context. A queue winner is pinned
+    at queue[0] via the ``-inf`` priority and is NOT released from any PSP.
+    """
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
+    # Over-target shop (tau=1) with a heavy R weight → ro^Q dominates ro^P,
+    # so the urgent queued job outscores the relaxed PSP candidate.
+    draco = Draco(shopfloor=sf, psp=psp, wip_target=1, loop_target=5, total_impact_weights=(0.7, 0.15, 0.15))
+
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    queued = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=6.0)
+    sf.add(blocker)
+    sf.add(queued)
+    env.run(until=0.001)
+
+    psp_relaxed = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=10000.0)
+    psp.add(psp_relaxed)
+
+    # blocker stands in for the job that just completed at s1.
+    draco.decide_next_job(blocker, s1)
+
+    # Queue winner is force-flagged (it was NOT under the old PSP-only design)
+    # and no PSP release happened.
+    assert draco._forced_at_server.get(s1) is queued
+    assert draco.priority_policy(queued, s1) == float("-inf")
+    assert psp_relaxed in psp
+
+
+def test_draco_decide_next_job_uses_uncorrected_count_wip(monkeypatch: pytest.MonkeyPatch) -> None:
+    """decide_next_job scores with plain _count_wip (no in-transit correction).
+
+    Because the winner is force-pinned, dispatch follows the decision and
+    there is no later sort_queue re-derivation to reconcile with, so R/A/D
+    are all evaluated at the single decision instant from the same state.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
     draco = Draco(shopfloor=sf, psp=psp, wip_target=10, loop_target=5)
 
-    # A job that has never visited any server — previous_server is None
-    fresh = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10.0)
-    assert fresh.previous_server is None
-    draco.decide_next_job(fresh, psp)  # should not raise
-    assert not draco._forced_at_server
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    queued = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[2.0], due_date=10000.0)
+    sf.add(blocker)
+    sf.add(queued)
+    env.run(until=0.001)
+    base_wip = draco._count_wip()  # blocker (users) + queued (queue) = 2
+
+    captured: list[int] = []
+    real_full_score = draco._full_score
+
+    def spy(job, server, ctx, now, wip, *, in_psp):  # type: ignore[no-untyped-def]
+        captured.append(wip)
+        return real_full_score(job, server, ctx, now, wip, in_psp=in_psp)
+
+    monkeypatch.setattr(draco, "_full_score", spy)
+
+    # A multi-op job stands in as the just-finished triggering job; its
+    # identity is ignored, and no +1 correction is applied.
+    triggering = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1.0, 300.0], due_date=10000.0)
+    triggering.servers_exit_at[s1] = env.now
+    draco.decide_next_job(triggering, s1)
+
+    assert captured, "expected at least one candidate scored"
+    assert all(w == base_wip for w in captured)
 
 
 # ----- build_draco_system -----
@@ -636,7 +689,7 @@ def test_draco_beta_only_focus_weights_runs_without_error() -> None:
         wip_target=10,
         loop_target=5,
     )
-    env.process(on_completion_trigger(sf, psp, draco.decide_next_job))
+    sf.on_processing_end(draco.decide_next_job)
     policy = _policy_factory(draco)
 
     # A mix of jobs across both servers — DRACO + beta-only FOCUS should

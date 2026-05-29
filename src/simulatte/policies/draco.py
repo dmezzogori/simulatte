@@ -35,49 +35,64 @@ class Draco:
     embedded ``Focus``, and the one-shot force flags) and exposes both a
     ``priority_policy`` and an ``on_completion`` callback.
 
-    Trigger: ``on_completion_trigger`` — same trigger as SLAR. On every
-    job exit from any server ``k``, ``decide_next_job`` runs and
-    selects the next job to be processed at ``k`` from
-    ``Q_k ∪ P_k``.
+    Trigger: ``shopfloor.on_processing_end`` — the same mechanism SLAR
+    uses. On every job exit from any server ``k``, ``decide_next_job``
+    runs (with ``k`` passed directly by the callback) and selects the
+    next job to be processed at ``k`` from ``Q_k ∪ P_k``.
 
     Strict paper semantics — "the winner is the next processed":
-        DRACO's R term differs between PSP candidates (``ro^P``) and
-        queue members (``ro^Q``). A PSP candidate ``i`` can win
-        DRACO's decision via the R boost ``w^R · (ro^P − ro^Q)`` even
-        when some queued ``j`` has a higher A+D contribution. Once ``i``
-        is released and enters the queue, its queue-side priority (which
-        uses ``ro^Q`` like everyone else) might be worse than ``j``'s,
-        and SimPy's ``_trigger_put`` would dispatch ``j`` first —
-        violating DRACO's decision. To preserve strict paper semantics,
-        DRACO sets a ``_forced_at_server`` flag for the PSP
-        winner; ``priority_policy`` returns ``-inf`` for the forced
-        job at that server for as long as the flag is set, guaranteeing
-        ``queue[0] = winner`` across every ``sort_queue`` re-evaluation.
-        The flag is cleared at the START of the next
-        ``decide_next_job`` call for the same server (not on first
-        read), so repeated ``_trigger_put`` sorts cannot wipe it out.
+        DRACO scores ``Q_k ∪ P_k`` once per completion and the winner must
+        be the next job processed at ``k``. But ``priority_policy``
+        re-derives queue-side scores live on every ``sort_queue`` — and for
+        multi-op jobs the queue-side context can shift between the decision
+        and the dispatch (see *Decision instant* below) — so the order
+        ``sort_queue`` produces is not guaranteed to match DRACO's decision.
+        To make the decision authoritative, DRACO sets a
+        ``_forced_at_server`` flag for the winner — whether it came from
+        ``Q_k`` or ``P_k`` — and ``priority_policy`` returns ``-inf`` for
+        that job at that server while the flag is set, guaranteeing
+        ``queue[0] = winner`` across every ``sort_queue`` re-evaluation. A
+        PSP winner additionally gets released onto the shop floor; a queue
+        winner is already in ``Q_k`` and only needs the pin. The flag is
+        cleared at the START of the next ``decide_next_job`` call for the
+        same server (not on first read), so repeated ``_trigger_put`` sorts
+        cannot wipe it out. (Correctness assumes a single freed slot per
+        completion, i.e. ``capacity == 1``, as in ``build_draco_system`` and
+        the paper.)
 
     Timing — why this is correct without any ``shopfloor.py`` changes:
-        At a job completion, ``shopfloor.main`` (around
-        ``shopfloor.py:1091``) succeeds ``job_processing_end`` (NORMAL)
-        while the server is still held; the ``with``-block exit then
-        calls ``server.release(req)``, which synchronously removes the
-        request from ``users`` (so ``count`` drops to 0) and schedules a
-        Release event (NORMAL). The on-completion trigger callback
-        (DRACO) runs first because NORMAL events at the same instant are
-        processed in id order and ``job_processing_end`` has the smaller
-        id. If DRACO releases a PSP winner via ``psp.shopfloor.add``,
-        the new process's ``Initialize`` event is **URGENT**
-        (``simpy/events.py:270``) and therefore runs *before* the
-        pending Release event; inside the new process, ``server.request``
-        calls ``_trigger_put`` synchronously, finds ``users`` empty, and
-        grants the slot immediately. The Release event then fires with
-        nothing to dispatch. Net result: the PSP winner has the server.
+        ``decide_next_job`` is wired via ``shopfloor.on_processing_end``,
+        so it runs *synchronously* inside ``shopfloor.main`` the moment
+        the ``with server.request()`` block exits. By then
+        ``server.release(req)`` has already removed the request from
+        ``users`` (so ``count`` drops to 0) and scheduled a Release event
+        (NORMAL), but that event has not yet been dequeued and no SimPy
+        process-based listener has resumed. If DRACO releases a PSP winner
+        via ``psp.shopfloor.add``, the new process's ``Initialize`` event
+        is **URGENT** (``simpy/events.py``) and therefore runs *before*
+        the pending Release event; inside the new process,
+        ``server.request`` calls ``_trigger_put`` synchronously, finds
+        ``users`` empty, and grants the slot immediately. The Release
+        event then fires with nothing to dispatch. Net result: the PSP
+        winner has the server. For a queue winner there is no new process;
+        that same Release event's ``_trigger_put`` calls ``sort_queue``,
+        which sees the forced ``-inf`` and pins the winner at ``queue[0]``
+        before granting the slot. Either way the callback fires before any
+        event is dequeued, so correctness rests on event *priority* — URGENT
+        ``Initialize`` before NORMAL ``Release`` for a PSP winner, and the
+        live ``-inf`` for a queue winner — never on same-priority event-id
+        ordering.
 
-    For the queue-winner case, the imminent Release event's
-    ``_trigger_put`` calls ``sort_queue``,
-    which re-evaluates ``priority_policy`` (live) for every queued
-    request and yields the correct queue order.
+    Decision instant: the callback fires *before* the just-finished job
+    re-enters its next server's queue, so a multi-op triggering job is not
+    part of the shop scan at decision time. Because DRACO force-pins the
+    winner, dispatch follows the decision verbatim — there is no later
+    ``sort_queue`` re-derivation to disagree with — so the R, A and D terms
+    are all evaluated consistently at this single instant. (Whether the
+    in-transit order *should* be counted at the decision instant is a
+    literature-faithfulness question, of the same flavour as the
+    ``build_context`` note on the ``O`` set; the *consistency* of decision
+    and dispatch does not depend on the answer.)
 
     Cold start / bootstrapping:
         DRACO's decision is triggered *only* on job completions. In an idle
@@ -152,9 +167,9 @@ class Draco:
     def priority_policy(self, job: BaseJob, server: Server) -> float:
         """Queue-side priority for *job* at *server*.
 
-        Returns ``-inf`` when DRACO has elected *job* as the PSP winner
-        at *server* and the force flag is still set.  The flag is set in
-        ``decide_next_job`` and cleared at the START of the next
+        Returns ``-inf`` when DRACO has elected *job* as the winner at
+        *server* (from ``Q_k`` or ``P_k``) and the force flag is still set.
+        The flag is set in ``decide_next_job`` and cleared at the START of the next
         ``decide_next_job`` call for the same server — not on first
         read — so every ``sort_queue`` re-evaluation triggered by SimPy's
         ``_trigger_put`` consistently keeps the winner at ``queue[0]``
@@ -173,19 +188,24 @@ class Draco:
             return float("-inf")
         return -self._queue_side_score(job, server)
 
-    def decide_next_job(self, triggering_job: ProductionJob, psp: PreShopPool) -> None:
-        """``on_completion_trigger`` callback — the non-hierarchical decision.
+    def decide_next_job(self, _triggering_job: ProductionJob, server_k: Server) -> None:
+        """``shopfloor.on_processing_end`` callback — the non-hierarchical decision.
 
-        Scores every candidate in ``Q_k ∪ P_k`` using the full DRACO
-        formula (``ro^P`` for PSP candidates, ``ro^Q`` for queued ones),
-        then either releases the PSP winner (with the force-flag staged)
-        or relies on the imminent Release event's ``_trigger_put`` call to
-        ``sort_queue`` (which re-evaluates
-        ``priority_policy`` live) to make the queue winner ``queue[0]``.
+        Invoked as ``(triggering_job, server_k)`` when a job finishes
+        processing at *server_k* (the triggering job's identity is not
+        used; only *server_k* matters). Scores every candidate in
+        ``Q_k ∪ P_k`` using the full DRACO formula (``ro^P`` for PSP
+        candidates, ``ro^Q`` for queued ones), then force-pins the winner at
+        *server_k* via the one-shot flag so the imminent Release event's
+        ``sort_queue`` cannot re-derive a different order; a PSP winner is
+        additionally released onto the shop floor so its process can grab
+        the freed slot.
+
+        Both the PSP candidate set and the FOCUS context use ``self._psp``,
+        the same PreShopPool ``_queue_side_score`` uses, so the two paths
+        never disagree on the source of the ``O`` aggregate.
         """
-        server_k = triggering_job.previous_server
-        if server_k is None:
-            return
+        psp = self._psp
 
         # Clear any force flag from the previous decide_next_job for this
         # server.  The previous winner has either been dispatched (and is
@@ -193,6 +213,12 @@ class Draco:
         self._forced_at_server.pop(server_k, None)
 
         now = self._shopfloor.env.now
+        # Count-WIP at the decision instant. This callback fires on server
+        # release, before the just-finished job re-enters its next server's
+        # queue, so a multi-op triggering job is (deliberately) not counted
+        # here. Because the winner is force-pinned below, dispatch follows
+        # this decision verbatim — there is no later sort_queue re-derivation
+        # to disagree with — so R, A and D are evaluated at this one instant.
         wip = self._count_wip()
         ctx = self.focus.build_context(self._shopfloor, now, psp=psp, compute_beta=self.focus.w5 != 0.0)
 
@@ -201,7 +227,7 @@ class Draco:
             j: self._full_score(j, server_k, ctx, now, wip, in_psp=False) for j in queue_jobs
         }
 
-        psp_candidates = [j for j in psp.jobs if j.starts_at(server_k)]
+        psp_candidates = [j for j in psp.jobs if j.starts_at(server_k)] if psp is not None else []
         psp_scores: dict[BaseJob, float] = {
             j: self._full_score(j, server_k, ctx, now, wip, in_psp=True) for j in psp_candidates
         }
@@ -212,16 +238,21 @@ class Draco:
 
         winner = max(all_scores, key=lambda j: all_scores[j])
 
-        if winner in psp_scores:
-            # winner came from psp.jobs (Iterable[ProductionJob]), so the cast is safe.
-            psp_winner: ProductionJob = cast("ProductionJob", winner)
-            # Force absolute first-dispatch via the one-shot flag.
-            self._forced_at_server[server_k] = psp_winner
-            psp.remove(job=psp_winner)
-            psp.shopfloor.add(psp_winner)
-        # else: queue winner — the imminent Release event's _trigger_put will
-        # call sort_queue, which re-evaluates priority_policy (live) for every
-        # queued request and yields the correct order.
+        # The decision is authoritative: force-pin the winner at server_k so
+        # the imminent Release event's sort_queue cannot put a different job at
+        # queue[0]. winner is a ProductionJob (queue requests and psp.jobs both
+        # carry ProductionJob), so the cast is safe.
+        winner_job: ProductionJob = cast("ProductionJob", winner)
+        self._forced_at_server[server_k] = winner_job
+
+        if winner in psp_scores and psp is not None:
+            # PSP winner: release it onto the shop floor (psp_scores is non-empty
+            # only when self._psp is not None). The new process's URGENT Initialize
+            # precedes the NORMAL Release, so it grabs the freed slot immediately.
+            psp.remove(job=winner_job)
+            psp.shopfloor.add(winner_job)
+        # else: queue winner — already in server_k.queue; the force flag alone
+        # pins it at queue[0] for the imminent Release event's sort_queue.
 
     # ----- Internal helpers (R, A, scoring) -----
 
