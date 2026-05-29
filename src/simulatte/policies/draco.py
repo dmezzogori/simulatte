@@ -105,6 +105,15 @@ class Draco:
         dominate. (Faithfulness of this provision to Kasper et al. 2023 has
         not been verified against the primary source.)
 
+    Downstream auto-grant (no decision on routing-in):
+        ``decide_next_job`` fires only on *completion* at a server. When a
+        released job routes into an *idle* downstream server ``B`` while a
+        ``P_B`` pool candidate waits, SimPy grants ``B`` to the arriving job
+        immediately and DRACO never weighs pulling the pool candidate — a
+        decision moment in the paper's sense passes without ``R/A/D``
+        scoring. Rare at the paper's ~90% utilization; not corrected here,
+        noted for faithfulness (review §6.F).
+
     Args:
         shopfloor: The shopfloor against which DRACO's contexts and
             count-WIP are computed. Required (unlike SLAR which is

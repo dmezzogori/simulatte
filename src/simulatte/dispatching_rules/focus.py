@@ -18,6 +18,11 @@ Mechanism activation:
     their experiments, but it is included here for reproducibility and
     as a building block for future WIP-balance-aware policies.
 
+    The weight tuple is ordered ``(π, ξ, τ, δ, β)`` (DRACO Eq-9 order with
+    β appended 5th), NOT the FOCUS paper's Eq-12 order ``(π, β, ξ, τ, δ)``.
+    See ``Focus.__init__`` for the index→mechanism map and the exact weight
+    tuples that reproduce the Omega paper's per-mechanism ablations.
+
 References:
     Kasper, A., Land, M., Teunter, R. (2023). Towards system state
     dispatching in high-variety manufacturing. *Omega*, 114, 102726.
@@ -122,7 +127,8 @@ class FocusContext:
 
     Attributes:
         max_pij: Max processing time over all pending ``(i, j)`` pairs in
-            the shop (the set ``D`` in the spec). ``0`` if no pending ops.
+            the shop (the set ``P`` in the FOCUS paper, Eq 1). ``0`` if no
+            pending ops.
         empty_queue_servers: Servers whose ``queue`` is empty at the
             snapshot instant.
         max_positive_slack: Max of ``S_i`` across all jobs in ``O`` with
@@ -237,6 +243,34 @@ class Focus:
             mechanism. Defaults to ``(0.25, 0.25, 0.25, 0.25, 0.0)`` —
             beta dormant, preserving the original four-mechanism
             behaviour.
+
+            Weight ordering (IMPORTANT). The tuple follows the DRACO
+            paper's Eq-9 four-mechanism order with ``beta`` appended 5th —
+            ``(π, ξ, τ, δ, β)`` — NOT the FOCUS paper's Eq-12 order
+            ``(π, β, ξ, τ, δ)``. Index → mechanism → method → FOCUS Eq-12
+            slot::
+
+                w1 → SPT            → pi    → π   (FOCUS Eq-12 w1)
+                w2 → starvation     → omega → ξ   (FOCUS Eq-12 w3)
+                w3 → slack timing   → psi   → τ   (FOCUS Eq-12 w4)
+                w4 → pacing         → gamma → δ   (FOCUS Eq-12 w5)
+                w5 → WIP balancing  → beta  → β   (FOCUS Eq-12 w2)
+
+            The default and the all-equal baseline are order-invariant, but
+            reproducing the Omega paper's per-mechanism ablations requires
+            translating the index — copying the paper's "set wᵢ = 0"
+            verbatim zeroes the *wrong* mechanism here. To reproduce each
+            ablation (the removed mechanism's weight is 0, the rest 1/4)::
+
+                FOCUS-π : (0.0,  0.25, 0.25, 0.25, 0.25)
+                FOCUS-β : (0.25, 0.25, 0.25, 0.25, 0.0 )   # the default
+                FOCUS-ξ : (0.25, 0.0,  0.25, 0.25, 0.25)
+                FOCUS-τ : (0.25, 0.25, 0.0,  0.25, 0.25)
+                FOCUS-δ : (0.25, 0.25, 0.25, 0.0,  0.25)
+
+            The full all-five FOCUS is ``(0.2, 0.2, 0.2, 0.2, 0.2)``. Do
+            not reorder the tuple: DRACO, the default, and every caller
+            depend on the current order.
 
     Example (inside DRACO — one ctx, many candidates):
         >>> focus = Focus(weights=(0.2, 0.2, 0.2, 0.2, 0.2))
@@ -372,7 +406,7 @@ class Focus:
         )
 
     def pi(self, job: BaseJob, server: Server, ctx: FocusContext) -> float:
-        """SPT mechanism (spec §3.3.1): favour short operations at *server*.
+        """SPT mechanism (Omega 2023, Eq 1): favour short operations at *server*.
 
         ``pi = 1 - p_{ik} / ctx.max_pij``, or ``1`` when ``max_pij == 0``.
         """
@@ -382,7 +416,7 @@ class Focus:
         return 1.0 - p_ik / ctx.max_pij
 
     def omega(self, job: BaseJob, server: Server, ctx: FocusContext) -> float:
-        """Starvation response (spec §3.3.2): relieve idle downstream servers.
+        """Starvation response (Omega 2023, Eq 7): relieve idle downstream servers.
 
         ``omega = pi(job, server, ctx)`` when the next server in *job*'s
         routing has an empty queue, else ``0``. ``0`` if *server* is the
@@ -396,7 +430,7 @@ class Focus:
         return 0.0
 
     def psi(self, job: BaseJob, ctx: FocusContext, now: float) -> float:
-        """Slack timing (spec §3.3.3): favour due-date urgency.
+        """Slack timing (Omega 2023, Eqs 8-9): favour due-date urgency.
 
         ``S_i = d_i - now - sum(p_ij for j in R_i)``. If ``S_i <= 0`` the
         job is tardy or just-in-time → ``psi = 1`` (saturated). Otherwise
@@ -411,7 +445,7 @@ class Focus:
         return 1.0 - s_i / ctx.max_positive_slack
 
     def gamma(self, job: BaseJob, ctx: FocusContext, now: float) -> float:
-        """Pacing (spec §3.3.4): favour orders behind per-operation pace.
+        """Pacing (Omega 2023, Eqs 10-11): favour orders behind per-operation pace.
 
         ``V_i = S_i / |R_i|``. If ``V_i <= 0`` → ``gamma = 1`` (saturated).
         Otherwise ``gamma = 1 - V_i / ctx.max_positive_pacing``. Returns
@@ -430,7 +464,7 @@ class Focus:
         return 1.0 - v_i / ctx.max_positive_pacing
 
     def beta(self, job: BaseJob, server: Server, ctx: FocusContext) -> float:
-        """WIP balancing (Omega paper §3.3.5): favour dispatches that improve workload balance.
+        """WIP balancing (Omega 2023, Eqs 2-6): favour dispatches that improve workload balance.
 
         ``beta = c(i) / ctx.max_positive_c`` if ``c(i) > 0``, else ``0``.
 
