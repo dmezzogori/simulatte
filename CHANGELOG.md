@@ -2,6 +2,31 @@
 
 All notable changes to Simulatte are documented here.
 
+## 0.9.0 — 2026-05-29
+
+### New
+
+- **`Draco` release policy** (`simulatte.policies.Draco`) — non-hierarchical WIP
+  control merging release, authorization, and dispatching into a single
+  per-server decision on each job completion. Implements Kasper, Land &
+  Teunter (2023, *IJPE* 257, 108768) in full-DRACO configuration
+  (`w^R=0.25, w^A=0.25, w^D=0.5`). `Draco.__init__` uses the
+  active-construction pattern: pass `shopfloor`, `router`, and optionally
+  `psp` and it self-wires all hooks on construction (mirroring `Slar`).
+  Builder: `build_draco_system()`.
+
+- **`Focus` dispatching rule** (`simulatte.dispatching_rules.Focus`) — five
+  composable scheduling mechanisms (SPT, starvation avoidance, slack,
+  pacing, WIP-balance entropy) unified into a single `(job, server) →
+  float` priority callable. Implements Thürer, Land & Stevenson (2023,
+  *Omega* 114, 102726). Builder: `build_focus_system()`.
+
+### Changed
+
+- **`Draco` constructor** is active (like `Slar`): pass `shopfloor`,
+  `router`, and optionally `psp`, and hook registration happens on
+  construction. No manual wiring required.
+
 ## 0.8.0 — 2026-05-28
 
 ### New
