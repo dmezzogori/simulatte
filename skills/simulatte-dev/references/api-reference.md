@@ -283,6 +283,7 @@ from simulatte.policies.draco import Draco
 Draco(
     *,
     shopfloor: ShopFloor,
+    router: Router,                                    # self-wires router.priority_policies
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     total_impact_weights: tuple[float, float, float] = (0.25, 0.25, 0.5),  # paper full DRACO (Table 2)
     wip_target: int,                                  # tau (job count)
@@ -292,10 +293,10 @@ Draco(
 ```
 
 **Methods:**
-- `draco.priority_policy(job, server)` — queue-side priority (`-inf` for a forced PSP winner); pass as `Router(priority_policies=...)`
-- `draco.decide_next_job(triggering_job, server)` — the non-hierarchical decision (for `shopfloor.on_processing_end`)
+- `draco.priority_policy(job, server)` — queue-side priority (`-inf` for a forced PSP winner)
+- `draco.decide_next_job(triggering_job, server)` — the non-hierarchical decision
 
-Non-hierarchical: scores `Q_k ∪ P_k` by `w^R·R + w^A·A + w^D·D` on each completion. `D` is FOCUS. `build_draco_system` wires both the priority policy and the completion callback (`shopfloor.on_processing_end`), plus `starvation_avoidance` for cold start.
+Non-hierarchical: scores `Q_k ∪ P_k` by `w^R·R + w^A·A + w^D·D` on each completion. `D` is FOCUS. **Construction is active (like `Slar`)**: `Draco.__init__` self-wires `router.priority_policies`, `shopfloor.on_processing_end(decide_next_job)`, and (when a `psp` is given) `psp.on_arrival(starvation_avoidance)` — so `build_draco_system` is a single `Draco(...)` call and a direct user cannot forget the hooks.
 
 > Caveats: DRACO assumes `capacity == 1` (one freed slot per completion; the force-pin relies on it). `starvation_avoidance` bypasses R/A/D scoring (releases an arrival when its first server is idle) — a liveness provision, not a DRACO decision; likewise a released job entering an idle downstream server is auto-granted with no decision.
 

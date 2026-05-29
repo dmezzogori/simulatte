@@ -19,10 +19,12 @@ import math
 from typing import TYPE_CHECKING, cast
 
 from simulatte.dispatching_rules.focus import Focus, FocusContext, _StateMemo, _next_server_after
+from simulatte.policies.starvation_avoidance import starvation_avoidance
 
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.job import BaseJob, ProductionJob
     from simulatte.psp import PreShopPool
+    from simulatte.router import Router
     from simulatte.server import Server
     from simulatte.shopfloor import ShopFloor
 
@@ -33,12 +35,21 @@ class Draco:
     Design note: DRACO is a class (not a dispatching-rule factory) because
     it holds shop-coupled state (the WIP target, per-pair loop targets, the
     embedded ``Focus``, and the one-shot force flags) and exposes both a
-    ``priority_policy`` and an ``on_completion`` callback.
+    ``priority_policy`` and a ``decide_next_job`` (``on_processing_end``)
+    callback.
 
     Trigger: ``shopfloor.on_processing_end`` — the same mechanism SLAR
     uses. On every job exit from any server ``k``, ``decide_next_job``
     runs (with ``k`` passed directly by the callback) and selects the
     next job to be processed at ``k`` from ``Q_k ∪ P_k``.
+
+    Active construction (like ``Slar.__init__``): the instance self-wires
+    every hook it depends on — it sets ``router.priority_policies`` to its
+    ``priority_policy``, registers ``decide_next_job`` on
+    ``shopfloor.on_processing_end``, and (when a ``psp`` is given) registers
+    ``starvation_avoidance`` on ``psp.on_arrival``. So ``build_draco_system``
+    stays a single ``Draco(...)`` line and a user wiring DRACO by hand cannot
+    forget any of the three.
 
     Strict paper semantics — "the winner is the next processed":
         DRACO scores ``Q_k ∪ P_k`` once per completion and the winner must
@@ -117,7 +128,13 @@ class Draco:
     Args:
         shopfloor: The shopfloor against which DRACO's contexts and
             count-WIP are computed. Required (unlike SLAR which is
-            stateless against shop state).
+            stateless against shop state). ``decide_next_job`` is
+            registered on its ``on_processing_end``.
+        router: The router whose ``priority_policies`` is set to
+            ``priority_policy``. Required: DRACO's queue ordering depends on
+            its score being applied to every job. (``priority_policies`` is
+            read at job-creation time, so assigning it post-construction is
+            sufficient.)
         focus_weights: ``(w1, w2, w3, w4, w5)`` for FOCUS's five pieces.
         total_impact_weights: ``(w^R, w^A, w^D)``, must sum to 1. Defaults to
             ``(0.25, 0.25, 0.5)`` — the paper's full DRACO configuration
@@ -129,8 +146,10 @@ class Draco:
         psp: Optional PreShopPool. When provided, its jobs are included
             in the ``O`` aggregate that FOCUS uses (so PSP candidates
             are reflected in shop-wide aggregates like ``max p_ij`` and
-            ``max S_i``). Optional because some test setups don't have
-            a PSP wired up.
+            ``max S_i``), and ``starvation_avoidance`` is registered on its
+            ``on_arrival`` so a job whose first server is idle is released
+            immediately (a cold-start liveness provision). Optional because
+            some test setups don't have a PSP wired up.
 
     References:
         Kasper, A., Land, M., Teunter, R. (2023). Non-hierarchical
@@ -143,6 +162,7 @@ class Draco:
         self,
         *,
         shopfloor: ShopFloor,
+        router: Router,
         focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
         total_impact_weights: tuple[float, float, float] = (0.25, 0.25, 0.5),
         wip_target: int,
@@ -181,6 +201,15 @@ class Draco:
         )
         self._last_ctx: FocusContext | None = None
         self._last_wip: int = 0
+
+        # Self-wire every hook DRACO depends on (mirrors Slar.__init__), so the
+        # builder stays a single line and a user constructing Draco directly
+        # cannot forget any of them. router.priority_policies is read at
+        # job-creation time, so post-construction assignment is sufficient.
+        router.priority_policies = self.priority_policy
+        shopfloor.on_processing_end(self.decide_next_job)
+        if psp is not None:
+            psp.on_arrival(starvation_avoidance)
 
     # ----- Public API -----
 

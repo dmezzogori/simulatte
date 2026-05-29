@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import Mock
+
 import pytest
 
 from simulatte.builders import build_draco_system
@@ -9,6 +11,7 @@ from simulatte.dispatching_rules.focus import Focus
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.policies.draco import Draco
+from simulatte.policies.starvation_avoidance import starvation_avoidance
 from simulatte.psp import PreShopPool
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
@@ -21,42 +24,42 @@ def test_draco_init_validates_total_impact_weights_sum() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     with pytest.raises(ValueError, match="sum to 1"):
-        Draco(shopfloor=sf, total_impact_weights=(0.5, 0.5, 0.5), wip_target=10, loop_target=5)
+        Draco(shopfloor=sf, router=Mock(), total_impact_weights=(0.5, 0.5, 0.5), wip_target=10, loop_target=5)
 
 
 def test_draco_init_validates_total_impact_weights_count() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     with pytest.raises(ValueError, match="3 elements"):
-        Draco(shopfloor=sf, total_impact_weights=(0.5, 0.5), wip_target=10, loop_target=5)  # type: ignore[arg-type]
+        Draco(shopfloor=sf, router=Mock(), total_impact_weights=(0.5, 0.5), wip_target=10, loop_target=5)  # type: ignore[arg-type]
 
 
 def test_draco_init_validates_total_impact_weights_range() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     with pytest.raises(ValueError, match=r"\[0, 1\]"):
-        Draco(shopfloor=sf, total_impact_weights=(-0.1, 0.6, 0.5), wip_target=10, loop_target=5)
+        Draco(shopfloor=sf, router=Mock(), total_impact_weights=(-0.1, 0.6, 0.5), wip_target=10, loop_target=5)
 
 
 def test_draco_init_validates_wip_target() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     with pytest.raises(ValueError, match="wip_target"):
-        Draco(shopfloor=sf, wip_target=0, loop_target=5)
+        Draco(shopfloor=sf, router=Mock(), wip_target=0, loop_target=5)
 
 
 def test_draco_init_validates_loop_target_scalar() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     with pytest.raises(ValueError, match="loop_target"):
-        Draco(shopfloor=sf, wip_target=10, loop_target=0)
+        Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target=0)
 
 
 def test_draco_init_validates_loop_target_dict_empty() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     with pytest.raises(ValueError, match="loop_target dict"):
-        Draco(shopfloor=sf, wip_target=10, loop_target={})
+        Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target={})
 
 
 def test_draco_init_validates_loop_target_dict_values() -> None:
@@ -65,15 +68,50 @@ def test_draco_init_validates_loop_target_dict_values() -> None:
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
     with pytest.raises(ValueError, match=r"loop_target values"):
-        Draco(shopfloor=sf, wip_target=10, loop_target={(s1, s2): 0})
+        Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target={(s1, s2): 0})
 
 
 def test_draco_init_accepts_default_focus_and_impact_weights() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target=5)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target=5)
     assert draco.tau == 10
     assert draco.loop_target == 5
+
+
+# ----- self-wiring (construction installs the hooks DRACO depends on) -----
+
+
+def test_draco_init_self_wires_router_shopfloor_and_psp_hooks() -> None:
+    """Construction installs every hook DRACO needs (mirrors ``Slar.__init__``).
+
+    A bare ``Mock`` router only receives the priority-policy assignment; the
+    shopfloor gets the completion callback and the psp the arrival callback, so
+    a user constructing ``Draco`` directly cannot forget any of the three.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    router = Mock()
+
+    draco = Draco(shopfloor=sf, router=router, psp=psp, wip_target=10, loop_target=5)
+
+    assert router.priority_policies == draco.priority_policy
+    assert draco.decide_next_job in sf._processing_end_callbacks
+    assert starvation_avoidance in psp._arrival_callbacks
+
+
+def test_draco_init_self_wires_without_psp() -> None:
+    """With no psp, construction still wires the router and completion hook and
+    registers no arrival callback (there is no pool to release from)."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    router = Mock()
+
+    draco = Draco(shopfloor=sf, router=router, wip_target=10, loop_target=5)
+
+    assert router.priority_policies == draco.priority_policy
+    assert draco.decide_next_job in sf._processing_end_callbacks
 
 
 # ----- _count_wip -----
@@ -83,7 +121,7 @@ def test_draco_count_wip_zero_when_empty() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     Server(env=env, capacity=1, shopfloor=sf)
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target=5)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target=5)
     assert draco._count_wip() == 0
 
 
@@ -92,7 +130,7 @@ def test_draco_count_wip_uses_count_not_workload() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target=5)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target=5)
 
     # Three jobs, processing time 100 each (workload would dominate count)
     j1 = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=1000.0)
@@ -118,7 +156,7 @@ def test_draco_count_wip_spans_multiple_servers() -> None:
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target=5)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target=5)
 
     j1 = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1.0, 100.0], due_date=10000.0)
     j2 = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=10000.0)
@@ -139,7 +177,7 @@ def test_draco_count_wip_spans_multiple_servers() -> None:
 def test_draco_ro_P_zero_at_or_above_two_tau() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    draco = Draco(shopfloor=sf, wip_target=5, loop_target=3)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=5, loop_target=3)
     assert draco._ro_P(10) == 0.0
     assert draco._ro_P(100) == 0.0  # saturated
 
@@ -147,21 +185,21 @@ def test_draco_ro_P_zero_at_or_above_two_tau() -> None:
 def test_draco_ro_P_one_at_wip_zero() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    draco = Draco(shopfloor=sf, wip_target=5, loop_target=3)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=5, loop_target=3)
     assert draco._ro_P(0) == 1.0
 
 
 def test_draco_ro_Q_zero_at_wip_zero() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    draco = Draco(shopfloor=sf, wip_target=5, loop_target=3)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=5, loop_target=3)
     assert draco._ro_Q(0) == 0.0
 
 
 def test_draco_ro_Q_one_at_or_above_two_tau() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    draco = Draco(shopfloor=sf, wip_target=5, loop_target=3)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=5, loop_target=3)
     assert draco._ro_Q(10) == 1.0
     assert draco._ro_Q(100) == 1.0  # saturated
 
@@ -169,7 +207,7 @@ def test_draco_ro_Q_one_at_or_above_two_tau() -> None:
 def test_draco_ro_at_wip_tau() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target=3)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target=3)
     assert draco._ro_P(10) == pytest.approx(0.5)
     assert draco._ro_Q(10) == pytest.approx(0.5)
 
@@ -181,7 +219,7 @@ def test_draco_authorization_returns_one_at_last_operation() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target=5)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target=5)
 
     job = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10.0)
     assert draco._authorization_impact(job, s1) == 1.0
@@ -199,7 +237,7 @@ def test_draco_authorization_zero_when_loop_at_target() -> None:
     env.run(until=0.01)
     assert s2.count == 1
 
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target=1)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target=1)
     job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1.0, 1.0], due_date=10.0)
     # a_{s1,s2} = s1.count(0) + s2.queue(0) + s2.count(1) = 1; eps=1 → A=0
     assert draco._authorization_impact(job, s1) == 0.0
@@ -215,7 +253,7 @@ def test_draco_authorization_partial_value() -> None:
     sf.add(blocker)
     env.run(until=0.01)
 
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target=4)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target=4)
     job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1.0, 1.0], due_date=10.0)
     # a = 1, eps = 4 → A = 1 - 1/4 = 0.75
     assert draco._authorization_impact(job, s1) == pytest.approx(0.75)
@@ -231,7 +269,7 @@ def test_draco_authorization_uses_per_pair_dict_when_provided() -> None:
     sf.add(blocker)
     env.run(until=0.01)
 
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target={(s1, s2): 4})
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target={(s1, s2): 4})
     job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1.0, 1.0], due_date=10.0)
     assert draco._authorization_impact(job, s1) == pytest.approx(0.75)
 
@@ -254,7 +292,7 @@ def test_draco_authorization_per_pair_dict_uses_pair_specific_targets() -> None:
     assert s2.count == 1
     assert s3.count == 1
 
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target={(s1, s2): 4, (s2, s3): 6})
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target={(s1, s2): 4, (s2, s3): 6})
     job = ProductionJob(env=env, sku="A", servers=[s1, s2, s3], processing_times=[1.0, 1.0, 1.0], due_date=10.0)
 
     # At s1, next is s2: a_{s1,s2} = s1.count(0) + s2.queue(0) + s2.count(1) = 1; eps=4 → 1 - 1/4.
@@ -274,7 +312,7 @@ def test_draco_authorization_per_pair_dict_raises_on_missing_pair() -> None:
     s2 = Server(env=env, capacity=1, shopfloor=sf)
     s3 = Server(env=env, capacity=1, shopfloor=sf)
 
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target={(s1, s2): 4})  # (s2, s3) missing
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target={(s1, s2): 4})  # (s2, s3) missing
     job = ProductionJob(env=env, sku="A", servers=[s1, s2, s3], processing_times=[1.0, 1.0, 1.0], due_date=10.0)
 
     with pytest.raises(KeyError):
@@ -307,6 +345,7 @@ def test_draco_full_score_matches_hand_computed_total_impact() -> None:
 
     draco = Draco(
         shopfloor=sf,
+        router=Mock(),
         focus_weights=(1.0, 0.0, 0.0, 0.0, 0.0),
         total_impact_weights=(1.0 / 3, 1.0 / 3, 1.0 / 3),
         wip_target=10,
@@ -325,7 +364,7 @@ def test_draco_priority_policy_returns_neg_inf_when_forced() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target=5)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target=5)
     job = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10.0)
 
     draco._forced_at_server[s1] = job  # type: ignore[assignment]
@@ -339,7 +378,7 @@ def test_draco_priority_policy_returns_normal_score_when_not_forced() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target=5)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target=5)
     job = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10.0)
     sf.add(job)
 
@@ -361,7 +400,7 @@ def test_draco_priority_policy_flag_persists_across_calls() -> None:
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-    draco = Draco(shopfloor=sf, psp=psp, wip_target=10, loop_target=5)
+    draco = Draco(shopfloor=sf, router=Mock(), psp=psp, wip_target=10, loop_target=5)
     job = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10.0)
     sf.add(job)
 
@@ -386,7 +425,7 @@ def test_draco_priority_policy_force_flag_is_per_server() -> None:
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target=5)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target=5)
     job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1.0, 1.0], due_date=10.0)
     sf.add(job)
 
@@ -407,7 +446,9 @@ def test_draco_force_flag_set_on_psp_win() -> None:
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-    draco = Draco(shopfloor=sf, psp=psp, wip_target=100, loop_target=5, total_impact_weights=(0.8, 0.1, 0.1))
+    draco = Draco(
+        shopfloor=sf, router=Mock(), psp=psp, wip_target=100, loop_target=5, total_impact_weights=(0.8, 0.1, 0.1)
+    )
 
     blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
     queued = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[2.0], due_date=10000.0)
@@ -441,8 +482,7 @@ def test_draco_decide_next_job_empty_no_op() -> None:
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-    draco = Draco(shopfloor=sf, psp=psp, wip_target=10, loop_target=5)
-    sf.on_processing_end(draco.decide_next_job)
+    draco = Draco(shopfloor=sf, router=Mock(), psp=psp, wip_target=10, loop_target=5)
 
     job = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10.0)
     sf.add(job)
@@ -464,8 +504,7 @@ def test_draco_psp_winner_processes_immediately() -> None:
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-    draco = Draco(shopfloor=sf, psp=psp, wip_target=10, loop_target=5)
-    sf.on_processing_end(draco.decide_next_job)
+    draco = Draco(shopfloor=sf, router=Mock(), psp=psp, wip_target=10, loop_target=5)
     policy = _policy_factory(draco)
 
     current = ProductionJob(
@@ -476,6 +515,9 @@ def test_draco_psp_winner_processes_immediately() -> None:
     )
     sf.add(current)
     sf.add(queued)
+    # Occupy s1 before the PSP arrival so the auto-wired starvation_avoidance
+    # (idle first server) does not pre-empt the decide_next_job path under test.
+    env.run(until=0.001)
 
     psp_job = ProductionJob(
         env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=50.0, priority_policy=policy
@@ -505,8 +547,9 @@ def test_draco_queue_winner_dispatched_correctly() -> None:
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
     # Tiny tau → shop is over-target → ro^Q is high, ro^P is low
-    draco = Draco(shopfloor=sf, psp=psp, wip_target=1, loop_target=5, total_impact_weights=(0.7, 0.15, 0.15))
-    sf.on_processing_end(draco.decide_next_job)
+    draco = Draco(
+        shopfloor=sf, router=Mock(), psp=psp, wip_target=1, loop_target=5, total_impact_weights=(0.7, 0.15, 0.15)
+    )
     policy = _policy_factory(draco)
 
     current = ProductionJob(
@@ -525,6 +568,9 @@ def test_draco_queue_winner_dispatched_correctly() -> None:
     )
     sf.add(current)
     sf.add(queued_urgent)
+    # Occupy s1 before the PSP arrival so the auto-wired starvation_avoidance
+    # (idle first server) does not release psp_relaxed before the t=5 decision.
+    env.run(until=0.001)
     psp.add(psp_relaxed)
 
     env.run(until=5.5)
@@ -553,13 +599,13 @@ def test_draco_winner_via_R_boost_still_processes_first() -> None:
     # Large tau → ro^P boost is large; heavy w^R magnifies it.
     draco = Draco(
         shopfloor=sf,
+        router=Mock(),
         psp=psp,
         focus_weights=(0.25, 0.25, 0.25, 0.25, 0.0),
         total_impact_weights=(0.7, 0.15, 0.15),
         wip_target=20,
         loop_target=5,
     )
-    sf.on_processing_end(draco.decide_next_job)
     policy = _policy_factory(draco)
 
     # Currently processing — finishes at t=10
@@ -576,6 +622,9 @@ def test_draco_winner_via_R_boost_still_processes_first() -> None:
     )
     sf.add(current)
     sf.add(queued_urgent)
+    # Occupy s1 before the PSP arrival so the auto-wired starvation_avoidance
+    # (idle first server) does not release psp_relaxed before the t=10 decision.
+    env.run(until=0.001)
     psp.add(psp_relaxed)
 
     env.run()
@@ -603,7 +652,9 @@ def test_draco_queue_winner_is_force_flagged() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     # Over-target shop (tau=1) with a heavy R weight → ro^Q dominates ro^P,
     # so the urgent queued job outscores the relaxed PSP candidate.
-    draco = Draco(shopfloor=sf, psp=psp, wip_target=1, loop_target=5, total_impact_weights=(0.7, 0.15, 0.15))
+    draco = Draco(
+        shopfloor=sf, router=Mock(), psp=psp, wip_target=1, loop_target=5, total_impact_weights=(0.7, 0.15, 0.15)
+    )
 
     blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
     queued = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=6.0)
@@ -636,7 +687,7 @@ def test_draco_decide_next_job_uses_uncorrected_count_wip(monkeypatch: pytest.Mo
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-    draco = Draco(shopfloor=sf, psp=psp, wip_target=10, loop_target=5)
+    draco = Draco(shopfloor=sf, router=Mock(), psp=psp, wip_target=10, loop_target=5)
 
     blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
     queued = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[2.0], due_date=10000.0)
@@ -697,7 +748,7 @@ def test_draco_default_focus_weights_disables_beta() -> None:
     """Default focus_weights should keep beta dormant (w5 = 0.0)."""
     env = Environment()
     sf = ShopFloor(env=env)
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target=5)
+    draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target=5)
     assert draco.focus.w5 == 0.0
     assert draco.focus.w1 == draco.focus.w2 == draco.focus.w3 == draco.focus.w4 == 0.25
 
@@ -707,6 +758,7 @@ def test_draco_accepts_five_tuple_focus_weights() -> None:
     sf = ShopFloor(env=env)
     draco = Draco(
         shopfloor=sf,
+        router=Mock(),
         focus_weights=(0.2, 0.2, 0.2, 0.2, 0.2),
         wip_target=10,
         loop_target=5,
@@ -719,7 +771,7 @@ def test_draco_rejects_invalid_focus_weights() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     with pytest.raises(ValueError, match="5 elements"):
-        Draco(shopfloor=sf, focus_weights=(0.5, 0.5), wip_target=10, loop_target=5)  # type: ignore[arg-type]
+        Draco(shopfloor=sf, router=Mock(), focus_weights=(0.5, 0.5), wip_target=10, loop_target=5)  # type: ignore[arg-type]
 
 
 def test_draco_beta_only_focus_weights_runs_without_error() -> None:
@@ -731,12 +783,12 @@ def test_draco_beta_only_focus_weights_runs_without_error() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     draco = Draco(
         shopfloor=sf,
+        router=Mock(),
         psp=psp,
         focus_weights=(0.0, 0.0, 0.0, 0.0, 1.0),
         wip_target=10,
         loop_target=5,
     )
-    sf.on_processing_end(draco.decide_next_job)
     policy = _policy_factory(draco)
 
     # A mix of jobs across both servers — DRACO + beta-only FOCUS should
@@ -772,10 +824,16 @@ def test_draco_priority_policy_memoizes_ctx_across_unchanged_state(monkeypatch: 
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-    draco = Draco(shopfloor=sf, psp=psp, wip_target=10, loop_target=5)
+    draco = Draco(shopfloor=sf, router=Mock(), psp=psp, wip_target=10, loop_target=5)
 
+    # A blocker holds s1 so the PSP arrival below stays pooled: the self-wired
+    # starvation_avoidance releases only when the first server is idle. job then
+    # queues behind it; shop state (and now) is frozen for the memo checks.
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1000.0], due_date=10000.0)
+    sf.add(blocker)
     job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[2.0, 3.0], due_date=50.0)
-    sf.add(job)  # scheduled, not yet enqueued (no env.run) → memo cold
+    sf.add(job)
+    env.run(until=0.001)  # blocker occupies s1, job queues behind it; now frozen
 
     call_count = 0
     real_build = Focus.build_context
@@ -792,13 +850,14 @@ def test_draco_priority_policy_memoizes_ctx_across_unchanged_state(monkeypatch: 
     draco.priority_policy(job, s2)
     assert call_count == 1
 
-    # Job-set changes at constant now (a PSP arrival) → rebuild.
+    # Job-set changes at constant now (a PSP arrival that stays pooled because
+    # s1 is busy) → rebuild.
     other = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10.0)
     psp.add(other)
     draco.priority_policy(job, s1)
     assert call_count == 2
 
     # Time advances (now changes) → rebuild.
-    env.run(until=0.001)
+    env.run(until=0.002)
     draco.priority_policy(job, s1)
     assert call_count == 3

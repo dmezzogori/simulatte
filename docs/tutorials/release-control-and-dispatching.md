@@ -280,7 +280,7 @@ print(f"Jobs completed: {len(shopfloor.jobs_done)}")
 Key parameters:
 
 - `wip_target` (`τ`): target shop WIP as a **job count** (sum of queued + in-process jobs across servers). This is independent of any `WIPStrategy` workload metric.
-- `loop_target` (`ε`): target overlapping loop per `(k, u)` server pair. Pass a scalar for a uniform target; instantiate `Draco` directly with a `dict[(Server, Server), int]` for per-pair targets.
+- `loop_target` (`ε`): target overlapping loop per `(k, u)` server pair. Pass a scalar for a uniform target; instantiate `Draco` directly (passing the `router` — it self-wires the priority policy and hooks) with a `dict[(Server, Server), int]` for per-pair targets.
 - `focus_weights`: the five FOCUS mechanism weights used for `D` (default `(0.25, 0.25, 0.25, 0.25, 0.0)` — beta dormant; see the FOCUS section for the weight ordering).
 - `total_impact_weights`: `(w^R, w^A, w^D)`, must sum to 1. Defaults to `(0.25, 0.25, 0.5)` — the paper's full DRACO (Table 2: `W^R = W^A = 1/4`, `W^D = 1/2`).
 

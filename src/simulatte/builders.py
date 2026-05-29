@@ -436,7 +436,7 @@ def build_draco_system(
     ``Q_k ∪ P_k`` by a weighted total impact ``w^R·R + w^A·A + w^D·D``
     and selects the maximum. The winner is dispatched to ``k`` next.
 
-    Wiring:
+    Wiring (performed by ``Draco.__init__``):
         - ``priority_policy``: ``Draco.priority_policy`` (queue-side
           DRACO score; returns ``-inf`` one-shot for forced PSP winners
           to preserve strict paper semantics).
@@ -480,14 +480,6 @@ def build_draco_system(
     )
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
     psp = PreShopPool(env=env, shopfloor=shop_floor)
-    draco = Draco(
-        shopfloor=shop_floor,
-        psp=psp,
-        focus_weights=focus_weights,
-        total_impact_weights=total_impact_weights,
-        wip_target=wip_target,
-        loop_target=loop_target,
-    )
     router = Router(
         env=env,
         shopfloor=shop_floor,
@@ -506,10 +498,17 @@ def build_draco_system(
             },
         },
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
-        priority_policies=draco.priority_policy,
     )
-
-    shop_floor.on_processing_end(draco.decide_next_job)
-    psp.on_arrival(starvation_avoidance)
+    # Draco self-wires router.priority_policies, shop_floor.on_processing_end,
+    # and psp.on_arrival(starvation_avoidance); constructed for those effects.
+    Draco(
+        shopfloor=shop_floor,
+        router=router,
+        psp=psp,
+        focus_weights=focus_weights,
+        total_impact_weights=total_impact_weights,
+        wip_target=wip_target,
+        loop_target=loop_target,
+    )
 
     return psp, servers, shop_floor, router
