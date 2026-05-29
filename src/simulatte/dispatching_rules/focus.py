@@ -32,7 +32,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from collections.abc import Iterable, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Mapping, Sequence
 
     from simulatte.job import BaseJob
     from simulatte.psp import PreShopPool
@@ -157,6 +157,56 @@ class FocusContext:
     pre_entropy: float
     max_positive_c: float
     c_values: Mapping[BaseJob, float] = field(default_factory=lambda: MappingProxyType({}))
+
+
+class _StateMemo:
+    """Single-entry memo of a FocusContext derived from frozen shop state.
+
+    ``Server.sort_queue`` invokes the priority policy once per queued request
+    within one synchronous pass, during which ``env.now`` and the scanned shop
+    state are frozen; ``Focus.build_context`` would otherwise recompute an
+    identical context once per request. This caches the last context keyed on
+    an identity fingerprint of the scanned state — ``now`` plus the identities
+    of all queued, in-service, and PSP jobs — rebuilding only when the
+    fingerprint changes. The fingerprint provably determines the context: every
+    ``FocusContext`` field derives from those jobs and ``now``, and a job's
+    ``unfinished_routing`` changes only when it leaves the scanned set.
+
+    The saving is a constant factor when beta is disabled (``build`` is
+    ``O(|O|)``) and asymptotically significant (``O(|O|·|J|)`` → ``O(|O|)``)
+    when beta is active. The fingerprint is order-sensitive, so a queue
+    reorder at the same instant forces a rebuild that is redundant (never
+    stale) — an acceptable cost given the win within a sort pass.
+    """
+
+    def __init__(
+        self,
+        shopfloor: ShopFloor,
+        *,
+        psp: PreShopPool | None,
+        build: Callable[[float], FocusContext],
+    ) -> None:
+        self._shopfloor = shopfloor
+        self._psp = psp
+        self._build = build
+        self._key: tuple[object, ...] | None = None
+        self._ctx: FocusContext | None = None
+
+    def _fingerprint(self, now: float) -> tuple[object, ...]:
+        servers = self._shopfloor.servers
+        return (
+            now,
+            tuple(j for s in servers for j in s.queueing_jobs),
+            tuple(j for s in servers for j in s.current_jobs),
+            tuple(self._psp.jobs) if self._psp is not None else (),
+        )
+
+    def get(self, now: float) -> FocusContext:
+        key = self._fingerprint(now)
+        if self._ctx is None or key != self._key:
+            self._ctx = self._build(now)
+            self._key = key
+        return self._ctx
 
 
 class Focus:
@@ -445,11 +495,12 @@ class FocusPriorityRule:
     Liveness guarantee:
         ``simulatte.server.Server.sort_queue`` re-evaluates
         ``priority_policy`` for every queued request before every
-        dispatch event (auto-called by ``_trigger_put``). Because
-        ``__call__`` rebuilds ``ctx`` per invocation against the
-        live shopfloor state, the key returned at dispatch time always
-        reflects current shop aggregates — no external refresh helper is
-        needed.
+        dispatch event (auto-called by ``_trigger_put``). The context
+        is memoized within a single ``sort_queue`` pass (same ``now``
+        and frozen shop state → one build reused across all requests in
+        that pass) and rebuilt whenever the scanned shop state changes,
+        so the key returned at dispatch time always reflects current
+        shop aggregates — no external refresh helper is needed.
 
     Args:
         focus: A ``Focus`` instance.
@@ -463,8 +514,13 @@ class FocusPriorityRule:
         self.focus = focus
         self.shopfloor = shopfloor
         self.psp = psp
+        self._memo = _StateMemo(
+            shopfloor,
+            psp=psp,
+            build=lambda now: focus.build_context(shopfloor, now, psp=psp, compute_beta=focus.w5 != 0.0),
+        )
 
     def __call__(self, job: BaseJob, server: Server) -> float:
         now = self.shopfloor.env.now
-        ctx = self.focus.build_context(self.shopfloor, now, psp=self.psp, compute_beta=self.focus.w5 != 0.0)
+        ctx = self._memo.get(now)
         return -self.focus.score(job, server, ctx, now)

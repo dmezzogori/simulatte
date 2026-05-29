@@ -982,49 +982,6 @@ def test_focus_score_identical_with_beta_off_regardless_of_compute_beta() -> Non
     assert focus.score(j, s1, ctx_skip, now=0.002) == pytest.approx(focus.score(j, s1, ctx_full, now=0.002))
 
 
-def test_focus_priority_rule_rebuilds_ctx_per_server(monkeypatch: pytest.MonkeyPatch) -> None:
-    """FocusPriorityRule rebuilds ctx on every call — no stale-closure leak.
-
-    Main's :meth:`~simulatte.server.Server.sort_queue` calls
-    ``job.priority_policy(job, server)`` before every dispatch. When the
-    same adapter is used across multiple servers in a multi-server routing,
-    each call must build a fresh FocusContext against the *current* server
-    and shopfloor state — not a snapshot frozen at an earlier instant.
-
-    Regression guard: if a stale-closure were reintroduced (e.g.
-    ``adapter(job, s1)`` caches ctx and reuses it for ``adapter(job, s2)``),
-    ``build_context`` would be called only ONCE and the assertion would fail.
-    """
-    env = Environment()
-    sf = ShopFloor(env=env)
-    s1 = Server(env=env, capacity=1, shopfloor=sf)
-    s2 = Server(env=env, capacity=1, shopfloor=sf)
-
-    job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[3.0, 5.0], due_date=50.0)
-    sf.add(job)
-
-    focus = Focus()
-    adapter = FocusPriorityRule(focus, sf)
-
-    call_count = 0
-    real_build = Focus.build_context
-
-    def counting_build(shopfloor, now, *, psp=None, compute_beta=True):  # type: ignore[no-untyped-def]
-        nonlocal call_count
-        call_count += 1
-        return real_build(shopfloor, now, psp=psp, compute_beta=compute_beta)
-
-    monkeypatch.setattr(Focus, "build_context", staticmethod(counting_build))
-
-    adapter(job, s1)
-    adapter(job, s2)
-
-    assert call_count == 2, (
-        f"Expected build_context to be called twice (once per server), got {call_count}. "
-        "A stale-closure regression would produce call_count == 1."
-    )
-
-
 # ----- build_focus_system builder -----
 
 
@@ -1094,3 +1051,47 @@ def test_focus_beta_computes_for_uncached_job(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(focus_mod, "_delta_entropy", spy)
     focus.beta(outsider, s1, ctx)
     assert outsider in calls  # computed fresh for the uncached job
+
+
+def test_focus_priority_rule_memoizes_ctx_across_unchanged_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """FocusPriorityRule reuses one FocusContext at unchanged state, and rebuilds
+    on EITHER fingerprint dimension independently: the job-set or ``now``.
+    """
+    from simulatte.dispatching_rules.focus import FocusPriorityRule
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+    focus = Focus()
+    rule = FocusPriorityRule(focus, sf)
+
+    job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[2.0, 3.0], due_date=50.0)
+    sf.add(job)  # scheduled; no priority_policy on jobs, so the memo stays cold until called
+
+    call_count = 0
+    real_build = Focus.build_context
+
+    def counting_build(shopfloor, now, *, psp=None, compute_beta=True):  # type: ignore[no-untyped-def]
+        nonlocal call_count
+        call_count += 1
+        return real_build(shopfloor, now, psp=psp, compute_beta=compute_beta)
+
+    monkeypatch.setattr(Focus, "build_context", staticmethod(counting_build))
+
+    # Same state (now=0, empty shop), two servers → exactly one build (ctx is
+    # shop-wide / server-agnostic).
+    rule(job, s1)
+    rule(job, s2)
+    assert call_count == 1
+
+    # Job-set changes at CONSTANT now (enqueue directly, no time advance) →
+    # rebuild driven solely by the fingerprint's job-set dimension.
+    s1.request(job=ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10.0))
+    rule(job, s1)
+    assert call_count == 2
+
+    # Time advances (now changes) → rebuild driven by the `now` dimension.
+    env.run(until=0.001)
+    rule(job, s1)
+    assert call_count == 3
