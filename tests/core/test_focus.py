@@ -1037,3 +1037,60 @@ def test_build_focus_system_runs_and_completes_jobs() -> None:
     assert len(servers) == 4
     env.run(until=200.0)
     assert len(shopfloor.jobs_done) > 0
+
+
+def test_focus_beta_reuses_cached_c_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    """beta() reads c_i from ctx.c_values instead of recomputing _delta_entropy."""
+    import simulatte.dispatching_rules.focus as focus_mod
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+    focus = Focus(weights=(0.0, 0.0, 0.0, 0.0, 1.0))  # beta-only → compute_beta default True
+
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=1000.0)
+    cand = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[2.0, 3.0], due_date=1000.0)
+    sf.add(blocker)
+    sf.add(cand)
+    env.run(until=0.001)  # blocker in s1.users, cand in s1.queue
+
+    ctx = focus.build_context(sf, now=0.001)
+    assert cand in ctx.c_values  # c_i cached at build time
+
+    def boom(**kwargs: object) -> float:
+        raise AssertionError("beta recomputed _delta_entropy for a cached job")
+
+    monkeypatch.setattr(focus_mod, "_delta_entropy", boom)
+    # cand's first uncompleted server is s1 (the invariant) → beta must hit the cache.
+    result = focus.beta(cand, s1, ctx)  # must not raise
+    assert result == pytest.approx(1.0)  # only queued job → max_positive_c == c_i → beta == 1
+
+
+def test_focus_beta_computes_for_uncached_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    """beta() falls back to _delta_entropy for a job absent from ctx.c_values."""
+    import simulatte.dispatching_rules.focus as focus_mod
+
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    focus = Focus(weights=(0.0, 0.0, 0.0, 0.0, 1.0))
+
+    blocker = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[100.0], due_date=1000.0)
+    sf.add(blocker)
+    env.run(until=0.001)
+    ctx = focus.build_context(sf, now=0.001)
+
+    outsider = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=1000.0)
+    assert outsider not in ctx.c_values
+
+    calls: list[object] = []
+    real_delta = focus_mod._delta_entropy
+
+    def spy(**kwargs: object) -> float:
+        calls.append(kwargs["job"])
+        return real_delta(**kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(focus_mod, "_delta_entropy", spy)
+    focus.beta(outsider, s1, ctx)
+    assert outsider in calls  # computed fresh for the uncached job

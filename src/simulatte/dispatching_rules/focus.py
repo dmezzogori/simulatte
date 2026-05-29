@@ -27,7 +27,7 @@ References:
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
@@ -142,6 +142,10 @@ class FocusContext:
         max_positive_c: Max of ``c(i) = e(i) - pre_entropy`` across all
             jobs ``i`` in ``O`` with ``c(i) > 0``; ``0`` if no improving
             dispatch exists. Beta's normalizer.
+        c_values: Read-only mapping ``job -> c(i)`` for every job in ``O`` with
+            remaining ops, computed in the beta pass at the job's first
+            uncompleted server. Empty when ``compute_beta=False``. Lets
+            ``beta`` reuse the per-job entropy delta instead of recomputing it.
     """
 
     max_pij: float
@@ -152,6 +156,7 @@ class FocusContext:
     server_index: Mapping[Server, int]
     pre_entropy: float
     max_positive_c: float
+    c_values: Mapping[BaseJob, float] = field(default_factory=lambda: MappingProxyType({}))
 
 
 class Focus:
@@ -264,6 +269,7 @@ class Focus:
             jobs.extend(psp.jobs)
 
         max_positive_c = 0.0
+        c_values: dict[BaseJob, float] = {}
         for job in jobs:
             remaining = job.unfinished_routing
             if not remaining:
@@ -296,6 +302,7 @@ class Focus:
                 )
                 if c_i > max_positive_c:
                     max_positive_c = c_i
+                c_values[job] = c_i
 
         return FocusContext(
             max_pij=max_pij,
@@ -306,6 +313,7 @@ class Focus:
             server_index=MappingProxyType(server_index),
             pre_entropy=pre_entropy,
             max_positive_c=max_positive_c,
+            c_values=MappingProxyType(c_values),
         )
 
     def pi(self, job: BaseJob, server: Server, ctx: FocusContext) -> float:
@@ -387,15 +395,20 @@ class Focus:
         built-in call paths satisfy this (queue ordering scores a job at the
         server whose queue it sits in; PSP candidates start at *server* via
         ``starts_at``), which keeps ``beta`` in ``[0, 1]``. Passing any other
-        server can yield ``beta > 1``.
+        server can yield ``beta > 1``. This same invariant governs cache
+        validity: a valid caller's cached ``c_i`` from ``ctx.c_values`` equals
+        exactly what a fresh ``_delta_entropy`` call would return, because both
+        evaluate at ``job.unfinished_routing[0]``.
         """
-        c_i = _delta_entropy(
-            job=job,
-            server=server,
-            workloads=ctx.workloads,
-            server_index=ctx.server_index,
-            pre_entropy=ctx.pre_entropy,
-        )
+        c_i = ctx.c_values.get(job)  # server implicit: cache built at job's unfinished_routing[0]
+        if c_i is None:
+            c_i = _delta_entropy(
+                job=job,
+                server=server,
+                workloads=ctx.workloads,
+                server_index=ctx.server_index,
+                pre_entropy=ctx.pre_entropy,
+            )
         if c_i <= 0.0:
             return 0.0
         if ctx.max_positive_c <= 0:
