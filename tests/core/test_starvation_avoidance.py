@@ -123,3 +123,41 @@ def test_starvation_avoidance_tolerates_earlier_callback_releasing_job() -> None
 
     assert job not in psp
     assert job in sf.jobs
+
+
+def test_starvation_avoidance_releases_arrival_not_a_scored_winner() -> None:
+    """It is a liveness provision, not a DRACO decision.
+
+    When several pool jobs share an idle first server, starvation avoidance
+    releases the *just-arrived* job and bypasses the R/A/D scoring that would
+    otherwise pick among the P_k candidates — even when the arrival is the worst
+    choice by those criteria (here: long process time, far due date). The
+    pre-existing candidates are left untouched (review §6.E).
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    # Two strong P_k candidates (short, urgent) already waiting for the idle
+    # server — added before the callback is wired, so neither was auto-released.
+    waiting1 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=5.0)
+    waiting2 = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=5.0)
+    psp.add(waiting1)
+    psp.add(waiting2)
+    assert waiting1 in psp
+    assert waiting2 in psp
+    assert server.is_idle
+
+    psp.on_arrival(starvation_avoidance)
+
+    # A weak arrival (long, slack) for the same idle server is released anyway —
+    # no scoring runs to prefer the waiting candidates.
+    arrival = ProductionJob(env=env, sku="A", servers=[server], processing_times=[100.0], due_date=10000.0)
+    psp.add(arrival)
+
+    assert arrival not in psp
+    assert arrival in sf.jobs
+    # The stronger pre-existing candidates were never re-evaluated.
+    assert waiting1 in psp
+    assert waiting2 in psp

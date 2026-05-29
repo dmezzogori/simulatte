@@ -236,6 +236,51 @@ def test_draco_authorization_uses_per_pair_dict_when_provided() -> None:
     assert draco._authorization_impact(job, s1) == pytest.approx(0.75)
 
 
+def test_draco_authorization_per_pair_dict_uses_pair_specific_targets() -> None:
+    """A multi-pair loop_target dict resolves ζ per (k, u) pair, so one job gets
+    a different authorization target at different stages of its own routing."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+    s3 = Server(env=env, capacity=1, shopfloor=sf)
+
+    # In-process blockers on s2 and s3 create known overlapping loops.
+    blocker2 = ProductionJob(env=env, sku="A", servers=[s2], processing_times=[100.0], due_date=200.0)
+    blocker3 = ProductionJob(env=env, sku="A", servers=[s3], processing_times=[100.0], due_date=200.0)
+    sf.add(blocker2)
+    sf.add(blocker3)
+    env.run(until=0.01)
+    assert s2.count == 1
+    assert s3.count == 1
+
+    draco = Draco(shopfloor=sf, wip_target=10, loop_target={(s1, s2): 4, (s2, s3): 6})
+    job = ProductionJob(env=env, sku="A", servers=[s1, s2, s3], processing_times=[1.0, 1.0, 1.0], due_date=10.0)
+
+    # At s1, next is s2: a_{s1,s2} = s1.count(0) + s2.queue(0) + s2.count(1) = 1; eps=4 → 1 - 1/4.
+    assert draco._authorization_impact(job, s1) == pytest.approx(0.75)
+    # At s2, next is s3: a_{s2,s3} = s2.count(1) + s3.queue(0) + s3.count(1) = 2; eps=6 → 1 - 2/6.
+    assert draco._authorization_impact(job, s2) == pytest.approx(1.0 - 2.0 / 6.0)
+    # At s3, last operation → A = 1 regardless of the dict.
+    assert draco._authorization_impact(job, s3) == 1.0
+
+
+def test_draco_authorization_per_pair_dict_raises_on_missing_pair() -> None:
+    """A per-pair loop_target dict must cover every (k, u) pair on a job's route;
+    a pair absent from the dict surfaces as a KeyError, not a silent default."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
+    s3 = Server(env=env, capacity=1, shopfloor=sf)
+
+    draco = Draco(shopfloor=sf, wip_target=10, loop_target={(s1, s2): 4})  # (s2, s3) missing
+    job = ProductionJob(env=env, sku="A", servers=[s1, s2, s3], processing_times=[1.0, 1.0, 1.0], due_date=10.0)
+
+    with pytest.raises(KeyError):
+        draco._authorization_impact(job, s2)  # needs (s2, s3), absent from the dict
+
+
 def test_draco_full_score_matches_hand_computed_total_impact() -> None:
     """_full_score = w^R*R + w^A*A + w^D*D against independent constants.
 

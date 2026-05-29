@@ -558,6 +558,52 @@ def test_focus_score_beta_off_matches_four_mechanism_sum() -> None:
     assert focus.score(j, s1, ctx, now=0.0) == pytest.approx(expected)
 
 
+# ----- Weight ordering / documented ablations (review finding G) -----
+
+
+@pytest.mark.parametrize(
+    ("weights", "removed"),
+    [
+        ((0.0, 0.25, 0.25, 0.25, 0.25), "pi"),  # FOCUS-π  (drop SPT)
+        ((0.25, 0.0, 0.25, 0.25, 0.25), "omega"),  # FOCUS-ξ  (drop starvation)
+        ((0.25, 0.25, 0.0, 0.25, 0.25), "psi"),  # FOCUS-τ  (drop slack timing)
+        ((0.25, 0.25, 0.25, 0.0, 0.25), "gamma"),  # FOCUS-δ  (drop pacing)
+        ((0.25, 0.25, 0.25, 0.25, 0.0), "beta"),  # FOCUS-β  (drop WIP balancing; the default)
+    ],
+)
+def test_focus_score_reproduces_documented_ablations(
+    weights: tuple[float, float, float, float, float],
+    removed: str,
+) -> None:
+    """Each documented ablation tuple zeroes exactly the named mechanism.
+
+    Pins the weight->mechanism map (review finding G): the tuple follows the
+    DRACO paper's Eq-9 order ``(pi, omega=ξ, psi=τ, gamma=δ)`` with ``beta``
+    appended 5th, NOT the FOCUS paper's Eq-12 order ``(π, β, ξ, τ, δ)``.
+    Re-ordering ``Focus.score`` (e.g. "fixing" it to Eq-12) would drop the wrong
+    mechanism here and fail — the ``beta`` case in particular, since Eq-12 places
+    β at w2 while the implementation keeps it at w5.
+    """
+    sf, s1, _s2, cand, other = _loaded_two_server_shop()
+    reference = Focus()
+    ctx = reference.build_context(sf, now=0.0)
+    ablated = Focus(weights=weights)
+
+    # Assert for two candidates with differing mechanism values so the test
+    # discriminates the dropped mechanism: ``cand`` has beta=1 (guards the β
+    # slot), ``other`` has psi != gamma (guards the τ/δ slots).
+    for candidate in (cand, other):
+        values = {
+            "pi": reference.pi(candidate, s1, ctx),
+            "omega": reference.omega(candidate, s1, ctx),
+            "psi": reference.psi(candidate, ctx, now=0.0),
+            "gamma": reference.gamma(candidate, ctx, now=0.0),
+            "beta": reference.beta(candidate, s1, ctx),
+        }
+        expected = 0.25 * sum(value for name, value in values.items() if name != removed)
+        assert ablated.score(candidate, s1, ctx, now=0.0) == pytest.approx(expected)
+
+
 # ----- FocusPriorityRule adapter -----
 
 
