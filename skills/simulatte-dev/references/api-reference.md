@@ -284,7 +284,7 @@ Draco(
     *,
     shopfloor: ShopFloor,
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
-    total_impact_weights: tuple[float, float, float] = (1/3, 1/3, 1/3),
+    total_impact_weights: tuple[float, float, float] = (0.25, 0.25, 0.5),  # paper full DRACO (Table 2)
     wip_target: int,                                  # tau (job count)
     loop_target: int | dict[tuple[Server, Server], int],  # epsilon
     psp: PreShopPool | None = None,
@@ -296,6 +296,8 @@ Draco(
 - `draco.decide_next_job(triggering_job, server)` — the non-hierarchical decision (for `shopfloor.on_processing_end`)
 
 Non-hierarchical: scores `Q_k ∪ P_k` by `w^R·R + w^A·A + w^D·D` on each completion. `D` is FOCUS. `build_draco_system` wires both the priority policy and the completion callback (`shopfloor.on_processing_end`), plus `starvation_avoidance` for cold start.
+
+> Caveats: DRACO assumes `capacity == 1` (one freed slot per completion; the force-pin relies on it). `starvation_avoidance` bypasses R/A/D scoring (releases an arrival when its first server is idle) — a liveness provision, not a DRACO decision; likewise a released job entering an idle downstream server is auto-granted with no decision.
 
 > Note: ConWIP and Continuous Release are also available (`simulatte.policies.conwip.ConWIP`, `simulatte.policies.continuous_release.ContinuousRelease`) for manual composition via triggers.
 
@@ -515,7 +517,7 @@ build_draco_system(
     wip_target: int,                                  # tau (job count)
     loop_target: int,                                 # epsilon (scalar; use Draco() for per-pair)
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
-    total_impact_weights: tuple[float, float, float] = (1/3, 1/3, 1/3),
+    total_impact_weights: tuple[float, float, float] = (0.25, 0.25, 0.5),  # paper full DRACO (Table 2)
     n_servers: int = 6,
     arrival_rate: float = 1 / 0.648,
     service_rate: float = 2.0,
@@ -596,6 +598,8 @@ compute_beta=True)` (shared per-decision aggregates) and `focus.score(job,
 server, ctx, now)`. Adapt to the router with `FocusPriorityRule(focus,
 shopfloor, *, psp=None)` (negates the score; lower = served first), or use
 `build_focus_system`. FOCUS is also DRACO's dispatching component.
+
+Weight order is `(π, ξ, τ, δ, β)` = `(pi, omega, psi, gamma, beta)` — the DRACO paper's Eq-9 order with `beta` 5th, **not** the FOCUS paper's Eq-12 order `(π, β, ξ, τ, δ)`; mind this when reproducing the Omega ablations. `beta` (`w5`) is off by default (Kasper et al. report it counter-productive); its `O(|O|·|J|)` entropy pass is skipped when `w5 == 0` (`compute_beta=False`).
 
 ## Distribution Helpers
 

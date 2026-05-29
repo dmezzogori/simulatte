@@ -131,7 +131,18 @@ psp, servers, shopfloor, router = build_draco_system(
 ```
 
 `build_draco_system` also wires `psp.on_arrival(starvation_avoidance)` to avoid
-a cold-start deadlock (the decision fires only on completions).
+a cold-start deadlock (the decision fires only on completions). That callback is
+a liveness provision — it releases an arrival whose first server is idle
+**without R/A/D scoring**, not a DRACO decision.
+
+**Gotchas:**
+- DRACO assumes `capacity == 1` per server (one freed slot per completion; the
+  force-pin/dispatch ordering relies on it). The builder enforces this.
+- A released job routing into an *idle downstream* server is granted by SimPy
+  immediately, with no `decide_next_job` call — that decision moment passes
+  without scoring (rare at high utilization).
+- `beta` (FOCUS `w5`) is off by default (Kasper et al. report it
+  counter-productive); enabling it adds an `O(|O|·|J|)` entropy pass per decision.
 
 ## Build workflow
 

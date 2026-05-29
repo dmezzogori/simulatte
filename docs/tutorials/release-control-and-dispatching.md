@@ -286,7 +286,9 @@ Key parameters:
 
 **How it differs:** classic workload control separates release (PSP → shop) from dispatching (queue ordering). DRACO makes one combined choice per completion, so a PSP job can be released *and* placed first at the freed server in a single decision. A `_forced_at_server` flag guarantees a PSP winner is dispatched before any queued job, even when the queued job has a higher queue-side priority.
 
-**Cold start:** the decision fires only on completions, so `build_draco_system` also wires `psp.on_arrival(starvation_avoidance)` to release a job when an arrival's first server is idle — a liveness provision that prevents a cold-start deadlock.
+**Cold start:** the decision fires only on completions, so `build_draco_system` also wires `psp.on_arrival(starvation_avoidance)` to release a job when an arrival's first server is idle — a liveness provision that prevents a cold-start deadlock. It bypasses the `R/A/D` scoring (it is not itself a DRACO decision).
+
+**Caveats:** DRACO assumes `capacity == 1` per server (one freed slot per completion; the force-pin/dispatch ordering relies on it — the builder enforces it). A released job routing into an *idle downstream* server is granted immediately by SimPy with no `decide_next_job` call, so that decision moment passes without `R/A/D` scoring — rare at the ~90% utilization studied in the paper.
 
 ### Dispatching rules
 
@@ -339,7 +341,19 @@ _, servers, shopfloor, router = build_focus_system(
 )
 ```
 
-The weight tuple is ordered `(π, ξ, τ, δ, β)` — `pi, omega, psi, gamma, beta` — following the DRACO paper's Eq-9 order with beta appended 5th, **not** the FOCUS paper's Eq-12 order `(π, β, ξ, τ, δ)`. To reproduce the Omega paper's per-mechanism ablations (FOCUS-π/-β/-ξ/-τ/-δ), see `Focus.__init__`, which lists the exact tuples and the index→mechanism map.
+The weight tuple is ordered `(π, ξ, τ, δ, β)` — `pi, omega, psi, gamma, beta` — following the DRACO paper's Eq-9 order with beta appended 5th, **not** the FOCUS paper's Eq-12 order `(π, β, ξ, τ, δ)`. `beta` is off by default because the Omega paper found WIP balancing counter-productive in their experiments. The mechanisms are scored over the **order book `O`** — every arrived, not-yet-completed order (queued **and** in-process, plus PSP candidates when FOCUS is used inside DRACO) — so the shop-wide normalizers (max processing time, slack, pacing) reflect the full pending workload.
+
+To reproduce the Omega paper's per-mechanism ablations (each drops one mechanism; the rest stay at `1/4`):
+
+| Ablation | `focus_weights` |
+|----------|-----------------|
+| FOCUS-π  | `(0.0, 0.25, 0.25, 0.25, 0.25)` |
+| FOCUS-ξ  | `(0.25, 0.0, 0.25, 0.25, 0.25)` |
+| FOCUS-τ  | `(0.25, 0.25, 0.0, 0.25, 0.25)` |
+| FOCUS-δ  | `(0.25, 0.25, 0.25, 0.0, 0.25)` |
+| FOCUS-β  | `(0.25, 0.25, 0.25, 0.25, 0.0)` — the default |
+
+(`Focus.__init__` carries the same table plus the index→mechanism→paper-symbol map.)
 
 FOCUS is also the dispatching component of DRACO (above).
 
