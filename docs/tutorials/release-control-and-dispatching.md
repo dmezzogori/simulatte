@@ -281,8 +281,8 @@ Key parameters:
 
 - `wip_target` (`τ`): target shop WIP as a **job count** (sum of queued + in-process jobs across servers). This is independent of any `WIPStrategy` workload metric.
 - `loop_target` (`ε`): target overlapping loop per `(k, u)` server pair. Pass a scalar for a uniform target; instantiate `Draco` directly with a `dict[(Server, Server), int]` for per-pair targets.
-- `focus_weights`: the five FOCUS mechanism weights used for `D`.
-- `total_impact_weights`: `(w^R, w^A, w^D)`, must sum to 1.
+- `focus_weights`: the five FOCUS mechanism weights used for `D` (default `(0.25, 0.25, 0.25, 0.25, 0.0)` — beta dormant; see the FOCUS section for the weight ordering).
+- `total_impact_weights`: `(w^R, w^A, w^D)`, must sum to 1. Defaults to `(0.25, 0.25, 0.5)` — the paper's full DRACO (Table 2: `W^R = W^A = 1/4`, `W^D = 1/2`).
 
 **How it differs:** classic workload control separates release (PSP → shop) from dispatching (queue ordering). DRACO makes one combined choice per completion, so a PSP job can be released *and* placed first at the freed server in a single decision. A `_forced_at_server` flag guarantees a PSP winner is dispatched before any queued job, even when the queued job has a higher queue-side priority.
 
@@ -338,6 +338,8 @@ _, servers, shopfloor, router = build_focus_system(
     focus_weights=(0.25, 0.25, 0.25, 0.25, 0.0),  # beta dormant (default)
 )
 ```
+
+The weight tuple is ordered `(π, ξ, τ, δ, β)` — `pi, omega, psi, gamma, beta` — following the DRACO paper's Eq-9 order with beta appended 5th, **not** the FOCUS paper's Eq-12 order `(π, β, ξ, τ, δ)`. To reproduce the Omega paper's per-mechanism ablations (FOCUS-π/-β/-ξ/-τ/-δ), see `Focus.__init__`, which lists the exact tuples and the index→mechanism map.
 
 FOCUS is also the dispatching component of DRACO (above).
 
