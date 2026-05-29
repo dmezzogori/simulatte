@@ -421,7 +421,7 @@ def build_draco_system(
     wip_target: int,
     loop_target: int,
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
-    total_impact_weights: tuple[float, float, float] = (1.0 / 3, 1.0 / 3, 1.0 / 3),
+    total_impact_weights: tuple[float, float, float] = (0.25, 0.25, 0.5),
     n_servers: int = 6,
     arrival_rate: float = 1 / 0.648,
     service_rate: float = 2.0,
@@ -452,7 +452,8 @@ def build_draco_system(
             directly with a ``dict[(Server, Server), int]``.
         focus_weights: FOCUS mechanism weights ``(w1, w2, w3, w4, w5)``.
         total_impact_weights: ``(w^R, w^A, w^D)`` for the DRACO total
-            impact; must sum to 1.
+            impact; must sum to 1. Defaults to ``(0.25, 0.25, 0.5)`` — the
+            paper's full DRACO configuration (Table 2).
         n_servers: Number of production servers.
         arrival_rate: Inter-arrival rate (lambda for exponential).
         service_rate: Service rate (lambda for truncated 2-Erlang).
