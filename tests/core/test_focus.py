@@ -249,6 +249,13 @@ def test_focus_context_includes_in_process_orders() -> None:
     # in_process's slack (~947) dominates the queued candidate's slack (~13).
     expected_slack = 1000.0 - 0.001 - (50.0 + 3.0)
     assert ctx.max_positive_slack == pytest.approx(expected_slack)
+    # Beta: in-process orders are in the beta scan too (the β-include decision),
+    # so they can set max_positive_c. Here dispatching in_process shifts load
+    # from the saturated s1 to the empty s2 (the biggest balance improvement),
+    # so its c(i) is the dominant entropy gain and sets the normalizer.
+    assert in_process in ctx.c_values
+    assert ctx.max_positive_c == pytest.approx(ctx.c_values[in_process])
+    assert ctx.c_values[in_process] > ctx.c_values[queued] > 0
 
 
 # ----- pi (SPT mechanism) -----
