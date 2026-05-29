@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, cast
 
-from simulatte.dispatching_rules.focus import Focus, FocusContext, _next_server_after
+from simulatte.dispatching_rules.focus import Focus, FocusContext, _StateMemo, _next_server_after
 
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.job import BaseJob, ProductionJob
@@ -161,6 +161,15 @@ class Draco:
         self._shopfloor = shopfloor
         self._psp = psp
         self._forced_at_server: dict[Server, ProductionJob] = {}
+        self._ctx_memo = _StateMemo(
+            self._shopfloor,
+            psp=self._psp,
+            build=lambda now: self.focus.build_context(
+                self._shopfloor, now, psp=self._psp, compute_beta=self.focus.w5 != 0.0
+            ),
+        )
+        self._last_ctx: FocusContext | None = None
+        self._last_wip: int = 0
 
     # ----- Public API -----
 
@@ -213,14 +222,12 @@ class Draco:
         self._forced_at_server.pop(server_k, None)
 
         now = self._shopfloor.env.now
-        # Count-WIP at the decision instant. This callback fires on server
-        # release, before the just-finished job re-enters its next server's
-        # queue, so a multi-op triggering job is (deliberately) not counted
-        # here. Because the winner is force-pinned below, dispatch follows
-        # this decision verbatim — there is no later sort_queue re-derivation
-        # to disagree with — so R, A and D are evaluated at this one instant.
-        wip = self._count_wip()
-        ctx = self.focus.build_context(self._shopfloor, now, psp=psp, compute_beta=self.focus.w5 != 0.0)
+        # ctx and wip come from the shared memo. The callback fires before the
+        # just-finished job re-enters its next server's queue, so a multi-op
+        # triggering job is (deliberately) not counted — see the class docstring
+        # "Decision instant" note; the force-pin makes dispatch follow this
+        # decision verbatim, so R/A/D are consistent at this single instant.
+        ctx, wip = self._ctx_and_wip(now)
 
         queue_jobs = [req.job for req in server_k.queue]
         queue_scores: dict[BaseJob, float] = {
@@ -324,16 +331,28 @@ class Draco:
         d_impact = self.focus.score(job, server, ctx, now)
         return self.wR * ro_r + self.wA * a_impact + self.wD * d_impact
 
+    def _ctx_and_wip(self, now: float) -> tuple[FocusContext, int]:
+        """Shared, memoized (ctx, wip) for the decision and queue-ordering paths.
+
+        The memo returns a new FocusContext object at least whenever the scanned
+        shop state changes, so count-WIP (over that same state) is recomputed
+        only when the context is rebuilt — collapsing both the per-request
+        build_context and _count_wip in a sort_queue pass to one evaluation.
+        """
+        ctx = self._ctx_memo.get(now)
+        if ctx is not self._last_ctx:
+            self._last_ctx = ctx
+            self._last_wip = self._count_wip()
+        return ctx, self._last_wip
+
     def _queue_side_score(self, job: BaseJob, server: Server) -> float:
         """Queue-side DRACO total impact (``R = ro^Q``).
 
-        Rebuilds ``ctx`` and ``wip`` against current shopfloor state at
-        O(|O|) cost per call. Called from ``priority_policy`` for
-        single-job priority computation at queue entry. Inside
-        ``decide_next_job``, the cached ``ctx``/``wip`` are forwarded
-        to ``_full_score`` directly to avoid rebuilding.
+        Pulls a memoized ``ctx``/``wip`` from ``_ctx_and_wip`` (shared with
+        ``decide_next_job``) rather than rebuilding per call. Within a single
+        synchronous sort pass the shop state is frozen, so all requests share
+        the same context and WIP count at O(1) after the first call.
         """
         now = self._shopfloor.env.now
-        ctx = self.focus.build_context(self._shopfloor, now, psp=self._psp, compute_beta=self.focus.w5 != 0.0)
-        wip = self._count_wip()
+        ctx, wip = self._ctx_and_wip(now)
         return self._full_score(job, server, ctx, now, wip, in_psp=False)

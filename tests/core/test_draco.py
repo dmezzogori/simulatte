@@ -708,31 +708,27 @@ def test_draco_beta_only_focus_weights_runs_without_error() -> None:
     assert j_b.servers_exit_at[s1] is not None
 
 
-# ----- priority_policy: liveness (ctx rebuilt per call / per server) -----
+# ----- priority_policy: ctx memoization (rebuilt only when shop state changes) -----
 
 
-def test_draco_priority_policy_rebuilds_ctx_per_server(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Draco.priority_policy rebuilds ctx on every call — no stale-closure leak.
+def test_draco_priority_policy_memoizes_ctx_across_unchanged_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Draco reuses one FocusContext across calls at unchanged shop state, and
+    rebuilds on either fingerprint dimension: the job-set or ``now``.
 
-    Main's :meth:`~simulatte.server.Server.sort_queue` calls
-    ``job.priority_policy(job, server)`` before every dispatch. When a job
-    travels through a multi-server routing, ``priority_policy`` is invoked at
-    each server in turn. Each call must build a fresh FocusContext — not reuse
-    a snapshot frozen at an earlier instant.
-
-    Regression guard: if ``_refresh_queue`` were reintroduced and its stale
-    closure assigned to ``job.priority_policy``, the closure would call
-    ``Focus.score`` with the pre-baked ctx instead of rebuilding it, and
-    ``build_context`` would not be called at dispatch time at all.
+    sort_queue calls priority_policy once per queued request within a single
+    synchronous pass (state frozen). Each call no longer rebuilds the context:
+    identical state -> one build reused across servers; a state change -> a
+    rebuild. (build_context is shop-wide / server-agnostic.)
     """
     env = Environment()
     sf = ShopFloor(env=env)
     s1 = Server(env=env, capacity=1, shopfloor=sf)
     s2 = Server(env=env, capacity=1, shopfloor=sf)
-    draco = Draco(shopfloor=sf, wip_target=10, loop_target=5)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    draco = Draco(shopfloor=sf, psp=psp, wip_target=10, loop_target=5)
 
     job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[2.0, 3.0], due_date=50.0)
-    sf.add(job)
+    sf.add(job)  # scheduled, not yet enqueued (no env.run) → memo cold
 
     call_count = 0
     real_build = Focus.build_context
@@ -744,11 +740,18 @@ def test_draco_priority_policy_rebuilds_ctx_per_server(monkeypatch: pytest.Monke
 
     monkeypatch.setattr(Focus, "build_context", staticmethod(counting_build))
 
+    # Same state, two servers → exactly one build reused.
     draco.priority_policy(job, s1)
     draco.priority_policy(job, s2)
+    assert call_count == 1
 
-    assert call_count == 2, (
-        f"Expected build_context to be called twice (once per server), got {call_count}. "
-        "A stale-closure regression (e.g. reintroduced _refresh_queue) would produce "
-        "call_count == 0 (closure calls Focus.score directly with frozen ctx)."
-    )
+    # Job-set changes at constant now (a PSP arrival) → rebuild.
+    other = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10.0)
+    psp.add(other)
+    draco.priority_policy(job, s1)
+    assert call_count == 2
+
+    # Time advances (now changes) → rebuild.
+    env.run(until=0.001)
+    draco.priority_policy(job, s1)
+    assert call_count == 3
