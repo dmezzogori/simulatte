@@ -18,13 +18,17 @@ a degenerate rule returning a constant would pass via the entry-time tiebreak.
 from __future__ import annotations
 
 from simulatte.dispatching_rules import (
+    apparent_tardiness_cost,
+    cost_over_time,
     critical_ratio,
     earliest_due_date,
     modified_operational_due_date,
     operational_due_date,
     planned_slack_time,
+    raghu_rajendran,
     shortest_processing_time,
     slack_per_remaining_operation,
+    work_in_next_queue,
 )
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
@@ -448,3 +452,237 @@ class TestDynamicPriorityRefreshIntegration:
 
         env.run()
         assert _processed_order(jobs, server) == ["LATE_FAVORITE", "EARLY_FAVORITE"]
+
+
+class TestApparentTardinessCostIntegration:
+    """ATC: jobs leave the contended queue highest-apparent-cost first."""
+
+    def test_dispatches_highest_apparent_cost_first(self) -> None:
+        env = Environment()
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        rule = apparent_tardiness_cost(lookahead=2.0, avg_processing=5.0)
+
+        blocker = ProductionJob(
+            env=env,
+            sku="BLOCK",
+            servers=[server],
+            processing_times=[BLOCKER_PROCESSING_TIME],
+            due_date=10_000.0,
+            priority_policy=rule,
+        )
+        sf.add(blocker)
+        env.run(until=ARRIVAL_STEP)
+
+        jobs: list[ProductionJob] = []
+        # At dispatch now ~= 100, all p=5, fixed p_bar=5, k=2 (denom 10). Equal p means
+        # ATC orders by slack = d - 5 - now: smaller slack -> larger index -> served first.
+        #   A: 300-5-100 = 195   B: 200-5-100 = 95   C: 140-5-100 = 35
+        # Index order (urgent first): C > B > A -> ["C", "B", "A"]. Gaps (60, 100) dwarf the
+        # ~5-unit drift per dispatch, and the order differs from arrival ["A","B","C"].
+        for sku, due_date in [("A", 300.0), ("B", 200.0), ("C", 140.0)]:
+            job = ProductionJob(
+                env=env,
+                sku=sku,
+                servers=[server],
+                processing_times=[5.0],
+                due_date=due_date,
+                priority_policy=rule,
+            )
+            sf.add(job)
+            env.run(until=env.now + ARRIVAL_STEP)
+            jobs.append(job)
+
+        env.run()
+        assert _processed_order(jobs, server) == ["C", "B", "A"]
+
+
+class TestCostOverTimeIntegration:
+    """COVERT: jobs leave the contended queue highest-expected-cost first."""
+
+    def test_dispatches_highest_cost_first(self) -> None:
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s1 = Server(env=env, capacity=1, shopfloor=sf)
+        s2 = Server(env=env, capacity=1, shopfloor=sf)
+        rule = cost_over_time(lookahead=4.0)
+
+        blocker = ProductionJob(
+            env=env,
+            sku="BLOCK",
+            servers=[s1],
+            processing_times=[BLOCKER_PROCESSING_TIME],
+            due_date=10_000.0,
+            priority_policy=rule,
+        )
+        sf.add(blocker)
+        env.run(until=ARRIVAL_STEP)
+
+        jobs: list[ProductionJob] = []
+        # Routing [s1, s2], p=[5,5] -> RPT=10, denom k*RPT=40. At dispatch now ~= 100,
+        # slack = d - now - 10, cost = max(0, 1 - slack/40)/5. Smaller slack -> higher cost.
+        #   A: slack 35 -> cost (1-35/40)/5 = 0.025
+        #   B: slack 20 -> cost (1-20/40)/5 = 0.100
+        #   C: slack  5 -> cost (1- 5/40)/5 = 0.175
+        # Cost order (urgent first): C > B > A -> ["C", "B", "A"]; differs from arrival.
+        for sku, due_date in [("A", 145.0), ("B", 130.0), ("C", 115.0)]:
+            job = ProductionJob(
+                env=env,
+                sku=sku,
+                servers=[s1, s2],
+                processing_times=[5.0, 5.0],
+                due_date=due_date,
+                priority_policy=rule,
+            )
+            sf.add(job)
+            env.run(until=env.now + ARRIVAL_STEP)
+            jobs.append(job)
+
+        env.run()
+        assert _processed_order(jobs, s1) == ["C", "B", "A"]
+
+
+class TestWorkInNextQueueIntegration:
+    """WINQ: jobs whose next machine has the least queued work go first.
+
+    Three candidates share the contended queue at s1 but route onward to three
+    DIFFERENT next machines (s2, s3, s4), each pre-loaded with a different
+    amount of queued work. WINQ depends only on that downstream load, so it is
+    the sole discriminator — a rule that ignored it would fall back to arrival
+    order and fail.
+    """
+
+    def test_dispatches_least_next_queue_work_first(self) -> None:
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s1 = Server(env=env, capacity=1, shopfloor=sf)
+        s2 = Server(env=env, capacity=1, shopfloor=sf)
+        s3 = Server(env=env, capacity=1, shopfloor=sf)
+        s4 = Server(env=env, capacity=1, shopfloor=sf)
+
+        # Long downstream blockers (>> 100) keep s2/s3/s4 busy past the s1 dispatch,
+        # so their queued work stays intact while the candidates are scored.
+        for downstream in (s2, s3, s4):
+            db = ProductionJob(
+                env=env,
+                sku="DBLOCK",
+                servers=[downstream],
+                processing_times=[1000.0],
+                due_date=10_000.0,
+            )
+            sf.add(db)
+        env.run(until=ARRIVAL_STEP)
+
+        # Pre-load each downstream queue with a distinct work content: s2->3, s3->9, s4->6.
+        for downstream, work in [(s2, 3.0), (s3, 9.0), (s4, 6.0)]:
+            filler = ProductionJob(
+                env=env,
+                sku=f"FILL{int(work)}",
+                servers=[downstream],
+                processing_times=[work],
+                due_date=10_000.0,
+            )
+            sf.add(filler)
+        env.run(until=env.now + ARRIVAL_STEP)
+
+        # Block s1 so the candidates pile up behind it.
+        blocker = ProductionJob(
+            env=env,
+            sku="BLOCK",
+            servers=[s1],
+            processing_times=[BLOCKER_PROCESSING_TIME],
+            due_date=10_000.0,
+            priority_policy=work_in_next_queue,
+        )
+        sf.add(blocker)
+        env.run(until=env.now + ARRIVAL_STEP)
+
+        jobs: list[ProductionJob] = []
+        # Candidates arrive A, B, C; their next machines carry work 3, 9, 6.
+        # WINQ ascending: A(3) < C(6) < B(9) -> ["A", "C", "B"]; differs from arrival order.
+        for sku, nxt in [("A", s2), ("B", s3), ("C", s4)]:
+            job = ProductionJob(
+                env=env,
+                sku=sku,
+                servers=[s1, nxt],
+                processing_times=[5.0, 5.0],
+                due_date=10_000.0,
+                priority_policy=work_in_next_queue,
+            )
+            sf.add(job)
+            env.run(until=env.now + ARRIVAL_STEP)
+            jobs.append(job)
+
+        env.run()
+        assert _processed_order(jobs, s1) == ["A", "C", "B"]
+
+
+class TestRaghuRajendranIntegration:
+    """RR: with PT and slack held equal across candidates, WINQ breaks the tie.
+
+    Same multi-server fixture as WINQ, but scored by RR with fixed u=0 and
+    identical p / due date / routing length, so exp(u)*p and (s/RPT)*exp(-u)*p
+    are equal across candidates and the WINQ term alone sets the order. This
+    proves RR actually incorporates the next-queue look-ahead.
+    """
+
+    def test_winq_term_breaks_ties_by_next_queue_work(self) -> None:
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s1 = Server(env=env, capacity=1, shopfloor=sf)
+        s2 = Server(env=env, capacity=1, shopfloor=sf)
+        s3 = Server(env=env, capacity=1, shopfloor=sf)
+        s4 = Server(env=env, capacity=1, shopfloor=sf)
+        rule = raghu_rajendran(utilization=0.0)
+
+        for downstream in (s2, s3, s4):
+            db = ProductionJob(
+                env=env,
+                sku="DBLOCK",
+                servers=[downstream],
+                processing_times=[1000.0],
+                due_date=10_000.0,
+            )
+            sf.add(db)
+        env.run(until=ARRIVAL_STEP)
+
+        for downstream, work in [(s2, 3.0), (s3, 9.0), (s4, 6.0)]:
+            filler = ProductionJob(
+                env=env,
+                sku=f"FILL{int(work)}",
+                servers=[downstream],
+                processing_times=[work],
+                due_date=10_000.0,
+            )
+            sf.add(filler)
+        env.run(until=env.now + ARRIVAL_STEP)
+
+        blocker = ProductionJob(
+            env=env,
+            sku="BLOCK",
+            servers=[s1],
+            processing_times=[BLOCKER_PROCESSING_TIME],
+            due_date=10_000.0,
+            priority_policy=rule,
+        )
+        sf.add(blocker)
+        env.run(until=env.now + ARRIVAL_STEP)
+
+        jobs: list[ProductionJob] = []
+        # Identical p=[5,5] (RPT=10) and due_date=500 across candidates -> equal exp(u)*p and
+        # (s/RPT)*exp(-u)*p terms; only WINQ differs (3, 9, 6). Z order: A(3) < C(6) < B(9).
+        for sku, nxt in [("A", s2), ("B", s3), ("C", s4)]:
+            job = ProductionJob(
+                env=env,
+                sku=sku,
+                servers=[s1, nxt],
+                processing_times=[5.0, 5.0],
+                due_date=500.0,
+                priority_policy=rule,
+            )
+            sf.add(job)
+            env.run(until=env.now + ARRIVAL_STEP)
+            jobs.append(job)
+
+        env.run()
+        assert _processed_order(jobs, s1) == ["A", "C", "B"]
