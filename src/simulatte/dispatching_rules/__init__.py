@@ -19,6 +19,7 @@ from .due_date import earliest_due_date, modified_operational_due_date, operatio
 from .focus import Focus, FocusContext, FocusPriorityRule
 from .processing import first_come_first_served, shortest_processing_time
 from .slack import critical_ratio, planned_slack_time, slack_per_remaining_operation
+from .work_content import work_in_next_queue
 
 __all__ = [
     "Focus",
@@ -32,4 +33,5 @@ __all__ = [
     "planned_slack_time",
     "shortest_processing_time",
     "slack_per_remaining_operation",
+    "work_in_next_queue",
 ]
