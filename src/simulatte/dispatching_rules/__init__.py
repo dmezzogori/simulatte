@@ -11,6 +11,9 @@ Rules are grouped by scheduling family:
 - ``due_date`` — due-date-based rules.
 - ``slack`` — slack- and ratio-based rules, including the parameterized factories.
 - ``focus`` — the FOCUS self-establishing weighted-mechanism rule.
+- ``work_content`` — work-content / look-ahead rules (WINQ).
+- ``tardiness_cost`` — tardiness-cost rules (ATC, COVERT).
+- ``composite`` — composite rules combining multiple signals (RR).
 """
 
 from __future__ import annotations
