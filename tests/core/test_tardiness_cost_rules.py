@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from simulatte.dispatching_rules import apparent_tardiness_cost
+from simulatte.dispatching_rules import apparent_tardiness_cost, cost_over_time
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.server import Server
@@ -100,3 +100,70 @@ class TestApparentTardinessCost:
         probe = ProductionJob(env=env, sku="P", servers=[s], processing_times=[4.0], due_date=50.0)
         slack = max(0.0, 50.0 - 4.0 - env.now)
         assert rule(probe, s) == pytest.approx(-((1 / 4.0) * math.exp(-slack / (2.0 * 4.0))))
+
+
+class TestCostOverTime:
+    """COVERT — Carroll (1965); job-shop form Russell, Dar-El & Taylor (1987)."""
+
+    def test_rejects_nonpositive_lookahead(self) -> None:
+        with pytest.raises(ValueError, match="lookahead must be > 0"):
+            cost_over_time(lookahead=-1.0)
+        with pytest.raises(ValueError, match="lookahead must be > 0"):
+            cost_over_time(lookahead=0.0)
+
+    def test_not_urgent_returns_zero(self) -> None:
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s = Server(env=env, capacity=1, shopfloor=sf)
+        # rpt = 2; slack = max(0, 100 - 0 - 2) = 98; k*rpt = 4; 1 - 98/4 < 0 -> cost 0.
+        job = ProductionJob(env=env, sku="A", servers=[s], processing_times=[2.0], due_date=100.0)
+        rule = cost_over_time(lookahead=2.0)
+        assert rule(job, s) == 0.0
+
+    def test_intermediate_value(self) -> None:
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s = Server(env=env, capacity=1, shopfloor=sf)
+        s2 = Server(env=env, capacity=1, shopfloor=sf)
+        # rpt = 4; slack = max(0, 6 - 0 - 4) = 2; k*rpt = 4; cost = (1 - 2/4)/2 = 0.25; return -cost.
+        job = ProductionJob(env=env, sku="A", servers=[s, s2], processing_times=[2.0, 2.0], due_date=6.0)
+        rule = cost_over_time(lookahead=1.0)
+        assert rule(job, s) == pytest.approx(-0.25)
+
+    def test_tardy_reduces_to_wspt(self) -> None:
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s = Server(env=env, capacity=1, shopfloor=sf)
+        s2 = Server(env=env, capacity=1, shopfloor=sf)
+        # rpt = 5; slack = max(0, 1 - 0 - 5) = 0; cost = (1 - 0)/2 = 0.5 (WSPT-like); return -cost.
+        job = ProductionJob(env=env, sku="A", servers=[s, s2], processing_times=[2.0, 3.0], due_date=1.0)
+        rule = cost_over_time(lookahead=2.0)
+        assert rule(job, s) == pytest.approx(-0.5)
+
+    def test_applies_weight_function(self) -> None:
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s = Server(env=env, capacity=1, shopfloor=sf)
+        s2 = Server(env=env, capacity=1, shopfloor=sf)
+        # rpt = 4; slack = 2; cost = 4 * (1 - 2/4)/2 = 1.0; return -cost.
+        job = ProductionJob(env=env, sku="A", servers=[s, s2], processing_times=[2.0, 2.0], due_date=6.0)
+        rule = cost_over_time(lookahead=1.0, weight=lambda _job: 4.0)
+        assert rule(job, s) == pytest.approx(-1.0)
+
+    def test_returns_neg_inf_for_zero_processing(self) -> None:
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[s], processing_times=[0.0], due_date=10.0)
+        rule = cost_over_time(lookahead=2.0)
+        assert rule(job, s) == float("-inf")
+
+    def test_returns_zero_when_no_remaining_processing_time(self) -> None:
+        """Defensive: a fully-exited job has empty unfinished_routing -> rpt 0 -> cost 0."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        s = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[s], processing_times=[2.0], due_date=10.0)
+        job.servers_exit_at[s] = 5.0  # mark the only operation complete -> unfinished_routing == ()
+        rule = cost_over_time(lookahead=2.0)
+        assert rule(job, s) == 0.0

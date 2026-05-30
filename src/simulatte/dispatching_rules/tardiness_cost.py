@@ -85,3 +85,59 @@ def apparent_tardiness_cost(
         return -index
 
     return _atc
+
+
+def cost_over_time(
+    lookahead: float,
+    *,
+    weight: Callable[[BaseJob], float] | None = None,
+) -> Callable[[BaseJob, Server], float]:
+    """Build a Cost Over Time (COVERT) dispatching rule.
+
+    Priority index:
+
+    ``C_j = w_j * max(0, 1 - max(0, d_j - t - RPT_j) / (k * RPT_j)) / p_j``
+
+    where ``RPT_j`` is the remaining processing time (sum over
+    ``unfinished_routing``, including the current operation), ``p_j`` the
+    imminent-operation processing time, ``d_j`` the due date, ``t`` the current
+    time and ``k`` the look-ahead parameter. Higher ``C_j`` = more urgent; the
+    returned callable yields ``-C_j``.
+
+    Denominator ``k * RPT_j`` is the remaining-work waiting allowance (job-shop
+    convention; the single-machine variant uses ``k * p_j``). When the job is
+    tardy or just-in-time (slack <= 0) the rule reduces to a WSPT-like
+    ``w_j / p_j``; when slack >= ``k * RPT_j`` the cost is ``0``.
+
+    Args:
+        lookahead: Look-ahead parameter ``k`` (> 0).
+        weight: Optional ``job -> weight`` callable. When ``None``, ``w_j = 1``.
+
+    Returns:
+        A ``(job, server) -> float`` callable yielding ``-C_j``.
+
+    Raises:
+        ValueError: If ``lookahead <= 0``.
+
+    Reference: Carroll (1965), Heuristic sequencing of single and multiple
+    component jobs (PhD thesis, MIT). Job-shop form: Russell, Dar-El & Taylor
+    (1987), A comparative analysis of the COVERT job sequencing rule using
+    various shop performance measures, IJPR 25(10), 1523-1540.
+    """
+    if lookahead <= 0:
+        msg = f"lookahead must be > 0, got {lookahead}"
+        raise ValueError(msg)
+
+    def _covert(job: BaseJob, server: Server) -> float:
+        p = job.routing[server]
+        if p <= 0:
+            return float("-inf")
+        w = weight(job) if weight is not None else 1.0
+        rpt = sum(job.routing[s] for s in job.unfinished_routing)
+        if rpt <= 0:
+            return 0.0
+        slack = max(0.0, job.due_date - server.env.now - rpt)
+        cost = w * max(0.0, 1.0 - slack / (lookahead * rpt)) / p
+        return -cost
+
+    return _covert
