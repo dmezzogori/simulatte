@@ -15,6 +15,7 @@ Rules are grouped by scheduling family:
 
 from __future__ import annotations
 
+from .composite import raghu_rajendran
 from .due_date import earliest_due_date, modified_operational_due_date, operational_due_date
 from .focus import Focus, FocusContext, FocusPriorityRule
 from .processing import first_come_first_served, shortest_processing_time
@@ -34,6 +35,7 @@ __all__ = [
     "modified_operational_due_date",
     "operational_due_date",
     "planned_slack_time",
+    "raghu_rajendran",
     "shortest_processing_time",
     "slack_per_remaining_operation",
     "work_in_next_queue",
