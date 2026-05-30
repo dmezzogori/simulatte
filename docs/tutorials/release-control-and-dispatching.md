@@ -292,7 +292,7 @@ Key parameters:
 
 ### Dispatching rules
 
-Dispatching rules (priority policies) are ``(job, server) -> float`` callables that determine queue ordering (lower = more urgent). Simulatte ships a catalog of literature-standard rules in the `simulatte.dispatching_rules` package, split into two tiers.
+Dispatching rules (priority policies) are ``(job, server) -> float`` callables that determine queue ordering (lower = more urgent). Simulatte ships a catalog of literature-standard rules in the `simulatte.dispatching_rules` package, split into three tiers.
 
 **Tier 1 — stateless rules** are plain functions you pass directly:
 
@@ -304,6 +304,7 @@ Dispatching rules (priority policies) are ``(job, server) -> float`` callables t
 | Modified Operational Due Date | `modified_operational_due_date` |
 | Critical Ratio | `critical_ratio` |
 | First Come First Served | `first_come_first_served` |
+| Work In Next Queue | `work_in_next_queue` |
 
 ```python
 from simulatte.dispatching_rules import earliest_due_date
@@ -311,12 +312,15 @@ from simulatte.dispatching_rules import earliest_due_date
 router = Router(..., priority_policies=earliest_due_date)
 ```
 
-**Tier 2 — parameterized rules** are factory functions: call them with a per-operation allowance ``k`` to build the callable.
+**Tier 2 — parameterized rules** are factory functions: call them with their parameter(s) — an allowance, a look-ahead, or a utilization — to build the callable.
 
 | Rule | Factory |
 |------|---------|
 | Planned Slack Time | `planned_slack_time(allowance=k)` |
 | Slack per Remaining Operation | `slack_per_remaining_operation(allowance=k)` |
+| Apparent Tardiness Cost | `apparent_tardiness_cost(lookahead=k)` |
+| Cost Over Time | `cost_over_time(lookahead=k)` |
+| Raghu & Rajendran | `raghu_rajendran(utilization=u)` |
 
 ```python
 from simulatte.dispatching_rules import planned_slack_time
@@ -329,6 +333,8 @@ router = Router(..., priority_policies=pst)
 ```
 
 The routing-aware rules return ``inf`` for servers outside the job's routing or already exited — making them safe for priority comparisons and ``min()`` calls.
+
+The newer Tier 1/2 rules add work-content and tardiness-cost signals. **Work In Next Queue** (`work_in_next_queue`; Blackstone, Phillips & Hogg, 1982) orders by the work waiting at a job's next machine, feeding soon-to-starve downstream stations. **Apparent Tardiness Cost** (`apparent_tardiness_cost`; Vepsäläinen & Morton, 1987 — [DOI](https://doi.org/10.1287/mnsc.33.8.1035)) and **Cost Over Time** (`cost_over_time`; Carroll, 1965) weigh a job's marginal tardiness cost against its imminent processing time. **Raghu & Rajendran** (`raghu_rajendran`; 1993 — [DOI](https://doi.org/10.1016/0925-5273(93)90044-L)) is a composite that blends processing time, due-date slack, and the next-queue load, weighted by the current machine's utilization. ATC and COVERT take a look-ahead parameter (and an optional `weight`); their `avg_processing`/`utilization` shop-state inputs default to live computation with an optional fixed override.
 
 **Tier 3 — system-state rules.** `Focus` (Kasper, Land & Teunter, 2023 — [DOI](https://doi.org/10.1016/j.omega.2022.102726)) is a *self-establishing* rule: a weighted combination of five mechanisms — SPT (`pi`), starvation response (`omega`), slack timing (`psi`), pacing (`gamma`), and WIP balancing (`beta`), each in `[0, 1]`. Unlike Tier 1/2 it is a class (it exposes per-mechanism methods and a shared `build_context`), adapted to the `priority_policy` contract by `FocusPriorityRule`. A ready-made push system that dispatches with FOCUS is available:
 

@@ -99,6 +99,15 @@ see the [Tutorials](tutorials/index.md).
       heading_level: 5
       members: false
 
+#### work_in_next_queue
+
+::: simulatte.dispatching_rules.work_in_next_queue
+    options:
+      show_root_heading: false
+      show_root_toc_entry: false
+      heading_level: 5
+      members: false
+
 ### Tier 2 — parameterized rules
 
 #### planned_slack_time
@@ -113,6 +122,33 @@ see the [Tutorials](tutorials/index.md).
 #### slack_per_remaining_operation
 
 ::: simulatte.dispatching_rules.slack_per_remaining_operation
+    options:
+      show_root_heading: false
+      show_root_toc_entry: false
+      heading_level: 5
+      members: false
+
+#### apparent_tardiness_cost
+
+::: simulatte.dispatching_rules.apparent_tardiness_cost
+    options:
+      show_root_heading: false
+      show_root_toc_entry: false
+      heading_level: 5
+      members: false
+
+#### cost_over_time
+
+::: simulatte.dispatching_rules.cost_over_time
+    options:
+      show_root_heading: false
+      show_root_toc_entry: false
+      heading_level: 5
+      members: false
+
+#### raghu_rajendran
+
+::: simulatte.dispatching_rules.raghu_rajendran
     options:
       show_root_heading: false
       show_root_toc_entry: false
