@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import random
+
 from simulatte.builders import build_focus_system
 from simulatte.environment import Environment
 
 
 def main() -> None:
+    random.seed(42)
     with Environment() as env:
         _, servers, shopfloor, _ = build_focus_system(
             env,

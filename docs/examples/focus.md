@@ -11,11 +11,14 @@ See also: [Dispatching Rules API](../api/dispatching-rules.md)
 ```python
 from __future__ import annotations
 
+import random
+
 from simulatte.builders import build_focus_system
 from simulatte.environment import Environment
 
 
 def main() -> None:
+    random.seed(42)
     with Environment() as env:
         _, servers, shopfloor, _ = build_focus_system(
             env,
@@ -48,10 +51,10 @@ uv run python examples/focus_simple.py
 FOCUS standalone-dispatching example (immediate release)
 Servers: 6
 Simulation time: 2000.0
-Jobs completed: 2977
-Avg time in system: 14.77
+Jobs completed: 3036
+Avg time in system: 14.63
 ```
 
 ## Interpretation
 
-With no release control, FOCUS completes 2 977 jobs and shows an average shop-floor residence of **14.77** time units — nearly double DRACO's 7.98 under the same server load — because queues grow freely when WIP is uncapped. The comparison illustrates how dispatching alone cannot compensate for uncontrolled WIP. For best results, combine FOCUS with a release policy such as DRACO (which uses FOCUS internally) or LumsCor/SLAR.
+With no release control, FOCUS completes 3 036 jobs and shows an average shop-floor residence of **14.63** time units — nearly double DRACO's 8.00 under the same seeded arrival stream and server load — because queues grow freely when WIP is uncapped. The comparison illustrates how dispatching alone cannot compensate for uncontrolled WIP. For best results, combine FOCUS with a release policy such as DRACO (which uses FOCUS internally) or LumsCor/SLAR.

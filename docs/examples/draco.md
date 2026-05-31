@@ -11,11 +11,14 @@ See also: [Release Policies API](../api/release-policies.md)
 ```python
 from __future__ import annotations
 
+import random
+
 from simulatte.builders import build_draco_system
 from simulatte.environment import Environment
 
 
 def main() -> None:
+    random.seed(42)
     with Environment() as env:
         _, servers, shopfloor, _ = build_draco_system(
             env,
@@ -50,11 +53,11 @@ uv run python examples/draco_simple.py
 DRACO non-hierarchical WIP-control example
 Servers: 6
 Simulation time: 2000.0
-Jobs completed: 3086
-Avg time in system: 7.98
-Avg server utilization: 88.7%
+Jobs completed: 3036
+Avg time in system: 8.00
+Avg server utilization: 87.9%
 ```
 
 ## Interpretation
 
-DRACO completes 3 086 jobs in 2 000 time units with an average shop-floor residence of **7.98** time units per job. Note that `average_time_in_system` measures first-server-entry to completion — it excludes PSP wait, so it is not directly comparable to a raw makespan figure. Server utilisation stays at 88.7 %, showing that tight WIP control does not starve servers at this load level. The `wip_target` and `loop_target` parameters govern how aggressively jobs are pulled: lower values reduce WIP and lateness at the cost of slightly lower throughput. To compare DRACO against other release policies on equal-metric terms, see the [Comparing release policies tutorial](../tutorials/comparing-release-policies.md).
+DRACO completes 3 036 jobs in 2 000 time units with an average shop-floor residence of **8.00** time units per job. Note that `average_time_in_system` measures first-server-entry to completion — it excludes PSP wait, so it is not directly comparable to a raw makespan figure. Server utilisation stays at 87.9 %, showing that tight WIP control does not starve servers at this load level. The `wip_target` and `loop_target` parameters govern how aggressively jobs are pulled: lower values reduce WIP and lateness at the cost of slightly lower throughput. To compare DRACO against other release policies on equal-metric terms, see the [Comparing release policies tutorial](../tutorials/comparing-release-policies.md).

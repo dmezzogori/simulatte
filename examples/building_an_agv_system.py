@@ -9,6 +9,11 @@ simulatte's intralogistics modules step by step:
 4. Wire everything together with FleetCoordinator + dispatch strategy
 5. Submit transfer orders and run the simulation
 6. Read per-order metrics and fleet utilisation
+
+Simplification note: a generous battery capacity (1000.0) is used and no
+charging station is added, so the AGVs never need to recharge during the
+run. This keeps the example focused on the core wiring steps; see the
+advanced intralogistics example for battery lifecycle and charging.
 """
 
 from __future__ import annotations

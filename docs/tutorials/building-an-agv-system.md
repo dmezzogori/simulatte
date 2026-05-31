@@ -233,6 +233,8 @@ All five orders complete within the 300-second window. The two AGVs handle the f
 
 ## Next steps
 
+This example deliberately uses a generous `battery_capacity` (1000.0) and omits a charging station so the fleet never needs to recharge — keeping the focus on the core wiring. To model a realistic battery lifecycle:
+
 - Add a `ChargingStation` and lower `battery_capacity` to see automatic recharging in action (see the [advanced intralogistics example](../examples/intralogistics.md#advanced))
 - Attach a `DefaultIntralogisticsCollector` to record time-series and call `plot_fleet_utilization()` for a visual breakdown
 - Swap `NearestIdleStrategy` for `RoundRobinStrategy` to compare fleet balance
