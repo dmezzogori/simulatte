@@ -1,5 +1,12 @@
 # Release Policies
 
+Release policies control when jobs are released from the pre-shop pool onto the shop floor,
+regulating work-in-process (WIP) and shop congestion. Simulatte ships several workload-control
+policies — `Slar`, `SlarLimit`, `LumsCor`, `Draco`, `ConWIP`, and `ContinuousRelease` — along
+with event triggers and a starvation-avoidance callback. For the underlying concepts and a
+worked walkthrough, see the [Production Planning & Control guide](../guides/production-planning.md)
+and the [Release control and dispatching tutorial](../tutorials/release-control-and-dispatching.md).
+
 ### Slar
 
 ::: simulatte.policies.Slar
