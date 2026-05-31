@@ -16,19 +16,7 @@ Simulatte models the dynamics of manufacturing systems: jobs flowing through wor
 - Want job-shop tutorials? Go to [Tutorials](tutorials/index.md).
 - Looking for warehouse and AGV simulation? See [Intralogistics](guides/intralogistics.md).
 
-## Install
-
-Requires Python 3.12+ (tested on Python 3.12–3.14).
-
-```bash
-pip install simulatte
-```
-
-or with [uv](https://docs.astral.sh/uv/):
-
-```bash
-uv add simulatte
-```
+See [Installation](introduction/installation.md) for setup.
 
 ## 5-minute example
 

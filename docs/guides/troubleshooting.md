@@ -1,5 +1,7 @@
 # Troubleshooting
 
+This page covers common gotchas when building and running Simulatte simulations.
+
 ## “My simulation behaves strangely / jobs don’t move”
 
 - Make sure every component shares the same `Environment` instance (`env=...` everywhere).
