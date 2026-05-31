@@ -13,7 +13,7 @@ This section walks through the core building blocks of a Simulatte simulation â€
 
 ## Building with Agents
 
-See [Agent Skill](../ai-skill.md) for building simulations with the help of agents.
+See [Agent Skill](../development/agent-skill.md) for building simulations with the help of agents.
 
 ## Next
 

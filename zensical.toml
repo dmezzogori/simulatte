@@ -7,10 +7,19 @@ docs_dir = "docs"
 site_dir = "site"
 
 nav = [
-  { "Home" = "index.md" },
-  { "Getting Started" = "getting-started.md" },
-  { "API Reference" = "reference.md" },
-  { "Agent Skill" = "ai-skill.md" },
+  { "Introduction" = [
+    { "Overview" = "index.md" },
+    { "Installation" = "introduction/installation.md" },
+    { "Basic Usage" = "introduction/basic-usage.md" },
+    { "Core Concepts & Architecture" = "introduction/architecture.md" },
+  ]},
+  { "Guides" = [
+    { "Overview" = "guides/index.md" },
+    { "Production Planning & Control" = "guides/production-planning.md" },
+    { "Intralogistics" = "guides/intralogistics.md" },
+    { "Reinforcement Learning" = "guides/reinforcement-learning.md" },
+    { "Troubleshooting" = "guides/troubleshooting.md" },
+  ]},
   { "Tutorials" = [
     { "Overview" = "tutorials/index.md" },
     { "Basic manufacturing system" = "tutorials/basic-manufacturing-system.md" },
@@ -18,15 +27,29 @@ nav = [
     { "ShopFloor extensibility" = "tutorials/shopfloor-extensibility.md" },
     { "Multi-run experiments" = "tutorials/multi-run-experiments.md" },
     { "Logging" = "tutorials/logging.md" },
-    { "Troubleshooting" = "tutorials/troubleshooting.md" },
+    { "Gymnasium wrapper (RL)" = "tutorials/gymnasium-wrapper.md" },
+    { "Comparing release policies" = "tutorials/comparing-release-policies.md" },
+    { "Building an AGV system" = "tutorials/building-an-agv-system.md" },
   ]},
-  { "Intralogistics" = [
-    { "Overview" = "intralogistics/index.md" },
-    { "Examples" = "intralogistics/examples.md" },
+  { "Examples" = [
+    { "Overview" = "examples/index.md" },
+    { "Draco release (production)" = "examples/draco.md" },
+    { "Focus dispatching (production)" = "examples/focus.md" },
+    { "Intralogistics" = "examples/intralogistics.md" },
   ]},
-  { "Experimental" = [
-    { "Overview" = "experimental/index.md" },
-    { "Gymnasium wrapper for RL" = "experimental/gymnasium-wrapper.md" },
+  { "API Reference" = [
+    { "Overview" = "api/index.md" },
+    { "Core" = "api/core.md" },
+    { "Release Policies" = "api/release-policies.md" },
+    { "Dispatching Rules" = "api/dispatching-rules.md" },
+    { "Intralogistics" = "api/intralogistics.md" },
+    { "Utilities" = "api/utilities.md" },
+    { "Experimental" = "api/experimental.md" },
+  ]},
+  { "Development" = [
+    { "Contributing" = "development/contributing.md" },
+    { "Agent Skill" = "development/agent-skill.md" },
+    { "Changelog" = "development/changelog.md" },
   ]},
 ]
 
@@ -63,6 +86,8 @@ custom_dir = "overrides"
 features = [
   "content.action.edit",
   "content.action.view",
+  "navigation.tabs",
+  "navigation.indexes",
   "navigation.instant",
   "navigation.sections",
   "navigation.tracking",
