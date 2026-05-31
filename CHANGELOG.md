@@ -2,6 +2,40 @@
 
 All notable changes to Simulatte are documented here.
 
+## 0.10.0 — 2026-05-31
+
+### New
+
+- **Four dispatching rules** added to `simulatte.dispatching_rules`, extending
+  the catalog with three new scheduling families:
+
+  - **`work_in_next_queue`** (`dispatching_rules.work_content`) — Work In Next
+    Queue (WINQ): orders by the total processing time queued at a job's next
+    machine, feeding soon-to-starve downstream stations (queue-only; a job on
+    its last operation → 0). Blackstone, Phillips & Hogg (1982, *IJPR* 20(1),
+    27–45).
+  - **`apparent_tardiness_cost(lookahead, *, avg_processing=None, weight=None)`**
+    (`dispatching_rules.tardiness_cost`) — Apparent Tardiness Cost (ATC):
+    `(w/p)·exp(−max(0, d−p−t)/(k·p̄))`. The average processing time `p̄`
+    defaults to live computation from the server's queue, with an optional
+    fixed override. Vepsäläinen & Morton (1987, *Management Science* 33(8),
+    1035–1047).
+  - **`cost_over_time(lookahead, *, weight=None)`**
+    (`dispatching_rules.tardiness_cost`) — Cost Over Time (COVERT):
+    `max(0, 1−max(0, slack)/(k·RPT))/p`, reducing to WSPT when tardy. Carroll
+    (1965); job-shop form Russell, Dar-El & Taylor (1987, *IJPR* 25(10)).
+  - **`raghu_rajendran(*, utilization=None)`** (`dispatching_rules.composite`) —
+    Raghu & Rajendran (RR): `exp(u)·p + (s/RPT)·exp(−u)·p + WINQ`, a
+    minimum-index composite weighted by the current machine's utilization (live
+    by default, fixed override accepted); the raw slack `s` may be negative.
+    Raghu & Rajendran (1993, *IJPE* 32(3), 301–313).
+
+  ATC and COVERT return a negated cost index (higher cost → served first); WINQ
+  and RR return their index directly. All are `(job, server) → float` callables
+  usable as `Router(priority_policies=…)` or `ProductionJob(priority_policy=…)`,
+  grouped into the new `dispatching_rules.work_content`,
+  `dispatching_rules.tardiness_cost`, and `dispatching_rules.composite` modules.
+
 ## 0.9.0 — 2026-05-29
 
 ### New
