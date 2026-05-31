@@ -13,6 +13,7 @@ from pathlib import Path
 
 SITE = Path("site")
 HREF = re.compile(r'href="([^"]+)"')
+REFRESH = re.compile(r'content="0;url=([^"]+)"')
 SKIP_PREFIXES = ("http://", "https://", "mailto:", "//", "data:", "#", "javascript:")
 
 
@@ -36,7 +37,8 @@ def main() -> int:
         return 2
     missing: list[tuple[str, str]] = []
     for html in SITE.rglob("*.html"):
-        for m in HREF.finditer(html.read_text(encoding="utf-8")):
+        text = html.read_text(encoding="utf-8")
+        for m in HREF.finditer(text):
             target = m.group(1)
             if target.startswith(SKIP_PREFIXES):
                 continue
@@ -44,8 +46,12 @@ def main() -> int:
                 continue
             if not resolve(html.parent, target):
                 missing.append((str(html.relative_to(SITE)), target))
+        for m in REFRESH.finditer(text):
+            target = m.group(1)
+            if not resolve(html.parent, target):
+                missing.append((str(html.relative_to(SITE)), f"[redirect] {target}"))
     if missing:
-        print(f"BROKEN INTERNAL LINKS: {len(missing)}")
+        print(f"BROKEN INTERNAL LINKS: {len(set(missing))}")
         for src, tgt in sorted(set(missing))[:200]:
             print(f"  {src} -> {tgt}")
         return 1

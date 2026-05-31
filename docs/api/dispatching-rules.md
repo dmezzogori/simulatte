@@ -1,7 +1,5 @@
 # Dispatching Rules
 
-## Dispatching Rules
-
 ### Tier 1 — stateless rules
 
 #### shortest_processing_time

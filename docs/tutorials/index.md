@@ -9,7 +9,7 @@ This section walks through the core building blocks of a Simulatte simulation â€
 - [ShopFloor extensibility](shopfloor-extensibility.md): add hooks, swap WIP strategies, customize metrics.
 - [Multi-run experiments](multi-run-experiments.md): repeat runs across random seeds with `Runner`.
 - [Logging](logging.md): trace events, debug behavior, and analyze simulation history.
-- [Troubleshooting](troubleshooting.md): common gotchas and how to fix them.
+- [Troubleshooting](../guides/troubleshooting.md): common gotchas and how to fix them.
 
 ## Building with Agents
 

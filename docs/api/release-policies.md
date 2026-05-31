@@ -1,7 +1,5 @@
 # Release Policies
 
-## Release Policies
-
 ### Slar
 
 ::: simulatte.policies.Slar
