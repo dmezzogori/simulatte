@@ -7,7 +7,7 @@ from simulatte.environment import Environment
 
 
 def main() -> None:
-    random.seed(42)
+    random.seed(42)  # Fixed seed for reproducible output; remove for non-deterministic runs.
     with Environment() as env:
         _, servers, shopfloor, _ = build_draco_system(
             env,

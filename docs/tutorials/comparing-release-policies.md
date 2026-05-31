@@ -133,6 +133,8 @@ if __name__ == "__main__":
     main()
 ```
 
+The complete runnable script is at [`examples/comparing_release_policies.py`](https://github.com/dmezzogori/simulatte/blob/main/examples/comparing_release_policies.py).
+
 **Run it:**
 
 ```bash
@@ -168,9 +170,9 @@ Columns:
 
 **Immediate Release** pushes all 3 026 jobs straight onto the shop floor. There is no PSP, so End WIP is high (91.8 units of remaining work) and 11.9 % of jobs finish late.
 
-**LumsCor** holds 24 jobs in the PSP at end of simulation. Its workload norm keeps queues short (End WIP = 27.7), but because it checks periodically (`check_timeout=10`) it can sometimes release a burst of jobs, slightly increasing mean tardiness (1.82 vs 1.04 for Immediate).
+**LumsCor** holds 24 jobs in the PSP at end of simulation. Its workload norm keeps queues short (End WIP = 27.7, the lowest in the table), but because it checks periodically (`check_timeout=10`), the PSP waiting time it introduces means jobs held in the pool may already be at or past their due date when released — adding tardiness (1.82 vs 1.04 for Immediate) without a corresponding WIP benefit. (LumsCor gate-checks each candidate individually against the workload norm; it is not a true batch burst.)
 
-**SLAR** keeps late-ness dramatically lower (0.9 %) with a mean tardiness of just 0.05. It is reactive rather than periodic: it only releases when a server risks starvation or an urgent job needs insertion. That responsiveness keeps both WIP (55.9) and tardiness very low without sacrificing utilisation.
+**SLAR** keeps late-ness dramatically lower (0.9 %) with a mean tardiness of just 0.05. It is reactive rather than periodic: it only releases when a server risks starvation or an urgent job needs insertion. That responsiveness gives SLAR the lowest tardiness in the table, while its End WIP (55.9) sits between Immediate (91.8) and LumsCor (27.7) — SLAR trades tighter WIP control for better due-date performance.
 
 ### When to choose which policy
 

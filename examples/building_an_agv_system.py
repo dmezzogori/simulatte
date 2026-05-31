@@ -23,7 +23,9 @@ from simulatte.intralogistics import (
     AGV,
     AGVType,
     Arc,
+    DijkstraPlanner,
     FleetCoordinator,
+    FreeTrafficManager,
     LayoutGraph,
     NearestIdleStrategy,
     NearestParkingPolicy,
@@ -34,8 +36,6 @@ from simulatte.intralogistics import (
     TrapezoidalProfile,
     Warehouse,
 )
-from simulatte.intralogistics.traffic import FreeTrafficManager
-from simulatte.intralogistics.pathfinding import DijkstraPlanner
 
 
 def fmt_time(value: float | None) -> str:
@@ -172,9 +172,7 @@ def main() -> None:
 
         avg_fulfillment = 0.0
         if completed:
-            avg_fulfillment = sum(o.delivered_at - o.created_at for o in completed if o.delivered_at is not None) / len(
-                completed
-            )
+            avg_fulfillment = sum(o.delivered_at - o.created_at for o in completed) / len(completed)
 
         print("Building an AGV System — step-by-step example")
         print(f"Layout: {len(graph.nodes)} nodes, {len(arcs)} arcs")

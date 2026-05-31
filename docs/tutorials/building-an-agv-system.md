@@ -115,9 +115,14 @@ agvs = [
 `FleetCoordinator` is the central dispatcher. Pass it the graph, fleet, warehouses, and optional infrastructure (charging stations, parking areas). The `dispatch_strategy` and `repositioning_policy` are pluggable.
 
 ```python
-from simulatte.intralogistics import FleetCoordinator, NearestIdleStrategy, NearestParkingPolicy, ParkingArea
-from simulatte.intralogistics.traffic import FreeTrafficManager
-from simulatte.intralogistics.pathfinding import DijkstraPlanner
+from simulatte.intralogistics import (
+    DijkstraPlanner,
+    FleetCoordinator,
+    FreeTrafficManager,
+    NearestIdleStrategy,
+    NearestParkingPolicy,
+    ParkingArea,
+)
 
 parking = ParkingArea(env=env, name="Parking", node=park_node, capacity=2)
 

@@ -8,9 +8,11 @@ The examples are organised in two domains — **production planning and control*
 |---------|--------|----------------------|------|
 | Draco release | Production | Non-hierarchical WIP control with DRACO policy (`build_draco_system`) | [draco.md](draco.md) |
 | Focus dispatching | Production | Standalone FOCUS dispatching rule with immediate release (`build_focus_system`) | [focus.md](focus.md) |
+| Comparing release policies | Production | Immediate Release vs LumsCor vs SLAR side by side, seeded for reproducibility | [../tutorials/comparing-release-policies.md](../tutorials/comparing-release-policies.md) |
 | Intralogistics simple | Intralogistics | Minimal AGV setup with `build_simple_system`; four transfer orders | [intralogistics.md](intralogistics.md#simple) |
 | Intralogistics intermediate | Intralogistics | Custom graph, three SKUs, dispatch strategy, parking, staggered batches | [intralogistics.md](intralogistics.md#intermediate) |
 | Intralogistics advanced | Intralogistics | Three warehouses, battery lifecycle, charging, replenishment, EMA metrics | [intralogistics.md](intralogistics.md#advanced) |
+| Building an AGV system | Intralogistics | Assemble layout, warehouses, fleet, and `FleetCoordinator` from scratch | [../tutorials/building-an-agv-system.md](../tutorials/building-an-agv-system.md) |
 
 ---
 
