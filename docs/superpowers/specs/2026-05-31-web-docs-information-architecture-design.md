@@ -166,23 +166,45 @@ No existing content is dropped; every current page has a destination.
 - **E. Troubleshooting** moves out of Tutorials into **Guides** as a user-facing how-to page
   rather than remaining a standalone tutorial stub.
 
-## Scope boundary
+## Scope
 
-This spec defines the **IA skeleton and migration map only**. It does **not** include writing
-the new content. The following are follow-on work items, each with a named home in the
-skeleton:
+The implementation plan derived from this spec covers, **on a dedicated feature branch**, the
+full structural move **and** the authored content for the new pages (not just empty stubs):
 
-- **Item 1** — author *Core Concepts & Architecture* with the component diagram (mermaid).
-- **Item 3** — author richer end-to-end tutorial(s) + an intralogistics tutorial; populate the
-  Examples gallery entries.
-- **Item 4** — author per-group API Reference pages for Core, Intralogistics, Utilities,
-  Experimental; expand Release Policies.
-- **Item 2** — logo redesign + format variants (independent).
+1. **Structural move** — new `nav` in `zensical.toml`, relocate/rename existing pages, and wire
+   redirects for every moved URL.
+2. **Stub creation *and* content** for every NEW entry in the tree:
+   - **Item 1** — *Core Concepts & Architecture*: the high-level component diagram (mermaid)
+     plus prose explaining how the classes connect.
+   - **Item 3** — richer end-to-end tutorial(s) + an intralogistics tutorial; populated
+     Examples gallery entries (what it shows · layout · code · annotated output) for the
+     existing `draco_simple`, `focus_simple`, and the three intralogistics scripts.
+   - **Item 4** — per-group API Reference pages for Core, Intralogistics, Utilities, and
+     Experimental (each a narrative intro + mkdocstrings autodoc), plus an expanded Release
+     Policies page.
+   - Guides → *Production Planning & Control* concept page; Development → *Contributing*.
 
-The implementation plan that follows this spec should cover the **structural move**: creating
-the new `nav` in `zensical.toml`, relocating/renaming existing pages, creating placeholder/stub
-pages for the NEW entries, and wiring redirects — leaving the *content authoring* of items
-1/3/4 as subsequent plans.
+**Out of scope:** Item 2 (logo redesign + format variants) — independent, touches
+theme/favicon only, handled in a separate effort.
+
+### Workflow & phasing
+
+All work is performed on a feature branch — `feature/web-docs-ia` off `main`, per
+`CONTRIBUTING.md` (`feature/<name>`), merged via PR. **No direct commits to `main`.**
+
+Because this authors a large amount of content, the plan is sequenced into phases that each
+leave `zensical build` green and are independently reviewable:
+
+- **Phase 0 — Branch.** Create `feature/web-docs-ia` off `main`.
+- **Phase 1 — Skeleton.** New `nav`, relocate existing pages, redirects, and create the NEW
+  pages as minimal stubs so the full tree builds green.
+- **Phase 2 — API Reference (item 4).** Author the four new groups + expand Release Policies.
+- **Phase 3 — Concepts & diagram (item 1).** Author *Core Concepts & Architecture* (with the
+  mermaid component diagram) + the *Production Planning & Control* guide.
+- **Phase 4 — Tutorials & Examples (item 3).** Author the new tutorial(s) and populate the
+  Examples gallery.
+
+Each phase boundary is a natural review/commit checkpoint on the branch.
 
 ## Implementation concerns (verify during implementation; not blocking the IA)
 
@@ -205,11 +227,16 @@ pages for the NEW entries, and wiring redirects — leaving the *content authori
 
 ## Success criteria
 
+- All work lands on the `feature/web-docs-ia` branch and merges via PR — nothing committed
+  directly to `main`.
 - A single nav tree with six top sections: Introduction, Guides, Tutorials, Examples,
   API Reference, Development.
 - Every existing page has a defined destination; no content is lost.
 - API Reference covers all six logical groups (Core, Release Policies, Dispatching Rules,
-  Intralogistics, Utilities, Experimental).
-- The structure provides an unambiguous home for items 1, 3, and 4.
+  Intralogistics, Utilities, Experimental), each with a narrative intro + autodoc.
+- Every NEW page in the tree ships with **real authored content**, not an empty stub: the
+  architecture diagram renders, the four new API groups are populated, the new tutorials run,
+  and every Examples gallery entry is filled in (item 2/logo excepted — out of scope).
 - A decision on tabs-vs-sections rendering is made after verifying zensical support.
 - Redirects exist for all moved pages.
+- `zensical build` succeeds with no broken links at every phase boundary.
