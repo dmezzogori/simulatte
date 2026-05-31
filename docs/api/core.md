@@ -7,49 +7,37 @@ of `Server` resources via the `Router`; `PreShopPool` holds jobs before they are
 the floor; and `Runner` repeats multiple simulation replications with independent random seeds.
 See the [architecture diagram](../introduction/architecture.md) for how these objects interact.
 
-## Environment
+## Core objects
 
 ::: simulatte.environment.Environment
     options:
       heading_level: 3
       members: true
 
-## ShopFloor
-
 ::: simulatte.shopfloor.ShopFloor
     options:
       heading_level: 3
       members: true
-
-## Server
 
 ::: simulatte.server.Server
     options:
       heading_level: 3
       members: true
 
-## ProductionJob
-
 ::: simulatte.job.ProductionJob
     options:
       heading_level: 3
       members: true
-
-## Router
 
 ::: simulatte.router.Router
     options:
       heading_level: 3
       members: true
 
-## PreShopPool
-
 ::: simulatte.psp.PreShopPool
     options:
       heading_level: 3
       members: true
-
-## Runner
 
 ::: simulatte.runner.Runner
     options:

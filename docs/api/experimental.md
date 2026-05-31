@@ -10,9 +10,7 @@ loops. Subclasses implement six abstract methods (`setup`, `get_observation`, `a
 See the [Reinforcement Learning guide](../guides/reinforcement-learning.md) and the
 [Gymnasium wrapper tutorial](../tutorials/gymnasium-wrapper.md) for worked examples.
 
-## SimulatteEnv
-
 ::: simulatte.experimental.SimulatteEnv
     options:
-      heading_level: 3
+      heading_level: 2
       members: true

@@ -1,6 +1,10 @@
 # Utilities API
 
-Builder functions for quick system setup, statistical distribution helpers, and the simulation logger.
+The builder functions are convenience wrappers that wire together an `Environment`, a
+`ShopFloor`, a `Router`, and a release policy into a ready-to-run system, so you can spin up
+a complete simulation in a single call. The distribution helpers sample processing times, with
+`RunningStats` providing an online (Welford) accumulator for mean and variance. `SimLogger`
+records simulation events and can emit them as JSON, plain text, or to a SQLite store.
 
 ## Builders
 
