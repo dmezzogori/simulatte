@@ -1,4 +1,4 @@
-# Getting Started
+# Basic Usage
 
 This guide gets you from “installed” to “first simulation” using Simulatte’s core objects:
 

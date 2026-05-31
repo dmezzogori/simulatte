@@ -44,5 +44,5 @@ Three runnable examples in the [`examples/`](https://github.com/dmezzogori/simul
 ## Next
 
 - [Examples walkthrough](../examples/intralogistics.md)
-- [Getting Started](../introduction/basic-usage.md) (production planning quick start)
+- [Basic Usage](../introduction/basic-usage.md) (production planning quick start)
 - [Tutorials](../tutorials/index.md) (job-shop tutorials)
