@@ -4,28 +4,30 @@ Simulatte models two complementary domains — production planning (job-shop) an
 
 ## Production planning
 
-A `ProductionJob` carries a server sequence, processing times, and an absolute due date. It enters the `PreShopPool`, a pure buffer queue with no built-in release logic. A release policy (LumsCor, SLAR, Draco, or ConWIP) monitors the pool and admits jobs to the `ShopFloor`, the central orchestrator that tracks WIP, fires lifecycle hooks, and maintains EMA performance metrics. At each `Server` — a SimPy priority resource — the queue is re-sorted before every dispatch by a priority policy (a dispatching rule such as SPT, EDD, ATC, or Focus). The `Router` acts as the stochastic arrival process, generating jobs and feeding them into the pool. `Runner` repeats the whole simulation across multiple seeds; `SimLogger` records events throughout.
+The `Router` is the stochastic arrival process: it creates `ProductionJob`s — each carrying its server routing, processing times, and absolute due date — and feeds them into the `PreShopPool` (in a pull system) or directly to the `ShopFloor` (in a push system). A release policy (LumsCor, SLAR, Draco, or ConWIP) monitors the pool and admits jobs to the `ShopFloor`, the central orchestrator that tracks WIP, fires lifecycle hooks, and maintains EMA performance metrics. The `ShopFloor` then routes each job through its sequence of `Server`s. Each `Server` is a SimPy priority resource that re-orders its queue before every dispatch — calling `sort_queue` to re-evaluate the job's priority policy — and that priority policy is the dispatching rule (SPT, EDD, ATC, Focus, and others). `Runner` repeats the whole simulation across multiple seeds; `SimLogger` records events throughout.
 
 ```mermaid
 graph TD
     Env["Environment<br/>clock + events"]
-    Job["ProductionJob"]
+    Router["Router<br/>stochastic arrivals"]
+    Job["ProductionJob<br/>routing · processing times · due date"]
     PSP["PreShopPool"]
     RP["Release Policy<br/>LumsCor / SLAR / Draco / ConWIP"]
-    SF["ShopFloor<br/>orchestrator"]
-    R["Router"]
+    SF["ShopFloor<br/>orchestrator · WIP"]
+    S["Server<br/>priority queue"]
     DR["Dispatching Rule<br/>SPT / EDD / ATC / Focus"]
-    S["Server"]
-    Runner["Runner<br/>multi-seed"]
+    Runner["Runner<br/>multi-seed runs"]
     Log["SimLogger"]
 
-    Job -->|enters| PSP
-    PSP -->|released by| RP
-    RP -->|admits to| SF
-    SF -->|routes via| R
-    R -->|orders queue with| DR
-    R -->|dispatches to| S
-    S -->|completion| SF
+    Router -->|creates| Job
+    Router -->|pull system| PSP
+    Router -->|push system| SF
+    RP -->|releases jobs from| PSP
+    PSP -->|released to| SF
+    SF -->|routes job through| S
+    S -->|queue ordered by| DR
+    S -->|completes step| SF
+    Env -.drives.-> Router
     Env -.drives.-> SF
     Env -.drives.-> S
     SF -.records.-> Log
