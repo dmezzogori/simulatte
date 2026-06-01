@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from simulatte.dispatching_rules import Focus, FocusPriorityRule, planned_slack_time
 from simulatte.distributions import server_sampling, truncated_2erlang
 from simulatte.environment import Environment
+from simulatte.policies.continuous_release import ContinuousRelease
 from simulatte.policies.conwip import ConWIP
 from simulatte.policies.draco import Draco
 from simulatte.policies.lumscor import LumsCor
@@ -574,5 +575,77 @@ def build_conwip_system(
     conwip = ConWIP(wip_cap=wip_cap)
     env.process(on_completion_trigger(shop_floor, psp, conwip.on_completion_release))
     psp.on_arrival(conwip.on_arrival_release)
+
+    return psp, servers, shop_floor, router
+
+
+def build_continuous_release_system(
+    env: Environment,
+    *,
+    wl_norm_level: float,
+    allowance_factor: int = 2,
+    n_servers: int = 6,
+    arrival_rate: float = 1 / 0.648,
+    service_rate: float = 2.0,
+    collect_workload: bool = False,
+) -> PullSystem:
+    """Build a Continuous Release (workload-controlled) pull system.
+
+    Jobs are held in the Pre-Shop Pool and released continuously — on each
+    job completion and on PSP arrival — when their corrected workload
+    contribution keeps every server in their routing at or below
+    ``wl_norm_level``. Requires ``CorrectedWIPStrategy`` on the shopfloor.
+
+    Args:
+        env: The simulation environment.
+        wl_norm_level: Corrected workload norm applied uniformly to every server.
+        allowance_factor: Buffer time per server for due-date planning.
+        n_servers: Number of production servers.
+        arrival_rate: Inter-arrival rate (lambda for exponential).
+        service_rate: Service rate (lambda for truncated 2-Erlang).
+        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+
+    Returns:
+        Tuple of ``(psp, servers, shop_floor, router)``.
+
+    Example:
+        >>> env = Environment()
+        >>> psp, servers, shop_floor, router = build_continuous_release_system(
+        ...     env, wl_norm_level=6.0
+        ... )
+        >>> env.run(until=1000)
+    """
+    shop_floor = ShopFloor(
+        env=env,
+        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+    )
+    shop_floor.set_wip_strategy(CorrectedWIPStrategy())
+    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
+    psp = PreShopPool(env=env, shopfloor=shop_floor)
+    router = Router(
+        env=env,
+        shopfloor=shop_floor,
+        servers=servers,
+        psp=psp,
+        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
+        sku_distributions={"F1": 1},
+        sku_routings={"F1": server_sampling(servers)},
+        sku_service_times={
+            "F1": {
+                server: lambda: truncated_2erlang(
+                    lam=service_rate,
+                    max_value=4.0,
+                )
+                for server in servers
+            },
+        },
+        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+    )
+    cr = ContinuousRelease(
+        wl_norm=dict.fromkeys(servers, float(wl_norm_level)),
+        allowance_factor=int(allowance_factor),
+    )
+    env.process(on_completion_trigger(shop_floor, psp, cr.on_completion_release))
+    psp.on_arrival(cr.on_arrival_release)
 
     return psp, servers, shop_floor, router
