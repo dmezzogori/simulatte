@@ -35,8 +35,12 @@ nav = [
   ]},
   { "Examples" = [
     { "Overview" = "examples/index.md" },
-    { "Draco release (production)" = "examples/draco.md" },
-    { "Focus dispatching (production)" = "examples/focus.md" },
+    { "Dispatching — stateless rules" = "examples/dispatching-stateless.md" },
+    { "Dispatching — parameterized rules" = "examples/dispatching-parameterized.md" },
+    { "Dispatching — system-state (FOCUS)" = "examples/dispatching-focus.md" },
+    { "Release — workload control" = "examples/release-workload.md" },
+    { "Release — WIP cap" = "examples/release-wip.md" },
+    { "Release — triggers & starvation" = "examples/release-triggers.md" },
     { "Intralogistics" = "examples/intralogistics.md" },
   ]},
   { "API Reference" = [

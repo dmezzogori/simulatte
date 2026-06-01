@@ -2,6 +2,8 @@
 
 This tutorial assembles a complete intralogistics simulation from scratch — layout, warehouses, fleet, coordinator, and metrics — step by step. By the end you will have a running script that dispatches five transfer orders across two AGVs and reports per-order timings and fleet utilisation.
 
+> See the runnable [intralogistics examples](../examples/intralogistics.md) for end-to-end systems with plots.
+
 For quick setups consider `build_simple_system()` from the [Intralogistics examples](../examples/intralogistics.md); this tutorial builds everything manually so you can see how the pieces fit together.
 
 See also: [Intralogistics guide](../guides/intralogistics.md) · [Intralogistics API](../api/intralogistics.md) · [Examples gallery](../examples/index.md)

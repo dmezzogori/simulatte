@@ -2,6 +2,8 @@
 
 Goal: control when jobs enter the shopfloor using release policies and apply dispatching rules for queue ordering.
 
+> See the runnable [dispatching](../examples/dispatching-stateless.md) and [release policy](../examples/release-workload.md) galleries to compare every rule and policy in your browser.
+
 ## 1) Push vs pull systems
 
 In a **push** system, jobs enter the shopfloor immediately upon arrival. Simple, but can lead to high WIP (Work-in-Progress) and long queues.
