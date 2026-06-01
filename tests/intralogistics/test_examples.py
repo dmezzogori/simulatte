@@ -57,6 +57,14 @@ def test_intralogistics_advanced_example_runs(monkeypatch, capsys) -> None:
     assert "replenishment)" in captured.out
     assert "Outbound:" in captured.out
     assert "Replenishment:" in captured.out
+    # The 8-hour shift must still exhibit at least one replenishment (a late-shift,
+    # time-triggered event). Guard against a future horizon change silently dropping it.
+    assert "Replenishment: 1 completed" in captured.out
+    assert "Replenishment: 0 completed" not in captured.out
+    # Charging is surfaced per-AGV in the fleet report as "charging=<pct>". The exact
+    # percentage is fragile to assert, so we only assert the structural field is present;
+    # a non-zero charging percentage for >=1 AGV was verified manually in the run output.
+    assert "charging=" in captured.out
     assert "Warehouse inventory" in captured.out
     assert "Receiving:" in captured.out
     assert "Bulk Storage:" in captured.out
