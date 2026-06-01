@@ -32,7 +32,7 @@ SEED = 42
 HORIZON = 800.0
 
 SYSTEMS = {
-    "ConWIP": lambda env: build_conwip_system(env, wip_cap=8),
+    "ConWIP": lambda env: build_conwip_system(env, wip_cap=18),
     "DRACO": lambda env: build_draco_system(env, wip_target=8, loop_target=4),
 }
 
@@ -74,10 +74,10 @@ uv run python examples/gallery_release_wip.py
 ```text
 WIP-cap release policies (seed=42)
 Policy    Done   AvgTIS  MeanTard  %Tardy
-ConWIP     918     6.89     61.85   79.7%
+ConWIP    1128    12.05      0.24    6.8%
 DRACO     1162     7.60      0.12    1.2%
 ```
 
 ## Interpretation
 
-Both policies achieve a tight, low time in system on the floor (≈6.9–7.6) by capping WIP, but the outcomes diverge sharply. ConWIP's blunt shop-wide count cap of 8 throttles release so hard at this arrival load that jobs back up in the PSP: it completes far fewer jobs (918 vs 1162) and, because lateness is measured against the due date including PSP wait, almost 80% finish tardy. DRACO reaches the same WIP target but, by merging release, authorisation, and dispatching into one per-server score (rather than a single global count), it keeps the floor fed and the right jobs moving — completing essentially every arrival with near-zero tardiness. The contrast shows that *how* a WIP cap is allocated and dispatched matters as much as the cap itself.
+With its count cap sized to the load (`wip_cap=18`), ConWIP roughly keeps pace with arrivals — completing 1128 jobs at 6.8% tardy — but still visibly trails DRACO (1162 jobs, 1.2% tardy) and carries a longer floor time (12.05 vs 7.60). DRACO reaches a comparable shop WIP but, by merging release, authorisation, and dispatching into one per-server score rather than enforcing a single global count, it keeps the right jobs moving and finishes essentially every arrival with near-zero tardiness. A ConWIP cap must be sized to the load: too tight a cap (for example `wip_cap=8`) throttles throughput below the arrival rate, so the PSP backs up without bound and almost every job turns tardy. The contrast shows that even when the cap is well chosen, *how* WIP is allocated and dispatched matters as much as the cap itself.
