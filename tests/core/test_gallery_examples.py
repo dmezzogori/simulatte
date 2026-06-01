@@ -57,3 +57,10 @@ def test_gallery_release_workload_runs() -> None:
     for name in ("Immediate", "LumsCor", "SLAR", "SLAR-Limit", "Continuous"):
         assert name in out
     assert "%Tardy" in out
+
+
+def test_gallery_release_wip_runs() -> None:
+    out = _run("gallery_release_wip.py")
+    for name in ("ConWIP", "DRACO"):
+        assert name in out
+    assert "%Tardy" in out
