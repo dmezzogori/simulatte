@@ -41,9 +41,11 @@ def run_config(weights) -> tuple[int, float, float, float]:
     random.seed(SEED)
     with Environment() as env:
         if weights is None:
-            _, _s, shop_floor, _ = build_immediate_release_system(env, priority_policies=first_come_first_served)
+            _, _s, shop_floor, _ = build_immediate_release_system(
+                env, priority_policies=first_come_first_served, due_date_offset_range=(10.0, 18.0)
+            )
         else:
-            _, _s, shop_floor, _ = build_focus_system(env, focus_weights=weights)
+            _, _s, shop_floor, _ = build_focus_system(env, focus_weights=weights, due_date_offset_range=(10.0, 18.0))
         env.run(until=HORIZON)
         return metrics(shop_floor)
 

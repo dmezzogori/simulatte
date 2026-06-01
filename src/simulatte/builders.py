@@ -38,6 +38,7 @@ def build_immediate_release_system(
     retain_job_history: bool = False,
     priority_policies: Callable[[ProductionJob, Server], float] | None = None,
     collect_workload: bool = False,
+    due_date_offset_range: tuple[float, float] = (30.0, 45.0),
 ) -> PushSystem:
     """Build an immediate release (push) system with no workload control.
 
@@ -53,6 +54,9 @@ def build_immediate_release_system(
         collect_time_series: If True, servers collect queue length time series.
         retain_job_history: If True, servers retain completed job references.
         priority_policies: Optional callable used to assign job priorities at servers.
+        due_date_offset_range: Range (low, high) for the uniform due-date offset
+            added to each job's creation time. Tighter ranges make due dates bind,
+            so due-date/tardiness dispatching rules differentiate.
 
     Returns:
         Tuple of (psp, servers, shop_floor, router) where psp is None.
@@ -97,7 +101,7 @@ def build_immediate_release_system(
                 for server in servers
             },
         },
-        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+        due_date_offset_distribution={"F1": lambda: random.uniform(*due_date_offset_range)},  # noqa: S311
         priority_policies=priority_policies,
     )
     return None, servers, shop_floor, router
@@ -111,6 +115,7 @@ def build_focus_system(
     arrival_rate: float = 1 / 0.648,
     service_rate: float = 2.0,
     collect_workload: bool = False,
+    due_date_offset_range: tuple[float, float] = (30.0, 45.0),
 ) -> PushSystem:
     """Build an immediate-release (push) system that dispatches with FOCUS.
 
@@ -128,6 +133,9 @@ def build_focus_system(
         arrival_rate: Inter-arrival rate (lambda for exponential).
         service_rate: Service rate (lambda for truncated 2-Erlang).
         collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+        due_date_offset_range: Range (low, high) for the uniform due-date offset
+            added to each job's creation time. Tighter ranges make due dates bind,
+            so due-date/tardiness dispatching rules differentiate.
 
     Returns:
         Tuple of ``(None, servers, shop_floor, router)`` (push system; no PSP).
@@ -165,7 +173,7 @@ def build_focus_system(
                 for server in servers
             },
         },
-        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+        due_date_offset_distribution={"F1": lambda: random.uniform(*due_date_offset_range)},  # noqa: S311
         priority_policies=priority,
     )
     return None, servers, shop_floor, router
