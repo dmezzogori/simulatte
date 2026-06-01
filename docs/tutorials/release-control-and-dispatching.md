@@ -113,7 +113,7 @@ Simulatte provides builder functions for common configurations.
 
 Jobs bypass the PSP entirely. Useful as a baseline for comparison.
 
-```python
+```python { .run }
 from simulatte.builders import build_immediate_release_system
 from simulatte.environment import Environment
 
@@ -156,7 +156,7 @@ _, servers, shopfloor, router = build_immediate_release_system(
 
 Jobs are released only if adding them keeps corrected WIP at or below a workload norm. Combines periodic checks with starvation avoidance.
 
-```python
+```python { .run }
 from simulatte.builders import build_lumscor_system
 from simulatte.environment import Environment
 
@@ -196,7 +196,7 @@ Queue ordering uses a PST (planned slack time) priority policy: jobs with lower 
 
 Event-driven release based on planned slack time (PST). No periodic checks — releases are triggered by job completions at servers.
 
-```python
+```python { .run }
 from simulatte.builders import build_slar_system
 from simulatte.environment import Environment
 
@@ -231,7 +231,7 @@ Queue ordering uses a PST-based priority policy: jobs with lower PST are served 
 
 Extends classic SLAR by gating the urgent-insertion branch with a workload-norm check: an urgent PSP candidate is released only if its corrected workload contribution ``PT / (i + 1)`` keeps every server in its routing at or below its configured norm. The idle-prevention and drain-safety-net branches are inherited unchanged from SLAR.
 
-```python
+```python { .run }
 from simulatte.builders import build_slar_limit_system
 from simulatte.environment import Environment
 
@@ -262,7 +262,7 @@ Key parameters:
 
 DRACO is *non-hierarchical*: it merges release, authorization, and dispatching into a single per-server decision taken on every job completion. At each completion at server `k`, DRACO scores every candidate in `Q_k ∪ P_k` (jobs queued at `k`, plus PSP jobs whose first server is `k`) by a weighted total impact `w^R·R + w^A·A + w^D·D` and selects the maximum. The dispatching component `D` is the FOCUS rule (below).
 
-```python
+```python { .run }
 from simulatte.builders import build_draco_system
 from simulatte.environment import Environment
 

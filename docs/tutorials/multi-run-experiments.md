@@ -11,7 +11,7 @@ Goal: run the same stochastic system multiple times (different seeds) and collec
 
 ## 1) Example: push system with stochastic arrivals
 
-```python
+```python { .run }
 from simulatte.builders import build_immediate_release_system
 from simulatte.runner import Runner
 

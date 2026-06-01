@@ -8,7 +8,7 @@ See also: [Dispatching Rules API](../api/dispatching-rules.md)
 
 ## Code
 
-```python
+```python { .run }
 from __future__ import annotations
 
 import random

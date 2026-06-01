@@ -20,7 +20,7 @@ See [Installation](introduction/installation.md) for setup.
 
 ## 5-minute example
 
-```python
+```python { .run }
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.server import Server

@@ -8,7 +8,7 @@ See also: [Release Policies API](../api/release-policies.md)
 
 ## Code
 
-```python
+```python { .run }
 from __future__ import annotations
 
 import random
