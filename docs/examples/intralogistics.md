@@ -158,7 +158,7 @@ batches = [
 Manufacturing Plant Floor — Intermediate Example
 Layout: 10 nodes, 10 arcs
 Fleet: 3 AGVs
-Simulation time: 4000s (67 min)
+Simulation time: 7200s (120 min)
 Orders: 8 submitted, 8 completed, 0 failed
 Avg fulfillment time: 151.2s
 ```
@@ -347,8 +347,8 @@ def main() -> None:
         orders: list = []
         env.process(order_batches(env, coordinator, raw_materials, finished_goods, skus, orders))
 
-        # Run simulation (all three order batches complete within ~63 minutes)
-        env.run(until=4000.0)
+        # Run simulation (120 minutes)
+        env.run(until=7200.0)
 
         # --- Text output ---
         completed_orders = [o for o in orders if o.status is OrderStatus.COMPLETED]
@@ -874,4 +874,4 @@ if __name__ == "__main__":
 | Time-series | None | 2 plots | 4 plots |
 | Order flow | All at once | Staggered batches | Continuous random arrivals |
 | Due dates | None | None | Random due dates |
-| Simulation duration | ~2 min | ~1 hour | 8 hours (full shift) |
+| Simulation duration | ~2 min | 2 hours | 8 hours (full shift) |

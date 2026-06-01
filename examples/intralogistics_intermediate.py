@@ -171,8 +171,8 @@ def main() -> None:
         orders: list = []
         env.process(order_batches(env, coordinator, raw_materials, finished_goods, skus, orders))
 
-        # Run simulation (all three order batches complete within ~63 minutes)
-        env.run(until=4000.0)
+        # Run simulation (120 minutes)
+        env.run(until=7200.0)
 
         # --- Text output ---
         completed_orders = [o for o in orders if o.status is OrderStatus.COMPLETED]
