@@ -8,12 +8,13 @@ from typing import TYPE_CHECKING
 from simulatte.dispatching_rules import Focus, FocusPriorityRule, planned_slack_time
 from simulatte.distributions import server_sampling, truncated_2erlang
 from simulatte.environment import Environment
+from simulatte.policies.conwip import ConWIP
 from simulatte.policies.draco import Draco
 from simulatte.policies.lumscor import LumsCor
 from simulatte.policies.slar import Slar
 from simulatte.policies.slar_limit import SlarLimit
 from simulatte.policies.starvation_avoidance import starvation_avoidance
-from simulatte.policies.triggers import periodic_trigger
+from simulatte.policies.triggers import on_completion_trigger, periodic_trigger
 from simulatte.psp import PreShopPool
 from simulatte.router import Router
 from simulatte.server import Server
@@ -510,5 +511,68 @@ def build_draco_system(
         wip_target=wip_target,
         loop_target=loop_target,
     )
+
+    return psp, servers, shop_floor, router
+
+
+def build_conwip_system(
+    env: Environment,
+    *,
+    wip_cap: int,
+    n_servers: int = 6,
+    arrival_rate: float = 1 / 0.648,
+    service_rate: float = 2.0,
+    collect_workload: bool = False,
+) -> PullSystem:
+    """Build a ConWIP (Constant Work-In-Process) pull system.
+
+    Jobs wait in the Pre-Shop Pool and are released — earliest due date
+    first — only while the shop holds fewer than ``wip_cap`` jobs. Release
+    is re-checked on every job completion and on every PSP arrival.
+
+    Args:
+        env: The simulation environment.
+        wip_cap: Maximum number of jobs allowed on the shop floor at once.
+        n_servers: Number of production servers.
+        arrival_rate: Inter-arrival rate (lambda for exponential).
+        service_rate: Service rate (lambda for truncated 2-Erlang).
+        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+
+    Returns:
+        Tuple of ``(psp, servers, shop_floor, router)``.
+
+    Example:
+        >>> env = Environment()
+        >>> psp, servers, shop_floor, router = build_conwip_system(env, wip_cap=8)
+        >>> env.run(until=1000)
+    """
+    shop_floor = ShopFloor(
+        env=env,
+        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+    )
+    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
+    psp = PreShopPool(env=env, shopfloor=shop_floor)
+    router = Router(
+        env=env,
+        shopfloor=shop_floor,
+        servers=servers,
+        psp=psp,
+        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
+        sku_distributions={"F1": 1},
+        sku_routings={"F1": server_sampling(servers)},
+        sku_service_times={
+            "F1": {
+                server: lambda: truncated_2erlang(
+                    lam=service_rate,
+                    max_value=4.0,
+                )
+                for server in servers
+            },
+        },
+        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+    )
+    conwip = ConWIP(wip_cap=wip_cap)
+    env.process(on_completion_trigger(shop_floor, psp, conwip.on_completion_release))
+    psp.on_arrival(conwip.on_arrival_release)
 
     return psp, servers, shop_floor, router
