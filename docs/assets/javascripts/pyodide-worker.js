@@ -11,6 +11,27 @@
 const PYODIDE_VERSION = "0.28.3";
 const PYODIDE_CDN = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 
+// Run once after boot. Forces a DOM-free matplotlib backend and turns every
+// plt.show() (which intralogistics plot_* helpers call internally) into a
+// base64 PNG posted to the controller as an {kind:"image"} message. Example
+// code stays identical to the desktop version.
+const MPL_CAPTURE_SHIM = `
+import matplotlib
+matplotlib.use("AGG")
+import matplotlib.pyplot as _plt
+import base64 as _base64, io as _io
+
+def _capture_show(*args, **kwargs):
+    for _num in _plt.get_fignums():
+        _fig = _plt.figure(_num)
+        _buf = _io.BytesIO()
+        _fig.savefig(_buf, format="png", bbox_inches="tight", dpi=110)
+        _emit_image(_base64.b64encode(_buf.getvalue()).decode("ascii"))
+        _plt.close(_fig)
+
+_plt.show = _capture_show
+`;
+
 importScripts(`${PYODIDE_CDN}pyodide.js`);
 
 let pyodidePromise = null; // memoized boot
@@ -28,6 +49,8 @@ async function bootPyodide(id) {
   const micropip = pyodide.pyimport("micropip");
   await micropip.install(wheelUrl);
   micropip.destroy();
+  status("Preparing plot capture…");
+  await pyodide.runPythonAsync(MPL_CAPTURE_SHIM);
   return pyodide;
 }
 
@@ -61,6 +84,9 @@ self.onmessage = async (event) => {
   let namespace;
   try {
     namespace = pyodide.toPy({ __name__: "__main__" }); // fresh, isolated per run
+    // Bridge: the capture shim's plt.show calls _emit_image(base64) -> image msg.
+    const emitImage = (b64) => self.postMessage({ id, kind: "image", data: b64 });
+    pyodide.globals.set("_emit_image", emitImage);
     await pyodide.runPythonAsync(source, { globals: namespace });
     self.postMessage({ id, kind: "done" });
   } catch (err) {
