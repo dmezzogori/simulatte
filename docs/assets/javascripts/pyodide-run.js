@@ -16,22 +16,10 @@
   let counter = 0;
   const handlers = new Map(); // id -> { status, append, error, done }
 
-  function ensureWorker() {
-    if (worker) return worker;
-    worker = new Worker(new URL(WORKER_PATH, location.origin));
-    worker.onmessage = (event) => {
-      const m = event.data;
-      const h = handlers.get(m.id);
-      if (!h) return;
-      if (m.kind === "status") h.status(m.text);
-      else if (m.kind === "stdout") h.append(m.text, "stdout");
-      else if (m.kind === "stderr") h.append(m.text, "stderr");
-      else if (m.kind === "error") h.error(m.text);
-      else if (m.kind === "done") h.done();
-    };
-    // Discover the REAL wheel filename (must not be renamed — micropip parses
-    // it as a PEP 427 name) and tell the worker before any run is dispatched.
-    configReady = fetch(new URL(WHEELS_DIR + "latest.json", location.origin))
+  // Discover the REAL wheel filename (must not be renamed — micropip parses it
+  // as a PEP 427 name) and tell the worker before any run is dispatched.
+  function postConfig() {
+    return fetch(new URL(WHEELS_DIR + "latest.json", location.origin))
       .then((r) => {
         if (!r.ok) throw new Error("latest.json " + r.status);
         return r.json();
@@ -42,6 +30,24 @@
           wheelUrl: new URL(WHEELS_DIR + wheel, location.origin).href,
         });
       });
+  }
+
+  function ensureWorker() {
+    if (!worker) {
+      worker = new Worker(new URL(WORKER_PATH, location.origin));
+      worker.onmessage = (event) => {
+        const m = event.data;
+        const h = handlers.get(m.id);
+        if (!h) return;
+        if (m.kind === "status") h.status(m.text);
+        else if (m.kind === "stdout") h.append(m.text, "stdout");
+        else if (m.kind === "stderr") h.append(m.text, "stderr");
+        else if (m.kind === "error") h.error(m.text);
+        else if (m.kind === "done") h.done();
+      };
+    }
+    // Rebuilt on demand so a transient latest.json fetch failure can recover.
+    if (!configReady) configReady = postConfig();
     return worker;
   }
 
@@ -54,7 +60,8 @@
       try {
         await configReady; // wheel URL resolved + config posted
       } catch (e) {
-        ui.append("Couldn't locate the simulatte package. Try reloading the page.", "error");
+        configReady = null; // allow a later click to re-fetch latest.json
+        ui.append("Couldn't locate the simulatte package. Try again.", "error");
         ui.setBusy(false);
         return;
       }
@@ -136,8 +143,10 @@
 
   // Material/Zensical 'navigation.instant' replaces page content via a
   // `document$` observable instead of full reloads. Use it when present.
-  if (window.document$ && typeof window.document$.subscribe === "function") {
-    window.document$.subscribe(init);
+  // (Bracket access: `document$` is a runtime global not in the Window type.)
+  const docStream = window["document$"];
+  if (docStream && typeof docStream.subscribe === "function") {
+    docStream.subscribe(init);
   } else {
     document.addEventListener("DOMContentLoaded", init);
   }

@@ -14,7 +14,10 @@ export function extractRunnableBlocks(markdown) {
       const m = line.match(fenceOpen);
       if (m) {
         inBlock = true;
-        tagged = /(^|[\s{.])\.?run(\b|})/.test(m[1]) || /\.run\b/.test(m[1]);
+        // Tagged iff the fence info string carries a `.run` class inside braces,
+        // e.g. `{ .run }` or `{.run}`. Scoped to braces so a bare word "run"
+        // (e.g. in a title="how to run") is not a false positive.
+        tagged = /\{[^}]*\.run\b[^}]*\}/.test(m[1]);
         buf = [];
       }
       continue;

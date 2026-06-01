@@ -74,7 +74,7 @@ jobs:
       - name: Unit-test the extractor
         run: node --test scripts/docs/extract-runnable.test.mjs
       - name: Run tagged docs blocks under Pyodide
-        run: cd scripts/docs && npm install && node smoke-runnable.mjs
+        run: cd scripts/docs && npm ci && node smoke-runnable.mjs
 
   deploy:
     if: github.event_name != 'pull_request'

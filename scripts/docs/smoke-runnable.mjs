@@ -43,6 +43,7 @@ const micropip = pyodide.pyimport("micropip");
 // (emfs install of a correctly-named wheel is verified to work on 0.28.3.)
 pyodide.FS.writeFile("/" + wheelName, readFileSync(WHEEL));
 await micropip.install("emfs:/" + wheelName);
+micropip.destroy();
 
 let failures = 0;
 for (const { file, src } of blocks) {

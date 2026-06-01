@@ -27,6 +27,7 @@ async function bootPyodide(id) {
   status("Installing simulatte…");
   const micropip = pyodide.pyimport("micropip");
   await micropip.install(wheelUrl);
+  micropip.destroy();
   return pyodide;
 }
 
