@@ -2,7 +2,7 @@
 title: Focus Dispatching (moved)
 ---
 
-<meta http-equiv="refresh" content="0; url=dispatching-focus/">
+<meta http-equiv="refresh" content="0; url=../dispatching-focus/">
 
 # This page has moved
 

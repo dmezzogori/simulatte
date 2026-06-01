@@ -2,7 +2,7 @@
 title: Draco Release (moved)
 ---
 
-<meta http-equiv="refresh" content="0; url=release-wip/">
+<meta http-equiv="refresh" content="0; url=../release-wip/">
 
 # This page has moved
 
