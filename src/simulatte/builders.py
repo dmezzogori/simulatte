@@ -546,6 +546,11 @@ def build_conwip_system(
         >>> env = Environment()
         >>> psp, servers, shop_floor, router = build_conwip_system(env, wip_cap=8)
         >>> env.run(until=1000)
+
+    References:
+        Spearman, M. L., Woodruff, D. L. & Hopp, W. J. (1990). CONWIP: a pull
+        alternative to kanban. International Journal of Production Research,
+        28(5), 879-894.
     """
     shop_floor = ShopFloor(
         env=env,
@@ -614,6 +619,11 @@ def build_continuous_release_system(
         ...     env, wl_norm_level=6.0
         ... )
         >>> env.run(until=1000)
+
+    References:
+        Fernandes, N. O. & Carmo-Silva, S. (2011). Workload control under
+        continuous order release. International Journal of Production
+        Economics, 131(1), 257-262.
     """
     shop_floor = ShopFloor(
         env=env,
