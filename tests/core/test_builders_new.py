@@ -12,15 +12,24 @@ from simulatte.environment import Environment
 
 def test_build_conwip_system_runs_and_caps_wip() -> None:
     random.seed(42)
+    peak = 0
     with Environment() as env:
         psp, servers, shop_floor, router = build_conwip_system(env, wip_cap=8)
+
+        def _sample_wip():
+            nonlocal peak
+            while True:
+                peak = max(peak, len(shop_floor.jobs))
+                yield env.timeout(0.5)
+
+        env.process(_sample_wip())
         env.run(until=1000.0)
 
     assert psp is not None
     assert len(servers) == 6
     assert len(shop_floor.jobs_done) > 0
-    # ConWIP caps concurrent shop jobs at wip_cap.
-    assert shop_floor.maximum_shopfloor_jobs <= 8
+    assert peak > 0, "sampler never observed jobs on the floor"
+    assert peak <= 8, f"ConWIP exceeded its WIP cap: peak={peak}"
 
 
 def test_build_continuous_release_system_runs() -> None:
