@@ -42,6 +42,7 @@
         if (m.kind === "status") h.status(m.text);
         else if (m.kind === "stdout") h.append(m.text, "stdout");
         else if (m.kind === "stderr") h.append(m.text, "stderr");
+        else if (m.kind === "image") h.image(m.data);
         else if (m.kind === "error") h.error(m.text);
         else if (m.kind === "done") h.done();
       };
@@ -69,6 +70,7 @@
         handlers.set(id, {
           status: (t) => ui.status(t),
           append: (t, cls) => ui.append(t, cls),
+          image: (data) => ui.image(data),
           error: (t) => ui.append(t, "error"),
           done: () => {
             handlers.delete(id);
@@ -128,7 +130,14 @@
         span.textContent = text + "\n";
         output.appendChild(span);
       },
-
+      image(data) {
+        output.classList.add("sim-run__output--visible");
+        const img = document.createElement("img");
+        img.className = "sim-run__img";
+        img.src = "data:image/png;base64," + data;
+        img.alt = "Plot output";
+        output.appendChild(img);
+      },
     };
 
     button.addEventListener("click", () => runSource(source, ui));
