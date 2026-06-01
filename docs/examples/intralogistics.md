@@ -2,6 +2,8 @@
 
 Three runnable scripts in [`examples/`](https://github.com/dmezzogori/simulatte/tree/main/examples) form a progressive learning path --- from a minimal setup to a full-shift warehouse operation.
 
+See also: [Intralogistics API](../api/intralogistics.md)
+
 | Example | Layout | AGVs | SKUs | Key features |
 |---------|--------|------|------|--------------|
 | [Simple](#simple) | 5 nodes (preset) | 2 | 1 | `build_simple_system`, text output |

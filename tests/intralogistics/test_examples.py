@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import runpy
 from pathlib import Path
 
@@ -59,12 +60,13 @@ def test_intralogistics_advanced_example_runs(monkeypatch, capsys) -> None:
     assert "Replenishment:" in captured.out
     # The 8-hour shift must still exhibit at least one replenishment (a late-shift,
     # time-triggered event). Guard against a future horizon change silently dropping it.
-    assert "Replenishment: 1 completed" in captured.out
-    assert "Replenishment: 0 completed" not in captured.out
-    # Charging is surfaced per-AGV in the fleet report as "charging=<pct>". The exact
-    # percentage is fragile to assert, so we only assert the structural field is present;
-    # a non-zero charging percentage for >=1 AGV was verified manually in the run output.
-    assert "charging=" in captured.out
+    repl = re.search(r"Replenishment:\s+(\d+) completed", captured.out)
+    assert repl is not None and int(repl.group(1)) >= 1, "expected >=1 replenishment"
+    # Charging is surfaced per-AGV in the fleet report as "charging=<pct>". The field is
+    # printed for every AGV unconditionally, so assert at least one AGV has a non-zero
+    # charging percentage to actually guard the documented charging behavior.
+    charging_pcts = re.findall(r"charging=([\d.]+)%", captured.out)
+    assert charging_pcts and any(float(p) > 0 for p in charging_pcts), "expected >=1 AGV to have charged"
     assert "Warehouse inventory" in captured.out
     assert "Receiving:" in captured.out
     assert "Bulk Storage:" in captured.out
