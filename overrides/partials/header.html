@@ -27,6 +27,9 @@
           <span class="md-ellipsis">
             {{ config.site_name }}
           </span>
+          {# Simulatte: library version badge, inline beside the site name
+             (generated into partials/version.html — see header note above). #}
+          {% include "partials/version.html" ignore missing %}
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
@@ -38,8 +41,6 @@
           </span>
         </div>
       </div>
-      {# Simulatte: library version badge (generated, see header note above) #}
-      {% include "partials/version.html" ignore missing %}
     </div>
     {% if config.theme.palette %}
       {% if not config.theme.palette is mapping %}
