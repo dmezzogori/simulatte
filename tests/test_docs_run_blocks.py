@@ -34,3 +34,23 @@ def test_run_blocks_match_example_files() -> None:
 def test_pairs_cover_all_gallery_scripts() -> None:
     scripts = sorted(p.name for p in EXAMPLES.glob("gallery_*.py"))
     assert sorted(PAIRS.values()) == scripts
+
+
+# intralogistics.md embeds three scripts, in document order.
+INTRALOGISTICS_BLOCKS = [
+    "intralogistics_simple.py",
+    "intralogistics_intermediate.py",
+    "intralogistics_advanced.py",
+]
+
+
+def test_intralogistics_run_blocks_match_example_files() -> None:
+    doc = (DOCS / "intralogistics.md").read_text()
+    blocks = RUN_BLOCK.findall(doc)
+    # The exact count is the escape guard: adding/removing an embedded block forces a test update.
+    assert len(blocks) == len(INTRALOGISTICS_BLOCKS), (
+        f"intralogistics.md: expected {len(INTRALOGISTICS_BLOCKS)} run blocks, found {len(blocks)}"
+    )
+    for block, script_name in zip(blocks, INTRALOGISTICS_BLOCKS, strict=True):
+        script = (EXAMPLES / script_name).read_text()
+        assert block.strip("\n") == script.strip("\n"), f"intralogistics.md block has drifted from {script_name}"
