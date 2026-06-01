@@ -64,3 +64,23 @@ def test_gallery_release_wip_runs() -> None:
     for name in ("ConWIP", "DRACO"):
         assert name in out
     assert "%Tardy" in out
+
+
+def test_gallery_release_triggers_runs() -> None:
+    out = _run("gallery_release_triggers.py")
+    assert "Starvation-only" in out
+    assert "Periodic-release" in out
+    assert "Immediate" in out
+
+
+def test_all_gallery_scripts_are_listed() -> None:
+    # Guard: every gallery_*.py has a runpy test above.
+    scripts = sorted(p.name for p in EXAMPLES.glob("gallery_*.py"))
+    assert scripts == [
+        "gallery_dispatching_focus.py",
+        "gallery_dispatching_parameterized.py",
+        "gallery_dispatching_stateless.py",
+        "gallery_release_triggers.py",
+        "gallery_release_wip.py",
+        "gallery_release_workload.py",
+    ]
