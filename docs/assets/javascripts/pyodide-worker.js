@@ -5,6 +5,7 @@
 // Protocol (to controller), all carrying the run `id`:
 //   { id, kind: "status", text }   -> boot/progress message
 //   { id, kind: "stdout"|"stderr", text }
+//   { id, kind: "image", data }    -> base64 PNG of a captured figure
 //   { id, kind: "error", text }    -> python traceback or fatal load failure
 //   { id, kind: "done" }           -> run finished (success or error)
 
@@ -25,6 +26,7 @@ def _capture_show(*args, **kwargs):
     for _num in _plt.get_fignums():
         _fig = _plt.figure(_num)
         _buf = _io.BytesIO()
+        # dpi 110: legible without bloating the base64 payload
         _fig.savefig(_buf, format="png", bbox_inches="tight", dpi=110)
         _emit_image(_base64.b64encode(_buf.getvalue()).decode("ascii"))
         _plt.close(_fig)
@@ -93,6 +95,7 @@ self.onmessage = async (event) => {
     self.postMessage({ id, kind: "error", text: String((err && err.message) || err) });
     self.postMessage({ id, kind: "done" });
   } finally {
+    if (pyodide) pyodide.runPython('import matplotlib.pyplot as _p; _p.close("all")');
     if (namespace) namespace.destroy();
   }
 };

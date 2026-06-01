@@ -14,7 +14,7 @@
   let configReady = null; // resolves once {type:"config"} has been posted
   let runChain = Promise.resolve(); // serialize runs across the page
   let counter = 0;
-  const handlers = new Map(); // id -> { status, append, error, done }
+  const handlers = new Map(); // id -> { status, append, image, error, done }
 
   // Discover the REAL wheel filename (must not be renamed — micropip parses it
   // as a PEP 427 name) and tell the worker before any run is dispatched.

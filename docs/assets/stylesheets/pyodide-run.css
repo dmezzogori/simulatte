@@ -44,5 +44,7 @@
   height: auto;
   margin: 0.6rem 0;
   border-radius: 0.2rem;
+  /* Literal white (not a --md-* var): AGG bakes a white figure background, so a
+     fixed white plate keeps axes/text legible on the dark docs theme. */
   background-color: #ffffff;
 }
