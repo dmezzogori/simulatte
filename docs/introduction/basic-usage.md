@@ -11,7 +11,7 @@ See [Installation](installation.md) for setup.
 
 ## First simulation (single server)
 
-```python
+```python { .run }
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.server import Server
