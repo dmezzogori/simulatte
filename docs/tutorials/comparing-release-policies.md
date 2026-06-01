@@ -8,7 +8,7 @@ This tutorial builds a six-server job shop and compares three release policies s
 
 By running each policy with the same random seed you get a controlled, apples-to-apples comparison.
 
-> Prefer to run it live? The [workload-control](../examples/release-workload.md) and [WIP-cap](../examples/release-wip.md) galleries compare these policies in-browser.
+> Prefer to run it live? The [workload-control](../examples/release-workload.md) and [WIP-cap](../examples/release-wip.md) galleries compare these and related policies in-browser.
 
 ---
 

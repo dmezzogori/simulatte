@@ -26,5 +26,11 @@ def test_run_blocks_match_example_files() -> None:
         script = (EXAMPLES / script_name).read_text()
         blocks = RUN_BLOCK.findall(doc)
         assert blocks, f"{doc_name}: no `python {{ .run }}` block found"
+        assert len(blocks) == 1, f"{doc_name}: expected exactly one `python {{ .run }}` block, found {len(blocks)}"
         # The embedded block must equal the script file (trailing newline tolerant).
         assert blocks[0].strip("\n") == script.strip("\n"), f"{doc_name} embedded code has drifted from {script_name}"
+
+
+def test_pairs_cover_all_gallery_scripts() -> None:
+    scripts = sorted(p.name for p in EXAMPLES.glob("gallery_*.py"))
+    assert sorted(PAIRS.values()) == scripts
