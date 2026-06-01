@@ -38,3 +38,11 @@
 .sim-run__line--error {
   color: var(--md-code-hl-number-color);
 }
+.sim-run__img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.6rem 0;
+  border-radius: 0.2rem;
+  background-color: #ffffff;
+}
