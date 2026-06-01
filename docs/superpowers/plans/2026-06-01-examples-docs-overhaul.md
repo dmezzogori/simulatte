@@ -52,6 +52,37 @@
 
 > Note: the repo has no JS unit-test harness, so Phase 1 verification is manual via a local docs serve. Tasks 1.1–1.3 are implementation; Task 1.4 is the manual gate.
 
+### Task 1.0: Pre-flight — confirm the in-browser path works at all (do this FIRST)
+
+This is the make-or-break unknown sitting behind the easy JS/CSS tasks: whether `micropip.install(wheel)` resolves simulatte's full dependency tree (notably **matplotlib** *and* **gymnasium**, spec §13 item 3) in-browser, and whether Agg `savefig` works. Verify in ~5 minutes before writing any JS.
+
+- [ ] **Step 1: Build the wheel and serve the docs (current `main`, no changes yet)**
+
+```bash
+./scripts/build_docs_wheel.sh
+uv run zensical serve
+```
+
+- [ ] **Step 2: Confirm the existing draco page runs in-browser**
+
+Open the local URL → Examples → "Draco release", click **▶ Run**. Expected: the DRACO text table appears. This proves the wheel + full dep tree (including matplotlib and gymnasium) install under Pyodide. If it errors, resolve the dependency/install problem (e.g. make `gymnasium` an optional dependency) **before** Phase 1 — the plot work depends on this baseline working.
+
+- [ ] **Step 3: Confirm Agg `savefig` works under Pyodide**
+
+Temporarily add a `docs/examples/_agg_smoke.md` with a `{ .run }` block containing:
+
+```python
+import matplotlib
+matplotlib.use("AGG")
+import matplotlib.pyplot as plt, io, base64
+fig, ax = plt.subplots(); ax.plot([0, 1, 2], [0, 1, 4])
+buf = io.BytesIO(); fig.savefig(buf, format="png")
+print("savefig bytes:", len(buf.getvalue()))
+```
+Run it; expected output `savefig bytes: <a few thousand>`. Then `rm docs/examples/_agg_smoke.md`. This confirms figure rendering works headless; only the JS plumbing (Tasks 1.1–1.3) remains.
+
+If Steps 2–3 both pass, proceed. No commit needed (no tracked changes).
+
 ### Task 1.1: Controller renders image messages
 
 **Files:**
@@ -714,6 +745,19 @@ def test_gallery_dispatching_stateless_runs() -> None:
     for rule in ("SPT", "EDD", "ODD", "MODD", "CR", "FCFS", "WINQ"):
         assert rule in out
     assert "%Tardy" in out
+
+
+def test_gallery_dispatching_stateless_rows_differ() -> None:
+    # Spec success criterion: comparison rows must be distinct, not degenerate ties.
+    import importlib.util
+
+    path = EXAMPLES / "gallery_dispatching_stateless.py"
+    spec = importlib.util.spec_from_file_location("gds", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    spt_tis = mod.run_rule(mod.RULES["SPT"])[1]
+    fcfs_tis = mod.run_rule(mod.RULES["FCFS"])[1]
+    assert spt_tis != fcfs_tis, "SPT and FCFS produced identical AvgTIS — harness is degenerate"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1481,6 +1525,8 @@ uv run pytest tests/intralogistics/test_examples.py -v
 ```
 Update the asserted values in the test file to match the new output, then re-run until green.
 
+> **Feature-presence check (the reduced horizon must not falsify the prose).** Charging and `ReorderPointPolicy` replenishment are time-triggered; at a short horizon they may never fire, leaving a page that claims "battery lifecycle + replenishment" above output where neither happens. After reducing the advanced horizon, confirm the run still shows **at least one charging event and one replenishment** (the advanced output already reports replenishment counts; check for a non-zero charging/replenishment figure). If either is absent, raise the advanced horizon until both occur, or remove that claim from the prose. Add an assertion to `tests/intralogistics/test_examples.py` that the advanced output contains a non-zero replenishment count so a future horizon change can't silently drop it.
+
 - [ ] **Step 3: Embed the scripts as runnable blocks in the docs**
 
 Edit `docs/examples/intralogistics.md`. For each of the three examples, in addition to the existing prose/mermaid/config, add a `## Run it in the browser` subsection embedding the corresponding `examples/*.py` script verbatim in a ` ```python { .run } ` fence. Keep the existing `**Run it:**` `uv run` blocks. Add a one-line note under intermediate/advanced: "Click ▶ Run — the time-series plots render below the text output."
@@ -1670,6 +1716,8 @@ Run:
 uv run zensical build
 ```
 Expected: build succeeds with no broken-link errors. Then `uv run zensical serve` and confirm: (a) the Examples nav shows the seven pages; (b) every gallery's ▶ Run produces a table within a few seconds; (c) visiting `/examples/draco/` and `/examples/focus/` redirects to the galleries; (d) intralogistics plots render.
+
+> **In-browser ↔ documented Output parity (the core UX promise).** Each page presents its `## Output` as "what you'll see when you click Run." stdlib `random` is deterministic under Pyodide, so the browser table *should* equal the natively-captured one — but `truncated_2erlang`'s rejection loop can amplify last-bit libm differences. For **at least one gallery** (e.g. stateless dispatching), copy the in-browser table and diff it against the page's `## Output`. If they match, the determinism assumption holds for all galleries. If they diverge on any digit, switch to capturing every page's `## Output` **from the browser** rather than from `uv run` (re-do the relevant Step 5 captures), so the documented numbers are exactly what a visitor sees.
 
 - [ ] **Step 5: Full test suite + lint**
 
