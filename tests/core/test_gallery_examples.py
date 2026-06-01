@@ -43,3 +43,10 @@ def test_gallery_dispatching_parameterized_runs() -> None:
     for rule in ("PST", "S/RO", "ATC", "COVERT", "Raghu"):
         assert rule in out
     assert "%Tardy" in out
+
+
+def test_gallery_dispatching_focus_runs() -> None:
+    out = _run("gallery_dispatching_focus.py")
+    assert "FOCUS" in out
+    assert "beta-dormant" in out or "beta" in out
+    assert "%Tardy" in out
