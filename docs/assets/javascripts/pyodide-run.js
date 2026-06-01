@@ -123,9 +123,12 @@
         output.classList.add("sim-run__output--visible");
         const span = document.createElement("span");
         span.className = "sim-run__line sim-run__line--" + cls;
-        span.textContent = text;
+        // Pyodide's batched stdout/stderr fires once per line with the trailing
+        // newline stripped, so re-add it (the <pre> is white-space: pre-wrap).
+        span.textContent = text + "\n";
         output.appendChild(span);
       },
+
     };
 
     button.addEventListener("click", () => runSource(source, ui));
