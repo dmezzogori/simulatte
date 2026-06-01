@@ -1,6 +1,6 @@
 # Release Triggers & Starvation Avoidance
 
-Release policies in Simulatte are composed from **triggers** — small SimPy processes that decide *when* to consult the Pre-Shop Pool — and **release functions** that decide *what* to release. Separating the two lets the same release logic run on a clock, on shop events, or on arrivals. This gallery shows the trigger primitives in action and compares two minimal pull systems built from them against the immediate-release (push) baseline.
+Release policies in Simulatte are composed from **triggers** — small SimPy processes that decide *when* to consult the Pre-Shop Pool — and **release functions** that decide *what* to release. Separating the two lets the same release logic run on a clock, on shop events, or on arrivals. The runnable example below exercises `periodic_trigger` directly to build a periodic-release pull system; the other primitives and the callback API are described here as building blocks. It compares two minimal pull systems against the immediate-release (push) baseline.
 
 The building blocks:
 
@@ -16,9 +16,10 @@ See also: [Release Policies API](../api/release-policies.md)
 ```python { .run }
 """Release triggers and starvation avoidance.
 
-Demonstrates the three trigger primitives (periodic_trigger, on_completion_
-trigger, on_arrival_trigger) and the starvation_avoidance callback by building
-three small pull systems and comparing them to the immediate-release baseline:
+Exercises the periodic_trigger primitive directly (in the Periodic-release
+system) and contrasts a starvation-avoidance pull — built via the callback API
+(psp.on_arrival / shop_floor.on_processing_end) — and a periodic-release pull
+against the immediate-release baseline:
 
   - Immediate        : push baseline (no PSP).
   - Starvation-only  : release only when a job's first server is idle.
@@ -50,22 +51,12 @@ ARRIVAL_RATE = 1 / 0.648
 SERVICE_RATE = 2.0
 
 
-def metrics(shop_floor) -> tuple[int, float, float, float]:
-    done = shop_floor.jobs_done
-    n = len(done)
-    avg_tis = shop_floor.average_time_in_system
-    tardiness = [max(0.0, j.lateness) for j in done]
-    mean_tard = sum(tardiness) / n if n else 0.0
-    pct_tardy = 100.0 * sum(1 for t in tardiness if t > 0) / n if n else 0.0
-    return n, avg_tis, mean_tard, pct_tardy
-
-
 def build_periodic_release(env: Environment, interval: float = 10.0):
     """A custom pull system: release the entire pool every `interval` units."""
     shop_floor = ShopFloor(env=env)
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(N_SERVERS))
     psp = PreShopPool(env=env, shopfloor=shop_floor)
-    Router(
+    router = Router(
         env=env,
         shopfloor=shop_floor,
         servers=servers,
@@ -82,16 +73,21 @@ def build_periodic_release(env: Environment, interval: float = 10.0):
             pool.release(job)
 
     env.process(periodic_trigger(psp, interval, release_all))
-    return shop_floor
+    return psp, servers, shop_floor, router
 
 
-def run(builder) -> tuple[int, float, float, float]:
+def run_system(builder) -> tuple[int, float, float, float]:
     random.seed(SEED)
     with Environment() as env:
-        result = builder(env)
-        shop_floor = result if isinstance(result, ShopFloor) else result[2]
+        _psp, _servers, shop_floor, _router = builder(env)
         env.run(until=HORIZON)
-        return metrics(shop_floor)
+        done = shop_floor.jobs_done
+        n = len(done)
+        avg_tis = shop_floor.average_time_in_system
+        tardiness = [max(0.0, j.lateness) for j in done]
+        mean_tard = sum(tardiness) / n if n else 0.0
+        pct_tardy = 100.0 * sum(1 for t in tardiness if t > 0) / n if n else 0.0
+        return n, avg_tis, mean_tard, pct_tardy
 
 
 SYSTEMS = {
@@ -105,7 +101,7 @@ def main() -> None:
     print("Release triggers & starvation avoidance (seed=42)")
     print(f"{'System':<18}{'Done':>6}{'AvgTIS':>9}{'MeanTard':>10}{'%Tardy':>8}")
     for name, builder in SYSTEMS.items():
-        n, tis, mt, pt = run(builder)
+        n, tis, mt, pt = run_system(builder)
         print(f"{name:<18}{n:>6}{tis:>9.2f}{mt:>10.2f}{pt:>7.1f}%")
 
 
@@ -131,4 +127,4 @@ Periodic-release    1144    16.66      0.43    7.5%
 
 ## Interpretation
 
-The starvation-only system uses arrival and completion triggers to release a job the instant its first server goes idle. This keeps the shop entrance fed and trims average time in system (10.64 vs the push baseline's 14.44), but because it never throttles, WIP is free to grow and a longer tail of jobs turns tardy (7.1%). The periodic system releases the entire pool every ten time units: arrivals are batched into bursts that briefly flood the floor, so it shows the highest flow time (16.66) — a clear illustration that *when* you release matters as much as *what* you release. Both are deliberately minimal; production policies (LumsCor, ConWIP, Continuous Release) layer load- or count-based release functions onto these same trigger primitives.
+The starvation-only system is wired via the on-arrival and on-completion **callbacks** (`psp.on_arrival` / `shop_floor.on_processing_end`) — not the trigger-process primitives — to release a job the instant its first server goes idle. This keeps the shop entrance fed and trims average time in system (10.64 vs the push baseline's 14.44), but because it never throttles, WIP is free to grow and a longer tail of jobs turns tardy (7.1%). The periodic system releases the entire pool every ten time units: arrivals are batched into bursts that briefly flood the floor, so it shows the highest flow time (16.66) — a clear illustration that *when* you release matters as much as *what* you release. Both are deliberately minimal; production policies (LumsCor, ConWIP, Continuous Release) layer load- or count-based release functions onto these same trigger primitives.
