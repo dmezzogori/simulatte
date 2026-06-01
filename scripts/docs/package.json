@@ -1,0 +1,8 @@
+{
+  "name": "simulatte-docs-smoke",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "pyodide": "0.28.3"
+  }
+}

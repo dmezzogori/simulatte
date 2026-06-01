@@ -51,6 +51,31 @@ jobs:
         with:
           path: ./site
 
+  runnable-examples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+      - name: Install Python 3.12
+        run: uv python install 3.12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Build wheel into docs site
+        run: ./scripts/build_docs_wheel.sh
+      - name: Unit-test the extractor
+        run: node --test scripts/docs/extract-runnable.test.mjs
+      - name: Run tagged docs blocks under Pyodide
+        run: cd scripts/docs && npm install && node smoke-runnable.mjs
+
   deploy:
     if: github.event_name != 'pull_request'
     needs: build
