@@ -649,3 +649,70 @@ def build_continuous_release_system(
     psp.on_arrival(cr.on_arrival_release)
 
     return psp, servers, shop_floor, router
+
+
+def build_starvation_avoidance_system(
+    env: Environment,
+    *,
+    n_servers: int = 6,
+    arrival_rate: float = 1 / 0.648,
+    service_rate: float = 2.0,
+    collect_workload: bool = False,
+) -> PullSystem:
+    """Build a starvation-avoidance-only pull system.
+
+    The simplest pull policy: a job is released from the Pre-Shop Pool only
+    when its first routing server is idle — checked on PSP arrival and again
+    on every job completion. There is no workload norm or WIP cap; release is
+    driven purely by first-server starvation.
+
+    Args:
+        env: The simulation environment.
+        n_servers: Number of production servers.
+        arrival_rate: Inter-arrival rate (lambda for exponential).
+        service_rate: Service rate (lambda for truncated 2-Erlang).
+        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+
+    Returns:
+        Tuple of ``(psp, servers, shop_floor, router)``.
+
+    Example:
+        >>> env = Environment()
+        >>> psp, servers, shop_floor, router = build_starvation_avoidance_system(env)
+        >>> env.run(until=1000)
+    """
+    shop_floor = ShopFloor(
+        env=env,
+        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+    )
+    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
+    psp = PreShopPool(env=env, shopfloor=shop_floor)
+    router = Router(
+        env=env,
+        shopfloor=shop_floor,
+        servers=servers,
+        psp=psp,
+        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
+        sku_distributions={"F1": 1},
+        sku_routings={"F1": server_sampling(servers)},
+        sku_service_times={
+            "F1": {
+                server: lambda: truncated_2erlang(
+                    lam=service_rate,
+                    max_value=4.0,
+                )
+                for server in servers
+            },
+        },
+        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+    )
+
+    def _release_idle_first_server(_triggering_job: ProductionJob, _server: Server) -> None:
+        for job in list(psp.jobs):
+            if job.servers[0].is_idle:
+                psp.release(job)
+
+    psp.on_arrival(starvation_avoidance)
+    shop_floor.on_processing_end(_release_idle_first_server)
+
+    return psp, servers, shop_floor, router

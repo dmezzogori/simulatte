@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import random
 
-from simulatte.builders import build_conwip_system, build_continuous_release_system
+from simulatte.builders import (
+    build_continuous_release_system,
+    build_conwip_system,
+    build_starvation_avoidance_system,
+)
 from simulatte.environment import Environment
 
 
@@ -27,4 +31,16 @@ def test_build_continuous_release_system_runs() -> None:
 
     assert psp is not None
     assert len(servers) == 6
+    assert len(shop_floor.jobs_done) > 0
+
+
+def test_build_starvation_avoidance_system_runs() -> None:
+    random.seed(42)
+    with Environment() as env:
+        psp, servers, shop_floor, router = build_starvation_avoidance_system(env)
+        env.run(until=1000.0)
+
+    assert psp is not None
+    assert len(servers) == 6
+    # Starvation-only release keeps the first server fed, so some jobs finish.
     assert len(shop_floor.jobs_done) > 0
