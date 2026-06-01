@@ -139,20 +139,25 @@ breakage from upstream changes.
 `.github/workflows/docs.yml` gains a step **before** the Zensical build:
 
 1. `uv build --wheel`
-2. Copy `dist/simulatte-*.whl` into the published site under a **stable** path,
-   e.g. `docs/assets/wheels/simulatte.whl` (stable filename so the worker URL is
-   constant regardless of version).
+2. Copy `dist/simulatte-*.whl` into `docs/assets/wheels/` **keeping its real PEP 427
+   filename** (`simulatte-<ver>-py3-none-any.whl`), and write a manifest
+   `docs/assets/wheels/latest.json` = `{"wheel": "<that filename>"}`.
 
-The worker installs from that stable URL. Examples therefore always match `main`.
+The wheel must **not** be renamed to a "stable" name: `micropip.install(url)` parses
+the filename as a PEP 427 name *before* reading the wheel, so a renamed
+`simulatte.whl` raises `InvalidWheelFilename` (verified empirically against Pyodide
+0.28.3). The controller therefore fetches `latest.json` to discover the real filename,
+then installs from `assets/wheels/<filename>`. Examples always match `main`.
 
 > Note: `.gitignore` ignores any directory named `wheels/`, so a built wheel under
 > `docs/assets/wheels/` is naturally untracked — correct, since it is a CI build
 > artifact, not source. Local dev (§5.5) regenerates it on demand.
 
 ### 5.5 Local development
-`zensical serve` does not run CI. Provide a one-line helper (Makefile target or
-`scripts/` entry), e.g. `build-docs-wheel`, that runs `uv build --wheel` and
-copies the result into `docs/assets/wheels/simulatte.whl`, so Run works locally.
+`zensical serve` does not run CI. Provide a one-line helper (`scripts/` entry),
+e.g. `scripts/build_docs_wheel.sh`, that runs `uv build --wheel`, copies the
+result into `docs/assets/wheels/` under its real name, and writes `latest.json`,
+so Run works locally. CI calls the same helper.
 
 ## 6. Data flow (one Run click)
 
