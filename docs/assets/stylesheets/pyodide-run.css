@@ -1,0 +1,40 @@
+.sim-run {
+  margin: -0.6rem 0 1.2rem;
+}
+.sim-run__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.sim-run__btn.md-button {
+  padding: 0.2rem 0.7rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+.sim-run__btn[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+.sim-run__status {
+  font-size: 0.7rem;
+  color: var(--md-default-fg-color--light);
+}
+.sim-run__output {
+  display: none;
+  margin: 0.5rem 0 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.2rem;
+  background-color: var(--md-code-bg-color);
+  color: var(--md-code-fg-color);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+.sim-run__output--visible {
+  display: block;
+}
+.sim-run__line--stderr,
+.sim-run__line--error {
+  color: var(--md-code-hl-number-color);
+}
