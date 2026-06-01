@@ -86,6 +86,7 @@ custom_dir = "overrides"
 features = [
   "content.action.edit",
   "content.action.view",
+  "content.code.copy",
   "navigation.tabs",
   "navigation.indexes",
   "navigation.instant",
