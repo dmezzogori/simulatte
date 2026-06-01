@@ -50,3 +50,10 @@ def test_gallery_dispatching_focus_runs() -> None:
     assert "FOCUS" in out
     assert "beta-dormant" in out or "beta" in out
     assert "%Tardy" in out
+
+
+def test_gallery_release_workload_runs() -> None:
+    out = _run("gallery_release_workload.py")
+    for name in ("Immediate", "LumsCor", "SLAR", "SLAR-Limit", "Continuous"):
+        assert name in out
+    assert "%Tardy" in out
