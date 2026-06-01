@@ -36,3 +36,10 @@ def test_gallery_dispatching_stateless_rows_differ() -> None:
     spt_tis = mod.run_rule(mod.RULES["SPT"])[1]
     fcfs_tis = mod.run_rule(mod.RULES["FCFS"])[1]
     assert spt_tis != fcfs_tis, "SPT and FCFS produced identical AvgTIS — harness is degenerate"
+
+
+def test_gallery_dispatching_parameterized_runs() -> None:
+    out = _run("gallery_dispatching_parameterized.py")
+    for rule in ("PST", "S/RO", "ATC", "COVERT", "Raghu"):
+        assert rule in out
+    assert "%Tardy" in out
