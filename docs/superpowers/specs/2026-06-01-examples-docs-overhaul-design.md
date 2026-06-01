@@ -31,6 +31,7 @@ Turn **Examples** into a **comprehensive, runnable reference catalog**: every re
 | 4 | Builder gap | **Add matching builders** for ConWIP / ContinuousRelease / starvation_avoidance so every gallery is a clean one-call setup |
 | 5 | Spec shape | **One phased spec** (this document) with explicit phase ordering and gates |
 | 6 | DRACO / FOCUS pages | **Fold into galleries**; old `draco.md` / `focus.md` become redirects |
+| 7 | Gallery harness | **Inline the rich harness in each gallery script** — self-contained, no new library scenario helper; accept the duplication |
 
 ## 4. How in-browser execution works today (constraints)
 
@@ -38,7 +39,7 @@ Turn **Examples** into a **comprehensive, runnable reference catalog**: every re
 - The worker boots Pyodide, `loadPackage(["sqlite3", "micropip"])`, then `micropip.install(<simulatte wheel>)`. The wheel is built by `scripts/build_docs_wheel.sh` into `docs/assets/wheels/` with a `latest.json` manifest.
 - Installing the wheel pulls its full dependency tree from PyPI, **including `matplotlib`** (a hard dependency in `pyproject.toml`). So matplotlib is already available in-browser; the only missing piece is rendering its output.
 - **Output is text-only:** the worker streams `stdout`/`stderr` as `{kind:"stdout"|"stderr"}` messages into the `<pre>`. There is no image rendering. This is the sole reason intralogistics (whose payoff is plots) is not runnable.
-- **Isolation constraint:** each `{ .run }` block runs in a fresh namespace and can import **only** from the installed `simulatte` wheel + the Python stdlib. It **cannot** import a sibling `examples/*.py` file. Any shared scenario/harness must therefore live inside the `simulatte` package.
+- **Isolation constraint:** each `{ .run }` block runs in a fresh namespace and can import **only** from the installed `simulatte` wheel + the Python stdlib. It **cannot** import a sibling `examples/*.py` file. Each gallery's harness is therefore **inlined** in its own `{ .run }` block (decision #7) rather than imported from a shared module.
 
 ## 5. Page structure (~8 pages)
 
@@ -66,13 +67,15 @@ Each gallery runs the same seeded arrival stream through every member and prints
 
 **Risk:** in a minimal single-stage, no-due-date shop, most dispatching rules collapse to identical orderings — EDD/ODD/MODD/CR/PST/ATC/COVERT key off **due dates**, S/RO needs **multi-operation routing**, WINQ needs **downstream queues**. A comparison table over such a shop is noise.
 
-**Resolution:** provide **one canonical demo scenario inside the library** (e.g. a `build_demo_shop(...)` helper, or an extension of `build_immediate_release_system`) that emits a **multi-stage, due-dated** shop with a seeded arrival stream. Every gallery imports this single scenario, swaps in each rule/policy, and tabulates results. This simultaneously:
+**Resolution:** each gallery script **inlines its own self-contained harness** (decision #7) — no shared library scenario helper. Within a single gallery, the inline harness is built **once** and every member (rule or policy) runs against that same seeded, **multi-stage, due-dated** shop, then results are tabulated. This:
 
-- makes every rule non-degenerate (due dates + multi-stage routing + multiple queues present),
-- guarantees a **fair** comparison (identical scenario across all members of a gallery),
-- satisfies the in-browser isolation constraint (it ships in the wheel).
+- makes every rule non-degenerate (due dates + multi-stage routing + multiple queues present within the inline harness),
+- guarantees a **fair** comparison (identical scenario across all members *of that gallery*),
+- satisfies the in-browser isolation constraint trivially (everything is inline; only `simulatte` is imported).
 
-**Verification task (Phase 2):** check whether `build_immediate_release_system` already produces multi-stage routing and assigns due dates. If yes, reuse it (optionally with richer defaults); if no, extend it or add a dedicated scenario helper. Map each rule to the structural feature it needs and assert the harness provides all of them before authoring galleries.
+The cost is accepted duplication of harness setup across gallery scripts. To keep each inline harness short, prefer configuring the **existing** builders to emit the rich shop: dispatching galleries call `build_immediate_release_system(env, priority_policies=<rule>, ...)` in a loop; policy galleries call the per-policy builders. The harness "richness" lives in the arguments passed inline, not in a new helper.
+
+**Verification task (Phase 2):** confirm `build_immediate_release_system` (and the policy builders) can be parameterized to produce multi-stage routing + due dates. If they can, the inline harness is a short builder call; if a needed knob is missing, **extend the existing builder's parameters** (not add a new scenario builder) so the inline call stays compact. Map each rule to the structural feature it needs and assert the inline harness provides all of them before authoring galleries.
 
 ## 7. In-browser plot rendering (Pyodide feature)
 
@@ -151,6 +154,6 @@ Author the 6 galleries + intralogistics rewrite + overview, each backed by a tes
 
 ## 13. Open verification items (resolve during implementation, not blockers)
 
-1. Whether `build_immediate_release_system` already emits multi-stage routing + due dates, or needs extension / a new scenario helper (Phase 2).
+1. Whether `build_immediate_release_system` (and the policy builders) can be parameterized to emit multi-stage routing + due dates, or need a new parameter added so the inline harness stays compact (Phase 2). No new scenario builder is to be added (decision #7).
 2. Exact reduced in-browser horizon that keeps every gallery within the performance budget while still differentiating mechanisms (calibrate in Phase 1/3).
 3. Confirm `gymnasium` (a hard dependency, imported transitively) does not slow or break wheel install in-browser; if it does, consider making it an optional dependency.
