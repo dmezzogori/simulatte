@@ -1,4 +1,5 @@
 """Runner to execute multiple simulations with different seeds."""
+# ruff: noqa: UP046 - PEP 695 generic class intentionally backported to Generic for 3.11/PyPy.
 
 from __future__ import annotations
 
@@ -6,7 +7,7 @@ import multiprocessing
 import random
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Generic, Literal, TypeVar
 
 from tqdm import tqdm
 
@@ -17,8 +18,12 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from simulatte.typing import Builder
 
+# pre-PEP 695 backport (was `class Runner[S, T]`) so the package parses on 3.11.
+S = TypeVar("S")
+T = TypeVar("T")
 
-class Runner[S, T]:
+
+class Runner(Generic[S, T]):
     """Manage repeated simulations with configurable builder and seeds.
 
     The builder callable should accept an `env: Environment` parameter.
