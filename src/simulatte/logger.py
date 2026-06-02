@@ -178,8 +178,11 @@ class SQLiteEventStore:
 
     def _init_schema(self) -> None:
         """Create tables and indexes if they don't exist."""
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA busy_timeout=5000")
+        # PRAGMA statements return a row; consume it so the prepared statement is
+        # finalized. PyPy's sqlite3 refuses to commit() while a cursor still has an
+        # in-progress statement, where CPython's C module tolerates it.
+        self._conn.execute("PRAGMA journal_mode=WAL").fetchall()
+        self._conn.execute("PRAGMA busy_timeout=5000").fetchall()
         self._conn.executescript(self._SCHEMA)
         self._conn.commit()
 
@@ -193,7 +196,7 @@ class SQLiteEventStore:
         """
         extra_json = json.dumps(event.extra) if event.extra else "{}"
         with self._lock:
-            self._conn.execute(
+            cursor = self._conn.execute(
                 """
                 INSERT INTO log_events
                     (env_id, timestamp, level, message, component, extra, wall_time)
@@ -209,6 +212,7 @@ class SQLiteEventStore:
                     wall_time,
                 ),
             )
+            cursor.close()  # finalize the statement before commit (required by PyPy's sqlite3)
             self._conn.commit()
 
     def query(
