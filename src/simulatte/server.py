@@ -10,7 +10,6 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING, cast
 
-import matplotlib.pyplot as plt
 import simpy
 from simpy.resources.resource import PriorityRequest
 
@@ -333,6 +332,8 @@ class Server(simpy.PriorityResource):
         Raises:
             RuntimeError: If time-series collection was not enabled at initialization.
         """
+        import matplotlib.pyplot as plt  # lazy: keeps headless sim runs free of the matplotlib/numpy import
+
         if self._qt is None:
             raise RuntimeError("Queue time-series collection is disabled for this Server.")
         x, y = zip(*self._qt, strict=False)
@@ -349,6 +350,8 @@ class Server(simpy.PriorityResource):
         Raises:
             RuntimeError: If time-series collection was not enabled at initialization.
         """
+        import matplotlib.pyplot as plt  # lazy: keeps headless sim runs free of the matplotlib/numpy import
+
         if self._ut is None:
             raise RuntimeError("Utilization time-series collection is disabled for this Server.")
         ut = [*self._ut, (self.env.now, self._ut[-1][1])]
