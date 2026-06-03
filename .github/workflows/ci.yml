@@ -60,3 +60,36 @@ jobs:
           files: ./coverage.xml
           fail_ci_if_error: true
           verbose: true
+
+  # PyPy compatibility lane. PyPy's latest is 3.11, so this guards the Python 3.11
+  # language floor and verifies simulatte runs on PyPy. Coverage is disabled here
+  # (PyPy lacks coverage's C tracer; the CPython 3.14 lane enforces the gate), and
+  # tests/experimental is excluded (it needs numpy/gymnasium, RL-only best-effort).
+  test-pypy:
+    name: test (pypy-3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Install PyPy 3.11
+        run: uv python install pypy-3.11
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libjpeg-dev zlib1g-dev
+
+      - name: Install dependencies (PyPy)
+        run: uv sync --dev --python pypy-3.11
+
+      - name: Run tests on PyPy (core + intralogistics, coverage disabled)
+        env:
+          MPLBACKEND: Agg
+        run: uv run --python pypy-3.11 pytest tests/core tests/intralogistics -o addopts="-q -p no:cacheprovider"
