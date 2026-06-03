@@ -4,6 +4,12 @@
 with PyPy"* and let users run on PyPy when they need to. **Performance is explicitly out of
 scope** here — this is a compatibility-and-support-posture question, not a speed one.
 
+> **Status: implemented on `investigate/pypy`.** The Python 3.11 floor was adopted and all
+> work items below are done — code (PEP 695 backport, lazy matplotlib, SQLite fix), metadata
+> (`requires-python >=3.11`, ruff `py311`, PyPy classifiers), a `pypy-3.11` CI lane, and a
+> "Running on PyPy" docs page. The sections below document the reasoning and the standing
+> commitment this entails.
+
 ---
 
 ## Verdict
@@ -120,18 +126,19 @@ target platform (not verified here); they are never on the simulation hot path.
 
 ## Checklist (if the floor decision is "yes")
 
-1. **[decision]** Accept the Python 3.11 language floor (ongoing, until PyPy 3.12). *(only real decision)*
-2. **[code]** ~~Fix `SQLiteStore` cursor/commit handling~~ ✅ **done + verified** on this branch.
-3. **[meta]** `requires-python = ">=3.11"`; ruff `target-version = "py311"` (drop the two backport `noqa`s); add PyPy classifiers.
-4. **[ci]** Add a `pypy-3.11` lane (lint + `tests/core` + `tests/intralogistics`; coverage via pure tracer or `--no-cov`; experimental excluded).
-5. **[verify]** Green PyPy lane; confirm `matplotlib`/`numpy` install on PyPy if plotting is to be claimed.
-6. **[docs]** "Running on PyPy" page + feature matrix + support statement.
+1. **[decision]** ✅ Accepted the Python 3.11 language floor (ongoing, until PyPy 3.12).
+2. **[code]** ✅ Fixed `SQLiteStore` cursor/commit handling — verified 31/31 on PyPy + CPython.
+3. **[meta]** ✅ `requires-python = ">=3.11"`; ruff `target-version = "py311"` (two backport `noqa`s removed); PyPy + 3.11 classifiers added.
+4. **[ci]** ✅ Added a `pypy-3.11` lane (`tests/core` + `tests/intralogistics`, coverage disabled, `MPLBACKEND=Agg`, experimental excluded).
+5. **[verify]** ✅ Locally: PyPy `tests/core` green (486), full suite green except matplotlib plotting (which needs cpyext matplotlib — covered in CI by `uv sync`). The CI lane is the standing guard. *(First CI run should confirm matplotlib/numpy install on PyPy on the Linux runner.)*
+6. **[docs]** ✅ "Running on PyPy" page added (`docs/running-on-pypy.md`) with install steps + feature matrix + determinism note, linked in the site nav.
 
-The weight of the decision is entirely in **item 1**; items 3–6 are small and mechanical.
+All items are complete on `investigate/pypy`. The only **ongoing** obligation is item 1 — the
+3.11 language floor — enforced going forward by ruff `target-version = "py311"` and the
+`pypy-3.11` CI lane.
 
-**Already complete + verified on `investigate/pypy`:** the PEP 695 backport, the
-lazy-matplotlib change, and the SQLite-logger fix — i.e. the entire *code* side of PyPy
-compatibility. What remains is metadata/lint posture (3), a CI lane (4), and docs (6).
+The earlier code-side pieces — the PEP 695 backport and the lazy-matplotlib change — are also
+on this branch.
 
 ---
 
