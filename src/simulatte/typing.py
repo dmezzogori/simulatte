@@ -1,5 +1,4 @@
 """Type aliases for jobshop components."""
-# ruff: noqa: UP040 - PEP 695 `type` aliases intentionally backported to TypeAlias for 3.11/PyPy.
 
 from __future__ import annotations
 

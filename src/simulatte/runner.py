@@ -1,5 +1,4 @@
 """Runner to execute multiple simulations with different seeds."""
-# ruff: noqa: UP046 - PEP 695 generic class intentionally backported to Generic for 3.11/PyPy.
 
 from __future__ import annotations
 
