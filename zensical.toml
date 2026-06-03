@@ -12,6 +12,7 @@ nav = [
   { "Introduction" = [
     { "Overview" = "index.md" },
     { "Installation" = "introduction/installation.md" },
+    { "Running on PyPy" = "running-on-pypy.md" },
     { "Basic Usage" = "introduction/basic-usage.md" },
     { "Core Concepts & Architecture" = "introduction/architecture.md" },
   ]},
