@@ -38,17 +38,14 @@ records simulation events and can emit them as JSON, plain text, or to a SQLite 
       heading_level: 3
       members: false
 
-::: simulatte.builders.build_pure_job_shop_system
+## Scenario
+
+::: simulatte.scenario.Scenario
     options:
       heading_level: 3
-      members: false
+      members: true
 
-::: simulatte.builders.build_general_flow_shop_system
-    options:
-      heading_level: 3
-      members: false
-
-::: simulatte.builders.build_pure_flow_shop_system
+::: simulatte.scenario.ShopType
     options:
       heading_level: 3
       members: false

@@ -15,21 +15,18 @@ from __future__ import annotations
 
 import random
 
-from simulatte.builders import (
-    build_general_flow_shop_system,
-    build_pure_flow_shop_system,
-    build_pure_job_shop_system,
-)
+from simulatte.builders import build_immediate_release_system
 from simulatte.environment import Environment
+from simulatte.scenario import Scenario
 
 SEED = 42
 HORIZON = 2000.0
 
 # label -> builder thunk taking only env
 SYSTEMS = {
-    "PureJobShop": lambda env: build_pure_job_shop_system(env),
-    "GeneralFlowShop": lambda env: build_general_flow_shop_system(env),
-    "PureFlowShop": lambda env: build_pure_flow_shop_system(env),
+    "PureJobShop": lambda env: build_immediate_release_system(env, scenario=Scenario.pure_job_shop()),
+    "GeneralFlowShop": lambda env: build_immediate_release_system(env, scenario=Scenario.general_flow_shop()),
+    "PureFlowShop": lambda env: build_immediate_release_system(env, scenario=Scenario.pure_flow_shop()),
 }
 
 

@@ -424,10 +424,6 @@ from simulatte.builders import (
     build_slar_system,
     build_slar_limit_system,
     build_draco_system,
-    # Benchmark shop environments (push baselines):
-    build_pure_job_shop_system,
-    build_general_flow_shop_system,
-    build_pure_flow_shop_system,
 )
 ```
 
@@ -534,30 +530,30 @@ Non-hierarchical release+dispatch. Wires `Draco.priority_policy`, `shopfloor.on_
 
 ### Benchmark shop environments (PJS / GFS / PFS)
 
+The benchmark shops are now **`Scenario` presets**, not dedicated builders. Use
+any `build_*_system` with `scenario=`:
+
 ```python
-build_pure_job_shop_system(             # PJS: random length U[1,M], undirected (random order)
-    env: Environment,
-    *,
-    n_servers: int = 6,
-    target_utilization: float = 0.90,   # arrival_rate is DERIVED from this, not passed
-    service_rate: float = 2.0,
-    due_date_offset_range: tuple[float, float] = (30.0, 45.0),
-    twk_allowance_factor: float | None = None,   # set -> TWK due dates d = arrival + K*sum(p_ij)
-    collect_workload: bool = False,
-) -> PushSystem  # (None, servers, shopfloor, router)
+from simulatte.builders import build_immediate_release_system
+from simulatte.scenario import Scenario
+
+# Pure Flow Shop, immediate-release push baseline:
+build_immediate_release_system(env, scenario=Scenario.pure_flow_shop())
 ```
 
-`build_general_flow_shop_system` (GFS: directed/sorted routing, `E[L]=(M+1)/2`)
-and `build_pure_flow_shop_system` (PFS: every job visits all machines in fixed
-order, `E[L]=M`) share the identical signature. The exponential arrival rate is
-**derived per shop type** via `arrival_rate_for_utilization(rho, n_servers=M,
-mean_routing_length=E[L], mean_processing_time=2/service_rate)` so `rho` is held
-constant across shops — the PFS therefore arrives slower (mean inter-arrival
-1.111) than the job shop / general flow shop (0.648). Reusing one arrival rate
-across shop types would drive the PFS unstable (`rho > 1`). Underlying routing
-factories live in `simulatte.distributions`: `pure_job_shop_routing` (renamed
-from `server_sampling`), `general_flow_shop_routing`, `pure_flow_shop_routing`;
-plus helpers `arrival_rate_for_utilization` and `twk_due_date`.
+`Scenario.pure_job_shop()` (PJS: random length `U[1,M]`, undirected),
+`Scenario.general_flow_shop()` (GFS: directed/sorted, `E[L]=(M+1)/2`), and
+`Scenario.pure_flow_shop()` (PFS: every job visits all machines in fixed order,
+`E[L]=M`) each accept keyword overrides (e.g. `n_servers`, `target_utilization`,
+`twk_allowance_factor`). The exponential arrival rate is **derived per shop
+type** from `target_utilization` and `E[L]` so `rho` is held constant across
+shops — the PFS therefore arrives slower (mean inter-arrival 1.111) than the job
+shop / general flow shop (0.648). Reusing one arrival rate across shop types
+would drive the PFS unstable (`rho > 1`). Any builder takes `scenario=`, so the
+same preset composes with the workload-control methods (LumsCor, SLAR, DRACO,
+…). The routing factories and rate/due-date helpers live in
+`simulatte.distributions` (`pure_job_shop_routing`, `general_flow_shop_routing`,
+`pure_flow_shop_routing`, `arrival_rate_for_utilization`, `twk_due_date`).
 
 ## Dispatching Rules
 

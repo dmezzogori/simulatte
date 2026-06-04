@@ -7,10 +7,8 @@ import pytest
 from simulatte.builders import (
     build_continuous_release_system,
     build_conwip_system,
-    build_general_flow_shop_system,
+    build_immediate_release_system,
     build_lumscor_system,
-    build_pure_flow_shop_system,
-    build_pure_job_shop_system,
     build_starvation_avoidance_system,
 )
 from simulatte.environment import Environment
@@ -65,7 +63,7 @@ def test_build_starvation_avoidance_system_runs() -> None:
 def test_build_pure_job_shop_system_runs_as_push_system() -> None:
     random.seed(42)
     with Environment() as env:
-        psp, servers, shop_floor, router = build_pure_job_shop_system(env)
+        psp, servers, shop_floor, router = build_immediate_release_system(env, scenario=Scenario.pure_job_shop())
         env.run(until=1000.0)
 
     assert psp is None  # immediate-release push baseline
@@ -80,7 +78,7 @@ def test_build_pure_job_shop_system_runs_as_push_system() -> None:
 def test_build_general_flow_shop_system_produces_directed_routings() -> None:
     random.seed(42)
     with Environment() as env:
-        psp, servers, shop_floor, router = build_general_flow_shop_system(env)
+        psp, servers, shop_floor, router = build_immediate_release_system(env, scenario=Scenario.general_flow_shop())
         env.run(until=1000.0)
 
     assert psp is None
@@ -99,7 +97,7 @@ def test_build_general_flow_shop_system_produces_directed_routings() -> None:
 def test_build_pure_flow_shop_system_visits_all_servers_in_order() -> None:
     random.seed(42)
     with Environment() as env:
-        psp, servers, shop_floor, router = build_pure_flow_shop_system(env)
+        psp, servers, shop_floor, router = build_immediate_release_system(env, scenario=Scenario.pure_flow_shop())
         env.run(until=1000.0)
 
     assert psp is None
@@ -115,7 +113,9 @@ def test_build_pure_job_shop_system_with_twk_due_dates() -> None:
     random.seed(42)
     k = 8.74  # FOCUS pure-job-shop allowance factor (6 work centres)
     with Environment() as env:
-        psp, servers, shop_floor, router = build_pure_job_shop_system(env, twk_allowance_factor=k)
+        psp, servers, shop_floor, router = build_immediate_release_system(
+            env, scenario=Scenario.pure_job_shop(twk_allowance_factor=k)
+        )
         env.run(until=1000.0)
 
     assert len(shop_floor.jobs_done) > 0
