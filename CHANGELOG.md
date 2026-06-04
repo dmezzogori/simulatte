@@ -2,6 +2,39 @@
 
 All notable changes to Simulatte are documented here.
 
+## 0.11.0 — 2026-06-04
+
+### New
+
+- Three new builder functions in `simulatte.builders`:
+  `build_conwip_system`, `build_continuous_release_system`,
+  `build_starvation_avoidance_system` — one-call setup for ConWIP,
+  workload-controlled continuous release, and starvation-avoidance policies.
+- PyPy 3.11 compatibility: simulatte now runs under
+  [PyPy 3.11](https://pypy.org/) with identical results to CPython for a given
+  seed. The CI matrix includes a PyPy 3.11 lane.
+- In-browser runnable code blocks on simulatte.dev: examples tagged `# run`
+  execute via Pyodide directly in the browser, with plot output rendered inline.
+
+### Changed
+
+- `requires-python` floor lowered from `>=3.12` to `>=3.11`, enabling use on
+  CPython 3.11 and PyPy 3.11.
+- `import simulatte` no longer eagerly imports `matplotlib`; the import is
+  deferred to first use, reducing startup time.
+- `specs/` and `plans/` directories excluded from the sdist.
+
+### Fixed
+
+- SQLite logger now finalizes cursors before committing, fixing a correctness
+  issue on PyPy where deferred cursor cleanup caused errors.
+
+### Documentation
+
+- Documentation completely restructured into a layered, tab-first information
+  architecture: Introduction, Guides, Tutorials, Examples, API Reference,
+  Development. All example sections are now runnable in-browser.
+
 ## 0.10.0 — 2026-05-31
 
 ### New
