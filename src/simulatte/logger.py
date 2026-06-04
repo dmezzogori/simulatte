@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 import sys
@@ -20,6 +21,51 @@ from loguru import logger as _logger
 
 if TYPE_CHECKING:
     from simulatte.environment import Environment
+
+
+# --- loguru handler-removal re-entrancy guard --------------------------------
+# Loguru's ``_core.lock`` is a non-reentrant lock held during ``add()``/``remove()``.
+# A SimLogger weakref finalizer may fire (via GC) on a thread that is already inside
+# one of those calls; removing a handler then re-acquires the same lock on the same
+# thread and self-deadlocks — notably on PyPy, whose cyclic GC runs finalizers at
+# arbitrary points. While a thread is inside such a section we defer handler removals
+# to a queue, drained once the lock is free again.
+_loguru_critical = threading.local()
+_pending_handler_removals: deque[int] = deque()
+
+
+def _in_loguru_critical_section() -> bool:
+    """Whether the current thread is inside a loguru ``add()``/``remove()`` call."""
+    return getattr(_loguru_critical, "active", False)
+
+
+def _drain_pending_handler_removals() -> None:
+    """Remove handlers deferred by finalizers that fired during a critical section."""
+    while True:
+        try:
+            handler_id = _pending_handler_removals.popleft()
+        except IndexError:
+            break
+        try:
+            _logger.remove(handler_id)
+        except Exception:  # pragma: no cover - handler may already be gone
+            pass
+
+
+@contextlib.contextmanager
+def _loguru_critical_section() -> Iterator[None]:
+    """Mark the current thread as inside a loguru lock-holding call.
+
+    Finalizers firing while this is active defer their handler removal instead of
+    re-entering loguru's lock. On exit (the lock is released) we drain the deferrals
+    — still flagged, so a finalizer firing mid-drain defers rather than deadlocks.
+    """
+    _loguru_critical.active = True
+    try:
+        yield
+    finally:
+        _drain_pending_handler_removals()
+        _loguru_critical.active = False
 
 
 def _patch_loguru_default_sink() -> None:
@@ -464,13 +510,14 @@ class SimLogger:
 
     def _setup_handler(self) -> None:
         """Configure loguru handler for this environment."""
-        self._handler_id = _logger.add(
-            self._make_sink(),
-            format="{message}",  # We handle formatting in the sink
-            level="TRACE",  # Accept all levels, we filter ourselves
-            filter=lambda r: r["extra"].get("env_id") == self._env_id,
-            enqueue=False,  # Our sink handles output directly
-        )
+        with _loguru_critical_section():
+            self._handler_id = _logger.add(
+                self._make_sink(),
+                format="{message}",  # We handle formatting in the sink
+                level="TRACE",  # Accept all levels, we filter ourselves
+                filter=lambda r: r["extra"].get("env_id") == self._env_id,
+                enqueue=False,  # Our sink handles output directly
+            )
 
     def _log(
         self,
@@ -616,10 +663,11 @@ class SimLogger:
         if getattr(self, "_finalizer", None) is not None and self._finalizer.alive:
             self._finalizer.detach()
         if self._handler_id is not None:
-            try:
-                _logger.remove(self._handler_id)
-            except ValueError:
-                pass  # Handler already removed
+            with _loguru_critical_section():
+                try:
+                    _logger.remove(self._handler_id)
+                except ValueError:
+                    pass  # Handler already removed
             self._handler_id = None
         store = getattr(self, "_db_store", None)
         if store is not None:
@@ -633,11 +681,17 @@ def _finalize_logger(
 ) -> None:
     """Clean up logger resources from a weakref finalizer callback."""
     if handler_id is not None:
-        try:
-            _logger.remove(handler_id)
-        except Exception:
-            # Be resilient: handler may already be removed, or Loguru may be torn down.
-            pass
+        if _in_loguru_critical_section():
+            # This thread already holds loguru's _core.lock (inside an add()/remove()).
+            # Removing now would re-enter the lock and self-deadlock; defer instead.
+            # The handler is removed when the critical section drains on exit.
+            _pending_handler_removals.append(handler_id)
+        else:
+            try:
+                _logger.remove(handler_id)
+            except Exception:
+                # Be resilient: handler may already be removed, or Loguru may be torn down.
+                pass
     if db_store is not None:
         try:
             db_store.close()
