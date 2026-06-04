@@ -24,6 +24,7 @@ from simulatte.policies.slar_limit import SlarLimit
 from simulatte.policies.starvation_avoidance import starvation_avoidance
 from simulatte.psp import PreShopPool
 from simulatte.router import Router
+from simulatte.scenario import Scenario
 from simulatte.server import Server
 from simulatte.shopfloor import CurrentWorkLoadCollector, ShopFloor
 
@@ -37,14 +38,11 @@ if TYPE_CHECKING:  # pragma: no cover
 def build_immediate_release_system(
     env: Environment,
     *,
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,
-    service_rate: float = 2.0,
+    scenario: Scenario = Scenario(),
+    priority_policies: Callable[..., float] | None = None,
+    collect_workload: bool = False,
     collect_time_series: bool = False,
     retain_job_history: bool = False,
-    priority_policies: Callable[[ProductionJob, Server], float] | None = None,
-    collect_workload: bool = False,
-    due_date_offset_range: tuple[float, float] = (30.0, 45.0),
 ) -> PushSystem:
     """Build an immediate release (push) system with no workload control.
 
@@ -54,74 +52,39 @@ def build_immediate_release_system(
 
     Args:
         env: The simulation environment.
-        n_servers: Number of production servers to create.
-        arrival_rate: Inter-arrival rate (lambda for exponential distribution).
-        service_rate: Service rate (lambda for truncated 2-Erlang distribution).
+        scenario: Environment description (shop type, machine count, arrival
+            process, service-time, due-date rule). Defaults to a 6-machine
+            pure job shop at rho=0.90.
+        priority_policies: Optional callable used to assign job priorities at servers.
+        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
         collect_time_series: If True, servers collect queue length time series.
         retain_job_history: If True, servers retain completed job references.
-        priority_policies: Optional callable used to assign job priorities at servers.
-        due_date_offset_range: Range (low, high) for the uniform due-date offset
-            added to each job's creation time. Tighter ranges make due dates bind,
-            so due-date/tardiness dispatching rules differentiate.
 
     Returns:
         Tuple of (psp, servers, shop_floor, router) where psp is None.
 
     Example:
         >>> env = Environment()
-        >>> _, servers, shop_floor, router = build_immediate_release_system(
-        ...     env, n_servers=6, arrival_rate=1.5
-        ... )
+        >>> _, servers, shop_floor, router = build_immediate_release_system(env)
         >>> env.run(until=1000)
         >>> print(f"Jobs completed: {len(shop_floor.jobs_done)}")
     """
-    shop_floor = ShopFloor(
-        env=env,
-        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+    sf, servers = scenario.build_floor(
+        env,
+        collect_workload=collect_workload,
+        collect_time_series=collect_time_series,
+        retain_job_history=retain_job_history,
     )
-    servers = tuple(
-        Server(
-            env=env,
-            capacity=1,
-            shopfloor=shop_floor,
-            collect_time_series=collect_time_series,
-            retain_job_history=retain_job_history,
-        )
-        for _ in range(n_servers)
-    )
-
-    router = Router(
-        env=env,
-        shopfloor=shop_floor,
-        servers=servers,
-        psp=None,
-        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
-        sku_distributions={"F1": 1},
-        sku_routings={"F1": pure_job_shop_routing(servers)},
-        sku_service_times={
-            "F1": {
-                server: lambda: truncated_2erlang(
-                    lam=service_rate,
-                    max_value=4.0,
-                )
-                for server in servers
-            },
-        },
-        due_date_offset_distribution={"F1": lambda: random.uniform(*due_date_offset_range)},  # noqa: S311
-        priority_policies=priority_policies,
-    )
-    return None, servers, shop_floor, router
+    router = scenario.build_router(env, sf, servers, psp=None, priority_policies=priority_policies)
+    return None, servers, sf, router
 
 
 def build_focus_system(
     env: Environment,
     *,
+    scenario: Scenario = Scenario(),
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,
-    service_rate: float = 2.0,
     collect_workload: bool = False,
-    due_date_offset_range: tuple[float, float] = (30.0, 45.0),
 ) -> PushSystem:
     """Build an immediate-release (push) system that dispatches with FOCUS.
 
@@ -132,16 +95,13 @@ def build_focus_system(
 
     Args:
         env: The simulation environment.
+        scenario: Environment description (shop type, machine count, arrival
+            process, service-time, due-date rule). Defaults to a 6-machine
+            pure job shop at rho=0.90.
         focus_weights: FOCUS mechanism weights ``(w1, w2, w3, w4, w5)`` for
             (pi, omega, psi, gamma, beta); must each be in ``[0, 1]`` and sum
             to 1. Defaults to beta-dormant ``(0.25, 0.25, 0.25, 0.25, 0.0)``.
-        n_servers: Number of production servers.
-        arrival_rate: Inter-arrival rate (lambda for exponential).
-        service_rate: Service rate (lambda for truncated 2-Erlang).
         collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
-        due_date_offset_range: Range (low, high) for the uniform due-date offset
-            added to each job's creation time. Tighter ranges make due dates bind,
-            so due-date/tardiness dispatching rules differentiate.
 
     Returns:
         Tuple of ``(None, servers, shop_floor, router)`` (push system; no PSP).
@@ -155,45 +115,19 @@ def build_focus_system(
         Kasper, A., Land, M., Teunter, R. (2023). Towards system state
         dispatching in high-variety manufacturing. *Omega*, 114, 102726.
     """
-    shop_floor = ShopFloor(
-        env=env,
-        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
-    )
-    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
-    focus = Focus(weights=focus_weights)
-    priority = FocusPriorityRule(focus, shop_floor)
-    router = Router(
-        env=env,
-        shopfloor=shop_floor,
-        servers=servers,
-        psp=None,
-        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
-        sku_distributions={"F1": 1},
-        sku_routings={"F1": pure_job_shop_routing(servers)},
-        sku_service_times={
-            "F1": {
-                server: lambda: truncated_2erlang(
-                    lam=service_rate,
-                    max_value=4.0,
-                )
-                for server in servers
-            },
-        },
-        due_date_offset_distribution={"F1": lambda: random.uniform(*due_date_offset_range)},  # noqa: S311
-        priority_policies=priority,
-    )
-    return None, servers, shop_floor, router
+    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
+    priority = FocusPriorityRule(Focus(weights=focus_weights), sf)
+    router = scenario.build_router(env, sf, servers, psp=None, priority_policies=priority)
+    return None, servers, sf, router
 
 
 def build_lumscor_system(
     env: Environment,
     *,
+    scenario: Scenario = Scenario(),
     check_timeout: float,
     wl_norm_level: float,
     allowance_factor: int,
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,
-    service_rate: float = 2.0,
     collect_workload: bool = False,
 ) -> PullSystem:
     """Build a LumsCor (load-based) pull system with workload control.
@@ -207,14 +141,15 @@ def build_lumscor_system(
 
     Args:
         env: The simulation environment.
+        scenario: Environment description (shop type, machine count, arrival
+            process, service-time, due-date rule). Defaults to a 6-machine
+            pure job shop at rho=0.90.
         check_timeout: Time between pool release checks.
         wl_norm_level: Workload norm threshold for each server. Jobs are
             released only if adding them keeps corrected WIP at or below this level.
         allowance_factor: Buffer time per server for due date calculation.
             Higher values result in earlier (more conservative) releases.
-        n_servers: Number of production servers.
-        arrival_rate: Inter-arrival rate (lambda for exponential distribution).
-        service_rate: Service rate (lambda for truncated 2-Erlang distribution).
+        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
 
     Returns:
         Tuple of (psp, servers, shop_floor, router).
@@ -230,53 +165,28 @@ def build_lumscor_system(
         Land, M.J. (2006). Parameters and sensitivity in workload control.
         International Journal of Production Economics, 104(2), 625-638.
     """
-    shop_floor = ShopFloor(
-        env=env,
-        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
-    )
-    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
-    psp = PreShopPool(env=env, shopfloor=shop_floor)
-    router = Router(
-        env=env,
-        shopfloor=shop_floor,
-        servers=servers,
-        psp=psp,
-        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
-        sku_distributions={"F1": 1},
-        sku_routings={"F1": pure_job_shop_routing(servers)},
-        sku_service_times={
-            "F1": {
-                server: lambda: truncated_2erlang(
-                    lam=service_rate,
-                    max_value=4.0,
-                )
-                for server in servers
-            },
-        },
-        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
-    )
+    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    router = scenario.build_router(env, sf, servers, psp=psp)
     # LumsCor self-wires CorrectedWIPStrategy, router.priority_policies (PST),
     # the periodic release trigger, shop_floor.on_processing_end, and
     # psp.on_arrival(starvation_avoidance); constructed for those effects.
     LumsCor(
-        shopfloor=shop_floor,
+        shopfloor=sf,
         psp=psp,
         router=router,
-        wl_norm=float(wl_norm_level),
-        check_timeout=float(check_timeout),
-        allowance_factor=int(allowance_factor),
+        wl_norm=wl_norm_level,
+        check_timeout=check_timeout,
+        allowance_factor=allowance_factor,
     )
-
-    return psp, servers, shop_floor, router
+    return psp, servers, sf, router
 
 
 def build_slar_system(
     env: Environment,
     allowance_factor: float,
     *,
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,
-    service_rate: float = 2.0,
+    scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem:
     """Build a SLAR (Superfluous Load Avoidance Release) pull system.
@@ -295,9 +205,10 @@ def build_slar_system(
         env: The simulation environment.
         allowance_factor: Slack allowance per operation (parameter 'k' in paper).
             Higher values provide more buffer time per server.
-        n_servers: Number of production servers.
-        arrival_rate: Inter-arrival rate (lambda for exponential distribution).
-        service_rate: Service rate (lambda for truncated 2-Erlang distribution).
+        scenario: Environment description (shop type, machine count, arrival
+            process, service-time, due-date rule). Defaults to a 6-machine
+            pure job shop at rho=0.90.
+        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
 
     Returns:
         Tuple of (psp, servers, shop_floor, router).
@@ -315,34 +226,11 @@ def build_slar_system(
         International Journal of Production Economics, 56-57, 347-364.
         https://doi.org/10.1016/S0925-5273(98)00052-8
     """
-    shop_floor = ShopFloor(
-        env=env,
-        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
-    )
-    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
-    psp = PreShopPool(env=env, shopfloor=shop_floor)
-    router = Router(
-        env=env,
-        shopfloor=shop_floor,
-        servers=servers,
-        psp=psp,
-        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
-        sku_distributions={"F1": 1},
-        sku_routings={"F1": pure_job_shop_routing(servers)},
-        sku_service_times={
-            "F1": {
-                server: lambda: truncated_2erlang(
-                    lam=service_rate,
-                    max_value=4.0,
-                )
-                for server in servers
-            },
-        },
-        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
-    )
-    Slar(shopfloor=shop_floor, psp=psp, router=router, allowance_factor=allowance_factor)
-
-    return psp, servers, shop_floor, router
+    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    router = scenario.build_router(env, sf, servers, psp=psp)
+    Slar(shopfloor=sf, psp=psp, router=router, allowance_factor=allowance_factor)
+    return psp, servers, sf, router
 
 
 def build_slar_limit_system(
@@ -350,9 +238,7 @@ def build_slar_limit_system(
     allowance_factor: float,
     *,
     wl_norm_level: float,
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,
-    service_rate: float = 2.0,
+    scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem:
     """Build a SLAR-Limit (load-bounded SLAR) pull system.
@@ -374,9 +260,9 @@ def build_slar_limit_system(
             server. An urgent PSP candidate is released only if adding its
             corrected contribution keeps every server in its routing at or
             below this level.
-        n_servers: Number of production servers.
-        arrival_rate: Inter-arrival rate (lambda for exponential distribution).
-        service_rate: Service rate (lambda for truncated 2-Erlang distribution).
+        scenario: Environment description (shop type, machine count, arrival
+            process, service-time, due-date rule). Defaults to a 6-machine
+            pure job shop at rho=0.90.
         collect_workload: If True, attach a ``CurrentWorkLoadCollector`` to
             the shopfloor for workload time-series.
 
@@ -396,43 +282,14 @@ def build_slar_limit_system(
         International Journal of Production Economics, 231, 107881.
         https://doi.org/10.1016/j.ijpe.2020.107881
     """
-    shop_floor = ShopFloor(
-        env=env,
-        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
-    )
-    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
-    psp = PreShopPool(env=env, shopfloor=shop_floor)
-    router = Router(
-        env=env,
-        shopfloor=shop_floor,
-        servers=servers,
-        psp=psp,
-        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
-        sku_distributions={"F1": 1},
-        sku_routings={"F1": pure_job_shop_routing(servers)},
-        sku_service_times={
-            "F1": {
-                server: lambda: truncated_2erlang(
-                    lam=service_rate,
-                    max_value=4.0,
-                )
-                for server in servers
-            },
-        },
-        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
-    )
+    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    router = scenario.build_router(env, sf, servers, psp=psp)
     # SlarLimit self-wires CorrectedWIPStrategy, router.priority_policies (PST),
     # shop_floor.on_processing_end, and psp.on_arrival(starvation_avoidance);
     # constructed for those effects.
-    SlarLimit(
-        shopfloor=shop_floor,
-        psp=psp,
-        router=router,
-        wl_norm=wl_norm_level,
-        allowance_factor=allowance_factor,
-    )
-
-    return psp, servers, shop_floor, router
+    SlarLimit(shopfloor=sf, psp=psp, router=router, wl_norm=wl_norm_level, allowance_factor=allowance_factor)
+    return psp, servers, sf, router
 
 
 def build_draco_system(
@@ -442,9 +299,7 @@ def build_draco_system(
     loop_target: int,
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     total_impact_weights: tuple[float, float, float] = (0.25, 0.25, 0.5),
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,
-    service_rate: float = 2.0,
+    scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem:
     """Build a DRACO (non-hierarchical WIP control) pull system.
@@ -474,9 +329,9 @@ def build_draco_system(
         total_impact_weights: ``(w^R, w^A, w^D)`` for the DRACO total
             impact; must sum to 1. Defaults to ``(0.25, 0.25, 0.5)`` — the
             paper's full DRACO configuration (Table 2).
-        n_servers: Number of production servers.
-        arrival_rate: Inter-arrival rate (lambda for exponential).
-        service_rate: Service rate (lambda for truncated 2-Erlang).
+        scenario: Environment description (shop type, machine count, arrival
+            process, service-time, due-date rule). Defaults to a 6-machine
+            pure job shop at rho=0.90.
         collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
 
     Returns:
@@ -494,35 +349,13 @@ def build_draco_system(
         work-in-progress control in manufacturing. *International
         Journal of Production Economics*, 257, 108768.
     """
-    shop_floor = ShopFloor(
-        env=env,
-        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
-    )
-    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
-    psp = PreShopPool(env=env, shopfloor=shop_floor)
-    router = Router(
-        env=env,
-        shopfloor=shop_floor,
-        servers=servers,
-        psp=psp,
-        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
-        sku_distributions={"F1": 1},
-        sku_routings={"F1": pure_job_shop_routing(servers)},
-        sku_service_times={
-            "F1": {
-                server: lambda: truncated_2erlang(
-                    lam=service_rate,
-                    max_value=4.0,
-                )
-                for server in servers
-            },
-        },
-        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
-    )
+    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    router = scenario.build_router(env, sf, servers, psp=psp)
     # Draco self-wires router.priority_policies, shop_floor.on_processing_end,
     # and psp.on_arrival(starvation_avoidance); constructed for those effects.
     Draco(
-        shopfloor=shop_floor,
+        shopfloor=sf,
         router=router,
         psp=psp,
         focus_weights=focus_weights,
@@ -530,17 +363,14 @@ def build_draco_system(
         wip_target=wip_target,
         loop_target=loop_target,
     )
-
-    return psp, servers, shop_floor, router
+    return psp, servers, sf, router
 
 
 def build_conwip_system(
     env: Environment,
     *,
     wip_cap: int,
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,
-    service_rate: float = 2.0,
+    scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem:
     """Build a ConWIP (Constant Work-In-Process) pull system.
@@ -552,9 +382,9 @@ def build_conwip_system(
     Args:
         env: The simulation environment.
         wip_cap: Maximum number of jobs allowed on the shop floor at once.
-        n_servers: Number of production servers.
-        arrival_rate: Inter-arrival rate (lambda for exponential).
-        service_rate: Service rate (lambda for truncated 2-Erlang).
+        scenario: Environment description (shop type, machine count, arrival
+            process, service-time, due-date rule). Defaults to a 6-machine
+            pure job shop at rho=0.90.
         collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
 
     Returns:
@@ -570,34 +400,11 @@ def build_conwip_system(
         alternative to kanban. International Journal of Production Research,
         28(5), 879-894.
     """
-    shop_floor = ShopFloor(
-        env=env,
-        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
-    )
-    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
-    psp = PreShopPool(env=env, shopfloor=shop_floor)
-    router = Router(
-        env=env,
-        shopfloor=shop_floor,
-        servers=servers,
-        psp=psp,
-        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
-        sku_distributions={"F1": 1},
-        sku_routings={"F1": pure_job_shop_routing(servers)},
-        sku_service_times={
-            "F1": {
-                server: lambda: truncated_2erlang(
-                    lam=service_rate,
-                    max_value=4.0,
-                )
-                for server in servers
-            },
-        },
-        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
-    )
-    ConWIP(shopfloor=shop_floor, psp=psp, wip_cap=wip_cap)
-
-    return psp, servers, shop_floor, router
+    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    router = scenario.build_router(env, sf, servers, psp=psp)
+    ConWIP(shopfloor=sf, psp=psp, wip_cap=wip_cap)
+    return psp, servers, sf, router
 
 
 def build_continuous_release_system(
@@ -605,9 +412,7 @@ def build_continuous_release_system(
     *,
     wl_norm_level: float,
     allowance_factor: int = 2,
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,
-    service_rate: float = 2.0,
+    scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem:
     """Build a Continuous Release (workload-controlled) pull system.
@@ -621,9 +426,9 @@ def build_continuous_release_system(
         env: The simulation environment.
         wl_norm_level: Corrected workload norm applied uniformly to every server.
         allowance_factor: Buffer time per server for due-date planning.
-        n_servers: Number of production servers.
-        arrival_rate: Inter-arrival rate (lambda for exponential).
-        service_rate: Service rate (lambda for truncated 2-Erlang).
+        scenario: Environment description (shop type, machine count, arrival
+            process, service-time, due-date rule). Defaults to a 6-machine
+            pure job shop at rho=0.90.
         collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
 
     Returns:
@@ -641,49 +446,19 @@ def build_continuous_release_system(
         continuous order release. International Journal of Production
         Economics, 131(1), 257-262.
     """
-    shop_floor = ShopFloor(
-        env=env,
-        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
-    )
-    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
-    psp = PreShopPool(env=env, shopfloor=shop_floor)
-    router = Router(
-        env=env,
-        shopfloor=shop_floor,
-        servers=servers,
-        psp=psp,
-        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
-        sku_distributions={"F1": 1},
-        sku_routings={"F1": pure_job_shop_routing(servers)},
-        sku_service_times={
-            "F1": {
-                server: lambda: truncated_2erlang(
-                    lam=service_rate,
-                    max_value=4.0,
-                )
-                for server in servers
-            },
-        },
-        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
-    )
+    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    router = scenario.build_router(env, sf, servers, psp=psp)
     # ContinuousRelease self-wires CorrectedWIPStrategy, the completion-triggered
     # release, and psp.on_arrival; constructed for those effects.
-    ContinuousRelease(
-        shopfloor=shop_floor,
-        psp=psp,
-        wl_norm=wl_norm_level,
-        allowance_factor=int(allowance_factor),
-    )
-
-    return psp, servers, shop_floor, router
+    ContinuousRelease(shopfloor=sf, psp=psp, wl_norm=wl_norm_level, allowance_factor=allowance_factor)
+    return psp, servers, sf, router
 
 
 def build_starvation_avoidance_system(
     env: Environment,
     *,
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,
-    service_rate: float = 2.0,
+    scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem:
     """Build a starvation-avoidance-only pull system.
@@ -695,9 +470,9 @@ def build_starvation_avoidance_system(
 
     Args:
         env: The simulation environment.
-        n_servers: Number of production servers.
-        arrival_rate: Inter-arrival rate (lambda for exponential).
-        service_rate: Service rate (lambda for truncated 2-Erlang).
+        scenario: Environment description (shop type, machine count, arrival
+            process, service-time, due-date rule). Defaults to a 6-machine
+            pure job shop at rho=0.90.
         collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
 
     Returns:
@@ -708,31 +483,9 @@ def build_starvation_avoidance_system(
         >>> psp, servers, shop_floor, router = build_starvation_avoidance_system(env)
         >>> env.run(until=1000)
     """
-    shop_floor = ShopFloor(
-        env=env,
-        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
-    )
-    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
-    psp = PreShopPool(env=env, shopfloor=shop_floor)
-    router = Router(
-        env=env,
-        shopfloor=shop_floor,
-        servers=servers,
-        psp=psp,
-        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
-        sku_distributions={"F1": 1},
-        sku_routings={"F1": pure_job_shop_routing(servers)},
-        sku_service_times={
-            "F1": {
-                server: lambda: truncated_2erlang(
-                    lam=service_rate,
-                    max_value=4.0,
-                )
-                for server in servers
-            },
-        },
-        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
-    )
+    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    router = scenario.build_router(env, sf, servers, psp=psp)
 
     def _release_idle_first_server(_triggering_job: ProductionJob, _server: Server) -> None:
         for job in list(psp.jobs):
@@ -740,9 +493,8 @@ def build_starvation_avoidance_system(
                 psp.release(job)
 
     psp.on_arrival(starvation_avoidance)
-    shop_floor.on_processing_end(_release_idle_first_server)
-
-    return psp, servers, shop_floor, router
+    sf.on_processing_end(_release_idle_first_server)
+    return psp, servers, sf, router
 
 
 def _build_benchmark_shop(

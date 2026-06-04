@@ -16,7 +16,7 @@ from simulatte.builders import build_immediate_release_system
 from simulatte.runner import Runner
 
 def builder(*, env):
-    return build_immediate_release_system(env, n_servers=6, arrival_rate=1.5, service_rate=2.0)
+    return build_immediate_release_system(env)
 
 def extract(system):
     _psp, servers, shopfloor, _router = system

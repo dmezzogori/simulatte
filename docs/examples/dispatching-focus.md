@@ -33,6 +33,7 @@ import random
 from simulatte.builders import build_focus_system, build_immediate_release_system
 from simulatte.dispatching_rules import first_come_first_served
 from simulatte.environment import Environment
+from simulatte.scenario import Scenario
 
 SEED = 42
 HORIZON = 800.0
@@ -59,12 +60,13 @@ def metrics(shop_floor) -> tuple[int, float, float, float]:
 def run_config(weights) -> tuple[int, float, float, float]:
     random.seed(SEED)
     with Environment() as env:
+        scenario = Scenario(due_date_offset_range=(10.0, 18.0))
         if weights is None:
             _, _s, shop_floor, _ = build_immediate_release_system(
-                env, priority_policies=first_come_first_served, due_date_offset_range=(10.0, 18.0)
+                env, scenario=scenario, priority_policies=first_come_first_served
             )
         else:
-            _, _s, shop_floor, _ = build_focus_system(env, focus_weights=weights, due_date_offset_range=(10.0, 18.0))
+            _, _s, shop_floor, _ = build_focus_system(env, scenario=scenario, focus_weights=weights)
         env.run(until=HORIZON)
         return metrics(shop_floor)
 

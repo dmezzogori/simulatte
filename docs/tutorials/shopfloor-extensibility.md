@@ -205,7 +205,6 @@ from simulatte.builders import build_immediate_release_system
 
 _, servers, shopfloor, router = build_immediate_release_system(
     env,
-    n_servers=6,
     collect_workload=True,
 )
 # shopfloor.time_series_collector is now a CurrentWorkLoadCollector

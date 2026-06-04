@@ -120,19 +120,14 @@ from simulatte.builders import build_immediate_release_system
 from simulatte.environment import Environment
 
 env = Environment()
-_, servers, shopfloor, router = build_immediate_release_system(
-    env,
-    n_servers=6,
-    arrival_rate=1.5,
-    service_rate=2.0,
-)
+_, servers, shopfloor, router = build_immediate_release_system(env)
 env.run(until=1000)
 
 print(f"Jobs completed: {len(shopfloor.jobs_done)}")
 print(f"Avg time in system: {shopfloor.average_time_in_system:.2f}")
 ```
 
-The default parameters (`n_servers`, `arrival_rate`, `service_rate`) reflect a standard benchmark workload — pass explicit values to model other regimes.
+The default `Scenario` (a 6-machine pure job shop at ρ=0.90) reflects a standard benchmark workload — pass a custom `scenario=Scenario(...)` to model other regimes.
 
 Optional parameters:
 
@@ -147,7 +142,6 @@ from simulatte.dispatching_rules import shortest_processing_time
 
 _, servers, shopfloor, router = build_immediate_release_system(
     env,
-    n_servers=6,
     priority_policies=shortest_processing_time,
 )
 ```
@@ -397,7 +391,7 @@ def run_system(builder_fn, builder_kwargs, until=1000):
     return runner.run(until=until)
 
 # Compare
-immediate = run_system(build_immediate_release_system, {"n_servers": 6, "arrival_rate": 1.5})
+immediate = run_system(build_immediate_release_system, {})
 lumscor = run_system(build_lumscor_system, {"check_timeout": 10, "wl_norm_level": 5, "allowance_factor": 2})
 slar = run_system(build_slar_system, {"allowance_factor": 3})
 slar_limit = run_system(build_slar_limit_system, {"allowance_factor": 3, "wl_norm_level": 5})

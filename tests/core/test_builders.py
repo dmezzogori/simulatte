@@ -10,6 +10,7 @@ from simulatte.dispatching_rules import shortest_processing_time
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.psp import PreShopPool
+from simulatte.scenario import Scenario
 
 
 class TestBuildImmediateReleaseSystem:
@@ -17,19 +18,21 @@ class TestBuildImmediateReleaseSystem:
 
     def test_shortest_processing_time_returns_processing_time(self) -> None:
         env = Environment()
-        _, servers, _, _ = build_immediate_release_system(env, n_servers=1)
+        _, servers, _, _ = build_immediate_release_system(env, scenario=Scenario(n_servers=1))
         server = servers[0]
         job = ProductionJob(env=env, sku="F1", servers=[server], processing_times=[2.5], due_date=100.0)
         assert shortest_processing_time(job, server) == 2.5
 
     def test_build_immediate_release_system_with_shortest_processing_time(self) -> None:
         env = Environment()
-        _, _, _, router = build_immediate_release_system(env, n_servers=3, priority_policies=shortest_processing_time)
+        _, _, _, router = build_immediate_release_system(
+            env, scenario=Scenario(n_servers=3), priority_policies=shortest_processing_time
+        )
         assert router.priority_policies is shortest_processing_time
 
     def test_build_immediate_release_system_basic(self) -> None:
         env = Environment()
-        psp, servers, shop_floor, router = build_immediate_release_system(env, n_servers=3)
+        psp, servers, shop_floor, router = build_immediate_release_system(env, scenario=Scenario(n_servers=3))
 
         assert psp is None
         assert len(servers) == 3
@@ -41,9 +44,7 @@ class TestBuildImmediateReleaseSystem:
         env = Environment()
         psp, servers, shop_floor, router = build_immediate_release_system(
             env,
-            n_servers=2,
-            arrival_rate=0.5,
-            service_rate=2.0,
+            scenario=Scenario(n_servers=2, arrival_rate=0.5, service_rate=2.0),
             collect_time_series=True,
             retain_job_history=True,
         )
@@ -114,14 +115,14 @@ class TestCollectWorkload:
         from simulatte.shopfloor import CurrentWorkLoadCollector
 
         env = Environment()
-        _, _, shop_floor, _ = build_immediate_release_system(env, n_servers=2)
+        _, _, shop_floor, _ = build_immediate_release_system(env, scenario=Scenario(n_servers=2))
         assert not isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
 
     def test_build_immediate_release_collect_workload_true(self) -> None:
         from simulatte.shopfloor import CurrentWorkLoadCollector
 
         env = Environment()
-        _, _, shop_floor, _ = build_immediate_release_system(env, n_servers=2, collect_workload=True)
+        _, _, shop_floor, _ = build_immediate_release_system(env, scenario=Scenario(n_servers=2), collect_workload=True)
         assert isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
 
     def test_build_lumscor_collect_workload_true(self) -> None:

@@ -1083,9 +1083,10 @@ def test_focus_score_identical_with_beta_off_regardless_of_compute_beta() -> Non
 
 def test_build_focus_system_runs_and_completes_jobs() -> None:
     from simulatte.builders import build_focus_system
+    from simulatte.scenario import Scenario
 
     env = Environment()
-    psp, servers, shopfloor, router = build_focus_system(env, n_servers=4, arrival_rate=1.0)
+    psp, servers, shopfloor, router = build_focus_system(env, scenario=Scenario(n_servers=4, arrival_rate=1.0))
     assert psp is None  # push system
     assert len(servers) == 4
     env.run(until=200.0)
