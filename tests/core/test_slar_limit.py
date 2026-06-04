@@ -10,13 +10,12 @@ from simulatte.job import ProductionJob
 from simulatte.policies.slar_limit import SlarLimit
 from simulatte.psp import PreShopPool
 from simulatte.server import Server
-from simulatte.shopfloor import CorrectedWIPStrategy, ShopFloor
+from simulatte.shopfloor import ShopFloor
 
 
 def _make_corrected_system() -> tuple[Environment, ShopFloor, PreShopPool]:
     env = Environment()
     sf = ShopFloor(env=env)
-    sf.set_wip_strategy(CorrectedWIPStrategy())
     psp = PreShopPool(env=env, shopfloor=sf)
     return env, sf, psp
 
@@ -51,21 +50,14 @@ def test_slar_limit_rejects_infinite_norm() -> None:
         SlarLimit(shopfloor=sf, psp=psp, router=Mock(), wl_norm={server: math.inf})
 
 
-def test_slar_limit_rejects_wrong_wip_strategy() -> None:
-    """Construction raises TypeError when the shopfloor uses StandardWIPStrategy."""
+def test_slar_limit_scalar_norm_expands_to_all_servers() -> None:
     env = Environment()
-    sf = ShopFloor(env=env)  # default: StandardWIPStrategy
-    server = Server(env=env, capacity=1, shopfloor=sf)
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf)
+    s2 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
-
-    with pytest.raises(TypeError, match="SlarLimit requires CorrectedWIPStrategy"):
-        SlarLimit(
-            shopfloor=sf,
-            psp=psp,
-            router=Mock(),
-            wl_norm={server: 5.0},
-            allowance_factor=2,
-        )
+    sl = SlarLimit(shopfloor=sf, psp=psp, router=Mock(), wl_norm=5.0, allowance_factor=3.0)
+    assert sl.wl_norm == {s1: 5.0, s2: 5.0}
 
 
 def test_slar_limit_rejects_missing_server() -> None:

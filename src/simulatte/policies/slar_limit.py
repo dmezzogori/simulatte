@@ -33,17 +33,15 @@ class SlarLimit(Slar):
     The idle-prevention and drain-safety-net branches, the PST priority
     rule, and the postponed-release mechanism are inherited unchanged.
 
-    Requires `CorrectedWIPStrategy` on the
-    shopfloor — the corrected contribution formula ``PT / (i + 1)`` only
-    makes sense under that strategy. The strategy and the norm coverage
-    are checked eagerly at construction.
+    The corrected contribution formula ``PT / (i + 1)`` only makes sense
+    under `CorrectedWIPStrategy`. Construction is *active*: the instance
+    sets `CorrectedWIPStrategy` on the shopfloor (so the formula applies)
+    and validates the norm coverage eagerly.
 
     Example:
         ```python
         from simulatte.policies.slar_limit import SlarLimit
-        from simulatte.shopfloor import CorrectedWIPStrategy
 
-        shop_floor.set_wip_strategy(CorrectedWIPStrategy())
         slar_limit = SlarLimit(
             shopfloor=shop_floor, psp=psp, router=router,
             wl_norm={s: 5.0 for s in servers},
@@ -64,54 +62,45 @@ class SlarLimit(Slar):
         shopfloor: ShopFloor,
         psp: PreShopPool,
         router: Router,
-        wl_norm: dict[Server, float],
+        wl_norm: float | dict[Server, float],
         allowance_factor: float = 2.0,
     ) -> None:
         """Initialize the SLAR-Limit release policy.
 
         Args:
             shopfloor: The shopfloor whose completion events drive release
-                decisions. Must already be configured with
-                `CorrectedWIPStrategy`.
+                decisions. Its WIP strategy is set to corrected here.
             psp: The Pre-Shop Pool to release jobs from.
             router: The router whose ``priority_policies`` should be set
                 to PST. See `Slar` for details.
-            wl_norm: Workload norm for each server. In the urgent-insertion
-                branch, an urgent PSP candidate is released only if its
-                corrected workload contribution keeps each server in its
-                routing at or below its norm. Must cover every shopfloor
-                server with a positive, finite value.
+            wl_norm: Per-server workload norm (scalar expanded to all
+                servers, or dict verbatim). In the urgent-insertion branch,
+                an urgent PSP candidate is released only if its corrected
+                workload contribution keeps each server in its routing at or
+                below its norm. Must cover every shopfloor server with a
+                positive, finite value.
             allowance_factor: Slack allowance per operation (parameter
                 ``k`` in the SLAR paper). Forwarded to `Slar`.
 
         Raises:
             ValueError: If ``wl_norm`` is empty, contains non-positive or
                 non-finite values, or misses any shopfloor server.
-            TypeError: If ``shopfloor`` is not configured with
-                `CorrectedWIPStrategy`.
         """
-        if not wl_norm:
+        shopfloor.set_wip_strategy(CorrectedWIPStrategy())
+        norms = wl_norm if isinstance(wl_norm, dict) else dict.fromkeys(shopfloor.servers, float(wl_norm))
+        if not norms:
             msg = "wl_norm must not be empty"
             raise ValueError(msg)
-        for server, norm in wl_norm.items():
+        for server, norm in norms.items():
             if norm <= 0 or not math.isfinite(norm):
                 msg = f"All workload norms must be positive and finite, got {norm} for {server}"
                 raise ValueError(msg)
-        if not isinstance(shopfloor.wip_strategy, CorrectedWIPStrategy):
-            msg = "SlarLimit requires CorrectedWIPStrategy. Use shopfloor.set_wip_strategy() first."
-            raise TypeError(msg)
-        missing = [s for s in shopfloor.servers if s not in wl_norm]
+        missing = [s for s in shopfloor.servers if s not in norms]
         if missing:
             msg = f"Shopfloor has servers with missing norms: {missing}"
             raise ValueError(msg)
-
-        self.wl_norm = wl_norm
-        super().__init__(
-            shopfloor=shopfloor,
-            psp=psp,
-            router=router,
-            allowance_factor=allowance_factor,
-        )
+        self.wl_norm = norms
+        super().__init__(shopfloor=shopfloor, psp=psp, router=router, allowance_factor=allowance_factor)
 
     def _release_urgent_insertion(
         self,

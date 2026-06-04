@@ -25,7 +25,7 @@ from simulatte.policies.starvation_avoidance import starvation_avoidance
 from simulatte.psp import PreShopPool
 from simulatte.router import Router
 from simulatte.server import Server
-from simulatte.shopfloor import CorrectedWIPStrategy, CurrentWorkLoadCollector, ShopFloor
+from simulatte.shopfloor import CurrentWorkLoadCollector, ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable, Sequence
@@ -400,7 +400,6 @@ def build_slar_limit_system(
         env=env,
         time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
     )
-    shop_floor.set_wip_strategy(CorrectedWIPStrategy())
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
     psp = PreShopPool(env=env, shopfloor=shop_floor)
     router = Router(
@@ -422,11 +421,14 @@ def build_slar_limit_system(
         },
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
     )
+    # SlarLimit self-wires CorrectedWIPStrategy, router.priority_policies (PST),
+    # shop_floor.on_processing_end, and psp.on_arrival(starvation_avoidance);
+    # constructed for those effects.
     SlarLimit(
         shopfloor=shop_floor,
         psp=psp,
         router=router,
-        wl_norm=dict.fromkeys(servers, float(wl_norm_level)),
+        wl_norm=wl_norm_level,
         allowance_factor=allowance_factor,
     )
 
