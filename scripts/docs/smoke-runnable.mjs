@@ -45,6 +45,13 @@ pyodide.FS.writeFile("/" + wheelName, readFileSync(WHEEL));
 await micropip.install("emfs:/" + wheelName);
 micropip.destroy();
 
+// Force a headless matplotlib backend before any block imports pyplot. In a
+// browser, matplotlib's default `webagg` backend renders via `from js import
+// document`; this Node smoke-test has no DOM, so that import raises. Blocks
+// only need to execute here — real plots still render in-browser via
+// pyodide-worker.js. Agg makes plt.show() a no-op.
+await pyodide.runPythonAsync('import matplotlib; matplotlib.use("Agg")');
+
 let failures = 0;
 for (const { file, src } of blocks) {
   pyodide.setStdout({ batched: () => {} });
