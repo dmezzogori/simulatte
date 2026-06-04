@@ -22,7 +22,6 @@ from simulatte.policies.lumscor import LumsCor
 from simulatte.policies.slar import Slar
 from simulatte.policies.slar_limit import SlarLimit
 from simulatte.policies.starvation_avoidance import starvation_avoidance
-from simulatte.policies.triggers import on_completion_trigger
 from simulatte.psp import PreShopPool
 from simulatte.router import Router
 from simulatte.server import Server
@@ -644,7 +643,6 @@ def build_continuous_release_system(
         env=env,
         time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
     )
-    shop_floor.set_wip_strategy(CorrectedWIPStrategy())
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
     psp = PreShopPool(env=env, shopfloor=shop_floor)
     router = Router(
@@ -666,12 +664,14 @@ def build_continuous_release_system(
         },
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
     )
-    cr = ContinuousRelease(
-        wl_norm=dict.fromkeys(servers, float(wl_norm_level)),
+    # ContinuousRelease self-wires CorrectedWIPStrategy, the completion-triggered
+    # release, and psp.on_arrival; constructed for those effects.
+    ContinuousRelease(
+        shopfloor=shop_floor,
+        psp=psp,
+        wl_norm=wl_norm_level,
         allowance_factor=int(allowance_factor),
     )
-    env.process(on_completion_trigger(shop_floor, psp, cr.on_completion_release))
-    psp.on_arrival(cr.on_arrival_release)
 
     return psp, servers, shop_floor, router
 

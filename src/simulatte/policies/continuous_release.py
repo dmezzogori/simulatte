@@ -18,6 +18,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+from simulatte.policies.triggers import on_completion_trigger
 from simulatte.shopfloor import CorrectedWIPStrategy
 
 if TYPE_CHECKING:
@@ -46,55 +47,49 @@ class ContinuousRelease:
     - ``on_arrival_release``: Wired via ``psp.on_arrival()``. When a job enters
       the PSP, immediately releases it if its first server is idle and norms permit.
 
+    Construction is *active* (like ``Slar``): the instance sets
+    ``CorrectedWIPStrategy`` on the shopfloor, a completion-triggered release,
+    and ``on_arrival_release`` on PSP arrival.
+
     Example:
-        >>> from simulatte.policies.triggers import on_completion_trigger
-        >>> cr = ContinuousRelease(wl_norm={server: 5.0}, allowance_factor=2)
-        >>> shopfloor.set_wip_strategy(CorrectedWIPStrategy())
-        >>> psp = PreShopPool(env=env, shopfloor=shopfloor)
-        >>> psp.on_arrival(cr.on_arrival_release)
-        >>> env.process(on_completion_trigger(shopfloor, psp, cr.on_completion_release))
+        ```python
+        cr = ContinuousRelease(shopfloor=shopfloor, psp=psp, wl_norm=5.0)
+        ```
     """
 
-    def __init__(self, wl_norm: dict[Server, float], allowance_factor: int = 2) -> None:
-        """Initialize the ContinuousRelease policy.
+    def __init__(
+        self,
+        *,
+        shopfloor: ShopFloor,
+        psp: PreShopPool,
+        wl_norm: float | dict[Server, float],
+        allowance_factor: int = 2,
+    ) -> None:
+        """Initialize ContinuousRelease and wire it into the system.
 
         Args:
-            wl_norm: Workload norm for each server. Jobs are released only if
-                adding them keeps each server's corrected WIP at or below its norm.
-                Must not be empty. All values must be positive and finite.
-            allowance_factor: Buffer time per server for planned release date
-                calculations. Used to sort PSP jobs by urgency.
+            shopfloor: The shopfloor; its WIP strategy is set to corrected here.
+            psp: The Pre-Shop Pool to release from.
+            wl_norm: Per-server workload norm (scalar expanded to all servers, or
+                dict verbatim). All values must be positive and finite.
+            allowance_factor: Buffer time per server for planned release dates.
 
         Raises:
-            ValueError: If wl_norm is empty or contains non-positive/infinite values.
+            ValueError: If norms are empty or contain non-positive/infinite values.
         """
-        if not wl_norm:
+        shopfloor.set_wip_strategy(CorrectedWIPStrategy())
+        norms = wl_norm if isinstance(wl_norm, dict) else dict.fromkeys(shopfloor.servers, float(wl_norm))
+        if not norms:
             msg = "wl_norm must not be empty"
             raise ValueError(msg)
-        for server, norm in wl_norm.items():
+        for server, norm in norms.items():
             if norm <= 0 or not math.isfinite(norm):
                 msg = f"All workload norms must be positive and finite, got {norm} for {server}"
                 raise ValueError(msg)
-        self.wl_norm = wl_norm
+        self.wl_norm = norms
         self.allowance_factor = allowance_factor
-
-    def validate_strategy(self, shopfloor: ShopFloor) -> None:
-        """Validate CorrectedWIPStrategy is active and all servers have norms.
-
-        Args:
-            shopfloor: The shopfloor to validate.
-
-        Raises:
-            TypeError: If shopfloor is not configured with CorrectedWIPStrategy.
-            ValueError: If any shopfloor server is missing from wl_norm.
-        """
-        if not isinstance(shopfloor.wip_strategy, CorrectedWIPStrategy):
-            msg = "ContinuousRelease requires CorrectedWIPStrategy. Use shopfloor.set_wip_strategy() first."
-            raise TypeError(msg)
-        missing = [s for s in shopfloor.servers if s not in self.wl_norm]
-        if missing:
-            msg = f"Shopfloor has servers with missing norms: {missing}"
-            raise ValueError(msg)
+        psp.env.process(on_completion_trigger(shopfloor, psp, self.on_completion_release))
+        psp.on_arrival(self.on_arrival_release)
 
     def on_completion_release(self, triggering_job: ProductionJob, psp: PreShopPool) -> None:
         """On job completion, release PSP jobs whose corrected WIP fits within norms.
@@ -109,7 +104,6 @@ class ContinuousRelease:
         """
         del triggering_job  # Unused but required by trigger signature
         shopfloor = psp.shopfloor
-        self._validate_wip_strategy(shopfloor)
         for job in sorted(list(psp.jobs), key=lambda j: j.planned_release_date(self.allowance_factor)):
             if self._fits_norms(job, shopfloor):
                 psp.release(job)
@@ -132,7 +126,6 @@ class ContinuousRelease:
         if not first_server.is_idle:
             return
         shopfloor = psp.shopfloor
-        self._validate_wip_strategy(shopfloor)
         if not self._fits_norms(job, shopfloor):
             return
         psp.release(job)
@@ -157,16 +150,3 @@ class ContinuousRelease:
             if current_wip + contributed_load > self.wl_norm[server]:
                 return False
         return True
-
-    def _validate_wip_strategy(self, shopfloor: ShopFloor) -> None:
-        """Validate that the shopfloor uses CorrectedWIPStrategy.
-
-        Args:
-            shopfloor: The shopfloor to validate.
-
-        Raises:
-            TypeError: If shopfloor is not configured with CorrectedWIPStrategy.
-        """
-        if not isinstance(shopfloor.wip_strategy, CorrectedWIPStrategy):
-            msg = "ContinuousRelease requires CorrectedWIPStrategy. Use shopfloor.set_wip_strategy() first."
-            raise TypeError(msg)
