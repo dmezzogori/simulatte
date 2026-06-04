@@ -152,9 +152,9 @@ Release policy comparison  (seed=42, sim_time=2000)
 
 Policy      Done    PSP left  Late %   Mean tardy  Mean span   End WIP    Util % 
 ---------------------------------------------------------------------------------
-Immediate   3026    0         11.9%    1.04        19.91       91.8       87.7%  
-LumsCor     3017    24        12.2%    1.82        20.89       27.7       87.6%  
-SLAR        3029    14        0.9%     0.05        19.54       55.9       87.8%  
+Immediate   3026    0         11.8%    1.04        19.93       90.6       87.7%  
+LumsCor     3018    23        11.6%    1.76        20.67       26.2       87.6%  
+SLAR        3025    17        1.0%     0.07        19.79       45.5       87.8%  
 
 Columns:
   Done       = jobs completed by sim_time
@@ -170,11 +170,11 @@ Columns:
 
 ## Interpretation
 
-**Immediate Release** pushes all 3 026 jobs straight onto the shop floor. There is no PSP, so End WIP is high (91.8 units of remaining work) and 11.9 % of jobs finish late.
+**Immediate Release** pushes all 3 026 jobs straight onto the shop floor. There is no PSP, so End WIP is high (90.6 units of remaining work) and 11.8 % of jobs finish late.
 
-**LumsCor** holds 24 jobs in the PSP at end of simulation. Its workload norm keeps queues short (End WIP = 27.7, the lowest in the table), but because it checks periodically (`check_timeout=10`), the PSP waiting time it introduces means jobs held in the pool may already be at or past their due date when released — adding tardiness (1.82 vs 1.04 for Immediate) without a corresponding WIP benefit. (LumsCor gate-checks each candidate individually against the workload norm; it is not a true batch burst.)
+**LumsCor** holds 23 jobs in the PSP at end of simulation. Its workload norm keeps queues short (End WIP = 26.2, the lowest in the table), but because it checks periodically (`check_timeout=10`), the PSP waiting time it introduces means jobs held in the pool may already be at or past their due date when released — adding tardiness (1.76 vs 1.04 for Immediate) without a corresponding WIP benefit. (LumsCor gate-checks each candidate individually against the workload norm; it is not a true batch burst.)
 
-**SLAR** keeps late-ness dramatically lower (0.9 %) with a mean tardiness of just 0.05. It is reactive rather than periodic: it only releases when a server risks starvation or an urgent job needs insertion. That responsiveness gives SLAR the lowest tardiness in the table, while its End WIP (55.9) sits between Immediate (91.8) and LumsCor (27.7) — SLAR trades tighter WIP control for better due-date performance.
+**SLAR** keeps late-ness dramatically lower (1.0 %) with a mean tardiness of just 0.07. It is reactive rather than periodic: it only releases when a server risks starvation or an urgent job needs insertion. That responsiveness gives SLAR the lowest tardiness in the table, while its End WIP (45.5) sits between Immediate (90.6) and LumsCor (26.2) — SLAR trades tighter WIP control for better due-date performance.
 
 ### When to choose which policy
 

@@ -229,16 +229,24 @@ from simulatte.policies.lumscor import LumsCor
 
 LumsCor(
     *,
-    wl_norm: dict[Server, float],              # Workload norm per server
-    allowance_factor: int,                      # Buffer time per server for due dates
+    shopfloor: ShopFloor,
+    psp: PreShopPool,
+    router: Router,
+    wl_norm: float | dict[Server, float],       # Workload norm (scalar -> all servers, or dict)
+    check_timeout: float,                        # Periodic release interval
+    allowance_factor: int,                       # Buffer time per server for due dates
 )
 ```
 
-**Methods:**
+Construction is active (like `Slar`): `LumsCor.__init__` sets
+`CorrectedWIPStrategy` on the shopfloor, wires the PST priority rule on
+`router`, starts a periodic release trigger, wires `shopfloor.on_processing_end`
+for starvation release, and wires `psp.on_arrival(starvation_avoidance)`. No
+separate method calls needed.
+
+**Methods (also callable manually for custom wiring):**
 - `lumscor.periodic_release(psp)` — release jobs within norms (for periodic_trigger)
 - `lumscor.starvation_release(triggering_job, psp)` — release on starvation (for on_completion_trigger)
-
-Requires `CorrectedWIPStrategy` on the shopfloor.
 
 ### Slar
 
@@ -414,6 +422,33 @@ from simulatte.shopfloor import (
 )
 ```
 
+## Scenario
+
+```python
+from simulatte.scenario import Scenario, ShopType
+
+Scenario(
+    shop_type: ShopType = ShopType.PJS,         # PJS / GFS / PFS
+    n_servers: int = 6,
+    target_utilization: float = 0.90,           # rho; arrival rate is derived to hold it
+    service_rate: float = 2.0,                  # truncated 2-Erlang rate
+    due_date_offset_range: tuple[float, float] = (30.0, 45.0),
+    twk_allowance_factor: float | None = None,  # if set, due dates use TWK rule (k * total work)
+    arrival_rate: float | None = None,          # explicit override; else derived from utilization
+)
+```
+
+Immutable (`@dataclass(frozen=True)`) description of a shop *environment* and its
+order stream — owned by every `build_*_system` via `scenario=`. The exponential
+arrival rate is **derived** per shop type from `target_utilization` and the mean
+routing length (so `rho` is held constant across shops); pass `arrival_rate=` to
+pin it explicitly. The default `Scenario()` derives a rate of ≈1.542857.
+
+**Presets** (each accepts keyword overrides, e.g. `Scenario.pure_flow_shop(n_servers=8)`):
+- `Scenario.pure_job_shop()` — PJS: routing length `U[1, M]`, undirected.
+- `Scenario.general_flow_shop()` — GFS: length `U[1, M]`, directed (ascending index), `E[L]=(M+1)/2`.
+- `Scenario.pure_flow_shop()` — PFS: every job visits all `M` machines in fixed order, `E[L]=M`.
+
 ## Builder Functions
 
 ```python
@@ -424,8 +459,14 @@ from simulatte.builders import (
     build_slar_system,
     build_slar_limit_system,
     build_draco_system,
+    build_conwip_system,
+    build_continuous_release_system,
+    build_starvation_avoidance_system,
 )
 ```
+
+Every builder takes `scenario: Scenario = Scenario()`. Pass a preset or a custom
+`Scenario` to vary the shop environment independently of the control method.
 
 ### build_immediate_release_system
 
@@ -433,13 +474,11 @@ from simulatte.builders import (
 build_immediate_release_system(
     env: Environment,
     *,
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,            # ~1.543 jobs/time unit
-    service_rate: float = 2.0,
-    collect_time_series: bool = False,
-    retain_job_history: bool = False,
+    scenario: Scenario = Scenario(),
     priority_policies: Callable | None = None,
     collect_workload: bool = False,
+    collect_time_series: bool = False,
+    retain_job_history: bool = False,
 ) -> PushSystem  # (None, servers, shopfloor, router)
 ```
 
@@ -449,12 +488,10 @@ build_immediate_release_system(
 build_lumscor_system(
     env: Environment,
     *,
+    scenario: Scenario = Scenario(),
     check_timeout: float,                       # Periodic release interval
     wl_norm_level: float,                       # Workload norm per server
     allowance_factor: int,                      # Buffer per server for due dates
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,
-    service_rate: float = 2.0,
     collect_workload: bool = False,
 ) -> PullSystem  # (psp, servers, shopfloor, router)
 ```
@@ -466,9 +503,7 @@ build_slar_system(
     env: Environment,
     allowance_factor: float,                    # Slack allowance per operation
     *,
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,
-    service_rate: float = 2.0,
+    scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem  # (psp, servers, shopfloor, router)
 ```
@@ -484,9 +519,7 @@ build_slar_limit_system(
     allowance_factor: float,                    # Slack allowance per operation
     *,
     wl_norm_level: float,                       # Workload norm per server
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,
-    service_rate: float = 2.0,
+    scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem  # (psp, servers, shopfloor, router)
 ```
@@ -499,10 +532,8 @@ Requires `CorrectedWIPStrategy` on the shopfloor (set automatically by the build
 build_focus_system(
     env: Environment,
     *,
+    scenario: Scenario = Scenario(),
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,
-    service_rate: float = 2.0,
     collect_workload: bool = False,
 ) -> PushSystem  # (None, servers, shopfloor, router)
 ```
@@ -519,14 +550,59 @@ build_draco_system(
     loop_target: int,                                 # epsilon (scalar; use Draco() for per-pair)
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     total_impact_weights: tuple[float, float, float] = (0.25, 0.25, 0.5),  # paper full DRACO (Table 2)
-    n_servers: int = 6,
-    arrival_rate: float = 1 / 0.648,
-    service_rate: float = 2.0,
+    scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem  # (psp, servers, shopfloor, router)
 ```
 
 Non-hierarchical release+dispatch. Wires `Draco.priority_policy`, `shopfloor.on_processing_end(Draco.decide_next_job)`, and `psp.on_arrival(starvation_avoidance)`.
+
+### build_conwip_system
+
+```python
+build_conwip_system(
+    env: Environment,
+    *,
+    wip_cap: int,                               # max jobs on the floor at once
+    scenario: Scenario = Scenario(),
+    collect_workload: bool = False,
+) -> PullSystem  # (psp, servers, shopfloor, router)
+```
+
+Constant-WIP release: holds jobs in the PSP and releases (earliest due date first)
+while the shop holds fewer than `wip_cap` jobs. Constructs `ConWIP`, which
+self-wires release on PSP arrival and on every completion.
+
+### build_continuous_release_system
+
+```python
+build_continuous_release_system(
+    env: Environment,
+    *,
+    wl_norm_level: float,                       # corrected workload norm per server
+    allowance_factor: int = 2,                  # buffer per server for due-date planning
+    scenario: Scenario = Scenario(),
+    collect_workload: bool = False,
+) -> PullSystem  # (psp, servers, shopfloor, router)
+```
+
+Workload-controlled continuous release. Constructs `ContinuousRelease`, which
+sets `CorrectedWIPStrategy` on the shopfloor and self-wires its triggers.
+
+### build_starvation_avoidance_system
+
+```python
+build_starvation_avoidance_system(
+    env: Environment,
+    *,
+    scenario: Scenario = Scenario(),
+    collect_workload: bool = False,
+) -> PullSystem  # (psp, servers, shopfloor, router)
+```
+
+Minimal pull system: jobs wait in the PSP and are released only by
+`starvation_avoidance` (wired on `psp.on_arrival`) — a job is released the moment
+its first server is idle. Useful as a liveness-only baseline.
 
 ### Benchmark shop environments (PJS / GFS / PFS)
 

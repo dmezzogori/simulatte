@@ -426,14 +426,15 @@ Simulatte also provides two additional release policies:
 ConWIP maintains a shop-wide WIP cap based on job count. Jobs are released from the PSP whenever the shopfloor job count drops below the cap, with selection by earliest due date (EDD).
 
 ```python
-from simulatte.policies.conwip import ConWIP
-from simulatte.policies.triggers import on_completion_trigger
+from simulatte.builders import build_conwip_system
+from simulatte.environment import Environment
 
-conwip = ConWIP(wip_cap=12)
-psp = PreShopPool(env=env, shopfloor=shopfloor)
-psp.on_arrival(conwip.on_arrival_release)
-env.process(on_completion_trigger(shopfloor, psp, conwip.on_completion_release))
+env = Environment()
+psp, servers, shopfloor, router = build_conwip_system(env, wip_cap=12)
+env.run(until=1000)
 ```
+
+`build_conwip_system` constructs the `ConWIP` policy, which self-wires its release triggers (`psp.on_arrival` and an on-completion trigger) in `__init__` — no manual wiring needed.
 
 Reference: Spearman, M. L., Woodruff, D. L. & Hopp, W. J. (1990). *CONWIP: a pull alternative to kanban*. International Journal of Production Research, 28(5), 879-894.
 
@@ -442,16 +443,19 @@ Reference: Spearman, M. L., Woodruff, D. L. & Hopp, W. J. (1990). *CONWIP: a pul
 Continuous Release is a workload-controlled policy where jobs may be released at any moment when a server's corrected workload drops below its norm. It uses corrected aggregate load: the contribution at routing position *i* is PT / (*i* + 1). Requires `CorrectedWIPStrategy` on the shopfloor.
 
 ```python
-from simulatte.policies.continuous_release import ContinuousRelease
-from simulatte.policies.triggers import on_completion_trigger
-from simulatte.shopfloor import CorrectedWIPStrategy
+from simulatte.builders import build_continuous_release_system
+from simulatte.environment import Environment
 
-shopfloor.set_wip_strategy(CorrectedWIPStrategy())
-cr = ContinuousRelease(wl_norm={server1: 5.0, server2: 5.0}, allowance_factor=2)
-psp = PreShopPool(env=env, shopfloor=shopfloor)
-psp.on_arrival(cr.on_arrival_release)
-env.process(on_completion_trigger(shopfloor, psp, cr.on_completion_release))
+env = Environment()
+psp, servers, shopfloor, router = build_continuous_release_system(
+    env,
+    wl_norm_level=5.0,       # Corrected workload norm per server
+    allowance_factor=2,      # Buffer for due-date planning
+)
+env.run(until=1000)
 ```
+
+`build_continuous_release_system` constructs the `ContinuousRelease` policy, which sets `CorrectedWIPStrategy` on the shopfloor and self-wires its release triggers in `__init__`. A scalar `wl_norm_level` is applied uniformly to every server (pass a `dict[Server, float]` to `ContinuousRelease` directly for per-server norms).
 
 Reference: Fernandes, N. O. & Carmo-Silva, S. (2011). *Workload control under continuous order release*. International Journal of Production Economics, 131(1), 257-262.
 

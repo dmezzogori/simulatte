@@ -5,11 +5,17 @@ based on different simulation events. Triggers are decoupled from the release
 logic itself, enabling flexible composition of periodic, event-driven, and
 custom release strategies.
 
+Built-in policies (LumsCor, SLAR, ConWIP, Continuous Release, DRACO) now wire
+their own triggers in ``__init__``, so most users never call these functions
+directly. They remain public for building *custom* release strategies — pass any
+plain ``release_fn`` rather than a policy method:
+
 Example:
-    >>> lumscor = LumsCor(wl_norm={server: 5.0}, allowance_factor=2)
+    >>> def release_all(pool):
+    ...     for job in list(pool.jobs):
+    ...         pool.release(job)
     >>> psp = PreShopPool(env=env, shopfloor=shop_floor)
-    >>> env.process(periodic_trigger(psp, 1.0, lumscor.periodic_release))
-    >>> env.process(on_completion_trigger(shop_floor, psp, lumscor.starvation_release))
+    >>> env.process(periodic_trigger(psp, 10.0, release_all))  # flush every 10 units
 """
 
 from __future__ import annotations

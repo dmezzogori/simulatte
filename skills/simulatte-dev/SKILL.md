@@ -162,10 +162,16 @@ psp, servers, shopfloor, router = build_lumscor_system(
 env.run(until=10_000)
 ```
 
-All builders default to 6 servers, exponential inter-arrivals (rate 1/0.648),
-truncated 2-Erlang service times (rate 2.0), and a single SKU ("F1") with
-random routing through a subset of servers. Override `n_servers`,
-`arrival_rate`, and `service_rate` as needed.
+Every builder takes a `scenario: Scenario = Scenario()` that owns the shop
+environment. The default `Scenario()` is a 6-server pure job shop held at
+`target_utilization=0.90`, truncated 2-Erlang service times (`service_rate=2.0`),
+and a single SKU ("F1") with random routing through a subset of servers. The
+exponential arrival rate is **derived** from utilization and mean routing length
+(≈1.542857 for the default), so `rho` stays constant across shop types. Override
+the environment via `scenario=Scenario(n_servers=..., service_rate=...,
+target_utilization=..., due_date_offset_range=...)` or a preset
+(`Scenario.pure_job_shop()` / `.general_flow_shop()` / `.pure_flow_shop()`). To
+pin an explicit rate instead of deriving it, set `Scenario(arrival_rate=...)`.
 
 ### Manual composition
 
@@ -470,9 +476,12 @@ creation requires you to add `env.now` yourself.
 corresponding processing time.
 
 **Arrival rate is a rate (lambda), not a mean.**
-`arrival_rate=1.5` means 1.5 arrivals per time unit (mean inter-arrival =
-0.667). The builders pass it to `random.expovariate(arrival_rate)`. If the
-researcher specifies a mean inter-arrival time, convert: `arrival_rate = 1 / mean`.
+`Scenario(arrival_rate=1.5)` means 1.5 arrivals per time unit (mean
+inter-arrival = 0.667). The `Scenario` passes it to
+`random.expovariate(arrival_rate)`. If the researcher specifies a mean
+inter-arrival time, convert: `arrival_rate = 1 / mean`. With `arrival_rate`
+left as `None` (the default), the rate is derived from `target_utilization`,
+`n_servers`, and the mean routing length.
 
 **LumsCor requires `CorrectedWIPStrategy`.**
 If composing a LumsCor system manually (not using the builder), you must call

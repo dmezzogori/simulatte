@@ -60,7 +60,7 @@ def test_build_starvation_avoidance_system_runs() -> None:
     assert len(shop_floor.jobs_done) > 0
 
 
-def test_build_pure_job_shop_system_runs_as_push_system() -> None:
+def test_immediate_release_on_pure_job_shop() -> None:
     random.seed(42)
     with Environment() as env:
         psp, servers, shop_floor, router = build_immediate_release_system(env, scenario=Scenario.pure_job_shop())
@@ -75,7 +75,7 @@ def test_build_pure_job_shop_system_runs_as_push_system() -> None:
         assert len(set(job.servers)) == len(job.servers)  # no re-entry
 
 
-def test_build_general_flow_shop_system_produces_directed_routings() -> None:
+def test_immediate_release_on_general_flow_shop() -> None:
     random.seed(42)
     with Environment() as env:
         psp, servers, shop_floor, router = build_immediate_release_system(env, scenario=Scenario.general_flow_shop())
@@ -94,7 +94,7 @@ def test_build_general_flow_shop_system_produces_directed_routings() -> None:
     assert saw_partial_routing  # at least some orders skip stations (length < M)
 
 
-def test_build_pure_flow_shop_system_visits_all_servers_in_order() -> None:
+def test_immediate_release_on_pure_flow_shop() -> None:
     random.seed(42)
     with Environment() as env:
         psp, servers, shop_floor, router = build_immediate_release_system(env, scenario=Scenario.pure_flow_shop())
@@ -109,7 +109,7 @@ def test_build_pure_flow_shop_system_visits_all_servers_in_order() -> None:
         assert list(job.servers) == list(servers)
 
 
-def test_build_pure_job_shop_system_with_twk_due_dates() -> None:
+def test_immediate_release_pure_job_shop_with_twk_due_dates() -> None:
     random.seed(42)
     k = 8.74  # FOCUS pure-job-shop allowance factor (6 work centres)
     with Environment() as env:
