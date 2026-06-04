@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING
 
-from simulatte.dispatching_rules import Focus, FocusPriorityRule, planned_slack_time
+from simulatte.dispatching_rules import Focus, FocusPriorityRule
 from simulatte.distributions import (
     arrival_rate_for_utilization,
     general_flow_shop_routing,
@@ -22,7 +22,7 @@ from simulatte.policies.lumscor import LumsCor
 from simulatte.policies.slar import Slar
 from simulatte.policies.slar_limit import SlarLimit
 from simulatte.policies.starvation_avoidance import starvation_avoidance
-from simulatte.policies.triggers import on_completion_trigger, periodic_trigger
+from simulatte.policies.triggers import on_completion_trigger
 from simulatte.psp import PreShopPool
 from simulatte.router import Router
 from simulatte.server import Server
@@ -235,10 +235,7 @@ def build_lumscor_system(
         env=env,
         time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
     )
-    shop_floor.set_wip_strategy(CorrectedWIPStrategy())
     servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
-
-    lumscor = LumsCor(wl_norm=dict.fromkeys(servers, float(wl_norm_level)), allowance_factor=int(allowance_factor))
     psp = PreShopPool(env=env, shopfloor=shop_floor)
     router = Router(
         env=env,
@@ -258,13 +255,18 @@ def build_lumscor_system(
             },
         },
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
-        priority_policies=planned_slack_time(allowance=float(allowance_factor)),
     )
-
-    # Compose release triggers
-    env.process(periodic_trigger(psp, float(check_timeout), lumscor.periodic_release))
-    shop_floor.on_processing_end(lambda job, server: lumscor.starvation_release(job, psp))
-    psp.on_arrival(starvation_avoidance)
+    # LumsCor self-wires CorrectedWIPStrategy, router.priority_policies (PST),
+    # the periodic release trigger, shop_floor.on_processing_end, and
+    # psp.on_arrival(starvation_avoidance); constructed for those effects.
+    LumsCor(
+        shopfloor=shop_floor,
+        psp=psp,
+        router=router,
+        wl_norm=float(wl_norm_level),
+        check_timeout=float(check_timeout),
+        allowance_factor=int(allowance_factor),
+    )
 
     return psp, servers, shop_floor, router
 

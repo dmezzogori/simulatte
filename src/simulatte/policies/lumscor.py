@@ -14,11 +14,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from simulatte.dispatching_rules import planned_slack_time
+from simulatte.policies.starvation_avoidance import starvation_avoidance
+from simulatte.policies.triggers import periodic_trigger
 from simulatte.shopfloor import CorrectedWIPStrategy
 
 if TYPE_CHECKING:
     from simulatte.job import ProductionJob
     from simulatte.psp import PreShopPool
+    from simulatte.router import Router
     from simulatte.server import Server
     from simulatte.shopfloor import ShopFloor
     from simulatte.typing import ProcessGenerator
@@ -35,47 +39,55 @@ class LumsCor:
     The starvation release complements periodic releases by immediately releasing
     jobs when servers become idle or nearly idle.
 
-    Requires CorrectedWIPStrategy on the shopfloor, which accounts for downstream
-    workload when computing WIP at each server.
+    Construction is *active* (like ``Slar``): the instance sets
+    ``CorrectedWIPStrategy`` on the shopfloor, the PST priority rule on the
+    router, a periodic release trigger, a completion-triggered starvation
+    release, and ``starvation_avoidance`` on PSP arrival.
 
     Example:
         ```python
-        from simulatte.policies.triggers import periodic_trigger, on_completion_trigger
-
-        lumscor = LumsCor(wl_norm={server: 10.0}, allowance_factor=2)
-        shopfloor.set_wip_strategy(CorrectedWIPStrategy())
-        psp = PreShopPool(env=env, shopfloor=shopfloor)
-        env.process(periodic_trigger(psp, 1.0, lumscor.periodic_release))
-        env.process(on_completion_trigger(shopfloor, psp, lumscor.starvation_release))
+        lumscor = LumsCor(
+            shopfloor=shopfloor, psp=psp, router=router,
+            wl_norm=10.0, check_timeout=1.0, allowance_factor=2,
+        )
         ```
     """
 
     _POSTPONED_DELAY: float = 0.001
 
-    def __init__(self, *, wl_norm: dict[Server, float], allowance_factor: int) -> None:
-        """Initialize the LUMS-COR release policy.
+    def __init__(
+        self,
+        *,
+        shopfloor: ShopFloor,
+        psp: PreShopPool,
+        router: Router,
+        wl_norm: float | dict[Server, float],
+        check_timeout: float,
+        allowance_factor: int,
+    ) -> None:
+        """Initialize LUMS-COR and wire it into the system.
+
+        Self-wiring (like ``Slar``): sets ``CorrectedWIPStrategy``, the PST
+        priority rule on ``router``, a periodic release trigger, a
+        completion-triggered starvation release, and ``starvation_avoidance`` on
+        PSP arrival.
 
         Args:
-            wl_norm: Workload norm for each server. Jobs are released only if
-                adding them keeps each server's WIP at or below its norm.
-            allowance_factor: Buffer time per server for due date calculations.
-                Used to compute planned release dates (higher = earlier release).
+            shopfloor: The shopfloor; its WIP strategy is set to corrected here.
+            psp: The Pre-Shop Pool to release from.
+            router: The router whose ``priority_policies`` is set to PST.
+            wl_norm: Per-server workload norm. A scalar is expanded to every
+                shopfloor server; a dict is used verbatim.
+            check_timeout: Periodic release interval.
+            allowance_factor: Buffer time per server for planned release dates.
         """
-        self.wl_norm = wl_norm
+        shopfloor.set_wip_strategy(CorrectedWIPStrategy())
+        self.wl_norm = wl_norm if isinstance(wl_norm, dict) else dict.fromkeys(shopfloor.servers, float(wl_norm))
         self.allowance_factor = allowance_factor
-
-    def _validate_wip_strategy(self, shopfloor: ShopFloor) -> None:
-        """Validate that the shopfloor uses CorrectedWIPStrategy.
-
-        Args:
-            shopfloor: The shopfloor to validate.
-
-        Raises:
-            TypeError: If shopfloor is not configured with CorrectedWIPStrategy.
-        """
-        if not isinstance(shopfloor.wip_strategy, CorrectedWIPStrategy):
-            msg = "LumsCor requires CorrectedWIPStrategy. Use shopfloor.set_wip_strategy() first."
-            raise TypeError(msg)
+        router.priority_policies = planned_slack_time(allowance=float(allowance_factor))
+        psp.env.process(periodic_trigger(psp, float(check_timeout), self.periodic_release))
+        shopfloor.on_processing_end(lambda job, server: self.starvation_release(job, psp))
+        psp.on_arrival(starvation_avoidance)
 
     def periodic_release(self, psp: PreShopPool) -> None:
         """Release jobs from PSP to shopfloor based on workload norms.
@@ -90,7 +102,6 @@ class LumsCor:
             psp: The Pre-Shop Pool containing candidate jobs.
         """
         shopfloor = psp.shopfloor
-        self._validate_wip_strategy(shopfloor)
         for job in sorted(psp.jobs, key=lambda j: j.planned_release_date(self.allowance_factor)):
             if all(
                 shopfloor.wip.get(server, 0.0) + processing_time / (i + 1) <= self.wl_norm[server]
@@ -112,7 +123,6 @@ class LumsCor:
             triggering_job: The job that just finished processing.
             psp: The Pre-Shop Pool to release jobs from.
         """
-        self._validate_wip_strategy(psp.shopfloor)
         server_triggered = triggering_job.previous_server
 
         if server_triggered is None:
