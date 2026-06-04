@@ -151,8 +151,18 @@ convenience.)
 **WIP strategy: set, not check.** `LumsCor`/`ContinuousRelease` *set*
 `CorrectedWIPStrategy` in `__init__`. `SlarLimit` currently *checks* (raises if
 not set); it changes to *set* it too, for "impossible to mis-wire" consistency.
-The `_validate_wip_strategy` guards inside the release methods remain as
-defensive no-ops (now always satisfied).
+The now-redundant `_validate_wip_strategy` guards (and the tests that assert they
+raise) are **removed** — once `__init__` guarantees the strategy they are
+unreachable dead code, and the 99% branch-coverage gate forbids dead branches.
+
+**Test consequence.** Self-wiring couples policy construction to a full
+`(shopfloor, psp, router)` and activates `on_arrival(starvation_avoidance)` at
+construction. The policy unit tests (`test_lumscor.py`, `test_conwip.py`,
+`test_continuous_release.py`) are therefore rewritten to the existing `Slar`-test
+style: construct the policy with `router=Mock()` where the router is incidental,
+and advance the clock so the first server is busy before adding a PSP candidate
+(so `starvation_avoidance` does not pre-empt the branch under test). The
+"requires CorrectedWIPStrategy" tests are deleted.
 
 The composable trigger functions (`periodic_trigger`, `on_completion_trigger`,
 `on_arrival_trigger`) stay public and unchanged — policies use them internally,
