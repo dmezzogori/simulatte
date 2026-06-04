@@ -60,6 +60,7 @@ dev = [
     "pre-commit>=3.3.3",
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",
+    "pytest-timeout>=2.3.0",
     "pyyaml>=6.0",
     "ruff>=0.1.5",
     "ty>=0.0.1a32",
@@ -69,6 +70,12 @@ dev = [
 [tool.pytest.ini_options]
 addopts = "--cov=src/simulatte --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=99 -v"
 testpaths = ["tests"]
+# Per-test timeout: a hung test fails fast with a full thread-stack dump instead of
+# stalling the job to the 20-min runner cap. The `thread` method dumps every thread's
+# traceback and hard-exits, so it catches hangs even in C calls or non-main threads.
+# Set as ini keys (not in addopts) so the PyPy lane's `-o addopts=...` override keeps them.
+timeout = 60
+timeout_method = "thread"
 
 [tool.coverage.run]
 omit = ["tests/*"]
