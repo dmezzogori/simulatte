@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import random
+
 import pytest
 
 from simulatte.distributions import general_flow_shop_routing, pure_flow_shop_routing, pure_job_shop_routing
+from simulatte.environment import Environment
+from simulatte.psp import PreShopPool
 from simulatte.scenario import Scenario, ShopType
+from simulatte.shopfloor import ShopFloor
 
 
 def test_default_scenario_is_pure_job_shop() -> None:
@@ -49,3 +54,35 @@ def test_routing_for_maps_shop_type_to_factory() -> None:
     assert Scenario.pure_job_shop().routing_for() is pure_job_shop_routing
     assert Scenario.general_flow_shop().routing_for() is general_flow_shop_routing
     assert Scenario.pure_flow_shop().routing_for() is pure_flow_shop_routing
+
+
+def test_build_floor_creates_servers() -> None:
+    with Environment() as env:
+        sf, servers = Scenario(n_servers=4).build_floor(env)
+        assert isinstance(sf, ShopFloor)
+        assert len(servers) == 4
+
+
+def test_build_router_runs_pure_flow_shop_routing() -> None:
+    random.seed(42)
+    with Environment() as env:
+        scenario = Scenario.pure_flow_shop(n_servers=6)
+        sf, servers = scenario.build_floor(env)
+        scenario.build_router(env, sf, servers, psp=None)
+        env.run(until=200.0)
+        assert len(sf.jobs_done) > 0
+        for job in sf.jobs_done:
+            assert list(job.servers) == list(servers)
+
+
+def test_build_router_applies_twk_due_dates() -> None:
+    random.seed(42)
+    k = 8.0
+    with Environment() as env:
+        scenario = Scenario.pure_job_shop(twk_allowance_factor=k)
+        sf, servers = scenario.build_floor(env)
+        psp = PreShopPool(env=env, shopfloor=sf)
+        scenario.build_router(env, sf, servers, psp=psp)
+        env.run(until=50.0)
+        job = next(iter(psp.jobs))
+        assert job.due_date == pytest.approx(job.created_at + k * sum(job.processing_times))

@@ -9,6 +9,7 @@ methods and shops vary independently.
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -18,12 +19,18 @@ from simulatte.distributions import (
     general_flow_shop_routing,
     pure_flow_shop_routing,
     pure_job_shop_routing,
+    truncated_2erlang,
+    twk_due_date,
 )
+from simulatte.router import Router
+from simulatte.server import Server
+from simulatte.shopfloor import CurrentWorkLoadCollector, ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable, Sequence
 
-    from simulatte.server import Server
+    from simulatte.environment import Environment
+    from simulatte.psp import PreShopPool
 
 
 class ShopType(Enum):
@@ -97,4 +104,63 @@ class Scenario:
             n_servers=self.n_servers,
             mean_routing_length=self.mean_routing_length,
             mean_processing_time=2.0 / self.service_rate,
+        )
+
+    def build_floor(
+        self,
+        env: Environment,
+        *,
+        collect_workload: bool = False,
+        collect_time_series: bool = False,
+        retain_job_history: bool = False,
+    ) -> tuple[ShopFloor, tuple[Server, ...]]:
+        """Create the ShopFloor and ``n_servers`` single-capacity servers."""
+        shop_floor = ShopFloor(
+            env=env,
+            time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+        )
+        servers = tuple(
+            Server(
+                env=env,
+                capacity=1,
+                shopfloor=shop_floor,
+                collect_time_series=collect_time_series,
+                retain_job_history=retain_job_history,
+            )
+            for _ in range(self.n_servers)
+        )
+        return shop_floor, servers
+
+    def build_router(
+        self,
+        env: Environment,
+        shop_floor: ShopFloor,
+        servers: Sequence[Server],
+        *,
+        psp: PreShopPool | None,
+        priority_policies: Callable[..., float] | None = None,
+    ) -> Router:
+        """Assemble the Router: derived arrival rate, routing factory, 2-Erlang service times, due dates."""
+        rate = self.resolved_arrival_rate()
+        due_date_rule = (
+            {self.sku: twk_due_date(self.twk_allowance_factor)} if self.twk_allowance_factor is not None else None
+        )
+        factory = self.routing_for()
+        return Router(
+            env=env,
+            shopfloor=shop_floor,
+            servers=servers,
+            psp=psp,
+            inter_arrival_distribution=lambda: random.expovariate(rate),
+            sku_distributions={self.sku: 1},
+            sku_routings={self.sku: factory(servers)},
+            sku_service_times={
+                self.sku: {
+                    server: lambda: truncated_2erlang(lam=self.service_rate, max_value=self.service_max)
+                    for server in servers
+                },
+            },
+            due_date_offset_distribution={self.sku: lambda: random.uniform(*self.due_date_offset_range)},  # noqa: S311
+            due_date_rule=due_date_rule,
+            priority_policies=priority_policies,
         )
