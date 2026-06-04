@@ -13,9 +13,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from simulatte.policies.triggers import on_completion_trigger
+
 if TYPE_CHECKING:
     from simulatte.job import ProductionJob
     from simulatte.psp import PreShopPool
+    from simulatte.shopfloor import ShopFloor
 
 
 class ConWIP:
@@ -32,20 +35,22 @@ class ConWIP:
     - ``on_arrival_release``: Wired via ``psp.on_arrival()``. When a job enters the
       PSP, immediately releases it if shop WIP is under the cap.
 
+    Construction is *active* (like ``Slar``): the instance wires a
+    completion-triggered release and ``on_arrival_release`` on PSP arrival.
+
     Example:
-        >>> from simulatte.policies.triggers import on_completion_trigger
-        >>> conwip = ConWIP(wip_cap=12)
-        >>> psp = PreShopPool(env=env, shopfloor=shopfloor)
-        >>> psp.on_arrival(conwip.on_arrival_release)
-        >>> env.process(on_completion_trigger(shopfloor, psp, conwip.on_completion_release))
+        ```python
+        conwip = ConWIP(shopfloor=shopfloor, psp=psp, wip_cap=12)
+        ```
     """
 
-    def __init__(self, wip_cap: int) -> None:
-        """Initialize the ConWIP release policy.
+    def __init__(self, *, shopfloor: ShopFloor, psp: PreShopPool, wip_cap: int) -> None:
+        """Initialize ConWIP and wire it into the system.
 
         Args:
-            wip_cap: Maximum number of jobs allowed on the shopfloor simultaneously.
-                Must be >= 1.
+            shopfloor: The shopfloor whose completions drive release.
+            psp: The Pre-Shop Pool to release from.
+            wip_cap: Maximum jobs on the floor at once. Must be >= 1.
 
         Raises:
             ValueError: If wip_cap < 1.
@@ -54,6 +59,8 @@ class ConWIP:
             msg = f"wip_cap must be >= 1, got {wip_cap}"
             raise ValueError(msg)
         self.wip_cap = wip_cap
+        psp.env.process(on_completion_trigger(shopfloor, psp, self.on_completion_release))
+        psp.on_arrival(self.on_arrival_release)
 
     def on_completion_release(self, triggering_job: ProductionJob, psp: PreShopPool) -> None:
         """On job completion, release PSP jobs (by EDD) until WIP cap is reached.

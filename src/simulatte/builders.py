@@ -594,9 +594,7 @@ def build_conwip_system(
         },
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
     )
-    conwip = ConWIP(wip_cap=wip_cap)
-    env.process(on_completion_trigger(shop_floor, psp, conwip.on_completion_release))
-    psp.on_arrival(conwip.on_arrival_release)
+    ConWIP(shopfloor=shop_floor, psp=psp, wip_cap=wip_cap)
 
     return psp, servers, shop_floor, router
 
