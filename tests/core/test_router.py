@@ -53,6 +53,34 @@ def test_generate_job_adds_to_psp_and_sets_attributes() -> None:
         assert all(v is None for v in job.servers_exit_at.values())
 
 
+def test_due_date_rule_overrides_offset_with_work_content() -> None:
+    """A per-SKU due_date_rule sets the due date from the job's total work content."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    Router(
+        env=env,
+        shopfloor=sf,
+        servers=[server],
+        psp=psp,
+        inter_arrival_distribution=lambda: 1.0,
+        sku_distributions={"A": 1.0},
+        sku_routings={"A": lambda: [server]},
+        sku_service_times={"A": {server: lambda: 2.0}},
+        due_date_offset_distribution={"A": lambda: 999.0},  # ignored when a rule applies
+        due_date_rule={"A": lambda processing_times: 5.0 * sum(processing_times)},
+    )
+
+    env.run(until=1.1)
+
+    job = next(iter(psp.jobs))
+    # First arrival at t=1.0; total work content 2.0; K=5 -> allowance 10.0 -> due 11.0.
+    assert job.created_at == pytest.approx(1.0)
+    assert job.due_date == pytest.approx(11.0)
+
+
 def test_generate_job_directly_to_shopfloor_when_no_psp() -> None:
     """Jobs should go directly to shopfloor when psp is None (push system)."""
 

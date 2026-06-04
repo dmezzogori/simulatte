@@ -9,6 +9,7 @@ EXAMPLES = ROOT / "examples"
 
 # doc page -> example script that must be embedded verbatim in a { .run } block
 PAIRS = {
+    "benchmark-shops.md": "gallery_benchmark_shops.py",
     "dispatching-stateless.md": "gallery_dispatching_stateless.py",
     "dispatching-parameterized.md": "gallery_dispatching_parameterized.py",
     "dispatching-focus.md": "gallery_dispatching_focus.py",

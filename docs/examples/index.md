@@ -7,6 +7,7 @@ render inline beneath the text output.
 
 | Gallery | Domain | Mechanisms covered |
 |---------|--------|--------------------|
+| [Benchmark shop environments](benchmark-shops.md) | Production | Pure Job Shop, General Flow Shop, Pure Flow Shop |
 | [Dispatching — stateless](dispatching-stateless.md) | Production | SPT, EDD, ODD, MODD, CR, FCFS, WINQ |
 | [Dispatching — parameterized](dispatching-parameterized.md) | Production | PST, S/RO, ATC, COVERT, Raghu-Rajendran |
 | [Dispatching — system-state](dispatching-focus.md) | Production | FOCUS |

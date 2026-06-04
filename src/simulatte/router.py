@@ -55,6 +55,7 @@ class Router:
         ],
         due_date_offset_distribution: dict[str, Distribution[float]],
         priority_policies: Callable[[ProductionJob, Server], float] | None = None,
+        due_date_rule: dict[str, Callable[[Sequence[float]], float]] | None = None,
     ) -> None:
         """Initialize the Router and start the job generation process.
 
@@ -76,6 +77,13 @@ class Router:
                 offset used to compute due date (``due_date = now + offset``).
             priority_policies: Optional callable ``(job, server) -> float`` for
                 computing job priority at each server.
+            due_date_rule: Optional per-SKU mapping to a callable
+                ``(processing_times) -> float`` that derives the due-date offset
+                from the job's sampled operation processing times (its total work
+                content). When a SKU has an entry here it **takes precedence** over
+                ``due_date_offset_distribution`` for that SKU; otherwise the flat
+                offset is used. This enables work-content due-date rules such as
+                Total Work Content (TWK): ``due_date = now + K * sum(p_ij)``.
 
         Example:
             >>> router = Router(
@@ -101,6 +109,7 @@ class Router:
         self.sku_service_times = sku_service_times
         self.due_date_offset_distribution = due_date_offset_distribution
         self.priority_policies = priority_policies
+        self.due_date_rule = due_date_rule
 
         self.env.process(self.generate_job())
 
@@ -131,7 +140,15 @@ class Router:
 
             routing = self.sku_routings[sku]()
             service_times = tuple(self.sku_service_times[sku][server]() for server in routing)
-            waiting_time = self.due_date_offset_distribution[sku]()
+
+            # A per-SKU due_date_rule (e.g. Total Work Content) derives the offset
+            # from the job's total work content and takes precedence over the flat
+            # due_date_offset_distribution; otherwise fall back to the flat offset.
+            rule = None if self.due_date_rule is None else self.due_date_rule.get(sku)
+            if rule is not None:
+                waiting_time = rule(service_times)
+            else:
+                waiting_time = self.due_date_offset_distribution[sku]()
 
             job = ProductionJob(
                 env=self.env,

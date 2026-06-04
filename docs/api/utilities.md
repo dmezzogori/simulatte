@@ -38,14 +38,49 @@ records simulation events and can emit them as JSON, plain text, or to a SQLite 
       heading_level: 3
       members: false
 
+::: simulatte.builders.build_pure_job_shop_system
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.builders.build_general_flow_shop_system
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.builders.build_pure_flow_shop_system
+    options:
+      heading_level: 3
+      members: false
+
 ## Distributions
 
-::: simulatte.distributions.server_sampling
+::: simulatte.distributions.pure_job_shop_routing
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.distributions.general_flow_shop_routing
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.distributions.pure_flow_shop_routing
     options:
       heading_level: 3
       members: false
 
 ::: simulatte.distributions.truncated_2erlang
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.distributions.arrival_rate_for_utilization
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.distributions.twk_due_date
     options:
       heading_level: 3
       members: false

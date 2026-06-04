@@ -36,7 +36,7 @@ from simulatte.builders import (
     build_immediate_release_system,
     build_starvation_avoidance_system,
 )
-from simulatte.distributions import server_sampling, truncated_2erlang
+from simulatte.distributions import pure_job_shop_routing, truncated_2erlang
 from simulatte.environment import Environment
 from simulatte.policies.triggers import periodic_trigger
 from simulatte.psp import PreShopPool
@@ -63,7 +63,7 @@ def build_periodic_release(env: Environment, interval: float = 10.0):
         psp=psp,
         inter_arrival_distribution=lambda: random.expovariate(ARRIVAL_RATE),
         sku_distributions={"F1": 1},
-        sku_routings={"F1": server_sampling(servers)},
+        sku_routings={"F1": pure_job_shop_routing(servers)},
         sku_service_times={"F1": {s: lambda: truncated_2erlang(lam=SERVICE_RATE, max_value=4.0) for s in servers}},
         due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
     )

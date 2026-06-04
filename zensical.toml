@@ -36,6 +36,7 @@ nav = [
   ]},
   { "Examples" = [
     { "Overview" = "examples/index.md" },
+    { "Benchmark shop environments" = "examples/benchmark-shops.md" },
     { "Dispatching — stateless rules" = "examples/dispatching-stateless.md" },
     { "Dispatching — parameterized rules" = "examples/dispatching-parameterized.md" },
     { "Dispatching — system-state (FOCUS)" = "examples/dispatching-focus.md" },

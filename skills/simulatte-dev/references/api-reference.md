@@ -424,6 +424,10 @@ from simulatte.builders import (
     build_slar_system,
     build_slar_limit_system,
     build_draco_system,
+    # Benchmark shop environments (push baselines):
+    build_pure_job_shop_system,
+    build_general_flow_shop_system,
+    build_pure_flow_shop_system,
 )
 ```
 
@@ -528,6 +532,33 @@ build_draco_system(
 
 Non-hierarchical release+dispatch. Wires `Draco.priority_policy`, `shopfloor.on_processing_end(Draco.decide_next_job)`, and `psp.on_arrival(starvation_avoidance)`.
 
+### Benchmark shop environments (PJS / GFS / PFS)
+
+```python
+build_pure_job_shop_system(             # PJS: random length U[1,M], undirected (random order)
+    env: Environment,
+    *,
+    n_servers: int = 6,
+    target_utilization: float = 0.90,   # arrival_rate is DERIVED from this, not passed
+    service_rate: float = 2.0,
+    due_date_offset_range: tuple[float, float] = (30.0, 45.0),
+    twk_allowance_factor: float | None = None,   # set -> TWK due dates d = arrival + K*sum(p_ij)
+    collect_workload: bool = False,
+) -> PushSystem  # (None, servers, shopfloor, router)
+```
+
+`build_general_flow_shop_system` (GFS: directed/sorted routing, `E[L]=(M+1)/2`)
+and `build_pure_flow_shop_system` (PFS: every job visits all machines in fixed
+order, `E[L]=M`) share the identical signature. The exponential arrival rate is
+**derived per shop type** via `arrival_rate_for_utilization(rho, n_servers=M,
+mean_routing_length=E[L], mean_processing_time=2/service_rate)` so `rho` is held
+constant across shops — the PFS therefore arrives slower (mean inter-arrival
+1.111) than the job shop / general flow shop (0.648). Reusing one arrival rate
+across shop types would drive the PFS unstable (`rho > 1`). Underlying routing
+factories live in `simulatte.distributions`: `pure_job_shop_routing` (renamed
+from `server_sampling`), `general_flow_shop_routing`, `pure_flow_shop_routing`;
+plus helpers `arrival_rate_for_utilization` and `twk_due_date`.
+
 ## Dispatching Rules
 
 ```python
@@ -605,11 +636,18 @@ Weight order is `(π, ξ, τ, δ, β)` = `(pi, omega, psi, gamma, beta)` — the
 ## Distribution Helpers
 
 ```python
-from simulatte.distributions import server_sampling, truncated_2erlang, RunningStats
+from simulatte.distributions import pure_job_shop_routing, truncated_2erlang, RunningStats
 ```
 
-- `server_sampling(servers) -> Callable[[], Sequence[Server]]` — returns a
-  factory that samples random subsets (1 to len) without replacement.
+- `pure_job_shop_routing(servers) -> Callable[[], Sequence[Server]]` — Pure Job
+  Shop (PJS) routing: random length `U[1, len]`, random order, without
+  replacement (no re-entry).
+- `general_flow_shop_routing(servers) -> Callable[[], Sequence[Server]]` —
+  General Flow Shop (GFS) routing: random length `U[1, len]`, subset sorted into
+  a directed flow (ascending server index).
+- `pure_flow_shop_routing(servers) -> Callable[[], Sequence[Server]]` — Pure
+  Flow Shop (PFS) routing: every job visits all servers in the same fixed
+  (directed) sequence.
 - `truncated_2erlang(lam=2, max_value=4.0) -> float` — single sample from
   Gamma(2, 1/lam), truncated at max_value. Mean = 2/lam.
 - `RunningStats` — Welford's algorithm for online mean/variance/std.

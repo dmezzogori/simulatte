@@ -6,7 +6,14 @@ import random
 from typing import TYPE_CHECKING
 
 from simulatte.dispatching_rules import Focus, FocusPriorityRule, planned_slack_time
-from simulatte.distributions import server_sampling, truncated_2erlang
+from simulatte.distributions import (
+    arrival_rate_for_utilization,
+    general_flow_shop_routing,
+    pure_flow_shop_routing,
+    pure_job_shop_routing,
+    truncated_2erlang,
+    twk_due_date,
+)
 from simulatte.environment import Environment
 from simulatte.policies.continuous_release import ContinuousRelease
 from simulatte.policies.conwip import ConWIP
@@ -22,7 +29,7 @@ from simulatte.server import Server
 from simulatte.shopfloor import CorrectedWIPStrategy, CurrentWorkLoadCollector, ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from simulatte.job import ProductionJob
     from simulatte.typing import PullSystem, PushSystem
@@ -91,7 +98,7 @@ def build_immediate_release_system(
         psp=None,
         inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
         sku_distributions={"F1": 1},
-        sku_routings={"F1": server_sampling(servers)},
+        sku_routings={"F1": pure_job_shop_routing(servers)},
         sku_service_times={
             "F1": {
                 server: lambda: truncated_2erlang(
@@ -163,7 +170,7 @@ def build_focus_system(
         psp=None,
         inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
         sku_distributions={"F1": 1},
-        sku_routings={"F1": server_sampling(servers)},
+        sku_routings={"F1": pure_job_shop_routing(servers)},
         sku_service_times={
             "F1": {
                 server: lambda: truncated_2erlang(
@@ -240,7 +247,7 @@ def build_lumscor_system(
         psp=psp,
         inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
         sku_distributions={"F1": 1},
-        sku_routings={"F1": server_sampling(servers)},
+        sku_routings={"F1": pure_job_shop_routing(servers)},
         sku_service_times={
             "F1": {
                 server: lambda: truncated_2erlang(
@@ -320,7 +327,7 @@ def build_slar_system(
         psp=psp,
         inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
         sku_distributions={"F1": 1},
-        sku_routings={"F1": server_sampling(servers)},
+        sku_routings={"F1": pure_job_shop_routing(servers)},
         sku_service_times={
             "F1": {
                 server: lambda: truncated_2erlang(
@@ -402,7 +409,7 @@ def build_slar_limit_system(
         psp=psp,
         inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
         sku_distributions={"F1": 1},
-        sku_routings={"F1": server_sampling(servers)},
+        sku_routings={"F1": pure_job_shop_routing(servers)},
         sku_service_times={
             "F1": {
                 server: lambda: truncated_2erlang(
@@ -497,7 +504,7 @@ def build_draco_system(
         psp=psp,
         inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
         sku_distributions={"F1": 1},
-        sku_routings={"F1": server_sampling(servers)},
+        sku_routings={"F1": pure_job_shop_routing(servers)},
         sku_service_times={
             "F1": {
                 server: lambda: truncated_2erlang(
@@ -573,7 +580,7 @@ def build_conwip_system(
         psp=psp,
         inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
         sku_distributions={"F1": 1},
-        sku_routings={"F1": server_sampling(servers)},
+        sku_routings={"F1": pure_job_shop_routing(servers)},
         sku_service_times={
             "F1": {
                 server: lambda: truncated_2erlang(
@@ -647,7 +654,7 @@ def build_continuous_release_system(
         psp=psp,
         inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
         sku_distributions={"F1": 1},
-        sku_routings={"F1": server_sampling(servers)},
+        sku_routings={"F1": pure_job_shop_routing(servers)},
         sku_service_times={
             "F1": {
                 server: lambda: truncated_2erlang(
@@ -712,7 +719,7 @@ def build_starvation_avoidance_system(
         psp=psp,
         inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
         sku_distributions={"F1": 1},
-        sku_routings={"F1": server_sampling(servers)},
+        sku_routings={"F1": pure_job_shop_routing(servers)},
         sku_service_times={
             "F1": {
                 server: lambda: truncated_2erlang(
@@ -734,3 +741,247 @@ def build_starvation_avoidance_system(
     shop_floor.on_processing_end(_release_idle_first_server)
 
     return psp, servers, shop_floor, router
+
+
+def _build_benchmark_shop(
+    env: Environment,
+    *,
+    routing_factory: Callable[[Sequence[Server]], Callable[[], Sequence[Server]]],
+    mean_routing_length: float,
+    n_servers: int,
+    target_utilization: float,
+    service_rate: float,
+    due_date_offset_range: tuple[float, float],
+    twk_allowance_factor: float | None,
+    collect_workload: bool,
+) -> PushSystem:
+    """Wire an immediate-release (push) benchmark shop for a given routing factory.
+
+    Shared core of the preconfigured PPC benchmark shops. Builds ``n_servers``
+    single-capacity servers, derives the exponential arrival rate from the target
+    utilization and the shop's mean routing length
+    (``rho = lambda * E[L] * E[p] / M``), and assembles a push ``Router`` whose
+    routing structure is supplied by ``routing_factory``. Optionally applies a
+    Total Work Content (TWK) due-date rule in place of the flat uniform allowance.
+    """
+    shop_floor = ShopFloor(
+        env=env,
+        time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+    )
+    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(n_servers))
+    arrival_rate = arrival_rate_for_utilization(
+        target_utilization,
+        n_servers=n_servers,
+        mean_routing_length=mean_routing_length,
+        mean_processing_time=2.0 / service_rate,
+    )
+    due_date_rule = {"F1": twk_due_date(twk_allowance_factor)} if twk_allowance_factor is not None else None
+    router = Router(
+        env=env,
+        shopfloor=shop_floor,
+        servers=servers,
+        psp=None,
+        inter_arrival_distribution=lambda: random.expovariate(arrival_rate),
+        sku_distributions={"F1": 1},
+        sku_routings={"F1": routing_factory(servers)},
+        sku_service_times={
+            "F1": {
+                server: lambda: truncated_2erlang(
+                    lam=service_rate,
+                    max_value=4.0,
+                )
+                for server in servers
+            },
+        },
+        due_date_offset_distribution={"F1": lambda: random.uniform(*due_date_offset_range)},  # noqa: S311
+        due_date_rule=due_date_rule,
+    )
+    return None, servers, shop_floor, router
+
+
+def build_pure_job_shop_system(
+    env: Environment,
+    *,
+    n_servers: int = 6,
+    target_utilization: float = 0.90,
+    service_rate: float = 2.0,
+    due_date_offset_range: tuple[float, float] = (30.0, 45.0),
+    twk_allowance_factor: float | None = None,
+    collect_workload: bool = False,
+) -> PushSystem:
+    """Build a Pure Job Shop (PJS) benchmark environment.
+
+    The Pure Job Shop — a *randomly routed job shop* — is the least directed
+    standard benchmark: each order has a random routing length ``U[1, M]`` and a
+    random routing direction (undirected), visiting each machine at most once
+    (no re-entry). Jobs enter the shopfloor immediately on arrival (push /
+    uncontrolled release), the canonical baseline against which release and
+    dispatching strategies are compared.
+
+    The arrival rate is **derived** from ``target_utilization`` and the shop's
+    mean routing length ``E[L] = (M + 1) / 2`` so the shop runs at the requested
+    utilization regardless of ``n_servers`` (at the defaults this reproduces the
+    literature's mean inter-arrival time of 0.648).
+
+    Args:
+        env: The simulation environment.
+        n_servers: Number of single-capacity work centres ``M``.
+        target_utilization: Target steady-state utilization ``rho`` in (0, 1].
+        service_rate: Rate ``lambda`` of the truncated 2-Erlang processing-time
+            distribution (mean ``2 / service_rate``).
+        due_date_offset_range: Range ``(low, high)`` for the uniform due-date
+            allowance added to each job's arrival time. Ignored when
+            ``twk_allowance_factor`` is set.
+        twk_allowance_factor: If set, use a Total Work Content due-date rule
+            ``due_date = arrival + K * sum(p_ij)`` with ``K = twk_allowance_factor``
+            instead of the flat uniform allowance.
+        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+
+    Returns:
+        Tuple of ``(None, servers, shop_floor, router)`` (push system; no PSP).
+
+    Example:
+        >>> env = Environment()
+        >>> _, servers, shop_floor, router = build_pure_job_shop_system(env)
+        >>> env.run(until=1000)
+
+    References:
+        Kasper, A., Land, M., & Teunter, R. (2023). Towards system state
+        dispatching in high-variety manufacturing. *Omega*, 114, 102726.
+        https://doi.org/10.1016/j.omega.2022.102726
+    """
+    return _build_benchmark_shop(
+        env,
+        routing_factory=pure_job_shop_routing,
+        mean_routing_length=(n_servers + 1) / 2,
+        n_servers=n_servers,
+        target_utilization=target_utilization,
+        service_rate=service_rate,
+        due_date_offset_range=due_date_offset_range,
+        twk_allowance_factor=twk_allowance_factor,
+        collect_workload=collect_workload,
+    )
+
+
+def build_general_flow_shop_system(
+    env: Environment,
+    *,
+    n_servers: int = 6,
+    target_utilization: float = 0.90,
+    service_rate: float = 2.0,
+    due_date_offset_range: tuple[float, float] = (30.0, 45.0),
+    twk_allowance_factor: float | None = None,
+    collect_workload: bool = False,
+) -> PushSystem:
+    """Build a General Flow Shop (GFS) benchmark environment.
+
+    The General Flow Shop is the *directed* counterpart of the Pure Job Shop:
+    each order has the same random routing length ``U[1, M]`` and equal
+    per-machine inclusion probability, but the selected machines are sorted into
+    ascending index order so orders flow in a single direction with typical
+    upstream and downstream stations. No re-entry. Jobs enter the shopfloor
+    immediately on arrival (push / uncontrolled release).
+
+    The arrival rate is **derived** from ``target_utilization`` and the shop's
+    mean routing length ``E[L] = (M + 1) / 2`` (identical to the Pure Job Shop;
+    only the routing *direction* differs), reproducing the literature's mean
+    inter-arrival time of 0.648 at the defaults.
+
+    Args:
+        env: The simulation environment.
+        n_servers: Number of single-capacity work centres ``M``.
+        target_utilization: Target steady-state utilization ``rho`` in (0, 1].
+        service_rate: Rate ``lambda`` of the truncated 2-Erlang processing-time
+            distribution (mean ``2 / service_rate``).
+        due_date_offset_range: Range ``(low, high)`` for the uniform due-date
+            allowance. Ignored when ``twk_allowance_factor`` is set.
+        twk_allowance_factor: If set, use a Total Work Content due-date rule
+            (``due_date = arrival + K * sum(p_ij)``) instead of the flat allowance.
+        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+
+    Returns:
+        Tuple of ``(None, servers, shop_floor, router)`` (push system; no PSP).
+
+    Example:
+        >>> env = Environment()
+        >>> _, servers, shop_floor, router = build_general_flow_shop_system(env)
+        >>> env.run(until=1000)
+
+    References:
+        Oosterman, B., Land, M., & Gaalman, G. (2000). The influence of shop
+        characteristics on workload control. *International Journal of
+        Production Economics*, 68(1), 107-119.
+        https://doi.org/10.1016/S0925-5273(99)00141-3
+    """
+    return _build_benchmark_shop(
+        env,
+        routing_factory=general_flow_shop_routing,
+        mean_routing_length=(n_servers + 1) / 2,
+        n_servers=n_servers,
+        target_utilization=target_utilization,
+        service_rate=service_rate,
+        due_date_offset_range=due_date_offset_range,
+        twk_allowance_factor=twk_allowance_factor,
+        collect_workload=collect_workload,
+    )
+
+
+def build_pure_flow_shop_system(
+    env: Environment,
+    *,
+    n_servers: int = 6,
+    target_utilization: float = 0.90,
+    service_rate: float = 2.0,
+    due_date_offset_range: tuple[float, float] = (30.0, 45.0),
+    twk_allowance_factor: float | None = None,
+    collect_workload: bool = False,
+) -> PushSystem:
+    """Build a Pure Flow Shop (PFS) benchmark environment.
+
+    The Pure Flow Shop is the most directed benchmark: every order has a fixed
+    routing length equal to the number of machines and visits *all* servers in
+    the same fixed (directed) sequence. Jobs enter the shopfloor immediately on
+    arrival (push / uncontrolled release).
+
+    Because every order visits every machine, the mean routing length is
+    ``E[L] = M`` rather than ``(M + 1) / 2``. The arrival rate is **derived**
+    accordingly, reproducing the literature's mean inter-arrival time of 1.111 at
+    the defaults. (Reusing the job-shop rate of 1/0.648 here would drive
+    ``rho ~ 1.54`` and the shop unstable — the derivation avoids that trap.)
+
+    Args:
+        env: The simulation environment.
+        n_servers: Number of single-capacity work centres ``M``.
+        target_utilization: Target steady-state utilization ``rho`` in (0, 1].
+        service_rate: Rate ``lambda`` of the truncated 2-Erlang processing-time
+            distribution (mean ``2 / service_rate``).
+        due_date_offset_range: Range ``(low, high)`` for the uniform due-date
+            allowance. Ignored when ``twk_allowance_factor`` is set.
+        twk_allowance_factor: If set, use a Total Work Content due-date rule
+            (``due_date = arrival + K * sum(p_ij)``) instead of the flat allowance.
+        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+
+    Returns:
+        Tuple of ``(None, servers, shop_floor, router)`` (push system; no PSP).
+
+    Example:
+        >>> env = Environment()
+        >>> _, servers, shop_floor, router = build_pure_flow_shop_system(env)
+        >>> env.run(until=1000)
+
+    References:
+        Kasper, A., Land, M., & Teunter, R. (2023). Towards system state
+        dispatching in high-variety manufacturing. *Omega*, 114, 102726.
+        https://doi.org/10.1016/j.omega.2022.102726
+    """
+    return _build_benchmark_shop(
+        env,
+        routing_factory=pure_flow_shop_routing,
+        mean_routing_length=n_servers,
+        n_servers=n_servers,
+        target_utilization=target_utilization,
+        service_rate=service_rate,
+        due_date_offset_range=due_date_offset_range,
+        twk_allowance_factor=twk_allowance_factor,
+        collect_workload=collect_workload,
+    )

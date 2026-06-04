@@ -57,6 +57,13 @@ def test_gallery_dispatching_focus_runs() -> None:
     assert "%Tardy" in out
 
 
+def test_gallery_benchmark_shops_runs() -> None:
+    out = _run("gallery_benchmark_shops.py")
+    for name in ("PureJobShop", "GeneralFlowShop", "PureFlowShop"):
+        assert name in out
+    assert "%Tardy" in out
+
+
 def test_gallery_release_workload_runs() -> None:
     out = _run("gallery_release_workload.py")
     for name in ("Immediate", "LumsCor", "SLAR", "SLAR-Limit", "Continuous"):
@@ -82,6 +89,7 @@ def test_all_gallery_scripts_are_listed() -> None:
     # Guard: every gallery_*.py has a runpy test above.
     scripts = sorted(p.name for p in EXAMPLES.glob("gallery_*.py"))
     assert scripts == [
+        "gallery_benchmark_shops.py",
         "gallery_dispatching_focus.py",
         "gallery_dispatching_parameterized.py",
         "gallery_dispatching_stateless.py",
