@@ -6,13 +6,182 @@ as well as online statistics computation for simulation metrics.
 
 from __future__ import annotations
 
+import math
 import random
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable, Sequence
 
     from simulatte.server import Server
+
+
+@runtime_checkable
+class Distribution(Protocol):
+    """A callable random variate that also reports its analytical mean.
+
+    Any object that is callable with no arguments returning a ``float`` and
+    exposes a ``mean`` property satisfies this protocol. The ``Router`` only
+    needs the callable side (the ``Sampler`` contract); ``Scenario`` reads
+    ``.mean`` to derive the arrival rate for a target utilization.
+    """
+
+    def __call__(self) -> float: ...
+
+    @property
+    def mean(self) -> float: ...
+
+
+def _erlang_cdf(shape: int, rate: float, x: float) -> float:
+    """Regularized lower incomplete gamma P(shape, rate*x) for integer shape.
+
+    Equivalent to the Erlang CDF ``1 - e^{-λx} Σ_{n=0}^{k-1} (λx)^n / n!``.
+    Computed with elementary functions (no SciPy).
+    """
+    lam_x = rate * x
+    total = 0.0
+    term = 1.0  # (lam_x)^0 / 0!
+    for n in range(shape):
+        if n > 0:
+            term *= lam_x / n
+        total += term
+    return 1.0 - math.exp(-lam_x) * total
+
+
+@dataclass(frozen=True)
+class Exponential:
+    """Exponential distribution with rate ``rate`` (mean ``1/rate``)."""
+
+    rate: float
+
+    def __post_init__(self) -> None:
+        if self.rate <= 0:
+            msg = f"rate must be positive, got {self.rate}"
+            raise ValueError(msg)
+
+    def __call__(self) -> float:
+        return random.expovariate(self.rate)
+
+    @property
+    def mean(self) -> float:
+        return 1.0 / self.rate
+
+
+@dataclass(frozen=True)
+class Erlang:
+    """Erlang (Gamma with integer ``shape``) distribution, mean ``shape/rate``."""
+
+    rate: float
+    shape: int = 2
+
+    def __post_init__(self) -> None:
+        if self.rate <= 0:
+            msg = f"rate must be positive, got {self.rate}"
+            raise ValueError(msg)
+        if self.shape < 1:
+            msg = f"shape must be >= 1, got {self.shape}"
+            raise ValueError(msg)
+
+    def __call__(self) -> float:
+        return random.gammavariate(self.shape, 1.0 / self.rate)
+
+    @property
+    def mean(self) -> float:
+        return self.shape / self.rate
+
+
+@dataclass(frozen=True)
+class TruncatedErlang:
+    """Erlang truncated to ``[0, max_value]`` by rejection resampling.
+
+    The default ``shape=2`` reproduces the classic truncated 2-Erlang service
+    process. ``mean`` is the TRUE conditional mean ``E[X | X <= max_value]``,
+    strictly below the nominal ``shape/rate`` whenever ``max_value`` is finite.
+    """
+
+    rate: float
+    shape: int = 2
+    max_value: float = math.inf
+
+    def __post_init__(self) -> None:
+        if self.rate <= 0:
+            msg = f"rate must be positive, got {self.rate}"
+            raise ValueError(msg)
+        if self.shape < 1:
+            msg = f"shape must be >= 1, got {self.shape}"
+            raise ValueError(msg)
+        if self.max_value <= 0:
+            msg = f"max_value must be positive, got {self.max_value}"
+            raise ValueError(msg)
+
+    def __call__(self) -> float:
+        while True:
+            sample = sum(random.expovariate(self.rate) for _ in range(self.shape))
+            if sample <= self.max_value:
+                return sample
+
+    @property
+    def mean(self) -> float:
+        if math.isinf(self.max_value):
+            return self.shape / self.rate
+        numerator = _erlang_cdf(self.shape + 1, self.rate, self.max_value)
+        denominator = _erlang_cdf(self.shape, self.rate, self.max_value)
+        return (self.shape / self.rate) * numerator / denominator
+
+
+@dataclass(frozen=True)
+class LogNormal:
+    """Lognormal distribution with underlying-normal params ``mu``/``sigma``."""
+
+    mu: float
+    sigma: float
+
+    def __post_init__(self) -> None:
+        if self.sigma <= 0:
+            msg = f"sigma must be positive, got {self.sigma}"
+            raise ValueError(msg)
+
+    def __call__(self) -> float:
+        return random.lognormvariate(self.mu, self.sigma)
+
+    @property
+    def mean(self) -> float:
+        return math.exp(self.mu + self.sigma**2 / 2.0)
+
+
+@dataclass(frozen=True)
+class Uniform:
+    """Continuous uniform distribution on ``[low, high]``, mean ``(low+high)/2``."""
+
+    low: float
+    high: float
+
+    def __post_init__(self) -> None:
+        if self.low > self.high:
+            msg = f"low must be <= high, got low={self.low}, high={self.high}"
+            raise ValueError(msg)
+
+    def __call__(self) -> float:
+        return random.uniform(self.low, self.high)
+
+    @property
+    def mean(self) -> float:
+        return (self.low + self.high) / 2.0
+
+
+@dataclass(frozen=True)
+class Deterministic:
+    """Degenerate distribution that always returns ``value``."""
+
+    value: float
+
+    def __call__(self) -> float:
+        return self.value
+
+    @property
+    def mean(self) -> float:
+        return self.value
 
 
 def pure_job_shop_routing(servers: Sequence[Server]) -> Callable[[], Sequence[Server]]:

@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+import math
 import random
+import statistics
 
 import pytest
 
 from simulatte.distributions import (
+    Deterministic,
+    Distribution,
+    Erlang,
+    Exponential,
+    LogNormal,
     RunningStats,
+    TruncatedErlang,
+    Uniform,
     arrival_rate_for_utilization,
     general_flow_shop_routing,
     pure_flow_shop_routing,
@@ -191,3 +200,67 @@ def test_running_stats_z_norm() -> None:
     assert stats.z_norm(3.0) == pytest.approx(-1.0)
     # z_norm(5) = (5 - 5) / 2 = 0.0
     assert stats.z_norm(5.0) == pytest.approx(0.0)
+
+
+def _empirical_mean(dist: Distribution, n: int = 50_000) -> float:
+    random.seed(7)
+    return statistics.fmean(dist() for _ in range(n))
+
+
+def test_exponential_mean_and_sampling() -> None:
+    d = Exponential(rate=2.0)
+    assert d.mean == pytest.approx(0.5)
+    assert _empirical_mean(d) == pytest.approx(0.5, rel=0.05)
+
+
+def test_erlang_mean_and_sampling() -> None:
+    d = Erlang(rate=2.0, shape=2)
+    assert d.mean == pytest.approx(1.0)
+    assert _empirical_mean(d) == pytest.approx(1.0, rel=0.05)
+
+
+def test_deterministic_is_constant() -> None:
+    d = Deterministic(value=3.0)
+    assert d.mean == 3.0
+    assert {d() for _ in range(10)} == {3.0}
+
+
+def test_uniform_mean() -> None:
+    d = Uniform(low=10.0, high=18.0)
+    assert d.mean == pytest.approx(14.0)
+    assert _empirical_mean(d) == pytest.approx(14.0, rel=0.05)
+
+
+def test_lognormal_mean() -> None:
+    d = LogNormal(mu=0.0, sigma=0.5)
+    assert d.mean == pytest.approx(math.exp(0.125))
+    assert _empirical_mean(d) == pytest.approx(math.exp(0.125), rel=0.05)
+
+
+def test_truncated_erlang_respects_cap_and_true_mean() -> None:
+    d = TruncatedErlang(rate=2.0, shape=2, max_value=4.0)
+    random.seed(42)
+    samples = [d() for _ in range(2000)]
+    assert all(0.0 <= s <= 4.0 for s in samples)
+    assert d.mean < 1.0
+    assert d.mean == pytest.approx(0.989232, abs=1e-4)
+    assert _empirical_mean(d) == pytest.approx(d.mean, rel=0.03)
+
+
+def test_untruncated_erlang_mean_equals_nominal() -> None:
+    assert TruncatedErlang(rate=2.0, shape=2, max_value=math.inf).mean == pytest.approx(1.0)
+
+
+def test_distribution_validation() -> None:
+    for bad in (
+        lambda: Exponential(rate=0.0),
+        lambda: Erlang(rate=0.0),
+        lambda: Erlang(rate=2.0, shape=0),
+        lambda: TruncatedErlang(rate=0.0),
+        lambda: TruncatedErlang(rate=2.0, shape=0),
+        lambda: TruncatedErlang(rate=2.0, shape=2, max_value=0.0),
+        lambda: LogNormal(mu=0.0, sigma=0.0),
+        lambda: Uniform(low=5.0, high=1.0),
+    ):
+        with pytest.raises(ValueError):
+            bad()
