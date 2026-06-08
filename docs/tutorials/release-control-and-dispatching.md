@@ -120,7 +120,7 @@ from simulatte.builders import build_immediate_release_system
 from simulatte.environment import Environment
 
 env = Environment()
-_, servers, shopfloor, router = build_immediate_release_system(env)
+_, servers, shopfloor, router = build_immediate_release_system(env=env)
 env.run(until=1000)
 
 print(f"Jobs completed: {len(shopfloor.jobs_done)}")
@@ -141,7 +141,7 @@ from simulatte.builders import build_immediate_release_system
 from simulatte.dispatching_rules import shortest_processing_time
 
 _, servers, shopfloor, router = build_immediate_release_system(
-    env,
+    env=env,
     priority_policies=shortest_processing_time,
 )
 ```
@@ -158,7 +158,7 @@ from simulatte.environment import Environment
 
 env = Environment()
 psp, servers, shopfloor, router = build_lumscor_system(
-    env,
+    env=env,
     check_timeout=10.0,      # Check every 10 time units
     wl_norm_level=5.0,       # Workload threshold per server
     allowance_factor=2,      # Buffer for due date calculation
@@ -198,7 +198,7 @@ from simulatte.environment import Environment
 
 env = Environment()
 psp, servers, shopfloor, router = build_slar_system(
-    env,
+    env=env,
     allowance_factor=3.0,    # Slack per operation
 )
 env.run(until=1000)
@@ -233,7 +233,7 @@ from simulatte.environment import Environment
 
 env = Environment()
 psp, servers, shopfloor, router = build_slar_limit_system(
-    env,
+    env=env,
     allowance_factor=3.0,   # Slack per operation
     wl_norm_level=5.0,      # Workload norm per server
 )
@@ -264,7 +264,7 @@ from simulatte.environment import Environment
 
 env = Environment()
 psp, servers, shopfloor, router = build_draco_system(
-    env,
+    env=env,
     wip_target=8,    # target shop WIP (job count), tau
     loop_target=4,   # target overlapping loop per server pair, epsilon
 )
@@ -330,7 +330,7 @@ router = Router(..., priority_policies=pst)
 
 The routing-aware rules return ``inf`` for servers outside the job's routing or already exited — making them safe for priority comparisons and ``min()`` calls.
 
-The newer Tier 1/2 rules add work-content and tardiness-cost signals. **Work In Next Queue** (`work_in_next_queue`; Blackstone, Phillips & Hogg, 1982) orders by the work waiting at a job's next machine, feeding soon-to-starve downstream stations. **Apparent Tardiness Cost** (`apparent_tardiness_cost`; Vepsäläinen & Morton, 1987 — [DOI](https://doi.org/10.1287/mnsc.33.8.1035)) and **Cost Over Time** (`cost_over_time`; Carroll, 1965) weigh a job's marginal tardiness cost against its imminent processing time. **Raghu & Rajendran** (`raghu_rajendran`; 1993 — [DOI](https://doi.org/10.1016/0925-5273(93)90044-L)) is a composite that blends processing time, due-date slack, and the next-queue load, weighted by the current machine's utilization. ATC and COVERT take a look-ahead parameter (and an optional `weight`); their `avg_processing`/`utilization` shop-state inputs default to live computation with an optional fixed override.
+The newer Tier 1/2 rules add work-content and tardiness-cost signals. **Work In Next Queue** (`work_in_next_queue`; Blackstone, Phillips & Hogg, 1982 — [DOI](https://doi.org/10.1080/00207548208947745)) orders by the work waiting at a job's next machine, feeding soon-to-starve downstream stations. **Apparent Tardiness Cost** (`apparent_tardiness_cost`; Vepsäläinen & Morton, 1987 — [DOI](https://doi.org/10.1287/mnsc.33.8.1035)) and **Cost Over Time** (`cost_over_time`; Carroll, 1965) weigh a job's marginal tardiness cost against its imminent processing time. **Raghu & Rajendran** (`raghu_rajendran`; 1993 — [DOI](https://doi.org/10.1016/0925-5273(93)90044-L)) is a composite that blends processing time, due-date slack, and the next-queue load, weighted by the current machine's utilization. ATC and COVERT take a look-ahead parameter (and an optional `weight`); their `avg_processing`/`utilization` shop-state inputs default to live computation with an optional fixed override.
 
 **Tier 3 — system-state rules.** `Focus` (Kasper, Land & Teunter, 2023 — [DOI](https://doi.org/10.1016/j.omega.2022.102726)) is a *self-establishing* rule: a weighted combination of five mechanisms — SPT (`pi`), starvation response (`omega`), slack timing (`psi`), pacing (`gamma`), and WIP balancing (`beta`), each in `[0, 1]`. Unlike Tier 1/2 it is a class (it exposes per-mechanism methods and a shared `build_context`), adapted to the `priority_policy` contract by `FocusPriorityRule`. A ready-made push system that dispatches with FOCUS is available:
 
@@ -338,7 +338,7 @@ The newer Tier 1/2 rules add work-content and tardiness-cost signals. **Work In 
 from simulatte.builders import build_focus_system
 
 _, servers, shopfloor, router = build_focus_system(
-    env,
+    env=env,
     focus_weights=(0.25, 0.25, 0.25, 0.25, 0.0),  # beta dormant (default)
 )
 ```
@@ -430,13 +430,13 @@ from simulatte.builders import build_conwip_system
 from simulatte.environment import Environment
 
 env = Environment()
-psp, servers, shopfloor, router = build_conwip_system(env, wip_cap=12)
+psp, servers, shopfloor, router = build_conwip_system(env=env, wip_cap=12)
 env.run(until=1000)
 ```
 
 `build_conwip_system` constructs the `ConWIP` policy, which self-wires its release triggers (`psp.on_arrival` and an on-completion trigger) in `__init__` — no manual wiring needed.
 
-Reference: Spearman, M. L., Woodruff, D. L. & Hopp, W. J. (1990). *CONWIP: a pull alternative to kanban*. International Journal of Production Research, 28(5), 879-894.
+Reference: Spearman, M. L., Woodruff, D. L. & Hopp, W. J. (1990). *CONWIP: a pull alternative to kanban*. International Journal of Production Research, 28(5), 879-894 — [DOI](https://doi.org/10.1080/00207549008942761).
 
 ### Continuous Release
 
@@ -448,7 +448,7 @@ from simulatte.environment import Environment
 
 env = Environment()
 psp, servers, shopfloor, router = build_continuous_release_system(
-    env,
+    env=env,
     wl_norm_level=5.0,       # Corrected workload norm per server
     allowance_factor=2,      # Buffer for due-date planning
 )
@@ -457,7 +457,7 @@ env.run(until=1000)
 
 `build_continuous_release_system` constructs the `ContinuousRelease` policy, which sets `CorrectedWIPStrategy` on the shopfloor and self-wires its release triggers in `__init__`. A scalar `wl_norm_level` is applied uniformly to every server (pass a `dict[Server, float]` to `ContinuousRelease` directly for per-server norms).
 
-Reference: Fernandes, N. O. & Carmo-Silva, S. (2011). *Workload control under continuous order release*. International Journal of Production Economics, 131(1), 257-262.
+Reference: Fernandes, N. O. & Carmo-Silva, S. (2011). *Workload control under continuous order release*. International Journal of Production Economics, 131(1), 257-262 — [DOI](https://doi.org/10.1016/j.ijpe.2010.09.026).
 
 ## 7) Dynamic priorities
 

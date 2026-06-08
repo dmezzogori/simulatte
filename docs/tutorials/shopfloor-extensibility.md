@@ -204,7 +204,7 @@ The builder functions also accept `collect_workload=True` as a shorthand:
 from simulatte.builders import build_immediate_release_system
 
 _, servers, shopfloor, router = build_immediate_release_system(
-    env,
+    env=env,
     collect_workload=True,
 )
 # shopfloor.time_series_collector is now a CurrentWorkLoadCollector

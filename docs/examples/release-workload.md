@@ -42,11 +42,11 @@ HORIZON = 800.0
 
 # label -> builder thunk taking only env
 SYSTEMS = {
-    "Immediate": lambda env: build_immediate_release_system(env),
-    "LumsCor": lambda env: build_lumscor_system(env, check_timeout=10.0, wl_norm_level=6.0, allowance_factor=2),
-    "SLAR": lambda env: build_slar_system(env, allowance_factor=3.0),
-    "SLAR-Limit": lambda env: build_slar_limit_system(env, allowance_factor=3.0, wl_norm_level=6.0),
-    "Continuous": lambda env: build_continuous_release_system(env, wl_norm_level=6.0, allowance_factor=2),
+    "Immediate": lambda env: build_immediate_release_system(env=env),
+    "LumsCor": lambda env: build_lumscor_system(env=env, check_timeout=10.0, wl_norm_level=6.0, allowance_factor=2),
+    "SLAR": lambda env: build_slar_system(env=env, allowance_factor=3.0),
+    "SLAR-Limit": lambda env: build_slar_limit_system(env=env, allowance_factor=3.0, wl_norm_level=6.0),
+    "Continuous": lambda env: build_continuous_release_system(env=env, wl_norm_level=6.0, allowance_factor=2),
 }
 
 

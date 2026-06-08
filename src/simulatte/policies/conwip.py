@@ -7,6 +7,7 @@ Reference:
     Spearman, M. L., Woodruff, D. L. & Hopp, W. J. (1990).
     CONWIP: a pull alternative to kanban.
     International Journal of Production Research, 28(5), 879-894.
+    https://doi.org/10.1080/00207549008942761
 """
 
 from __future__ import annotations

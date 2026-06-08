@@ -52,7 +52,7 @@ def pure_job_shop_routing(servers: Sequence[Server]) -> Callable[[], Sequence[Se
     servers = tuple(servers)  # Freeze to prevent mutation issues
 
     def sample_servers() -> Sequence[Server]:
-        k = random.randint(1, len(servers))  # noqa: S311
+        k = random.randint(1, len(servers))
         return random.sample(servers, k=k)
 
     return sample_servers
@@ -92,8 +92,8 @@ def general_flow_shop_routing(servers: Sequence[Server]) -> Callable[[], Sequenc
     position = {server: index for index, server in enumerate(servers)}
 
     def directed_routing() -> Sequence[Server]:
-        k = random.randint(1, len(servers))  # noqa: S311
-        chosen = random.sample(servers, k=k)  # noqa: S311
+        k = random.randint(1, len(servers))
+        chosen = random.sample(servers, k=k)
         return sorted(chosen, key=position.__getitem__)
 
     return directed_routing

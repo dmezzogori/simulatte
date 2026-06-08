@@ -65,7 +65,7 @@ def build_periodic_release(env: Environment, interval: float = 10.0):
         sku_distributions={"F1": 1},
         sku_routings={"F1": pure_job_shop_routing(servers)},
         sku_service_times={"F1": {s: lambda: truncated_2erlang(lam=SERVICE_RATE, max_value=4.0) for s in servers}},
-        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},  # noqa: S311
+        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},
     )
 
     def release_all(pool: PreShopPool) -> None:
@@ -91,8 +91,8 @@ def run_system(builder) -> tuple[int, float, float, float]:
 
 
 SYSTEMS = {
-    "Immediate": lambda env: build_immediate_release_system(env),
-    "Starvation-only": lambda env: build_starvation_avoidance_system(env),
+    "Immediate": lambda env: build_immediate_release_system(env=env),
+    "Starvation-only": lambda env: build_starvation_avoidance_system(env=env),
     "Periodic-release": build_periodic_release,
 }
 

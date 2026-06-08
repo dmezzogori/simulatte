@@ -123,6 +123,7 @@ def cost_over_time(
     component jobs (PhD thesis, MIT). Job-shop form: Russell, Dar-El & Taylor
     (1987), A comparative analysis of the COVERT job sequencing rule using
     various shop performance measures, IJPR 25(10), 1523-1540.
+    https://doi.org/10.1080/00207548708919930
     """
     if lookahead <= 0:
         msg = f"lookahead must be > 0, got {lookahead}"

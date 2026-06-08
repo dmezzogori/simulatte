@@ -11,6 +11,7 @@ Reference:
     Fernandes, N. O. & Carmo-Silva, S. (2011).
     Workload control under continuous order release.
     International Journal of Production Economics, 131(1), 257-262.
+    https://doi.org/10.1016/j.ijpe.2010.09.026
 """
 
 from __future__ import annotations

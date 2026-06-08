@@ -310,9 +310,9 @@ class StandardWIPStrategy:
 
     def complete_operation(
         self,
-        job: ProductionJob,  # noqa: ARG002
+        job: ProductionJob,
         server: Server,
-        op_index: int,  # noqa: ARG002
+        op_index: int,
         processing_time: float,
         wip: dict[Server, float],
     ) -> None:
@@ -348,7 +348,7 @@ class CorrectedWIPStrategy:
         self,
         job: ProductionJob,
         server: Server,
-        op_index: int,  # noqa: ARG002
+        op_index: int,
         processing_time: float,
         wip: dict[Server, float],
     ) -> None:
@@ -464,7 +464,7 @@ class DefaultTimeSeriesCollector:
         self.throughput_ts: list[tuple[float, int]] = [(0.0, 0)]
         self.lateness_ts: list[tuple[float, float]] = []
 
-    def on_job_entered(self, shopfloor: ShopFloor, job: ProductionJob) -> None:  # noqa: ARG002
+    def on_job_entered(self, shopfloor: ShopFloor, job: ProductionJob) -> None:
         """Record WIP and job count when a job enters the shop floor."""
         del job  # Unused but required by protocol
         now = shopfloor.env.now
@@ -474,9 +474,9 @@ class DefaultTimeSeriesCollector:
     def on_operation_completed(
         self,
         shopfloor: ShopFloor,
-        job: ProductionJob,  # noqa: ARG002
-        server: Server,  # noqa: ARG002
-        op_index: int,  # noqa: ARG002
+        job: ProductionJob,
+        server: Server,
+        op_index: int,
     ) -> None:
         """Record WIP after an operation completes."""
         del job, server, op_index  # Unused but required by protocol
@@ -602,7 +602,7 @@ class CurrentWorkLoadCollector:
     def on_job_entered(
         self,
         shopfloor: ShopFloor,
-        job: ProductionJob,  # noqa: ARG002
+        job: ProductionJob,
     ) -> None:
         """Record total remaining work when a job enters the shop floor."""
         del job  # Already included via shopfloor.jobs
@@ -613,7 +613,7 @@ class CurrentWorkLoadCollector:
         shopfloor: ShopFloor,
         job: ProductionJob,
         server: Server,
-        op_index: int,  # noqa: ARG002
+        op_index: int,
     ) -> None:
         """Record total remaining work after an operation completes.
 
@@ -631,8 +631,8 @@ class CurrentWorkLoadCollector:
 
     def on_job_finished(
         self,
-        shopfloor: ShopFloor,  # noqa: ARG002
-        job: ProductionJob,  # noqa: ARG002
+        shopfloor: ShopFloor,
+        job: ProductionJob,
     ) -> None:
         """No-op: job is already removed from shopfloor.jobs before this fires.
 

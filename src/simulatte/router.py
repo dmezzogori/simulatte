@@ -39,7 +39,7 @@ class Router:
     for the duration of the simulation.
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
         env: Environment,
@@ -132,7 +132,7 @@ class Router:
             inter_arrival_time = self.inter_arrival_distribution()
             yield self.env.timeout(inter_arrival_time)
 
-            sku = random.choices(  # noqa: S311
+            sku = random.choices(
                 tuple(self.sku_distributions.keys()),
                 weights=tuple(self.sku_distributions.values()),
                 k=1,

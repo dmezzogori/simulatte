@@ -44,7 +44,7 @@ class SlarLimit(Slar):
 
         slar_limit = SlarLimit(
             shopfloor=shop_floor, psp=psp, router=router,
-            wl_norm={s: 5.0 for s in servers},
+            wl_norm=5.0,  # scalar norm, expanded to every server (a dict is also accepted)
             allowance_factor=3.0,
         )
         ```

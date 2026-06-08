@@ -34,24 +34,24 @@ class TrafficManager(Protocol):
 
 
 class FreeTrafficManager:
-    def place(self, agv: AGV, node: Node) -> ProcessGenerator:  # noqa: ARG002
+    def place(self, agv: AGV, node: Node) -> ProcessGenerator:
         return
         yield  # make it a generator
 
-    def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult:  # noqa: ARG002
+    def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult:
         return PathCheckResult(feasible=True)
 
-    def register_intent(self, agv: AGV, path: list[Node]) -> None:  # noqa: ARG002
+    def register_intent(self, agv: AGV, path: list[Node]) -> None:
         pass
 
-    def enter_node(self, agv: AGV, node: Node) -> ProcessGenerator:  # noqa: ARG002
+    def enter_node(self, agv: AGV, node: Node) -> ProcessGenerator:
         return
         yield  # make it a generator
 
-    def leave_node(self, agv: AGV, node: Node) -> None:  # noqa: ARG002
+    def leave_node(self, agv: AGV, node: Node) -> None:
         pass
 
-    def cancel(self, agv: AGV) -> None:  # noqa: ARG002
+    def cancel(self, agv: AGV) -> None:
         pass
 
 
@@ -69,7 +69,7 @@ class ResourceBasedTrafficManager:
         self._graph = graph
         self._node_capacity = node_capacity
         self._deadlock_timeout = deadlock_timeout
-        self._priority_fn = priority_fn or (lambda agv: 0.0)  # noqa: ARG005
+        self._priority_fn = priority_fn or (lambda agv: 0.0)
         self._node_resources: dict[Node, simpy.Resource] = {}
         self._node_requests: dict[tuple[AGV, Node], Request] = {}
         self._pending_requests: dict[AGV, Request] = {}

@@ -472,8 +472,8 @@ Every builder takes `scenario: Scenario = Scenario()`. Pass a preset or a custom
 
 ```python
 build_immediate_release_system(
-    env: Environment,
     *,
+    env: Environment,
     scenario: Scenario = Scenario(),
     priority_policies: Callable | None = None,
     collect_workload: bool = False,
@@ -486,8 +486,8 @@ build_immediate_release_system(
 
 ```python
 build_lumscor_system(
-    env: Environment,
     *,
+    env: Environment,
     scenario: Scenario = Scenario(),
     check_timeout: float,                       # Periodic release interval
     wl_norm_level: float,                       # Workload norm per server
@@ -500,26 +500,23 @@ build_lumscor_system(
 
 ```python
 build_slar_system(
-    env: Environment,
-    allowance_factor: float,                    # Slack allowance per operation
     *,
+    env: Environment,
     scenario: Scenario = Scenario(),
+    allowance_factor: float,                    # Slack allowance per operation
     collect_workload: bool = False,
 ) -> PullSystem  # (psp, servers, shopfloor, router)
 ```
-
-Note: `allowance_factor` is positional in `build_slar_system` but keyword-only
-in `build_lumscor_system`.
 
 ### build_slar_limit_system
 
 ```python
 build_slar_limit_system(
-    env: Environment,
-    allowance_factor: float,                    # Slack allowance per operation
     *,
-    wl_norm_level: float,                       # Workload norm per server
+    env: Environment,
     scenario: Scenario = Scenario(),
+    allowance_factor: float,                    # Slack allowance per operation
+    wl_norm_level: float,                       # Workload norm per server
     collect_workload: bool = False,
 ) -> PullSystem  # (psp, servers, shopfloor, router)
 ```
@@ -530,8 +527,8 @@ Requires `CorrectedWIPStrategy` on the shopfloor (set automatically by the build
 
 ```python
 build_focus_system(
-    env: Environment,
     *,
+    env: Environment,
     scenario: Scenario = Scenario(),
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     collect_workload: bool = False,
@@ -544,13 +541,13 @@ Immediate-release push system whose queue ordering is FOCUS (via `FocusPriorityR
 
 ```python
 build_draco_system(
-    env: Environment,
     *,
+    env: Environment,
+    scenario: Scenario = Scenario(),
     wip_target: int,                                  # tau (job count)
     loop_target: int,                                 # epsilon (scalar; use Draco() for per-pair)
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     total_impact_weights: tuple[float, float, float] = (0.25, 0.25, 0.5),  # paper full DRACO (Table 2)
-    scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem  # (psp, servers, shopfloor, router)
 ```
@@ -561,10 +558,10 @@ Non-hierarchical release+dispatch. Wires `Draco.priority_policy`, `shopfloor.on_
 
 ```python
 build_conwip_system(
-    env: Environment,
     *,
-    wip_cap: int,                               # max jobs on the floor at once
+    env: Environment,
     scenario: Scenario = Scenario(),
+    wip_cap: int,                               # max jobs on the floor at once
     collect_workload: bool = False,
 ) -> PullSystem  # (psp, servers, shopfloor, router)
 ```
@@ -577,11 +574,11 @@ self-wires release on PSP arrival and on every completion.
 
 ```python
 build_continuous_release_system(
-    env: Environment,
     *,
+    env: Environment,
+    scenario: Scenario = Scenario(),
     wl_norm_level: float,                       # corrected workload norm per server
     allowance_factor: int = 2,                  # buffer per server for due-date planning
-    scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem  # (psp, servers, shopfloor, router)
 ```
@@ -593,8 +590,8 @@ sets `CorrectedWIPStrategy` on the shopfloor and self-wires its triggers.
 
 ```python
 build_starvation_avoidance_system(
-    env: Environment,
     *,
+    env: Environment,
     scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem  # (psp, servers, shopfloor, router)
@@ -614,7 +611,7 @@ from simulatte.builders import build_immediate_release_system
 from simulatte.scenario import Scenario
 
 # Pure Flow Shop, immediate-release push baseline:
-build_immediate_release_system(env, scenario=Scenario.pure_flow_shop())
+build_immediate_release_system(env=env, scenario=Scenario.pure_flow_shop())
 ```
 
 `Scenario.pure_job_shop()` (PJS: random length `U[1,M]`, undirected),

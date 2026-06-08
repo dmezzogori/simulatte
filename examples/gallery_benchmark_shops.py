@@ -24,9 +24,9 @@ HORIZON = 2000.0
 
 # label -> builder thunk taking only env
 SYSTEMS = {
-    "PureJobShop": lambda env: build_immediate_release_system(env, scenario=Scenario.pure_job_shop()),
-    "GeneralFlowShop": lambda env: build_immediate_release_system(env, scenario=Scenario.general_flow_shop()),
-    "PureFlowShop": lambda env: build_immediate_release_system(env, scenario=Scenario.pure_flow_shop()),
+    "PureJobShop": lambda env: build_immediate_release_system(env=env, scenario=Scenario.pure_job_shop()),
+    "GeneralFlowShop": lambda env: build_immediate_release_system(env=env, scenario=Scenario.general_flow_shop()),
+    "PureFlowShop": lambda env: build_immediate_release_system(env=env, scenario=Scenario.pure_flow_shop()),
 }
 
 

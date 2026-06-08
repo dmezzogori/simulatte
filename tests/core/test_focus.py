@@ -1086,7 +1086,7 @@ def test_build_focus_system_runs_and_completes_jobs() -> None:
     from simulatte.scenario import Scenario
 
     env = Environment()
-    psp, servers, shopfloor, router = build_focus_system(env, scenario=Scenario(n_servers=4, arrival_rate=1.0))
+    psp, servers, shopfloor, router = build_focus_system(env=env, scenario=Scenario(n_servers=4, arrival_rate=1.0))
     assert psp is None  # push system
     assert len(servers) == 4
     env.run(until=200.0)

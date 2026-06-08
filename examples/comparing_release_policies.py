@@ -54,9 +54,9 @@ def run_policy(builder_fn, seed: int = SEED, until: float = SIM_TIME) -> dict:
 
 def main() -> None:
     policies = {
-        "Immediate": lambda env: build_immediate_release_system(env),
-        "LumsCor": lambda env: build_lumscor_system(env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2),
-        "SLAR": lambda env: build_slar_system(env, allowance_factor=3.0),
+        "Immediate": lambda env: build_immediate_release_system(env=env),
+        "LumsCor": lambda env: build_lumscor_system(env=env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2),
+        "SLAR": lambda env: build_slar_system(env=env, allowance_factor=3.0),
     }
 
     results = {name: run_policy(fn) for name, fn in policies.items()}

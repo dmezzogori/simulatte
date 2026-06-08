@@ -200,7 +200,7 @@ from simulatte.runner import Runner
 
 def builder(*, env):
     env.info("Simulation starting", component="Main")
-    return build_immediate_release_system(env)
+    return build_immediate_release_system(env=env)
 
 def extract(system):
     _psp, servers, shopfloor, _router = system

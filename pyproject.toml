@@ -124,8 +124,9 @@ line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]
-# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
-select = ["E", "F", "FA", "UP"]
+# Enable pycodestyle (`E`), Pyflakes (`F`), flake8-future-annotations (`FA`),
+# pyupgrade (`UP`), and unused-noqa detection (`RUF100`).
+select = ["E", "F", "FA", "UP", "RUF100"]
 ignore = []
 
 # Allow autofix for all enabled rules (when `--fix`) is provided.

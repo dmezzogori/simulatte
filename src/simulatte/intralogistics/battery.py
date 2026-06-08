@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-def _default_depletion(distance: float, load_weight: float, speed: float) -> float:  # noqa: ARG001
+def _default_depletion(distance: float, load_weight: float, speed: float) -> float:
     return distance * 1.0
 
 

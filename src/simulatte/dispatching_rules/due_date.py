@@ -13,7 +13,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.server import Server
 
 
-def earliest_due_date(job: BaseJob, server: Server) -> float:  # noqa: ARG001
+def earliest_due_date(job: BaseJob, server: Server) -> float:
     """Earliest Due Date.
 
     Returns ``job.due_date``. Jobs with earlier due dates are served

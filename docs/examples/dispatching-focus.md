@@ -63,10 +63,10 @@ def run_config(weights) -> tuple[int, float, float, float]:
         scenario = Scenario(due_date_offset_range=(10.0, 18.0))
         if weights is None:
             _, _s, shop_floor, _ = build_immediate_release_system(
-                env, scenario=scenario, priority_policies=first_come_first_served
+                env=env, scenario=scenario, priority_policies=first_come_first_served
             )
         else:
-            _, _s, shop_floor, _ = build_focus_system(env, scenario=scenario, focus_weights=weights)
+            _, _s, shop_floor, _ = build_focus_system(env=env, scenario=scenario, focus_weights=weights)
         env.run(until=HORIZON)
         return metrics(shop_floor)
 

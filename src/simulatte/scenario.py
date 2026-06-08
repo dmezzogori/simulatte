@@ -160,7 +160,7 @@ class Scenario:
                     for server in servers
                 },
             },
-            due_date_offset_distribution={self.sku: lambda: random.uniform(*self.due_date_offset_range)},  # noqa: S311
+            due_date_offset_distribution={self.sku: lambda: random.uniform(*self.due_date_offset_range)},
             due_date_rule=due_date_rule,
             priority_policies=priority_policies,
         )

@@ -887,7 +887,7 @@ class TestTravelCorrectness:
                 self.env = env
                 self.calls = 0
 
-            def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult:  # noqa: ARG002
+            def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult:
                 self.calls += 1
                 if self.calls == 1:
                     return PathCheckResult(feasible=False, delay_until=self.env.now + 5.0)
@@ -944,7 +944,7 @@ class TestTravelCorrectness:
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
         class NoGuidanceTrafficManager(FreeTrafficManager):
-            def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult:  # noqa: ARG002
+            def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult:
                 return PathCheckResult(feasible=False)
 
         node_a = Node(id="A", x=0.0, y=0.0)

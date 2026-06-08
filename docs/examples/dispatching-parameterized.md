@@ -54,7 +54,7 @@ def run_rule(rule) -> tuple[int, float, float, float]:
     random.seed(SEED)
     with Environment() as env:
         _, _servers, shop_floor, _ = build_immediate_release_system(
-            env, scenario=Scenario(due_date_offset_range=(10.0, 18.0)), priority_policies=rule
+            env=env, scenario=Scenario(due_date_offset_range=(10.0, 18.0)), priority_policies=rule
         )
         env.run(until=HORIZON)
         done = shop_floor.jobs_done

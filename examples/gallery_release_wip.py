@@ -18,8 +18,8 @@ SEED = 42
 HORIZON = 800.0
 
 SYSTEMS = {
-    "ConWIP": lambda env: build_conwip_system(env, wip_cap=18),
-    "DRACO": lambda env: build_draco_system(env, wip_target=8, loop_target=4),
+    "ConWIP": lambda env: build_conwip_system(env=env, wip_cap=18),
+    "DRACO": lambda env: build_draco_system(env=env, wip_target=8, loop_target=4),
 }
 
 

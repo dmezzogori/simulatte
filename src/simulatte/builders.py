@@ -25,8 +25,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def build_immediate_release_system(
-    env: Environment,
     *,
+    env: Environment,
     scenario: Scenario = Scenario(),
     priority_policies: Callable[..., float] | None = None,
     collect_workload: bool = False,
@@ -36,8 +36,7 @@ def build_immediate_release_system(
     """Build an immediate release (push) system with no workload control.
 
     Creates a simple push system where jobs enter the shopfloor immediately
-    upon arrival without any release control. Useful for baseline comparisons
-    against pull systems (LumsCor, SLAR).
+    upon arrival without any release control.
 
     Args:
         env: The simulation environment.
@@ -54,7 +53,7 @@ def build_immediate_release_system(
 
     Example:
         >>> env = Environment()
-        >>> _, servers, shop_floor, router = build_immediate_release_system(env)
+        >>> _, servers, shop_floor, router = build_immediate_release_system(env=env)
         >>> env.run(until=1000)
         >>> print(f"Jobs completed: {len(shop_floor.jobs_done)}")
     """
@@ -69,8 +68,8 @@ def build_immediate_release_system(
 
 
 def build_focus_system(
-    env: Environment,
     *,
+    env: Environment,
     scenario: Scenario = Scenario(),
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     collect_workload: bool = False,
@@ -97,12 +96,13 @@ def build_focus_system(
 
     Example:
         >>> env = Environment()
-        >>> _, servers, shop_floor, router = build_focus_system(env)
+        >>> _, servers, shop_floor, router = build_focus_system(env=env)
         >>> env.run(until=1000)
 
     References:
         Kasper, A., Land, M., Teunter, R. (2023). Towards system state
         dispatching in high-variety manufacturing. *Omega*, 114, 102726.
+        https://doi.org/10.1016/j.omega.2022.102726
     """
     sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
     priority = FocusPriorityRule(Focus(weights=focus_weights), sf)
@@ -111,8 +111,8 @@ def build_focus_system(
 
 
 def build_lumscor_system(
-    env: Environment,
     *,
+    env: Environment,
     scenario: Scenario = Scenario(),
     check_timeout: float,
     wl_norm_level: float,
@@ -146,13 +146,14 @@ def build_lumscor_system(
     Example:
         >>> env = Environment()
         >>> psp, servers, shop_floor, router = build_lumscor_system(
-        ...     env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2
+        ...     env=env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2
         ... )
         >>> env.run(until=1000)
 
     References:
         Land, M.J. (2006). Parameters and sensitivity in workload control.
         International Journal of Production Economics, 104(2), 625-638.
+        https://doi.org/10.1016/j.ijpe.2005.03.001
     """
     sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
     psp = PreShopPool(env=env, shopfloor=sf)
@@ -172,10 +173,10 @@ def build_lumscor_system(
 
 
 def build_slar_system(
-    env: Environment,
-    allowance_factor: float,
     *,
+    env: Environment,
     scenario: Scenario = Scenario(),
+    allowance_factor: float,
     collect_workload: bool = False,
 ) -> PullSystem:
     """Build a SLAR (Superfluous Load Avoidance Release) pull system.
@@ -205,7 +206,7 @@ def build_slar_system(
     Example:
         >>> env = Environment()
         >>> psp, servers, shop_floor, router = build_slar_system(
-        ...     env, allowance_factor=3.0
+        ...     env=env, allowance_factor=3.0
         ... )
         >>> env.run(until=1000)
 
@@ -223,11 +224,11 @@ def build_slar_system(
 
 
 def build_slar_limit_system(
-    env: Environment,
-    allowance_factor: float,
     *,
-    wl_norm_level: float,
+    env: Environment,
     scenario: Scenario = Scenario(),
+    allowance_factor: float,
+    wl_norm_level: float,
     collect_workload: bool = False,
 ) -> PullSystem:
     """Build a SLAR-Limit (load-bounded SLAR) pull system.
@@ -261,7 +262,7 @@ def build_slar_limit_system(
     Example:
         >>> env = Environment()
         >>> psp, servers, shop_floor, router = build_slar_limit_system(
-        ...     env, allowance_factor=3.0, wl_norm_level=5.0
+        ...     env=env, allowance_factor=3.0, wl_norm_level=5.0
         ... )
         >>> env.run(until=1000)
 
@@ -282,13 +283,13 @@ def build_slar_limit_system(
 
 
 def build_draco_system(
-    env: Environment,
     *,
+    env: Environment,
+    scenario: Scenario = Scenario(),
     wip_target: int,
     loop_target: int,
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     total_impact_weights: tuple[float, float, float] = (0.25, 0.25, 0.5),
-    scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem:
     """Build a DRACO (non-hierarchical WIP control) pull system.
@@ -329,7 +330,7 @@ def build_draco_system(
     Example:
         >>> env = Environment()
         >>> psp, servers, shop_floor, router = build_draco_system(
-        ...     env, wip_target=8, loop_target=4
+        ...     env=env, wip_target=8, loop_target=4
         ... )
         >>> env.run(until=1000)
 
@@ -337,6 +338,7 @@ def build_draco_system(
         Kasper, A., Land, M., Teunter, R. (2023). Non-hierarchical
         work-in-progress control in manufacturing. *International
         Journal of Production Economics*, 257, 108768.
+        https://doi.org/10.1016/j.ijpe.2022.108768
     """
     sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
     psp = PreShopPool(env=env, shopfloor=sf)
@@ -356,10 +358,10 @@ def build_draco_system(
 
 
 def build_conwip_system(
-    env: Environment,
     *,
-    wip_cap: int,
+    env: Environment,
     scenario: Scenario = Scenario(),
+    wip_cap: int,
     collect_workload: bool = False,
 ) -> PullSystem:
     """Build a ConWIP (Constant Work-In-Process) pull system.
@@ -381,13 +383,14 @@ def build_conwip_system(
 
     Example:
         >>> env = Environment()
-        >>> psp, servers, shop_floor, router = build_conwip_system(env, wip_cap=8)
+        >>> psp, servers, shop_floor, router = build_conwip_system(env=env, wip_cap=8)
         >>> env.run(until=1000)
 
     References:
         Spearman, M. L., Woodruff, D. L. & Hopp, W. J. (1990). CONWIP: a pull
         alternative to kanban. International Journal of Production Research,
         28(5), 879-894.
+        https://doi.org/10.1080/00207549008942761
     """
     sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
     psp = PreShopPool(env=env, shopfloor=sf)
@@ -397,11 +400,11 @@ def build_conwip_system(
 
 
 def build_continuous_release_system(
-    env: Environment,
     *,
+    env: Environment,
+    scenario: Scenario = Scenario(),
     wl_norm_level: float,
     allowance_factor: int = 2,
-    scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem:
     """Build a Continuous Release (workload-controlled) pull system.
@@ -426,7 +429,7 @@ def build_continuous_release_system(
     Example:
         >>> env = Environment()
         >>> psp, servers, shop_floor, router = build_continuous_release_system(
-        ...     env, wl_norm_level=6.0
+        ...     env=env, wl_norm_level=6.0
         ... )
         >>> env.run(until=1000)
 
@@ -434,6 +437,7 @@ def build_continuous_release_system(
         Fernandes, N. O. & Carmo-Silva, S. (2011). Workload control under
         continuous order release. International Journal of Production
         Economics, 131(1), 257-262.
+        https://doi.org/10.1016/j.ijpe.2010.09.026
     """
     sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
     psp = PreShopPool(env=env, shopfloor=sf)
@@ -445,8 +449,8 @@ def build_continuous_release_system(
 
 
 def build_starvation_avoidance_system(
-    env: Environment,
     *,
+    env: Environment,
     scenario: Scenario = Scenario(),
     collect_workload: bool = False,
 ) -> PullSystem:
@@ -469,7 +473,7 @@ def build_starvation_avoidance_system(
 
     Example:
         >>> env = Environment()
-        >>> psp, servers, shop_floor, router = build_starvation_avoidance_system(env)
+        >>> psp, servers, shop_floor, router = build_starvation_avoidance_system(env=env)
         >>> env.run(until=1000)
     """
     sf, servers = scenario.build_floor(env, collect_workload=collect_workload)

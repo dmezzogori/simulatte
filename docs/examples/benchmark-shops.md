@@ -2,7 +2,7 @@
 
 This gallery compares the three standard **stylized shop environments** of the production-planning-and-control literature on a single seeded run. The "shop type" is governed entirely by the job **routing** — its length and its direction — while every other parameter (machines, processing times, target utilization, due dates) is held fixed. Each shop sits at the same load: the arrival rate is *derived* from a common target utilization, even though their mean routing lengths differ.
 
-Each shop is a `Scenario` **preset** — `Scenario.pure_job_shop()`, `.general_flow_shop()`, `.pure_flow_shop()` — passed to any builder via its `scenario=` parameter. Here we use the immediate-release (push) baseline, so each shop is built with `build_immediate_release_system(env, scenario=Scenario.<preset>())`; the same presets compose with the workload-control builders (LumsCor, SLAR, DRACO, …) to vary the *environment* independently of the *control method*.
+Each shop is a `Scenario` **preset** — `Scenario.pure_job_shop()`, `.general_flow_shop()`, `.pure_flow_shop()` — passed to any builder via its `scenario=` parameter. Here we use the immediate-release (push) baseline, so each shop is built with `build_immediate_release_system(env=env, scenario=Scenario.<preset>())`; the same presets compose with the workload-control builders (LumsCor, SLAR, DRACO, …) to vary the *environment* independently of the *control method*.
 
 The three shops, from least to most directed:
 
@@ -41,9 +41,9 @@ HORIZON = 2000.0
 
 # label -> builder thunk taking only env
 SYSTEMS = {
-    "PureJobShop": lambda env: build_immediate_release_system(env, scenario=Scenario.pure_job_shop()),
-    "GeneralFlowShop": lambda env: build_immediate_release_system(env, scenario=Scenario.general_flow_shop()),
-    "PureFlowShop": lambda env: build_immediate_release_system(env, scenario=Scenario.pure_flow_shop()),
+    "PureJobShop": lambda env: build_immediate_release_system(env=env, scenario=Scenario.pure_job_shop()),
+    "GeneralFlowShop": lambda env: build_immediate_release_system(env=env, scenario=Scenario.general_flow_shop()),
+    "PureFlowShop": lambda env: build_immediate_release_system(env=env, scenario=Scenario.pure_flow_shop()),
 }
 
 

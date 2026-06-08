@@ -53,7 +53,7 @@ class ServerPriorityRequest(PriorityRequest):
     ``self`` by then.
     """
 
-    def __init__(self, resource: Server, job: BaseJob, preempt: bool = True) -> None:  # noqa: FBT001, FBT002
+    def __init__(self, resource: Server, job: BaseJob, preempt: bool = True) -> None:
         """Initialize a priority request for server access.
 
         Args:

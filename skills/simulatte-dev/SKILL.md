@@ -56,7 +56,7 @@ Use this as a **baseline** to show what happens without release control.
 ```python
 from simulatte.builders import build_immediate_release_system
 
-_, servers, shopfloor, router = build_immediate_release_system(env)
+_, servers, shopfloor, router = build_immediate_release_system(env=env)
 ```
 
 ### LumsCor (workload-controlled pull)
@@ -77,7 +77,7 @@ Use LumsCor when the researcher wants to study **WIP-limiting behavior** or
 from simulatte.builders import build_lumscor_system
 
 psp, servers, shopfloor, router = build_lumscor_system(
-    env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2,
+    env=env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2,
 )
 ```
 
@@ -103,7 +103,7 @@ Key parameter to vary:
 from simulatte.builders import build_slar_system
 
 psp, servers, shopfloor, router = build_slar_system(
-    env, allowance_factor=3.0,
+    env=env, allowance_factor=3.0,
 )
 ```
 
@@ -126,7 +126,7 @@ parameters to vary:
 from simulatte.builders import build_draco_system
 
 psp, servers, shopfloor, router = build_draco_system(
-    env, wip_target=8, loop_target=4,
+    env=env, wip_target=8, loop_target=4,
 )
 ```
 
@@ -157,7 +157,7 @@ from simulatte.builders import build_lumscor_system
 
 env = Environment()
 psp, servers, shopfloor, router = build_lumscor_system(
-    env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2,
+    env=env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2,
 )
 env.run(until=10_000)
 ```
@@ -232,7 +232,7 @@ self-establishing rule combining five weighted mechanisms (SPT, starvation,
 slack timing, pacing, WIP balance). Unlike the Tier-1/2 rules it is a class
 (it exposes per-mechanism methods and a shared `build_context`), wrapped for
 the router by `FocusPriorityRule`. For a ready-made push system that
-dispatches with FOCUS, use `build_focus_system(env, focus_weights=...)`. FOCUS
+dispatches with FOCUS, use `build_focus_system(env=env, focus_weights=...)`. FOCUS
 is also DRACO's dispatching component.
 
 See `references/api-reference.md` — "Dispatching Rules" section — for full
@@ -330,7 +330,7 @@ from simulatte.builders import build_lumscor_system
 
 def builder(*, env):
     return build_lumscor_system(
-        env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2,
+        env=env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2,
     )
 
 def extract(system):

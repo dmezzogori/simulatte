@@ -25,7 +25,7 @@ def shortest_processing_time(job: BaseJob, server: Server) -> float:
     return job.routing[server]
 
 
-def first_come_first_served(job: BaseJob, server: Server) -> float:  # noqa: ARG001
+def first_come_first_served(job: BaseJob, server: Server) -> float:
     """First Come First Served.
 
     Returns ``0.0`` for every job, so the SimPy key tuple's ``time``

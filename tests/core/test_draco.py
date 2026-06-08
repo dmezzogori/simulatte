@@ -469,7 +469,7 @@ def test_draco_force_flag_set_on_psp_win() -> None:
 # ----- decide_next_job: integration -----
 
 
-def _policy_factory(draco: Draco):  # noqa: ANN202
+def _policy_factory(draco: Draco):
     def policy(job: ProductionJob, server: Server) -> float:
         return draco.priority_policy(job, server)
 
@@ -720,7 +720,7 @@ def test_draco_decide_next_job_uses_uncorrected_count_wip(monkeypatch: pytest.Mo
 
 def test_build_draco_system_returns_pull_system_quadruple() -> None:
     env = Environment()
-    psp, servers, shop_floor, router = build_draco_system(env, wip_target=8, loop_target=4)
+    psp, servers, shop_floor, router = build_draco_system(env=env, wip_target=8, loop_target=4)
     assert isinstance(psp, PreShopPool)
     assert len(servers) == 6
     assert all(isinstance(s, Server) for s in servers)
@@ -731,7 +731,7 @@ def test_build_draco_system_returns_pull_system_quadruple() -> None:
 def test_build_draco_system_wires_starvation_avoidance() -> None:
     """A job arriving in PSP whose first server is idle must be released immediately."""
     env = Environment()
-    psp, servers, shop_floor, _router = build_draco_system(env, wip_target=8, loop_target=4)
+    psp, servers, shop_floor, _router = build_draco_system(env=env, wip_target=8, loop_target=4)
 
     # All servers idle at t=0 → a synthetic PSP arrival should be auto-released.
     job = ProductionJob(env=env, sku="A", servers=[servers[0]], processing_times=[1.0], due_date=10.0)

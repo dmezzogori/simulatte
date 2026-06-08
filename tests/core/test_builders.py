@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import random
+
+import pytest
+
 from simulatte.builders import (
+    build_continuous_release_system,
+    build_conwip_system,
     build_immediate_release_system,
     build_lumscor_system,
     build_slar_limit_system,
     build_slar_system,
+    build_starvation_avoidance_system,
 )
 from simulatte.dispatching_rules import shortest_processing_time
 from simulatte.environment import Environment
@@ -18,7 +25,7 @@ class TestBuildImmediateReleaseSystem:
 
     def test_shortest_processing_time_returns_processing_time(self) -> None:
         env = Environment()
-        _, servers, _, _ = build_immediate_release_system(env, scenario=Scenario(n_servers=1))
+        _, servers, _, _ = build_immediate_release_system(env=env, scenario=Scenario(n_servers=1))
         server = servers[0]
         job = ProductionJob(env=env, sku="F1", servers=[server], processing_times=[2.5], due_date=100.0)
         assert shortest_processing_time(job, server) == 2.5
@@ -26,13 +33,13 @@ class TestBuildImmediateReleaseSystem:
     def test_build_immediate_release_system_with_shortest_processing_time(self) -> None:
         env = Environment()
         _, _, _, router = build_immediate_release_system(
-            env, scenario=Scenario(n_servers=3), priority_policies=shortest_processing_time
+            env=env, scenario=Scenario(n_servers=3), priority_policies=shortest_processing_time
         )
         assert router.priority_policies is shortest_processing_time
 
     def test_build_immediate_release_system_basic(self) -> None:
         env = Environment()
-        psp, servers, shop_floor, router = build_immediate_release_system(env, scenario=Scenario(n_servers=3))
+        psp, servers, shop_floor, router = build_immediate_release_system(env=env, scenario=Scenario(n_servers=3))
 
         assert psp is None
         assert len(servers) == 3
@@ -43,7 +50,7 @@ class TestBuildImmediateReleaseSystem:
     def test_build_immediate_release_system_with_options(self) -> None:
         env = Environment()
         psp, servers, shop_floor, router = build_immediate_release_system(
-            env,
+            env=env,
             scenario=Scenario(n_servers=2, arrival_rate=0.5, service_rate=2.0),
             collect_time_series=True,
             retain_job_history=True,
@@ -64,7 +71,7 @@ class TestPullSystemBuilders:
     def test_build_lumscor_system(self) -> None:
         env = Environment()
         psp, servers, shop_floor, router = build_lumscor_system(
-            env,
+            env=env,
             check_timeout=10.0,
             wl_norm_level=5.0,
             allowance_factor=2,
@@ -79,7 +86,7 @@ class TestPullSystemBuilders:
     def test_build_slar_system(self) -> None:
         env = Environment()
         psp, servers, shop_floor, router = build_slar_system(
-            env,
+            env=env,
             allowance_factor=3,
         )
 
@@ -94,7 +101,7 @@ class TestPullSystemBuilders:
 
         env = Environment()
         psp, servers, shop_floor, router = build_slar_limit_system(
-            env,
+            env=env,
             allowance_factor=3.0,
             wl_norm_level=5.0,
         )
@@ -107,6 +114,136 @@ class TestPullSystemBuilders:
         # SLAR-Limit requires CorrectedWIPStrategy
         assert isinstance(shop_floor.wip_strategy, CorrectedWIPStrategy)
 
+    def test_build_conwip_system_runs_and_caps_wip(self) -> None:
+        random.seed(42)
+        peak = 0
+        with Environment() as env:
+            psp, servers, shop_floor, router = build_conwip_system(env=env, wip_cap=8)
+
+            def _sample_wip():
+                nonlocal peak
+                while True:
+                    peak = max(peak, len(shop_floor.jobs))
+                    yield env.timeout(0.5)
+
+            env.process(_sample_wip())
+            env.run(until=1000.0)
+
+        assert psp is not None
+        assert len(servers) == 6
+        assert len(shop_floor.jobs_done) > 0
+        assert peak > 0, "sampler never observed jobs on the floor"
+        assert peak <= 8, f"ConWIP exceeded its WIP cap: peak={peak}"
+
+    def test_build_continuous_release_system_runs(self) -> None:
+        random.seed(42)
+        with Environment() as env:
+            psp, servers, shop_floor, router = build_continuous_release_system(
+                env=env, wl_norm_level=6.0, allowance_factor=2
+            )
+            env.run(until=1000.0)
+
+        assert psp is not None
+        assert len(servers) == 6
+        assert len(shop_floor.jobs_done) > 0
+
+    def test_build_starvation_avoidance_system_runs(self) -> None:
+        random.seed(42)
+        with Environment() as env:
+            psp, servers, shop_floor, router = build_starvation_avoidance_system(env=env)
+            env.run(until=1000.0)
+
+        assert psp is not None
+        assert len(servers) == 6
+        # Starvation-only release keeps the first server fed, so some jobs finish.
+        assert len(shop_floor.jobs_done) > 0
+
+
+class TestScenarioShopTypes:
+    """Builders compose with non-default Scenario shop-type presets."""
+
+    def test_immediate_release_on_pure_job_shop(self) -> None:
+        random.seed(42)
+        with Environment() as env:
+            psp, servers, shop_floor, router = build_immediate_release_system(
+                env=env, scenario=Scenario.pure_job_shop()
+            )
+            env.run(until=1000.0)
+
+        assert psp is None  # immediate-release push baseline
+        assert len(servers) == 6
+        assert len(shop_floor.jobs_done) > 0
+        # Pure Job Shop: routing length U[1, M], undirected.
+        for job in shop_floor.jobs_done:
+            assert 1 <= len(job.servers) <= len(servers)
+            assert len(set(job.servers)) == len(job.servers)  # no re-entry
+
+    def test_immediate_release_on_general_flow_shop(self) -> None:
+        random.seed(42)
+        with Environment() as env:
+            psp, servers, shop_floor, router = build_immediate_release_system(
+                env=env, scenario=Scenario.general_flow_shop()
+            )
+            env.run(until=1000.0)
+
+        assert psp is None
+        assert len(servers) == 6
+        assert len(shop_floor.jobs_done) > 0
+        # General Flow Shop: variable length, but each routing is directed (ascending index).
+        saw_partial_routing = False
+        for job in shop_floor.jobs_done:
+            indices = [servers.index(s) for s in job.servers]
+            assert indices == sorted(indices)
+            assert len(set(indices)) == len(indices)
+            saw_partial_routing = saw_partial_routing or len(indices) < len(servers)
+        assert saw_partial_routing  # at least some orders skip stations (length < M)
+
+    def test_immediate_release_on_pure_flow_shop(self) -> None:
+        random.seed(42)
+        with Environment() as env:
+            psp, servers, shop_floor, router = build_immediate_release_system(
+                env=env, scenario=Scenario.pure_flow_shop()
+            )
+            env.run(until=1000.0)
+
+        assert psp is None
+        assert len(servers) == 6
+        # Pure Flow Shop is stable only because the arrival rate is derived for E[L]=M;
+        # if it naively reused the job-shop rate (1/0.648) the queue would explode.
+        assert len(shop_floor.jobs_done) > 0
+        for job in shop_floor.jobs_done:
+            assert list(job.servers) == list(servers)
+
+    def test_immediate_release_pure_job_shop_with_twk_due_dates(self) -> None:
+        random.seed(42)
+        k = 8.74  # FOCUS pure-job-shop allowance factor (6 work centres)
+        with Environment() as env:
+            psp, servers, shop_floor, router = build_immediate_release_system(
+                env=env, scenario=Scenario.pure_job_shop(twk_allowance_factor=k)
+            )
+            env.run(until=1000.0)
+
+        assert len(shop_floor.jobs_done) > 0
+        for job in shop_floor.jobs_done:
+            expected_due = job.created_at + k * sum(job.processing_times)
+            assert job.due_date == pytest.approx(expected_due)
+
+    def test_lumscor_runs_on_general_flow_shop(self) -> None:
+        random.seed(42)
+        with Environment() as env:
+            psp, servers, sf, router = build_lumscor_system(
+                env=env,
+                scenario=Scenario.general_flow_shop(),
+                check_timeout=10.0,
+                wl_norm_level=6.0,
+                allowance_factor=2,
+            )
+            env.run(until=1000.0)
+        assert len(sf.jobs_done) > 0
+        for job in sf.jobs_done:
+            idx = [servers.index(s) for s in job.servers]
+            assert idx == sorted(idx)
+
 
 class TestCollectWorkload:
     """Tests for the collect_workload parameter on all builder functions."""
@@ -115,14 +252,16 @@ class TestCollectWorkload:
         from simulatte.shopfloor import CurrentWorkLoadCollector
 
         env = Environment()
-        _, _, shop_floor, _ = build_immediate_release_system(env, scenario=Scenario(n_servers=2))
+        _, _, shop_floor, _ = build_immediate_release_system(env=env, scenario=Scenario(n_servers=2))
         assert not isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
 
     def test_build_immediate_release_collect_workload_true(self) -> None:
         from simulatte.shopfloor import CurrentWorkLoadCollector
 
         env = Environment()
-        _, _, shop_floor, _ = build_immediate_release_system(env, scenario=Scenario(n_servers=2), collect_workload=True)
+        _, _, shop_floor, _ = build_immediate_release_system(
+            env=env, scenario=Scenario(n_servers=2), collect_workload=True
+        )
         assert isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
 
     def test_build_lumscor_collect_workload_true(self) -> None:
@@ -130,7 +269,7 @@ class TestCollectWorkload:
 
         env = Environment()
         _, _, shop_floor, _ = build_lumscor_system(
-            env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2, collect_workload=True
+            env=env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2, collect_workload=True
         )
         assert isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
 
@@ -138,7 +277,7 @@ class TestCollectWorkload:
         from simulatte.shopfloor import CurrentWorkLoadCollector
 
         env = Environment()
-        _, _, shop_floor, _ = build_slar_system(env, allowance_factor=3.0, collect_workload=True)
+        _, _, shop_floor, _ = build_slar_system(env=env, allowance_factor=3.0, collect_workload=True)
         assert isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
 
     def test_build_slar_limit_collect_workload_true(self) -> None:
@@ -146,7 +285,7 @@ class TestCollectWorkload:
 
         env = Environment()
         _, _, shop_floor, _ = build_slar_limit_system(
-            env,
+            env=env,
             allowance_factor=3.0,
             wl_norm_level=5.0,
             collect_workload=True,

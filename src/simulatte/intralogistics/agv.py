@@ -43,7 +43,7 @@ class AGVType:
     battery_capacity: float
     weight_capacity: float
     volume_capacity: float
-    compatibility_fn: Callable[[Any], bool] = field(default=lambda sku: True)  # noqa: ARG005
+    compatibility_fn: Callable[[Any], bool] = field(default=lambda sku: True)
     depletion_fn: Callable[[float, float, float], float] | None = None
     recharge_fn: Callable[[float, float], float] | None = None
     low_battery_threshold: float = 0.2
