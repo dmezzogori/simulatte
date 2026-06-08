@@ -209,7 +209,7 @@ class TestScenarioShopTypes:
         assert psp is None
         assert len(servers) == 6
         # Pure Flow Shop is stable only because the arrival rate is derived for E[L]=M;
-        # if it naively reused the job-shop rate (1/0.648) the queue would explode.
+        # if it naively reused the job-shop rate (1/0.641) the queue would explode.
         assert len(shop_floor.jobs_done) > 0
         for job in shop_floor.jobs_done:
             assert list(job.servers) == list(servers)

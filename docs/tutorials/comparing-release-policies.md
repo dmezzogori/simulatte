@@ -22,7 +22,7 @@ Simulatte ships three ready-made builder functions that encapsulate the full wir
 
 ## Scenario setup
 
-Six servers, exponential inter-arrivals (λ ≈ 1.54/time-unit), truncated 2-Erlang service times (µ = 2.0), uniform due dates at 30–45 time units after arrival. Target utilisation ≈ 87–88 %. Simulation duration: 2 000 time units. Fixed seed: 42.
+Six servers, exponential inter-arrivals (λ ≈ 1.56/time-unit), truncated 2-Erlang service times (µ = 2.0), uniform due dates at 30–45 time units after arrival. Target utilisation ≈ 87–88 %. Simulation duration: 2 000 time units. Fixed seed: 42.
 
 ---
 

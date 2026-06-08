@@ -641,8 +641,8 @@ build_immediate_release_system(env=env, scenario=Scenario.pure_flow_shop())
 `E[L]=M`) each accept keyword overrides (e.g. `n_servers`, `target_utilization`,
 `twk_allowance_factor`). The exponential arrival rate is **derived per shop
 type** from `target_utilization` and `E[L]` so `rho` is held constant across
-shops — the PFS therefore arrives slower (mean inter-arrival 1.111) than the job
-shop / general flow shop (0.648). Reusing one arrival rate across shop types
+shops — the PFS therefore arrives slower (mean inter-arrival ≈1.099) than the job
+shop / general flow shop (≈0.641). Reusing one arrival rate across shop types
 would drive the PFS unstable (`rho > 1`). Any builder takes `scenario=`, so the
 same preset composes with the workload-control methods (LumsCor, SLAR, DRACO,
 …). The routing factories and rate/due-date helpers live in
