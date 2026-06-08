@@ -186,8 +186,8 @@ generating jobs at intervals drawn from `inter_arrival_distribution`.
 ```python
 {
     "SKU_A": {
-        server1: lambda: truncated_2erlang(lam=2.0, max_value=4.0),
-        server2: lambda: truncated_2erlang(lam=2.0, max_value=4.0),
+        server1: TruncatedErlang(rate=2.0, shape=2, max_value=4.0),
+        server2: TruncatedErlang(rate=2.0, shape=2, max_value=4.0),
     },
     "SKU_B": {
         server1: lambda: random.uniform(1.0, 3.0),
@@ -425,24 +425,45 @@ from simulatte.shopfloor import (
 ## Scenario
 
 ```python
-from simulatte.scenario import Scenario, ShopType
+from simulatte.scenario import Scenario, SkuFamily, ShopType
+from simulatte.distributions import TruncatedErlang, Uniform
 
 Scenario(
     shop_type: ShopType = ShopType.PJS,         # PJS / GFS / PFS
     n_servers: int = 6,
     target_utilization: float = 0.90,           # rho; arrival rate is derived to hold it
-    service_rate: float = 2.0,                  # truncated 2-Erlang rate
-    due_date_offset_range: tuple[float, float] = (30.0, 45.0),
-    twk_allowance_factor: float | None = None,  # if set, due dates use TWK rule (k * total work)
+    families: tuple[SkuFamily, ...] = (SkuFamily(),),  # one or more product families
+    due_date_offset: Distribution = Uniform(30.0, 45.0),  # fallback offset for families without one
+    arrival_process: Callable[[float], Callable[[], float]] = Exponential,
     arrival_rate: float | None = None,          # explicit override; else derived from utilization
 )
 ```
 
 Immutable (`@dataclass(frozen=True)`) description of a shop *environment* and its
 order stream — owned by every `build_*_system` via `scenario=`. The exponential
-arrival rate is **derived** per shop type from `target_utilization` and the mean
-routing length (so `rho` is held constant across shops); pass `arrival_rate=` to
-pin it explicitly. The default `Scenario()` derives a rate of ≈1.542857.
+arrival rate is **derived** per shop type from `target_utilization` and the mix-
+weighted mean routing length and service-time mean (so `rho` is held constant
+across shops and product mixes); pass `arrival_rate=` to pin it explicitly.
+The default `Scenario()` derives a rate of ≈1.5597 (mean inter-arrival ≈0.641).
+
+**`SkuFamily` fields:**
+```python
+SkuFamily(
+    name: str = "F1",
+    weight: float = 1.0,                        # relative mix weight
+    service_time: Distribution = TruncatedErlang(rate=2.0, shape=2, max_value=4.0),
+    routing_factory: ... | None = None,          # custom routing; else uses shop_type default
+    expected_routing_length: float | None = None,  # required when routing_factory is set
+    due_date_offset: Distribution | None = None, # per-family override; else Scenario.due_date_offset
+    twk_allowance_factor: float | None = None,  # if set, due dates use TWK rule (k * total work)
+)
+```
+
+**Convenience constructor** for the one-product case:
+```python
+Scenario.single(service_time=TruncatedErlang(rate=2.0), n_servers=8)
+# equivalent to: Scenario(families=(SkuFamily(service_time=TruncatedErlang(rate=2.0)),), n_servers=8)
+```
 
 **Presets** (each accepts keyword overrides, e.g. `Scenario.pure_flow_shop(n_servers=8)`):
 - `Scenario.pure_job_shop()` — PJS: routing length `U[1, M]`, undirected.
@@ -705,9 +726,17 @@ Weight order is `(π, ξ, τ, δ, β)` = `(pi, omega, psi, gamma, beta)` — the
 ## Distribution Helpers
 
 ```python
-from simulatte.distributions import pure_job_shop_routing, truncated_2erlang, RunningStats
+from simulatte.distributions import (
+    Distribution, TruncatedErlang, Exponential, Erlang,
+    LogNormal, Uniform, Deterministic,
+    pure_job_shop_routing, RunningStats,
+)
 ```
 
+**Distribution built-ins** (callable variates with a `.mean` property satisfying the `Distribution` protocol):
+- `TruncatedErlang(rate, shape=2, max_value=inf)` — Erlang truncated by rejection resampling; `shape=2` reproduces the classic benchmark service process. Also `Exponential(rate)`, `Erlang(rate, shape=2)`, `LogNormal(mu, sigma)`, `Uniform(low, high)`, `Deterministic(value)`.
+
+**Routing factories:**
 - `pure_job_shop_routing(servers) -> Callable[[], Sequence[Server]]` — Pure Job
   Shop (PJS) routing: random length `U[1, len]`, random order, without
   replacement (no re-entry).
@@ -717,8 +746,6 @@ from simulatte.distributions import pure_job_shop_routing, truncated_2erlang, Ru
 - `pure_flow_shop_routing(servers) -> Callable[[], Sequence[Server]]` — Pure
   Flow Shop (PFS) routing: every job visits all servers in the same fixed
   (directed) sequence.
-- `truncated_2erlang(lam=2, max_value=4.0) -> float` — single sample from
-  Gamma(2, 1/lam), truncated at max_value. Mean = 2/lam.
 - `RunningStats` — Welford's algorithm for online mean/variance/std.
   Methods: `.update(x)`, `.mean`, `.variance`, `.std`, `.z_norm(x)`.
 

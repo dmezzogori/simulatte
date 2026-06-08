@@ -388,34 +388,6 @@ def twk_due_date(allowance_factor: float) -> Callable[[Sequence[float]], float]:
     return rule
 
 
-def truncated_2erlang(lam: float = 2, max_value: float = 4.0) -> float:
-    """Generate a sample from a truncated 2-Erlang (Gamma(2, 1/λ)) distribution.
-
-    The 2-Erlang distribution models service times as the sum of two exponential
-    phases, producing less variable times than pure exponential. Truncation
-    ensures samples don't exceed a maximum value.
-
-    Args:
-        lam: Rate parameter (λ) for each exponential phase. Higher values
-            produce smaller samples on average (mean = 2/λ).
-        max_value: Maximum allowed sample value. Samples exceeding this
-            are rejected and redrawn.
-
-    Returns:
-        A random sample from the truncated distribution, guaranteed to
-        be in the range [0, max_value].
-
-    Example:
-        >>> service_time = truncated_2erlang(lam=2.0, max_value=4.0)
-        >>> 0 <= service_time <= 4.0
-        True
-    """
-    while True:
-        sample = random.expovariate(lam) + random.expovariate(lam)
-        if sample <= max_value:
-            return sample
-
-
 class RunningStats:
     """Compute running mean, variance, and standard deviation using Welford's algorithm.
 

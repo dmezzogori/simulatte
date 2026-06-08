@@ -19,7 +19,6 @@ from simulatte.distributions import (
     general_flow_shop_routing,
     pure_flow_shop_routing,
     pure_job_shop_routing,
-    truncated_2erlang,
     twk_due_date,
 )
 from simulatte.environment import Environment
@@ -135,20 +134,6 @@ def test_arrival_rate_for_utilization_respects_processing_time_mean() -> None:
     base = arrival_rate_for_utilization(0.9, n_servers=6, mean_routing_length=3.5, mean_processing_time=1.0)
     faster = arrival_rate_for_utilization(0.9, n_servers=6, mean_routing_length=3.5, mean_processing_time=0.5)
     assert faster == pytest.approx(2 * base)
-
-
-def test_truncated_2erlang_within_bounds() -> None:
-    random.seed(42)
-    for _ in range(100):
-        sample = truncated_2erlang(lam=2, max_value=4.0)
-        assert 0 <= sample <= 4.0
-
-
-def test_truncated_2erlang_custom_max_value() -> None:
-    random.seed(42)
-    for _ in range(50):
-        sample = truncated_2erlang(lam=2, max_value=1.0)
-        assert 0 <= sample <= 1.0
 
 
 def test_running_stats_empty() -> None:

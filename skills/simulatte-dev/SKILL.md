@@ -164,14 +164,17 @@ env.run(until=10_000)
 
 Every builder takes a `scenario: Scenario = Scenario()` that owns the shop
 environment. The default `Scenario()` is a 6-server pure job shop held at
-`target_utilization=0.90`, truncated 2-Erlang service times (`service_rate=2.0`),
-and a single SKU ("F1") with random routing through a subset of servers. The
-exponential arrival rate is **derived** from utilization and mean routing length
-(≈1.542857 for the default), so `rho` stays constant across shop types. Override
-the environment via `scenario=Scenario(n_servers=..., service_rate=...,
-target_utilization=..., due_date_offset_range=...)` or a preset
-(`Scenario.pure_job_shop()` / `.general_flow_shop()` / `.pure_flow_shop()`). To
-pin an explicit rate instead of deriving it, set `Scenario(arrival_rate=...)`.
+`target_utilization=0.90`, a single product family ("F1") with
+`TruncatedErlang(rate=2.0, shape=2, max_value=4.0)` service times and random
+routing through a subset of servers. The exponential arrival rate is **derived**
+from utilization and the mix-weighted mean routing length and service-time mean
+(≈1.5597 for the default, mean inter-arrival ≈0.641), so `rho` stays constant
+across shop types. Override the environment via
+`scenario=Scenario(n_servers=..., target_utilization=..., families=(...))` or
+use `Scenario.single(service_time=..., n_servers=...)` for the common one-
+product case, or a preset (`Scenario.pure_job_shop()` / `.general_flow_shop()`
+/ `.pure_flow_shop()`). To pin an explicit rate instead of deriving it, set
+`Scenario(arrival_rate=...)`.
 
 ### Manual composition
 

@@ -67,7 +67,37 @@ records simulation events and can emit them as JSON, plain text, or to a SQLite 
       heading_level: 3
       members: false
 
-::: simulatte.distributions.truncated_2erlang
+::: simulatte.distributions.Distribution
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.distributions.Exponential
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.distributions.Erlang
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.distributions.TruncatedErlang
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.distributions.LogNormal
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.distributions.Uniform
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.distributions.Deterministic
     options:
       heading_level: 3
       members: false
