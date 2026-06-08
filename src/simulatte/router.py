@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, NoReturn
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.shopfloor import ShopFloor
-from simulatte.typing import DiscreteDistribution, Distribution
+from simulatte.typing import DiscreteDistribution, Sampler
 
 if TYPE_CHECKING:  # pragma: no cover
     from simpy.events import Timeout
@@ -46,14 +46,14 @@ class Router:
         shopfloor: ShopFloor,
         servers: Sequence[Server],
         psp: PreShopPool | None,
-        inter_arrival_distribution: Distribution[float],
+        inter_arrival_distribution: Sampler[float],
         sku_distributions: DiscreteDistribution[str, float],
         sku_routings: dict[str, Callable[[], Sequence[Server]]],
         sku_service_times: dict[
             str,
-            DiscreteDistribution[Server, Distribution[float]],
+            DiscreteDistribution[Server, Sampler[float]],
         ],
-        due_date_offset_distribution: dict[str, Distribution[float]],
+        due_date_offset_distribution: dict[str, Sampler[float]],
         priority_policies: Callable[[ProductionJob, Server], float] | None = None,
         due_date_rule: dict[str, Callable[[Sequence[float]], float]] | None = None,
     ) -> None:

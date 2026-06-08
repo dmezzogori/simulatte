@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     # the aliases runtime-importable while type-checkers still resolve it.
     from simulatte.router import Router
 
-Distribution: TypeAlias = Callable[[], T]
+Sampler: TypeAlias = Callable[[], T]
 DiscreteDistribution: TypeAlias = dict[K, T]
 Builder: TypeAlias = Callable[..., S]
 
@@ -36,9 +36,9 @@ PullSystem: TypeAlias = System[PreShopPool]
 __all__ = [
     "Builder",
     "DiscreteDistribution",
-    "Distribution",
     "ProcessGenerator",
     "PullSystem",
     "PushSystem",
+    "Sampler",
     "System",
 ]
