@@ -120,11 +120,11 @@ uv run python examples/gallery_release_triggers.py
 ```text
 Release triggers & starvation avoidance (seed=42)
 System              Done   AvgTIS  MeanTard  %Tardy
-Immediate           1159    14.46      0.10    1.7%
-Starvation-only     1153    10.46      0.78    6.4%
+Immediate           1172    16.07      0.18    3.4%
+Starvation-only     1165    11.07      0.85    7.6%
 Periodic-release    1144    16.66      0.43    7.5%
 ```
 
 ## Interpretation
 
-The starvation-only system is wired via the on-arrival and on-completion **callbacks** (`psp.on_arrival` / `shop_floor.on_processing_end`) — not the trigger-process primitives — to release a job the instant its first server goes idle. This keeps the shop entrance fed and trims average time in system (10.46 vs the push baseline's 14.46), but because it never throttles, WIP is free to grow and a longer tail of jobs turns tardy (6.4%). The periodic system releases the entire pool every ten time units: arrivals are batched into bursts that briefly flood the floor, so it shows the highest flow time (16.66) — a clear illustration that *when* you release matters as much as *what* you release. Both are deliberately minimal; production policies (LumsCor, ConWIP, Continuous Release) layer load- or count-based release functions onto these same trigger primitives.
+The starvation-only system is wired via the on-arrival and on-completion **callbacks** (`psp.on_arrival` / `shop_floor.on_processing_end`) — not the trigger-process primitives — to release a job the instant its first server goes idle. This keeps the shop entrance fed and trims average time in system (11.07 vs the push baseline's 16.07), but because it never throttles, WIP is free to grow and a longer tail of jobs turns tardy (7.6%). The periodic system releases the entire pool every ten time units: arrivals are batched into bursts that briefly flood the floor, so it shows the highest flow time (16.66) — a clear illustration that *when* you release matters as much as *what* you release. Both are deliberately minimal; production policies (LumsCor, ConWIP, Continuous Release) layer load- or count-based release functions onto these same trigger primitives.

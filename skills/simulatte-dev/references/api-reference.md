@@ -746,6 +746,8 @@ from simulatte.distributions import (
 - `pure_flow_shop_routing(servers) -> Callable[[], Sequence[Server]]` — Pure
   Flow Shop (PFS) routing: every job visits all servers in the same fixed
   (directed) sequence.
+
+**Statistics:**
 - `RunningStats` — Welford's algorithm for online mean/variance/std.
   Methods: `.update(x)`, `.mean`, `.variance`, `.std`, `.z_norm(x)`.
 

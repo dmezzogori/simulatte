@@ -335,7 +335,7 @@ def arrival_rate_for_utilization(
         n_servers: Number of machines ``M``.
         mean_routing_length: Mean number of operations per order ``E[L]``.
         mean_processing_time: Mean operation processing time ``E[p]``. Defaults
-            to ``1.0`` (the truncated 2-Erlang benchmark mean).
+            to ``1.0`` (the nominal 2-Erlang mean; see ``TruncatedErlang``).
 
     Returns:
         The arrival rate ``lambda`` (orders per time unit). Its reciprocal is
