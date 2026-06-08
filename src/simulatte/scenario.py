@@ -15,6 +15,8 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from simulatte.distributions import (
+    Distribution,
+    TruncatedErlang,
     arrival_rate_for_utilization,
     general_flow_shop_routing,
     pure_flow_shop_routing,
@@ -46,6 +48,44 @@ _ROUTING = {
     ShopType.GFS: general_flow_shop_routing,
     ShopType.PFS: pure_flow_shop_routing,
 }
+
+_DEFAULT_SERVICE_TIME = TruncatedErlang(rate=2.0, shape=2, max_value=4.0)
+
+
+@dataclass(frozen=True)
+class SkuFamily:
+    """One product family: its routing, service-time distribution, due-date, and mix weight."""
+
+    name: str = "F1"
+    weight: float = 1.0
+    service_time: Distribution = _DEFAULT_SERVICE_TIME
+    routing_factory: Callable[[Sequence[Server]], Callable[[], Sequence[Server]]] | None = None
+    expected_routing_length: float | None = None
+    due_date_offset: Distribution | None = None
+    twk_allowance_factor: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.weight <= 0:
+            msg = f"weight must be positive, got {self.weight}"
+            raise ValueError(msg)
+        if self.routing_factory is not None and self.expected_routing_length is None:
+            msg = "SkuFamily with a custom routing_factory must set expected_routing_length."
+            raise ValueError(msg)
+        if self.expected_routing_length is not None and self.expected_routing_length <= 0:
+            msg = f"expected_routing_length must be positive, got {self.expected_routing_length}"
+            raise ValueError(msg)
+
+    def routing_for(self, shop_type: ShopType) -> Callable[[Sequence[Server]], Callable[[], Sequence[Server]]]:
+        """This family's routing factory (custom override or the shop-type default)."""
+        return self.routing_factory or _ROUTING[shop_type]
+
+    def mean_routing_length(self, shop_type: ShopType, n_servers: int) -> float:
+        """Expected operations per order, E[L] (explicit override, else shop-type formula)."""
+        if self.expected_routing_length is not None:
+            return self.expected_routing_length
+        if shop_type is ShopType.PFS:
+            return float(n_servers)
+        return (n_servers + 1) / 2
 
 
 @dataclass(frozen=True)

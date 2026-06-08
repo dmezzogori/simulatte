@@ -4,10 +4,15 @@ import random
 
 import pytest
 
-from simulatte.distributions import general_flow_shop_routing, pure_flow_shop_routing, pure_job_shop_routing
+from simulatte.distributions import (
+    TruncatedErlang,
+    general_flow_shop_routing,
+    pure_flow_shop_routing,
+    pure_job_shop_routing,
+)
 from simulatte.environment import Environment
 from simulatte.psp import PreShopPool
-from simulatte.scenario import Scenario, ShopType
+from simulatte.scenario import Scenario, ShopType, SkuFamily
 from simulatte.shopfloor import ShopFloor
 
 
@@ -86,3 +91,45 @@ def test_build_router_applies_twk_due_dates() -> None:
         env.run(until=50.0)
         job = next(iter(psp.jobs))
         assert job.due_date == pytest.approx(job.created_at + k * sum(job.processing_times))
+
+
+def test_skufamily_defaults() -> None:
+    f = SkuFamily()
+    assert f.name == "F1"
+    assert f.weight == 1.0
+    assert isinstance(f.service_time, TruncatedErlang)
+    assert f.service_time.mean == pytest.approx(0.989232, abs=1e-4)
+
+
+def test_skufamily_mean_routing_length_inherits_shop_type() -> None:
+    f = SkuFamily()
+    assert f.mean_routing_length(ShopType.PJS, n_servers=6) == 3.5
+    assert f.mean_routing_length(ShopType.GFS, n_servers=6) == 3.5
+    assert f.mean_routing_length(ShopType.PFS, n_servers=6) == 6.0
+
+
+def test_skufamily_routing_override_requires_expected_length() -> None:
+    with pytest.raises(ValueError, match="expected_routing_length"):
+        SkuFamily(routing_factory=pure_job_shop_routing)
+    f = SkuFamily(routing_factory=pure_job_shop_routing, expected_routing_length=2.0)
+    assert f.mean_routing_length(ShopType.PFS, n_servers=6) == 2.0  # override wins over shop type
+    assert f.routing_for(ShopType.PFS) is pure_job_shop_routing
+
+
+def test_skufamily_routing_for_inherits_shop_type() -> None:
+    assert SkuFamily().routing_for(ShopType.GFS) is general_flow_shop_routing
+    assert SkuFamily().routing_for(ShopType.PJS) is pure_job_shop_routing
+
+
+def test_skufamily_weight_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="weight"):
+        SkuFamily(weight=0.0)
+    with pytest.raises(ValueError, match="weight"):
+        SkuFamily(weight=-1.0)
+
+
+def test_skufamily_expected_routing_length_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="expected_routing_length"):
+        SkuFamily(expected_routing_length=0.0)
+    with pytest.raises(ValueError, match="expected_routing_length"):
+        SkuFamily(expected_routing_length=-1.0)
