@@ -18,6 +18,7 @@ from simulatte.dispatching_rules import (
     raghu_rajendran,
     slack_per_remaining_operation,
 )
+from simulatte.distributions import Uniform
 from simulatte.environment import Environment
 from simulatte.scenario import Scenario
 
@@ -37,7 +38,7 @@ def run_rule(rule) -> tuple[int, float, float, float]:
     random.seed(SEED)
     with Environment() as env:
         _, _servers, shop_floor, _ = build_immediate_release_system(
-            env=env, scenario=Scenario(due_date_offset_range=(10.0, 18.0)), priority_policies=rule
+            env=env, scenario=Scenario(due_date_offset=Uniform(10.0, 18.0)), priority_policies=rule
         )
         env.run(until=HORIZON)
         done = shop_floor.jobs_done

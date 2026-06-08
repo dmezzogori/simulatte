@@ -74,10 +74,10 @@ uv run python examples/gallery_release_wip.py
 ```text
 WIP-cap release policies (seed=42)
 Policy    Done   AvgTIS  MeanTard  %Tardy
-ConWIP    1119    12.16      1.04   21.4%
-DRACO     1158     7.59      0.09    0.9%
+ConWIP    1125    12.15      1.15   22.2%
+DRACO     1177     7.76      0.17    1.8%
 ```
 
 ## Interpretation
 
-With its count cap sized to the load (`wip_cap=18`), ConWIP roughly keeps pace with arrivals — completing 1119 jobs at 21.4% tardy — but still visibly trails DRACO (1158 jobs, 0.9% tardy) and carries a longer floor time (12.16 vs 7.59). DRACO reaches a comparable shop WIP but, by merging release, authorisation, and dispatching into one per-server score rather than enforcing a single global count, it keeps the right jobs moving and finishes essentially every arrival with near-zero tardiness. A ConWIP cap must be sized to the load: too tight a cap (for example `wip_cap=8`) throttles throughput below the arrival rate, so the PSP backs up without bound and almost every job turns tardy. The contrast shows that even when the cap is well chosen, *how* WIP is allocated and dispatched matters as much as the cap itself.
+With its count cap sized to the load (`wip_cap=18`), ConWIP roughly keeps pace with arrivals — completing 1125 jobs at 22.2% tardy — but still visibly trails DRACO (1177 jobs, 1.8% tardy) and carries a longer floor time (12.15 vs 7.76). DRACO reaches a comparable shop WIP but, by merging release, authorisation, and dispatching into one per-server score rather than enforcing a single global count, it keeps the right jobs moving and finishes essentially every arrival with near-zero tardiness. A ConWIP cap must be sized to the load: too tight a cap (for example `wip_cap=8`) throttles throughput below the arrival rate, so the PSP backs up without bound and almost every job turns tardy. The contrast shows that even when the cap is well chosen, *how* WIP is allocated and dispatched matters as much as the cap itself.

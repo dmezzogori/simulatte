@@ -84,13 +84,13 @@ uv run python examples/gallery_benchmark_shops.py
 ```text
 Benchmark shop environments (seed=42, rho=0.90)
 Shop              Done   AvgTIS  MeanTard  %Tardy
-PureJobShop       3026    19.93      1.04   11.8%
-GeneralFlowShop   3036    19.71      0.74   11.5%
-PureFlowShop      1752    25.71      0.38   10.3%
+PureJobShop       3054    21.26      1.32   14.4%
+GeneralFlowShop   3061    21.39      1.11   14.5%
+PureFlowShop      1770    27.09      0.56   13.9%
 ```
 
 ## Interpretation
 
-The Pure Job Shop and General Flow Shop complete a near-identical number of orders (≈3030): they share the same mean routing length `E[L] = (M + 1) / 2 = 3.5`, so they receive the same derived arrival rate (mean inter-arrival ≈ 0.648) and carry the same throughput. Their only difference is routing *direction* — the GFS sorts each routing into a forward flow — which leaves aggregate flow time almost unchanged here but slightly lowers tardiness as orders no longer double back upstream.
+The Pure Job Shop and General Flow Shop complete a near-identical number of orders (≈3055): they share the same mean routing length `E[L] = (M + 1) / 2 = 3.5`, so they receive the same derived arrival rate (mean inter-arrival ≈ 0.6412) and carry the same throughput. Their only difference is routing *direction* — the GFS sorts each routing into a forward flow — which leaves aggregate flow time almost unchanged here but slightly lowers tardiness as orders no longer double back upstream.
 
-The Pure Flow Shop stands apart: every order visits all six machines, so `E[L] = M = 6`. To hold the same 90% utilization the shop must receive orders far more slowly (mean inter-arrival ≈ 1.111), which is why it completes far fewer orders (1752) and shows a longer average time in system (each order carries six operations). The arrival rate is **derived per shop type** — by the `Scenario` preset, from its `target_utilization` and mean routing length — precisely so this comparison stays at a common utilization; reusing the job shop's faster arrival rate for the flow shop would push utilization past 1 and the queue would grow without bound.
+The Pure Flow Shop stands apart: every order visits all six machines, so `E[L] = M = 6`. To hold the same 90% utilization the shop must receive orders far more slowly (mean inter-arrival ≈ 1.0991), which is why it completes far fewer orders (1770) and shows a longer average time in system (each order carries six operations). The arrival rate is **derived per shop type** — by the `Scenario` preset, from its `target_utilization` and mean routing length — precisely so this comparison stays at a common utilization; reusing the job shop's faster arrival rate for the flow shop would push utilization past 1 and the queue would grow without bound.

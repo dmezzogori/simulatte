@@ -51,7 +51,7 @@ class TestBuildImmediateReleaseSystem:
         env = Environment()
         psp, servers, shop_floor, router = build_immediate_release_system(
             env=env,
-            scenario=Scenario(n_servers=2, arrival_rate=0.5, service_rate=2.0),
+            scenario=Scenario(n_servers=2, arrival_rate=0.5),
             collect_time_series=True,
             retain_job_history=True,
         )
@@ -219,7 +219,7 @@ class TestScenarioShopTypes:
         k = 8.74  # FOCUS pure-job-shop allowance factor (6 work centres)
         with Environment() as env:
             psp, servers, shop_floor, router = build_immediate_release_system(
-                env=env, scenario=Scenario.pure_job_shop(twk_allowance_factor=k)
+                env=env, scenario=Scenario.single(twk_allowance_factor=k)
             )
             env.run(until=1000.0)
 
