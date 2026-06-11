@@ -311,31 +311,62 @@ class TestBuiltSystemPolicyField:
         # Named-field access works alongside positional unpacking.
         assert result.router is result[3]
         assert result.policy is result[4]
+        # Identity link: the returned policy is the *same* instance that wired
+        # itself into the shop. LumsCor's only bound observable hook is the
+        # completion lambda it registers on the shopfloor; its closure captures
+        # the policy instance. (_processing_end_callbacks: no public accessor.)
+        lambdas = result.shop_floor._processing_end_callbacks
+        assert any(
+            (closure := getattr(cb, "__closure__", None)) is not None
+            and any(cell.cell_contents is result.policy for cell in closure)
+            for cb in lambdas
+        )
 
     def test_slar_returns_policy_instance(self) -> None:
         env = Environment()
         result = build_slar_system(env=env, allowance_factor=3.0)
         assert isinstance(result.policy, Slar)
+        # Identity link: the completion hook is result.policy._consider_release,
+        # a bound method of the returned instance. (_processing_end_callbacks:
+        # no public accessor.)
+        callbacks = result.shop_floor._processing_end_callbacks
+        assert any(getattr(cb, "__self__", None) is result.policy for cb in callbacks)
 
     def test_slar_limit_returns_policy_instance(self) -> None:
         env = Environment()
         result = build_slar_limit_system(env=env, allowance_factor=3.0, wl_norm_level=5.0)
         assert isinstance(result.policy, SlarLimit)
+        # Identity link: same bound completion hook as Slar (inherited).
+        callbacks = result.shop_floor._processing_end_callbacks
+        assert any(getattr(cb, "__self__", None) is result.policy for cb in callbacks)
 
     def test_draco_returns_policy_instance(self) -> None:
         env = Environment()
         result = build_draco_system(env=env, wip_target=8, loop_target=4)
         assert isinstance(result.policy, Draco)
+        # Identity link: the router's priority rule is result.policy.priority_policy,
+        # a bound method of the returned instance.
+        assert getattr(result.router.priority_policies, "__self__", None) is result.policy
 
     def test_conwip_returns_policy_instance(self) -> None:
         env = Environment()
         result = build_conwip_system(env=env, wip_cap=8)
         assert isinstance(result.policy, ConWIP)
+        # Identity link: the PSP arrival callback is result.policy.on_arrival_release,
+        # a bound method of the returned instance. (_arrival_callbacks: no public
+        # accessor on PreShopPool.)
+        assert isinstance(result.psp, PreShopPool)
+        assert any(getattr(cb, "__self__", None) is result.policy for cb in result.psp._arrival_callbacks)
 
     def test_continuous_release_returns_policy_instance(self) -> None:
         env = Environment()
         result = build_continuous_release_system(env=env, wl_norm_level=6.0)
         assert isinstance(result.policy, ContinuousRelease)
+        # Identity link: the PSP arrival callback is result.policy.on_arrival_release,
+        # a bound method of the returned instance. (_arrival_callbacks: no public
+        # accessor on PreShopPool.)
+        assert isinstance(result.psp, PreShopPool)
+        assert any(getattr(cb, "__self__", None) is result.policy for cb in result.psp._arrival_callbacks)
 
     def test_immediate_release_has_no_policy(self) -> None:
         env = Environment()

@@ -5,12 +5,35 @@ from unittest.mock import Mock
 
 import pytest
 
+from simulatte.dispatching_rules import planned_slack_time
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.policies.lumscor import LumsCor
 from simulatte.psp import PreShopPool
+from simulatte.router import Router
 from simulatte.server import Server
 from simulatte.shopfloor import CorrectedWIPStrategy, ShopFloor
+
+
+def _real_router(env, sf, psp, server) -> Router:
+    """A minimal but *real* Router (not a Mock).
+
+    Its ``generate_job`` process is effectively inert in these tests: the
+    inter-arrival distribution returns a huge value and no test using this
+    helper runs the env far enough to fire it. The point is to exercise
+    ``LumsCor.__init__``'s real assignment to ``router.priority_policies``.
+    """
+    return Router(
+        env=env,
+        shopfloor=sf,
+        servers=[server],
+        psp=psp,
+        inter_arrival_distribution=lambda: 1e9,
+        sku_distributions={"A": 1.0},
+        sku_routings={"A": lambda: [server]},
+        sku_service_times={"A": {server: lambda: 1.0}},
+        due_date_offset_distribution={"A": lambda: 30.0},
+    )
 
 
 def _lumscor(env, sf, psp, *, wl_norm, allowance_factor=2, check_timeout=10_000.0) -> LumsCor:
@@ -94,7 +117,6 @@ def test_lumscor_rejects_missing_server() -> None:
 def test_lumscor_release_under_norm() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    sf.set_wip_strategy(CorrectedWIPStrategy())
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
 
@@ -121,7 +143,6 @@ def test_lumscor_release_under_norm() -> None:
 def test_lumscor_release_respects_norm() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    sf.set_wip_strategy(CorrectedWIPStrategy())
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
 
@@ -147,7 +168,6 @@ def test_lumscor_release_respects_norm() -> None:
 def test_lumscor_release_order_by_planned_release_date() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    sf.set_wip_strategy(CorrectedWIPStrategy())
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
 
@@ -177,7 +197,6 @@ def test_lumscor_release_order_by_planned_release_date() -> None:
 def test_lumscor_starvation_release_when_empty() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    sf.set_wip_strategy(CorrectedWIPStrategy())
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
     _lumscor(env, sf, psp, wl_norm={server: 100.0})
@@ -196,7 +215,6 @@ def test_lumscor_starvation_release_when_empty() -> None:
 def test_lumscor_starvation_release_when_queue_has_one() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    sf.set_wip_strategy(CorrectedWIPStrategy())
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
     _lumscor(env, sf, psp, wl_norm={server: 100.0})
@@ -227,7 +245,6 @@ def test_lumscor_starvation_release_when_queue_has_one() -> None:
 def test_lumscor_starvation_no_release_when_queue_has_one_no_candidates() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    sf.set_wip_strategy(CorrectedWIPStrategy())
     server1 = Server(env=env, capacity=1, shopfloor=sf)
     server2 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
@@ -257,7 +274,6 @@ def test_lumscor_starvation_no_release_when_queue_has_one_no_candidates() -> Non
 def test_lumscor_starvation_no_release_when_queue_has_many() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    sf.set_wip_strategy(CorrectedWIPStrategy())
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
     _lumscor(env, sf, psp, wl_norm={server: 100.0})
@@ -286,7 +302,6 @@ def test_lumscor_starvation_no_release_when_queue_has_many() -> None:
 def test_lumscor_starvation_no_release_when_no_candidates() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    sf.set_wip_strategy(CorrectedWIPStrategy())
     server1 = Server(env=env, capacity=1, shopfloor=sf)
     server2 = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
@@ -314,7 +329,6 @@ def test_lumscor_starvation_no_release_when_no_candidates() -> None:
 def test_lumscor_starvation_selects_by_planned_release_date() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
-    sf.set_wip_strategy(CorrectedWIPStrategy())
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
     _lumscor(env, sf, psp, wl_norm={server: 100.0})
@@ -346,7 +360,6 @@ def test_lumscor_starvation_release_no_previous_server() -> None:
     """Starvation release should return early when triggering job has no previous server."""
     env = Environment()
     sf = ShopFloor(env=env)
-    sf.set_wip_strategy(CorrectedWIPStrategy())
     server = Server(env=env, capacity=1, shopfloor=sf)
     psp = PreShopPool(env=env, shopfloor=sf)
     lumscor = _lumscor(env, sf, psp, wl_norm={server: 100.0})
@@ -373,3 +386,104 @@ def test_lumscor_starvation_release_no_previous_server() -> None:
 
     # Candidate should still be in PSP.
     assert candidate in psp.jobs
+
+
+# ---------- Self-wiring side effects (mutation-pinned) ----------
+
+
+def test_lumscor_self_wires_corrected_wip_strategy() -> None:
+    """LumsCor.__init__ sets CorrectedWIPStrategy on the shopfloor itself.
+
+    No manual ``set_wip_strategy`` is performed here on purpose: this pins the
+    self-wiring line in ``LumsCor.__init__``. Deleting that line makes this fail.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    # Sanity: the floor starts on the default (non-corrected) strategy.
+    assert not isinstance(sf.wip_strategy, CorrectedWIPStrategy)
+
+    _lumscor(env, sf, psp, wl_norm={server: 5.0})
+
+    assert isinstance(sf.wip_strategy, CorrectedWIPStrategy)
+
+
+def test_lumscor_self_wires_pst_priority_on_router() -> None:
+    """LumsCor.__init__ wires PST (with the given allowance) onto the router.
+
+    Uses a *real* Router and asserts behaviorally: the wired callable must
+    reproduce ``planned_slack_time(allowance=allowance_factor)`` exactly.
+    An identity-only ('not None'/'changed') check would not catch a
+    wrong-allowance mutation; the numeric comparison does.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    router = _real_router(env, sf, psp, server)
+
+    allowance_factor = 2
+    LumsCor(
+        shopfloor=sf,
+        psp=psp,
+        router=router,
+        wl_norm={server: 100.0},
+        check_timeout=10_000.0,
+        allowance_factor=allowance_factor,
+    )
+
+    wired = router.priority_policies
+    assert wired is not None
+
+    # Single-op job at now=0: pst = (due - now) - (pt + allowance) = 20 - (5 + 2) = 13.
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=20.0)
+    expected = planned_slack_time(allowance=float(allowance_factor))(job, server)
+    assert wired(job, server) == expected == pytest.approx(13.0)
+
+    # A wrong allowance (e.g. the check_timeout swapped in) would yield a
+    # different value, so this comparison fails the mutation.
+    assert wired(job, server) != planned_slack_time(allowance=10_000.0)(job, server)
+
+
+def test_lumscor_self_wires_periodic_trigger() -> None:
+    """LumsCor.__init__ starts the periodic release trigger itself.
+
+    Isolation: only the *periodic* path may release the candidate here.
+    - The first server is kept busy by a long blocker, so the on-arrival
+      ``starvation_avoidance`` cannot release the candidate.
+    - The blocker's processing time (100.0) outlasts ``check_timeout`` (5.0),
+      so no completion fires before the timeout and ``starvation_release``
+      cannot release it either.
+    With a generous norm, the only thing that can move the candidate onto the
+    floor is the periodic trigger firing at t=check_timeout. Deleting or
+    mis-wiring that trigger leaves the candidate stranded in the PSP.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    check_timeout = 5.0
+    _lumscor(env, sf, psp, wl_norm={server: 10_000.0}, check_timeout=check_timeout)
+
+    # Long blocker: busies the server (suppresses on-arrival release) and
+    # outlasts check_timeout (suppresses completion-triggered release).
+    blocker = ProductionJob(env=env, sku="B", servers=[server], processing_times=[100.0], due_date=1000.0)
+    sf.add(blocker)
+    env.run(until=0.01)
+
+    candidate = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=50.0)
+    psp.add(candidate)
+    assert candidate in psp.jobs  # not released on arrival (server busy)
+
+    # Strictly before the timeout: nothing else can release it.
+    env.run(until=check_timeout - 1.0)
+    assert candidate in psp.jobs
+    assert candidate not in sf.jobs
+
+    # Just past the timeout: only the periodic trigger could have released it.
+    env.run(until=check_timeout + 1.0)
+    assert candidate not in psp.jobs
+    assert candidate in sf.jobs

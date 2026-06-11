@@ -9,7 +9,7 @@ from simulatte.job import ProductionJob
 from simulatte.policies.continuous_release import ContinuousRelease
 from simulatte.psp import PreShopPool
 from simulatte.server import Server
-from simulatte.shopfloor import ShopFloor
+from simulatte.shopfloor import CorrectedWIPStrategy, ShopFloor
 
 
 def test_continuous_release_rejects_empty_norms() -> None:
@@ -275,3 +275,23 @@ def test_continuous_release_corrected_load_multi_server_releases() -> None:
     # Should be released: both contributions within norms
     assert job not in psp
     assert job in sf.jobs
+
+
+def test_continuous_release_self_wires_corrected_wip_strategy() -> None:
+    """ContinuousRelease.__init__ sets CorrectedWIPStrategy on the shopfloor itself.
+
+    The corrected aggregate-load formula (PT / (i + 1)) only makes sense under
+    CorrectedWIPStrategy. This pins the self-wiring line in
+    ``ContinuousRelease.__init__`` — deleting it makes this fail.
+    """
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+
+    # Sanity: the floor starts on the default (non-corrected) strategy.
+    assert not isinstance(sf.wip_strategy, CorrectedWIPStrategy)
+
+    ContinuousRelease(shopfloor=sf, psp=psp, wl_norm={server: 5.0}, allowance_factor=2)
+
+    assert isinstance(sf.wip_strategy, CorrectedWIPStrategy)
