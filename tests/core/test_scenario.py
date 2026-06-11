@@ -5,6 +5,7 @@ import random
 import pytest
 
 from simulatte.distributions import (
+    Deterministic,
     Erlang,
     Exponential,
     TruncatedErlang,
@@ -200,3 +201,95 @@ def test_custom_arrival_process_is_wired() -> None:
         sf, servers = s.build_floor(env)
         s.build_router(env, sf, servers, psp=None)
     assert seen == [1.5]
+
+
+def test_two_family_mix_respects_weight_proportions() -> None:
+    # Gap A: build_router wires sku_distributions={f.name: f.weight} into
+    # random.choices(weights=...). A 3:1 mix must produce ≈75% A-jobs. We route
+    # jobs into a PSP with NO release policy so EVERY generated job accumulates
+    # there (no completion bias), and count by SKU over the generated stream.
+    #
+    # Power: pin arrival_rate so n ≈ 2500 arrivals are generated cheaply (jobs
+    # never enter a server). At n=2000 the binomial std-dev of the A-fraction is
+    # sqrt(0.75 * 0.25 / 2000) ≈ 0.0097, so the ±0.03 band is ≈3σ around 0.75.
+    # An inverted mix would centre on 0.25 — failing by (0.75-0.25)/0.0097 ≈ 50σ.
+    random.seed(12345)
+    families = (
+        SkuFamily(name="A", weight=3.0, service_time=Deterministic(1.0)),
+        SkuFamily(name="B", weight=1.0, service_time=Deterministic(1.0)),
+    )
+    with Environment() as env:
+        scenario = Scenario.pure_job_shop(families=families, arrival_rate=10.0)
+        sf, servers = scenario.build_floor(env)
+        psp = PreShopPool(env=env, shopfloor=sf)  # no release policy: pool retains all arrivals
+        scenario.build_router(env, sf, servers, psp=psp)
+        env.run(until=250.0)  # mean inter-arrival 0.1 -> ~2500 arrivals
+
+    skus = [job.sku for job in psp.jobs]
+    n = len(skus)
+    assert n >= 2000, f"need >=2000 generated jobs for the power claim, got {n}"
+    a_fraction = skus.count("A") / n
+    assert a_fraction == pytest.approx(0.75, abs=0.03)
+
+
+def test_per_family_service_times_are_distinguishable() -> None:
+    # Gap B: build_router wires sku_service_times={f.name: {server: f.service_time}}.
+    # With Deterministic service times, every A-job's operation times must all be
+    # exactly 1.0 and every B-job's exactly 3.0. This fails if the two families
+    # were swapped or collapsed to families[0].service_time.
+    random.seed(42)
+    families = (
+        SkuFamily(name="A", weight=1.0, service_time=Deterministic(1.0)),
+        SkuFamily(name="B", weight=1.0, service_time=Deterministic(3.0)),
+    )
+    expected = {"A": 1.0, "B": 3.0}
+    with Environment() as env:
+        scenario = Scenario.pure_job_shop(families=families, arrival_rate=5.0)
+        sf, servers = scenario.build_floor(env)
+        psp = PreShopPool(env=env, shopfloor=sf)  # retain all arrivals for inspection
+        scenario.build_router(env, sf, servers, psp=psp)
+        env.run(until=50.0)
+
+    jobs = list(psp.jobs)
+    seen = {job.sku for job in jobs}
+    assert seen == {"A", "B"}, f"expected both families generated, got {seen}"
+    for job in jobs:
+        assert all(p == expected[job.sku] for p in job.processing_times), (
+            f"{job.sku} job had processing_times {job.processing_times}, expected all {expected[job.sku]}"
+        )
+
+
+def test_partial_twk_falls_back_to_flat_offset() -> None:
+    # Gap C: only family A sets twk_allowance_factor, so build_router emits a
+    # PARTIAL due_date_rule dict ({"A": ...}); family B has no entry and must
+    # fall back to its flat due_date_offset. Router uses due_date_rule.get(sku)
+    # (None -> offset path). With Deterministic service times the work content
+    # and offset are exact, so:
+    #   A-job: due_date - created_at == K * sum(processing_times)
+    #   B-job: due_date - created_at == 7.0   (flat offset)
+    # If the lookup were due_date_rule[sku] instead of .get(sku), the first
+    # B-arrival would KeyError and silently kill the generator process. The
+    # per-family count guard below catches that failure mode (zero B-jobs).
+    random.seed(42)
+    k = 2.0
+    families = (
+        SkuFamily(name="A", weight=1.0, service_time=Deterministic(1.0), twk_allowance_factor=k),
+        SkuFamily(name="B", weight=1.0, service_time=Deterministic(1.0), due_date_offset=Deterministic(7.0)),
+    )
+    with Environment() as env:
+        scenario = Scenario.pure_job_shop(families=families, arrival_rate=5.0)
+        sf, servers = scenario.build_floor(env)
+        psp = PreShopPool(env=env, shopfloor=sf)  # retain all arrivals for inspection
+        scenario.build_router(env, sf, servers, psp=psp)
+        env.run(until=50.0)
+
+    jobs = list(psp.jobs)
+    by_sku = {"A": [j for j in jobs if j.sku == "A"], "B": [j for j in jobs if j.sku == "B"]}
+    # Guard: a dead generator (KeyError on the [sku] mutation) shows up as zero
+    # B-jobs rather than a surfaced exception, so require >=1 of EACH family.
+    assert by_sku["A"], "no A-jobs generated"
+    assert by_sku["B"], "no B-jobs generated (generator may have died on a non-TWK arrival)"
+    for job in by_sku["A"]:
+        assert job.due_date - job.created_at == pytest.approx(k * sum(job.processing_times))
+    for job in by_sku["B"]:
+        assert job.due_date - job.created_at == pytest.approx(7.0)
