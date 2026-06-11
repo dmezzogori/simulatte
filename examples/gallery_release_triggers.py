@@ -27,6 +27,7 @@ from simulatte.psp import PreShopPool
 from simulatte.router import Router
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
+from simulatte.typing import BuiltSystem
 
 SEED = 42
 HORIZON = 800.0
@@ -57,13 +58,13 @@ def build_periodic_release(env: Environment, interval: float = 10.0):
             pool.release(job)
 
     env.process(periodic_trigger(psp, interval, release_all))
-    return psp, servers, shop_floor, router
+    return BuiltSystem(psp=psp, servers=servers, shop_floor=shop_floor, router=router, policy=None)
 
 
 def run_system(builder) -> tuple[int, float, float, float]:
     random.seed(SEED)
     with Environment() as env:
-        _psp, _servers, shop_floor, _router = builder(env)
+        _psp, _servers, shop_floor, _router, _policy = builder(env)
         env.run(until=HORIZON)
         done = shop_floor.jobs_done
         n = len(done)

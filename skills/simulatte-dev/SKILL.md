@@ -56,7 +56,7 @@ Use this as a **baseline** to show what happens without release control.
 ```python
 from simulatte.builders import build_immediate_release_system
 
-_, servers, shopfloor, router = build_immediate_release_system(env=env)
+_, servers, shopfloor, router, _ = build_immediate_release_system(env=env)
 ```
 
 ### LumsCor (workload-controlled pull)
@@ -76,7 +76,7 @@ Use LumsCor when the researcher wants to study **WIP-limiting behavior** or
 ```python
 from simulatte.builders import build_lumscor_system
 
-psp, servers, shopfloor, router = build_lumscor_system(
+psp, servers, shopfloor, router, _ = build_lumscor_system(
     env=env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2,
 )
 ```
@@ -102,7 +102,7 @@ Key parameter to vary:
 ```python
 from simulatte.builders import build_slar_system
 
-psp, servers, shopfloor, router = build_slar_system(
+psp, servers, shopfloor, router, _ = build_slar_system(
     env=env, allowance_factor=3.0,
 )
 ```
@@ -125,7 +125,7 @@ parameters to vary:
 ```python
 from simulatte.builders import build_draco_system
 
-psp, servers, shopfloor, router = build_draco_system(
+psp, servers, shopfloor, router, _ = build_draco_system(
     env=env, wip_target=8, loop_target=4,
 )
 ```
@@ -148,15 +148,16 @@ a liveness provision — it releases an arrival whose first server is idle
 
 ### Quick path: use a builder
 
-Builders return a `(psp, servers, shopfloor, router)` tuple. For push systems,
-`psp` is `None`.
+Builders return a `BuiltSystem` named tuple — `(psp, servers, shopfloor, router, policy)`.
+For push systems `psp` is `None`; the no-policy builders (immediate-release,
+focus, starvation-avoidance) return `policy=None`.
 
 ```python
 from simulatte.environment import Environment
 from simulatte.builders import build_lumscor_system
 
 env = Environment()
-psp, servers, shopfloor, router = build_lumscor_system(
+psp, servers, shopfloor, router, _ = build_lumscor_system(
     env=env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2,
 )
 env.run(until=10_000)
@@ -337,7 +338,7 @@ def builder(*, env):
     )
 
 def extract(system):
-    psp, servers, shopfloor, router = system
+    psp, servers, shopfloor, router, _policy = system
     return {
         "completed": len(shopfloor.jobs_done),
         "avg_tis": shopfloor.average_time_in_system,

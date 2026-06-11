@@ -120,7 +120,7 @@ from simulatte.builders import build_immediate_release_system
 from simulatte.environment import Environment
 
 env = Environment()
-_, servers, shopfloor, router = build_immediate_release_system(env=env)
+_, servers, shopfloor, router, _ = build_immediate_release_system(env=env)
 env.run(until=1000)
 
 print(f"Jobs completed: {len(shopfloor.jobs_done)}")
@@ -140,7 +140,7 @@ A ready-made immediate release with SPT (Shortest Processing Time) dispatching r
 from simulatte.builders import build_immediate_release_system
 from simulatte.dispatching_rules import shortest_processing_time
 
-_, servers, shopfloor, router = build_immediate_release_system(
+_, servers, shopfloor, router, _ = build_immediate_release_system(
     env=env,
     priority_policies=shortest_processing_time,
 )
@@ -157,7 +157,7 @@ from simulatte.builders import build_lumscor_system
 from simulatte.environment import Environment
 
 env = Environment()
-psp, servers, shopfloor, router = build_lumscor_system(
+psp, servers, shopfloor, router, _ = build_lumscor_system(
     env=env,
     check_timeout=10.0,      # Check every 10 time units
     wl_norm_level=5.0,       # Workload threshold per server
@@ -197,7 +197,7 @@ from simulatte.builders import build_slar_system
 from simulatte.environment import Environment
 
 env = Environment()
-psp, servers, shopfloor, router = build_slar_system(
+psp, servers, shopfloor, router, _ = build_slar_system(
     env=env,
     allowance_factor=3.0,    # Slack per operation
 )
@@ -232,7 +232,7 @@ from simulatte.builders import build_slar_limit_system
 from simulatte.environment import Environment
 
 env = Environment()
-psp, servers, shopfloor, router = build_slar_limit_system(
+psp, servers, shopfloor, router, _ = build_slar_limit_system(
     env=env,
     allowance_factor=3.0,   # Slack per operation
     wl_norm_level=5.0,      # Workload norm per server
@@ -263,7 +263,7 @@ from simulatte.builders import build_draco_system
 from simulatte.environment import Environment
 
 env = Environment()
-psp, servers, shopfloor, router = build_draco_system(
+psp, servers, shopfloor, router, _ = build_draco_system(
     env=env,
     wip_target=8,    # target shop WIP (job count), tau
     loop_target=4,   # target overlapping loop per server pair, epsilon
@@ -337,7 +337,7 @@ The newer Tier 1/2 rules add work-content and tardiness-cost signals. **Work In 
 ```python
 from simulatte.builders import build_focus_system
 
-_, servers, shopfloor, router = build_focus_system(
+_, servers, shopfloor, router, _ = build_focus_system(
     env=env,
     focus_weights=(0.25, 0.25, 0.25, 0.25, 0.0),  # beta dormant (default)
 )
@@ -379,7 +379,7 @@ def run_system(builder_fn, builder_kwargs, until=1000):
         return builder_fn(env, **builder_kwargs)
 
     def extract(system):
-        psp, servers, shopfloor, router = system
+        psp, servers, shopfloor, router, _policy = system
         return {
             "jobs_done": len(shopfloor.jobs_done),
             "avg_time_in_system": shopfloor.average_time_in_system,
@@ -430,7 +430,7 @@ from simulatte.builders import build_conwip_system
 from simulatte.environment import Environment
 
 env = Environment()
-psp, servers, shopfloor, router = build_conwip_system(env=env, wip_cap=12)
+psp, servers, shopfloor, router, _ = build_conwip_system(env=env, wip_cap=12)
 env.run(until=1000)
 ```
 
@@ -447,7 +447,7 @@ from simulatte.builders import build_continuous_release_system
 from simulatte.environment import Environment
 
 env = Environment()
-psp, servers, shopfloor, router = build_continuous_release_system(
+psp, servers, shopfloor, router, _ = build_continuous_release_system(
     env=env,
     wl_norm_level=5.0,       # Corrected workload norm per server
     allowance_factor=2,      # Buffer for due-date planning

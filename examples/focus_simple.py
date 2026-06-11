@@ -9,7 +9,7 @@ from simulatte.environment import Environment
 def main() -> None:
     random.seed(42)  # Fixed seed for reproducible output; remove for non-deterministic runs.
     with Environment() as env:
-        _, servers, shopfloor, _ = build_focus_system(
+        _, servers, shopfloor, _, _ = build_focus_system(
             env=env,
             focus_weights=(0.25, 0.25, 0.25, 0.25, 0.0),
         )

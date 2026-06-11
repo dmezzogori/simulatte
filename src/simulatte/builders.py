@@ -16,12 +16,12 @@ from simulatte.policies.starvation_avoidance import starvation_avoidance
 from simulatte.psp import PreShopPool
 from simulatte.scenario import Scenario
 from simulatte.server import Server
+from simulatte.typing import BuiltSystem
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
 
     from simulatte.job import ProductionJob
-    from simulatte.typing import PullSystem, PushSystem
 
 
 def build_immediate_release_system(
@@ -32,7 +32,7 @@ def build_immediate_release_system(
     collect_workload: bool = False,
     collect_time_series: bool = False,
     retain_job_history: bool = False,
-) -> PushSystem:
+) -> BuiltSystem[None]:
     """Build an immediate release (push) system with no workload control.
 
     Creates a simple push system where jobs enter the shopfloor immediately
@@ -49,11 +49,13 @@ def build_immediate_release_system(
         retain_job_history: If True, servers retain completed job references.
 
     Returns:
-        Tuple of (psp, servers, shop_floor, router) where psp is None.
+        ``BuiltSystem[None]`` with ``psp=None`` (push system; no release control)
+        and ``policy=None`` (no policy object). Unpacks as
+        ``psp, servers, shop_floor, router, policy``.
 
     Example:
         >>> env = Environment()
-        >>> _, servers, shop_floor, router = build_immediate_release_system(env=env)
+        >>> _, servers, shop_floor, router, _ = build_immediate_release_system(env=env)
         >>> env.run(until=1000)
         >>> print(f"Jobs completed: {len(shop_floor.jobs_done)}")
     """
@@ -64,7 +66,7 @@ def build_immediate_release_system(
         retain_job_history=retain_job_history,
     )
     router = scenario.build_router(env, sf, servers, psp=None, priority_policies=priority_policies)
-    return None, servers, sf, router
+    return BuiltSystem(psp=None, servers=servers, shop_floor=sf, router=router, policy=None)
 
 
 def build_focus_system(
@@ -73,7 +75,7 @@ def build_focus_system(
     scenario: Scenario = Scenario(),
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     collect_workload: bool = False,
-) -> PushSystem:
+) -> BuiltSystem[None]:
     """Build an immediate-release (push) system that dispatches with FOCUS.
 
     Jobs enter the shopfloor on arrival (no release control); queue ordering
@@ -92,11 +94,14 @@ def build_focus_system(
         collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
 
     Returns:
-        Tuple of ``(None, servers, shop_floor, router)`` (push system; no PSP).
+        ``BuiltSystem[None]`` with ``psp=None`` (push system; no PSP) and
+        ``policy=None``. The FOCUS dispatching rule remains reachable via
+        ``router.priority_policies``. Unpacks as
+        ``psp, servers, shop_floor, router, policy``.
 
     Example:
         >>> env = Environment()
-        >>> _, servers, shop_floor, router = build_focus_system(env=env)
+        >>> _, servers, shop_floor, router, _ = build_focus_system(env=env)
         >>> env.run(until=1000)
 
     References:
@@ -107,7 +112,7 @@ def build_focus_system(
     sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
     priority = FocusPriorityRule(Focus(weights=focus_weights), sf)
     router = scenario.build_router(env, sf, servers, psp=None, priority_policies=priority)
-    return None, servers, sf, router
+    return BuiltSystem(psp=None, servers=servers, shop_floor=sf, router=router, policy=None)
 
 
 def build_lumscor_system(
@@ -118,7 +123,7 @@ def build_lumscor_system(
     wl_norm_level: float,
     allowance_factor: int,
     collect_workload: bool = False,
-) -> PullSystem:
+) -> BuiltSystem[LumsCor]:
     """Build a LumsCor (load-based) pull system with workload control.
 
     Creates a pull system using LUMS-COR (Land's Upper limit for Make-Span
@@ -141,11 +146,13 @@ def build_lumscor_system(
         collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
 
     Returns:
-        Tuple of (psp, servers, shop_floor, router).
+        ``BuiltSystem[LumsCor]`` whose ``policy`` is the wired ``LumsCor``
+        instance (inspect ``wl_norm``, retune mid-run). Unpacks as
+        ``psp, servers, shop_floor, router, policy``.
 
     Example:
         >>> env = Environment()
-        >>> psp, servers, shop_floor, router = build_lumscor_system(
+        >>> psp, servers, shop_floor, router, policy = build_lumscor_system(
         ...     env=env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2
         ... )
         >>> env.run(until=1000)
@@ -160,8 +167,8 @@ def build_lumscor_system(
     router = scenario.build_router(env, sf, servers, psp=psp)
     # LumsCor self-wires CorrectedWIPStrategy, router.priority_policies (PST),
     # the periodic release trigger, shop_floor.on_processing_end, and
-    # psp.on_arrival(starvation_avoidance); constructed for those effects.
-    LumsCor(
+    # psp.on_arrival(starvation_avoidance).
+    policy = LumsCor(
         shopfloor=sf,
         psp=psp,
         router=router,
@@ -169,7 +176,7 @@ def build_lumscor_system(
         check_timeout=check_timeout,
         allowance_factor=allowance_factor,
     )
-    return psp, servers, sf, router
+    return BuiltSystem(psp=psp, servers=servers, shop_floor=sf, router=router, policy=policy)
 
 
 def build_slar_system(
@@ -178,7 +185,7 @@ def build_slar_system(
     scenario: Scenario = Scenario(),
     allowance_factor: float,
     collect_workload: bool = False,
-) -> PullSystem:
+) -> BuiltSystem[Slar]:
     """Build a SLAR (Superfluous Load Avoidance Release) pull system.
 
     Creates a pull system using SLAR release policy based on planned slack
@@ -201,11 +208,12 @@ def build_slar_system(
         collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
 
     Returns:
-        Tuple of (psp, servers, shop_floor, router).
+        ``BuiltSystem[Slar]`` whose ``policy`` is the wired ``Slar`` instance.
+        Unpacks as ``psp, servers, shop_floor, router, policy``.
 
     Example:
         >>> env = Environment()
-        >>> psp, servers, shop_floor, router = build_slar_system(
+        >>> psp, servers, shop_floor, router, policy = build_slar_system(
         ...     env=env, allowance_factor=3.0
         ... )
         >>> env.run(until=1000)
@@ -219,8 +227,8 @@ def build_slar_system(
     sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
     psp = PreShopPool(env=env, shopfloor=sf)
     router = scenario.build_router(env, sf, servers, psp=psp)
-    Slar(shopfloor=sf, psp=psp, router=router, allowance_factor=allowance_factor)
-    return psp, servers, sf, router
+    policy = Slar(shopfloor=sf, psp=psp, router=router, allowance_factor=allowance_factor)
+    return BuiltSystem(psp=psp, servers=servers, shop_floor=sf, router=router, policy=policy)
 
 
 def build_slar_limit_system(
@@ -230,7 +238,7 @@ def build_slar_limit_system(
     allowance_factor: float,
     wl_norm_level: float,
     collect_workload: bool = False,
-) -> PullSystem:
+) -> BuiltSystem[SlarLimit]:
     """Build a SLAR-Limit (load-bounded SLAR) pull system.
 
     Creates a pull system using SLAR-Limit release policy. SLAR-Limit
@@ -257,11 +265,13 @@ def build_slar_limit_system(
             the shopfloor for workload time-series.
 
     Returns:
-        Tuple of (psp, servers, shop_floor, router).
+        ``BuiltSystem[SlarLimit]`` whose ``policy`` is the wired ``SlarLimit``
+        instance (inspect ``wl_norm``). Unpacks as
+        ``psp, servers, shop_floor, router, policy``.
 
     Example:
         >>> env = Environment()
-        >>> psp, servers, shop_floor, router = build_slar_limit_system(
+        >>> psp, servers, shop_floor, router, policy = build_slar_limit_system(
         ...     env=env, allowance_factor=3.0, wl_norm_level=5.0
         ... )
         >>> env.run(until=1000)
@@ -276,10 +286,9 @@ def build_slar_limit_system(
     psp = PreShopPool(env=env, shopfloor=sf)
     router = scenario.build_router(env, sf, servers, psp=psp)
     # SlarLimit self-wires CorrectedWIPStrategy, router.priority_policies (PST),
-    # shop_floor.on_processing_end, and psp.on_arrival(starvation_avoidance);
-    # constructed for those effects.
-    SlarLimit(shopfloor=sf, psp=psp, router=router, wl_norm=wl_norm_level, allowance_factor=allowance_factor)
-    return psp, servers, sf, router
+    # shop_floor.on_processing_end, and psp.on_arrival(starvation_avoidance).
+    policy = SlarLimit(shopfloor=sf, psp=psp, router=router, wl_norm=wl_norm_level, allowance_factor=allowance_factor)
+    return BuiltSystem(psp=psp, servers=servers, shop_floor=sf, router=router, policy=policy)
 
 
 def build_draco_system(
@@ -291,7 +300,7 @@ def build_draco_system(
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     total_impact_weights: tuple[float, float, float] = (0.25, 0.25, 0.5),
     collect_workload: bool = False,
-) -> PullSystem:
+) -> BuiltSystem[Draco]:
     """Build a DRACO (non-hierarchical WIP control) pull system.
 
     Creates a pull system using the DRACO policy (Kasper, Land, Teunter
@@ -325,11 +334,12 @@ def build_draco_system(
         collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
 
     Returns:
-        Tuple of ``(psp, servers, shop_floor, router)``.
+        ``BuiltSystem[Draco]`` whose ``policy`` is the wired ``Draco`` instance.
+        Unpacks as ``psp, servers, shop_floor, router, policy``.
 
     Example:
         >>> env = Environment()
-        >>> psp, servers, shop_floor, router = build_draco_system(
+        >>> psp, servers, shop_floor, router, policy = build_draco_system(
         ...     env=env, wip_target=8, loop_target=4
         ... )
         >>> env.run(until=1000)
@@ -344,8 +354,8 @@ def build_draco_system(
     psp = PreShopPool(env=env, shopfloor=sf)
     router = scenario.build_router(env, sf, servers, psp=psp)
     # Draco self-wires router.priority_policies, shop_floor.on_processing_end,
-    # and psp.on_arrival(starvation_avoidance); constructed for those effects.
-    Draco(
+    # and psp.on_arrival(starvation_avoidance).
+    policy = Draco(
         shopfloor=sf,
         router=router,
         psp=psp,
@@ -354,7 +364,7 @@ def build_draco_system(
         wip_target=wip_target,
         loop_target=loop_target,
     )
-    return psp, servers, sf, router
+    return BuiltSystem(psp=psp, servers=servers, shop_floor=sf, router=router, policy=policy)
 
 
 def build_conwip_system(
@@ -363,7 +373,7 @@ def build_conwip_system(
     scenario: Scenario = Scenario(),
     wip_cap: int,
     collect_workload: bool = False,
-) -> PullSystem:
+) -> BuiltSystem[ConWIP]:
     """Build a ConWIP (Constant Work-In-Process) pull system.
 
     Jobs wait in the Pre-Shop Pool and are released — earliest due date
@@ -379,11 +389,13 @@ def build_conwip_system(
         collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
 
     Returns:
-        Tuple of ``(psp, servers, shop_floor, router)``.
+        ``BuiltSystem[ConWIP]`` whose ``policy`` is the wired ``ConWIP`` instance
+        (retune ``wip_cap`` mid-run). Unpacks as
+        ``psp, servers, shop_floor, router, policy``.
 
     Example:
         >>> env = Environment()
-        >>> psp, servers, shop_floor, router = build_conwip_system(env=env, wip_cap=8)
+        >>> psp, servers, shop_floor, router, policy = build_conwip_system(env=env, wip_cap=8)
         >>> env.run(until=1000)
 
     References:
@@ -395,8 +407,8 @@ def build_conwip_system(
     sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
     psp = PreShopPool(env=env, shopfloor=sf)
     router = scenario.build_router(env, sf, servers, psp=psp)
-    ConWIP(shopfloor=sf, psp=psp, wip_cap=wip_cap)
-    return psp, servers, sf, router
+    policy = ConWIP(shopfloor=sf, psp=psp, wip_cap=wip_cap)
+    return BuiltSystem(psp=psp, servers=servers, shop_floor=sf, router=router, policy=policy)
 
 
 def build_continuous_release_system(
@@ -406,7 +418,7 @@ def build_continuous_release_system(
     wl_norm_level: float,
     allowance_factor: int = 2,
     collect_workload: bool = False,
-) -> PullSystem:
+) -> BuiltSystem[ContinuousRelease]:
     """Build a Continuous Release (workload-controlled) pull system.
 
     Jobs are held in the Pre-Shop Pool and released continuously — on each
@@ -424,11 +436,13 @@ def build_continuous_release_system(
         collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
 
     Returns:
-        Tuple of ``(psp, servers, shop_floor, router)``.
+        ``BuiltSystem[ContinuousRelease]`` whose ``policy`` is the wired
+        ``ContinuousRelease`` instance (inspect ``wl_norm``). Unpacks as
+        ``psp, servers, shop_floor, router, policy``.
 
     Example:
         >>> env = Environment()
-        >>> psp, servers, shop_floor, router = build_continuous_release_system(
+        >>> psp, servers, shop_floor, router, policy = build_continuous_release_system(
         ...     env=env, wl_norm_level=6.0
         ... )
         >>> env.run(until=1000)
@@ -443,9 +457,9 @@ def build_continuous_release_system(
     psp = PreShopPool(env=env, shopfloor=sf)
     router = scenario.build_router(env, sf, servers, psp=psp)
     # ContinuousRelease self-wires CorrectedWIPStrategy, the completion-triggered
-    # release, and psp.on_arrival; constructed for those effects.
-    ContinuousRelease(shopfloor=sf, psp=psp, wl_norm=wl_norm_level, allowance_factor=allowance_factor)
-    return psp, servers, sf, router
+    # release, and psp.on_arrival.
+    policy = ContinuousRelease(shopfloor=sf, psp=psp, wl_norm=wl_norm_level, allowance_factor=allowance_factor)
+    return BuiltSystem(psp=psp, servers=servers, shop_floor=sf, router=router, policy=policy)
 
 
 def build_starvation_avoidance_system(
@@ -453,7 +467,7 @@ def build_starvation_avoidance_system(
     env: Environment,
     scenario: Scenario = Scenario(),
     collect_workload: bool = False,
-) -> PullSystem:
+) -> BuiltSystem[None]:
     """Build a starvation-avoidance-only pull system.
 
     The simplest pull policy: a job is released from the Pre-Shop Pool only
@@ -469,11 +483,13 @@ def build_starvation_avoidance_system(
         collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
 
     Returns:
-        Tuple of ``(psp, servers, shop_floor, router)``.
+        ``BuiltSystem[None]`` with ``policy=None``: this builder wires plain
+        starvation-avoidance callbacks, so there is no policy object. Unpacks as
+        ``psp, servers, shop_floor, router, policy``.
 
     Example:
         >>> env = Environment()
-        >>> psp, servers, shop_floor, router = build_starvation_avoidance_system(env=env)
+        >>> psp, servers, shop_floor, router, _ = build_starvation_avoidance_system(env=env)
         >>> env.run(until=1000)
     """
     sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
@@ -487,4 +503,4 @@ def build_starvation_avoidance_system(
 
     psp.on_arrival(starvation_avoidance)
     sf.on_processing_end(_release_idle_first_server)
-    return psp, servers, sf, router
+    return BuiltSystem(psp=psp, servers=servers, shop_floor=sf, router=router, policy=None)

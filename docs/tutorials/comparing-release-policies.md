@@ -28,7 +28,7 @@ Six servers, exponential inter-arrivals (λ ≈ 1.56/time-unit), truncated 2-Erl
 
 ## Running the three policies
 
-Each builder returns `(psp, servers, shopfloor, router)`. The PSP is `None` for the push system and a `PreShopPool` instance for the pull systems.
+Each builder returns a `BuiltSystem` named tuple — `(psp, servers, shopfloor, router, policy)`. The PSP is `None` for the push system and a `PreShopPool` instance for the pull systems; `policy` is the wired release policy (or `None` for the push baseline).
 
 ```python
 """Compare Immediate Release, LumsCor, and SLAR release policies.
@@ -61,7 +61,7 @@ def run_policy(builder_fn, seed: int = SEED, until: float = SIM_TIME) -> dict:
     """Run a single simulation with the given builder and seed."""
     random.seed(seed)
     with Environment() as env:
-        psp, servers, shopfloor, _router = builder_fn(env)
+        psp, servers, shopfloor, _router, _policy = builder_fn(env)
         env.run(until=until)
 
         done = shopfloor.jobs_done

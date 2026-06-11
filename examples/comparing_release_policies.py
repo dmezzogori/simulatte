@@ -28,7 +28,7 @@ def run_policy(builder_fn, seed: int = SEED, until: float = SIM_TIME) -> dict:
     """Run a single simulation with the given builder and seed."""
     random.seed(seed)
     with Environment() as env:
-        psp, servers, shopfloor, _router = builder_fn(env)
+        psp, servers, shopfloor, _router, _policy = builder_fn(env)
         env.run(until=until)
 
         done = shopfloor.jobs_done

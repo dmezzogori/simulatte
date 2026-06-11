@@ -203,7 +203,7 @@ The builder functions also accept `collect_workload=True` as a shorthand:
 ```python
 from simulatte.builders import build_immediate_release_system
 
-_, servers, shopfloor, router = build_immediate_release_system(
+_, servers, shopfloor, router, _ = build_immediate_release_system(
     env=env,
     collect_workload=True,
 )

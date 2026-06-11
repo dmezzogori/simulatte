@@ -500,7 +500,7 @@ build_immediate_release_system(
     collect_workload: bool = False,
     collect_time_series: bool = False,
     retain_job_history: bool = False,
-) -> PushSystem  # (None, servers, shopfloor, router)
+) -> BuiltSystem[None]  # (None, servers, shopfloor, router, None)
 ```
 
 ### build_lumscor_system
@@ -514,7 +514,7 @@ build_lumscor_system(
     wl_norm_level: float,                       # Workload norm per server
     allowance_factor: int,                      # Buffer per server for due dates
     collect_workload: bool = False,
-) -> PullSystem  # (psp, servers, shopfloor, router)
+) -> BuiltSystem[LumsCor]  # (psp, servers, shopfloor, router, lumscor)
 ```
 
 ### build_slar_system
@@ -526,7 +526,7 @@ build_slar_system(
     scenario: Scenario = Scenario(),
     allowance_factor: float,                    # Slack allowance per operation
     collect_workload: bool = False,
-) -> PullSystem  # (psp, servers, shopfloor, router)
+) -> BuiltSystem[Slar]  # (psp, servers, shopfloor, router, slar)
 ```
 
 ### build_slar_limit_system
@@ -539,7 +539,7 @@ build_slar_limit_system(
     allowance_factor: float,                    # Slack allowance per operation
     wl_norm_level: float,                       # Workload norm per server
     collect_workload: bool = False,
-) -> PullSystem  # (psp, servers, shopfloor, router)
+) -> BuiltSystem[SlarLimit]  # (psp, servers, shopfloor, router, slar_limit)
 ```
 
 Requires `CorrectedWIPStrategy` on the shopfloor (set automatically by the builder).
@@ -553,7 +553,7 @@ build_focus_system(
     scenario: Scenario = Scenario(),
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     collect_workload: bool = False,
-) -> PushSystem  # (None, servers, shopfloor, router)
+) -> BuiltSystem[None]  # (None, servers, shopfloor, router, None)
 ```
 
 Immediate-release push system whose queue ordering is FOCUS (via `FocusPriorityRule`).
@@ -570,7 +570,7 @@ build_draco_system(
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     total_impact_weights: tuple[float, float, float] = (0.25, 0.25, 0.5),  # paper full DRACO (Table 2)
     collect_workload: bool = False,
-) -> PullSystem  # (psp, servers, shopfloor, router)
+) -> BuiltSystem[Draco]  # (psp, servers, shopfloor, router, draco)
 ```
 
 Non-hierarchical release+dispatch. Wires `Draco.priority_policy`, `shopfloor.on_processing_end(Draco.decide_next_job)`, and `psp.on_arrival(starvation_avoidance)`.
@@ -584,7 +584,7 @@ build_conwip_system(
     scenario: Scenario = Scenario(),
     wip_cap: int,                               # max jobs on the floor at once
     collect_workload: bool = False,
-) -> PullSystem  # (psp, servers, shopfloor, router)
+) -> BuiltSystem[ConWIP]  # (psp, servers, shopfloor, router, conwip)
 ```
 
 Constant-WIP release: holds jobs in the PSP and releases (earliest due date first)
@@ -601,7 +601,7 @@ build_continuous_release_system(
     wl_norm_level: float,                       # corrected workload norm per server
     allowance_factor: int = 2,                  # buffer per server for due-date planning
     collect_workload: bool = False,
-) -> PullSystem  # (psp, servers, shopfloor, router)
+) -> BuiltSystem[ContinuousRelease]  # (psp, servers, shopfloor, router, continuous_release)
 ```
 
 Workload-controlled continuous release. Constructs `ContinuousRelease`, which
@@ -615,7 +615,7 @@ build_starvation_avoidance_system(
     env: Environment,
     scenario: Scenario = Scenario(),
     collect_workload: bool = False,
-) -> PullSystem  # (psp, servers, shopfloor, router)
+) -> BuiltSystem[None]  # (psp, servers, shopfloor, router, None)
 ```
 
 Minimal pull system: jobs wait in the PSP and are released only by
@@ -755,15 +755,21 @@ from simulatte.distributions import (
 
 ```python
 from simulatte.typing import (
-    Distribution,           # Callable[[], T]
+    Sampler,                # Callable[[], T]
     DiscreteDistribution,   # dict[K, T]
-    System,                 # tuple[T, tuple[Server, ...], ShopFloor, Router]
-    PushSystem,             # System[None]
-    PullSystem,             # System[PreShopPool]
+    BuiltSystem,            # NamedTuple(psp, servers, shop_floor, router, policy); generic in PolicyT
     Builder,                # Callable[..., S]
     ProcessGenerator,       # re-exported from simpy.events
 )
 ```
+
+`BuiltSystem[PolicyT]` is the structured result of every `build_*_system` factory.
+It is a `NamedTuple`, so 5-target tuple unpacking
+(`psp, servers, shop_floor, router, policy = build_lumscor_system(...)`) and
+positional indexing both still work, alongside named-field access
+(`result.policy`, `result.router`). `policy` is the wired policy instance
+(`LumsCor`, `Slar`, `SlarLimit`, `Draco`, `ConWIP`, `ContinuousRelease`) or
+`None` for the push / callback-only builders.
 
 ## Runner
 

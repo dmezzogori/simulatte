@@ -718,20 +718,22 @@ def test_draco_decide_next_job_uses_uncorrected_count_wip(monkeypatch: pytest.Mo
 # ----- build_draco_system -----
 
 
-def test_build_draco_system_returns_pull_system_quadruple() -> None:
+def test_build_draco_system_returns_pull_system_quintuple() -> None:
     env = Environment()
-    psp, servers, shop_floor, router = build_draco_system(env=env, wip_target=8, loop_target=4)
+    psp, servers, shop_floor, router, policy = build_draco_system(env=env, wip_target=8, loop_target=4)
     assert isinstance(psp, PreShopPool)
     assert len(servers) == 6
     assert all(isinstance(s, Server) for s in servers)
     assert shop_floor is not None
     assert router is not None
+    assert isinstance(policy, Draco)
 
 
 def test_build_draco_system_wires_starvation_avoidance() -> None:
     """A job arriving in PSP whose first server is idle must be released immediately."""
     env = Environment()
-    psp, servers, shop_floor, _router = build_draco_system(env=env, wip_target=8, loop_target=4)
+    psp, servers, shop_floor, _router, _policy = build_draco_system(env=env, wip_target=8, loop_target=4)
+    assert psp is not None  # pull system always has a PSP
 
     # All servers idle at t=0 → a synthetic PSP arrival should be auto-released.
     job = ProductionJob(env=env, sku="A", servers=[servers[0]], processing_times=[1.0], due_date=10.0)

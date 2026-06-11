@@ -19,7 +19,7 @@ def builder(*, env):
     return build_immediate_release_system(env=env)
 
 def extract(system):
-    _psp, servers, shopfloor, _router = system
+    _psp, servers, shopfloor, _router, _policy = system
     avg_util = sum(s.utilization_rate for s in servers) / len(servers)
     return {
         "jobs_done": len(shopfloor.jobs_done),

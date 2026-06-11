@@ -26,7 +26,7 @@ SYSTEMS = {
 def run_system(builder) -> tuple[int, float, float, float]:
     random.seed(SEED)
     with Environment() as env:
-        _psp, _servers, shop_floor, _router = builder(env)
+        _psp, _servers, shop_floor, _router, _policy = builder(env)
         env.run(until=HORIZON)
         done = shop_floor.jobs_done
         n = len(done)
