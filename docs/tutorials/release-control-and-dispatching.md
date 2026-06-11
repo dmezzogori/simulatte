@@ -438,6 +438,35 @@ env.run(until=1000)
 
 Reference: Spearman, M. L., Woodruff, D. L. & Hopp, W. J. (1990). *CONWIP: a pull alternative to kanban*. International Journal of Production Research, 28(5), 879-894 — [DOI](https://doi.org/10.1080/00207549008942761).
 
+### Inspecting and retuning the policy
+
+Every `build_*_system` returns a `BuiltSystem` — the same 5-target tuple you have been unpacking, but also a `NamedTuple` whose `policy` field is the wired policy instance itself. Keeping the result intact (instead of discarding `policy` as `_`) lets you read a policy's configuration and, where the policy supports it, retune it mid-run.
+
+ConWIP is the clearest example: it reads `self.wip_cap` live on every release decision (on each completion and each PSP arrival), so assigning a new value to `system.policy.wip_cap` takes effect on the very next trigger.
+
+```python { .run }
+from simulatte.builders import build_conwip_system
+from simulatte.environment import Environment
+
+env = Environment()
+system = build_conwip_system(env=env, wip_cap=8)
+
+# `system.policy` is the same ConWIP instance the builder wired into the shop.
+print(f"Configured WIP cap: {system.policy.wip_cap}")
+
+# Phase 1 runs under the original cap.
+env.run(until=500)
+print(f"After phase 1 (cap={system.policy.wip_cap}): WIP={len(system.shop_floor.jobs)}")
+
+# Retune mid-run: ConWIP reads `wip_cap` live, so raising it lets more jobs
+# onto the floor from the next completion / arrival onward.
+system.policy.wip_cap = 16
+env.run(until=1000)
+print(f"After phase 2 (cap={system.policy.wip_cap}): WIP={len(system.shop_floor.jobs)}")
+```
+
+Named-field access (`system.policy`, `system.shop_floor`) reads off the same `BuiltSystem`, so there is no second lookup or re-wiring: the object you mutate is exactly the one driving releases. The push builders (`build_immediate_release_system`, `build_focus_system`) and the plain-callback `build_starvation_avoidance_system` carry `policy=None`, since they wire no policy object to inspect. Other policies expose their own knobs — for example `LumsCor`, `SlarLimit`, and `ContinuousRelease` carry a `wl_norm` attribute you can read the same way.
+
 ### Continuous Release
 
 Continuous Release is a workload-controlled policy where jobs may be released at any moment when a server's corrected workload drops below its norm. It uses corrected aggregate load: the contribution at routing position *i* is PT / (*i* + 1). Requires `CorrectedWIPStrategy` on the shopfloor.
