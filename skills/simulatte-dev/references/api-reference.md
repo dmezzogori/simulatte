@@ -446,6 +446,14 @@ weighted mean routing length and service-time mean (so `rho` is held constant
 across shops and product mixes); pass `arrival_rate=` to pin it explicitly.
 The default `Scenario()` derives a rate of ≈1.5597 (mean inter-arrival ≈0.641).
 
+> Caveat — `arrival_process` contract: the factory is called with the resolved
+> arrival **rate** and must return a zero-arg inter-arrival sampler whose mean is
+> `1 / rate`. `Exponential` is the only built-in that satisfies this (Poisson
+> arrivals). Others — e.g. `Erlang`, whose `Erlang(rate)` has mean `shape / rate`
+> — type-check but silently mis-calibrate `target_utilization`. For non-Poisson
+> arrivals, wrap your factory so its sampler honours the mean-`1/rate` contract,
+> or pin `arrival_rate=` explicitly.
+
 **`SkuFamily` fields:**
 ```python
 SkuFamily(
