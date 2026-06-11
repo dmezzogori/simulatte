@@ -41,6 +41,27 @@ def test_continuous_release_rejects_infinite_norm() -> None:
         ContinuousRelease(shopfloor=sf, psp=psp, wl_norm={server: math.inf}, allowance_factor=2)
 
 
+def test_continuous_release_rejects_nan_norm() -> None:
+    """ValueError for norm=nan."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    with pytest.raises(ValueError, match="must be positive and finite"):
+        ContinuousRelease(shopfloor=sf, psp=psp, wl_norm={server: math.nan}, allowance_factor=2)
+
+
+def test_continuous_release_rejects_missing_server() -> None:
+    """ValueError when a shopfloor server is missing from the norm dict."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server_a = Server(env=env, capacity=1, shopfloor=sf)
+    Server(env=env, capacity=1, shopfloor=sf)  # registers with sf; missing from wl_norm
+    psp = PreShopPool(env=env, shopfloor=sf)
+    with pytest.raises(ValueError, match="missing norms"):
+        ContinuousRelease(shopfloor=sf, psp=psp, wl_norm={server_a: 5.0}, allowance_factor=2)
+
+
 def test_continuous_release_scalar_norm_expands_to_all_servers() -> None:
     """A scalar norm is expanded to a per-server dict over all shopfloor servers."""
     env = Environment()

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
+from simulatte.policies.norms import expand_norms, fits_norms
 from simulatte.shopfloor import CorrectedWIPStrategy
 
 from .slar import Slar
@@ -87,19 +87,7 @@ class SlarLimit(Slar):
                 non-finite values, or misses any shopfloor server.
         """
         shopfloor.set_wip_strategy(CorrectedWIPStrategy())
-        norms = wl_norm if isinstance(wl_norm, dict) else dict.fromkeys(shopfloor.servers, float(wl_norm))
-        if not norms:
-            msg = "wl_norm must not be empty"
-            raise ValueError(msg)
-        for server, norm in norms.items():
-            if norm <= 0 or not math.isfinite(norm):
-                msg = f"All workload norms must be positive and finite, got {norm} for {server}"
-                raise ValueError(msg)
-        missing = [s for s in shopfloor.servers if s not in norms]
-        if missing:
-            msg = f"Shopfloor has servers with missing norms: {missing}"
-            raise ValueError(msg)
-        self.wl_norm = norms
+        self.wl_norm = expand_norms(shopfloor=shopfloor, wl_norm=wl_norm)
         super().__init__(shopfloor=shopfloor, psp=psp, router=router, allowance_factor=allowance_factor)
 
     def _release_urgent_insertion(
@@ -125,22 +113,7 @@ class SlarLimit(Slar):
             key=lambda j: j.processing_times[0],
         )
         for job in urgent_by_spt:
-            if self._fits_norms(job):
+            if fits_norms(job, wip=self.shopfloor.wip, norms=self.wl_norm):
                 self.psp.release(job=job)
                 return True
         return False
-
-    def _fits_norms(self, job: ProductionJob) -> bool:
-        """Return True iff releasing *job* keeps every server in its routing at or below its norm.
-
-        Uses corrected aggregate load: contribution at position ``i`` in
-        the routing is ``PT / (i + 1)``. Same formula as
-        `ContinuousRelease._fits_norms` and the inline check in
-        `LumsCor.periodic_release`.
-        """
-        for i, (server, processing_time) in enumerate(job.server_processing_times):
-            contributed_load = processing_time / (i + 1)
-            current_wip = self.shopfloor.wip.get(server, 0.0)
-            if current_wip + contributed_load > self.wl_norm[server]:
-                return False
-        return True

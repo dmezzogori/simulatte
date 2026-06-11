@@ -16,9 +16,9 @@ Reference:
 
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
+from simulatte.policies.norms import expand_norms, fits_norms
 from simulatte.policies.triggers import on_completion_trigger
 from simulatte.shopfloor import CorrectedWIPStrategy
 
@@ -72,22 +72,16 @@ class ContinuousRelease:
             shopfloor: The shopfloor; its WIP strategy is set to corrected here.
             psp: The Pre-Shop Pool to release from.
             wl_norm: Per-server workload norm (scalar expanded to all servers, or
-                dict verbatim). All values must be positive and finite.
+                dict verbatim). Must cover every shopfloor server with a
+                positive, finite value.
             allowance_factor: Buffer time per server for planned release dates.
 
         Raises:
-            ValueError: If norms are empty or contain non-positive/infinite values.
+            ValueError: If ``wl_norm`` is empty, contains non-positive or
+                non-finite values, or misses any shopfloor server.
         """
         shopfloor.set_wip_strategy(CorrectedWIPStrategy())
-        norms = wl_norm if isinstance(wl_norm, dict) else dict.fromkeys(shopfloor.servers, float(wl_norm))
-        if not norms:
-            msg = "wl_norm must not be empty"
-            raise ValueError(msg)
-        for server, norm in norms.items():
-            if norm <= 0 or not math.isfinite(norm):
-                msg = f"All workload norms must be positive and finite, got {norm} for {server}"
-                raise ValueError(msg)
-        self.wl_norm = norms
+        self.wl_norm = expand_norms(shopfloor=shopfloor, wl_norm=wl_norm)
         self.allowance_factor = allowance_factor
         psp.env.process(on_completion_trigger(shopfloor, psp, self.on_completion_release))
         psp.on_arrival(self.on_arrival_release)
@@ -106,7 +100,7 @@ class ContinuousRelease:
         del triggering_job  # Unused but required by trigger signature
         shopfloor = psp.shopfloor
         for job in sorted(list(psp.jobs), key=lambda j: j.planned_release_date(self.allowance_factor)):
-            if self._fits_norms(job, shopfloor):
+            if fits_norms(job, wip=shopfloor.wip, norms=self.wl_norm):
                 psp.release(job)
 
     def on_arrival_release(self, job: ProductionJob, psp: PreShopPool) -> None:
@@ -127,27 +121,6 @@ class ContinuousRelease:
         if not first_server.is_idle:
             return
         shopfloor = psp.shopfloor
-        if not self._fits_norms(job, shopfloor):
+        if not fits_norms(job, wip=shopfloor.wip, norms=self.wl_norm):
             return
         psp.release(job)
-
-    def _fits_norms(self, job: ProductionJob, shopfloor: ShopFloor) -> bool:
-        """Check if releasing job keeps all servers at or below norms.
-
-        For each (server, PT) at position i in the job's routing:
-            contributed_load = PT / (i + 1)
-        If current_wip + contributed_load > norm for ANY server, return False.
-
-        Args:
-            job: The candidate job to check.
-            shopfloor: The shopfloor providing current WIP values.
-
-        Returns:
-            True if releasing the job would keep all server WIPs within norms.
-        """
-        for i, (server, processing_time) in enumerate(job.server_processing_times):
-            contributed_load = processing_time / (i + 1)
-            current_wip = shopfloor.wip.get(server, 0.0)
-            if current_wip + contributed_load > self.wl_norm[server]:
-                return False
-        return True

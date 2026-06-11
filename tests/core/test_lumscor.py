@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import math
 from unittest.mock import Mock
+
+import pytest
 
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
@@ -29,6 +32,63 @@ def test_lumscor_scalar_norm_expands_to_all_servers() -> None:
     psp = PreShopPool(env=env, shopfloor=sf)
     lumscor = _lumscor(env, sf, psp, wl_norm=7.5)
     assert lumscor.wl_norm == {s1: 7.5, s2: 7.5}
+
+
+# ---------- Constructor validation ----------
+
+
+def test_lumscor_rejects_empty_norms() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    with pytest.raises(ValueError, match="wl_norm must not be empty"):
+        _lumscor(env, sf, psp, wl_norm={})
+
+
+def test_lumscor_rejects_scalar_zero_norm() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    with pytest.raises(ValueError, match="must be positive and finite"):
+        _lumscor(env, sf, psp, wl_norm=0.0)
+
+
+def test_lumscor_rejects_scalar_negative_norm() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    with pytest.raises(ValueError, match="must be positive and finite"):
+        _lumscor(env, sf, psp, wl_norm=-1.0)
+
+
+def test_lumscor_rejects_infinite_norm() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    with pytest.raises(ValueError, match="must be positive and finite"):
+        _lumscor(env, sf, psp, wl_norm={server: math.inf})
+
+
+def test_lumscor_rejects_nan_norm() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    with pytest.raises(ValueError, match="must be positive and finite"):
+        _lumscor(env, sf, psp, wl_norm={server: math.nan})
+
+
+def test_lumscor_rejects_missing_server() -> None:
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server_a = Server(env=env, capacity=1, shopfloor=sf)
+    Server(env=env, capacity=1, shopfloor=sf)  # registers with sf; missing from wl_norm
+    psp = PreShopPool(env=env, shopfloor=sf)
+    with pytest.raises(ValueError, match="missing norms"):
+        _lumscor(env, sf, psp, wl_norm={server_a: 5.0})
 
 
 def test_lumscor_release_under_norm() -> None:

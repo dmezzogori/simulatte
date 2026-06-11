@@ -50,6 +50,13 @@ def test_slar_limit_rejects_infinite_norm() -> None:
         SlarLimit(shopfloor=sf, psp=psp, router=Mock(), wl_norm={server: math.inf})
 
 
+def test_slar_limit_rejects_nan_norm() -> None:
+    env, sf, psp = _make_corrected_system()
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    with pytest.raises(ValueError, match="must be positive and finite"):
+        SlarLimit(shopfloor=sf, psp=psp, router=Mock(), wl_norm={server: math.nan})
+
+
 def test_slar_limit_scalar_norm_expands_to_all_servers() -> None:
     env = Environment()
     sf = ShopFloor(env=env)

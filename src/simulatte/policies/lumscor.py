@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from simulatte.dispatching_rules import planned_slack_time
+from simulatte.policies.norms import expand_norms, fits_norms
 from simulatte.policies.starvation_avoidance import starvation_avoidance
 from simulatte.policies.triggers import periodic_trigger
 from simulatte.shopfloor import CorrectedWIPStrategy
@@ -77,12 +78,17 @@ class LumsCor:
             psp: The Pre-Shop Pool to release from.
             router: The router whose ``priority_policies`` is set to PST.
             wl_norm: Per-server workload norm. A scalar is expanded to every
-                shopfloor server; a dict is used verbatim.
+                shopfloor server; a dict is used verbatim. Must cover every
+                shopfloor server with a positive, finite value.
             check_timeout: Periodic release interval.
             allowance_factor: Buffer time per server for planned release dates.
+
+        Raises:
+            ValueError: If ``wl_norm`` is empty, contains non-positive or
+                non-finite values, or misses any shopfloor server.
         """
         shopfloor.set_wip_strategy(CorrectedWIPStrategy())
-        self.wl_norm = wl_norm if isinstance(wl_norm, dict) else dict.fromkeys(shopfloor.servers, float(wl_norm))
+        self.wl_norm = expand_norms(shopfloor=shopfloor, wl_norm=wl_norm)
         self.allowance_factor = allowance_factor
         router.priority_policies = planned_slack_time(allowance=float(allowance_factor))
         psp.env.process(periodic_trigger(psp, float(check_timeout), self.periodic_release))
@@ -103,10 +109,7 @@ class LumsCor:
         """
         shopfloor = psp.shopfloor
         for job in sorted(psp.jobs, key=lambda j: j.planned_release_date(self.allowance_factor)):
-            if all(
-                shopfloor.wip.get(server, 0.0) + processing_time / (i + 1) <= self.wl_norm[server]
-                for i, (server, processing_time) in enumerate(job.server_processing_times)
-            ):
+            if fits_norms(job, wip=shopfloor.wip, norms=self.wl_norm):
                 psp.remove(job=job)
                 shopfloor.add(job)
 
