@@ -16,7 +16,9 @@ from simulatte.shopfloor import CorrectedWIPStrategy, ShopFloor
 
 
 def _real_router(env, sf, psp, server) -> Router:
-    """A minimal but *real* Router (not a Mock).
+    """A real (non-Mock) Router — required because the PST wiring test reads
+    back the attribute LumsCor assigns to ``router.priority_policies`` and
+    invokes it.
 
     Its ``generate_job`` process is effectively inert in these tests: the
     inter-arrival distribution returns a huge value and no test using this
