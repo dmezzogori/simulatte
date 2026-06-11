@@ -313,7 +313,7 @@ def test_truncated_erlang_default_variance() -> None:
     # this truncated 2-Erlang service process, so the variance (not just the
     # mean) must be pinned. Reference var = 0.46219847 from independent
     # trapezoidal integration of x^2 f(x) (see module header) — NOT from any
-    # production helper. Empirical lands at ~0.4637 (rel err 0.3%) at n=150k.
+    # production helper. Empirical lands at ~0.46262 (rel err 0.09%) at n=150k.
     d = TruncatedErlang(rate=2.0, shape=2, max_value=4.0)
     assert _empirical_variance(d, n=150_000) == pytest.approx(_TRUNC_DEFAULT_VAR, rel=0.03)
 
