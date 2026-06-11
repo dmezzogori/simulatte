@@ -2,6 +2,44 @@
 
 All notable changes to Simulatte are documented here.
 
+## 0.12.0 — 2026-06-11
+
+### Added
+
+- `Scenario` value object: shop type (PJS/GFS/PFS), preset configurations, and
+  derived arrival rate, with `build_floor`/`build_router` assembly as the
+  de-duplicated core.
+- Benchmark shop environments (PJS/GFS/PFS) accessible via Scenario presets.
+- `SkuFamily` value object with per-family SKU mix and pluggable
+  distributions/arrival process.
+- `Distribution` protocol with built-in variates; `TruncatedErlang` distribution.
+- `build_*_system` builders now return the wired policy.
+
+### Changed
+
+- **Breaking:** builder signatures are now keyword-only (`*, env, scenario`).
+- **Breaking:** renamed the `Distribution` type alias to `Sampler`.
+- **Breaking:** removed `truncated_2erlang` in favor of `TruncatedErlang`.
+- Policies (`LumsCor`, `Slar`, `ConWIP`, `ContinuousRelease`, `slar_limit`) now
+  self-wire in `__init__` and accept a scalar norm.
+- `build_router` validates server count and documents the `arrival_process`
+  mean=1/rate contract.
+- Shared workload-norm validation and corrected-load fit check across policies.
+
+### Fixed
+
+- `logger`: defer finalizer handler removal to avoid loguru lock self-deadlock.
+- examples: run all release-trigger systems at the Scenario-derived arrival rate.
+
+### Docs
+
+- Align installation page Python floor with `requires-python` (>=3.11).
+- Numerous tutorial/example/api-reference updates for the Scenario refactor.
+
+### CI
+
+- Add `pytest-timeout` guard; force Agg backend in the Pyodide smoke test.
+
 ## 0.11.0 — 2026-06-04
 
 ### New
