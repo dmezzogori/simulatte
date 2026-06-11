@@ -97,7 +97,7 @@ def test_build_router_rejects_fewer_servers_than_n_servers() -> None:
         scenario = Scenario(n_servers=6)
         sf, _ = scenario.build_floor(env)
         servers = Scenario(n_servers=3).build_floor(env)[1]
-        with pytest.raises(ValueError, match="would silently"):
+        with pytest.raises(ValueError, match=r"!= Scenario\.n_servers"):
             scenario.build_router(env, sf, servers, psp=None)
 
 
@@ -106,7 +106,7 @@ def test_build_router_rejects_more_servers_than_n_servers() -> None:
         scenario = Scenario(n_servers=3)
         sf, _ = scenario.build_floor(env)
         servers = Scenario(n_servers=6).build_floor(env)[1]
-        with pytest.raises(ValueError, match="would silently"):
+        with pytest.raises(ValueError, match=r"!= Scenario\.n_servers"):
             scenario.build_router(env, sf, servers, psp=None)
 
 
