@@ -268,8 +268,10 @@ def test_partial_twk_falls_back_to_flat_offset() -> None:
     #   A-job: due_date - created_at == K * sum(processing_times)
     #   B-job: due_date - created_at == 7.0   (flat offset)
     # If the lookup were due_date_rule[sku] instead of .get(sku), the first
-    # B-arrival would KeyError and silently kill the generator process. The
-    # per-family count guard below catches that failure mode (zero B-jobs).
+    # B-arrival would raise KeyError, which SimPy re-raises through env.run —
+    # the run aborts before these assertions execute. The per-family guard
+    # below additionally pins the contract (both families must appear) against
+    # quieter mutations that drop B-jobs without raising.
     random.seed(42)
     k = 2.0
     families = (
@@ -285,10 +287,10 @@ def test_partial_twk_falls_back_to_flat_offset() -> None:
 
     jobs = list(psp.jobs)
     by_sku = {"A": [j for j in jobs if j.sku == "A"], "B": [j for j in jobs if j.sku == "B"]}
-    # Guard: a dead generator (KeyError on the [sku] mutation) shows up as zero
-    # B-jobs rather than a surfaced exception, so require >=1 of EACH family.
+    # Guard: require >=1 job of EACH family so the per-job loops below cannot
+    # pass vacuously if a mutation drops one family from the generated stream.
     assert by_sku["A"], "no A-jobs generated"
-    assert by_sku["B"], "no B-jobs generated (generator may have died on a non-TWK arrival)"
+    assert by_sku["B"], "no B-jobs generated"
     for job in by_sku["A"]:
         assert job.due_date - job.created_at == pytest.approx(k * sum(job.processing_times))
     for job in by_sku["B"]:
