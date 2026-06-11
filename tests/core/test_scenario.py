@@ -92,6 +92,24 @@ def test_build_router_runs_pure_flow_shop_routing() -> None:
             assert list(job.servers) == list(servers)
 
 
+def test_build_router_rejects_fewer_servers_than_n_servers() -> None:
+    with Environment() as env:
+        scenario = Scenario(n_servers=6)
+        sf, _ = scenario.build_floor(env)
+        servers = Scenario(n_servers=3).build_floor(env)[1]
+        with pytest.raises(ValueError, match="would silently"):
+            scenario.build_router(env, sf, servers, psp=None)
+
+
+def test_build_router_rejects_more_servers_than_n_servers() -> None:
+    with Environment() as env:
+        scenario = Scenario(n_servers=3)
+        sf, _ = scenario.build_floor(env)
+        servers = Scenario(n_servers=6).build_floor(env)[1]
+        with pytest.raises(ValueError, match="would silently"):
+            scenario.build_router(env, sf, servers, psp=None)
+
+
 def test_build_router_applies_twk_due_dates() -> None:
     random.seed(42)
     k = 8.0

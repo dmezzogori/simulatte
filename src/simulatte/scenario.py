@@ -96,7 +96,29 @@ class SkuFamily:
 
 @dataclass(frozen=True)
 class Scenario:
-    """Immutable description of a shop environment and its order stream."""
+    """Immutable description of a shop environment and its order stream.
+
+    Attributes:
+        arrival_process: Factory producing the inter-arrival sampler. It is called
+            with the resolved arrival **rate** (orders per time unit, from
+            ``resolved_arrival_rate``) and must return a zero-argument sampler of
+            **inter-arrival times** whose mean is ``1 / rate``. The default
+            ``Exponential`` satisfies this (Poisson arrivals: ``Exponential(rate)``
+            has mean ``1 / rate``). Passing a factory whose sampler mean is not
+            ``1 / rate`` — e.g. ``Erlang``, whose ``Erlang(rate)`` has mean
+            ``shape / rate`` — silently breaks the ``target_utilization``
+            calibration even though it satisfies the declared type.
+        arrival_rate: Explicit arrival rate (orders per time unit) that overrides
+            the mix-weighted derivation when not ``None``; ``resolved_arrival_rate``
+            returns it verbatim, skipping the ρ→λ derivation.
+        target_utilization: Target steady-state shop utilization ρ, a fraction in
+            ``(0, 1]``; drives the arrival-rate derivation unless ``arrival_rate``
+            is set.
+        families: The product mix (one or more ``SkuFamily`` entries); each carries
+            its own service time, due-date offset/rule, and mix weight.
+        due_date_offset: Default due-date offset distribution applied to families
+            that do not set their own ``due_date_offset``.
+    """
 
     shop_type: ShopType = ShopType.PJS
     n_servers: int = 6
@@ -167,7 +189,12 @@ class Scenario:
         return cls(families=(SkuFamily(**family_kwargs),), **shop)  # type: ignore[arg-type]
 
     def resolved_arrival_rate(self) -> float:
-        """The exponential arrival rate (explicit override, else mix-weighted derivation)."""
+        """The exponential arrival rate (explicit override, else mix-weighted derivation).
+
+        The returned rate (orders per time unit) is fed to ``arrival_process`` in
+        ``build_router``, which expects a sampler of inter-arrival times with mean
+        ``1 / rate`` (the default ``Exponential`` satisfies this).
+        """
         if self.arrival_rate is not None:
             return self.arrival_rate
         total_weight = sum(f.weight for f in self.families)
@@ -219,7 +246,30 @@ class Scenario:
         priority_policies: Callable[..., float] | None = None,
     ) -> Router:
         """Assemble the Router from the family mix: arrival process, per-family routing,
-        service-time distributions, and due-date offsets/rules."""
+        service-time distributions, and due-date offsets/rules.
+
+        Args:
+            env: The simulation environment.
+            shop_floor: The shop floor the router feeds jobs into.
+            servers: The server pool the routings and service-time maps are built
+                over. Its length **must** equal ``self.n_servers``: that count
+                drives the arrival-rate derivation (via ``resolved_arrival_rate``,
+                used for both the expected routing length E[L] and the machine
+                count M), so a mismatch would silently miscalibrate utilization.
+            psp: The pre-shop pool, or ``None`` for immediate release.
+            priority_policies: Optional priority policy callable for the router.
+
+        Raises:
+            ValueError: If ``len(servers) != self.n_servers``.
+        """
+        if len(servers) != self.n_servers:
+            msg = (
+                f"len(servers)={len(servers)} != Scenario.n_servers={self.n_servers}: "
+                "n_servers is used to derive the arrival rate (expected routing length E[L] "
+                "and machine count M), so a different actual server pool would silently "
+                f"miscalibrate utilization; construct the Scenario with n_servers={len(servers)} instead."
+            )
+            raise ValueError(msg)
         rate = self.resolved_arrival_rate()
         due_date_rule = {
             f.name: twk_due_date(f.twk_allowance_factor) for f in self.families if f.twk_allowance_factor is not None
