@@ -1,6 +1,6 @@
 # Installation
 
-Simulatte requires **Python 3.12 or later** (tested on Python 3.12, 3.13, and 3.14).
+Simulatte requires **Python 3.11 or later** (CI tests CPython 3.12, 3.13, and 3.14, plus PyPy 3.11).
 
 Install from PyPI with pip:
 
