@@ -25,6 +25,7 @@ from simulatte.environment import Environment
 from simulatte.policies.triggers import periodic_trigger
 from simulatte.psp import PreShopPool
 from simulatte.router import Router
+from simulatte.scenario import Scenario
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
 from simulatte.typing import BuiltSystem
@@ -32,7 +33,9 @@ from simulatte.typing import BuiltSystem
 SEED = 42
 HORIZON = 800.0
 N_SERVERS = 6
-ARRIVAL_RATE = 1 / 0.648
+# Derive the arrival rate from the same Scenario the builder rows use, so all
+# three compared systems share one rate and the comparison can never drift.
+ARRIVAL_RATE = Scenario().resolved_arrival_rate()
 SERVICE_RATE = 2.0
 
 

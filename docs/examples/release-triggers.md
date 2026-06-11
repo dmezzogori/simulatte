@@ -41,6 +41,7 @@ from simulatte.environment import Environment
 from simulatte.policies.triggers import periodic_trigger
 from simulatte.psp import PreShopPool
 from simulatte.router import Router
+from simulatte.scenario import Scenario
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
 from simulatte.typing import BuiltSystem
@@ -48,7 +49,9 @@ from simulatte.typing import BuiltSystem
 SEED = 42
 HORIZON = 800.0
 N_SERVERS = 6
-ARRIVAL_RATE = 1 / 0.648
+# Derive the arrival rate from the same Scenario the builder rows use, so all
+# three compared systems share one rate and the comparison can never drift.
+ARRIVAL_RATE = Scenario().resolved_arrival_rate()
 SERVICE_RATE = 2.0
 
 
@@ -123,9 +126,9 @@ Release triggers & starvation avoidance (seed=42)
 System              Done   AvgTIS  MeanTard  %Tardy
 Immediate           1172    16.07      0.18    3.4%
 Starvation-only     1165    11.07      0.85    7.6%
-Periodic-release    1144    16.66      0.43    7.5%
+Periodic-release    1159    17.78      0.72   12.1%
 ```
 
 ## Interpretation
 
-The starvation-only system is wired via the on-arrival and on-completion **callbacks** (`psp.on_arrival` / `shop_floor.on_processing_end`) — not the trigger-process primitives — to release a job the instant its first server goes idle. This keeps the shop entrance fed and trims average time in system (11.07 vs the push baseline's 16.07), but because it never throttles, WIP is free to grow and a longer tail of jobs turns tardy (7.6%). The periodic system releases the entire pool every ten time units: arrivals are batched into bursts that briefly flood the floor, so it shows the highest flow time (16.66) — a clear illustration that *when* you release matters as much as *what* you release. Both are deliberately minimal; production policies (LumsCor, ConWIP, Continuous Release) layer load- or count-based release functions onto these same trigger primitives.
+All three systems run on the **same scenario** — identical arrival rate (the `Scenario`-derived rate, shared by the two builder rows and wired into the hand-rolled periodic system from the same source), service times, due dates, seed, and horizon — so every difference below is attributable to *release timing alone*. The starvation-only system is wired via the on-arrival and on-completion **callbacks** (`psp.on_arrival` / `shop_floor.on_processing_end`) — not the trigger-process primitives — to release a job the instant its first server goes idle. This keeps the shop entrance fed and trims average time in system (11.07 vs the push baseline's 16.07), but because it never throttles, WIP is free to grow and a longer tail of jobs turns tardy (7.6%). The periodic system releases the entire pool every ten time units: arrivals are batched into bursts that briefly flood the floor, so it shows the worst flow time (17.78) and — because those bursts shove jobs past their due dates en masse — by far the worst tardiness (12.1% tardy, against 3.4% for the push baseline and 7.6% for starvation-only). A clear illustration that *when* you release matters as much as *what* you release. Both pull systems are deliberately minimal; production policies (LumsCor, ConWIP, Continuous Release) layer load- or count-based release functions onto these same trigger primitives.
