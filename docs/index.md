@@ -52,3 +52,18 @@ print(f"Utilization: {server.utilization_rate:.1%}")
 - [Intralogistics](guides/intralogistics.md): warehouse layouts, AGV fleets, and material transport.
 - [Agent Skill](development/agent-skill.md): the AI coding agent skill that helps write correct Simulatte simulations.
 - [Experimental](guides/reinforcement-learning.md): unstable APIs (Gymnasium RL wrapper).
+
+## Citing Simulatte
+
+If you use Simulatte in your research, please cite it via its [Zenodo record](https://doi.org/10.5281/zenodo.21027366). The concept DOI [`10.5281/zenodo.21027366`](https://doi.org/10.5281/zenodo.21027366) always resolves to the latest version; cite the version DOI [`10.5281/zenodo.21027367`](https://doi.org/10.5281/zenodo.21027367) to pin v0.12.0.
+
+```bibtex
+@software{Mezzogori2026Simulatte,
+  author  = {Mezzogori, Davide and Mercogliano, Nicola},
+  title   = {{Simulatte}: A discrete-event simulation framework for production planning and control and intralogistics},
+  year    = {2026},
+  version = {0.12.0},
+  doi     = {10.5281/zenodo.21027366},
+  url     = {https://doi.org/10.5281/zenodo.21027366}
+}
+```

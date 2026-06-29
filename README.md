@@ -9,6 +9,7 @@
 [![License](https://img.shields.io/pypi/l/simulatte)](https://github.com/dmezzogori/simulatte/blob/main/LICENSE)
 [![codecov](https://codecov.io/gh/dmezzogori/simulatte/graph/badge.svg)](https://codecov.io/gh/dmezzogori/simulatte)
 [![Docs](https://img.shields.io/badge/docs-online-blue)](https://simulatte.dev)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21027366.svg)](https://doi.org/10.5281/zenodo.21027366)
 
 Discrete-event simulation framework for production planning and control and intralogistics, built on [SimPy](https://simpy.readthedocs.io/).
 
@@ -144,15 +145,16 @@ Full documentation is available at [simulatte.dev](https://simulatte.dev).
 
 ## Citation
 
-If you use Simulatte in your research, please cite:
+If you use Simulatte in your research, please cite it via its [Zenodo record](https://doi.org/10.5281/zenodo.21027366). The concept DOI [`10.5281/zenodo.21027366`](https://doi.org/10.5281/zenodo.21027366) always resolves to the latest version; cite the version DOI [`10.5281/zenodo.21027367`](https://doi.org/10.5281/zenodo.21027367) to pin v0.12.0.
 
 ```bibtex
-@software{Mezzogori2025Simulatte,
-  author = {Mezzogori, Davide and Mercogliano, Nicola},
-  title = {{Simulatte}: A discrete-event simulation framework for production planning and control and intralogistics},
-  year = {2025},
-  url = {https://github.com/dmezzogori/simulatte},
-  note = {Python package version 0.12.0}
+@software{Mezzogori2026Simulatte,
+  author  = {Mezzogori, Davide and Mercogliano, Nicola},
+  title   = {{Simulatte}: A discrete-event simulation framework for production planning and control and intralogistics},
+  year    = {2026},
+  version = {0.12.0},
+  doi     = {10.5281/zenodo.21027366},
+  url     = {https://doi.org/10.5281/zenodo.21027366}
 }
 ```
 
