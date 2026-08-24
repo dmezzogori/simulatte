@@ -19,8 +19,15 @@ def test_checker_accepts_spaced_meta_refresh(tmp_path, monkeypatch, capsys) -> N
     checker = _checker_module()
     (tmp_path / "next").mkdir()
     (tmp_path / "next" / "index.html").write_text("<html></html>", encoding="utf-8")
-    (tmp_path / "index.html").write_text('<meta http-equiv="refresh" content="0; url=next/">', encoding="utf-8")
+    (tmp_path / "index.html").write_text(
+        '<meta http-equiv="refresh" content="0; url=next/">', encoding="utf-8"
+    )
+    (tmp_path / "missing.html").write_text(
+        '<meta http-equiv="refresh" content="0; url=missing-target/">',
+        encoding="utf-8",
+    )
     monkeypatch.setattr(checker, "SITE", tmp_path)
 
-    assert checker.main() == 0
-    assert "all internal links resolve" in capsys.readouterr().out
+    assert checker.main() == 1
+    output = capsys.readouterr().out
+    assert "BROKEN INTERNAL LINKS" in output
