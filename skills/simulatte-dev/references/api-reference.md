@@ -280,9 +280,10 @@ SlarLimit(
 )
 ```
 
-`wl_norm` accepts either a scalar, which expands to every shopfloor server, or
-a mapping, which is accepted verbatim subject to the existing validation.
-Sets `CorrectedWIPStrategy` on the shopfloor. Construction is active (wires
+SLAR variant that gates urgent insertion by a workload norm. `wl_norm` accepts
+either a scalar, which expands to every shopfloor server, or a mapping, which
+is accepted verbatim subject to the existing validation. Sets
+`CorrectedWIPStrategy` on the shopfloor. Construction is active (wires
 triggers + PST dispatching).
 
 ### Draco

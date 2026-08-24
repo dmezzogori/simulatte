@@ -487,6 +487,7 @@ inter-arrival time, convert: `arrival_rate = 1 / mean`. With `arrival_rate`
 left as `None` (the default), the rate is derived from `target_utilization`,
 `n_servers`, and the mean routing length.
 
+**LumsCor wires itself on construction.**
 LumsCor active construction sets CorrectedWIPStrategy, installs its PST priority
 policy, and registers its release triggers. Manual composition therefore does
 not require a separate set_wip_strategy call; use the builder or construct
