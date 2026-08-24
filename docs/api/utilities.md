@@ -38,6 +38,21 @@ records simulation events and can emit them as JSON, plain text, or to a SQLite 
       heading_level: 3
       members: false
 
+::: simulatte.builders.build_conwip_system
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.builders.build_continuous_release_system
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.builders.build_starvation_avoidance_system
+    options:
+      heading_level: 3
+      members: false
+
 ## Scenario
 
 ::: simulatte.scenario.Scenario

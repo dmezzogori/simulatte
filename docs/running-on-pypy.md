@@ -1,9 +1,6 @@
 # Running on PyPy
 
-simulatte is compatible with **[PyPy](https://pypy.org/) 3.11**, the tracing-JIT Python
-implementation. The simulation engine, every release/dispatching policy, the intralogistics
-modules, and text/JSON/SQLite logging all run on PyPy and produce the **same results** as
-CPython for a given seed.
+The supported built-in simulation engine, release/dispatching policies, intralogistics modules, and text/JSON/SQLite logging have been exercised on PyPy 3.11 with seeded outputs matching CPython for the tested workloads.
 
 You can use PyPy when it helps your workload — typically long, compute-heavy simulations and
 large multi-run studies — without changing any of your code.

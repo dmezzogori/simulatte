@@ -4,7 +4,7 @@ Simulatte models two complementary domains — production planning (job-shop) an
 
 ## Production planning
 
-The `Router` is the stochastic arrival process: it creates `ProductionJob`s — each carrying its server routing, processing times, and absolute due date — and feeds them into the `PreShopPool` (in a pull system) or directly to the `ShopFloor` (in a push system). A release policy (LumsCor, SLAR, Draco, or ConWIP) monitors the pool and admits jobs to the `ShopFloor`, the central orchestrator that tracks WIP, fires lifecycle hooks, and maintains EMA performance metrics. The `ShopFloor` then routes each job through its sequence of `Server`s. Each `Server` is a SimPy priority resource that re-orders its queue before every dispatch — calling `sort_queue` to re-evaluate the job's priority policy — and that priority policy is the dispatching rule (SPT, EDD, ATC, Focus, and others). `Runner` repeats the whole simulation across multiple seeds; `SimLogger` records events throughout.
+The `Router` is the stochastic arrival process: it creates `ProductionJob`s — each carrying its server routing, processing times, and absolute due date — and feeds them into the `PreShopPool` (in a pull system) or directly to the `ShopFloor` (in a push system). A release policy (LumsCor, SLAR, SlarLimit, DRACO, ConWIP, or ContinuousRelease) monitors the pool and admits jobs to the `ShopFloor`, the central orchestrator that tracks WIP, fires lifecycle hooks, and maintains EMA performance metrics. The `ShopFloor` then routes each job through its sequence of `Server`s. Each `Server` is a SimPy priority resource that re-orders its queue before every dispatch — calling `sort_queue` to re-evaluate the job's priority policy — and that priority policy is the dispatching rule (SPT, EDD, ATC, Focus, and others). `Runner` repeats the whole simulation across multiple seeds; `SimLogger` records events throughout.
 
 ```mermaid
 graph TD
@@ -12,7 +12,7 @@ graph TD
     Router["Router<br/>stochastic arrivals"]
     Job["ProductionJob<br/>routing · processing times · due date"]
     PSP["PreShopPool"]
-    RP["Release Policy<br/>LumsCor / SLAR / Draco / ConWIP"]
+    RP["Release Policy<br/>LumsCor / SLAR / SlarLimit / DRACO / ConWIP / ContinuousRelease"]
     SF["ShopFloor<br/>orchestrator · WIP"]
     S["Server<br/>priority queue"]
     DR["Dispatching Rule<br/>SPT / EDD / ATC / Focus"]

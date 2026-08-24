@@ -14,7 +14,7 @@ A `Server` extends SimPy's `PriorityResource`. It can process one or more jobs c
 
 ### Pre-shop pool & release control
 
-The `PreShopPool` is a pure buffer queue — it holds jobs that have arrived but have not yet been admitted to the shopfloor. Release logic lives entirely in external policies that observe the pool and decide when to move jobs to the `ShopFloor`. Available policies include workload-based rules (LumsCor, SLAR, SlarLimit), a load-norm approach (Draco), a constant-WIP cap (ConWIP), and a workload-controlled continuous release (ContinuousRelease). Policies are wired to the pool via trigger functions (`periodic_trigger`, `on_arrival_trigger`, `on_completion_trigger`) from `simulatte.policies`. See the [Release Policies API](../api/release-policies.md) for the full reference.
+The `PreShopPool` is a pure buffer queue — it holds jobs that have arrived but have not yet been admitted to the shopfloor. Available policies include workload-based rules (LumsCor, SLAR, SlarLimit), non-hierarchical WIP control (DRACO, using wip_target and loop_target), a constant-WIP cap (ConWIP), and workload-controlled continuous release (ContinuousRelease). Policy classes and builders wire their own callbacks and trigger processes during construction; the lower-level trigger functions remain available for custom compositions. See the [Release Policies API](../api/release-policies.md) for the full reference.
 
 ### Dispatching
 
@@ -22,7 +22,7 @@ Once a job is on the shopfloor and waiting at a server, a dispatching rule deter
 
 ### WIP & metrics
 
-The `ShopFloor` continuously tracks work-in-process (WIP) using a pluggable `WIPStrategy` (`StandardWIPStrategy` or `CorrectedWIPStrategy`). It also maintains exponential moving average (EMA) metrics for throughput and flow time. Hooks (`on_before_operation`, `on_after_operation`) let you inject setup times, logging, or custom measurements at every operation without subclassing.
+The ShopFloor uses a pluggable WIPStrategy and its EMA collector exposes ema_makespan, ema_tardy_jobs, ema_early_jobs, ema_in_window_jobs, ema_time_in_psp, ema_time_in_shopfloor, and ema_total_queue_time. Time-series collectors provide throughput and WIP histories.
 
 ## Where to go next
 

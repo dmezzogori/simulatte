@@ -16,7 +16,7 @@ By running each policy with the same random seed you get a controlled, apples-to
 
 In a push system every arriving job enters the shop floor immediately. At high utilisation (≈ 90 %) queues grow without bound and most jobs finish late. A **release policy** holds new jobs in a pre-shop pool (PSP) and only releases them when servers can absorb the load — trading a little PSP waiting time for dramatically shorter queue times and better due-date performance.
 
-Simulatte ships three ready-made builder functions that encapsulate the full wiring of shop floor, servers, pre-shop pool, router, and release triggers. That makes policy comparison a matter of calling each builder in turn.
+Simulatte ships three of the ready-made builder functions that encapsulate the full wiring of shop floor, servers, pre-shop pool, router, and release triggers. That makes policy comparison a matter of calling each builder in turn.
 
 ---
 

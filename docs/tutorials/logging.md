@@ -111,27 +111,20 @@ Notes:
 
 | Event | Message (example) | `extra` keys |
 | --- | --- | --- |
-| Pick start | `Pick started: 2x A` | `product`, `quantity`, `inventory_before`, `warehouse_id` |
-| Pick completed | `Pick completed: 2x A` | `product`, `quantity`, `pick_time`, `inventory_after` |
-| Put start | `Put started: 5x B` | `product`, `quantity`, `inventory_before`, `warehouse_id` |
-| Put completed | `Put completed: 5x B` | `product`, `quantity`, `put_time`, `inventory_after` |
+| Pick start | `[{name}] Pick started (sku={sku.id}, qty={quantity})` | none beyond component |
+| Pick completed | `[{name}] Pick completed (sku={sku.id}, qty={quantity})` | none beyond component |
+| Put start | `[{name}] Put started (sku={sku.id}, qty={quantity})` | none beyond component |
+| Put completed | `[{name}] Put completed (sku={sku.id}, qty={quantity})` | none beyond component |
 
 #### AGV (`component="AGV"`)
 
 | Event | Message (example) | `extra` keys |
 | --- | --- | --- |
-| Travel start | `Travel started: Server(id=0) -> Server(id=1)` | `agv_id`, `origin_id`, `destination_id`, `travel_time` |
-| Travel completed | `Travel completed: arrived at Server(id=1)` | `agv_id`, `destination_id`, `trip_count` |
+| State transition | `{agv_id} OLD_STATE -> NEW_STATE` | none beyond component |
 
-#### MaterialCoordinator (`component="MaterialCoordinator"`)
+#### MaterialCoordinator
 
-| Event | Message (example) | `extra` keys |
-| --- | --- | --- |
-| Delivery triggered | `Material delivery triggered for job ab12cd34` | `job_id`, `server_id`, `op_index`, `materials` |
-| Delivery completed | `Material delivery completed for job ab12cd34` | `job_id`, `server_id`, `delivery_time`, `total_deliveries` |
-| Warehouse pick requested | `Warehouse pick requested: 2x A` | `product`, `quantity`, `warehouse_id` |
-| AGV selected | `AGV selected: agv-0` | `agv_id`, `workload`, `agv_count` |
-| AGV transport started | `AGV transport started: 2x A` | `agv_id`, `product`, `quantity`, `destination_id` |
+`MaterialCoordinator` is a protocol used by `ShopFloor`; it emits no built-in event family, and a custom implementation may emit its own events under a documented component name.
 
 ## 4) Log to file
 
@@ -260,4 +253,4 @@ class MyServer(Server):
 
 ## Next
 
-- [Troubleshooting](troubleshooting.md)
+- [Troubleshooting](../guides/troubleshooting.md)
