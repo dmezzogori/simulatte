@@ -13,7 +13,7 @@ from pathlib import Path
 
 SITE = Path("site")
 HREF = re.compile(r'href="([^"]+)"')
-REFRESH = re.compile(r'content="0;url=([^"]+)"')
+REFRESH = re.compile(r'content="0;\s*url=([^"]+)"')
 SKIP_PREFIXES = ("http://", "https://", "mailto:", "//", "data:", "#", "javascript:")
 
 
