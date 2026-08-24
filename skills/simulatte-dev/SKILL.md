@@ -45,8 +45,10 @@ Before writing code, figure out which stage the researcher is at:
 ## Choosing a release policy
 
 Simulatte ships several system configurations (Immediate, LumsCor, SLAR,
-SLAR-Limit, DRACO, plus ConWIP and Continuous Release for manual
-composition). The choice depends on what the researcher wants to study.
+SLAR-Limit, DRACO, ConWIP, and Continuous Release); ConWIP and Continuous
+Release have first-class builders, while manual composition is an advanced
+option for custom SKUs, multi-product routing, or non-standard distributions.
+The choice depends on what the researcher wants to study.
 
 ### Immediate Release (push system)
 
@@ -81,10 +83,10 @@ psp, servers, shopfloor, router, _ = build_lumscor_system(
 )
 ```
 
-`build_lumscor_system` sets `CorrectedWIPStrategy` on the shopfloor, which
-discounts downstream workload by position (1st op: full, 2nd: 1/2, 3rd: 1/3).
-LumsCor requires this strategy and validates it on each release, but does not
-set it itself (see the manual-composition note below).
+LumsCor active construction sets CorrectedWIPStrategy, installs its PST priority
+policy, and registers its release triggers. Manual composition therefore does
+not require a separate set_wip_strategy call; use the builder or construct
+LumsCor with the required shopfloor, PSP, and router references.
 
 ### SLAR (slack-based pull)
 
@@ -223,13 +225,11 @@ pst_rule = planned_slack_time(allowance=2.0)
 router = Router(..., priority_policies=pst_rule)
 ```
 
-`Slar` wires `planned_slack_time(allowance=allowance_factor)` onto the router
-automatically on construction. `LumsCor` does **not**: it sorts the PSP by
-planned release date and never touches `priority_policies`, so PST dispatching
-is added separately by the `build_lumscor_system` builder — when composing
-`LumsCor` by hand you must set `router.priority_policies` yourself. You can also
-use any dispatching rule with `build_immediate_release_system` via its
-`priority_policies=` argument.
+`Slar` and `LumsCor` install `planned_slack_time(allowance=allowance_factor)`
+onto the router automatically on construction. `LumsCor` also registers its
+release triggers; when composing it by hand, provide the required `shopfloor`,
+`psp`, and `router` references. You can also use any dispatching rule with
+`build_immediate_release_system` via its `priority_policies=` argument.
 
 **FOCUS (system-state rule).** `simulatte.dispatching_rules.Focus` is a
 self-establishing rule combining five weighted mechanisms (SPT, starvation,
@@ -487,10 +487,10 @@ inter-arrival time, convert: `arrival_rate = 1 / mean`. With `arrival_rate`
 left as `None` (the default), the rate is derived from `target_utilization`,
 `n_servers`, and the mean routing length.
 
-**LumsCor requires `CorrectedWIPStrategy`.**
-If composing a LumsCor system manually (not using the builder), you must call
-`shopfloor.set_wip_strategy(CorrectedWIPStrategy())` before running. The
-builder does this automatically. Forgetting it raises a `TypeError` at runtime.
+LumsCor active construction sets CorrectedWIPStrategy, installs its PST priority
+policy, and registers its release triggers. Manual composition therefore does
+not require a separate set_wip_strategy call; use the builder or construct
+LumsCor with the required shopfloor, PSP, and router references.
 
 **Lambda closure trap in Router config.**
 When building `sku_service_times` in a loop, lambdas capture the loop variable

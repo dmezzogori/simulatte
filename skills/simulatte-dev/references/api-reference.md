@@ -275,13 +275,15 @@ SlarLimit(
     shopfloor: ShopFloor,
     psp: PreShopPool,
     router: Router,
-    wl_norm: dict[Server, float],
+    wl_norm: float | dict[Server, float],
     allowance_factor: float = 2.0,
 )
 ```
 
-SLAR variant that gates urgent insertion by a workload norm. Requires
-`CorrectedWIPStrategy`. Construction is active (wires triggers + PST dispatching).
+`wl_norm` accepts either a scalar, which expands to every shopfloor server, or
+a mapping, which is accepted verbatim subject to the existing validation.
+Sets `CorrectedWIPStrategy` on the shopfloor. Construction is active (wires
+triggers + PST dispatching).
 
 ### Draco
 

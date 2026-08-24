@@ -298,7 +298,7 @@ class FleetCoordinator:
         time_series_collector: IntralogisticsTimeSeriesCollector | None = None,
         on_low_battery: Callable[[AGV], ProcessGenerator | None] | None = None,
         max_dispatch_retries: int = 10,
-        pending_retry_delay: float = 0.001,
+        pending_retry_delay: float = 1.0,
     ) -> None: ...
 
     # Order management
