@@ -27,17 +27,22 @@ uv run zensical serve
 simulatte/
 ├── src/simulatte/          # Main package
 │   ├── environment.py      # SimPy environment wrapper
+│   ├── scenario.py         # Scenario definitions
 │   ├── shopfloor.py        # Central orchestrator
-│   ├── job.py              # ProductionJob and variants
+│   ├── job.py              # BaseJob and ProductionJob
 │   ├── server.py           # Processing resources
 │   ├── psp.py              # Pre-shop pool
 │   ├── router.py           # Job routing logic
+│   ├── dispatching_rules/  # Dispatching rule implementations
 │   ├── runner.py           # Multi-simulation execution
 │   ├── builders.py         # Factory functions for system setup
 │   ├── distributions.py    # Statistical distributions
 │   ├── logger.py           # Logging with JSON/text/SQLite output
 │   ├── typing.py           # Shared type definitions
-│   ├── policies/           # Release policies (LumsCor, SLAR, StarvationAvoidance, triggers)
+│   ├── policies/           # Release policies and triggers
+│   │   ├── draco.py        # DRACO policy
+│   │   ├── norms.py        # Workload norm definitions
+│   │   └── slar_limit.py   # SLAR-Limit policy
 │   ├── intralogistics/     # Warehouse, AGV fleet, material transport (graph, pathfinding, traffic, fleet coordinator, metrics, policies)
 │   └── experimental/       # Unstable modules (gymnasium wrapper)
 ├── examples/               # Runnable example scripts (intralogistics_simple, _intermediate, _advanced)
@@ -65,13 +70,15 @@ Simulatte is a discrete-event simulation framework for production planning and c
 - `MetricsCollector`: Pluggable metrics recording
 - `Dispatcher`: Protocol for one-call hook wiring via `attach_dispatcher()`
 
-**ProductionJob** (`src/simulatte/job.py`): Jobs with routing through servers, processing times, due dates. Also TransportJob and WarehouseJob variants.
+**BaseJob/ProductionJob** (`src/simulatte/job.py`): `BaseJob` defines the common job interface and state; `ProductionJob` represents manufacturing jobs with routing, processing times, due dates, and optional material requirements.
 
 **Server** (`src/simulatte/server.py`): Processing resource extending `simpy.PriorityResource`. Tracks queue times, utilization.
 
 **Policies** (`src/simulatte/policies/`): Release policies for job scheduling:
 - LumsCor: Load-based scheduling
 - SLAR: Server load adjustment rule
+- SlarLimit: SLAR with a workload limit
+- Draco: Non-hierarchical WIP control
 - ConWIP: Constant Work-In-Process release (shop-wide job count cap)
 - ContinuousRelease: Workload-controlled continuous release (corrected aggregate load norms)
 - `starvation_avoidance`: Callback for `psp.on_arrival()` that releases jobs when first server is idle
@@ -112,7 +119,7 @@ Unstable APIs, subject to change:
 
 GitHub Actions workflows live in `.github/workflows/`:
 
-- **ci.yml**: Runs lint, type-check, and tests across Python 3.12/3.13/3.14 on push/PR to `main`. Coverage uploaded to Codecov on 3.14.
+- **ci.yml**: CPython 3.12/3.13/3.14 plus a PyPy 3.11 core/intralogistics compatibility lane; lint and type checks run on CPython 3.14.
 - **docs.yml**: Builds and deploys documentation to GitHub Pages on push to `main`.
 - **publish.yml**: Publishes to PyPI via trusted publishing when a `v*` tag is pushed.
 

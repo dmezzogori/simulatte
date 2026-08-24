@@ -14,7 +14,7 @@ Simulatte is developed on GitHub. The full workflow is in [`CONTRIBUTING.md`](ht
    uv run pre-commit install
    ```
 4. **Open a pull request** against `main` with a clear description of what changed and why.
-5. **All CI checks must pass** — tests across Python 3.12–3.14, linting, type checking, and docs build.
+5. **All CI checks must pass** — CI covers CPython 3.12–3.14, a PyPy 3.11 core/intralogistics lane, linting, type checking, and the documentation build.
 6. **At least one approving review is required** before merging.
 7. **If your change adds or modifies functionality, update `docs/`** accordingly.
 

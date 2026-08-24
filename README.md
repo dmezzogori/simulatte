@@ -34,7 +34,7 @@ The library provides ready-to-use components for common manufacturing scenarios 
 
 ### Release Control
 - **Pre-Shop Pool (PSP)** for workload-based job release
-- Built-in policies: Immediate Release, LumsCor, SLAR, ConWIP, Continuous Release
+- Built-in policies: Immediate Release, LumsCor, SLAR, SLAR-Limit, DRACO, ConWIP, and Continuous Release
 - Event callbacks (`psp.on_arrival`, `shopfloor.on_processing_end`) and composable triggers
 - Starvation avoidance mechanisms
 
@@ -51,7 +51,7 @@ The library provides ready-to-use components for common manufacturing scenarios 
 - Custom time-series collectors via simple protocol
 
 ### Reinforcement Learning Integration *(experimental)*
-- **Gymnasium wrapper** ([`SimulatteEnv`](https://simulatte.dev/experimental/gymnasium-wrapper/)): subclass a single ABC to turn any simulation into a Gymnasium environment (`from simulatte.experimental.gymnasium import SimulatteEnv`)
+- **Gymnasium wrapper** ([`SimulatteEnv`](https://simulatte.dev/tutorials/gymnasium-wrapper/)): subclass a single ABC to turn any simulation into a Gymnasium environment (`from simulatte.experimental.gymnasium import SimulatteEnv`)
 - Can be used with Stable-Baselines3, CleanRL, and other Gymnasium-compatible RL libraries
 - Built-in lifecycle guards, seeding support, and resource cleanup
 
