@@ -1153,6 +1153,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "fonttools" },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -1176,6 +1177,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "fonttools", specifier = ">=4.50" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.4" },
     { name = "pre-commit", specifier = ">=3.3.3" },
     { name = "pytest", specifier = ">=8.0.0" },
