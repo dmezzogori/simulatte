@@ -188,3 +188,6 @@ studio/.build/
 
 # Local execution snapshots, attempts and result store
 .simulatte/
+
+# Fonts fetched by scripts/brand/build_identity.py (not redistributed)
+scripts/brand/.fonts/

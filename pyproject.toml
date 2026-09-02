@@ -79,6 +79,7 @@ exclude = [
 
 [dependency-groups]
 dev = [
+    "fonttools>=4.50",
     "hatchling",
     "httpx>=0.28",
     "jsonschema>=4.0",

@@ -1837,6 +1837,7 @@ studio = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "fonttools" },
     { name = "hatchling" },
     { name = "httpx" },
     { name = "jsonschema" },
@@ -1869,6 +1870,7 @@ provides-extras = ["plot", "rl", "studio", "all"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "fonttools", specifier = ">=4.50" },
     { name = "hatchling" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "jsonschema", specifier = ">=4.0" },

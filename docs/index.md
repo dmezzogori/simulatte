@@ -1,5 +1,8 @@
-<figure>
-  <img src="assets/logo.png" alt="Simulatte" width="200">
+<figure class="brand-figure">
+  <img class="brand-hero brand-hero--on-dark" src="assets/brand/logo-tagline-on-dark.svg"
+       alt="Simulatte — Python discrete event simulation">
+  <img class="brand-hero brand-hero--on-light" src="assets/brand/logo-tagline-on-light.svg"
+       alt="Simulatte — Python discrete event simulation">
   <figcaption>
     <a href="https://github.com/dmezzogori/simulatte">GitHub</a> ·
     <a href="https://pypi.org/project/simulatte/">PyPI</a>
