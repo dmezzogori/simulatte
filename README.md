@@ -13,6 +13,14 @@
 
 Discrete-event simulation framework for production planning and control and intralogistics, built on [SimPy](https://simpy.readthedocs.io/).
 
+<p align="center">
+  <a href="https://simulatte.dev/#intro-video">
+    <img src="https://raw.githubusercontent.com/dmezzogori/simulatte/main/docs/assets/video/poster-play.jpg" alt="Watch Simulatte in 60 seconds" width="640">
+  </a>
+  <br>
+  <em>Simulatte in 60 seconds. Click to watch on simulatte.dev.</em>
+</p>
+
 > **Note:** Simulatte is under active development. All APIs — including those outside `simulatte.experimental` — should be considered unstable and may change between releases without prior deprecation. Pin your dependency to a specific version if you need stability.
 
 ---

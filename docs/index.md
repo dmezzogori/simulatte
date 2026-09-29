@@ -12,6 +12,12 @@ Discrete-event simulation framework for production planning and control and intr
 
 Simulatte models the dynamics of manufacturing systems: jobs flowing through workstations, release and dispatching policies controlling shopfloor congestion, and supporting infrastructure such as warehouses and AGVs (Automated Guided Vehicles). Use it to design and benchmark scheduling policies, evaluate WIP (Work-in-Progress) control strategies, and run repeatable multi-seed experiments.
 
+<video id="intro-video" controls preload="metadata" playsinline poster="assets/video/poster.jpg" style="width: 100%; border-radius: 8px;">
+  <source src="assets/video/simulatte-promo.mp4" type="video/mp4">
+  <track kind="captions" src="assets/video/simulatte-promo.en.vtt" srclang="en" label="English">
+  Simulatte in 60 seconds: <a href="assets/video/simulatte-promo.mp4">download the video</a>.
+</video>
+
 - New here? Start with [Basic Usage](introduction/basic-usage.md).
 - Want job-shop tutorials? Go to [Tutorials](tutorials/index.md).
 - Looking for warehouse and AGV simulation? See [Intralogistics](guides/intralogistics.md).
