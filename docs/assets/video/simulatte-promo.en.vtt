@@ -1,0 +1,45 @@
+WEBVTT
+
+1
+00:00:00.600 --> 00:00:03.300
+Every factory is a little puzzle.
+
+2
+00:00:03.850 --> 00:00:09.600
+Orders pour in, machines queue up… and deadlines slip away.
+
+3
+00:00:10.150 --> 00:00:15.300
+What if you could test every idea, before touching the real shop floor?
+
+4
+00:00:16.350 --> 00:00:17.800
+Meet Simulatte!
+
+5
+00:00:18.150 --> 00:00:22.850
+Discrete-event simulation for production and intralogistics, in Python.
+
+6
+00:00:23.200 --> 00:00:30.800
+Sketch machines, jobs and routings, then brew release policies like LumsCor, DRACO, or ConWIP.
+
+7
+00:00:32.000 --> 00:00:40.300
+Same shop, same seed. Switch the release policy, and late jobs drop from fourteen percent… to two.
+
+8
+00:00:40.600 --> 00:00:46.350
+Add warehouses, and a fleet of little AGVs, with batteries, traffic and charging.
+
+9
+00:00:46.750 --> 00:00:51.600
+Run hundreds of seeds in parallel, or let a reinforcement-learning agent take the wheel.
+
+10
+00:00:51.750 --> 00:00:57.300
+pip install simulatte, or try it right in your browser, at simulatte.dev
+
+11
+00:00:57.450 --> 00:01:00.000
+Go on… brew your first simulation.
