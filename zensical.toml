@@ -72,13 +72,13 @@ custom_fences = [
   { name = "mermaid", class = "mermaid" },
 ]
 
-[project.plugins.mkdocstrings.config]
+[project.plugins.mkdocstrings]
 enabled = true
 
-[project.plugins.mkdocstrings.config.handlers.python]
+[project.plugins.mkdocstrings.handlers.python]
 paths = ["src"]
 
-[project.plugins.mkdocstrings.config.handlers.python.options]
+[project.plugins.mkdocstrings.handlers.python.options]
 show_source = false
 show_root_heading = true
 show_root_full_path = false
