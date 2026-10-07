@@ -788,10 +788,10 @@ class ShopFloor:
         """Normalize hook parameter to a list."""
         if hooks is None:
             return []
-        if isinstance(hooks, list | tuple):  # type: ignore[arg-type, misc]
-            return list(hooks)  # type: ignore[arg-type]
+        if isinstance(hooks, Sequence):
+            return list(hooks)
         # Single hook
-        return [hooks]  # type: ignore[list-item]
+        return [hooks]
 
     @staticmethod
     def _normalize_callbacks(
@@ -800,10 +800,10 @@ class ShopFloor:
         """Normalize callback parameter to a list."""
         if callbacks is None:
             return []
-        if isinstance(callbacks, list | tuple):  # type: ignore[arg-type, misc]
-            return list(callbacks)  # type: ignore[arg-type]
+        if isinstance(callbacks, Sequence):
+            return list(callbacks)
         # Single callback
-        return [callbacks]  # type: ignore[list-item]
+        return [callbacks]
 
     def on_before_operation(self, hook: OperationHook) -> None:
         """Register a hook to run before each operation.

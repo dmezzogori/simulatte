@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 
 from loguru import logger as _logger
 
@@ -53,7 +53,7 @@ def _drain_pending_handler_removals() -> None:
 
 
 @contextlib.contextmanager
-def _loguru_critical_section() -> Iterator[None]:
+def _loguru_critical_section() -> Generator[None]:
     """Mark the current thread as inside a loguru lock-holding call.
 
     Finalizers firing while this is active defer their handler removal instead of
@@ -351,7 +351,7 @@ class SQLiteEventStore:
         if self._conn is not None:
             with self._lock:
                 self._conn.close()
-                self._conn = None  # type: ignore[assignment]
+                self._conn = None  # ty: ignore[invalid-assignment]
 
 
 # Level name to numeric priority mapping (matching loguru)

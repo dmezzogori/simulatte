@@ -234,7 +234,7 @@ def test_multiple_hooks_execute_in_order() -> None:
         return
         yield
 
-    hooks: list[OperationHook] = [hook1, hook2]  # type: ignore[list-item]
+    hooks: list[OperationHook] = [hook1, hook2]  # ty: ignore[invalid-assignment]
     env = Environment()
     sf = ShopFloor(env=env, on_before_operation=hooks)
     server = Server(env=env, capacity=1, shopfloor=sf)
@@ -734,7 +734,7 @@ def test_mixed_sync_and_generator_hooks_execute_in_order() -> None:
         yield server.env.timeout(0.1)
 
     env = Environment()
-    hooks: list[OperationHook] = [sync_hook, gen_hook]  # type: ignore[list-item]
+    hooks: list[OperationHook] = [sync_hook, gen_hook]  # ty: ignore[invalid-assignment]
     sf = ShopFloor(env=env, on_before_operation=hooks)
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
@@ -1045,10 +1045,10 @@ def test_hook_returning_non_generator_raises_type_error() -> None:
     """A hook that returns a non-None, non-generator value should raise TypeError."""
 
     def bad_hook(job: ProductionJob, server: Server, op_index: int, processing_time: float) -> int:
-        return 42  # type: ignore[return-value]
+        return 42
 
     env = Environment()
-    sf = ShopFloor(env=env, on_before_operation=bad_hook)  # type: ignore[arg-type]
+    sf = ShopFloor(env=env, on_before_operation=bad_hook)  # ty: ignore[invalid-argument-type]
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
     sf.add(job)
@@ -1082,10 +1082,10 @@ def test_after_hook_returning_non_generator_raises_type_error() -> None:
     """An after-operation hook that returns non-None/non-generator should raise TypeError."""
 
     def bad_hook(job: ProductionJob, server: Server, op_index: int, processing_time: float) -> str:
-        return "oops"  # type: ignore[return-value]
+        return "oops"
 
     env = Environment()
-    sf = ShopFloor(env=env, on_after_operation=bad_hook)  # type: ignore[arg-type]
+    sf = ShopFloor(env=env, on_after_operation=bad_hook)  # ty: ignore[invalid-argument-type]
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=20)
     sf.add(job)

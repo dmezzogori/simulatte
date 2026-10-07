@@ -9,7 +9,7 @@ from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.warehouse import Warehouse
 
 if TYPE_CHECKING:
-    from simulatte.intralogistics.fleet import FleetCoordinator  # type: ignore[import-not-found]  # module created in Task 14
+    from simulatte.intralogistics.fleet import FleetCoordinator
 
 
 # ---------------------------------------------------------------------------

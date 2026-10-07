@@ -176,7 +176,7 @@ class TestBasicLifecycle:
                 states_seen.append(new_state)
             original_transition(new_state)
 
-        agv.transition_to = tracking_transition  # type: ignore[assignment]
+        agv.transition_to = tracking_transition  # ty: ignore[invalid-assignment]
 
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
         coordinator.submit(order)
@@ -665,7 +665,7 @@ class TestReplenishment:
 
         coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed, origin_inventory=200)
         # Put initial inventory in WH-B so it can serve as source
-        wh_b.inventory[sku_a]._level = 100  # type: ignore[attr-defined]
+        wh_b.inventory[sku_a]._level = 100
 
         # Set up reorder policy: when WH-A drops below 150, reorder 10 from WH-B
         # (10 * 5kg = 50kg, within the default AGV capacity)
@@ -2168,7 +2168,7 @@ class TestUnfulfillableOrderRetries:
         heavy_sku = SKU(id="HEAVY", weight=200.0, volume=0.01)
         # Add the heavy SKU to warehouse inventory so it is a valid product
         wh_a.inventory[heavy_sku] = wh_a.inventory[sku_a].__class__(env=env, capacity=100)
-        wh_a.inventory[heavy_sku]._level = 50  # type: ignore[attr-defined]
+        wh_a.inventory[heavy_sku]._level = 50
 
         unfulfillable_order = coordinator.create_order(sku=heavy_sku, quantity=1, origin=wh_a, destination=wh_b)
         coordinator.submit(unfulfillable_order)
@@ -2195,7 +2195,7 @@ class TestUnfulfillableOrderRetries:
 
         heavy_sku = SKU(id="HEAVY-SOLO", weight=200.0, volume=0.01)
         wh_a.inventory[heavy_sku] = wh_a.inventory[sku_a].__class__(env=env, capacity=100)
-        wh_a.inventory[heavy_sku]._level = 50  # type: ignore[attr-defined]
+        wh_a.inventory[heavy_sku]._level = 50
 
         order = coordinator.create_order(sku=heavy_sku, quantity=1, origin=wh_a, destination=wh_b)
         coordinator.submit(order)

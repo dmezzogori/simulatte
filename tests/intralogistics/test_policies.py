@@ -653,7 +653,7 @@ class TestReturnToOrigin:
         )
 
         strategy = ReturnToOrigin()
-        gen = strategy.recover(order, agv, None)  # type: ignore[arg-type]
+        gen = strategy.recover(order, agv, None)  # ty: ignore[invalid-argument-type]
         list(gen)
 
         assert order.status == OrderStatus.PENDING
@@ -676,7 +676,7 @@ class TestReturnToOrigin:
         )
 
         strategy = ReturnToOrigin()
-        gen = strategy.recover(order, agv, None)  # type: ignore[arg-type]
+        gen = strategy.recover(order, agv, None)  # ty: ignore[invalid-argument-type]
         # Exhaust the generator
         list(gen)
 
@@ -702,7 +702,7 @@ class TestReturnToOrigin:
         )
 
         strategy = ReturnToOrigin()
-        gen = strategy.recover(order, agv, None)  # type: ignore[arg-type]
+        gen = strategy.recover(order, agv, None)  # ty: ignore[invalid-argument-type]
         list(gen)
 
         assert order.status == OrderStatus.PENDING
@@ -732,7 +732,7 @@ class TestResumeDelivery:
         )
 
         strategy = ResumeDelivery()
-        gen = strategy.recover(order, agv, None)  # type: ignore[arg-type]
+        gen = strategy.recover(order, agv, None)  # ty: ignore[invalid-argument-type]
         list(gen)
 
         assert order.status == OrderStatus.IN_TRANSIT

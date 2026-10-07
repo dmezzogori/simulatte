@@ -70,7 +70,7 @@ def test_focus_init_validates_weights_sum_to_one() -> None:
 
 def test_focus_init_validates_weights_count() -> None:
     with pytest.raises(ValueError, match="5 elements"):
-        Focus(weights=(0.5, 0.5))  # type: ignore[arg-type]
+        Focus(weights=(0.5, 0.5))  # ty: ignore[invalid-argument-type]
 
 
 def test_focus_init_validates_weights_range() -> None:
@@ -730,7 +730,7 @@ def test_focus_context_is_frozen_dataclass() -> None:
         max_positive_c=0.0,
     )
     with pytest.raises((AttributeError, Exception)):
-        ctx.max_pij = 2.0  # type: ignore[misc]
+        ctx.max_pij = 2.0  # ty: ignore[invalid-assignment]
 
 
 # ----- _entropy helper -----
@@ -1143,7 +1143,7 @@ def test_focus_beta_computes_for_uncached_job(monkeypatch: pytest.MonkeyPatch) -
 
     def spy(**kwargs: object) -> float:
         calls.append(kwargs["job"])
-        return real_delta(**kwargs)  # type: ignore[arg-type]
+        return real_delta(**kwargs)  # ty: ignore[invalid-argument-type]
 
     monkeypatch.setattr(focus_mod, "_delta_entropy", spy)
     focus.beta(outsider, s1, ctx)
@@ -1169,7 +1169,7 @@ def test_focus_priority_rule_memoizes_ctx_across_unchanged_state(monkeypatch: py
     call_count = 0
     real_build = Focus.build_context
 
-    def counting_build(shopfloor, now, *, psp=None, compute_beta=True):  # type: ignore[no-untyped-def]
+    def counting_build(shopfloor, now, *, psp=None, compute_beta=True):
         nonlocal call_count
         call_count += 1
         return real_build(shopfloor, now, psp=psp, compute_beta=compute_beta)

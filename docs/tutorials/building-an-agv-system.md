@@ -178,7 +178,7 @@ After the simulation, inspect per-order timing attributes and use `coordinator.a
 from simulatte.intralogistics import OrderStatus
 
 completed = [o for o in orders if o.status is OrderStatus.COMPLETED]
-avg_fulfillment = sum(o.delivered_at - o.created_at for o in completed) / len(completed)
+avg_fulfillment = sum(o.delivered_at - o.created_at for o in completed if o.delivered_at is not None) / len(completed)
 
 print(f"Completed: {len(completed)}/{len(orders)}")
 print(f"Avg fulfillment time: {avg_fulfillment:.1f}s")

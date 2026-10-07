@@ -11,14 +11,15 @@ from simulatte.intralogistics.speed import TrapezoidalProfile
 
 class TestAGVState:
     def test_all_states_exist(self) -> None:
-        assert len(AGVState) == 7
-        assert AGVState.IDLE
-        assert AGVState.TRAVELING_EMPTY
-        assert AGVState.WAITING_LOAD
-        assert AGVState.TRAVELING_LOADED
-        assert AGVState.WAITING_UNLOAD
-        assert AGVState.CHARGING
-        assert AGVState.STRANDED
+        assert {state.name for state in AGVState} == {
+            "IDLE",
+            "TRAVELING_EMPTY",
+            "WAITING_LOAD",
+            "TRAVELING_LOADED",
+            "WAITING_UNLOAD",
+            "CHARGING",
+            "STRANDED",
+        }
 
 
 class TestAGVType:
@@ -31,7 +32,7 @@ class TestAGVType:
             volume_capacity=2.0,
         )
         with pytest.raises(AttributeError):
-            agv_type.name = "other"  # type: ignore[misc]
+            agv_type.name = "other"  # ty: ignore[invalid-assignment]
 
     def test_defaults(self, simple_speed_profile: TrapezoidalProfile) -> None:
         agv_type = AGVType(

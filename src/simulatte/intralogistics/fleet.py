@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from enum import Enum, auto
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 import simpy
 
@@ -20,6 +20,7 @@ from simulatte.intralogistics.traffic import FreeTrafficManager
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from typing import Unpack
 
     from simpy.events import ProcessGenerator
 
@@ -42,6 +43,19 @@ if TYPE_CHECKING:
     from simulatte.intralogistics.sku import SKU
     from simulatte.intralogistics.traffic import TrafficManager
     from simulatte.intralogistics.warehouse import Warehouse
+
+
+class _TransferOrderOptions(TypedDict, total=False):
+    """Optional ``TransferOrder`` fields accepted by ``FleetCoordinator.create_order``."""
+
+    id: str
+    due_date: float | None
+    priority: float
+    status: OrderStatus
+    dispatched_at: float | None
+    picked_at: float | None
+    delivered_at: float | None
+    assigned_agv: AGV | None
 
 
 class _TravelOutcome(Enum):
@@ -144,7 +158,7 @@ class FleetCoordinator:
         quantity: int,
         origin: Warehouse,
         destination: Warehouse,
-        **kwargs: object,
+        **kwargs: Unpack[_TransferOrderOptions],
     ) -> TransferOrder:
         """Factory method that creates a ``TransferOrder`` with ``created_at`` set to now."""
         return TransferOrder(
@@ -153,7 +167,7 @@ class FleetCoordinator:
             origin=origin,
             destination=destination,
             created_at=self.env.now,
-            **kwargs,  # type: ignore[arg-type]
+            **kwargs,
         )
 
     def submit(self, order: TransferOrder) -> None:

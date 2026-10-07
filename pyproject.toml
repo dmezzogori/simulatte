@@ -63,7 +63,7 @@ dev = [
     "pytest-timeout>=2.3.0",
     "pyyaml>=6.0",
     "ruff>=0.1.5",
-    "ty>=0.0.1a32",
+    "ty>=0.0.85",
     "zensical>=0.0.14",
 ]
 

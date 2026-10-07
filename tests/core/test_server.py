@@ -513,8 +513,11 @@ class TestPriorityQueueOrdering:
         assert queued_skus == ["A", "B", "C", "D", "E"]
 
         env.run()
-        exit_times = {sku: j.servers_exit_at[server] for sku, j in jobs.items()}
-        assert all(v is not None for v in exit_times.values())
+        exit_times: dict[str, float] = {}
+        for sku, j in jobs.items():
+            exit_at = j.servers_exit_at[server]
+            assert exit_at is not None
+            exit_times[sku] = exit_at
         assert exit_times["A"] < exit_times["B"] < exit_times["C"] < exit_times["D"] < exit_times["E"]
 
 
