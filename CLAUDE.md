@@ -119,7 +119,7 @@ Unstable APIs, subject to change:
 
 GitHub Actions workflows live in `.github/workflows/`:
 
-- **ci.yml**: CPython 3.12/3.13/3.14 plus a PyPy 3.11 core/intralogistics compatibility lane; lint and type checks run on CPython 3.14.
+- **ci.yml**: CPython 3.12/3.13/3.14, an allowed-to-fail CPython 3.15 pre-release lane, plus a PyPy 3.11 core/intralogistics compatibility lane; lint and type checks run on CPython 3.14.
 - **docs.yml**: Builds and deploys documentation to GitHub Pages on push to `main`.
 - **publish.yml**: Publishes to PyPI via trusted publishing when a `v*` tag is pushed.
 
