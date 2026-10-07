@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from simulatte.distributions import (
     Distribution,
@@ -36,6 +36,7 @@ from simulatte.shopfloor import CurrentWorkLoadCollector, ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable, Sequence
+    from typing import Unpack
 
     from simulatte.environment import Environment
     from simulatte.psp import PreShopPool
@@ -56,6 +57,35 @@ _ROUTING = {
 }
 
 _DEFAULT_SERVICE_TIME = TruncatedErlang(rate=2.0, shape=2, max_value=4.0)
+
+
+class _ShopKwargs(TypedDict, total=False):
+    """Shop-level ``Scenario`` fields shared by the presets and ``Scenario.single``."""
+
+    n_servers: int
+    target_utilization: float
+    arrival_process: Callable[[float], Callable[[], float]]
+    arrival_rate: float | None
+
+
+class _PresetKwargs(_ShopKwargs, total=False):
+    """``Scenario`` fields accepted by the shop-type presets (``shop_type`` is fixed)."""
+
+    families: tuple[SkuFamily, ...]
+    due_date_offset: Distribution
+
+
+class _SingleShopKwargs(_ShopKwargs, total=False):
+    """``Scenario`` fields accepted by ``Scenario.single`` (``families`` is built from its arguments)."""
+
+    shop_type: ShopType
+
+
+class _SingleFamilyKwargs(TypedDict, total=False):
+    name: str
+    service_time: Distribution
+    due_date_offset: Distribution
+    twk_allowance_factor: float
 
 
 @dataclass(frozen=True)
@@ -144,19 +174,19 @@ class Scenario:
             raise ValueError(msg)
 
     @classmethod
-    def pure_job_shop(cls, **overrides: object) -> Scenario:
+    def pure_job_shop(cls, **overrides: Unpack[_PresetKwargs]) -> Scenario:
         """Pure Job Shop preset (undirected routing)."""
-        return cls(shop_type=ShopType.PJS, **overrides)  # type: ignore[arg-type]
+        return cls(shop_type=ShopType.PJS, **overrides)
 
     @classmethod
-    def general_flow_shop(cls, **overrides: object) -> Scenario:
+    def general_flow_shop(cls, **overrides: Unpack[_PresetKwargs]) -> Scenario:
         """General Flow Shop preset (directed/sorted routing)."""
-        return cls(shop_type=ShopType.GFS, **overrides)  # type: ignore[arg-type]
+        return cls(shop_type=ShopType.GFS, **overrides)
 
     @classmethod
-    def pure_flow_shop(cls, **overrides: object) -> Scenario:
+    def pure_flow_shop(cls, **overrides: Unpack[_PresetKwargs]) -> Scenario:
         """Pure Flow Shop preset (all machines, fixed order)."""
-        return cls(shop_type=ShopType.PFS, **overrides)  # type: ignore[arg-type]
+        return cls(shop_type=ShopType.PFS, **overrides)
 
     @classmethod
     def single(
@@ -166,7 +196,7 @@ class Scenario:
         due_date_offset: Distribution | None = None,
         twk_allowance_factor: float | None = None,
         name: str = "F1",
-        **shop: object,
+        **shop: Unpack[_SingleShopKwargs],
     ) -> Scenario:
         """Convenience for the common one-product case: build a single-family Scenario.
 
@@ -176,17 +206,14 @@ class Scenario:
         forwards shop-level kwargs (``shop_type``, ``n_servers``,
         ``target_utilization``, ``arrival_rate``, ...).
         """
-        family_kwargs = {
-            k: v
-            for k, v in {
-                "name": name,
-                "service_time": service_time,
-                "due_date_offset": due_date_offset,
-                "twk_allowance_factor": twk_allowance_factor,
-            }.items()
-            if v is not None
-        }
-        return cls(families=(SkuFamily(**family_kwargs),), **shop)  # type: ignore[arg-type]
+        family_kwargs: _SingleFamilyKwargs = {"name": name}
+        if service_time is not None:
+            family_kwargs["service_time"] = service_time
+        if due_date_offset is not None:
+            family_kwargs["due_date_offset"] = due_date_offset
+        if twk_allowance_factor is not None:
+            family_kwargs["twk_allowance_factor"] = twk_allowance_factor
+        return cls(families=(SkuFamily(**family_kwargs),), **shop)
 
     def resolved_arrival_rate(self) -> float:
         """The exponential arrival rate (explicit override, else mix-weighted derivation).

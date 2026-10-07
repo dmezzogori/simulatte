@@ -65,7 +65,7 @@ class ServerPriorityRequest(PriorityRequest):
         self.job = job
         self.preempt = preempt
         self.time = resource.env.now
-        super().__init__(resource=resource, priority=job.priority(resource), preempt=preempt)  # type: ignore[arg-type]  # SimPy annotates int but works with float
+        super().__init__(resource=resource, priority=job.priority(resource), preempt=preempt)  # ty: ignore[invalid-argument-type]  # SimPy annotates int but works with float
 
     def __repr__(self) -> str:
         return f"ServerPriorityRequest(job={self.job}, server={self.server})"
@@ -193,7 +193,7 @@ class Server(simpy.PriorityResource):
         self._last_queue_level = len(self.queue)
         self._update_qt()
 
-    def request(  # type: ignore[override]
+    def request(  # ty: ignore[invalid-method-override]
         self,
         *,
         job: BaseJob,
@@ -231,7 +231,7 @@ class Server(simpy.PriorityResource):
         request.callbacks.append(lambda _: self._update_ut())
         return request
 
-    def release(self, request: ServerPriorityRequest) -> Release:  # type: ignore[override]
+    def release(self, request: ServerPriorityRequest) -> Release:  # ty: ignore[invalid-method-override]
         """Release the server after job processing.
 
         Records the job's exit time and updates utilization tracking.
@@ -242,7 +242,7 @@ class Server(simpy.PriorityResource):
         Returns:
             A SimPy Release event.
         """
-        release = super().release(request)  # type: ignore[arg-type]
+        release = super().release(request)
         request.job.servers_exit_at[self] = self.env.now
 
         job = request.job

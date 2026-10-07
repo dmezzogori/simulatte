@@ -26,7 +26,7 @@ class TestSKU:
         import pytest
 
         with pytest.raises(AttributeError):
-            sku.id = "Y"  # type: ignore[misc]
+            sku.id = "Y"  # ty: ignore[invalid-assignment]
 
     def test_hashable(self) -> None:
         sku1 = SKU(id="A", weight=1.0, volume=0.1)

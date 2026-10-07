@@ -15,7 +15,7 @@ def _make_order(**overrides: object) -> TransferOrder:
         "created_at": 100.0,
     }
     defaults.update(overrides)
-    return TransferOrder(**defaults)  # type: ignore[arg-type]
+    return TransferOrder(**defaults)  # ty: ignore[invalid-argument-type]
 
 
 class TestOrderStatus:

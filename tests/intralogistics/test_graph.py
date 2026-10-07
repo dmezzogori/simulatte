@@ -15,7 +15,7 @@ class TestNode:
     def test_frozen(self) -> None:
         node = Node(id="N1", x=0.0, y=0.0)
         with pytest.raises(AttributeError):
-            node.x = 1.0  # type: ignore[misc]
+            node.x = 1.0  # ty: ignore[invalid-assignment]
 
     def test_hashable(self) -> None:
         n1 = Node(id="N1", x=0.0, y=0.0)

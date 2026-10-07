@@ -82,7 +82,7 @@ def test_log_event_defaults() -> None:
 def test_log_event_immutable() -> None:
     event = LogEvent(timestamp=0.0, level="INFO", message="Test")
     try:
-        event.timestamp = 100.0  # type: ignore[misc]
+        event.timestamp = 100.0  # ty: ignore[invalid-assignment]
         assert False, "Should have raised FrozenInstanceError"
     except AttributeError:
         pass  # Expected - frozen dataclass
@@ -419,7 +419,7 @@ def test_patch_loguru_default_sink_is_resilient_to_exceptions(monkeypatch) -> No
 
     original_remove = simulatte_logger._logger.remove
 
-    def boom(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+    def boom(*_args, **_kwargs):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(simulatte_logger._logger, "remove", boom)

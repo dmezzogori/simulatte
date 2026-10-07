@@ -31,7 +31,7 @@ def test_draco_init_validates_total_impact_weights_count() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     with pytest.raises(ValueError, match="3 elements"):
-        Draco(shopfloor=sf, router=Mock(), total_impact_weights=(0.5, 0.5), wip_target=10, loop_target=5)  # type: ignore[arg-type]
+        Draco(shopfloor=sf, router=Mock(), total_impact_weights=(0.5, 0.5), wip_target=10, loop_target=5)  # ty: ignore[invalid-argument-type]
 
 
 def test_draco_init_validates_total_impact_weights_range() -> None:
@@ -367,7 +367,7 @@ def test_draco_priority_policy_returns_neg_inf_when_forced() -> None:
     draco = Draco(shopfloor=sf, router=Mock(), wip_target=10, loop_target=5)
     job = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[1.0], due_date=10.0)
 
-    draco._forced_at_server[s1] = job  # type: ignore[assignment]
+    draco._forced_at_server[s1] = job
     assert draco.priority_policy(job, s1) == float("-inf")
     # Flag persists — it is cleared only at the start of the next decide_next_job
     assert s1 in draco._forced_at_server
@@ -405,7 +405,7 @@ def test_draco_priority_policy_flag_persists_across_calls() -> None:
     sf.add(job)
 
     # Set the flag and verify it persists across multiple priority_policy calls.
-    draco._forced_at_server[s1] = job  # type: ignore[assignment]
+    draco._forced_at_server[s1] = job
     first = draco.priority_policy(job, s1)
     second = draco.priority_policy(job, s1)
     assert first == float("-inf")
@@ -415,7 +415,7 @@ def test_draco_priority_policy_flag_persists_across_calls() -> None:
     # Simulate a new completion at s1: decide_next_job must clear the flag.
     # Re-arm the flag and then call decide_next_job for s1 (no queue/PSP
     # candidates, so it pops the flag and returns early).
-    draco._forced_at_server[s1] = job  # type: ignore[assignment]  # re-arm
+    draco._forced_at_server[s1] = job  # re-arm
     draco.decide_next_job(job, s1)
     assert s1 not in draco._forced_at_server
 
@@ -429,7 +429,7 @@ def test_draco_priority_policy_force_flag_is_per_server() -> None:
     job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[1.0, 1.0], due_date=10.0)
     sf.add(job)
 
-    draco._forced_at_server[s1] = job  # type: ignore[assignment]
+    draco._forced_at_server[s1] = job
     # Forced at s1 only — s2 returns normal score
     assert draco.priority_policy(job, s2) != float("-inf")
     assert draco.priority_policy(job, s1) == float("-inf")
@@ -699,7 +699,7 @@ def test_draco_decide_next_job_uses_uncorrected_count_wip(monkeypatch: pytest.Mo
     captured: list[int] = []
     real_full_score = draco._full_score
 
-    def spy(job, server, ctx, now, wip, *, in_psp):  # type: ignore[no-untyped-def]
+    def spy(job, server, ctx, now, wip, *, in_psp):
         captured.append(wip)
         return real_full_score(job, server, ctx, now, wip, in_psp=in_psp)
 
@@ -773,7 +773,7 @@ def test_draco_rejects_invalid_focus_weights() -> None:
     env = Environment()
     sf = ShopFloor(env=env)
     with pytest.raises(ValueError, match="5 elements"):
-        Draco(shopfloor=sf, router=Mock(), focus_weights=(0.5, 0.5), wip_target=10, loop_target=5)  # type: ignore[arg-type]
+        Draco(shopfloor=sf, router=Mock(), focus_weights=(0.5, 0.5), wip_target=10, loop_target=5)  # ty: ignore[invalid-argument-type]
 
 
 def test_draco_beta_only_focus_weights_runs_without_error() -> None:
@@ -840,7 +840,7 @@ def test_draco_priority_policy_memoizes_ctx_across_unchanged_state(monkeypatch: 
     call_count = 0
     real_build = Focus.build_context
 
-    def counting_build(shopfloor, now, *, psp=None, compute_beta=True):  # type: ignore[no-untyped-def]
+    def counting_build(shopfloor, now, *, psp=None, compute_beta=True):
         nonlocal call_count
         call_count += 1
         return real_build(shopfloor, now, psp=psp, compute_beta=compute_beta)

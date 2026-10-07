@@ -66,7 +66,7 @@ class TestLifecycleGuards:
         env = MinimalEnv()
         env.reset(seed=42)
         # Override is_truncated to return True on first step
-        env.is_truncated = lambda: True  # type: ignore[assignment]
+        env.is_truncated = lambda: True  # ty: ignore[invalid-assignment]
         _, _, _, truncated, _ = env.step(0)
         assert truncated
         with pytest.raises(RuntimeError, match="Call reset\\(\\) first"):

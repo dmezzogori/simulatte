@@ -78,7 +78,7 @@ def test_base_job_is_abstract() -> None:
     server = Server(env=env, capacity=1, shopfloor=sf)
 
     with pytest.raises(TypeError, match="abstract"):
-        BaseJob(  # type: ignore[abstract]
+        BaseJob(  # ty: ignore[call-non-callable]
             env=env,
             job_type=JobType.PRODUCTION,
             sku="A",

@@ -351,8 +351,8 @@ class TestEMAFirstObservation:
         order = TransferOrder(
             sku=SKU(id="X", weight=1.0, volume=0.1),
             quantity=1,
-            origin=None,  # type: ignore[arg-type]
-            destination=None,  # type: ignore[arg-type]
+            origin=None,  # ty: ignore[invalid-argument-type]
+            destination=None,  # ty: ignore[invalid-argument-type]
             created_at=0.0,
         )
         order.dispatched_at = 1.0
@@ -373,8 +373,8 @@ class TestEMAFirstObservation:
         order1 = TransferOrder(
             sku=SKU(id="X", weight=1.0, volume=0.1),
             quantity=1,
-            origin=None,  # type: ignore[arg-type]
-            destination=None,  # type: ignore[arg-type]
+            origin=None,  # ty: ignore[invalid-argument-type]
+            destination=None,  # ty: ignore[invalid-argument-type]
             created_at=0.0,
         )
         order1.dispatched_at = 1.0
@@ -385,8 +385,8 @@ class TestEMAFirstObservation:
         order2 = TransferOrder(
             sku=SKU(id="X", weight=1.0, volume=0.1),
             quantity=1,
-            origin=None,  # type: ignore[arg-type]
-            destination=None,  # type: ignore[arg-type]
+            origin=None,  # ty: ignore[invalid-argument-type]
+            destination=None,  # ty: ignore[invalid-argument-type]
             created_at=0.0,
         )
         order2.dispatched_at = 2.0
