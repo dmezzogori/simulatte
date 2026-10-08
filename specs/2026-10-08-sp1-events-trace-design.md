@@ -273,7 +273,7 @@ Three binding kinds cover the callback shapes that exist today:
 - `Provenance(model, source, inputs, dependencies)`: hash strings or `UNAVAILABLE` (default).
 - `RunManifest` holds the C1.6 fields. It has two parts (S14):
   - **requested**, fixed by activation (traces store the fields known at attachment in the header and the rest in the `INITIAL` record, U1): versions, platform, dependencies (provenance, else the installed-distribution listing, marked as such), RNG derivation id, seed (decimal string), parameters, time unit, warm-up;
-  - **final**, known at the end: stopping policy (`{"type": "horizon", "horizon": h}` from the last `run(until=h)`, or `{"type": "exhaustion"}`), opaque sampler owners, `complete` (no unavailable field and no opaque sampler).
+  - **final**, known at the end: stopping policy (`{"type": "horizon", "horizon": h}` from the last `run(until=h)`, `{"type": "exhaustion"}`, or `{"type": "event"}` for `run(until=<simpy.Event>)`, which cannot be reproduced from the manifest and therefore makes it incomplete, ruling R11), opaque sampler owners, `complete` (no unavailable field and no opaque sampler).
 - `env.manifest()` returns the current merged view; traces store the requested part in the header and the final part in the footer (§11).
 - Volatile metadata (wall-clock start, host, durations) is separate.
 
