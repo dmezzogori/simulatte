@@ -14,6 +14,7 @@ from simulatte.entities import (
     LABEL_FIELD,
     Entity,
     EntityCreated,
+    EntityRegistry,
     EntityRetired,
     FieldSpec,
     StateSchema,
@@ -134,7 +135,7 @@ def test_name_becomes_id_and_duplicates_raise() -> None:
     assert sf.servers == [lathe]  # a rejected server is not registered on the shop floor
     with pytest.raises(ValueError, match="already"):
         PreShopPool(env=env, shopfloor=sf, name="floor")  # ids are unique across kinds
-    with pytest.raises(ValueError, match="already attached"):
+    with pytest.raises(ValueError, match="already has the id"):
         env.entities.attach(lathe)
 
     widget = Widget(env, name="gadget")
@@ -455,3 +456,55 @@ def test_state_schema_wire_roundtrip_and_validation() -> None:
         StateSchema.from_wire(FrozenMap({"a": FrozenMap({**wire["a"], "type": "decimal"})}))
     with pytest.raises(KeyError):
         StateSchema.from_wire(FrozenMap({"a": FrozenMap({"type": "int"})}))
+
+
+def test_an_entity_is_attached_once_live_retired_or_foreign() -> None:
+    env = Environment()
+    widget = Widget(env, name="w")
+    with pytest.raises(ValueError, match="already has the id 'w'"):
+        env.entities.attach(widget)  # live here
+    env.entities.retire(widget)
+    with pytest.raises(ValueError, match="already has the id 'w'"):
+        env.entities.attach(widget, name="w2")  # retired here: its id would be silently rebound
+    other = Environment()
+    with pytest.raises(ValueError, match="already has the id 'w'"):
+        other.entities.attach(widget)  # attached in another environment
+    assert widget.id == "w"
+    assert other.entities.live() == ()
+    assert Widget(other).id == "test_widget-0"  # rejected attachments consume no generated id
+
+
+class Slim(Entity, kind="test_slim"):
+    """A slotted kind without ``__weakref__``."""
+
+    __slots__ = ("id", "label", "x")
+    state_schema: ClassVar[StateSchema] = StateSchema({"x": FieldSpec("int")})
+
+    def __init__(self, env: Environment) -> None:
+        self.x = 1
+        env.entities.attach(self)
+
+
+def test_retire_is_atomic_for_kinds_without_weak_references() -> None:
+    env = Environment()
+    seen = _record(env, (EntityRetired,))
+    slim = Slim(env)
+    with pytest.raises(TypeError, match="weak references"):
+        env.entities.retire(slim)
+    assert env.entities.live() == (slim,)  # the registry is unchanged
+    assert env.entities.get(slim.id) is slim and env.entities.kind_of(slim.id) == "test_slim"
+    assert seen == []
+
+
+def test_job_construction_does_not_probe_a_missing_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Attaching a slotted job reads an initialized id slot instead of catching AttributeError."""
+    env = Environment()
+    server = Server(env=env, capacity=1)
+    original = EntityRegistry.attach
+
+    def attach(self: EntityRegistry, obj: Entity, **kwargs: Any) -> str:
+        assert obj.id is None  # set by the job before attaching
+        return original(self, obj, **kwargs)
+
+    monkeypatch.setattr(EntityRegistry, "attach", attach)
+    assert _job(env, [server]).id == "job-0"

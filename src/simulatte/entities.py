@@ -284,15 +284,21 @@ class EntityRegistry:
 
         `name` becomes the id; without it the id is ``f"{kind}-{n}"``. Names must be non-empty, must not
         contain ``/`` or NUL and must not look like a generated id of any registered kind. Raises
-        `ValueError` for invalid or duplicate ids and for an object that is already attached.
+        `ValueError` for invalid or duplicate ids and for an object that already has an id: an entity is
+        attached once, so a live, retired or foreign entity (attached in another environment) is rejected
+        instead of having its id rebound. Slotted kinds may initialize the ``id`` slot to None before attaching,
+        which spares the registry an ``AttributeError`` for every new object.
         """
         kind = getattr(type(obj), "kind", None)
         if kind is None:
             raise TypeError(f"{type(obj).__name__} is not an entity kind (subclass Entity with kind=...)")
         live = self._live
         current = getattr(obj, "id", None)
-        if current is not None and live.get(current) is obj:
-            raise ValueError(f"entity {current!r} is already attached")
+        if current is not None:
+            raise ValueError(
+                f"{type(obj).__name__} already has the id {current!r}: it is attached (live or retired) in this or "
+                "another environment, and an entity is attached only once"
+            )
         if name is None:
             n = self._counters.get(kind, 0)
             self._counters[kind] = n + 1
@@ -332,13 +338,21 @@ class EntityRegistry:
     def retire(self, obj: Entity) -> None:
         """Drop `obj` from the live registry and emit :class:`EntityRetired`.
 
-        Raises `ValueError` when `obj` is not a live entity of this environment.
+        Raises `ValueError` when `obj` is not a live entity of this environment and `TypeError`, leaving the
+        registry unchanged, when its class does not support weak references (a slotted kind must list
+        ``"__weakref__"`` in its ``__slots__`` to be retired).
         """
         entity_id = getattr(obj, "id", None)
         if entity_id is None or self._live.get(entity_id) is not obj:
             raise ValueError(f"{obj!r} is not live in this environment")
+        try:
+            self._retired[entity_id] = obj  # first: the only step that can fail
+        except TypeError as exc:
+            raise TypeError(
+                f"cannot retire {entity_id!r}: {type(obj).__name__} does not support weak references "
+                "(add '__weakref__' to its __slots__)"
+            ) from exc
         del self._live[entity_id]
-        self._retired[entity_id] = obj
         env = self._env
         if env.wants(EntityRetired):
             self._retiring = entity_id

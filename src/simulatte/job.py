@@ -79,6 +79,7 @@ class BaseJob(ABC):
             priority_policy: Optional function(job, server) -> float for priority calculation.
         """
         self._env = env
+        self.id = None  # ty: ignore[invalid-assignment]  # set by attach; initialized so attach reads no unset slot
         self.job_type = job_type
         self.sku = sku
         self._servers = servers
