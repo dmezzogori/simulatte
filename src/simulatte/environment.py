@@ -38,6 +38,9 @@ if TYPE_CHECKING:  # pragma: no cover
 SEED_LIMIT = 2**63
 """Seeds are integers in ``[0, SEED_LIMIT)``."""
 
+_EMITTABLE: set[type] = set()
+"""Event classes :meth:`Environment.emit` has checked (registered, or not inheriting a registered type)."""
+
 InitialState = Mapping[str, Mapping[str, Wire]]
 """Canonical initial state: live entity states as wire values, sorted by id (see `EntityRegistry.snapshot`).
 
@@ -153,11 +156,13 @@ class Environment(simpy.Environment):
         if event.seq != -1:
             raise ValueError(f"event already emitted (seq={event.seq}); emit a fresh instance")
         cls = type(event)
-        if "type_name" not in cls.__dict__ and hasattr(cls, "type_name"):
-            raise TypeError(
-                f"{cls.__name__} subclasses the event type {cls.type_name!r} without being registered; "
-                "decorate it with @event_type"
-            )
+        if cls not in _EMITTABLE:
+            if "type_name" not in cls.__dict__ and hasattr(cls, "type_name"):
+                raise TypeError(
+                    f"{cls.__name__} subclasses the event type {cls.type_name!r} without being registered; "
+                    "decorate it with @event_type"
+                )
+            _EMITTABLE.add(cls)
         domain = isinstance(event, DomainEvent)
         if domain:
             if self.bus.delivering:

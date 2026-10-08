@@ -20,6 +20,7 @@ hot paths (digest, recorder) packable values and fall back to the full preparati
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from collections import Counter
 from collections.abc import Iterator, Mapping
 from typing import Any, TypeAlias
@@ -88,7 +89,7 @@ class FrozenMap(Mapping[str, "Wire"]):
         return _canonical_sorted({k: v for k, v in self._data.items() if k not in keys})
 
 
-def freeze(value: object) -> Wire:
+def freeze(value: Any) -> Wire:
     """Return `value` as an immutable wire value, canonical by construction.
 
     Lists and tuples become tuples, mappings become canonical :class:`FrozenMap` (keys sorted by the UTF-8 bytes
@@ -96,7 +97,15 @@ def freeze(value: object) -> Wire:
     `TypeError` for anything that is not a wire value (including non-``str`` keys and ``bytes``) and
     `OverflowError` for integers outside +/-(2**53 - 1).
     """
-    if value is None or isinstance(value, (bool, str)):
+    t = type(value)
+    if t is str or value is None or t is bool:  # exact types first: the common, cheapest checks
+        return value
+    if t is float:
+        return value if value == value else _NAN
+    if t is int:
+        _check_int(value)
+        return value
+    if isinstance(value, (bool, str)):
         return value
     if isinstance(value, float):
         return _NAN if value != value else value
@@ -114,8 +123,17 @@ def freeze(value: object) -> Wire:
 
 def _canonical_map(data: dict[str, Wire]) -> FrozenMap:
     """A canonical :class:`FrozenMap` of `data`, whose keys are ``str`` and values frozen."""
-    # Code point order equals UTF-8 byte order, so sorting the escaped strings sorts by their UTF-8 bytes.
-    return _canonical_sorted({k: data[k] for k in sorted(data, key=escape_key)})
+    keys = sorted(data)
+    tilde = bisect_left(keys, "~")  # keys starting with "~" are contiguous in sorted order
+    if (tilde < len(keys) and keys[tilde].startswith("~")) or not _HOSTILE_KEYS.isdisjoint(keys):
+        # Code point order equals UTF-8 byte order, so sorting the escaped strings sorts by their UTF-8 bytes.
+        keys.sort(key=escape_key)
+        result = _canonical_sorted({k: data[k] for k in keys})
+    else:  # no key is escaped, so the plain order is the canonical one
+        result = FrozenMap.__new__(FrozenMap)
+        result._data = result._wire = {k: data[k] for k in keys}
+        result._hash = None
+    return result
 
 
 def _canonical_sorted(ordered: dict[str, Wire]) -> FrozenMap:

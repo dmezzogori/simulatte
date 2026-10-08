@@ -322,3 +322,23 @@ class TestCanonicalByConstruction:
         smaller = canonical.without(frozenset({"b"}))
         assert smaller == {"c": 3, "~a": 1} and smaller._wire == {"c": 3, "~~a": 1}
         assert direct.without(frozenset({"a"})) == {"c": 3} and direct.without(frozenset())._wire is None
+
+
+def test_freeze_accepts_scalar_subclasses_like_before() -> None:
+    """The exact-type fast path of freeze() leaves subclasses (enums, numpy-like floats) to the general checks."""
+    import enum
+
+    class Color(enum.StrEnum):
+        RED = "red"
+
+    class Level(enum.IntEnum):
+        HIGH = 3
+
+    class Ratio(float):
+        pass
+
+    assert freeze(Color.RED) is Color.RED and freeze(Level.HIGH) is Level.HIGH
+    assert freeze(Ratio(0.5)) == 0.5 and math.isnan(fz(Ratio("nan")))
+    with pytest.raises(OverflowError):
+        freeze(type("Big", (int,), {})(2**60))
+    assert cpack(fz({"c": Color.RED, "l": Level.HIGH})) == cpack({"c": "red", "l": 3})
