@@ -15,6 +15,7 @@ the escaped key, floats always float64, NaN normalized, integers in their smalle
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterator, Mapping
 from typing import Any, TypeAlias
 
@@ -114,8 +115,9 @@ def unpack(data: bytes, *, max_depth: int = 64, max_len: int = 10**7) -> Wire:
     """Decode MessagePack `data` into a wire value, enforcing limits.
 
     `max_depth` bounds container nesting and `max_len` bounds the length of any array or map. Raises
-    `ValueError` for malformed or truncated input, trailing data, limit violations and values outside the
-    wire model (``bytes``, extension types, non-``str`` keys, integers beyond +/-(2**53 - 1)).
+    `ValueError` for malformed or truncated input, trailing data, limit violations, values outside the
+    wire model (``bytes``, extension types, non-``str`` keys, integers beyond +/-(2**53 - 1)) and maps
+    whose keys repeat after unescaping (for example ``"a"`` and ``"~a"``).
     """
     result = msgpack.unpackb(
         data,
@@ -165,7 +167,12 @@ def _prepare(value: object, *, canonical: bool) -> Any:
 
 
 def _decode_map(pairs: list[tuple[object, Wire]]) -> FrozenMap:
-    return FrozenMap({unescape_key(_decode_key(k)): v for k, v in pairs})
+    data = {unescape_key(_decode_key(k)): v for k, v in pairs}
+    if len(data) != len(pairs):  # two encoded keys decode to the same key: the map would be ambiguous
+        counts = Counter(unescape_key(_decode_key(k)) for k, _ in pairs)
+        duplicate = next(key for key, n in counts.items() if n > 1)
+        raise ValueError(f"duplicate map key after unescaping: {duplicate!r}")
+    return FrozenMap(data)
 
 
 def _decode_key(key: object) -> str:

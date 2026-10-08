@@ -219,3 +219,17 @@ class TestPackUnpack:
 
     def test_accepts_float32_from_other_writers(self) -> None:
         assert upk(msgpack.packb(0.5, use_single_float=True)) == 0.5
+
+    def test_rejects_duplicate_keys_after_unescaping(self) -> None:
+        # Hand-built maps: the encoder never produces these, a hostile or broken writer might (R4).
+        same = b"\x82\xa1a\x01\xa1a\x02"  # {"a": 1, "a": 2}
+        with pytest.raises(ValueError, match="duplicate map key"):
+            upk(same)
+        collide = b"\x82\xa1a\x01\xa2~a\x02"  # "~a" unescapes to "a"
+        with pytest.raises(ValueError, match="duplicate map key"):
+            upk(collide)
+        nested = msgpack.packb([{"x": {"~__proto__": 1, "~~__proto__": 2}}])  # distinct after unescaping
+        assert upk(nested) == ({"x": {"__proto__": 1, "~__proto__": 2}},)
+        hostile = b"\x91\x82\xaa~prototype\x01\xa9prototype\x02"  # "~prototype" and a raw "prototype"
+        with pytest.raises(ValueError, match="duplicate map key"):
+            upk(hostile)
