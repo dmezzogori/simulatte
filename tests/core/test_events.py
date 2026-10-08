@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from collections.abc import Generator
 from dataclasses import dataclass
@@ -10,7 +11,7 @@ from typing import Any
 import pytest
 
 from simulatte import events
-from simulatte._wire import FrozenMap, pack, unpack
+from simulatte._wire import FrozenMap, canonical_pack, freeze, pack, unpack
 from simulatte.environment import Environment
 from simulatte.events import (
     CATALOG,
@@ -543,3 +544,30 @@ def test_standalone_bus_has_no_probe() -> None:
     event = Pong()
     bus.publish(event)
     assert seen == [event] and bus.wants(Pong)
+
+
+def test_apply_deltas_set_creates_absent_fields_and_keeps_signed_zero() -> None:
+    """Ruling R12 (spec §6.2, §9.1): ``set`` creates a field the state does not hold; -0.0 stays distinct."""
+    state: dict[str, dict[str, Any]] = {"e": {"$kind": "k"}}
+    apply_deltas(state, Deltas.build().set("e", "fresh", -0.0).done())
+    assert state == {"e": {"$kind": "k", "fresh": 0.0}}
+    assert math.copysign(1.0, state["e"]["fresh"]) == -1.0
+    with pytest.raises(KeyError):
+        apply_deltas(state, Deltas.build().insert("e", "absent", 0, "x").done())  # other ops need the field
+    assert canonical_pack(-0.0) != canonical_pack(0.0)
+    assert canonical_pack(freeze({"z": -0.0})) == b"\x81\xa1z\xcb\x80" + b"\x00" * 7
+
+
+def test_emit_rejects_undecorated_subclass_of_registered_event(env: Environment) -> None:
+    """Without @event_type a subclass would be recorded under its parent's type with undeclared fields."""
+
+    @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+    class LoudPing(Ping):
+        volume: int = 11
+
+    seen = _record(env, "*")
+    with pytest.raises(TypeError, match="LoudPing.*test.ping.*@event_type"):
+        env.emit(LoudPing(n=1))
+    assert seen == []
+    env.emit(Ping(n=1))  # registered types are unaffected
+    assert len(seen) == 1

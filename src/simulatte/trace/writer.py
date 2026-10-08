@@ -15,9 +15,10 @@ The recorder writes one trace file per environment. Two threads share the work:
   plus the deltas of earlier chunks), never from live simulation objects.
 
 Pending queued bytes are bounded by ``max_pending_bytes``: the simulation thread blocks until the writer
-drains, and a single batch larger than the bound waits until the queue is empty. An exception in the writer
-thread is latched and re-raised in the simulation thread at its next append and by :meth:`close`; the trace
-then ends without a footer.
+drains, and a single batch larger than the bound waits until the queue is empty. The first block is logged as a
+warning; when there were more, :meth:`TraceRecorder.close` logs their count and total blocked time. An
+exception in the writer thread is latched and re-raised in the simulation thread at its next append and by
+:meth:`close`; the trace then ends without a footer.
 """
 
 from __future__ import annotations
@@ -195,6 +196,8 @@ class TraceRecorder:
         self._last_seq = -1
         self._subscription: Subscription | None = None
         self._event_packer = new_packer()
+        self._blocked_count = 0  # backpressure episodes: the first is logged, all are summarized at close()
+        self._blocked_total = 0.0
 
         # Writer thread only.
         self._offset = 0
@@ -285,7 +288,7 @@ class TraceRecorder:
             f"event {name} (seq {seq}) encodes to {size} bytes, above ChunkLimits.max_event_bytes="
             f"{self._limits.max_event_bytes}"
         )
-        if self._env._debug:
+        if self._env.debug_mode:
             raise ValueError(message)
         self._env.warning(f"{message}; recorded anyway", component="TraceRecorder")
 
@@ -377,12 +380,16 @@ class TraceRecorder:
             self._admit_locked(kind, size, data)
         if blocked_since is not None:
             blocked = self._clock() - blocked_since
-            self._env.warning(
-                f"trace writer backpressure: the simulation blocked for {blocked:.3f} s "
-                f"(max_pending_bytes={self._max_pending})",
-                component="TraceRecorder",
-                blocked_s=blocked,
-            )
+            self._blocked_count += 1
+            self._blocked_total += blocked
+            if self._blocked_count == 1:  # later episodes are summarized by close(), not logged one by one
+                self._env.warning(
+                    f"trace writer backpressure: the simulation blocked for {blocked:.3f} s "
+                    f"(max_pending_bytes={self._max_pending}); further blocks are summarized when the recorder "
+                    "closes",
+                    component="TraceRecorder",
+                    blocked_s=blocked,
+                )
 
     def _admit_locked(self, kind: str, size: int, data: Any) -> None:
         self._queue.append((kind, size, data))
@@ -431,6 +438,14 @@ class TraceRecorder:
                 "volatile": dataclasses.asdict(env.volatile_metadata()),
             }
             self._enqueue("footer", 0, footer)
+            if self._blocked_count > 1:
+                self._env.warning(
+                    f"trace writer backpressure: the simulation blocked {self._blocked_count} times for "
+                    f"{self._blocked_total:.3f} s in total (max_pending_bytes={self._max_pending})",
+                    component="TraceRecorder",
+                    blocked_count=self._blocked_count,
+                    blocked_s=self._blocked_total,
+                )
         finally:
             with cond:
                 self._stop = True

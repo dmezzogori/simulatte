@@ -239,6 +239,9 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         self._jobs: list[BaseJob] | None = [] if retain_job_history else None
 
         env.entities.attach(self, name=name, label=label)
+        # Job locations written by the queue and grant hooks (spec §5.2), built once.
+        self._queue_location = f"queue:{self.id}"
+        self._server_location = f"server:{self.id}"
 
         if shopfloor is not None:
             shopfloor.servers.append(self)
@@ -459,7 +462,7 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         arrival = self._arrival
         if arrival is not None:
             self._arrival = None
-            arrival.job._location = location = f"queue:{self.id}"
+            arrival.job._location = location = self._queue_location
             if env.wants(JobQueued):
                 queue = self.queue
                 job_id = arrival.job.id
@@ -480,7 +483,7 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         before = len(users)
         super()._trigger_put(get_event)
         if len(users) != before:
-            location = f"server:{self.id}"
+            location = self._server_location
             wants = env.wants(JobGranted)
             for index in range(before, len(users)):
                 job = cast(ServerPriorityRequest, users[index]).job

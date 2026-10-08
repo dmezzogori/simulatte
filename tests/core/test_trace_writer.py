@@ -449,7 +449,11 @@ def test_slow_writer_applies_backpressure_with_bounded_memory(
 
     assert 0 < rec._peak_pending <= bound
     blocked = [w for w in env.log_history.query(level="WARNING") if "blocked" in w.message]
-    assert blocked
+    # the first block is logged, the others only in the summary written when the recorder closes
+    assert rec._blocked_count > 2
+    assert len(blocked) == 2
+    assert "further blocks are summarized" in blocked[0].message
+    assert f"blocked {rec._blocked_count} times" in blocked[1].message
     records = _read(path)
     assert records[-1].body["outcome"] == "completed"
     assert len(_of(records, RecordType.CHUNK)) > 10

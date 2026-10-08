@@ -7,8 +7,9 @@ import os
 import random
 import time
 import types
+from types import MappingProxyType
 from datetime import UTC, datetime
-from collections.abc import Callable, Generator, Sequence
+from collections.abc import Callable, Generator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Concatenate, Literal, ParamSpec, Protocol, TypeVar, overload
@@ -37,8 +38,10 @@ if TYPE_CHECKING:  # pragma: no cover
 SEED_LIMIT = 2**63
 """Seeds are integers in ``[0, SEED_LIMIT)``."""
 
-InitialState = dict[str, dict[str, Wire]]
-"""Canonical initial state: live entity states as wire values, sorted by id (see `EntityRegistry.snapshot`)."""
+InitialState = Mapping[str, Mapping[str, Wire]]
+"""Canonical initial state: live entity states as wire values, sorted by id (see `EntityRegistry.snapshot`).
+
+A read-only view: neither the map nor the per-entity field maps can be modified."""
 
 
 class Environment(simpy.Environment):
@@ -90,6 +93,8 @@ class Environment(simpy.Environment):
         if seed is None:
             seed = int.from_bytes(os.urandom(8), "big") >> 1
         else:
+            if isinstance(seed, bool):
+                raise TypeError("seed must be an int, not a bool")
             seed = operator.index(seed)
             if not 0 <= seed < SEED_LIMIT:
                 raise ValueError(f"seed must be in [0, 2**63), got {seed}")
@@ -140,12 +145,19 @@ class Environment(simpy.Environment):
         """Stamp `event` and deliver it to the subscribers of its type.
 
         Stamps `t`, `seq` and, for domain events while the projection is active, `ordinal`. Raises
-        `ValueError` for an instance that was already emitted or a non-domain event carrying deltas, and
-        `RuntimeError` for a domain event emitted while subscribers are being called. Exceptions raised by
-        subscribers propagate.
+        `ValueError` for an instance that was already emitted or a non-domain event carrying deltas,
+        `RuntimeError` for a domain event emitted while subscribers are being called, and `TypeError` for an
+        instance of a subclass of a registered event type that is not registered itself (it would be recorded
+        under its parent's type with undeclared fields). Exceptions raised by subscribers propagate.
         """
         if event.seq != -1:
             raise ValueError(f"event already emitted (seq={event.seq}); emit a fresh instance")
+        cls = type(event)
+        if "type_name" not in cls.__dict__ and hasattr(cls, "type_name"):
+            raise TypeError(
+                f"{cls.__name__} subclasses the event type {cls.type_name!r} without being registered; "
+                "decorate it with @event_type"
+            )
         domain = isinstance(event, DomainEvent)
         if domain:
             if self.bus.delivering:
@@ -161,6 +173,11 @@ class Environment(simpy.Environment):
             object.__setattr__(event, "ordinal", self._ordinal)
             self._ordinal += 1
         self.bus.publish(event)
+
+    @property
+    def debug_mode(self) -> bool:
+        """Whether the environment validates events and subscribers (the ``debug`` constructor argument)."""
+        return self._debug
 
     def wants(self, event_type: type[Event]) -> bool:
         """Whether any subscriber listens to `event_type` (guard event construction with it)."""
@@ -247,7 +264,8 @@ class Environment(simpy.Environment):
     def initial_state(self) -> InitialState:
         """Canonical initial state captured at activation, after the initializers (spec §10).
 
-        Raises `RuntimeError` before activation.
+        A read-only view, the same object the projection listeners receive. Raises `RuntimeError` before
+        activation.
         """
         if self._initial_state is None:
             raise RuntimeError("the environment is not activated yet; the initial state is captured by activate()")
@@ -269,9 +287,10 @@ class Environment(simpy.Environment):
     def request_projection(self, on_initial_state: Callable[[InitialState], None]) -> None:
         """Request the semantic projection; `on_initial_state` receives the initial state at activation.
 
-        Digests and trace recorders call this when they attach. Domain events get ordinals only once the
-        projection is active, which happens after every listener received the initial state; the first domain
-        event after activation has ordinal 0. Raises `RuntimeError` after activation.
+        Digests and trace recorders call this when they attach; every listener receives the same read-only
+        :attr:`initial_state`. Domain events get ordinals only once the projection is active, which happens after
+        every listener received the initial state; the first domain event after activation has ordinal 0. Raises
+        `RuntimeError` after activation.
         """
         if self._activated:
             raise RuntimeError("request_projection() must be called before activation")
@@ -299,7 +318,8 @@ class Environment(simpy.Environment):
         self._initializers = []
         self._initializers_done = True  # later registrations (projection listeners included) run immediately
 
-        state = self.entities.snapshot()
+        snapshot = self.entities.snapshot()
+        state = MappingProxyType({entity: MappingProxyType(fields) for entity, fields in snapshot.items()})
         self._initial_state = state
         listeners = self._projection_listeners
         for listener in listeners:

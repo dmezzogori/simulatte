@@ -196,7 +196,7 @@ def test_internal_scheduling_outside_initializers_is_noop(env: Environment) -> N
 
 def test_prelude_events_have_no_ordinal_and_first_is_zero(env: Environment) -> None:
     seen = _record(env)
-    states: list[tuple[dict[str, Any], bool]] = []
+    states: list[tuple[Any, bool]] = []
     env.request_projection(lambda state: states.append((state, env._projection_active)))
     env.emit(Tick(n=1))  # prelude
     env.on_activate(lambda: env.emit(Tick(n=2)))  # initializers are still preparation
@@ -265,6 +265,20 @@ def test_on_activate_from_listener_is_blocked_from_scheduling(env: Environment) 
     env.request_projection(listener)
     with pytest.raises(RuntimeError, match="cannot schedule"):
         env.activate()
+
+
+def test_initial_state_is_read_only(env: Environment) -> None:
+    gauge = Gauge(env)
+    received: list[Any] = []
+    env.request_projection(received.append)
+    env.activate()
+    state = env.initial_state
+    assert received == [state] and received[0] is state  # listeners get the same read-only view
+    with pytest.raises(TypeError):
+        state[gauge.id] = {}
+    with pytest.raises(TypeError):
+        state[gauge.id]["level"] = 1.0
+    assert dict(state[gauge.id]) == {"$kind": "test_gauge", "level": 0.0, "label": gauge.label}
 
 
 # --- command queue ---------------------------------------------------------------------------------------
@@ -337,3 +351,17 @@ def test_command_queued_while_draining_runs_immediately(env: Environment) -> Non
     env.activate()
     assert [entry[0] for entry in console.log] == ["submit", "after-inner", "submit"]
     assert [entry[2] for entry in console.log if entry[0] == "submit"] == [("inner", 0), ("outer", 0)]
+
+
+def test_bool_seed_rejected() -> None:
+    with pytest.raises(TypeError, match="bool"):
+        Environment(seed=True)
+    assert Environment(seed=1).seed == 1
+
+
+def test_debug_mode_is_read_only() -> None:
+    assert Environment(debug=True).debug_mode is True
+    env = Environment()
+    assert env.debug_mode is False
+    with pytest.raises(AttributeError):
+        env.debug_mode = True  # ty: ignore[invalid-assignment]

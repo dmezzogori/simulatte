@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import os
 import subprocess
 import sys
 from collections.abc import Callable
@@ -132,7 +133,7 @@ def test_digest_stable_across_hash_seeds() -> None:
     for hash_seed in ("0", "1", "123"):
         completed = subprocess.run(
             [sys.executable, "-c", _HASH_SEED_SCRIPT],
-            env={"PYTHONHASHSEED": hash_seed, "PATH": ""},
+            env={**os.environ, "PYTHONHASHSEED": hash_seed},
             capture_output=True,
             text=True,
             check=False,

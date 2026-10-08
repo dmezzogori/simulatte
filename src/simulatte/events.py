@@ -147,9 +147,10 @@ def apply_deltas(state: dict[str, dict[str, Any]], deltas: Deltas) -> None:
 
     Field values stay wire values: list operations replace the tuple with an updated copy and map
     operations replace the :class:`FrozenMap`. ``create`` stores the entity kind under the reserved key
-    ``"$kind"`` next to the initial fields. Raises `KeyError` for unknown entities, fields or map keys
-    and `ValueError` for a duplicate ``create``, a ``remove``/``move`` of a missing value or an unknown
-    operation.
+    ``"$kind"`` next to the initial fields. A ``set`` on a field the entity does not hold yet creates it (spec
+    §6.2, ruling R12; the TypeScript reader does the same). Raises `KeyError` for unknown entities, for the
+    other field operations on a missing field and for unknown map keys, and `ValueError` for a duplicate
+    ``create``, a ``remove``/``move`` of a missing value or an unknown operation.
     """
     for op in deltas.ops:
         name = op[0]

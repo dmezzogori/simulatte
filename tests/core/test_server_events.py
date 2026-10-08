@@ -392,3 +392,14 @@ def test_numeric_priorities_stay_float() -> None:
     priorities = [event.priority for event in seen if isinstance(event, JobQueued)]
     assert priorities == [3.0, 2.5, 1.0, None]
     assert [type(p) for p in priorities[:3]] == [float, float, float]
+
+
+def test_location_strings_are_built_once_per_server() -> None:
+    env = Environment(seed=1)
+    server = Server(env=env, capacity=1, name="s")
+    first, second = _job(env, server), _job(env, server)
+    env.process(_hold(env, server, first, 1.0))
+    env.process(_hold(env, server, second, 1.0))
+    env.run(until=0.5)
+    assert (first._location, second._location) == ("server:s", "queue:s")
+    assert first._location is server._server_location and second._location is server._queue_location

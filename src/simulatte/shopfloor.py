@@ -687,7 +687,11 @@ class OperationCompleted(DomainEvent):
 
 @event_type("shopfloor.wip_updated", touches={"shopfloor": ("wip",)})
 class ShopFloorWipUpdated(DomainEvent):
-    """The WIP strategy updated the WIP after an operation; `changes` maps each changed server id to its load."""
+    """The WIP strategy updated the WIP after an operation; `changes` maps each changed server id to its new load.
+
+    `changes` lists the updated entries only (the ``put`` operations of the deltas); an entry the strategy
+    removed appears only as a ``delete`` operation in the deltas.
+    """
 
     shopfloor: str
     changes: FrozenMap
