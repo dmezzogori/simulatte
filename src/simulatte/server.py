@@ -44,9 +44,9 @@ __all__ = [
 # ---------------------------------------------------------------------------------------------------------
 
 
-@event_type("job.queued", touches={"server": ("queue",)})
+@event_type("job.queued", touches={"server": ("queue",), "job": ("location",)})
 class JobQueued(DomainEvent):
-    """A request entered the server queue (``insert`` at its index).
+    """A request entered the server queue (``insert`` at its index); the job's location becomes ``queue:<server>``.
 
     `queue_length` counts the waiting requests when the job joins, the job itself included: a job that finds
     a free slot has ``queue_length == 1`` and is granted in the next event. `priority` is the priority
@@ -59,26 +59,28 @@ class JobQueued(DomainEvent):
     queue_length: int
 
 
-@event_type("job.granted", touches={"server": ("queue", "users")})
+@event_type("job.granted", touches={"server": ("queue", "users"), "job": ("location",)})
 class JobGranted(DomainEvent):
-    """A queued request was granted a slot: queue ``remove``, users ``insert``."""
+    """A queued request was granted a slot: queue ``remove``, users ``insert``; the job's location becomes
+    ``server:<server>``."""
 
     job: str
     server: str
 
 
-@event_type("job.queue_left", touches={"server": ("queue",)})
+@event_type("job.queue_left", touches={"server": ("queue",), "job": ("location",)})
 class JobQueueLeft(DomainEvent):
-    """A waiting request left the queue without being granted; `reason` is ``"cancelled"``."""
+    """A waiting request left the queue without being granted; `reason` is ``"cancelled"``. The job's location
+    becomes ``transit``."""
 
     job: str
     server: str
     reason: str
 
 
-@event_type("job.released", touches={"server": ("users",)})
+@event_type("job.released", touches={"server": ("users",), "job": ("location",)})
 class JobReleased(DomainEvent):
-    """A granted request released its slot (users ``remove``)."""
+    """A granted request released its slot (users ``remove``); the job's location becomes ``transit``."""
 
     job: str
     server: str
@@ -150,14 +152,16 @@ class ServerPriorityRequest(PriorityRequest):
         super().cancel()
         server = self.server
         env = server.env
+        job = self.job
+        job._location = "transit"
         if env.wants(JobQueueLeft):
-            job_id = self.job.id
+            job_id = job.id
             env.emit(
                 JobQueueLeft(
                     job=job_id,
                     server=server.id,
                     reason="cancelled",
-                    deltas=Deltas.build().remove(server.id, "queue", job_id).done(),
+                    deltas=Deltas.build().remove(server.id, "queue", job_id).set(job_id, "location", "transit").done(),
                 )
             )
 
@@ -443,12 +447,14 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         ``job.granted``. SimPy pops a granted request from the queue only after ``_do_put`` returns, so
         this is the first point where both changes are complete. ``users`` only grows here (a
         ``PriorityResource`` never preempts) and ``Resource._do_put`` stops SimPy's loop after the first
-        request it processes, so comparing lengths finds the single grant.
+        request it processes, so comparing lengths finds the single grant. Both events also set the job's
+        location (``queue:<server>``, then ``server:<server>``), which changes whether or not they are observed.
         """
         env = self.env
         arrival = self._arrival
         if arrival is not None:
             self._arrival = None
+            arrival.job._location = location = f"queue:{self.id}"
             if env.wants(JobQueued):
                 queue = self.queue
                 job_id = arrival.job.id
@@ -458,26 +464,35 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
                         server=self.id,
                         priority=float(arrival.priority),
                         queue_length=len(queue),
-                        deltas=Deltas.build().insert(self.id, "queue", queue.index(arrival), job_id).done(),
+                        deltas=Deltas.build()
+                        .insert(self.id, "queue", queue.index(arrival), job_id)
+                        .set(job_id, "location", location)
+                        .done(),
                     )
                 )
         self.sort_queue()
         users = self.users
         before = len(users)
         super()._trigger_put(get_event)
-        if len(users) != before and env.wants(JobGranted):
+        if len(users) != before:
+            location = f"server:{self.id}"
+            wants = env.wants(JobGranted)
             for index in range(before, len(users)):
-                job_id = cast(ServerPriorityRequest, users[index]).job.id
-                env.emit(
-                    JobGranted(
-                        job=job_id,
-                        server=self.id,
-                        deltas=Deltas.build()
-                        .remove(self.id, "queue", job_id)
-                        .insert(self.id, "users", index, job_id)
-                        .done(),
+                job = cast(ServerPriorityRequest, users[index]).job
+                job._location = location
+                if wants:
+                    job_id = job.id
+                    env.emit(
+                        JobGranted(
+                            job=job_id,
+                            server=self.id,
+                            deltas=Deltas.build()
+                            .remove(self.id, "queue", job_id)
+                            .insert(self.id, "users", index, job_id)
+                            .set(job_id, "location", location)
+                            .done(),
+                        )
                     )
-                )
 
     def _do_get(self, event: Release) -> None:
         """Remove the released request from ``users`` and emit ``job.released`` if it was there.
@@ -488,11 +503,21 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         users = self.users
         before = len(users)
         super()._do_get(event)
-        if len(users) != before and self.env.wants(JobReleased):
-            job_id = cast(ServerPriorityRequest, event.request).job.id
-            self.env.emit(
-                JobReleased(job=job_id, server=self.id, deltas=Deltas.build().remove(self.id, "users", job_id).done())
-            )
+        if len(users) != before:
+            job = cast(ServerPriorityRequest, event.request).job
+            job._location = "transit"
+            if self.env.wants(JobReleased):
+                job_id = job.id
+                self.env.emit(
+                    JobReleased(
+                        job=job_id,
+                        server=self.id,
+                        deltas=Deltas.build()
+                        .remove(self.id, "users", job_id)
+                        .set(job_id, "location", "transit")
+                        .done(),
+                    )
+                )
 
     def plot_qt(self) -> None:  # pragma: no cover
         """Display a step plot of queue length over simulation time.

@@ -103,13 +103,16 @@ def test_one_operation_phase_sequence() -> None:
         ("set", sf.id, "jobs_in_system", 1),
         ("put", sf.id, "wip", server.id, 5.0),
         ("set", job.id, "shopfloor", sf.id),
+        ("set", job.id, "location", "transit"),
     )
+    locations = [op[3] for e in seen for op in e.deltas.ops if op[:3] == ("set", job.id, "location")]
+    assert locations == ["transit", f"queue:{server.id}", f"server:{server.id}", "transit", "done"]
 
     started = by_type["operation.started"]
     assert isinstance(started, OperationStarted)
     assert (started.job, started.server, started.op_index) == (job.id, server.id, 0)
     assert (started.processing_time, started.planned_end) == (5.0, 5.0)
-    assert started.deltas.ops == (("set", job.id, "op_index", 0), ("set", job.id, "location", server.id))
+    assert started.deltas.ops == (("set", job.id, "op_index", 0),)
 
     completed = by_type["operation.completed"]
     assert isinstance(completed, OperationCompleted)
@@ -155,7 +158,7 @@ def test_two_operations_update_op_index_and_location() -> None:
     job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[3.0, 2.0], due_date=100.0)
     sf.add(job)
     env.run(until=4)
-    assert env.entities.snapshot()[job.id]["location"] == "drill"
+    assert env.entities.snapshot()[job.id]["location"] == "server:drill"
     assert env.entities.snapshot()[job.id]["op_index"] == 1
     env.run()
 
@@ -170,6 +173,33 @@ def test_two_operations_update_op_index_and_location() -> None:
     assert [e.op_index for e in seen if isinstance(e, OperationStarted)] == [0, 1]
     assert [e.planned_end for e in seen if isinstance(e, OperationStarted)] == [3.0, 5.0]
     assert "entity.retired" in replay.checked
+
+
+def test_location_follows_the_job_through_queues_and_servers() -> None:
+    """Ruling R8: a job waiting at its first or a later server reads queue:<server>, not null or the previous server."""
+    env = Environment(debug=True)
+    sf = ShopFloor(env=env)
+    s1 = Server(env=env, capacity=1, shopfloor=sf, name="cut")
+    s2 = Server(env=env, capacity=1, shopfloor=sf, name="drill")
+    replay = ReplayChecker(env)
+    replay.state = env.entities.snapshot()
+    blocker = ProductionJob(env=env, sku="B", servers=[s1, s2], processing_times=[1.0, 10.0], due_date=100.0)
+    job = ProductionJob(env=env, sku="A", servers=[s1, s2], processing_times=[2.0, 1.0], due_date=100.0)
+    sf.add(blocker)
+    sf.add(job)
+
+    def location_at(t: float) -> Any:
+        env.run(until=t)
+        return replay.state[job.id]["location"]
+
+    assert location_at(0.5) == "queue:cut"  # behind the blocker at its first server
+    assert location_at(1.5) == "server:cut"
+    assert location_at(3.5) == "queue:drill"  # behind the blocker at its second server
+    assert location_at(11.5) == "server:drill"
+    env.run()
+    assert job.id not in replay.state  # retired after job.finished set its location to "done"
+    assert job.snapshot()["location"] == "done"
+    assert replay.state == env.entities.snapshot()
 
 
 def test_psp_release_same_instant_sequence() -> None:
@@ -204,12 +234,12 @@ def test_psp_release_same_instant_sequence() -> None:
     assert (entered.job, entered.psp, entered.position) == (job_id, psp.id, 0)
     assert entered.deltas.ops == (
         ("insert", psp.id, "jobs", 0, job_id),
-        ("set", job_id, "location", psp.id),
+        ("set", job_id, "location", f"psp:{psp.id}"),
         ("set", job_id, "shopfloor", sf.id),
     )
     assert isinstance(exited, PspExited)
     assert (exited.job, exited.psp, exited.reason) == (job_id, psp.id, "released")
-    assert exited.deltas.ops == (("remove", psp.id, "jobs", job_id), ("set", job_id, "location", None))
+    assert exited.deltas.ops == (("remove", psp.id, "jobs", job_id), ("set", job_id, "location", "transit"))
     assert replay.checked == [e.type_name for e in seen]
 
 
@@ -294,7 +324,7 @@ def test_job_created_after_activation_gets_owner_on_entry() -> None:
 
     psp.add(pooled)
     assert replay.state[pooled.id]["shopfloor"] == "main"
-    assert replay.state[pooled.id]["location"] == psp.id
+    assert replay.state[pooled.id]["location"] == f"psp:{psp.id}"
 
     other.add(direct)
     assert replay.state[direct.id]["shopfloor"] == "other"
@@ -304,6 +334,7 @@ def test_job_created_after_activation_gets_owner_on_entry() -> None:
     assert replay.state[pooled.id]["location"] is None
     other.add(pooled)
     assert replay.state[pooled.id]["shopfloor"] == "other"
+    assert replay.state[pooled.id]["location"] == "transit"
     env.run()
     assert replay.state == env.entities.snapshot()
 
@@ -402,12 +433,12 @@ def test_flow_events_not_built_without_subscribers() -> None:
     held = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=10.0)
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[2.0], due_date=10.0)
     psp.add(held)
-    assert env.entities.snapshot()[held.id]["location"] == psp.id
+    assert env.entities.snapshot()[held.id]["location"] == f"psp:{psp.id}"
     psp.add(job)
     psp.release(job)
     env.run(until=1)
     state = env.entities.snapshot()[job.id]
-    assert (state["shopfloor"], state["location"], state["op_index"]) == (sf.id, server.id, 0)
+    assert (state["shopfloor"], state["location"], state["op_index"]) == (sf.id, f"server:{server.id}", 0)
     floor = env.entities.snapshot()[sf.id]
     assert (floor["wip"], floor["jobs_in_system"]) == ({server.id: 2.0}, 1)
     env.run()

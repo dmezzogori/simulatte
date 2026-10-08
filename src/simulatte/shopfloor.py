@@ -651,21 +651,21 @@ class CurrentWorkLoadCollector:
 # =============================================================================
 
 
-@event_type("shopfloor.entered", touches={"shopfloor": ("jobs_in_system", "wip"), "job": ("shopfloor",)})
+@event_type("shopfloor.entered", touches={"shopfloor": ("jobs_in_system", "wip"), "job": ("shopfloor", "location")})
 class ShopFloorEntered(DomainEvent):
-    """A job entered the shop floor: ``jobs_in_system``, the WIP entries its strategy changed (``put``) and the
-    job's owner (``shopfloor``)."""
+    """A job entered the shop floor: ``jobs_in_system``, the WIP entries its strategy changed (``put``), the
+    job's owner (``shopfloor``) and its location (``transit`` until it joins its first queue)."""
 
     job: str
     shopfloor: str
 
 
-@event_type("operation.started", touches={"job": ("op_index", "location")})
+@event_type("operation.started", touches={"job": ("op_index",)})
 class OperationStarted(DomainEvent):
     """A granted operation starts processing, after the before-operation hooks and material delivery.
 
-    The job's ``op_index`` and ``location`` (the server id) are set; `planned_end` is the start time plus
-    `processing_time`.
+    The job's ``op_index`` is set (its location is already ``server:<server>`` from ``job.granted``);
+    `planned_end` is the start time plus `processing_time`.
     """
 
     job: str
@@ -1030,10 +1030,11 @@ class ShopFloor(Entity, kind="shopfloor"):
         before = dict(self.wip) if env.wants(ShopFloorEntered) else None
         self._wip_strategy.add_job(job, self.wip)
         job._shopfloor_id = self.id
+        job._location = "transit"
         if before is not None:
             build = Deltas.build().set(self.id, "jobs_in_system", len(jobs))
             self._wip_deltas(build, before)
-            build.set(job.id, "shopfloor", self.id)
+            build.set(job.id, "shopfloor", self.id).set(job.id, "location", "transit")
             env.emit(ShopFloorEntered(job=job.id, shopfloor=self.id, deltas=build.done()))
 
         # Notify time-series collector
@@ -1171,7 +1172,6 @@ class ShopFloor(Entity, kind="shopfloor"):
 
                 # Process job
                 job._op_index = op_index
-                job._location = server.id
                 if env.wants(OperationStarted):
                     env.emit(
                         OperationStarted(
@@ -1180,10 +1180,7 @@ class ShopFloor(Entity, kind="shopfloor"):
                             op_index=op_index,
                             processing_time=float(processing_time),
                             planned_end=float(env.now + processing_time),
-                            deltas=Deltas.build()
-                            .set(job.id, "op_index", op_index)
-                            .set(job.id, "location", server.id)
-                            .done(),
+                            deltas=Deltas.build().set(job.id, "op_index", op_index).done(),
                         )
                     )
                 yield env.process(self._operate(job, server, op_index, processing_time))

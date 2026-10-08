@@ -82,12 +82,16 @@ def test_immediate_grant_inside_constructor_ordering() -> None:
     queued, granted = seen
     assert isinstance(queued, JobQueued)
     assert (queued.job, queued.server, queued.queue_length, queued.priority) == (job.id, server.id, 1, 0.0)
-    assert queued.deltas.ops == (("insert", server.id, "queue", 0, job.id),)
+    assert queued.deltas.ops == (
+        ("insert", server.id, "queue", 0, job.id),
+        ("set", job.id, "location", f"queue:{server.id}"),
+    )
     assert isinstance(granted, JobGranted)
     assert (granted.job, granted.server) == (job.id, server.id)
     assert granted.deltas.ops == (
         ("remove", server.id, "queue", job.id),
         ("insert", server.id, "users", 0, job.id),
+        ("set", job.id, "location", f"server:{server.id}"),
     )
 
 
@@ -106,7 +110,8 @@ def test_direct_server_use_without_shopfloor() -> None:
     released = seen[-1]
     assert isinstance(released, JobReleased)
     assert (released.job, released.server) == (job.id, "lathe")
-    assert released.deltas.ops == (("remove", "lathe", "users", job.id),)
+    assert released.deltas.ops == (("remove", "lathe", "users", job.id), ("set", job.id, "location", "transit"))
+    assert replay.state[job.id]["location"] == "transit"
     assert replay.checked == ["job.queued", "job.granted", "job.released"]
     assert job.servers_entry_at[server] == 0
     assert job.servers_exit_at[server] == 3
@@ -240,7 +245,7 @@ def test_interrupted_waiting_request_leaves_queue() -> None:
     left = [e for e in seen if isinstance(e, JobQueueLeft)]
     assert len(left) == 1
     assert (left[0].job, left[0].server, left[0].reason, left[0].t) == (waiter.id, server.id, "cancelled", 1)
-    assert left[0].deltas.ops == (("remove", server.id, "queue", waiter.id),)
+    assert left[0].deltas.ops == (("remove", server.id, "queue", waiter.id), ("set", waiter.id, "location", "transit"))
     # The with-block also releases the ungranted request: that changes nothing and emits nothing.
     assert [e.job for e in seen if isinstance(e, JobReleased)] == [blocker.id]
     assert replay.state == env.entities.snapshot()

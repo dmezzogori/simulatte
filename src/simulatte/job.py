@@ -34,6 +34,7 @@ class BaseJob(ABC):
 
     __slots__ = (
         "_env",
+        "_location",
         "_processing_times",
         "_servers",
         "created_at",
@@ -87,6 +88,8 @@ class BaseJob(ABC):
 
         self.routing: dict[Server, float] = dict(zip(self._servers, self._processing_times, strict=True))
         self.current_server: Server | None = None
+        # Where the job is (spec §5.2): null, "psp:<id>", "queue:<server>", "server:<server>", "transit" or "done".
+        self._location: str | None = None
 
         self.rework = False
         self.done = False
@@ -374,7 +377,7 @@ class ProductionJob(BaseJob, Entity, kind="job"):
     ``job-<n>`` (a per-environment counter).
     """
 
-    __slots__ = ("__weakref__", "_location", "_op_index", "_shopfloor_id", "label", "material_requirements")
+    __slots__ = ("__weakref__", "_op_index", "_shopfloor_id", "label", "material_requirements")
 
     state_schema: ClassVar[StateSchema] = StateSchema(
         {
@@ -427,7 +430,6 @@ class ProductionJob(BaseJob, Entity, kind="job"):
         self.material_requirements = material_requirements or {}
         # Entity state with no other home; it stays null until shop-floor flow events set it.
         self._op_index: int | None = None
-        self._location: str | None = None
         self._shopfloor_id: str | None = None
         env.entities.attach(self)
 

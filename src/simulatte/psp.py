@@ -21,8 +21,8 @@ __all__ = ["PreShopPool", "PspEntered", "PspExited"]
 
 @event_type("psp.entered", touches={"psp": ("jobs",), "job": ("location", "shopfloor")})
 class PspEntered(DomainEvent):
-    """A job entered the pool at `position` (``insert``); the job's location becomes the pool and its owner the
-    pool's shop floor."""
+    """A job entered the pool at `position` (``insert``); the job's location becomes ``psp:<psp id>`` and its owner
+    the pool's shop floor."""
 
     job: str
     psp: str
@@ -34,7 +34,7 @@ class PspExited(DomainEvent):
     """A job left the pool (``remove``).
 
     `reason` is ``"released"`` (to the shop floor), ``"postponed"`` (released after a delay) or ``"removed"``. The
-    job's location becomes ``"transit"`` for a postponed release and null otherwise.
+    job's location becomes ``"transit"`` for a release (immediate or postponed) and null for a removal.
     """
 
     job: str
@@ -123,7 +123,7 @@ class PreShopPool(Entity, kind="psp"):
             job: The production job to add to the pool.
         """
         self._psp.append(job)
-        job._location = self.id
+        job._location = location = f"psp:{self.id}"
         job._shopfloor_id = shopfloor_id = self.shopfloor.id
         env = self.env
         if env.wants(PspEntered):
@@ -136,7 +136,7 @@ class PreShopPool(Entity, kind="psp"):
                     position=position,
                     deltas=Deltas.build()
                     .insert(self.id, "jobs", position, job_id)
-                    .set(job_id, "location", self.id)
+                    .set(job_id, "location", location)
                     .set(job_id, "shopfloor", shopfloor_id)
                     .done(),
                 )
@@ -152,8 +152,9 @@ class PreShopPool(Entity, kind="psp"):
 
         Args:
             job: The specific job to remove. If None, removes the oldest job (FIFO).
-            reason: Why the job leaves: ``"released"``, ``"postponed"`` (the job's location becomes
-                ``"transit"`` until it enters the shop floor) or ``"removed"`` (the default).
+            reason: Why the job leaves: ``"released"``, ``"postponed"`` (released after a delay) or
+                ``"removed"`` (the default). The job's location becomes ``"transit"`` for the first two and
+                null for a removal.
 
         Returns:
             The removed job with its `psp_exit_at` timestamp updated.
@@ -169,7 +170,7 @@ class PreShopPool(Entity, kind="psp"):
             job = self._psp.popleft()
 
         job.psp_exit_at = self.env.now
-        job._location = location = "transit" if reason == "postponed" else None
+        job._location = location = None if reason == "removed" else "transit"
         env = self.env
         if env.wants(PspExited):
             job_id = job.id

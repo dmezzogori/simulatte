@@ -326,4 +326,5 @@ def test_psp_remove_emits_exit_reason_and_location() -> None:
         (jobs[1].id, "released"),
     ]
     locations = {job.id: env.entities.snapshot()[job.id]["location"] for job in jobs}
-    assert locations == {jobs[0].id: None, jobs[1].id: None, jobs[2].id: "transit"}
+    # released and postponed jobs are in transit; a removed job is nowhere
+    assert locations == {jobs[0].id: None, jobs[1].id: "transit", jobs[2].id: "transit"}
