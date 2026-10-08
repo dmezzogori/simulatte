@@ -1,6 +1,6 @@
 # SP1: events and trace (design)
 
-- **Status:** revision 3, after SP1 reviews 1 and 2 ([`reviews/`](reviews/)); markers such as (S4) or (T1) show what each finding changed
+- **Status:** revision 4, after SP1 reviews 1–3 ([`reviews/`](reviews/)); markers such as (S4), (T1) or (U1) show what each finding changed
 - **Date:** 2026-10-08
 - **Release:** 0.13
 - **Parent:** [`2026-10-08-studio-global-design.md`](2026-10-08-studio-global-design.md) (contracts C1.1–C1.10, §7, §8). This spec refines those contracts; it does not change them. Where it seems to, the global spec wins and this document is wrong.
@@ -129,7 +129,7 @@ A test runs the reference models in fresh processes under several `PYTHONHASHSEE
 ### 6.1 Classes and emission
 
 - `Event` is a frozen, slotted, keyword-only dataclass with `t`, `seq` and `deltas`. `DomainEvent` adds `ordinal`; `ObserverEvent` covers `log`, `kpi.sample` and anything emitted by observers.
-- `@event_type("name", version=1, touches=..., presentation=...)` registers a class in the global catalog with its payload fields, their wire types, nullability, which payload fields are **presentation**, and **`touches`**: the `(kind, state field)` pairs its deltas may change (global C1.2) (T10). Both declarations are serialized in catalog entries and catalog extensions; debug mode rejects deltas outside `touches`. Registering one name with two definitions raises.
+- `@event_type("name", version=1, touches=..., presentation=...)` registers a class in the global catalog with its payload fields, their wire types, nullability, which payload fields are **presentation**, and **`touches`**: the `(kind, state field)` pairs its deltas may change (global C1.2) (T10). Both declarations are serialized in catalog entries and catalog extensions; debug mode rejects field operations outside `touches`. **Lifecycle operations** are validated separately (U4): a `create` is checked against the state schema of the kind it names (including kinds registered later), a `retire` against the existence of the addressed live entity; only `entity.created` and `entity.retired` may carry them. Registering one name with two definitions raises.
 - **Emission rules** (S8, S27):
   - `env.emit` stamps `t`, `seq` and (while the projection is active) `ordinal` on a fresh instance; an instance whose `seq` is already set is rejected, so a delivered event never changes.
   - Emitting a `DomainEvent` while subscribers are being called raises: observers cannot inject trajectory.
@@ -270,7 +270,7 @@ Three binding kinds cover the callback shapes that exist today:
 
 - `Provenance(model, source, inputs, dependencies)`: hash strings or `UNAVAILABLE` (default).
 - `RunManifest` holds the C1.6 fields. It has two parts (S14):
-  - **requested**, known at activation: versions, platform, dependencies (provenance, else the installed-distribution listing, marked as such), RNG derivation id, seed (decimal string), parameters, time unit, warm-up;
+  - **requested**, fixed by activation (traces store the fields known at attachment in the header and the rest in the `INITIAL` record, U1): versions, platform, dependencies (provenance, else the installed-distribution listing, marked as such), RNG derivation id, seed (decimal string), parameters, time unit, warm-up;
   - **final**, known at the end: stopping policy (`{"type": "horizon", "horizon": h}` from the last `run(until=h)`, or `{"type": "exhaustion"}`), opaque sampler owners, `complete` (no unavailable field and no opaque sampler).
 - `env.manifest()` returns the current merged view; traces store the requested part in the header and the final part in the footer (§11).
 - Volatile metadata (wall-clock start, host, durations) is separate.
@@ -298,9 +298,9 @@ record = length(u32) type(u8) crc32(u32, of payload) payload
 
 | Type | Payload (msgpack; `CHUNK` is zlib-compressed msgpack) |
 |---|---|
-| `HEADER` (one, first) | features (required, optional), catalog, kinds and state schemas, requested manifest, recording level, chunk limits, volatile metadata (separate map) |
-| `PRELUDE` (at most one) | prelude events |
-| `INITIAL` (one, at activation) | initial state and the activation cursor (S26) |
+| `HEADER` (one, first, written when the recorder attaches) | features (required, optional), catalog, kinds and state schemas, the requested-manifest fields known at attachment (versions, platform, dependencies, RNG derivation, seed, provenance), recording level, chunk limits, volatile metadata (separate map) |
+| `PRELUDE` (zero or more, before `INITIAL`) | prelude events, in bounded records sealed like chunks (U1) |
+| `INITIAL` (one, at activation) | initial state, the activation cursor (S26), and the requested-manifest fields fixed only at activation (parameters, time unit, warm-up) (U1) |
 | `CATALOG_EXT` | types or kinds first used after the header, with their epoch |
 | `CHUNK` | `{first, last, t_start, t_end, epoch, snapshot, events}`; each event `[seq, ordinal, type, t, payload, deltas]` |
 | `INDEX` | the committing entry for the preceding chunk: offset, length, cursors, times, epoch |
@@ -322,7 +322,8 @@ record = length(u32) type(u8) crc32(u32, of payload) payload
   - The simulation thread appends completed events to the open chunk buffer and **seals** it itself when the event-count, byte or simulated-time limit is reached; the writer thread seals it when the latency limit is reached, independently of further simulation progress.
   - Sealed chunks go to one FIFO publication queue served only by the writer thread, which writes every record of the file (header, prelude, initial, catalog extensions, chunk then its committing index, KPI, footer) in queue order. There is a single ordered path to the file.
   - The writer computes each chunk's start snapshot by applying the previous chunk's deltas to its own copy of the replay state; it never reads live simulation objects.
-  - **Backpressure.** Pending sealed bytes are bounded (default 64 MiB). When the bound is reached, the simulation thread blocks on its next append until the writer drains; observers cannot change results, so blocking is safe. The block is reported as a `log` warning with the time spent blocked.
+  - **Backpressure.** Pending sealed bytes are bounded (default 64 MiB). When the bound is reached, the simulation thread blocks on its next append until the writer drains; observers cannot change results, so blocking is safe. The block is reported as a `log` warning with the time spent blocked. The header is written at attachment and prelude events are sealed into bounded `PRELUDE` records like chunks, so the writer can always drain, including before activation (U1).
+  - **Oversized batches** (U2). A single sealed batch larger than the bound (for example one event above `max_pending_bytes`) is admitted only when the queue is empty, after waiting for it to drain. The effective memory bound is therefore `max(max_pending_bytes, largest single batch)`, and the largest batch is itself limited by `max_event_bytes` and the chunk limits.
   - **Failures.** An exception in the writer thread is latched and re-raised in the simulation thread at its next append and at `close()`; the trace then ends without a footer (incomplete), and `close()` raises.
   - **Close barrier.** `close()` seals the open chunk, enqueues the KPI scalars and the footer, and waits until the writer has written everything; a successful `close()` means all accepted records precede the footer. Repeated `close()` is a no-op.
 - Chunk limits (`ChunkLimits`): 10,000 events, 1 MiB uncompressed, 1.0 s latency, 256 KiB per event, optional simulated-time window.
@@ -419,7 +420,7 @@ Beyond per-feature tests:
 | An emitting site evaluates user code or forgets the guard | Emission rule §6.1, counting-policy invariance test, lint test for the guard pattern |
 | Collector parity after the rewrite | Parity fixtures recorded from the old code before deletion |
 | Benchmark noise | Same workload in both versions, same job, medians with spread, calibrated band |
-| The writer thread adds concurrency to a single-threaded library | The thread touches only immutable buffers and its own replay state; the simulation thread never waits for I/O except at `close()` |
+| The writer thread adds concurrency to a single-threaded library | The thread touches only immutable buffers and its own replay state; the simulation thread waits only under backpressure (§11.2) and at `close()` |
 
 ## 19. Open questions
 

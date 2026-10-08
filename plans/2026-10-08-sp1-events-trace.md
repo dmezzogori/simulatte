@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Revision 3**, after SP1 reviews 1 and 2 (`specs/reviews/`); markers such as (S6) or (T3) show what each finding changed.
+**Revision 4**, after SP1 reviews 1–3 (`specs/reviews/`); markers such as (S6), (T3) or (U1) show what each finding changed.
 
 **Goal:** Give Simulatte stable entity ids, typed events with state deltas on an event bus, seeded RNG streams, a semantic digest, a seekable trace file readable from Python and TypeScript, bus-based KPI collectors and logging, and a CI overhead gate.
 
@@ -10,7 +10,7 @@
 
 **Tech Stack:** Python ≥3.11 (CPython 3.12–3.14, PyPy 3.11), SimPy, msgpack, hashlib/zlib/threading (stdlib), pytest; TypeScript with pnpm, Vite, Vitest, `@msgpack/msgpack` for G2.
 
-**Spec:** `specs/2026-10-08-sp1-events-trace-design.md` revision 3 (parent: `specs/2026-10-08-studio-global-design.md`; inventory: `specs/research/2026-10-08-sp1-inventory.md`).
+**Spec:** `specs/2026-10-08-sp1-events-trace-design.md` revision 4 (parent: `specs/2026-10-08-studio-global-design.md`; inventory: `specs/research/2026-10-08-sp1-inventory.md`).
 
 ## Global Constraints
 
@@ -92,6 +92,7 @@ def test_apply_deltas_all_ops(): ...
 def test_duplicate_type_name_different_fields_raises(): ...
 def test_catalog_wire_roundtrip_includes_touches(): ...
 def test_debug_rejects_deltas_outside_touches(env_debug): ...
+def test_debug_lifecycle_ops_for_dynamically_registered_kind(env_debug): ...  # create/retire validated by schema and existence (U4)
 ```
 
 - [ ] **Steps 2–4:** fail, implement (`wants` is a `dict[type, int]`; `"*"` checked for `DomainEvent` subclasses), pass with `--no-cov`.
@@ -184,7 +185,7 @@ def test_counting_priority_policy_unaffected_by_recording(): ... # call count an
 
 **Interfaces — Produces:** constants and `RecordType` (`HEADER=1, PRELUDE=2, INITIAL=3, CATALOG_EXT=4, CHUNK=5, INDEX=6, KPI=7, FOOTER=8`); `write_record(f, rtype, payload) -> int`; `ChunkLimits(max_events=10_000, max_bytes=1 << 20, max_latency_s=1.0, max_event_bytes=256 << 10, max_sim_window=None)`; `TraceRecorder(env, path, *, level="full", chunk_limits=None, max_pending_bytes=64 << 20, clock=time.monotonic)`: producer-side sealing on count/bytes/window, writer-side sealing on latency, one FIFO publication queue written only by the writer thread, bounded pending bytes with blocking backpressure, latched writer exceptions, close barrier; `close(outcome=None)` idempotent (T6, T7). Payload keys per spec §11.1.
 
-- [ ] **Step 1: Failing tests:** `test_chunks_respect_event_limit`, `test_latency_publishes_without_further_events` (fake clock advanced past 1.0 s while the simulation thread is blocked in a callback; chunk + index appear on disk), `test_chunk_snapshot_from_replay_state_not_live`, `test_initial_record_written_at_activation`, `test_footer_trailer_and_final_manifest`, `test_failed_run_footer`, `test_interrupted_run_footer`, `test_recorder_after_activation_raises`, `test_close_without_run`, `test_continues_across_run_calls`, `test_catalog_extension_before_first_use`, `test_oversized_event_warns_or_raises_in_debug`, `test_slow_writer_applies_backpressure_with_bounded_memory` (writer delayed artificially; pending bytes never exceed the bound; run completes; CPython and PyPy), `test_writer_failure_propagates` (disk write raises → next append and `close()` raise; no footer), `test_close_during_publication_orders_footer_last`, `test_repeated_close_is_noop`.
+- [ ] **Step 1: Failing tests:** `test_chunks_respect_event_limit`, `test_latency_publishes_without_further_events` (fake clock advanced past 1.0 s while the simulation thread is blocked in a callback; chunk + index appear on disk), `test_chunk_snapshot_from_replay_state_not_live`, `test_initial_record_written_at_activation`, `test_footer_trailer_and_final_manifest`, `test_failed_run_footer`, `test_interrupted_run_footer`, `test_recorder_after_activation_raises`, `test_close_without_run`, `test_continues_across_run_calls`, `test_catalog_extension_before_first_use`, `test_oversized_event_warns_or_raises_in_debug`, `test_slow_writer_applies_backpressure_with_bounded_memory` (writer delayed artificially; pending bytes never exceed the bound; run completes; CPython and PyPy), `test_writer_failure_propagates` (disk write raises → next append and `close()` raise; no footer), `test_close_during_publication_orders_footer_last`, `test_repeated_close_is_noop`, `test_large_prelude_then_warmup_then_activation_readable` (construction exceeds the pending bound before activation; several `PRELUDE` records; warm-up configured afterwards appears in `INITIAL`; trace reads back, U1), `test_oversized_batch_admitted_when_drained` (`max_pending_bytes=1024`, one 2 KiB event, U2).
 - [ ] **Steps 2–4:** fail, implement, pass.
 - [ ] **Step 5:** Commit `feat(trace): trace container and threaded recorder`.
 
@@ -234,7 +235,7 @@ def test_counting_priority_policy_unaffected_by_recording(): ... # call count an
 
 ### Task 14: Intralogistics entities, node bindings, ordering, activation, retirement
 
-**Files:** Modify `src/simulatte/intralogistics/{agv.py,order.py,fleet.py,warehouse.py,charging.py,parking.py,graph.py,traffic.py}`; update tests using `frozenset(graph.nodes)`, `agv_id`, `order.id`. Tests `tests/intralogistics/test_entities.py`, `tests/intralogistics/test_activation.py`.
+**Files:** Modify `src/simulatte/intralogistics/{agv.py,order.py,fleet.py,warehouse.py,charging.py,parking.py,graph.py,traffic.py,builders.py}` (the builder stops passing reserved names such as `agv-0` and gains `prefix`, U3); update tests using `frozenset(graph.nodes)`, `agv_id`, `order.id`. Tests `tests/intralogistics/test_entities.py`, `tests/intralogistics/test_activation.py`.
 
 **Interfaces — Produces:** kinds `agv`, `order`, `fleet`, `warehouse`, `charging_station`, `parking_area`; `NodeBinding` kind `node` (`x`, `y`, `agvs`, `reserved_by`), created per environment by `env.entities.bind_node(node) -> NodeBinding` (idempotent for the same `Node`, raises for a different `Node` with the same id); `FleetCoordinator` binds its graph's nodes sorted by id; `LayoutGraph.nodes -> tuple`; ordered `check_path`; `OrderStatus.PENDING_ACTIVATION`; `@deferrable` `submit`, `cancel`, attachment step of `create_order`; `place_now`; order retirement at terminal statuses after hooks and bookkeeping cleanup (S3).
 
@@ -249,7 +250,7 @@ def test_counting_priority_policy_unaffected_by_recording(): ... # call count an
 **Interfaces — Produces:** `FleetPendingChanged` (emitted at each `_pending_queue` append and removal, T4), `FleetAgvAdded`, `OrderStatusChanged`, `OrderAssigned`, `OrderUnassigned`, `AgvStateChanged` (from `AGV.transition_to`), `AgvMoveStarted`, `AgvMoveEnded`, `AgvMoveInterrupted`, `AgvLoadChanged`, `AgvBatteryChanged`, `AgvStranded`; AGV `motion` state; `SpeedProfile.motion(...)` and `TrapezoidalProfile.motion`; intralogistics `env.debug` calls in these files removed (warnings and errors kept).
 
 - [ ] **Step 1:** Write the **mutation-site table** in the test module docstring: for each state field of `agv` and `order`, every line in `fleet.py`/`agv.py` that mutates it (from inventory §2) and the event covering it.
-- [ ] **Step 2: Failing tests:** `test_every_order_status_assignment_emits` (parametrized over the table, including `FAILED` after retries and interruption re-queue), `test_agv_unassigned_on_cleanup`, `test_pending_redispatch_replay_at_intermediate_cursors` (T4), `test_agv_fleet_owner_set_on_coordinator_construction` (T5), `test_direct_transition_to_emits`, `test_move_started_after_enter_permission`, `test_interrupted_move_keeps_previous_node`, `test_trapezoidal_motion_integrates_to_travel_time` (within 1e-9), `test_replay_equals_live_at_every_event_fleet` (intermediate cursors).
+- [ ] **Step 2: Failing tests:** `test_every_order_status_assignment_emits` (parametrized over the table, including `FAILED` after retries and interruption re-queue), `test_agv_unassigned_on_cleanup`, `test_pending_redispatch_replay_at_intermediate_cursors` (T4), `test_agv_fleet_owner_set_on_coordinator_construction` (T5), `test_direct_transition_to_emits`, `test_move_started_after_enter_permission`, `test_interrupted_move_keeps_previous_node`, `test_trapezoidal_motion_integrates_to_travel_time` (within 1e-9), `test_replay_equals_live_at_every_event_fleet` (intermediate cursors, comparing only `agv`, `order` and `fleet` state, because warehouse and traffic events arrive in Task 16, U3).
 - [ ] **Steps 3–4:** implement, pass.
 - [ ] **Step 5:** Commit `feat(intralogistics): fleet, AGV and order events`.
 
@@ -259,7 +260,7 @@ def test_counting_priority_policy_unaffected_by_recording(): ... # call count an
 
 **Interfaces — Produces:** `TrafficReserved`, `TrafficReleased`, `TrafficWaitStarted`, `TrafficWaitEnded`, `WarehouseInventoryChanged`, `WarehouseSlotChanged`, `ChargingStarted`, `ChargingEnded`, `ChargingPoolChanged`, `ParkingEntered`, `ParkingLeft`; node `agvs`/`reserved_by` deltas; `check_path` logs nothing.
 
-- [ ] **Steps 1–5:** mutation-site table for `node`, `warehouse`, `charging_station`, `parking_area` fields; failing tests `test_node_capacity_two_reservations`, `test_free_traffic_multiple_agvs_on_node`, `test_swap_updates_pool_and_battery`, `test_inventory_levels_replay`, `test_replay_equals_live_at_every_event_resources`; implement; pass; commit `feat(intralogistics): traffic, warehouse, charging and parking events`.
+- [ ] **Steps 1–5:** mutation-site table for `node`, `warehouse`, `charging_station`, `parking_area` fields; failing tests `test_node_capacity_two_reservations`, `test_free_traffic_multiple_agvs_on_node`, `test_swap_updates_pool_and_battery`, `test_inventory_levels_replay`, `test_replay_equals_live_full_registry_fleet_example` (every entity at every intermediate cursor, U3); implement; pass; commit `feat(intralogistics): traffic, warehouse, charging and parking events`.
 
 ### Task 17: Intralogistics time parameters as bindings
 
