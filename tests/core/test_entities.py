@@ -87,7 +87,7 @@ def test_production_components_have_ids() -> None:
 
     assert (sf.id, lathe.id, unnamed.id, psp.id, router.id) == ("shopfloor-0", "lathe", "server-0", "psp-0", "router-0")
     assert [job.id for job in jobs] == ["job-0", "job-1"]
-    assert lathe._idx == 0 and unnamed._idx == 1  # internal alias kept until the shop floor events land
+    assert sf.servers == [lathe, unnamed]
     assert repr(lathe) == "Server(id='lathe')" and repr(jobs[0]) == "ProductionJob(id='job-0', sku='A')"
     assert env.entities.live() == (sf, lathe, unnamed, psp, router, *jobs)
     assert env.entities.get("lathe") is lathe and env.entities.get("job-1") is jobs[1]

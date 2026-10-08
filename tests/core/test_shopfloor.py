@@ -355,7 +355,7 @@ def test_hooks_with_multi_server_routing() -> None:
     """Hooks should be called for each operation in multi-server routing."""
     from simulatte.typing import ProcessGenerator
 
-    hook_calls: list[tuple[int, int]] = []  # (server_idx, op_index)
+    hook_calls: list[tuple[str, int]] = []  # (server id, op_index)
 
     def track_hook(
         job: ProductionJob,
@@ -363,7 +363,7 @@ def test_hooks_with_multi_server_routing() -> None:
         op_index: int,
         processing_time: float,
     ) -> ProcessGenerator:
-        hook_calls.append((server._idx, op_index))
+        hook_calls.append((server.id, op_index))
         return
         yield
 
@@ -383,10 +383,7 @@ def test_hooks_with_multi_server_routing() -> None:
     sf.add(job)
     env.run()
 
-    assert len(hook_calls) == 3
-    assert hook_calls[0] == (0, 0)  # server1, op 0
-    assert hook_calls[1] == (1, 1)  # server2, op 1
-    assert hook_calls[2] == (2, 2)  # server3, op 2
+    assert hook_calls == [(server1.id, 0), (server2.id, 1), (server3.id, 2)]
 
 
 # =============================================================================

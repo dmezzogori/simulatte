@@ -95,15 +95,15 @@ uv run python examples/gallery_dispatching_stateless.py
 ```text
 Stateless dispatching rules (immediate release, seed=42)
 Rule    Done   AvgTIS  MeanTard  %Tardy
-SPT     1212    10.82      3.15   22.4%
-EDD     1204    16.50      5.14   59.3%
-ODD     1196    17.21      5.49   64.3%
-MODD    1208    13.42      2.33   35.5%
-CR      1199    17.52      5.57   70.0%
-FCFS    1202    17.97      7.17   56.4%
-WINQ    1209    14.36      5.30   38.5%
+SPT     1164    10.38      2.66   20.8%
+EDD     1159    16.54      4.87   61.9%
+ODD     1164    16.51      4.53   67.7%
+MODD    1164    13.02      1.98   32.0%
+CR      1161    16.54      4.43   72.4%
+FCFS    1162    18.69      7.45   59.6%
+WINQ    1164    14.29      4.89   41.2%
 ```
 
 ## Interpretation
 
-SPT minimises average time in system (10.82 vs FCFS's 17.97) by always clearing the shortest job first; the due-date-blind FCFS baseline runs about half its jobs late (56.4% tardy, mean tardiness 7.17) and posts the highest AvgTIS of all the rules here. The shop's due dates are deliberately set to **bind** — the uniform offset is tightened to `(10.0, 18.0)`, close to the achievable flow times — so the due-date family is genuinely exercised rather than collapsing to zero tardiness. With binding due dates the rules separate clearly: **MODD** is the standout of the due-date family, cutting mean tardiness to 2.33 (35.5% tardy) while keeping AvgTIS at 13.42, because it falls back to shortest-processing-time once a job is no longer at risk of lateness. The pure due-date rules trade differently: **ODD** (17.21) and **EDD** (16.50) both lower flow time versus FCFS and cut *mean* tardiness below it (5.49 and 5.14 vs 7.17), but leave *more* jobs marginally late (64.3% and 59.3% tardy) as they chase the now-binding due dates. **CR** is the most conservative on tardiness (the most jobs late, 70.0% tardy), its slack ratio repeatedly deferring short jobs. SPT itself, despite reading no due date, still posts the fewest tardy jobs (22.4%): in this loaded shop its flow-time dominance clears queues fast enough to suppress lateness. Note that none of these rules controls work-in-process — they only reorder what is already on the floor. To cap WIP and shape release, combine a dispatching rule with a release policy (see the [workload-control release gallery](release-workload.md)).
+SPT minimises average time in system (10.38 vs FCFS's 18.69) by always clearing the shortest job first; the due-date-blind FCFS baseline runs more than half its jobs late (59.6% tardy, mean tardiness 7.45) and posts the highest AvgTIS of all the rules here. The shop's due dates are deliberately set to **bind** — the uniform offset is tightened to `(10.0, 18.0)`, close to the achievable flow times — so the due-date family is genuinely exercised rather than collapsing to zero tardiness. With binding due dates the rules separate clearly: **MODD** is the standout of the due-date family, cutting mean tardiness to 1.98 (32.0% tardy) while keeping AvgTIS at 13.02, because it falls back to shortest-processing-time once a job is no longer at risk of lateness. The pure due-date rules trade differently: **ODD** (16.51) and **EDD** (16.54) both lower flow time versus FCFS and cut *mean* tardiness below it (4.53 and 4.87 vs 7.45), but leave *more* jobs marginally late (67.7% and 61.9% tardy) as they chase the now-binding due dates. **CR** is the most conservative on tardiness (the most jobs late, 72.4% tardy), its slack ratio repeatedly deferring short jobs. SPT itself, despite reading no due date, still posts the fewest tardy jobs (20.8%): in this loaded shop its flow-time dominance clears queues fast enough to suppress lateness. Note that none of these rules controls work-in-process — they only reorder what is already on the floor. To cap WIP and shape release, combine a dispatching rule with a release policy (see the [workload-control release gallery](release-workload.md)).

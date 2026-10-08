@@ -665,7 +665,7 @@ def test_focus_build_context_skips_completed_jobs() -> None:
 
     # Synthetic "completed" job: in shopfloor.jobs but all servers_exit_at set.
     completed = ProductionJob(env=env, sku="A", servers=[s1], processing_times=[5.0], due_date=100.0)
-    sf.jobs.add(completed)
+    sf.jobs[completed] = None
     completed.servers_exit_at[s1] = 0.0  # mark as exited
 
     ctx = Focus.build_context(sf, now=0.0)

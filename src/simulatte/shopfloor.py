@@ -24,10 +24,13 @@ import inspect
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, cast, runtime_checkable
 
+from simulatte._wire import FrozenMap
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
+from simulatte.events import Deltas, DomainEvent, event_type
 
 if TYPE_CHECKING:  # pragma: no cover
+    from simulatte.events import DeltaBuilder
     from simulatte.job import ProductionJob
     from simulatte.psp import PreShopPool
     from simulatte.server import Server
@@ -644,6 +647,64 @@ class CurrentWorkLoadCollector:
 
 
 # =============================================================================
+# Flow events
+# =============================================================================
+
+
+@event_type("shopfloor.entered", touches={"shopfloor": ("jobs_in_system", "wip"), "job": ("shopfloor",)})
+class ShopFloorEntered(DomainEvent):
+    """A job entered the shop floor: ``jobs_in_system``, the WIP entries its strategy changed (``put``) and the
+    job's owner (``shopfloor``)."""
+
+    job: str
+    shopfloor: str
+
+
+@event_type("operation.started", touches={"job": ("op_index", "location")})
+class OperationStarted(DomainEvent):
+    """A granted operation starts processing, after the before-operation hooks and material delivery.
+
+    The job's ``op_index`` and ``location`` (the server id) are set; `planned_end` is the start time plus
+    `processing_time`.
+    """
+
+    job: str
+    server: str
+    op_index: int
+    processing_time: float
+    planned_end: float
+
+
+@event_type("operation.completed", touches={"server": ("worked_time",)})
+class OperationCompleted(DomainEvent):
+    """An operation finished processing; the server's ``worked_time`` includes it."""
+
+    job: str
+    server: str
+    op_index: int
+    processing_time: float
+
+
+@event_type("shopfloor.wip_updated", touches={"shopfloor": ("wip",)})
+class ShopFloorWipUpdated(DomainEvent):
+    """The WIP strategy updated the WIP after an operation; `changes` maps each changed server id to its load."""
+
+    shopfloor: str
+    changes: FrozenMap
+
+
+@event_type("job.finished", touches={"job": ("location", "finished_at"), "shopfloor": ("jobs_in_system",)})
+class JobFinished(DomainEvent):
+    """A job completed its routing: its location becomes ``"done"`` and it leaves ``jobs_in_system``."""
+
+    job: str
+    shopfloor: str
+    makespan: float
+    lateness: float
+    total_queue_time: float
+
+
+# =============================================================================
 # ShopFloor Class
 # =============================================================================
 
@@ -668,7 +729,8 @@ class ShopFloor(Entity, kind="shopfloor"):
         env: The simulation environment providing time and process management.
         material_coordinator: Optional coordinator for material delivery.
         servers: List of servers registered with this shop floor.
-        jobs: Set of jobs currently being processed on the shop floor.
+        jobs: Jobs currently on the shop floor, as an insertion-ordered dict keyed by job (values are
+            None): membership, ``len`` and iteration in entry order.
         jobs_done: List of completed jobs in order of completion.
         wip: Dictionary mapping each server to its current WIP value.
         total_time_in_system: Cumulative time spent by all completed jobs.
@@ -777,7 +839,7 @@ class ShopFloor(Entity, kind="shopfloor"):
 
         # Core state
         self.servers: list[Server] = []
-        self.jobs: set[ProductionJob] = set()
+        self.jobs: dict[ProductionJob, None] = {}
         self.jobs_done: list[ProductionJob] = []
         self.wip: dict[Server, float] = {}
         self.total_time_in_system: float = 0.0
@@ -947,10 +1009,11 @@ class ShopFloor(Entity, kind="shopfloor"):
         """Release a job from the Pre-Shop Pool onto the shop floor.
 
         This method performs the following actions:
-        1. Adds the job to the active jobs set
+        1. Adds the job to the active jobs
         2. Updates WIP values via the configured WIP strategy
-        3. Records the PSP exit timestamp on the job
-        4. Spawns the main processing coroutine for the job
+        3. Emits ``shopfloor.entered`` and notifies the time-series collector
+        4. Records the PSP exit timestamp on the job
+        5. Spawns the main processing coroutine for the job
 
         Args:
             job: The production job to release onto the shop floor.
@@ -961,24 +1024,57 @@ class ShopFloor(Entity, kind="shopfloor"):
             an async process. The job will begin queuing at its first server
             immediately after this call.
         """
-        self.jobs.add(job)
+        env = self.env
+        jobs = self.jobs
+        jobs[job] = None
+        before = dict(self.wip) if env.wants(ShopFloorEntered) else None
         self._wip_strategy.add_job(job, self.wip)
+        job._shopfloor_id = self.id
+        if before is not None:
+            build = Deltas.build().set(self.id, "jobs_in_system", len(jobs))
+            self._wip_deltas(build, before)
+            build.set(job.id, "shopfloor", self.id)
+            env.emit(ShopFloorEntered(job=job.id, shopfloor=self.id, deltas=build.done()))
 
         # Notify time-series collector
         if self._time_series_collector is not None:
             self._time_series_collector.on_job_entered(self, job)
 
-        self.env.debug(
-            f"Job {job.id} entered shopfloor",
-            component="ShopFloor",
-            job_id=job.id,
-            sku=job.sku,
-            wip_total=sum(self.wip.values()),
-            jobs_count=len(self.jobs),
-        )
-
         job.psp_exit_at = self.env.now
         self.env.process(self.main(job))
+
+    def _wip_deltas(self, build: DeltaBuilder, before: dict[Server, float]) -> dict[str, float]:
+        """Add a ``put`` (``delete``) to `build` for each WIP entry changed (removed) since `before`.
+
+        Returns the changed entries as server id to load.
+        """
+        shopfloor_id = self.id
+        wip = self.wip
+        changes: dict[str, float] = {}
+        for server, load in wip.items():
+            if server not in before or before[server] != load:
+                changes[server.id] = value = float(load)
+                build.put(shopfloor_id, "wip", server.id, value)
+        for server in before:
+            if server not in wip:
+                build.delete(shopfloor_id, "wip", server.id)
+        return changes
+
+    def _operate(self, job: ProductionJob, server: Server, op_index: int, processing_time: float) -> ProcessGenerator:
+        """Process the operation on `server`, then emit ``operation.completed`` in the same step as the
+        ``worked_time`` credit."""
+        yield from server.process_job(job, processing_time)
+        env = self.env
+        if env.wants(OperationCompleted):
+            env.emit(
+                OperationCompleted(
+                    job=job.id,
+                    server=server.id,
+                    op_index=op_index,
+                    processing_time=float(processing_time),
+                    deltas=Deltas.build().set(server.id, "worked_time", float(server.worked_time)).done(),
+                )
+            )
 
     def _fire_processing_end_callbacks(self, job: ProductionJob, server: Server) -> None:
         """Invoke on_processing_end callbacks after server release.
@@ -1037,9 +1133,12 @@ class ShopFloor(Entity, kind="shopfloor"):
         After all operations complete, it:
         - Records the finish timestamp on the job
         - Moves the job from active (jobs) to completed (jobs_done)
+        - Emits ``job.finished``
         - Records metrics via the configured metrics collector
         - Calls on_job_finished callbacks
         - Signals job completion via signal_job_finished()
+        - Retires the job from the environment's entity registry (``entity.retired``); ``jobs_done`` and
+          other Python references keep it
 
         Args:
             job: The production job to process through its routing.
@@ -1051,15 +1150,8 @@ class ShopFloor(Entity, kind="shopfloor"):
             This method is automatically spawned by add() and should not be
             called directly. It runs as a SimPy process until the job completes.
         """
+        env = self.env
         for op_index, (server, processing_time) in enumerate(job.server_processing_times):
-            self.env.debug(
-                f"Job {job.id} queued at server {server._idx}",
-                component="ShopFloor",
-                job_id=job.id,
-                server_id=server._idx,
-                op_index=op_index,
-            )
-
             with server.request(job=job) as request:
                 yield request
 
@@ -1078,10 +1170,31 @@ class ShopFloor(Entity, kind="shopfloor"):
                     yield from self.material_coordinator.ensure(job, server, op_index)
 
                 # Process job
-                yield self.env.process(server.process_job(job, processing_time))
+                job._op_index = op_index
+                job._location = server.id
+                if env.wants(OperationStarted):
+                    env.emit(
+                        OperationStarted(
+                            job=job.id,
+                            server=server.id,
+                            op_index=op_index,
+                            processing_time=float(processing_time),
+                            planned_end=float(env.now + processing_time),
+                            deltas=Deltas.build()
+                            .set(job.id, "op_index", op_index)
+                            .set(job.id, "location", server.id)
+                            .done(),
+                        )
+                    )
+                yield env.process(self._operate(job, server, op_index, processing_time))
 
                 # Update WIP via strategy
+                before = dict(self.wip) if env.wants(ShopFloorWipUpdated) else None
                 self._wip_strategy.complete_operation(job, server, op_index, processing_time, self.wip)
+                if before is not None:
+                    build = Deltas.build()
+                    changes = self._wip_deltas(build, before)
+                    env.emit(ShopFloorWipUpdated(shopfloor=self.id, changes=FrozenMap(changes), deltas=build.done()))
 
                 # Notify time-series collector
                 if self._time_series_collector is not None:
@@ -1097,15 +1210,6 @@ class ShopFloor(Entity, kind="shopfloor"):
                     else:
                         raise TypeError(f"OperationHook must return None or a generator, got {type(result).__name__}")
 
-                self.env.debug(
-                    f"Job {job.id} completed op at server {server._idx}",
-                    component="ShopFloor",
-                    job_id=job.id,
-                    server_id=server._idx,
-                    op_index=op_index,
-                    processing_time=processing_time,
-                )
-
                 # SimPy event (server still held — preserves existing semantics)
                 self.job_processing_end.succeed(job)
                 self.job_processing_end = self.env.event()
@@ -1114,22 +1218,29 @@ class ShopFloor(Entity, kind="shopfloor"):
             self._fire_processing_end_callbacks(job, server)
 
         # Job completion
-        job.finished_at = self.env.now
+        job.finished_at = finished_at = env.now
         job.current_server = None
         job.done = True
-        self.jobs.remove(job)
+        job._location = "done"
+        del self.jobs[job]
         self.jobs_done.append(job)
         self.total_time_in_system += job.time_in_system
-
-        self.env.debug(
-            f"Job {job.id} finished",
-            component="ShopFloor",
-            job_id=job.id,
-            sku=job.sku,
-            makespan=job.makespan,
-            lateness=job.lateness,
-            total_queue_time=job.total_queue_time,
-        )
+        if env.wants(JobFinished):
+            job_id = job.id
+            env.emit(
+                JobFinished(
+                    job=job_id,
+                    shopfloor=self.id,
+                    makespan=float(job.makespan),
+                    lateness=float(job.lateness),
+                    total_queue_time=float(job.total_queue_time),
+                    deltas=Deltas.build()
+                    .set(job_id, "location", "done")
+                    .set(job_id, "finished_at", float(finished_at))
+                    .set(self.id, "jobs_in_system", len(self.jobs))
+                    .done(),
+                )
+            )
 
         # Record metrics via collector
         if self._metrics_collector is not None:
@@ -1144,3 +1255,4 @@ class ShopFloor(Entity, kind="shopfloor"):
             callback(job)
 
         self.signal_job_finished(job)
+        env.entities.retire(job)

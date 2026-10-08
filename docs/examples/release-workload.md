@@ -84,13 +84,13 @@ uv run python examples/gallery_release_workload.py
 ```text
 Workload-control release policies (seed=42)
 Policy        Done   AvgTIS  MeanTard  %Tardy
-Immediate     1202    17.97      0.75    9.9%
-LumsCor       1201     9.42      0.44    5.3%
-SLAR          1202    10.68      0.04    1.1%
-SLAR-Limit    1199     9.33      0.37    3.7%
-Continuous    1205     9.78      1.26    5.8%
+Immediate     1162    18.69      0.52    8.1%
+LumsCor       1162     9.46      0.58    5.5%
+SLAR          1162    10.31      0.01    0.3%
+SLAR-Limit    1161     9.39      0.37    2.8%
+Continuous    1158     9.94      0.75    4.7%
 ```
 
 ## Interpretation
 
-All four pull policies cut average time in system by roughly 40–50% versus the push baseline (≈9.3–10.7 vs 17.97), because they keep the floor lightly loaded and queues short. But `average_time_in_system` measures only first-server-entry to completion — it excludes the time a job waits in the PSP. `MeanTard` and `%Tardy` are derived from `job.lateness`, which is measured against the due date and so includes the *full* sojourn, PSP wait included. That is why the pull policies can show much lower AvgTIS yet comparable or even higher tardiness: the waiting they remove from the floor is partly pushed back into the pool. SLAR is the standout here, holding tardiness near zero while still cutting flow time by about 40%. For a deeper, step-by-step walkthrough of these trade-offs, see [comparing release policies](../tutorials/comparing-release-policies.md).
+All four pull policies cut average time in system by roughly 45–50% versus the push baseline (≈9.4–10.3 vs 18.69), because they keep the floor lightly loaded and queues short. But `average_time_in_system` measures only first-server-entry to completion — it excludes the time a job waits in the PSP. `MeanTard` and `%Tardy` are derived from `job.lateness`, which is measured against the due date and so includes the *full* sojourn, PSP wait included. That is why the pull policies can show much lower AvgTIS yet comparable or even higher tardiness: the waiting they remove from the floor is partly pushed back into the pool. SLAR is the standout here, holding tardiness near zero while still cutting flow time by about 45%. For a deeper, step-by-step walkthrough of these trade-offs, see [comparing release policies](../tutorials/comparing-release-policies.md).

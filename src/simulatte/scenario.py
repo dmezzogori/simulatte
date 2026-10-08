@@ -249,14 +249,20 @@ class Scenario:
         self,
         env: Environment,
         *,
+        prefix: str = "",
         collect_workload: bool = False,
         collect_time_series: bool = False,
         retain_job_history: bool = False,
     ) -> tuple[ShopFloor, tuple[Server, ...]]:
-        """Create the ShopFloor and ``n_servers`` single-capacity servers."""
+        """Create the ShopFloor and ``n_servers`` single-capacity servers.
+
+        The entities are named ``f"{prefix}shopfloor"`` and ``f"{prefix}wc-{i}"`` (``i`` from 0), so systems built
+        with different prefixes can share an environment.
+        """
         shop_floor = ShopFloor(
             env=env,
             time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
+            name=f"{prefix}shopfloor",
         )
         servers = tuple(
             Server(
@@ -265,8 +271,9 @@ class Scenario:
                 shopfloor=shop_floor,
                 collect_time_series=collect_time_series,
                 retain_job_history=retain_job_history,
+                name=f"{prefix}wc-{i}",
             )
-            for _ in range(self.n_servers)
+            for i in range(self.n_servers)
         )
         return shop_floor, servers
 
@@ -278,6 +285,7 @@ class Scenario:
         *,
         psp: PreShopPool | None,
         priority_policies: Callable[..., float] | None = None,
+        prefix: str = "",
     ) -> Router:
         """Assemble the Router from the family mix: arrival process, per-family routing,
         service-time distributions, and due-date offsets/rules.
@@ -292,6 +300,7 @@ class Scenario:
                 count M), so a mismatch would silently miscalibrate utilization.
             psp: The pre-shop pool, or ``None`` for immediate release.
             priority_policies: Optional priority policy callable for the router.
+            prefix: Prefix of the router's id, ``f"{prefix}router"``.
 
         Raises:
             ValueError: If ``len(servers) != self.n_servers``.
@@ -320,4 +329,5 @@ class Scenario:
             due_date_offset_distribution={f.name: (f.due_date_offset or self.due_date_offset) for f in self.families},
             due_date_rule=due_date_rule,
             priority_policies=priority_policies,
+            name=f"{prefix}router",
         )

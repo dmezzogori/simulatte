@@ -233,9 +233,6 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
 
         if shopfloor is not None:
             shopfloor.servers.append(self)
-            self._idx = shopfloor.servers.index(self)
-        else:
-            self._idx = -1
 
     def __repr__(self) -> str:
         return f"Server(id={self.id!r})"

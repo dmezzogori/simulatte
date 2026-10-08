@@ -44,40 +44,57 @@ SimLogger.set_level("DEBUG")    # Everything
 SimLogger.set_level("INFO")     # Default
 ```
 
-## 3) Built-in component logs (best-effort)
+## 3) Built-in events and component logs
 
-Simulatte’s built-in components emit structured **DEBUG** events for tracing and post-run analysis. These are
-**best-effort** (not a stable API): message text and `extra` keys may change between releases.
+The production components (`Server`, `ShopFloor`, `PreShopPool`, `Router`) write no log messages. They emit typed
+events on `env.bus`; subscribe before the run to collect them:
 
-Important: the in-memory `env.log_history` only records events that pass the current global log level, so to
-collect built-in component events you must enable DEBUG:
+```python
+from simulatte.environment import Environment
+from simulatte.server import JobQueued
+from simulatte.shopfloor import JobFinished
+
+env = Environment()
+seen = []
+env.bus.subscribe(seen.append, (JobQueued, JobFinished))  # or "*" for every domain event
+
+# ... build the system and run ...
+
+for event in seen:
+    print(event.t, event.type_name, event.job)
+```
+
+Each event has `t` (simulation time), `seq` (emission order) and `type_name`, plus the payload fields listed below.
+Ids in payloads are entity ids: `job-0`, `job-1`, ... for jobs, and the `name=` given to a component or its generated
+id. The builders name their entities `wc-0`, `wc-1`, ..., `shopfloor`, `router` and `psp`, each with the optional
+`prefix=`.
+
+The intralogistics components still emit structured **DEBUG** log messages. These are **best-effort** (not a stable
+API): message text and `extra` keys may change between releases. The in-memory `env.log_history` only records
+messages that pass the current global log level, so enable DEBUG to collect them:
 
 ```python
 from simulatte.logger import SimLogger
 
 SimLogger.set_level("DEBUG")
-```
 
-After a run, query by component:
+# ... run ...
 
-```python
-server_events = env.log_history.query(component="Server")
-for e in server_events:
+warehouse_messages = env.log_history.query(component="Warehouse")
+for e in warehouse_messages:
     print(e.timestamp, e.message, e.extra)
 ```
 
-### Per-component event catalog
+### Catalog
 
 Notes:
 
-- Job-related messages include the full job id (`job-0`, `job-1`, ...), also available in `extra["job_id"]`.
-- `server_id` / `warehouse_id` refer to the component’s internal `_idx` (usually set when registered on a `ShopFloor`).
-- Some “started” events may be emitted before a blocking wait (e.g., waiting for inventory/AGV capacity); use timestamps
-  and follow-up events to infer actual durations.
+- Some “started” log messages may be emitted before a blocking wait (e.g., waiting for inventory/AGV capacity); use
+  timestamps and follow-up messages to infer actual durations.
 
 #### Server
 
-Servers no longer write log messages. They emit typed events on `env.bus` instead (classes in `simulatte.server`):
+Classes in `simulatte.server`:
 
 | Event type | Class | Payload |
 | --- | --- | --- |
@@ -87,36 +104,35 @@ Servers no longer write log messages. They emit typed events on `env.bus` instea
 | `job.released` | `JobReleased` | `job`, `server` |
 | `server.queue_reordered` | `ServerQueueReordered` | `server` |
 
-```python
-from simulatte.server import JobQueued
+#### ShopFloor
 
-queued = []
-env.bus.subscribe(queued.append, (JobQueued,))
-```
+Classes in `simulatte.shopfloor`, in the order they occur for each job:
 
-#### ShopFloor (`component="ShopFloor"`)
-
-| Event | Message (example) | `extra` keys |
+| Event type | Class | Payload |
 | --- | --- | --- |
-| Job entry | `Job job-0 entered shopfloor` | `job_id`, `sku`, `wip_total`, `jobs_count` |
-| Operation queued | `Job job-0 queued at server 0` | `job_id`, `server_id`, `op_index` |
-| Operation completed | `Job job-0 completed op at server 0` | `job_id`, `server_id`, `op_index`, `processing_time` |
-| Job finished | `Job job-0 finished` | `job_id`, `sku`, `makespan`, `lateness`, `total_queue_time` |
+| `shopfloor.entered` | `ShopFloorEntered` | `job`, `shopfloor` |
+| `operation.started` | `OperationStarted` | `job`, `server`, `op_index`, `processing_time`, `planned_end` (after the before-operation hooks and material delivery) |
+| `operation.completed` | `OperationCompleted` | `job`, `server`, `op_index`, `processing_time` |
+| `shopfloor.wip_updated` | `ShopFloorWipUpdated` | `shopfloor`, `changes` (server id to its new WIP) |
+| `job.finished` | `JobFinished` | `job`, `shopfloor`, `makespan`, `lateness`, `total_queue_time` |
 
-#### Router (`component="Router"`)
+After `job.finished`, the metrics collector and the `on_job_finished` callbacks, the job is retired:
+`entity.retired` (class `EntityRetired` in `simulatte.entities`) removes it from `env.entities.live()`.
+`shop_floor.jobs_done` still holds it.
 
-| Event | Message (example) | `extra` keys |
+#### PreShopPool
+
+Classes in `simulatte.psp`:
+
+| Event type | Class | Payload |
 | --- | --- | --- |
-| Job created | `Job job-0 created` | `job_id`, `sku`, `routing_length`, `due_date`, `total_processing_time` |
-| Routed to PSP | `Job job-0 routed to PSP` | `job_id`, `destination` |
-| Routed to ShopFloor | `Job job-0 routed to ShopFloor` | `job_id`, `destination` |
+| `psp.entered` | `PspEntered` | `job`, `psp`, `position` |
+| `psp.exited` | `PspExited` | `job`, `psp`, `reason` (`released`, `postponed` or `removed`) |
 
-#### PreShopPool (`component="PreShopPool"`)
+#### Router
 
-| Event | Message (example) | `extra` keys |
-| --- | --- | --- |
-| PSP entry | `Job job-0 entered PSP` | `job_id`, `sku`, `psp_size`, `due_date` |
-| PSP release | `Job job-0 released from PSP` | `job_id`, `time_in_psp`, `psp_size_after` |
+The router has no events of its own. A new job appears as `entity.created` (class `EntityCreated` in
+`simulatte.entities`, with `kind == "job"`), followed in the same instant by `psp.entered` or `shopfloor.entered`.
 
 #### Warehouse (`component="Warehouse"`)
 
@@ -188,8 +204,8 @@ for event in env.log_history:
 Disable noisy components:
 
 ```python
-env.logger.disable_component("Router")  # Silence Router logs
-env.logger.enable_component("Router")   # Re-enable
+env.logger.disable_component("Warehouse")  # Silence Warehouse logs
+env.logger.enable_component("Warehouse")   # Re-enable
 ```
 
 ## 8) Per-simulation logs with Runner

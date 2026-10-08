@@ -54,12 +54,18 @@ SERVICE_RATE = 2.0
 
 
 def build_periodic_release(env: Environment, interval: float = 10.0):
-    """A custom pull system: release the entire pool every `interval` units."""
-    shop_floor = ShopFloor(env=env)
-    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(N_SERVERS))
-    psp = PreShopPool(env=env, shopfloor=shop_floor)
+    """A custom pull system: release the entire pool every `interval` units.
+
+    Its entities carry the builders' ids (``wc-<i>``, ``shopfloor``, ``psp``,
+    ``router``), so its random streams, which are named after those ids, draw
+    the same arrivals and service times as the builder rows.
+    """
+    shop_floor = ShopFloor(env=env, name="shopfloor")
+    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor, name=f"wc-{i}") for i in range(N_SERVERS))
+    psp = PreShopPool(env=env, shopfloor=shop_floor, name="psp")
     router = Router(
         env=env,
+        name="router",
         shopfloor=shop_floor,
         servers=servers,
         psp=psp,
@@ -121,11 +127,11 @@ uv run python examples/gallery_release_triggers.py
 ```text
 Release triggers & starvation avoidance (seed=42)
 System              Done   AvgTIS  MeanTard  %Tardy
-Immediate           1202    17.97      0.75    9.9%
-Starvation-only     1192    11.63      1.28   10.7%
-Periodic-release    1193    18.80      1.28   15.9%
+Immediate           1162    18.69      0.52    8.1%
+Starvation-only     1161    10.72      0.59    6.8%
+Periodic-release    1154    19.19      1.18   15.7%
 ```
 
 ## Interpretation
 
-All three systems run on the **same scenario** — the same `Scenario`-derived arrival rate for all three systems, identical service times, due dates, seed, and horizon — so every difference below is attributable to *release timing alone*. The starvation-only system is wired via the on-arrival and on-completion **callbacks** (`psp.on_arrival` / `shop_floor.on_processing_end`) — not the trigger-process primitives — to release a job the instant its first server goes idle. This keeps the shop entrance fed and trims average time in system (11.63 vs the push baseline's 17.97), but because it never throttles, WIP is free to grow and a longer tail of jobs turns tardy (10.7%, mean tardiness 1.28 vs 0.75). The periodic system releases the entire pool every ten time units: arrivals are batched into bursts that briefly flood the floor, so it shows the worst flow time (18.80) and the largest share of tardy jobs (15.9%, against 9.9% for the push baseline and 10.7% for starvation-only) — though the two tardiness columns point different ways: more periodic jobs miss their due dates, yet its mean tardiness matches starvation-only (1.28), so the periodic jobs that miss are late by less on average. A clear illustration that *when* you release matters as much as *what* you release. Both pull systems are deliberately minimal; production policies (LumsCor, ConWIP, Continuous Release) layer load- or count-based release functions onto these same trigger primitives.
+All three systems run on the **same scenario** — the same `Scenario`-derived arrival rate for all three systems, identical service times, due dates, seed, and horizon — so every difference below is attributable to *release timing alone*. The starvation-only system is wired via the on-arrival and on-completion **callbacks** (`psp.on_arrival` / `shop_floor.on_processing_end`) — not the trigger-process primitives — to release a job the instant its first server goes idle. This keeps the shop entrance fed and trims average time in system (10.72 vs the push baseline's 18.69), while its tardiness stays close to the baseline (6.8% tardy vs 8.1%, mean tardiness 0.59 vs 0.52): average time in system excludes the wait in the pool, but lateness includes it. The periodic system releases the entire pool every ten time units: arrivals are batched into bursts that briefly flood the floor, so it shows the worst flow time (19.19), the largest share of tardy jobs (15.7%, against 8.1% for the push baseline and 6.8% for starvation-only) and the highest mean tardiness (1.18). A clear illustration that *when* you release matters as much as *what* you release. Both pull systems are deliberately minimal; production policies (LumsCor, ConWIP, Continuous Release) layer load- or count-based release functions onto these same trigger primitives.

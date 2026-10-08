@@ -52,7 +52,7 @@ class TestServer:
         server = Server(env=env, capacity=1, shopfloor=None)
 
         assert repr(server) == "Server(id='server-0')"
-        assert server._idx == -1
+        assert not hasattr(server, "_idx")
 
     def test_average_queue_length_at_t0(self) -> None:
         """average_queue_length should return 0.0 at t=0."""

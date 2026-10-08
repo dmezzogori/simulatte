@@ -38,12 +38,18 @@ SERVICE_RATE = 2.0
 
 
 def build_periodic_release(env: Environment, interval: float = 10.0):
-    """A custom pull system: release the entire pool every `interval` units."""
-    shop_floor = ShopFloor(env=env)
-    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor) for _ in range(N_SERVERS))
-    psp = PreShopPool(env=env, shopfloor=shop_floor)
+    """A custom pull system: release the entire pool every `interval` units.
+
+    Its entities carry the builders' ids (``wc-<i>``, ``shopfloor``, ``psp``,
+    ``router``), so its random streams, which are named after those ids, draw
+    the same arrivals and service times as the builder rows.
+    """
+    shop_floor = ShopFloor(env=env, name="shopfloor")
+    servers = tuple(Server(env=env, capacity=1, shopfloor=shop_floor, name=f"wc-{i}") for i in range(N_SERVERS))
+    psp = PreShopPool(env=env, shopfloor=shop_floor, name="psp")
     router = Router(
         env=env,
+        name="router",
         shopfloor=shop_floor,
         servers=servers,
         psp=psp,
