@@ -10,6 +10,7 @@ and is never part of a comparison.
 
 from __future__ import annotations
 
+import functools
 import platform
 import socket
 from collections.abc import Iterable, Mapping
@@ -95,9 +96,7 @@ def build_requested(
             "python": freeze(
                 {"implementation": platform.python_implementation(), "version": platform.python_version()}
             ),
-            "platform": freeze(
-                {"system": platform.system(), "release": platform.release(), "machine": platform.machine()}
-            ),
+            "platform": freeze({"system": platform.system(), "machine": platform.machine()}),
             "dependencies": dependencies,
             "provenance": freeze(
                 {
@@ -143,7 +142,9 @@ def _simulatte_version() -> str:
         return UNAVAILABLE
 
 
+@functools.cache
 def _installed_distributions() -> dict[str, str]:
+    """Name-to-version listing of the installed distributions, scanned once per process."""
     packages: dict[str, str] = {}
     for dist in metadata.distributions():
         name = dist.metadata["Name"]

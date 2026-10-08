@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import json
 import platform
+from collections.abc import Iterable
+from typing import Any
+
+import pytest
 
 from simulatte._wire import FrozenMap
 from simulatte.builders import build_immediate_release_system
 from simulatte.environment import Environment
-from simulatte.provenance import UNAVAILABLE, Provenance, RunManifest
+from simulatte import provenance as provenance_module
+from simulatte.provenance import UNAVAILABLE, Provenance, RunManifest, _installed_distributions
 from simulatte.scenario import Scenario
 
 FULL = Provenance(model="m" * 8, source="s" * 8, inputs="i" * 8, dependencies="d" * 8)
@@ -33,7 +38,7 @@ def test_manifest_seed_is_decimal_string() -> None:
     )
     assert isinstance(requested["simulatte_version"], str)
     system = requested["platform"]
-    assert isinstance(system, FrozenMap) and set(system) == {"system", "release", "machine"}
+    assert isinstance(system, FrozenMap) and set(system) == {"system", "machine"}
     assert Environment(seed=0).manifest().requested["seed"] == "0"
     assert Environment().manifest().requested["time_unit"] is None
 
@@ -133,3 +138,38 @@ def test_volatile_metadata_is_separate() -> None:
     assert volatile.run_seconds >= 0.0
     assert volatile.host
     assert Environment(seed=1).manifest().requested == env.manifest().requested  # unaffected by the execution
+
+
+def test_activation_does_not_scan_installed_distributions(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[int] = []
+    real = provenance_module.metadata.distributions
+
+    def counting() -> Iterable[Any]:
+        calls.append(1)
+        return real()
+
+    _installed_distributions.cache_clear()
+    monkeypatch.setattr(provenance_module.metadata, "distributions", counting)
+    try:
+        env = Environment(seed=1)
+        env.activate()
+        assert calls == []  # activation captures only cheap values
+        first = env.manifest().requested
+        assert len(calls) == 1
+        assert env.manifest().requested is first
+        other = Environment(seed=2)
+        other.activate()
+        assert other.manifest().requested["dependencies"] == first["dependencies"]
+        assert len(calls) == 1  # the listing is cached per process
+    finally:
+        _installed_distributions.cache_clear()
+
+
+def test_requested_values_are_fixed_at_activation() -> None:
+    env = Environment(seed=1, time_unit="minute")
+    env.activate()
+    env.time_unit = "hour"
+    assert env.manifest().requested["time_unit"] == "minute"
+    late = Environment(seed=1, time_unit="minute")
+    late.time_unit = "hour"  # before activation the current value is shown
+    assert late.manifest().requested["time_unit"] == "hour"

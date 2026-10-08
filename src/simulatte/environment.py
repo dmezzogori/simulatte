@@ -96,6 +96,7 @@ class Environment(simpy.Environment):
         self._provenance = provenance
         self._digest: SemanticDigest | None = None
         self._requested: FrozenMap | None = None
+        self._requested_inputs: tuple[int, str | None, Provenance | None] | None = None
         self._stopping_policy: Wire | None = None
         self._wall_clock_start: str | None = None
         self._run_seconds = 0.0
@@ -295,7 +296,7 @@ class Environment(simpy.Environment):
             listener(state)
         if listeners:
             self._projection_active = True
-        self._requested = self._build_requested()
+        self._requested_inputs = (self._seed, self.time_unit, self._provenance)  # cheap; the manifest is built lazily
         self._activated = True
 
         commands, self._commands = self._commands, []
@@ -372,7 +373,15 @@ class Environment(simpy.Environment):
 
     def manifest(self) -> RunManifest:
         """The manifest of the run: the requested part, plus the final part once :meth:`run` was called."""
-        requested = self._requested if self._requested is not None else self._build_requested()
+        requested = self._requested
+        if requested is None:
+            inputs = self._requested_inputs  # fixed at activation; before it, the current values
+            seed, time_unit, provenance = (
+                inputs if inputs is not None else (self._seed, self.time_unit, self._provenance)
+            )
+            requested = build_requested(seed=seed, time_unit=time_unit, provenance=provenance)
+            if inputs is not None:
+                self._requested = requested
         final = None
         if self._stopping_policy is not None:
             final = build_final(requested, self._stopping_policy, self.opaque_sampler_owners)
@@ -381,9 +390,6 @@ class Environment(simpy.Environment):
     def volatile_metadata(self) -> VolatileMetadata:
         """Host, wall-clock start and wall-clock time spent in :meth:`run`; separate from the manifest."""
         return volatile_metadata(self._wall_clock_start, self._run_seconds)
-
-    def _build_requested(self) -> FrozenMap:
-        return build_requested(seed=self._seed, time_unit=self.time_unit, provenance=self._provenance)
 
     def step(self) -> None:
         """
