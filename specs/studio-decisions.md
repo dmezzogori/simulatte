@@ -105,3 +105,11 @@ All 25 findings were accepted; see `reviews/2026-10-08-global-spec-review-2.md` 
 **D44. SP1 is built behind feasibility gates**: vertical slice, minimal TypeScript conformance reader, benchmarks, then full migration (B25).
 
 **D45. Warm spare execution processes**, each used once, offset fresh-process start-up cost without weakening isolation (B20). Refines D29.
+
+## Adversarial review 3, 2026-10-08 (Astra; triage by Claude)
+
+All 10 findings were accepted; see `reviews/2026-10-08-global-spec-review-3.md`. No new product decisions were needed; D38 stands.
+
+**D46. Activation is a core SP1 contract** (C2, C3): prelude collapsed into the initial state, initializers that do not advance time, initial-state capture and `ready`, then one ordered queue of all pre-activation commands executed as recorded transitions; a failing queued command fails the attempt without rollback.
+
+**D47. Worker environment caches hold external dependencies only; local packages always load from the run's snapshot**, verified at preparation, locally and remotely (C5).
