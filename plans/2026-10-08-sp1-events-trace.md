@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Revision 2**, after SP1 review 1 (`specs/reviews/2026-10-08-sp1-review-1.md`); markers such as (S6) show what each finding changed.
+**Revision 3**, after SP1 reviews 1 and 2 (`specs/reviews/`); markers such as (S6) or (T3) show what each finding changed.
 
 **Goal:** Give Simulatte stable entity ids, typed events with state deltas on an event bus, seeded RNG streams, a semantic digest, a seekable trace file readable from Python and TypeScript, bus-based KPI collectors and logging, and a CI overhead gate.
 
@@ -10,7 +10,7 @@
 
 **Tech Stack:** Python ≥3.11 (CPython 3.12–3.14, PyPy 3.11), SimPy, msgpack, hashlib/zlib/threading (stdlib), pytest; TypeScript with pnpm, Vite, Vitest, `@msgpack/msgpack` for G2.
 
-**Spec:** `specs/2026-10-08-sp1-events-trace-design.md` revision 2 (parent: `specs/2026-10-08-studio-global-design.md`; inventory: `specs/research/2026-10-08-sp1-inventory.md`).
+**Spec:** `specs/2026-10-08-sp1-events-trace-design.md` revision 3 (parent: `specs/2026-10-08-studio-global-design.md`; inventory: `specs/research/2026-10-08-sp1-inventory.md`).
 
 ## Global Constraints
 
@@ -19,7 +19,7 @@
 - `uv run ruff check src tests` and `uv run ty check src` clean at every commit.
 - Runtime dependencies: add `msgpack`; remove `loguru` (Task 19). Nothing else.
 - Seeds: `0 <= seed < 2**63`; recorded as decimal strings.
-- Wire: integers within ±(2⁵³−1); float64 with explicit `+inf`, `-inf`, normalized `NaN`; map keys escaped (`__proto__` or leading `~` → prefixed `~`).
+- Wire: integers within ±(2⁵³−1); float64 with explicit `+inf`, `-inf`, normalized `NaN`; map keys escaped (`__proto__`, `constructor`, `prototype`, or a leading `~` → prefixed `~`).
 - RNG stream seed: `int.from_bytes(hashlib.blake2b(f"simulatte-rng-v1\0{seed}\0{name}".encode(), digest_size=16).digest(), "big")`.
 - Digest: `hashlib.blake2b(digest_size=32)`; each item prefixed by its byte length as u64 big-endian; presentation fields excluded.
 - Trace: magic `b"SIMTRACE"`, format 1.0, record `length u32 | type u8 | crc32 u32 | payload`, `CHUNK` payload zlib-compressed msgpack, trailer `u64 footer offset + b"SIMTEND\0"`.
@@ -55,7 +55,7 @@ def test_freeze_rejects_non_wire(): [pytest.raises(TypeError, freeze, bad) for b
 def test_int_range(): freeze(2**53 - 1); pytest.raises(OverflowError, freeze, 2**53)
 def test_canonical_sorting_and_float64(): assert canonical_pack({"b": 1, "a": 2}) == canonical_pack({"a": 2, "b": 1}); assert canonical_pack(1.0) == b"\xcb" + struct.pack(">d", 1.0)
 def test_nan_normalized_and_inf_roundtrip(): assert canonical_pack(float("nan")) == canonical_pack(-float("nan")); assert unpack(pack(float("-inf"))) == float("-inf")
-def test_hostile_keys_roundtrip(): v = {"__proto__": 1, "~x": 2, "x": 3}; assert unpack(pack(v)) == v
+def test_hostile_keys_roundtrip(): v = {"__proto__": 1, "constructor": 2, "prototype": 3, "~x": 4, "~__proto__": 5, "n": {"constructor": 6}}; assert unpack(pack(v)) == v
 def test_unpack_limits(): pytest.raises(ValueError, unpack, pack(nested_depth(65)))
 ```
 
@@ -70,7 +70,7 @@ def test_unpack_limits(): pytest.raises(ValueError, unpack, pack(nested_depth(65
 
 **Interfaces — Consumes:** Task 1. **Produces:**
 - `@dataclass(frozen=True, slots=True, kw_only=True) class Event: t: float = nan; seq: int = -1; deltas: Deltas = Deltas.EMPTY`; `DomainEvent(Event)` with `ordinal: int | None = None`; `ObserverEvent(Event)`.
-- `event_type(name: str, *, version: int = 1, presentation: frozenset[str] = frozenset())` decorator → `cls.type_name`, `cls.type_version`, `cls.presentation_fields`; global `CATALOG` with `get(name)`, `names()`, `to_wire()`.
+- `event_type(name: str, *, version: int = 1, touches: Mapping[str, tuple[str, ...]] | None = None, presentation: frozenset[str] = frozenset())` decorator → `cls.type_name`, `cls.type_version`, `cls.touches`, `cls.presentation_fields`; global `CATALOG` with `get(name)`, `names()`, `to_wire()` (includes `touches` and presentation flags, T10).
 - `Deltas` (immutable) with `EMPTY`, `Deltas.build() -> DeltaBuilder` (`set`, `insert`, `remove`, `move`, `put`, `delete`, `create`, `retire`, `done()`); ops as tuples per spec §6.2.
 - `apply_deltas(state: dict[str, dict], deltas: Deltas) -> None`.
 - `EventBus.subscribe(handler, types: tuple[type[Event], ...] | Literal["*", "**"]) -> Subscription`; `Subscription.cancel()`; `wants(cls) -> bool`.
@@ -90,6 +90,8 @@ def test_observer_event_with_deltas_rejected(env): ...
 def test_reemitted_instance_rejected_and_first_unchanged(env): ...
 def test_apply_deltas_all_ops(): ...
 def test_duplicate_type_name_different_fields_raises(): ...
+def test_catalog_wire_roundtrip_includes_touches(): ...
+def test_debug_rejects_deltas_outside_touches(env_debug): ...
 ```
 
 - [ ] **Steps 2–4:** fail, implement (`wants` is a `dict[type, int]`; `"*"` checked for `DomainEvent` subclasses), pass with `--no-cov`.
@@ -97,17 +99,17 @@ def test_duplicate_type_name_different_fields_raises(): ...
 
 ### Task 3: Entities and lifecycle
 
-**Files:** Create `src/simulatte/entities.py`; modify `environment.py` (`env.entities`). Test `tests/core/test_entities.py`.
+**Files:** Create `src/simulatte/entities.py`; modify `environment.py` (`env.entities`), and give **identity only** (attachment, ids, `name=`/`label=`, state schema and `snapshot()`, no domain events yet) to `server.py` (`Server`, keeping `_idx` as an internal alias until Task 7), `job.py` (`ProductionJob`, id `job-n`), `shopfloor.py`, `psp.py`, `router.py` (T11). Tests `tests/core/test_entities.py`; update tests asserting uuid job ids or `repr`.
 
 **Interfaces — Consumes:** Task 2. **Produces:** `Entity` (`__init_subclass__(kind=...)`, `kind`, `state_schema`, `id`, `label`, `snapshot()`); `StateSchema(Mapping[str, FieldSpec])`; `FieldSpec(wire_type: str, nullable=False, collection: None | Literal["list", "map"] = None, presentation=False)`; `EntityRegistry.attach(obj, *, name=None, label=None) -> str`, `retire(obj)`, `get(id)`, `live()` (attachment order), `snapshot(*, include_presentation=True) -> dict[str, dict]` (sorted by id); events `EntityCreated` (`"entity.created"`: `entity`, `kind`, `label` presentation) and `EntityRetired`.
 
-- [ ] **Step 1: Failing tests:** `test_generated_ids_per_kind`, `test_name_becomes_id_and_duplicates_raise`, `test_reserved_pattern_rejected`, `test_slash_and_nul_rejected`, `test_created_is_only_create_owner` (one `create` delta per attach), `test_retire_drops_strong_reference` (weakref dies after `del`), `test_snapshot_excludes_presentation_when_asked`.
+- [ ] **Step 1: Failing tests:** `test_production_components_have_ids` (`Server(name="lathe")` → `"lathe"`; unnamed → `"server-0"`; jobs `"job-0"`, `"job-1"`, a second env restarts), `test_generated_ids_per_kind`, `test_name_becomes_id_and_duplicates_raise`, `test_reserved_pattern_rejected`, `test_slash_and_nul_rejected`, `test_created_is_only_create_owner` (one `create` delta per attach), `test_retire_drops_strong_reference` (weakref dies after `del`), `test_snapshot_excludes_presentation_when_asked`.
 - [ ] **Steps 2–4:** fail, implement, pass.
 - [ ] **Step 5:** Commit `feat(core): add entity registry, ids and lifecycle`.
 
 ### Task 4: RNG streams, binding protocols and Router migration
 
-**Files:** Create `src/simulatte/rng.py`; modify `environment.py`, `distributions.py`, `router.py` (becomes an entity of kind `router`, binds its streams), `scenario.py`, `runner.py`, `builders.py` (pass descriptions, not callables), gallery examples using `random` and their docs blocks; migrate `tests/core/test_distributions.py`, `test_scenario.py`, `test_builders.py`, `test_runner.py`, `test_router.py`. Test `tests/core/test_rng.py`.
+**Files:** Create `src/simulatte/rng.py`; modify `environment.py`, `distributions.py`, `router.py` (binds its streams using the ids from Task 3), `scenario.py`, `runner.py`, `builders.py` (pass descriptions, not callables), gallery examples using `random` and their docs blocks; migrate `tests/core/test_distributions.py`, `test_scenario.py`, `test_builders.py`, `test_runner.py`, `test_router.py`. Test `tests/core/test_rng.py`.
 
 **Interfaces — Consumes:** Task 3. **Produces:**
 - `derive_seed(seed: int, name: str) -> int`; `RNG_DERIVATION = "simulatte-rng-v1"`.
@@ -124,9 +126,9 @@ def test_duplicate_type_name_different_fields_raises(): ...
 
 **Files:** Modify `environment.py`. Test `tests/core/test_activation.py`.
 
-**Interfaces — Produces:** `env.activate()` (idempotent), `env.activated`, `env.on_activate(fn)`, `env.initial_state`, `env.on_initial_state(cb: Callable[[dict], None])` (for digest and recorders; also sets `_projection_active`), decorator `deferrable` (method's `self.env`), `env.run()` auto-activates. During initializers `env.process(...)` and `env.timeout(...)` raise `RuntimeError`.
+**Interfaces — Produces:** `env.activate()` (idempotent), `env.activated`, `env.on_activate(fn)`, `env.initial_state`, `env.request_projection(on_initial_state: Callable[[dict], None])` (digest and recorders call it before activation; the projection becomes active only after the snapshot and notifications, T9), decorator `deferrable` (method's `self.env`), `env.run()` auto-activates. During initializers `Environment.schedule` raises `RuntimeError` unless inside `env._internal_scheduling()` (used only by `place_now`) (T3).
 
-- [ ] **Step 1: Failing tests:** `test_run_activates_once`, `test_initializer_cannot_create_process` (helper process → `RuntimeError`), `test_initializer_cannot_schedule_timeout`, `test_initializer_may_trigger_immediate_resource_grant`, `test_deferred_commands_preserve_order`, `test_deferred_command_failure_stops_activation`, `test_after_activation_commands_run_immediately`, `test_initial_state_captured_after_initializers`.
+- [ ] **Step 1: Failing tests:** `test_run_activates_once`, `test_initializer_cannot_create_process`, `test_initializer_cannot_schedule_timeout`, `test_initializer_cannot_succeed_event_with_callback` (T3), `test_internal_scheduling_context_allowed`, `test_prelude_events_have_no_ordinal_and_first_is_zero` (T9), `test_deferred_commands_preserve_order`, `test_deferred_command_failure_stops_activation`, `test_after_activation_commands_run_immediately`, `test_initial_state_captured_after_initializers`.
 - [ ] **Steps 2–4:** fail, implement, pass.
 - [ ] **Step 5:** Commit `feat(core): add preparation and activation with deferred commands`.
 
@@ -135,22 +137,22 @@ def test_duplicate_type_name_different_fields_raises(): ...
 **Files:** Modify `server.py`, `job.py`; update `tests/core/test_server.py`, `test_job.py`, server and job parts of `test_component_logging.py`. Test `tests/core/test_server_events.py`.
 
 **Interfaces — Consumes:** Tasks 2–5. **Produces:**
-- `Server(..., name=None, label=None)` kind `server` (schema spec §5.2); `_idx` **kept** as an internal alias until Task 7 (S22).
-- `ProductionJob` kind `job`, id `job-n`.
-- Events `JobQueued`, `JobGranted`, `JobReleased`, `ServerQueueReordered` emitted from `Server._trigger_put` (newcomers on entry), `Server.sort_queue` (minimal moves: elements outside the longest increasing subsequence of old positions), `Server._do_put` (granted), `Server._do_get` (released) per spec §6.3. `priority` comes from `request.priority`; `queue_length = len(self.queue)`.
+- Identity from Task 3.
+- Events `JobQueued`, `JobGranted`, `JobQueueLeft`, `JobReleased`, `ServerQueueReordered` per spec §6.3: newcomers on entry to `Server._trigger_put`; grants **after** `super()._trigger_put` returns, by diffing `users` (T1); `sort_queue` minimal moves (outside the longest increasing subsequence of old positions); `ServerPriorityRequest.cancel` only on actual removal; `Server._do_get` only on actual removal (T2). `priority` from `request.priority`; `queue_length = len(self.queue)` at entry, newcomer included.
 - `env.debug` calls in `server.py` removed.
 
 - [ ] **Step 1: Failing tests**
 
 ```python
 @pytest.mark.parametrize("capacity", [1, 2])
-def test_queue_length_counts_waiting_only(capacity): ...   # capacity+2 requests at t=0 -> [0]*capacity + [1, 2]
+def test_queue_length_includes_newcomer(capacity): ...     # capacity+2 requests at t=0 -> [1]*capacity + [1, 2]
 def test_immediate_grant_inside_constructor_ordering(): ... # types for first request: ["job.queued", "job.granted"]
 def test_direct_server_use_without_shopfloor(): ...         # request/release in a plain process emits queued/granted/released
 def test_replay_equals_live_at_every_event(): ...           # subscriber snapshots live state after each event; apply_deltas from initial equals it
 def test_reorder_emits_minimal_moves(): ...                 # priority change moving one job -> exactly one move
+def test_interrupted_waiting_request_leaves_queue(): ...    # job.queue_left(reason="cancelled"); replay equals live
+def test_duplicate_release_emits_nothing(): ...
 def test_counting_priority_policy_unaffected_by_recording(): ... # call count and schedule identical with and without a full subscriber (S9)
-def test_job_ids_sequential_per_env(): ...
 ```
 
 - [ ] **Steps 2–4:** fail, implement, pass `tests/core --no-cov`.
@@ -160,9 +162,9 @@ def test_job_ids_sequential_per_env(): ...
 
 **Files:** Modify `shopfloor.py`, `psp.py`, `builders.py`, `scenario.py`, `server.py` (remove `_idx`); update `tests/core/test_shopfloor.py:366`, `test_builders.py`, `test_psp.py`, rest of `test_component_logging.py`. Test `tests/core/test_flow_events.py`.
 
-**Interfaces — Produces:** kinds `shopfloor`, `psp` (with owner field `shopfloor`); `ShopFloor.jobs` as ordered dict; events `PspEntered`, `PspExited`, `ShopFloorEntered`, `OperationStarted`, `OperationCompleted`, `ShopFloorWipUpdated`, `JobFinished` (spec §6.4); job retirement at the end of the completion block; `build_*_system(..., prefix: str = "", scenario: Scenario | None = None)`; `env.debug` calls removed from these files.
+**Interfaces — Produces:** owner-field deltas per spec §5.2 (job `shopfloor` set by `psp.entered`/`shopfloor.entered`, T5); `ShopFloor.jobs` as ordered dict; events `PspEntered`, `PspExited`, `ShopFloorEntered`, `OperationStarted`, `OperationCompleted`, `ShopFloorWipUpdated`, `JobFinished` (spec §6.4); job retirement at the end of the completion block; `build_*_system(..., prefix: str = "", scenario: Scenario | None = None)`; `env.debug` calls removed from these files.
 
-- [ ] **Step 1: Failing tests:** `test_one_operation_phase_sequence` (types in order: `entity.created`, `shopfloor.entered`, `job.queued`, `job.granted`, `operation.started`, `operation.completed`, `shopfloor.wip_updated`, `job.released`, `job.finished`, `entity.retired`), `test_psp_release_same_instant_sequence`, `test_job_retired_after_completion_callbacks` (a callback sees the job still live), `test_live_registry_shrinks_python_history_kept`, `test_two_builders_share_env_with_prefixes`, `test_replay_equals_live_at_every_event_shop` (reference shop).
+- [ ] **Step 1: Failing tests:** `test_one_operation_phase_sequence` (types in order: `entity.created`, `shopfloor.entered`, `job.queued`, `job.granted`, `operation.started`, `operation.completed`, `shopfloor.wip_updated`, `job.released`, `job.finished`, `entity.retired`), `test_psp_release_same_instant_sequence`, `test_job_retired_after_completion_callbacks` (a callback sees the job still live), `test_live_registry_shrinks_python_history_kept`, `test_two_builders_share_env_with_prefixes`, `test_job_created_after_activation_gets_owner_on_entry` (T5), `test_replay_equals_live_at_every_event_shop` (reference shop).
 - [ ] **Steps 2–4:** fail, implement, pass.
 - [ ] **Step 5:** Commit `feat(core)!: shop-floor flow events, job retirement and builder prefixes`.
 
@@ -180,9 +182,9 @@ def test_job_ids_sequential_per_env(): ...
 
 **Files:** Create `src/simulatte/trace/__init__.py`, `trace/format.py`, `trace/writer.py`; modify `environment.py` (`_interrupted` flag in `step`; `close()` closes recorders; failure path in `run`). Test `tests/core/test_trace_writer.py`.
 
-**Interfaces — Produces:** constants and `RecordType` (`HEADER=1, PRELUDE=2, INITIAL=3, CATALOG_EXT=4, CHUNK=5, INDEX=6, KPI=7, FOOTER=8`); `write_record(f, rtype, payload) -> int`; `ChunkLimits(max_events=10_000, max_bytes=1 << 20, max_latency_s=1.0, max_event_bytes=256 << 10, max_sim_window=None)`; `TraceRecorder(env, path, *, level="full", chunk_limits=None, clock=time.monotonic)` with a writer thread that publishes on any limit including latency; `close(outcome=None)`. Payload keys per spec §11.1.
+**Interfaces — Produces:** constants and `RecordType` (`HEADER=1, PRELUDE=2, INITIAL=3, CATALOG_EXT=4, CHUNK=5, INDEX=6, KPI=7, FOOTER=8`); `write_record(f, rtype, payload) -> int`; `ChunkLimits(max_events=10_000, max_bytes=1 << 20, max_latency_s=1.0, max_event_bytes=256 << 10, max_sim_window=None)`; `TraceRecorder(env, path, *, level="full", chunk_limits=None, max_pending_bytes=64 << 20, clock=time.monotonic)`: producer-side sealing on count/bytes/window, writer-side sealing on latency, one FIFO publication queue written only by the writer thread, bounded pending bytes with blocking backpressure, latched writer exceptions, close barrier; `close(outcome=None)` idempotent (T6, T7). Payload keys per spec §11.1.
 
-- [ ] **Step 1: Failing tests:** `test_chunks_respect_event_limit`, `test_latency_publishes_without_further_events` (fake clock advanced past 1.0 s while the simulation thread is blocked in a callback; chunk + index appear on disk), `test_chunk_snapshot_from_replay_state_not_live`, `test_initial_record_written_at_activation`, `test_footer_trailer_and_final_manifest`, `test_failed_run_footer`, `test_interrupted_run_footer`, `test_recorder_after_activation_raises`, `test_close_without_run`, `test_continues_across_run_calls`, `test_catalog_extension_before_first_use`, `test_oversized_event_warns_or_raises_in_debug`.
+- [ ] **Step 1: Failing tests:** `test_chunks_respect_event_limit`, `test_latency_publishes_without_further_events` (fake clock advanced past 1.0 s while the simulation thread is blocked in a callback; chunk + index appear on disk), `test_chunk_snapshot_from_replay_state_not_live`, `test_initial_record_written_at_activation`, `test_footer_trailer_and_final_manifest`, `test_failed_run_footer`, `test_interrupted_run_footer`, `test_recorder_after_activation_raises`, `test_close_without_run`, `test_continues_across_run_calls`, `test_catalog_extension_before_first_use`, `test_oversized_event_warns_or_raises_in_debug`, `test_slow_writer_applies_backpressure_with_bounded_memory` (writer delayed artificially; pending bytes never exceed the bound; run completes; CPython and PyPy), `test_writer_failure_propagates` (disk write raises → next append and `close()` raise; no footer), `test_close_during_publication_orders_footer_last`, `test_repeated_close_is_noop`.
 - [ ] **Steps 2–4:** fail, implement, pass.
 - [ ] **Step 5:** Commit `feat(trace): trace container and threaded recorder`.
 
@@ -190,9 +192,9 @@ def test_job_ids_sequential_per_env(): ...
 
 **Files:** Create `src/simulatte/trace/reader.py`. Tests `tests/core/test_trace_reader.py`, `tests/core/test_g1_acceptance.py`. Create `specs/research/sp1-g1-report.md`.
 
-**Interfaces — Produces:** `Cursor = tuple[float, int]`; `ReaderLimits(max_record=64 << 20, max_chunk=256 << 20, max_depth=64, max_len=10**7)`; `TraceCorrupted(Exception)`; `Trace.open(path, *, limits=None)` with `manifest`, `catalog`, `outcome`, `truncated`, `cursor_range`, `state_at(cursor)`, `events(start=None, end=None)`, `kpis()`, `fingerprint`, `check()`, `verify() -> bool | Literal["not_verifiable"]`.
+**Interfaces — Produces:** `Cursor = tuple[float, int]`; `ReaderLimits(max_record=64 << 20, max_chunk=256 << 20, max_depth=64, max_len=10**7)`; `TraceCorrupted(Exception)`; `Trace.open(path, *, limits=None)` with `manifest` (merged), `manifest_final`, `catalog`, `outcome`, `truncated`, `cursor_range`, `state_at(cursor)`, `events(start=None, end=None)`, `kpis()`, `fingerprint`, `check()`, `verify() -> bool | Literal["not_verifiable"]`.
 
-- [ ] **Step 1: Failing tests:** `test_state_at_equals_replay_at_chunk_boundaries`, `test_state_at_sampled_and_same_time_cursors`, `test_activation_cursor_returns_initial_state`, `test_trace_without_domain_events_is_seekable`, `test_incomplete_tail_is_truncated`, `test_interior_corruption_raises`, `test_chunk_without_index_invisible`, `test_unknown_required_feature_refused`, `test_limits_enforced`, `test_verify_full_and_kpi_not_verifiable`, `test_reopened_manifest_after_two_runs`, `test_g1_acceptance` (spec §2 G1 row).
+- [ ] **Step 1: Failing tests:** `test_state_at_equals_replay_at_chunk_boundaries`, `test_state_at_sampled_and_same_time_cursors`, `test_activation_cursor_returns_initial_state`, `test_trace_without_domain_events_is_seekable`, `test_incomplete_tail_is_truncated`, `test_interior_corruption_raises`, `test_chunk_without_index_invisible`, `test_unknown_required_feature_refused`, `test_limits_enforced`, `test_verify_full_and_kpi_not_verifiable`, `test_reopened_manifest_after_two_runs` (merged view keeps seed and versions, final stopping policy horizon 20, `manifest_final` true, T15), `test_g1_acceptance` (spec §2 G1 row).
 - [ ] **Steps 2–4:** fail, implement, pass. Run the **full suite** (coverage gate) and ruff/ty.
 - [ ] **Step 5:** Write `specs/research/sp1-g1-report.md` (acceptance results, trace size and event counts, deviations). Commit `feat(trace): trace reader; G1 acceptance`. **Stop and report to Davide; G2 starts after acceptance.**
 
@@ -204,7 +206,7 @@ def test_job_ids_sequential_per_env(): ...
 
 **Interfaces — Produces (TS):** `openTrace(source: Blob | ArrayBuffer): Promise<Trace>`; `Trace.header`, `Trace.cursorRange`, `Trace.prepare(cursor: [number, number]): Promise<void>`, `Trace.stateAt(cursor): Record<string, Record<string, unknown>>` (throws `NotPreparedError`); `applyDeltas(state, deltas)`; key unescaping and reader limits as in Python.
 
-- [ ] **Step 1:** Failing tests: `test_generated_fixtures_canonically_up_to_date` (regenerate with fixed volatile metadata, explicit provenance, event-count limits; compare canonical content) and TS `conformance.test.ts` (for generated and frozen fixtures: `stateAt` after `prepare` equals expected canonical JSON; hostile keys, decimal seed string, non-finite floats, truncated file).
+- [ ] **Step 1:** Failing tests: `test_generated_fixtures_canonically_up_to_date` (regenerate with explicit seeds, fixed volatile metadata, explicit provenance, event-count limits; compare canonical content; T13) and TS `conformance.test.ts` (for generated and frozen fixtures: `stateAt` after `prepare` equals expected canonical JSON; hostile keys including `constructor`, `prototype` and nested ones, decimal seed strings, non-finite floats, truncated file; default-generated seeds only in frozen fixtures).
 - [ ] **Steps 2–4:** fail, implement, `uv run pytest tests/core/test_trace_fixtures.py --no-cov` and `pnpm -C studio test` pass.
 - [ ] **Step 5:** Commit `feat(studio): TypeScript trace conformance reader`. **Report G2 to Davide.**
 
@@ -214,11 +216,11 @@ def test_job_ids_sequential_per_env(): ...
 
 **Files:** Create `benchmarks/workload_gen.py`, `benchmarks/feeder.py`, `benchmarks/run.py`, `benchmarks/compare.py`, `benchmarks/README.md`, `benchmarks/workloads/*.json` (pre-generated); modify `.github/workflows/ci.yml` (job `bench`); create `specs/research/sp1-g3-report.md`.
 
-**Interfaces — Produces:** `workload_gen.py --servers 10 --jobs N --util U --seed S > workload.json` (jobs: arrival, sku, routing indices, processing times, due date); `feeder.py` builds a shop with the version-agnostic constructors and feeds jobs from the JSON, asserting job and operation counts; `run.py --mode {none,digest,full} --workload PATH --warmup K --repeat N --json out.json` (keys `median_s`, `iqr_s`, `peak_mb`, `trace_bytes`, `chunks`, `seek_p50_ms`, `seek_p95_ms`); `compare.py base.json head.json --budget 0.03 --noise BAND` (non-zero exit above budget+band for `none`).
+**Interfaces — Produces:** `workload_gen.py --servers 10 --jobs N --util U --seed S > workload.json` (jobs: arrival, sku, routing indices, processing times, due date); `feeder.py` builds a shop with the version-agnostic constructors and feeds jobs from the JSON, asserting job and operation counts; `run.py --mode {none,digest,full} --workload PATH --warmup K --repeat N --json out.json` (keys `median_s`, `iqr_s`, `peak_mb`, `trace_bytes`, `chunks`, `seek_p50_ms`, `seek_p95_ms`); `compare.py base.json head.json --budget 0.03 --noise BAND` (non-zero exit above budget+band for `none`); `bench_sampling.py --jobs N` runs a router-only workload (no processing) in both versions and reports draws and jobs per second (T14).
 
 - [ ] **Step 1:** Calibrate the noise band from 10 baseline-vs-baseline runs on CPython 3.14 and PyPy 3.11; record the maximum ratio.
 - [ ] **Step 2:** Wire the CI job (two environments: `simulatte==0.12.0` and the branch; summary table to `$GITHUB_STEP_SUMMARY`).
-- [ ] **Step 3:** Write `specs/research/sp1-g3-report.md` with measurements against C1.7/C1.9. Commit `ci: benchmark suite and overhead gate`. **Stop and report to Davide; G4 starts after acceptance.**
+- [ ] **Step 3:** Write `specs/research/sp1-g3-report.md` with measurements against C1.7/C1.9 and a proposed budget for sampling cost. Commit `ci: benchmark suite and overhead gate`. **Stop and report to Davide; G4 starts after acceptance.**
 
 ## Gate G4: migration
 
@@ -244,10 +246,10 @@ def test_job_ids_sequential_per_env(): ...
 
 **Files:** Modify `fleet.py`, `agv.py`, `order.py`, `speed.py`; update `tests/intralogistics/test_logging.py`. Tests `tests/intralogistics/test_fleet_events.py`, `tests/intralogistics/test_motion.py`.
 
-**Interfaces — Produces:** `OrderStatusChanged`, `OrderAssigned`, `OrderUnassigned`, `AgvStateChanged` (from `AGV.transition_to`), `AgvMoveStarted`, `AgvMoveEnded`, `AgvMoveInterrupted`, `AgvLoadChanged`, `AgvBatteryChanged`, `AgvStranded`; AGV `motion` state; `SpeedProfile.motion(...)` and `TrapezoidalProfile.motion`; intralogistics `env.debug` calls in these files removed (warnings and errors kept).
+**Interfaces — Produces:** `FleetPendingChanged` (emitted at each `_pending_queue` append and removal, T4), `FleetAgvAdded`, `OrderStatusChanged`, `OrderAssigned`, `OrderUnassigned`, `AgvStateChanged` (from `AGV.transition_to`), `AgvMoveStarted`, `AgvMoveEnded`, `AgvMoveInterrupted`, `AgvLoadChanged`, `AgvBatteryChanged`, `AgvStranded`; AGV `motion` state; `SpeedProfile.motion(...)` and `TrapezoidalProfile.motion`; intralogistics `env.debug` calls in these files removed (warnings and errors kept).
 
 - [ ] **Step 1:** Write the **mutation-site table** in the test module docstring: for each state field of `agv` and `order`, every line in `fleet.py`/`agv.py` that mutates it (from inventory §2) and the event covering it.
-- [ ] **Step 2: Failing tests:** `test_every_order_status_assignment_emits` (parametrized over the table, including `FAILED` after retries and interruption re-queue), `test_agv_unassigned_on_cleanup`, `test_direct_transition_to_emits`, `test_move_started_after_enter_permission`, `test_interrupted_move_keeps_previous_node`, `test_trapezoidal_motion_integrates_to_travel_time` (within 1e-9), `test_replay_equals_live_at_every_event_fleet` (intermediate cursors).
+- [ ] **Step 2: Failing tests:** `test_every_order_status_assignment_emits` (parametrized over the table, including `FAILED` after retries and interruption re-queue), `test_agv_unassigned_on_cleanup`, `test_pending_redispatch_replay_at_intermediate_cursors` (T4), `test_agv_fleet_owner_set_on_coordinator_construction` (T5), `test_direct_transition_to_emits`, `test_move_started_after_enter_permission`, `test_interrupted_move_keeps_previous_node`, `test_trapezoidal_motion_integrates_to_travel_time` (within 1e-9), `test_replay_equals_live_at_every_event_fleet` (intermediate cursors).
 - [ ] **Steps 3–4:** implement, pass.
 - [ ] **Step 5:** Commit `feat(intralogistics): fleet, AGV and order events`.
 
@@ -296,7 +298,7 @@ def test_job_ids_sequential_per_env(): ...
 **Interfaces — Produces:** `EMACollector(shopfloor, alpha=0.01)`, `ShopFloorTimeSeries(shopfloor)`, `CurrentWorkloadCollector(shopfloor)` (decrements at `operation.completed`), `ServerTimeSeries(server)`, `ShopFloorKPIs(shopfloor)`, with the attributes and plot helpers of spec §12.3.
 
 - [ ] **Step 1:** **Before changing code**, record parity fixtures from the old collectors into `tests/fixtures/collector_parity.json`: LumsCor, SLAR and immediate-release systems, seeds 1–3, plus a system with a yielding after-operation hook that holds the server 10 time units (S19). Commit the fixture.
-- [ ] **Step 2: Failing tests:** parity (EMA within 1e-12, series identical), `test_two_shopfloors_one_env_scoped` (S18), `test_default_metrics_opt_out`.
+- [ ] **Step 2: Failing tests:** parity (EMA values within `math.isclose(rel_tol=1e-12, abs_tol=1e-12)`; series times exact, values within the same tolerance) on every fixture system **except** the yielding-hook system, whose workload series is asserted against the independently specified `[(0, 5), (5, 0), (6, 3)]` (T12); `test_two_shopfloors_one_env_scoped` (S18); `test_default_metrics_opt_out`.
 - [ ] **Steps 3–4:** implement, delete old protocols, pass full suite and docs gate.
 - [ ] **Step 5:** Commit `feat(core)!: bus collectors replace collector protocols`.
 

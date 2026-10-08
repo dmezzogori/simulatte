@@ -1,6 +1,6 @@
 # SP1: events and trace (design)
 
-- **Status:** revision 2, after SP1 review 1 ([`reviews/2026-10-08-sp1-review-1.md`](reviews/2026-10-08-sp1-review-1.md)); markers such as (S4) show what each finding changed
+- **Status:** revision 3, after SP1 reviews 1 and 2 ([`reviews/`](reviews/)); markers such as (S4) or (T1) show what each finding changed
 - **Date:** 2026-10-08
 - **Release:** 0.13
 - **Parent:** [`2026-10-08-studio-global-design.md`](2026-10-08-studio-global-design.md) (contracts C1.1–C1.10, §7, §8). This spec refines those contracts; it does not change them. Where it seems to, the global spec wins and this document is wrong.
@@ -112,7 +112,7 @@ Every state field declares its wire type, whether it is a collection, and whethe
 
 **Node bindings** (S5). `Node` stays an environment-free definition. Attaching a graph creates one environment-local `NodeBinding` entity per node. Attaching the same `Node` again in the same environment (two fleets sharing a graph) returns the existing binding; a different `Node` with an existing id raises. `agvs` and `reserved_by` are lists, so node capacities above one and free traffic are represented. Traffic managers update `reserved_by`; AGV movement updates `agvs`.
 
-**Owner fields** (`shopfloor`, `fleet`) let collectors filter by system (S18).
+**Owner fields** (`shopfloor`, `fleet`) let collectors filter by system (S18). Their lifecycle (T5): they are nullable and start as null unless the owner is known at construction (a `Router` or `PreShopPool` receives its shop floor in its constructor). A job's `shopfloor` is set by `psp.entered` or `shopfloor.entered`; entering a different shop floor later overwrites it, and collectors filter on the value carried by each event, not on history. An AGV's `fleet` is set by `fleet.agv_added` when a `FleetCoordinator` takes it; an order's `fleet` is set at attachment. Creation after activation followed by attachment is covered by tests.
 
 ### 5.3 Iteration-order fixes
 
@@ -129,7 +129,7 @@ A test runs the reference models in fresh processes under several `PYTHONHASHSEE
 ### 6.1 Classes and emission
 
 - `Event` is a frozen, slotted, keyword-only dataclass with `t`, `seq` and `deltas`. `DomainEvent` adds `ordinal`; `ObserverEvent` covers `log`, `kpi.sample` and anything emitted by observers.
-- `@event_type("name", version=1)` registers a class in the global catalog with its payload fields, their wire types, nullability and whether each is **presentation**. Registering one name with two definitions raises.
+- `@event_type("name", version=1, touches=..., presentation=...)` registers a class in the global catalog with its payload fields, their wire types, nullability, which payload fields are **presentation**, and **`touches`**: the `(kind, state field)` pairs its deltas may change (global C1.2) (T10). Both declarations are serialized in catalog entries and catalog extensions; debug mode rejects deltas outside `touches`. Registering one name with two definitions raises.
 - **Emission rules** (S8, S27):
   - `env.emit` stamps `t`, `seq` and (while the projection is active) `ordinal` on a fresh instance; an instance whose `seq` is already set is rejected, so a delivered event never changes.
   - Emitting a `DomainEvent` while subscribers are being called raises: observers cannot inject trajectory.
@@ -143,18 +143,21 @@ Operations address `(entity_id, field)`: `set`, `insert(index, value)`, `remove(
 
 An event whose encoded size exceeds `ChunkLimits.max_event_bytes` (default 256 KiB) raises in debug mode and is recorded with a warning otherwise (global B19).
 
-### 6.3 Server resource events (S1)
+### 6.3 Server resource events (S1, T1, T2)
 
-Server events are emitted from the resource itself, at SimPy's authoritative transitions, so they are correct for `ShopFloor` and for direct `Server` users, and replay matches live state at every cursor:
+Server events are emitted from the resource itself, each after SimPy has completed the state change it describes, so they are correct for `ShopFloor` and for direct `Server` users, and replay matches live state at every cursor:
 
 | Transition | Hook | Event |
 |---|---|---|
-| A request enters the put queue | `Server._trigger_put`, on entry, for each request not seen before (SimPy appends in `Put.__init__`, then calls `_trigger_put`) | `job.queued` with the request's index after insertion; `queue_length` = `len(server.queue)` (D49); `priority` = the priority stored on the request |
-| Queue order changes | `Server.sort_queue`, after sorting, only when relative order changed | `server.queue_reordered` with the minimal `move` set (elements outside the longest increasing subsequence of old positions); a newcomer is already at its final index from `job.queued` |
-| A request is granted | `Server._do_put`, when the request was triggered | `job.granted`: queue `remove`, users `insert` |
-| A request is released | `Server._do_get` | `job.released`: users `remove` |
+| A request enters the put queue | `Server._trigger_put`, on entry, for each request not seen before (SimPy's `Put.__init__` has already appended it at its sorted index) | `job.queued`: queue `insert` at the request's current index; `queue_length` = `len(server.queue)` at that moment, **including the newcomer** (D49); `priority` = the priority stored on the request |
+| Queue order changes | `Server.sort_queue`, after sorting, only when relative order changed (priorities are refreshed on every put, so a newcomer may move again) | `server.queue_reordered` with the minimal `move` set (elements outside the longest increasing subsequence of old positions) |
+| Requests are granted | `Server._trigger_put`, after `super()._trigger_put` returns, for each request that is now in `users` and was not before; SimPy pops granted requests from the queue only after `_do_put` returns, so this is the first point where both changes are complete | `job.granted`: queue `remove`, users `insert` |
+| A waiting request is cancelled | `ServerPriorityRequest.cancel`, only when it actually removed the request from the queue (an interrupted waiting process leaving its `with` block) | `job.queue_left` (`reason`: `cancelled`): queue `remove` |
+| A request is released | `Server._do_get`, only when `users.remove` actually removed it (releasing an ungranted or already released request changes nothing and emits nothing) | `job.released`: users `remove` |
 
-The plan verifies with replay-equals-live checks at intermediate cursors, including a request granted inside its constructor and a server used without a `ShopFloor`.
+With this boundary, `queue_length` counts the requests waiting when the job joins, itself included: a job that finds a free slot has `queue_length = 1` and is granted in the next event. The old log value (`len(queue) + 1` measured after the grant) double-counted every waiting job; that is the off-by-one D49 fixes.
+
+The plan verifies with replay-equals-live checks after every event, including a request granted inside its constructor, a server used without a `ShopFloor`, an interrupted waiting request, and a duplicate release.
 
 ### 6.4 Core catalog
 
@@ -164,10 +167,10 @@ The plan verifies with replay-equals-live checks at intermediate cursors, includ
 
 | Type | Emitted at | Payload | Deltas |
 |---|---|---|---|
-| `psp.entered` | `PreShopPool.add` after append | `job`, `psp`, `position` | psp `jobs` insert; job `location` |
+| `psp.entered` | `PreShopPool.add` after append | `job`, `psp`, `position` | psp `jobs` insert; job `location`, `shopfloor` (the PSP's shop floor) |
 | `psp.exited` | `PreShopPool.remove` | `job`, `psp`, `reason` (`released`, `postponed`, `removed`) | psp `jobs` remove; job `location` (`transit` for postponed) |
-| `shopfloor.entered` | `ShopFloor.add` | `job`, `shopfloor` | shopfloor `jobs_in_system`, `wip` puts |
-| `job.queued`, `job.granted`, `job.released`, `server.queue_reordered` | §6.3 | | |
+| `shopfloor.entered` | `ShopFloor.add` | `job`, `shopfloor` | shopfloor `jobs_in_system`, `wip` puts; job `shopfloor` |
+| `job.queued`, `job.granted`, `job.queue_left`, `job.released`, `server.queue_reordered` | §6.3 | | |
 | `operation.started` | after before-hooks and material ensure, before the processing timeout | `job`, `server`, `op_index`, `processing_time`, `planned_end` | job `op_index`, `location` |
 | `operation.completed` | after the timeout and the `worked_time` credit | `job`, `server`, `op_index`, `processing_time` | server `worked_time` |
 | `shopfloor.wip_updated` | after `wip_strategy.complete_operation` | `shopfloor`, `changes` | shopfloor `wip` puts |
@@ -178,7 +181,9 @@ The plan verifies with replay-equals-live checks at intermediate cursors, includ
 
 | Type | Emitted at | Payload | Deltas |
 |---|---|---|---|
-| `order.status_changed` | every assignment of `order.status` (about 20 sites, including `FAILED`) | `order`, `status`, `previous`, `reason` | order `status` and the matching timestamp; fleet `pending` insert or remove |
+| `order.status_changed` | every assignment of `order.status` (about 20 sites, including `FAILED`) | `order`, `status`, `previous`, `reason` | order `status` and the matching timestamp |
+| `fleet.pending_changed` | every append to and removal from `_pending_queue`, at the mutation itself (T4) | `fleet`, `order`, `op` (`added`, `removed`), `index` | fleet `pending` insert or remove |
+| `fleet.agv_added` | `FleetCoordinator` construction, per AGV | `fleet`, `agv` | agv `fleet` |
 | `order.assigned` / `order.unassigned` | `_dispatch` / mission cleanup, cancellation, interruption re-queue | `order`, `agv` | order `agv`; agv `order` |
 | `agv.state_changed` | `AGV.transition_to` (the only writer of `state`, so direct calls are covered) | `agv`, `state`, `previous` | agv `state` |
 | `agv.move_started` | in `_travel`, after `enter_node` grants the next node, before the travel timeout | `agv`, `from`, `to`, `t_end`, `motion`, `loaded` | agv `motion` set (S4) |
@@ -252,7 +257,7 @@ Three binding kinds cover the callback shapes that exist today:
 
 ### 9.1 Wire values and canonical encoding
 
-- MessagePack. Map keys are strings and are **escaped** reversibly (S16): a key that is `__proto__` or starts with `~` is prefixed with `~`; readers strip one `~`. Both readers implement this.
+- MessagePack. Map keys are strings and are **escaped** reversibly (S16, T8): a key that is one of `__proto__`, `constructor`, `prototype` (the keys the JavaScript decoder rejects) or starts with `~` is prefixed with `~`; readers strip one `~`. The TypeScript reader rebuilds maps as objects without a prototype and defines an own `__proto__` property safely. Tests cover nested occurrences and collisions (`~__proto__` as an original key).
 - Canonical form: map keys sorted by escaped UTF-8 bytes; floats always float64 with `NaN` normalized; integers in the smallest form within ±(2⁵³−1); tuples as arrays.
 - A domain event's projection is `[ordinal, type, version, t, payload, deltas]` with presentation payload fields removed and delta operations on presentation state fields removed (S7). `seq` and observer events are excluded.
 - The initial-state projection is the canonical encoding of the activation snapshot with presentation fields removed, entities sorted by id.
@@ -275,9 +280,9 @@ Three binding kinds cover the callback shapes that exist today:
 Implements C1.10.
 
 - **Prelude.** Events emitted before activation are delivered to subscribers present at the time and recorded by a trace recorder in a `PRELUDE` record; they are not part of the projection.
-- **Initializers** (S10). `env.on_activate(fn)` registers a plain function. While an initializer runs, creating a process or scheduling a timeout raises, and `env.now` must be unchanged afterwards, so no initialization can be deferred past the initial-state boundary. Events triggered synchronously by resource operations (a request granted immediately) are allowed: they carry no deferred code.
+- **Initializers** (S10, T3). `env.on_activate(fn)` registers a plain function. While an initializer runs, **scheduling any SimPy event raises** (the check is on `Environment.schedule` itself, so processes, timeouts and manually succeeded events with callbacks are all covered), and `env.now` must be unchanged afterwards. The only exception is an internal context used by `place_now`, which allows the bookkeeping event of an immediately granted node request; a test proves that bookkeeping changes no entity state.
   - `FleetCoordinator` replaces its `_initial_placement` process with an initializer calling `ResourceBasedTrafficManager.place_now(agv, node)`, which requests the node resource and requires an immediate grant (raises on conflict).
-- **Initial state.** After initializers, the environment captures the snapshot of every live entity, notifies listeners (digest, recorders), and starts the projection; ordinals start at 0.
+- **Initial state** (T9). Digest and recorders *request* the projection when they attach (before activation). The projection becomes *active* only after initializers ran, the snapshot was captured and listeners were notified; prelude events never get ordinals, and the first domain event after activation has ordinal 0.
 - **Command queue.** Components opt in with `@deferrable`. In SP1: `FleetCoordinator.submit`, `cancel`, and the attachment step of `create_order`. Before activation, calls append to one queue and return; affected orders report `OrderStatus.PENDING_ACTIVATION`. At activation the queue drains in order at time 0, before `env.run` processes any scheduled event. An exception stops activation and propagates from `env.run`; remaining commands are dropped.
   - `ShopFloor.add` and `PreShopPool.add` are not deferrable; they only schedule processes, which SimPy already orders by insertion.
 - `env.activate()` is idempotent; registrations and deferrable calls after activation run immediately.
@@ -313,20 +318,26 @@ record = length(u32) type(u8) crc32(u32, of payload) payload
 ### 11.2 Writer
 
 - `TraceRecorder(env, path, *, level="full"|"kpi", chunk_limits=None)`; attaching after activation raises.
-- **Publication** (S13). The simulation thread appends completed events to the open chunk buffer under a lock. A writer thread closes and publishes the open chunk when any limit is reached, including the wall-clock age of its oldest event, independently of further simulation progress. The writer computes each chunk's start snapshot by applying the previous chunk's deltas to its own copy of the replay state; it never reads live simulation objects.
+- **Publication** (S13, T6, T7).
+  - The simulation thread appends completed events to the open chunk buffer and **seals** it itself when the event-count, byte or simulated-time limit is reached; the writer thread seals it when the latency limit is reached, independently of further simulation progress.
+  - Sealed chunks go to one FIFO publication queue served only by the writer thread, which writes every record of the file (header, prelude, initial, catalog extensions, chunk then its committing index, KPI, footer) in queue order. There is a single ordered path to the file.
+  - The writer computes each chunk's start snapshot by applying the previous chunk's deltas to its own copy of the replay state; it never reads live simulation objects.
+  - **Backpressure.** Pending sealed bytes are bounded (default 64 MiB). When the bound is reached, the simulation thread blocks on its next append until the writer drains; observers cannot change results, so blocking is safe. The block is reported as a `log` warning with the time spent blocked.
+  - **Failures.** An exception in the writer thread is latched and re-raised in the simulation thread at its next append and at `close()`; the trace then ends without a footer (incomplete), and `close()` raises.
+  - **Close barrier.** `close()` seals the open chunk, enqueues the KPI scalars and the footer, and waits until the writer has written everything; a successful `close()` means all accepted records precede the footer. Repeated `close()` is a no-op.
 - Chunk limits (`ChunkLimits`): 10,000 events, 1 MiB uncompressed, 1.0 s latency, 256 KiB per event, optional simulated-time window.
 - `close()` writes the KPI scalars and the footer. The outcome is `failed` if `env.run` raised, `cancelled` if the run was interrupted (`KeyboardInterrupt` turned into `StopSimulation` by `Environment.step`), else `completed`. Several `env.run` calls continue the same trace; the footer's final manifest records the last stopping policy.
 
 ### 11.3 Reader
 
-- `Trace.open(path, *, limits=None)`: header, initial state, index (footer, else a scan), footer. API: `manifest` (final if the footer exists, else requested with `final=False`), `catalog`, `outcome` (None without footer), `truncated`, `cursor_range`, `state_at(cursor)`, `events(start, end)`, `kpis()`, `fingerprint`.
+- `Trace.open(path, *, limits=None)`: header, initial state, index (footer, else a scan), footer. API: `manifest` (always the merged view of the requested part and, when the footer exists, the final part; `manifest_final` says which, T15), `catalog`, `outcome` (None without footer), `truncated`, `cursor_range`, `state_at(cursor)`, `events(start, end)`, `kpis()`, `fingerprint`.
 - `check()` validates the container (CRCs, index, limits). `verify()` recomputes the digest from initial state and domain events for `full` traces and compares it with the footer; for `kpi` traces it returns `"not_verifiable"` (S26).
 
 ### 11.4 TypeScript conformance reader (G2)
 
 - `studio/` is a pnpm workspace (Vite, Vitest, strict TypeScript) with one package, `@simulatte/trace`, depending only on `@msgpack/msgpack`.
 - **Asynchronous API** (S15): `openTrace(source: Blob | ArrayBuffer): Promise<Trace>`; `trace.prepare(cursor): Promise<void>` loads and decompresses the chunk; `trace.stateAt(cursor)` is synchronous on a prepared chunk and throws otherwise. This matches the viewer's prepare/render split (C7.1).
-- Fixtures (S23): generated by `tests/fixtures/traces/generate.py` with fixed volatile metadata, explicit provenance and event-count chunk limits only; regeneration compares canonical content, not bytes. A separate set of **frozen binary fixtures** is committed once and never regenerated, to catch decoder regressions. Fixtures include hostile keys (`__proto__`, `~x`), default-generated seeds, non-finite floats and a truncated file.
+- Fixtures (S23, T13): generated by `tests/fixtures/traces/generate.py` with explicit seeds, fixed volatile metadata, explicit provenance and event-count chunk limits only; regeneration compares canonical content, not bytes. A separate set of **frozen binary fixtures** is committed once and never regenerated, to catch decoder regressions. Fixtures include hostile keys (`__proto__`, `constructor`, `prototype`, `~x`, nested), non-finite floats and a truncated file; default-generated seeds appear only in the frozen fixtures.
 
 ## 12. KPIs and collectors (D52)
 
@@ -352,7 +363,7 @@ KPI(name="flow_time", unit="time", kind=("series", "scalar"), observation="job",
 | `MetricsCollector`, `ShopFloor(metrics_collector=...)`, `set_metrics_collector` | `Collector` subclasses, `collector.attach(env)` |
 | `EMAMetricsCollector` (default on every `ShopFloor`) | `EMACollector(shopfloor, alpha=0.01)` with the same `ema_*` attributes; `ShopFloor` attaches one by default (`default_metrics=False` to opt out) as `shopfloor.metrics` |
 | `TimeSeriesCollector`, `collect_time_series=True`, `DefaultTimeSeriesCollector` | `ShopFloorTimeSeries(shopfloor)` with `wip_ts`, `job_count_ts`, `throughput_ts`, `lateness_ts`, `plot_*` |
-| `CurrentWorkLoadCollector`, `collect_workload=True` | `CurrentWorkloadCollector(shopfloor)`: remaining processing work decreases at `operation.completed` (using the operation's processing time), not at release, so a yielding after-operation hook that holds the server does not count completed work as remaining (S19) |
+| `CurrentWorkLoadCollector`, `collect_workload=True` | `CurrentWorkloadCollector(shopfloor)`: remaining processing work decreases at `operation.completed` (using the operation's processing time), not at release, so a yielding after-operation hook that holds the server does not count completed work as remaining (S19). This intentionally corrects the old collector when after-operation hooks hold the server (T12): with 5 units finishing at time 5, held until 15 by a hook, and a 3-unit job arriving at time 6, the old series is `[(0, 5), (5, 0), (6, 8)]` and the new one is `[(0, 5), (5, 0), (6, 3)]`. Without such hooks, parity with the old series holds. |
 | `Server(collect_time_series=...)` | `ServerTimeSeries(server)` with `qt`, `ut`, `plot_qt`, `plot_ut`; `retain_job_history` stays on `Server` |
 | `OrderMetricsCollector`, `EMAOrderMetrics` | `OrderEMACollector(fleet)`, default on `FleetCoordinator` (`default_metrics=False`) |
 | `IntralogisticsTimeSeriesCollector`, `DefaultIntralogisticsCollector` | `FleetTimeSeries(fleet)` (`fleet_utilization_ts`, `pending_orders_ts`, `throughput_ts`, `inventory_ts` keyed by warehouse id, `plot_*`), from `agv.state_changed` events |
@@ -369,7 +380,7 @@ KPI(name="flow_time", unit="time", kind=("series", "scalar"), observation="job",
 
 ## 14. Benchmarks and CI (C1.9)
 
-- **Equivalent work across versions** (S20). The overhead comparison feeds both versions the same pre-generated workload: a list of jobs (arrival time, SKU, routing as server indices, processing times, due date) generated once and replayed by a small feeder process that calls `PreShopPool.add`/`ShopFloor.add` with constructors present in both versions. Job and operation counts are asserted equal across versions. RNG cost is benchmarked separately.
+- **Equivalent work across versions** (S20). The overhead comparison feeds both versions the same pre-generated workload: a list of jobs (arrival time, SKU, routing as server indices, processing times, due date) generated once and replayed by a small feeder process that calls `PreShopPool.add`/`ShopFloor.add` with constructors present in both versions. Job and operation counts are asserted equal across versions. **Sampling cost** is benchmarked separately (T14): a router-only workload generates a fixed number of jobs (no processing) in both versions, so stream binding and sampler overhead are measured with controlled draw counts on CPython and PyPy; its budget is proposed in the G3 report.
 - Workloads: a 10-server job shop with LumsCor (CI size and full size), a congested variant at utilization 0.95, and the advanced intralogistics example scaled up (G4 only).
 - `benchmarks/run.py` measures median and spread of wall time over repeated runs after warm-up runs (PyPy warm-up controlled explicitly), peak memory in separate runs, trace size, chunk count, and seek latency percentiles.
 - CI installs `simulatte==0.12.0` in a second environment and runs the same workload in the same job. Mode `none` fails CI above 3 % median overhead plus the noise band calibrated in G3. Modes `default_logging` and `kpi` get budgets at the end of G4 (S21).

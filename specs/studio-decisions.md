@@ -127,3 +127,5 @@ All 10 findings were accepted; see `reviews/2026-10-08-global-spec-review-3.md`.
 **D52. Old collector protocols are replaced by bus collectors.** `MetricsCollector`, `TimeSeriesCollector`, the intralogistics collector hooks and the `collect_time_series`/`collect_workload` wiring go; the default collectors keep their result attributes and plot helpers (`ema_*`, `wip_ts`, `plot_wip()`, …). Rejected: adapters for the old hook protocols until 1.0.
 
 **D53. Trace encoding: MessagePack chunks compressed with deflate in a small custom container.** Python uses `msgpack` (pure-Python fallback on PyPy); the browser uses `@msgpack/msgpack` and the built-in `DecompressionStream`. Rejected: Arrow IPC (pyarrow is heavy), SQLite (needs a WebAssembly build in the browser).
+
+**D54. When the trace writer saturates, recording applies bounded backpressure** (the simulation blocks until the writer drains) rather than failing the run. Proposed by Astra and Claude in SP1 review 2; *pending Davide's confirmation*.
