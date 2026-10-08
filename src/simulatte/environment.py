@@ -119,6 +119,7 @@ class Environment(simpy.Environment):
         self._initializers: list[Callable[[], object]] = []
         self._commands: list[tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]]] = []
         self._activation_started = False
+        self._initializers_done = False  # set once the initializer loop of activate() finished
         self._activated = False
         self._initial_state: InitialState | None = None
         self.bus = EventBus(probe=self._probe if debug else None)
@@ -255,11 +256,12 @@ class Environment(simpy.Environment):
     def on_activate(self, fn: Callable[[], object]) -> None:
         """Register `fn` as an activation initializer.
 
-        Initializers run in registration order when the environment activates; one registered after activation
-        runs immediately. While an initializer runs, scheduling any SimPy event raises `RuntimeError`, and
-        simulated time must not advance.
+        Initializers run in registration order when the environment activates; one registered after the
+        initializers of :meth:`activate` ran (for example by a projection listener, or after activation) runs
+        immediately. While an initializer runs, scheduling any SimPy event raises `RuntimeError`, and simulated
+        time must not advance.
         """
-        if self._activated:
+        if self._initializers_done:
             self._run_initializer(fn)
         else:
             self._initializers.append(fn)
@@ -295,6 +297,7 @@ class Environment(simpy.Environment):
             self._run_initializer(initializers[index])
             index += 1
         self._initializers = []
+        self._initializers_done = True  # later registrations (projection listeners included) run immediately
 
         state = self.entities.snapshot()
         self._initial_state = state

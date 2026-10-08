@@ -241,6 +241,32 @@ def test_initial_state_captured_after_initializers(env: Environment) -> None:
     assert gauge.level == 9.0
 
 
+def test_on_activate_from_projection_listener_runs_immediately(env: Environment) -> None:
+    ran: list[str] = []
+
+    def late() -> None:
+        ran.append("late")
+        env.timeout(1)  # still an initializer: scheduling is blocked
+
+    def listener(state: Any) -> None:
+        env.on_activate(lambda: ran.append("from listener"))
+
+    env.request_projection(listener)
+    env.activate()
+    assert ran == ["from listener"]
+    with pytest.raises(RuntimeError, match="cannot schedule"):
+        env.on_activate(late)
+
+
+def test_on_activate_from_listener_is_blocked_from_scheduling(env: Environment) -> None:
+    def listener(state: Any) -> None:
+        env.on_activate(lambda: env.timeout(1))
+
+    env.request_projection(listener)
+    with pytest.raises(RuntimeError, match="cannot schedule"):
+        env.activate()
+
+
 # --- command queue ---------------------------------------------------------------------------------------
 
 
