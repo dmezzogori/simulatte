@@ -3,9 +3,10 @@
 :meth:`Trace.open` reads the header, the initial state, the chunk index and the footer of a trace file. When
 the file ends with a valid trailer, the index comes from the footer and chunks are read only when a cursor
 needs them; otherwise the reader scans every record. Damage follows the rules of spec §11.1: a short or
-CRC-failing last record is an incomplete tail (:attr:`Trace.truncated`) and is ignored, a failing record
-followed by a valid one raises :class:`TraceCorrupted`, and a chunk is visible only once the ``INDEX`` record
-that commits it follows it. :class:`ReaderLimits` bounds what an untrusted file can make the reader allocate.
+CRC-failing record with no valid record anywhere after it is an incomplete tail (:attr:`Trace.truncated`) and
+is ignored, a failing record followed by valid records raises :class:`TraceCorrupted`, and a chunk is visible
+only once the ``INDEX`` record that commits it follows it. :class:`ReaderLimits` bounds what an untrusted
+file can make the reader allocate.
 
 A *cursor* is ``(t, seq)``. :meth:`Trace.state_at` returns the replay state after every domain event whose
 cursor is at or before the given one; the activation cursor ``(t_activation, -1)`` denotes the initial state.
@@ -158,12 +159,21 @@ class _File:
         data = self.read(offset + _FRAME, length)
         return data if zlib.crc32(data) == crc else None
 
-    def valid_record_at(self, offset: int, end: int) -> bool:
-        try:
-            frame = self.frame(offset, end)
-        except TraceCorrupted:
-            return False
-        return frame is not None and self.payload(offset, frame[1], frame[2]) is not None
+    def valid_record_from(self, offset: int, end: int) -> bool:
+        """Whether a CRC-valid record follows at `offset` or after further damaged but well-framed records.
+
+        The walk stops at the first frame that is cut short by `end` or exceeds `max_record`.
+        """
+        while True:
+            try:
+                frame = self.frame(offset, end)
+            except TraceCorrupted:
+                return False
+            if frame is None:
+                return False
+            if self.payload(offset, frame[1], frame[2]) is not None:
+                return True
+            offset += _FRAME + frame[1]
 
     def decode(self, data: bytes, what: str) -> Any:
         try:
@@ -279,8 +289,9 @@ class Trace:
     def _scan(self, file: _File, start: int, end: int, *, head_only: bool, damage_is_tail: bool) -> _Scan:
         """Read records from `start` to `end`, checking CRCs; `head_only` stops at the first chunk-era record.
 
-        With `damage_is_tail`, a short record, or a CRC-failing one not followed by a valid record, ends the
-        pass as an incomplete tail; otherwise any damage raises.
+        With `damage_is_tail`, a short record, or a CRC-failing record with no CRC-valid record anywhere after
+        it (walking the frames that follow, damaged or not, until one is cut short or exceeds `max_record`),
+        ends the pass as an incomplete tail; otherwise any damage raises.
         """
         scan = _Scan()
         pending: tuple[int, int] | None = None  # (offset, length) of a chunk awaiting its INDEX
@@ -298,8 +309,8 @@ class Trace:
             record_end = pos + _FRAME + length
             data = file.payload(pos, length, crc)
             if data is None:
-                if not damage_is_tail or file.valid_record_at(record_end, end):
-                    raise TraceCorrupted(f"record at offset {pos} fails its CRC check and is not the last record")
+                if not damage_is_tail or file.valid_record_from(record_end, end):
+                    raise TraceCorrupted(f"record at offset {pos} fails its CRC check and valid records follow it")
                 scan.truncated = True
                 break
             if pos == PREAMBLE.size and rtype != RecordType.HEADER:

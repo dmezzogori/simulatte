@@ -780,3 +780,26 @@ def test_damaged_framing(tmp_path: Path) -> None:
 
     with pytest.raises(TraceCorrupted, match="malformed footer"):
         Trace.open(_write(tmp_path, "no-outcome", _rewrite_footer(data, no_outcome)))
+
+
+def test_adjacent_damaged_records_before_valid_ones_are_corruption(tmp_path: Path) -> None:
+    path, _, _ = _record_shop(tmp_path)
+    data = path.read_bytes()
+    no_footer = data[: _frames(data)[-1][0]]
+    chunks = _of(no_footer, RecordType.CHUNK)
+    indexes = _of(no_footer, RecordType.INDEX)
+    k = len(chunks) // 2
+    chunk_offset, index_offset = chunks[k][0], indexes[k][0]
+    assert index_offset == chunk_offset + chunks[k][2]  # the chunk and its committing index are adjacent
+
+    # One bad block spanning a CHUNK and its INDEX: two damaged records, then valid ones.
+    both = _flip(_flip(no_footer, chunk_offset + 30), index_offset + 12)
+    with pytest.raises(TraceCorrupted, match="valid records follow"):
+        Trace.open(_write(tmp_path, "both", both))
+
+    # Damaged records followed only by well-framed garbage and then a cut frame remain an incomplete tail.
+    garbage_record = RECORD_HEADER.pack(4, 99, 0) + b"junk"  # framed, CRC wrong
+    tail = _flip(_flip(no_footer[: index_offset + indexes[k][2]], chunk_offset + 30), index_offset + 12)
+    trace = Trace.open(_write(tmp_path, "tail", tail + garbage_record + b"\x00\x00\x00"))
+    assert trace.truncated
+    assert len(trace.index) == k
