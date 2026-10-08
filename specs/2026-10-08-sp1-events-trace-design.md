@@ -112,6 +112,8 @@ Every state field declares its wire type, whether it is a collection, and whethe
 
 **Node bindings** (S5). `Node` stays an environment-free definition. Attaching a graph creates one environment-local `NodeBinding` entity per node. Attaching the same `Node` again in the same environment (two fleets sharing a graph) returns the existing binding; a different `Node` with an existing id raises. `agvs` and `reserved_by` are lists, so node capacities above one and free traffic are represented. Traffic managers update `reserved_by`; AGV movement updates `agvs`.
 
+**Job location** (ruling R8, SP1 Task 7 review). `location` takes one of: `null` (not yet in any pool or shop floor), `psp:<psp id>`, `queue:<server id>`, `server:<server id>`, `transit` (in the system, between servers or released and not yet queued), `done`. Writers: `psp.entered` → `psp:<id>`; `psp.exited` → `transit` for `released` and `postponed`, `null` for `removed`; `shopfloor.entered` → `transit`; `job.queued` → `queue:<server>`; `job.granted` → `server:<server>`; `job.queue_left` and `job.released` → `transit`; `job.finished` → `done`. The server events of §6.3 therefore touch job `location` as well.
+
 **Owner fields** (`shopfloor`, `fleet`) let collectors filter by system (S18). Their lifecycle (T5): they are nullable and start as null unless the owner is known at construction (a `Router` or `PreShopPool` receives its shop floor in its constructor). A job's `shopfloor` is set by `psp.entered` or `shopfloor.entered`; entering a different shop floor later overwrites it, and collectors filter on the value carried by each event, not on history. An AGV's `fleet` is set by `fleet.agv_added` when a `FleetCoordinator` takes it; an order's `fleet` is set at attachment. Creation after activation followed by attachment is covered by tests.
 
 ### 5.3 Iteration-order fixes
@@ -167,11 +169,11 @@ The plan verifies with replay-equals-live checks after every event, including a 
 
 | Type | Emitted at | Payload | Deltas |
 |---|---|---|---|
-| `psp.entered` | `PreShopPool.add` after append | `job`, `psp`, `position` | psp `jobs` insert; job `location`, `shopfloor` (the PSP's shop floor) |
-| `psp.exited` | `PreShopPool.remove` | `job`, `psp`, `reason` (`released`, `postponed`, `removed`) | psp `jobs` remove; job `location` (`transit` for postponed) |
-| `shopfloor.entered` | `ShopFloor.add` | `job`, `shopfloor` | shopfloor `jobs_in_system`, `wip` puts; job `shopfloor` |
+| `psp.entered` | `PreShopPool.add` after append | `job`, `psp`, `position` | psp `jobs` insert; job `location` = `psp:<id>`, `shopfloor` (the PSP's shop floor) |
+| `psp.exited` | `PreShopPool.remove` | `job`, `psp`, `reason` (`released`, `postponed`, `removed`) | psp `jobs` remove; job `location` (`transit` for released and postponed, null for removed) |
+| `shopfloor.entered` | `ShopFloor.add` | `job`, `shopfloor` | shopfloor `jobs_in_system`, `wip` puts; job `shopfloor`, `location` = `transit` |
 | `job.queued`, `job.granted`, `job.queue_left`, `job.released`, `server.queue_reordered` | §6.3 | | |
-| `operation.started` | after before-hooks and material ensure, before the processing timeout | `job`, `server`, `op_index`, `processing_time`, `planned_end` | job `op_index`, `location` |
+| `operation.started` | after before-hooks and material ensure, before the processing timeout | `job`, `server`, `op_index`, `processing_time`, `planned_end` | job `op_index` |
 | `operation.completed` | after the timeout and the `worked_time` credit | `job`, `server`, `op_index`, `processing_time` | server `worked_time` |
 | `shopfloor.wip_updated` | after `wip_strategy.complete_operation` | `shopfloor`, `changes` | shopfloor `wip` puts |
 | `job.finished` | completion block | `job`, `shopfloor`, `makespan`, `lateness`, `total_queue_time` | job `location` = `done`, `finished_at`; shopfloor `jobs_in_system` |
