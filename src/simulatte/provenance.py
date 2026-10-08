@@ -3,9 +3,10 @@
 A :class:`RunManifest` describes a run in two parts. The *requested* part is fixed by activation: software
 versions, platform, dependencies, RNG derivation, seed, parameters, time unit and warm-up. The *final* part
 is known at the end of the run: the stopping policy, the owners of opaque samplers and whether the run is
-*complete*, that is whether it can be reproduced from the manifest (no :data:`UNAVAILABLE` field and no
-opaque sampler). Volatile metadata (wall-clock start, host, durations) lives in :class:`VolatileMetadata`
-and is never part of a comparison.
+*complete*, that is whether it can be reproduced from the manifest (no :data:`UNAVAILABLE` field, no
+opaque sampler and a stopping policy other than a SimPy event, which the manifest cannot describe).
+Volatile metadata (wall-clock start, host, durations) lives in :class:`VolatileMetadata` and is never part
+of a comparison.
 """
 
 from __future__ import annotations
@@ -122,9 +123,14 @@ def build_final(requested: FrozenMap, stopping_policy: Wire, opaque_sampler_owne
         {
             "stopping_policy": stopping_policy,
             "opaque_sampler_owners": owners,
-            "complete": not owners and not _contains_unavailable(requested),
+            "complete": not owners and not _contains_unavailable(requested) and not _stopped_by_event(stopping_policy),
         }
     )
+
+
+def _stopped_by_event(stopping_policy: Wire) -> bool:
+    """Whether the run was stopped by a SimPy event: the manifest cannot say which, so it is not reproducible."""
+    return isinstance(stopping_policy, FrozenMap) and stopping_policy.get("type") == "event"
 
 
 def _contains_unavailable(value: Wire) -> bool:

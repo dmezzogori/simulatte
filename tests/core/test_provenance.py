@@ -95,6 +95,19 @@ def test_manifest_complete_rules() -> None:
     assert done.final is not None and done.final["opaque_sampler_owners"] == ()
 
 
+def test_run_stopped_by_event_is_incomplete() -> None:
+    # The stop cannot be reproduced from the manifest, which records only {"type": "event"} (R11).
+    env = Environment(seed=1, provenance=FULL)
+    env.run(until=env.timeout(3))
+    manifest = env.manifest()
+    assert manifest.final is not None
+    assert manifest.final["stopping_policy"] == FrozenMap({"type": "event"})
+    assert manifest.final["complete"] is False
+    assert not manifest.complete
+    env.run(until=5)  # the final part follows the last run
+    assert env.manifest().complete
+
+
 def test_manifest_final_records_last_horizon() -> None:
     env = Environment(seed=1)
     build_immediate_release_system(env=env, scenario=Scenario(n_servers=2))
