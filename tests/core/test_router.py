@@ -10,16 +10,7 @@ from simulatte.shopfloor import ShopFloor
 
 
 def test_generate_job_adds_to_psp_and_sets_attributes() -> None:
-    def inter_arrival() -> float:
-        return 1.0
-
     sku_dist = {"A": 1.0}
-
-    def service_val() -> float:
-        return 2.0
-
-    def wait_val() -> float:
-        return 3.0
 
     env = Environment()
     sf = ShopFloor(env=env)
@@ -31,20 +22,21 @@ def test_generate_job_adds_to_psp_and_sets_attributes() -> None:
         shopfloor=sf,
         servers=[server],
         psp=psp,
-        inter_arrival_distribution=inter_arrival,
+        inter_arrival_distribution=1.0,
         sku_distributions=sku_dist,
-        sku_routings={"A": lambda: [server]},
-        sku_service_times={"A": {server: service_val}},
-        due_date_offset_distribution={"A": wait_val},
+        sku_routings={"A": [server]},  # a fixed routing
+        sku_service_times={"A": {server: 2.0}},
+        due_date_offset_distribution={"A": 3.0},
     )
 
     env.run(until=2.1)
 
     assert len(psp) == 2
+    assert env.opaque_sampler_owners == []  # numbers and fixed routings are managed
 
     for idx, job in enumerate(psp.jobs, start=1):
         assert job.sku == "A"
-        assert job._servers == [server]
+        assert job._servers == (server,)
         assert job._processing_times == (2.0,)
         assert job.created_at == pytest.approx(idx * 1.0)
         assert job.due_date == pytest.approx(idx * 1.0 + 3.0)

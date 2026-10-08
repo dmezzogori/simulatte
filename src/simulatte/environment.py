@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import operator
+import os
+import random
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, overload
 
 import simpy
 from simpy.core import StopSimulation
@@ -9,6 +13,10 @@ from simpy.core import StopSimulation
 from simulatte.entities import EntityRegistry
 from simulatte.events import DomainEvent, Event, EventBus, Op, validate_event
 from simulatte.logger import EventHistoryBuffer, SimLogger
+from simulatte.rng import BindingKind, CountingRandom, DrawCounter, derive_seed, resolve_binding
+
+SEED_LIMIT = 2**63
+"""Seeds are integers in ``[0, SEED_LIMIT)``."""
 
 
 class Environment(simpy.Environment):
@@ -16,7 +24,9 @@ class Environment(simpy.Environment):
     Thin wrapper around ``simpy.Environment`` with an event bus and integrated logging.
 
     Events are published with :meth:`emit` and delivered through :attr:`bus`; emitting sites guard event
-    construction with :meth:`wants`. Components register themselves in :attr:`entities`.
+    construction with :meth:`wants`. Components register themselves in :attr:`entities`. Randomness comes
+    from the named streams of :meth:`rng`, derived from :attr:`seed`; components resolve their samplers
+    with :meth:`bind`.
 
     Each environment has its own logger that:
     - Automatically includes simulation time in log output
@@ -28,6 +38,7 @@ class Environment(simpy.Environment):
     def __init__(
         self,
         *,
+        seed: int | None = None,
         debug: bool = False,
         log_file: str | Path | None = None,
         log_format: Literal["text", "json"] = "text",
@@ -37,20 +48,34 @@ class Environment(simpy.Environment):
         """Initialize the simulation environment.
 
         Args:
+            seed: Seed of every RNG stream, an integer in ``[0, 2**63)``. ``None`` draws one from
+                  ``os.urandom``; read it back from :attr:`seed` to reproduce the run.
             debug: Validate emitted events against the catalog and the entity state schemas, and reject
-                   subscribers that schedule SimPy events. Slower; meant for tests and model development.
+                   subscribers that schedule SimPy events or draw from :meth:`rng`. Slower; meant for tests
+                   and model development.
             log_file: Optional file path for log output (defaults to stderr)
             log_format: Output format ("text" or "json")
             log_history_size: Maximum number of events to keep in history buffer
             log_db_path: Optional SQLite database path for persistent event storage.
                          If provided, events are stored in both memory buffer and SQLite.
         """
+        if seed is None:
+            seed = int.from_bytes(os.urandom(8), "big") >> 1
+        else:
+            seed = operator.index(seed)
+            if not 0 <= seed < SEED_LIMIT:
+                raise ValueError(f"seed must be in [0, 2**63), got {seed}")
         super().__init__()
+        self._seed = seed
+        self._streams: dict[str, random.Random] = {}
+        self._draws = DrawCounter()  # incremented only by the counting streams of debug mode
+        self.opaque_sampler_owners: list[str] = []
+        """Owners of the opaque samplers bound with :meth:`bind`, in order of first binding."""
         self._debug = debug
         self._seq = 0
         self._ordinal = 0
         self._projection_active = False
-        self.bus = EventBus(probe=self._queue_length if debug else None)
+        self.bus = EventBus(probe=self._probe if debug else None)
         self.entities = EntityRegistry(self)
         self._logger = SimLogger(
             env=self,
@@ -106,8 +131,61 @@ class Environment(simpy.Environment):
         """
         self.entities.check_lifecycle_op(op)
 
-    def _queue_length(self) -> int:
-        return len(self._queue)
+    def _probe(self) -> tuple[int, int]:
+        """(scheduled SimPy events, RNG draws) for the debug delivery check of the bus."""
+        return len(self._queue), self._draws.draws
+
+    # -------------------------------------------------------------------------
+    # Randomness
+    # -------------------------------------------------------------------------
+
+    @property
+    def seed(self) -> int:
+        """Seed of every RNG stream of this environment."""
+        return self._seed
+
+    def rng(self, name: str) -> random.Random:
+        """The RNG stream `name`, created on first use and cached.
+
+        Its seed is :func:`simulatte.rng.derive_seed` of :attr:`seed` and `name`, so streams are independent
+        of each other and of their creation order. In debug mode the stream counts its draws, and drawing
+        while subscribers are being called raises `RuntimeError`.
+        """
+        stream = self._streams.get(name)
+        if stream is None:
+            if not isinstance(name, str):
+                raise TypeError(f"stream name must be a str, got {type(name).__name__}")
+            seed = derive_seed(self._seed, name)
+            stream = CountingRandom(seed, self._draws) if self._debug else random.Random(seed)
+            self._streams[name] = stream
+        return stream
+
+    @overload
+    def bind(self, value: object, *, kind: Literal["scalar"], stream: str, owner: str) -> Callable[[], float]: ...
+
+    @overload
+    def bind(
+        self, value: object, *, kind: Literal["routing"], stream: str, owner: str
+    ) -> Callable[[], Sequence[Any]]: ...
+
+    @overload
+    def bind(self, value: object, *, kind: Literal["contextual"], stream: str, owner: str) -> Callable[..., float]: ...
+
+    def bind(self, value: object, *, kind: BindingKind, stream: str, owner: str) -> Callable[..., Any]:
+        """Resolve `value` into the callback of a binding `kind` (spec §8.2).
+
+        - ``scalar`` (``() -> float``): a description with ``sampler(rng)`` or a number.
+        - ``routing`` (``() -> Sequence[Server]``): a routing description or a fixed sequence of servers.
+        - ``contextual`` (``(*context) -> float``): a description or a number; the context is ignored.
+
+        Descriptions draw from :meth:`rng` ``(stream)``. Any other callable is *opaque*: it is returned
+        unchanged and `owner` is recorded in :attr:`opaque_sampler_owners`. Raises `ValueError` for an
+        unknown kind and `TypeError` for a value of no accepted form.
+        """
+        callback, opaque = resolve_binding(value, kind=kind, stream=lambda: self.rng(stream))
+        if opaque and owner not in self.opaque_sampler_owners:
+            self.opaque_sampler_owners.append(owner)
+        return callback
 
     def step(self) -> None:
         """

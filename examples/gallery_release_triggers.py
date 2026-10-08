@@ -14,13 +14,11 @@ Run: uv run python examples/gallery_release_triggers.py
 
 from __future__ import annotations
 
-import random
-
 from simulatte.builders import (
     build_immediate_release_system,
     build_starvation_avoidance_system,
 )
-from simulatte.distributions import TruncatedErlang, pure_job_shop_routing
+from simulatte.distributions import Exponential, TruncatedErlang, Uniform, pure_job_shop_routing
 from simulatte.environment import Environment
 from simulatte.policies.triggers import periodic_trigger
 from simulatte.psp import PreShopPool
@@ -49,11 +47,11 @@ def build_periodic_release(env: Environment, interval: float = 10.0):
         shopfloor=shop_floor,
         servers=servers,
         psp=psp,
-        inter_arrival_distribution=lambda: random.expovariate(ARRIVAL_RATE),
+        inter_arrival_distribution=Exponential(ARRIVAL_RATE),
         sku_distributions={"F1": 1},
         sku_routings={"F1": pure_job_shop_routing(servers)},
         sku_service_times={"F1": {s: TruncatedErlang(rate=SERVICE_RATE, shape=2, max_value=4.0) for s in servers}},
-        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},
+        due_date_offset_distribution={"F1": Uniform(30, 45)},
     )
 
     def release_all(pool: PreShopPool) -> None:
@@ -65,8 +63,7 @@ def build_periodic_release(env: Environment, interval: float = 10.0):
 
 
 def run_system(builder) -> tuple[int, float, float, float]:
-    random.seed(SEED)
-    with Environment() as env:
+    with Environment(seed=SEED) as env:
         _psp, _servers, shop_floor, _router, _policy = builder(env)
         env.run(until=HORIZON)
         done = shop_floor.jobs_done

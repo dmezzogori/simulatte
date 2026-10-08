@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import random
-
 import pytest
 
 from simulatte.distributions import (
@@ -82,8 +80,7 @@ def test_build_floor_creates_servers() -> None:
 
 
 def test_build_router_runs_pure_flow_shop_routing() -> None:
-    random.seed(42)
-    with Environment() as env:
+    with Environment(seed=42) as env:
         scenario = Scenario.pure_flow_shop(n_servers=6)
         sf, servers = scenario.build_floor(env)
         scenario.build_router(env, sf, servers, psp=None)
@@ -112,9 +109,8 @@ def test_build_router_rejects_more_servers_than_n_servers() -> None:
 
 
 def test_build_router_applies_twk_due_dates() -> None:
-    random.seed(42)
     k = 8.0
-    with Environment() as env:
+    with Environment(seed=42) as env:
         scenario = Scenario.single(shop_type=ShopType.PJS, twk_allowance_factor=k)
         sf, servers = scenario.build_floor(env)
         psp = PreShopPool(env=env, shopfloor=sf)
@@ -125,9 +121,8 @@ def test_build_router_applies_twk_due_dates() -> None:
 
 
 def test_build_router_runs_two_family_mix() -> None:
-    random.seed(42)
     families = (SkuFamily(name="A", weight=1.0), SkuFamily(name="B", weight=1.0))
-    with Environment() as env:
+    with Environment(seed=42) as env:
         scenario = Scenario.pure_job_shop(families=families)
         sf, servers = scenario.build_floor(env)
         scenario.build_router(env, sf, servers, psp=None)
@@ -205,7 +200,7 @@ def test_custom_arrival_process_is_wired() -> None:
 
 def test_two_family_mix_respects_weight_proportions() -> None:
     # Gap A: build_router wires sku_distributions={f.name: f.weight} into
-    # random.choices(weights=...). A 3:1 mix must produce ≈75% A-jobs. We route
+    # the router's SKU stream, choices(weights=...). A 3:1 mix must produce ≈75% A-jobs. We route
     # jobs into a PSP with NO release policy so EVERY generated job accumulates
     # there (no completion bias), and count by SKU over the generated stream.
     #
@@ -213,12 +208,11 @@ def test_two_family_mix_respects_weight_proportions() -> None:
     # never enter a server). At n=2000 the binomial std-dev of the A-fraction is
     # sqrt(0.75 * 0.25 / 2000) ≈ 0.0097, so the ±0.03 band is ≈3σ around 0.75.
     # An inverted mix would centre on 0.25 — failing by (0.75-0.25)/0.0097 ≈ 50σ.
-    random.seed(12345)
     families = (
         SkuFamily(name="A", weight=3.0, service_time=Deterministic(1.0)),
         SkuFamily(name="B", weight=1.0, service_time=Deterministic(1.0)),
     )
-    with Environment() as env:
+    with Environment(seed=12345) as env:
         scenario = Scenario.pure_job_shop(families=families, arrival_rate=10.0)
         sf, servers = scenario.build_floor(env)
         psp = PreShopPool(env=env, shopfloor=sf)  # no release policy: pool retains all arrivals
@@ -237,13 +231,12 @@ def test_per_family_service_times_are_distinguishable() -> None:
     # With Deterministic service times, every A-job's operation times must all be
     # exactly 1.0 and every B-job's exactly 3.0. This fails if the two families
     # were swapped or collapsed to families[0].service_time.
-    random.seed(42)
     families = (
         SkuFamily(name="A", weight=1.0, service_time=Deterministic(1.0)),
         SkuFamily(name="B", weight=1.0, service_time=Deterministic(3.0)),
     )
     expected = {"A": 1.0, "B": 3.0}
-    with Environment() as env:
+    with Environment(seed=42) as env:
         scenario = Scenario.pure_job_shop(families=families, arrival_rate=5.0)
         sf, servers = scenario.build_floor(env)
         psp = PreShopPool(env=env, shopfloor=sf)  # retain all arrivals for inspection
@@ -272,13 +265,12 @@ def test_partial_twk_falls_back_to_flat_offset() -> None:
     # the run aborts before these assertions execute. The per-family guard
     # below additionally pins the contract (both families must appear) against
     # quieter mutations that drop B-jobs without raising.
-    random.seed(42)
     k = 2.0
     families = (
         SkuFamily(name="A", weight=1.0, service_time=Deterministic(1.0), twk_allowance_factor=k),
         SkuFamily(name="B", weight=1.0, service_time=Deterministic(1.0), due_date_offset=Deterministic(7.0)),
     )
-    with Environment() as env:
+    with Environment(seed=42) as env:
         scenario = Scenario.pure_job_shop(families=families, arrival_rate=5.0)
         sf, servers = scenario.build_floor(env)
         psp = PreShopPool(env=env, shopfloor=sf)  # retain all arrivals for inspection

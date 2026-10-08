@@ -4,8 +4,7 @@ Goal: run the same stochastic system multiple times (different seeds) and collec
 
 `Runner` handles:
 
-- seeding `random`
-- building a fresh `Environment` for each run
+- building a fresh `Environment(seed=seed)` for each run (every random stream derives from that seed)
 - optional multiprocessing (`parallel=True`)
 - a `tqdm` progress bar (auto-enabled on TTY; override with `progress=True/False`)
 

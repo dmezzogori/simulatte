@@ -67,6 +67,24 @@ records simulation events and can emit them as JSON, plain text, or to a SQLite 
 
 ## Distributions
 
+Distributions and routings are *descriptions*: `sampler(rng)` builds a sampler that draws from an
+environment stream, and components bind them with `env.bind` (see `simulatte.rng`).
+
+::: simulatte.distributions.PureJobShopRouting
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.distributions.GeneralFlowShopRouting
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.distributions.FlowShopRouting
+    options:
+      heading_level: 3
+      members: false
+
 ::: simulatte.distributions.pure_job_shop_routing
     options:
       heading_level: 3

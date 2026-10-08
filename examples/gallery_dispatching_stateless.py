@@ -10,8 +10,6 @@ Run: uv run python examples/gallery_dispatching_stateless.py
 
 from __future__ import annotations
 
-import random
-
 from simulatte.builders import build_immediate_release_system
 from simulatte.dispatching_rules import (
     critical_ratio,
@@ -41,8 +39,7 @@ RULES = {
 
 
 def run_rule(rule) -> tuple[int, float, float, float]:
-    random.seed(SEED)  # identical seeded stream for every rule -> fair comparison
-    with Environment() as env:
+    with Environment(seed=SEED) as env:  # identical seeded streams for every rule -> fair comparison
         _, _servers, shop_floor, _, _ = build_immediate_release_system(
             env=env, scenario=Scenario(due_date_offset=Uniform(10.0, 18.0)), priority_policies=rule
         )

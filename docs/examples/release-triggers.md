@@ -30,13 +30,11 @@ Run: uv run python examples/gallery_release_triggers.py
 
 from __future__ import annotations
 
-import random
-
 from simulatte.builders import (
     build_immediate_release_system,
     build_starvation_avoidance_system,
 )
-from simulatte.distributions import TruncatedErlang, pure_job_shop_routing
+from simulatte.distributions import Exponential, TruncatedErlang, Uniform, pure_job_shop_routing
 from simulatte.environment import Environment
 from simulatte.policies.triggers import periodic_trigger
 from simulatte.psp import PreShopPool
@@ -65,11 +63,11 @@ def build_periodic_release(env: Environment, interval: float = 10.0):
         shopfloor=shop_floor,
         servers=servers,
         psp=psp,
-        inter_arrival_distribution=lambda: random.expovariate(ARRIVAL_RATE),
+        inter_arrival_distribution=Exponential(ARRIVAL_RATE),
         sku_distributions={"F1": 1},
         sku_routings={"F1": pure_job_shop_routing(servers)},
         sku_service_times={"F1": {s: TruncatedErlang(rate=SERVICE_RATE, shape=2, max_value=4.0) for s in servers}},
-        due_date_offset_distribution={"F1": lambda: random.uniform(30, 45)},
+        due_date_offset_distribution={"F1": Uniform(30, 45)},
     )
 
     def release_all(pool: PreShopPool) -> None:
@@ -81,8 +79,7 @@ def build_periodic_release(env: Environment, interval: float = 10.0):
 
 
 def run_system(builder) -> tuple[int, float, float, float]:
-    random.seed(SEED)
-    with Environment() as env:
+    with Environment(seed=SEED) as env:
         _psp, _servers, shop_floor, _router, _policy = builder(env)
         env.run(until=HORIZON)
         done = shop_floor.jobs_done
@@ -124,11 +121,11 @@ uv run python examples/gallery_release_triggers.py
 ```text
 Release triggers & starvation avoidance (seed=42)
 System              Done   AvgTIS  MeanTard  %Tardy
-Immediate           1172    16.07      0.18    3.4%
-Starvation-only     1165    11.07      0.85    7.6%
-Periodic-release    1159    17.78      0.72   12.1%
+Immediate           1202    17.97      0.75    9.9%
+Starvation-only     1192    11.63      1.28   10.7%
+Periodic-release    1193    18.80      1.28   15.9%
 ```
 
 ## Interpretation
 
-All three systems run on the **same scenario** — the same `Scenario`-derived arrival rate for all three systems, identical service times, due dates, seed, and horizon — so every difference below is attributable to *release timing alone*. The starvation-only system is wired via the on-arrival and on-completion **callbacks** (`psp.on_arrival` / `shop_floor.on_processing_end`) — not the trigger-process primitives — to release a job the instant its first server goes idle. This keeps the shop entrance fed and trims average time in system (11.07 vs the push baseline's 16.07), but because it never throttles, WIP is free to grow and a longer tail of jobs turns tardy (7.6%). The periodic system releases the entire pool every ten time units: arrivals are batched into bursts that briefly flood the floor, so it shows the worst flow time (17.78) and the largest share of tardy jobs (12.1%, against 3.4% for the push baseline and 7.6% for starvation-only) — though the two tardiness columns point different ways: more periodic jobs miss their due dates, but those that miss are late by less on average than under starvation-only (mean tardiness 0.72 vs 0.85). A clear illustration that *when* you release matters as much as *what* you release. Both pull systems are deliberately minimal; production policies (LumsCor, ConWIP, Continuous Release) layer load- or count-based release functions onto these same trigger primitives.
+All three systems run on the **same scenario** — the same `Scenario`-derived arrival rate for all three systems, identical service times, due dates, seed, and horizon — so every difference below is attributable to *release timing alone*. The starvation-only system is wired via the on-arrival and on-completion **callbacks** (`psp.on_arrival` / `shop_floor.on_processing_end`) — not the trigger-process primitives — to release a job the instant its first server goes idle. This keeps the shop entrance fed and trims average time in system (11.63 vs the push baseline's 17.97), but because it never throttles, WIP is free to grow and a longer tail of jobs turns tardy (10.7%, mean tardiness 1.28 vs 0.75). The periodic system releases the entire pool every ten time units: arrivals are batched into bursts that briefly flood the floor, so it shows the worst flow time (18.80) and the largest share of tardy jobs (15.9%, against 9.9% for the push baseline and 10.7% for starvation-only) — though the two tardiness columns point different ways: more periodic jobs miss their due dates, yet its mean tardiness matches starvation-only (1.28), so the periodic jobs that miss are late by less on average. A clear illustration that *when* you release matters as much as *what* you release. Both pull systems are deliberately minimal; production policies (LumsCor, ConWIP, Continuous Release) layer load- or count-based release functions onto these same trigger primitives.

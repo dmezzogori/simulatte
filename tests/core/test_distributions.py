@@ -31,8 +31,7 @@ def test_pure_job_shop_routing_returns_subset() -> None:
     sf = ShopFloor(env=env)
     servers = [Server(env=env, capacity=1, shopfloor=sf) for _ in range(5)]
 
-    random.seed(42)
-    routing = pure_job_shop_routing(servers)
+    routing = pure_job_shop_routing(servers).sampler(random.Random(42))
     result = routing()
 
     assert 1 <= len(result) <= len(servers)
@@ -44,13 +43,10 @@ def test_pure_job_shop_routing_different_results_with_different_seeds() -> None:
     sf = ShopFloor(env=env)
     servers = [Server(env=env, capacity=1, shopfloor=sf) for _ in range(10)]
 
-    routing = pure_job_shop_routing(servers)
+    description = pure_job_shop_routing(servers)
 
-    random.seed(1)
-    assert routing() == [servers[9], servers[1], servers[4]]
-
-    random.seed(2)
-    assert routing() == [servers[1]]
+    assert description.sampler(random.Random(1))() == [servers[9], servers[1], servers[4]]
+    assert description.sampler(random.Random(2))() == [servers[1]]
 
 
 def test_pure_flow_shop_routing_visits_all_servers_in_fixed_order() -> None:
@@ -58,14 +54,12 @@ def test_pure_flow_shop_routing_visits_all_servers_in_fixed_order() -> None:
     sf = ShopFloor(env=env)
     servers = [Server(env=env, capacity=1, shopfloor=sf) for _ in range(6)]
 
-    routing = pure_flow_shop_routing(servers)
+    description = pure_flow_shop_routing(servers)
 
     # Every job visits ALL servers in the same fixed (directed) sequence,
     # independent of the RNG state.
-    random.seed(1)
-    first = routing()
-    random.seed(999)
-    second = routing()
+    first = description.sampler(random.Random(1))()
+    second = description.sampler(random.Random(999))()
 
     assert list(first) == servers
     assert list(second) == servers
@@ -77,9 +71,8 @@ def test_general_flow_shop_routing_is_a_directed_subset() -> None:
     sf = ShopFloor(env=env)
     servers = [Server(env=env, capacity=1, shopfloor=sf) for _ in range(6)]
 
-    routing = general_flow_shop_routing(servers)
+    routing = general_flow_shop_routing(servers).sampler(random.Random(42))
 
-    random.seed(42)
     for _ in range(100):
         result = list(routing())
         # Random routing length U[1, M].
@@ -97,11 +90,10 @@ def test_general_flow_shop_routing_varies_length_across_seeds() -> None:
     sf = ShopFloor(env=env)
     servers = [Server(env=env, capacity=1, shopfloor=sf) for _ in range(6)]
 
-    routing = general_flow_shop_routing(servers)
+    routing = general_flow_shop_routing(servers).sampler(random.Random(1))
 
     # Same underlying draw as the pure job shop, but sorted into a flow:
     # seed 1 over 6 servers must yield a strictly ascending index sequence.
-    random.seed(1)
     result = list(routing())
     indices = [servers.index(s) for s in result]
     assert indices == sorted(indices)
@@ -188,8 +180,8 @@ def test_running_stats_z_norm() -> None:
 
 
 def _empirical_mean(dist: Distribution, n: int = 50_000) -> float:
-    random.seed(7)
-    return statistics.fmean(dist() for _ in range(n))
+    sample = dist.sampler(random.Random(7))
+    return statistics.fmean(sample() for _ in range(n))
 
 
 def _empirical_variance(dist: Distribution, n: int = 200_000) -> float:
@@ -198,8 +190,8 @@ def _empirical_variance(dist: Distribution, n: int = 200_000) -> float:
     Variance estimates converge ~sqrt(2) slower than the mean for the same
     relative tolerance, hence the larger default ``n`` than ``_empirical_mean``.
     """
-    random.seed(7)
-    return statistics.variance([dist() for _ in range(n)])
+    sample = dist.sampler(random.Random(7))
+    return statistics.variance([sample() for _ in range(n)])
 
 
 def _empirical_log_variance(dist: Distribution, n: int = 200_000) -> float:
@@ -207,8 +199,8 @@ def _empirical_log_variance(dist: Distribution, n: int = 200_000) -> float:
     variance converges slowly (it is itself heavy-tailed). The log of a lognormal
     is exactly normal, so this estimator converges as fast as a Gaussian variance.
     """
-    random.seed(7)
-    return statistics.variance([math.log(dist()) for _ in range(n)])
+    sample = dist.sampler(random.Random(7))
+    return statistics.variance([math.log(sample()) for _ in range(n)])
 
 
 # Reference values for the truncated 2-Erlang (rate=2, shape=2, max_value=4),
@@ -256,7 +248,8 @@ def test_erlang_variance_distinguishes_wrong_cv() -> None:
 def test_deterministic_is_constant() -> None:
     d = Deterministic(value=3.0)
     assert d.mean == 3.0
-    assert {d() for _ in range(10)} == {3.0}
+    sample = d.sampler(random.Random(7))
+    assert {sample() for _ in range(10)} == {3.0}
 
 
 def test_deterministic_has_zero_variance() -> None:
@@ -298,8 +291,8 @@ def test_lognormal_variance_on_log_samples() -> None:
 
 def test_truncated_erlang_respects_cap_and_true_mean() -> None:
     d = TruncatedErlang(rate=2.0, shape=2, max_value=4.0)
-    random.seed(42)
-    samples = [d() for _ in range(2000)]
+    sample = d.sampler(random.Random(42))
+    samples = [sample() for _ in range(2000)]
     assert all(0.0 <= s <= 4.0 for s in samples)
     assert d.mean < 1.0
     # Reference mean from independent numerical integration (see module header),
@@ -382,8 +375,8 @@ def test_truncated_erlang_tight_truncation() -> None:
 
     # Sampling still terminates (acceptance ~0.59, no hang) and respects the
     # support bound, and its empirical mean matches .mean.
-    random.seed(7)
-    samples = [d() for _ in range(80_000)]
+    sample = d.sampler(random.Random(7))
+    samples = [sample() for _ in range(80_000)]
     assert all(0.0 <= s <= t for s in samples)
     assert statistics.fmean(samples) == pytest.approx(d.mean, rel=0.02)
 

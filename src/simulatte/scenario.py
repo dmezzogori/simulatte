@@ -40,6 +40,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from simulatte.environment import Environment
     from simulatte.psp import PreShopPool
+    from simulatte.router import RoutingSource, ScalarSource
 
 
 class ShopType(Enum):
@@ -64,7 +65,7 @@ class _ShopKwargs(TypedDict, total=False):
 
     n_servers: int
     target_utilization: float
-    arrival_process: Callable[[float], Callable[[], float]]
+    arrival_process: Callable[[float], ScalarSource]
     arrival_rate: float | None
 
 
@@ -95,7 +96,7 @@ class SkuFamily:
     name: str = "F1"
     weight: float = 1.0
     service_time: Distribution = _DEFAULT_SERVICE_TIME
-    routing_factory: Callable[[Sequence[Server]], Callable[[], Sequence[Server]]] | None = None
+    routing_factory: Callable[[Sequence[Server]], RoutingSource] | None = None
     expected_routing_length: float | None = None
     due_date_offset: Distribution | None = None
     twk_allowance_factor: float | None = None
@@ -111,8 +112,13 @@ class SkuFamily:
             msg = f"expected_routing_length must be positive, got {self.expected_routing_length}"
             raise ValueError(msg)
 
-    def routing_for(self, shop_type: ShopType) -> Callable[[Sequence[Server]], Callable[[], Sequence[Server]]]:
-        """This family's routing factory (custom override or the shop-type default)."""
+    def routing_for(self, shop_type: ShopType) -> Callable[[Sequence[Server]], RoutingSource]:
+        """This family's routing factory (custom override or the shop-type default).
+
+        A factory maps the server pool to a routing description (managed: it draws from the
+        router's ``<router>/routing/<sku>`` stream) or to a ``() -> Sequence[Server]`` callable
+        (opaque: recorded in ``env.opaque_sampler_owners``).
+        """
         return self.routing_factory or _ROUTING[shop_type]
 
     def mean_routing_length(self, shop_type: ShopType, n_servers: int) -> float:
@@ -129,15 +135,16 @@ class Scenario:
     """Immutable description of a shop environment and its order stream.
 
     Attributes:
-        arrival_process: Factory producing the inter-arrival sampler. It is called
-            with the resolved arrival **rate** (orders per time unit, from
-            ``resolved_arrival_rate``) and must return a zero-argument sampler of
-            **inter-arrival times** whose mean is ``1 / rate``. The default
-            ``Exponential`` satisfies this (Poisson arrivals: ``Exponential(rate)``
-            has mean ``1 / rate``). Passing a factory whose sampler mean is not
-            ``1 / rate`` — e.g. ``Erlang``, whose ``Erlang(rate)`` has mean
-            ``shape / rate`` — silently breaks the ``target_utilization``
-            calibration even though it satisfies the declared type.
+        arrival_process: Factory producing the inter-arrival distribution. It is
+            called with the resolved arrival **rate** (orders per time unit, from
+            ``resolved_arrival_rate``) and must return a distribution description
+            (or a zero-argument sampler) of **inter-arrival times** whose mean is
+            ``1 / rate``. The default ``Exponential`` satisfies this (Poisson
+            arrivals: ``Exponential(rate)`` has mean ``1 / rate``). Passing a
+            factory whose mean is not ``1 / rate`` — e.g. ``Erlang``, whose
+            ``Erlang(rate)`` has mean ``shape / rate`` — silently breaks the
+            ``target_utilization`` calibration even though it satisfies the
+            declared type.
         arrival_rate: Explicit arrival rate (orders per time unit) that overrides
             the mix-weighted derivation when not ``None``; ``resolved_arrival_rate``
             returns it verbatim, skipping the ρ→λ derivation.
@@ -155,7 +162,7 @@ class Scenario:
     target_utilization: float = 0.90
     families: tuple[SkuFamily, ...] = (SkuFamily(),)
     due_date_offset: Distribution = Uniform(low=30.0, high=45.0)
-    arrival_process: Callable[[float], Callable[[], float]] = Exponential
+    arrival_process: Callable[[float], ScalarSource] = Exponential
     arrival_rate: float | None = None
 
     def __post_init__(self) -> None:

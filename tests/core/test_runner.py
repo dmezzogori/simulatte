@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
 from simulatte.environment import Environment
 from simulatte.runner import Runner
 from simulatte.server import Server
@@ -34,9 +36,7 @@ def extract_time(system: SimpleSystem) -> float:
 
 
 def random_value_builder(env: Environment) -> tuple[Environment, float]:
-    import random
-
-    return (env, random.random())
+    return (env, env.rng("test").random())
 
 
 def extract_random_value(system: tuple[Environment, float]) -> float:
@@ -93,11 +93,9 @@ def test_runner_extract_fn_called() -> None:
 
 
 def test_runner_seed_affects_random_state() -> None:
-    import random
-
     def random_builder(env: Environment) -> tuple[Environment, float]:
-        # Capture a random value right after seed is set
-        return (env, random.random())
+        # Capture a value from a stream of the run's environment
+        return (env, env.rng("test").random())
 
     def extract_random(system: tuple[Environment, float]) -> float:
         return system[1]
@@ -116,10 +114,8 @@ def test_runner_seed_affects_random_state() -> None:
 
 
 def test_runner_different_seeds_different_results() -> None:
-    import random
-
     def random_builder(env: Environment) -> tuple[Environment, float]:
-        return (env, random.random())
+        return (env, env.rng("test").random())
 
     def extract_random(system: tuple[Environment, float]) -> float:
         return system[1]
@@ -156,6 +152,8 @@ def test_runner_parallel_smoke_test() -> None:
 def test_runner_parallel_preserves_seed_order() -> None:
     import random
 
+    from simulatte.rng import derive_seed
+
     seeds = [1, 2, 3, 4]
     runner = Runner(
         builder=random_value_builder,
@@ -167,7 +165,8 @@ def test_runner_parallel_preserves_seed_order() -> None:
 
     results = runner.run(until=1.0)
 
-    assert results == [random.Random(seed).random() for seed in seeds]
+    # Each run's environment is seeded with its own seed: stream "test" is reproducible outside the Runner.
+    assert results == [random.Random(derive_seed(seed, "test")).random() for seed in seeds]
 
 
 def test_runner_parallel_with_n_jobs_none() -> None:
@@ -328,3 +327,9 @@ def test_runner_log_dir_creates_directory(tmp_path: Path) -> None:
         assert (nested_dir / "sim_0000_seed_1.log").exists()
     finally:
         SimLogger.set_level(original_level)
+
+
+def test_runner_rejects_out_of_range_seed() -> None:
+    runner = Runner(builder=simple_builder, seeds=[2**63], extract_fn=extract_time, progress=False)
+    with pytest.raises(ValueError, match="seed"):
+        runner.run(until=1.0)

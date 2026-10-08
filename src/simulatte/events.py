@@ -520,13 +520,14 @@ class Subscription:
 class EventBus:
     """Synchronous event delivery with nested emissions queued FIFO.
 
-    `probe`, when given, is called before and after each handler; a change in its value means the handler
-    scheduled a SimPy event, which raises `RuntimeError` (debug mode).
+    `probe`, when given, is called before and after each handler and returns the number of scheduled SimPy
+    events and the number of RNG draws; a change in either means the handler scheduled a SimPy event or
+    drew from ``env.rng``, which raises `RuntimeError` (debug mode).
     """
 
     __slots__ = ("_delivering", "_pending", "_probe", "_routes", "_subscriptions")
 
-    def __init__(self, *, probe: Callable[[], int] | None = None) -> None:
+    def __init__(self, *, probe: Callable[[], tuple[int, int]] | None = None) -> None:
         self._subscriptions: list[Subscription] = []
         self._routes: dict[type, tuple[Handler, ...]] = {}
         self._pending: deque[Event] = deque()
@@ -597,10 +598,13 @@ class EventBus:
                 handler(event)
             return
         for handler in handlers:
-            before = probe()
+            scheduled, draws = probe()
             handler(event)
-            if probe() != before:
+            scheduled_after, draws_after = probe()
+            if scheduled_after != scheduled:
                 raise RuntimeError(f"subscriber {handler!r} scheduled a SimPy event while handling {cls.__name__}")
+            if draws_after != draws:
+                raise RuntimeError(f"subscriber {handler!r} drew from env.rng while handling {cls.__name__}")
 
     def _route(self, cls: type) -> tuple[Handler, ...]:
         handlers = tuple(s.handler for s in self._subscriptions if issubclass(cls, s._classes))

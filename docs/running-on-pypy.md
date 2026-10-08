@@ -51,8 +51,8 @@ Notes:
 
 ## Determinism across interpreters
 
-Within one interpreter, runs are fully deterministic under a fixed `random.seed`. Across
-CPython and PyPy, the standard-library random streams are **byte-identical**, so seeded
+Within one interpreter, runs are fully deterministic under a fixed `Environment(seed=...)`. Across
+CPython and PyPy, the standard-library `random.Random` streams are **byte-identical**, so seeded
 simulations evolve the same way.
 
 One subtlety: CPython 3.12+ uses compensated (Neumaier) floating-point summation while PyPy

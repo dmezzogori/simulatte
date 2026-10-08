@@ -26,8 +26,6 @@ Run: uv run python examples/gallery_release_workload.py
 
 from __future__ import annotations
 
-import random
-
 from simulatte.builders import (
     build_continuous_release_system,
     build_immediate_release_system,
@@ -51,8 +49,7 @@ SYSTEMS = {
 
 
 def run_system(builder) -> tuple[int, float, float, float]:
-    random.seed(SEED)
-    with Environment() as env:
+    with Environment(seed=SEED) as env:
         _psp, _servers, shop_floor, _router, _policy = builder(env)
         env.run(until=HORIZON)
         done = shop_floor.jobs_done
@@ -87,13 +84,13 @@ uv run python examples/gallery_release_workload.py
 ```text
 Workload-control release policies (seed=42)
 Policy        Done   AvgTIS  MeanTard  %Tardy
-Immediate     1172    16.07      0.18    3.4%
-LumsCor       1168     9.45      0.41    4.6%
-SLAR          1172    10.23      0.00    0.1%
-SLAR-Limit    1166     9.24      0.28    2.7%
-Continuous    1166     9.92      0.66    3.7%
+Immediate     1202    17.97      0.75    9.9%
+LumsCor       1201     9.42      0.44    5.3%
+SLAR          1202    10.68      0.04    1.1%
+SLAR-Limit    1199     9.33      0.37    3.7%
+Continuous    1205     9.78      1.26    5.8%
 ```
 
 ## Interpretation
 
-All four pull policies cut average time in system roughly in half versus the push baseline (≈9.2–10.2 vs 16.07), because they keep the floor lightly loaded and queues short. But `average_time_in_system` measures only first-server-entry to completion — it excludes the time a job waits in the PSP. `MeanTard` and `%Tardy` are derived from `job.lateness`, which is measured against the due date and so includes the *full* sojourn, PSP wait included. That is why the pull policies can show much lower AvgTIS yet comparable or even higher tardiness: the waiting they remove from the floor is partly pushed back into the pool. SLAR is the standout here, holding tardiness near zero while still halving flow time. For a deeper, step-by-step walkthrough of these trade-offs, see [comparing release policies](../tutorials/comparing-release-policies.md).
+All four pull policies cut average time in system by roughly 40–50% versus the push baseline (≈9.3–10.7 vs 17.97), because they keep the floor lightly loaded and queues short. But `average_time_in_system` measures only first-server-entry to completion — it excludes the time a job waits in the PSP. `MeanTard` and `%Tardy` are derived from `job.lateness`, which is measured against the due date and so includes the *full* sojourn, PSP wait included. That is why the pull policies can show much lower AvgTIS yet comparable or even higher tardiness: the waiting they remove from the floor is partly pushed back into the pool. SLAR is the standout here, holding tardiness near zero while still cutting flow time by about 40%. For a deeper, step-by-step walkthrough of these trade-offs, see [comparing release policies](../tutorials/comparing-release-policies.md).
