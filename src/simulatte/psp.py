@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar
 
+from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 from simulatte.shopfloor import ShopFloor
 
@@ -15,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.server import Server
 
 
-class PreShopPool:
+class PreShopPool(Entity, kind="psp"):
     """Buffer queue for jobs awaiting shopfloor release.
 
     A pure container with no built-in release logic. Release policies are
@@ -32,18 +33,36 @@ class PreShopPool:
         >>> env.process(on_arrival_trigger(psp, my_on_arrival_fn))
     """
 
-    def __init__(self, *, env: Environment, shopfloor: ShopFloor) -> None:
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {"jobs": FieldSpec("str", collection="list"), "shopfloor": FieldSpec("str", nullable=True)}
+    )
+
+    def __init__(
+        self,
+        *,
+        env: Environment,
+        shopfloor: ShopFloor,
+        name: str | None = None,
+        label: str | None = None,
+    ) -> None:
         """Initialize the pre-shop pool.
 
         Args:
             env: The simulation environment.
             shopfloor: The shopfloor that will receive released jobs.
+            name: Optional id of the pool; defaults to ``psp-<n>``.
+            label: Optional display label; defaults to the id.
         """
         self.env = env
         self.shopfloor = shopfloor
         self._psp: deque[ProductionJob] = deque()
         self.new_job = self.env.event()
         self._arrival_callbacks: list[Callable[[ProductionJob, PreShopPool], None]] = []
+        env.entities.attach(self, name=name, label=label)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Current entity state: job ids in FIFO order and the owning shop floor's id."""
+        return {"jobs": [job.id for job in self._psp], "shopfloor": self.shopfloor.id, "label": self.label}
 
     def __len__(self) -> int:
         """Return the number of jobs currently in the pool."""

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import uuid
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
+from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -28,7 +28,8 @@ class BaseJob(ABC):
 
     This class defines the common interface and state tracking for all job types.
     Concrete implementations (e.g. ProductionJob) extend this
-    with type-specific attributes and behavior.
+    with type-specific attributes and behavior, and set ``id`` when they attach
+    to the environment's entity registry.
     """
 
     __slots__ = (
@@ -51,6 +52,8 @@ class BaseJob(ABC):
         "servers_exit_at",
         "sku",
     )
+
+    id: str
 
     def __init__(
         self,
@@ -76,7 +79,6 @@ class BaseJob(ABC):
         """
         self._env = env
         self.job_type = job_type
-        self.id = str(uuid.uuid4())
         self.sku = sku
         self._servers = servers
         self._processing_times = processing_times
@@ -363,15 +365,30 @@ class BaseJob(ABC):
         return self.due_date - allowance <= self._env.now <= self.due_date + allowance
 
 
-class ProductionJob(BaseJob):
+class ProductionJob(BaseJob, Entity, kind="job"):
     """A production job that flows through servers with optional material requirements.
 
     Production jobs represent manufacturing orders that require processing at one or more
     servers. They can optionally specify material requirements that must be delivered
-    before processing can begin at each operation.
+    before processing can begin at each operation. Each job is an entity with id
+    ``job-<n>`` (a per-environment counter).
     """
 
-    __slots__ = ("material_requirements",)
+    __slots__ = ("__weakref__", "_location", "_op_index", "_shopfloor_id", "label", "material_requirements")
+
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {
+            "sku": FieldSpec("str"),
+            "routing": FieldSpec("str", collection="list"),
+            "processing_times": FieldSpec("float", collection="list"),
+            "op_index": FieldSpec("int", nullable=True),
+            "location": FieldSpec("str", nullable=True),
+            "due_date": FieldSpec("float"),
+            "created_at": FieldSpec("float"),
+            "finished_at": FieldSpec("float", nullable=True),
+            "shopfloor": FieldSpec("str", nullable=True),
+        }
+    )
 
     def __init__(
         self,
@@ -408,9 +425,30 @@ class ProductionJob(BaseJob):
             priority_policy=priority_policy,
         )
         self.material_requirements = material_requirements or {}
+        # Entity state with no other home; it stays null until shop-floor flow events set it.
+        self._op_index: int | None = None
+        self._location: str | None = None
+        self._shopfloor_id: str | None = None
+        env.entities.attach(self)
 
     def __repr__(self) -> str:
         return f"ProductionJob(id='{self.id}', sku='{self.sku}')"
+
+    def snapshot(self) -> dict[str, Any]:
+        """Current entity state; times are floats and servers are referenced by id."""
+        finished_at = self.finished_at
+        return {
+            "sku": self.sku,
+            "routing": [server.id for server in self._servers],
+            "processing_times": [float(pt) for pt in self._processing_times],
+            "op_index": self._op_index,
+            "location": self._location,
+            "due_date": float(self.due_date),
+            "created_at": float(self.created_at),
+            "finished_at": None if finished_at is None else float(finished_at),
+            "shopfloor": self._shopfloor_id,
+            "label": self.label,
+        }
 
     def get_materials_for_operation(self, op_index: int) -> dict[str, int]:
         """Get material requirements for a specific operation.

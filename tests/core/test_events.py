@@ -281,8 +281,8 @@ def test_apply_deltas_all_ops() -> None:
         .done(),
     )
     assert state == {
-        "s1": {"queue": ("j2", "j1"), "wip": {"b": 3}, "worked_time": 3.0},
-        "j9": {"location": "done"},
+        "s1": {"$kind": "server", "queue": ("j2", "j1"), "wip": {"b": 3}, "worked_time": 3.0},
+        "j9": {"$kind": "job", "location": "done"},
     }
     assert isinstance(state["s1"]["queue"], tuple) and isinstance(state["s1"]["wip"], FrozenMap)
 
@@ -465,6 +465,7 @@ def test_debug_lifecycle_ops_only_on_lifecycle_events(env_debug: Environment, mo
     isolated = Catalog()
     isolated.register(CATALOG.get("test.ping"))
     monkeypatch.setattr(events, "CATALOG", isolated)
+    monkeypatch.setattr(env_debug, "_check_lifecycle_op", lambda op: None)  # owner check only (schemas: test_entities)
 
     @event_type("entity.created")
     class _Created(DomainEvent):
@@ -491,11 +492,12 @@ def test_debug_lifecycle_ops_only_on_lifecycle_events(env_debug: Environment, mo
 
 
 def test_debug_validates_payload(env_debug: Environment) -> None:
-    env_debug.emit(Rich(job="j", label=None, weight=1, route=("a",), info=FrozenMap({"k": 1}), anything=[1, 2]))
+    env_debug.emit(Rich(job="j", label=None, weight=1.0, route=("a",), info=FrozenMap({"k": 1}), anything=[1, 2]))
     bad: list[Any] = [
         Rich(job=None),  # ty: ignore[invalid-argument-type]
         Rich(job="j", weight="heavy"),  # ty: ignore[invalid-argument-type]
         Rich(job="j", weight=True),
+        Rich(job="j", weight=1),  # float fields take only floats
         Rich(job="j", flag=1),  # ty: ignore[invalid-argument-type]
         Rich(job="j", route="ab"),  # ty: ignore[invalid-argument-type]
         Rich(job="j", route=(object(),)),  # ty: ignore[invalid-argument-type]

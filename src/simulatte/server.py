@@ -8,11 +8,12 @@ job requests with priority information.
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 import simpy
 from simpy.resources.resource import PriorityRequest
 
+from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -71,13 +72,14 @@ class ServerPriorityRequest(PriorityRequest):
         return f"ServerPriorityRequest(job={self.job}, server={self.server})"
 
 
-class Server(simpy.PriorityResource):
+class Server(simpy.PriorityResource, Entity, kind="server"):
     """A server/workstation for job-shop simulation with queue and utilization tracking.
 
     Server extends SimPy's PriorityResource to process jobs with priority-based
     queueing. It tracks queue lengths, utilization rates, and optionally records
-    time-series data for visualization. When attached to a ShopFloor, the server
-    is automatically registered and assigned an index for identification.
+    time-series data for visualization. Its id is the ``name`` given to the
+    constructor, or ``server-<n>`` in attachment order. When attached to a ShopFloor,
+    the server is automatically registered on it.
 
     Dynamic priorities: queued jobs' priorities are refreshed before every
     dispatch decision. ``sort_queue`` re-evaluates each queued request's
@@ -90,6 +92,15 @@ class Server(simpy.PriorityResource):
     current simulation state at call time.
     """
 
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {
+            "capacity": FieldSpec("int"),
+            "users": FieldSpec("str", collection="list"),
+            "queue": FieldSpec("str", collection="list"),
+            "worked_time": FieldSpec("float"),
+        }
+    )
+
     def __init__(
         self,
         *,
@@ -98,6 +109,8 @@ class Server(simpy.PriorityResource):
         shopfloor: ShopFloor | None = None,
         collect_time_series: bool = False,
         retain_job_history: bool = False,
+        name: str | None = None,
+        label: str | None = None,
     ) -> None:
         """Initialize a server resource.
 
@@ -109,6 +122,8 @@ class Server(simpy.PriorityResource):
             collect_time_series: If True, record queue length and utilization
                 over time for later visualization via plot_qt() and plot_ut().
             retain_job_history: If True, maintain a list of all processed jobs.
+            name: Optional id of the server; defaults to ``server-<n>``.
+            label: Optional display label; defaults to the id.
         """
         self.env = env
         super().__init__(env, capacity)
@@ -123,6 +138,8 @@ class Server(simpy.PriorityResource):
 
         self._jobs: list[BaseJob] | None = [] if retain_job_history else None
 
+        env.entities.attach(self, name=name, label=label)
+
         if shopfloor is not None:
             shopfloor.servers.append(self)
             self._idx = shopfloor.servers.index(self)
@@ -130,7 +147,17 @@ class Server(simpy.PriorityResource):
             self._idx = -1
 
     def __repr__(self) -> str:
-        return f"Server(id={self._idx})"
+        return f"Server(id={self.id!r})"
+
+    def snapshot(self) -> dict[str, Any]:
+        """Current entity state: capacity, job ids of users and queue (in order) and worked time."""
+        return {
+            "capacity": self.capacity,
+            "users": [cast(ServerPriorityRequest, request).job.id for request in self.users],
+            "queue": [cast(ServerPriorityRequest, request).job.id for request in self.queue],
+            "worked_time": float(self.worked_time),
+            "label": self.label,
+        }
 
     @property
     def empty(self) -> bool:

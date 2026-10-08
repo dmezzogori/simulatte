@@ -54,6 +54,7 @@ __all__ = [
     "Subscription",
     "apply_deltas",
     "event_type",
+    "matches_wire_type",
     "validate_event",
 ]
 
@@ -145,7 +146,8 @@ def apply_deltas(state: dict[str, dict[str, Any]], deltas: Deltas) -> None:
     """Apply `deltas` in order to `state`, a map from entity id to its field values.
 
     Field values stay wire values: list operations replace the tuple with an updated copy and map
-    operations replace the :class:`FrozenMap`. Raises `KeyError` for unknown entities, fields or map keys
+    operations replace the :class:`FrozenMap`. ``create`` stores the entity kind under the reserved key
+    ``"$kind"`` next to the initial fields. Raises `KeyError` for unknown entities, fields or map keys
     and `ValueError` for a duplicate ``create``, a ``remove``/``move`` of a missing value or an unknown
     operation.
     """
@@ -155,7 +157,9 @@ def apply_deltas(state: dict[str, dict[str, Any]], deltas: Deltas) -> None:
             entity = op[1]
             if entity in state:
                 raise ValueError(f"create: entity {entity!r} already exists")
-            state[entity] = dict(op[3])
+            fields = dict(op[3])
+            fields["$kind"] = op[2]
+            state[entity] = fields
             continue
         if name == "retire":
             del state[op[1]]
@@ -457,24 +461,30 @@ def _check_value(event_name: str, info: FieldInfo, value: object) -> None:
         if not info.nullable:
             raise TypeError(f"{event_name}.{info.name} is not nullable")
         return
-    wire_type = info.wire_type
-    if wire_type == "str":
-        ok = isinstance(value, str)
-    elif wire_type == "bool":
-        ok = isinstance(value, bool)
-    elif wire_type == "int":
-        ok = isinstance(value, int) and not isinstance(value, bool)
-    elif wire_type == "float":
-        ok = isinstance(value, (int, float)) and not isinstance(value, bool)
-    elif wire_type == "array":
-        ok = isinstance(value, (tuple, list))
-    elif wire_type == "map":
-        ok = isinstance(value, Mapping)
-    else:
-        ok = True
-    if not ok:
-        raise TypeError(f"{event_name}.{info.name} expects {wire_type}, got {type(value).__name__}")
+    if not matches_wire_type(info.wire_type, value):
+        raise TypeError(f"{event_name}.{info.name} expects {info.wire_type}, got {type(value).__name__}")
     freeze(value)  # TypeError / OverflowError for values outside the wire model
+
+
+def matches_wire_type(wire_type: str, value: object) -> bool:
+    """Whether non-null `value` has the declared `wire_type` (debug validation).
+
+    ``float`` accepts only ``float`` instances, not ``int``: emitting sites coerce, so canonical bytes do not
+    depend on incidental int/float types. ``any`` accepts everything.
+    """
+    if wire_type == "str":
+        return isinstance(value, str)
+    if wire_type == "bool":
+        return isinstance(value, bool)
+    if wire_type == "int":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if wire_type == "float":
+        return isinstance(value, float)
+    if wire_type == "array":
+        return isinstance(value, (tuple, list))
+    if wire_type == "map":
+        return isinstance(value, Mapping)
+    return True
 
 
 # ---------------------------------------------------------------------------------------------------------

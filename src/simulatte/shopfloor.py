@@ -22,8 +22,9 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol, cast, runtime_checkable
 
+from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -647,7 +648,7 @@ class CurrentWorkLoadCollector:
 # =============================================================================
 
 
-class ShopFloor:
+class ShopFloor(Entity, kind="shopfloor"):
     """Central orchestrator for job flow through a manufacturing simulation.
 
     The ShopFloor manages the complete lifecycle of production jobs as they move
@@ -699,6 +700,10 @@ class ShopFloor:
             env.run()
     """
 
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {"wip": FieldSpec("float", collection="map"), "jobs_in_system": FieldSpec("int")}
+    )
+
     def __init__(
         self,
         *,
@@ -712,6 +717,8 @@ class ShopFloor:
         on_before_operation: OperationHook | Sequence[OperationHook] | None = None,
         on_after_operation: OperationHook | Sequence[OperationHook] | None = None,
         on_job_finished: Callable[[ProductionJob], None] | Sequence[Callable[[ProductionJob], None]] | None = None,
+        name: str | None = None,
+        label: str | None = None,
     ) -> None:
         """Initialize a new ShopFloor instance.
 
@@ -741,6 +748,8 @@ class ShopFloor:
                 before signaling. Can be a single hook or list.
             on_job_finished: Callback(s) called when a job completes its
                 entire routing. Can be a single callable or list.
+            name: Optional id of the shop floor; defaults to ``shopfloor-<n>``.
+            label: Optional display label; defaults to the id.
         """
         self.env = env
         self.material_coordinator = material_coordinator
@@ -780,6 +789,16 @@ class ShopFloor:
         # Peak tracking
         self.maximum_wip_value: float = 0.0
         self.maximum_shopfloor_jobs: int = 0
+
+        env.entities.attach(self, name=name, label=label)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Current entity state: WIP per server id and the number of jobs in the system."""
+        return {
+            "wip": {server.id: float(load) for server, load in self.wip.items()},
+            "jobs_in_system": len(self.jobs),
+            "label": self.label,
+        }
 
     @staticmethod
     def _normalize_hooks(

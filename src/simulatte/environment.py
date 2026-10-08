@@ -6,6 +6,7 @@ from typing import Any, Literal
 import simpy
 from simpy.core import StopSimulation
 
+from simulatte.entities import EntityRegistry
 from simulatte.events import DomainEvent, Event, EventBus, Op, validate_event
 from simulatte.logger import EventHistoryBuffer, SimLogger
 
@@ -15,7 +16,7 @@ class Environment(simpy.Environment):
     Thin wrapper around ``simpy.Environment`` with an event bus and integrated logging.
 
     Events are published with :meth:`emit` and delivered through :attr:`bus`; emitting sites guard event
-    construction with :meth:`wants`.
+    construction with :meth:`wants`. Components register themselves in :attr:`entities`.
 
     Each environment has its own logger that:
     - Automatically includes simulation time in log output
@@ -36,8 +37,8 @@ class Environment(simpy.Environment):
         """Initialize the simulation environment.
 
         Args:
-            debug: Validate emitted events against the catalog and reject subscribers that schedule
-                   SimPy events. Slower; meant for tests and model development.
+            debug: Validate emitted events against the catalog and the entity state schemas, and reject
+                   subscribers that schedule SimPy events. Slower; meant for tests and model development.
             log_file: Optional file path for log output (defaults to stderr)
             log_format: Output format ("text" or "json")
             log_history_size: Maximum number of events to keep in history buffer
@@ -50,6 +51,7 @@ class Environment(simpy.Environment):
         self._ordinal = 0
         self._projection_active = False
         self.bus = EventBus(probe=self._queue_length if debug else None)
+        self.entities = EntityRegistry(self)
         self._logger = SimLogger(
             env=self,
             log_file=log_file,
@@ -94,14 +96,15 @@ class Environment(simpy.Environment):
 
     def _entity_kind(self, entity_id: str) -> str | None:
         """Kind of the live entity `entity_id`, or None when unknown (debug validation of touches)."""
-        return None
+        return self.entities.kind_of(entity_id)
 
     def _check_lifecycle_op(self, op: Op) -> None:
-        """Validate a ``create``/``retire`` operation against entity state (debug mode).
+        """Validate a ``create``/``retire`` operation (debug mode).
 
-        Extension point for the entity registry: ``create`` against the schema of the kind it names,
-        ``retire`` against the existence of the addressed live entity.
+        ``create`` is checked against the schema of the kind it names, ``retire`` against the existence of
+        the addressed live entity.
         """
+        self.entities.check_lifecycle_op(op)
 
     def _queue_length(self) -> int:
         return len(self._queue)

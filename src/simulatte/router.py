@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import random
 from collections.abc import Callable, Generator, Sequence
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, Any, ClassVar, NoReturn
 
+from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
 from simulatte.shopfloor import ShopFloor
@@ -23,7 +24,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.server import Server
 
 
-class Router:
+class Router(Entity, kind="router"):
     """Stochastic job generator that routes jobs through the simulation.
 
     The Router continuously generates ProductionJob instances at random intervals
@@ -38,6 +39,8 @@ class Router:
     Upon instantiation, the Router registers itself as a SimPy process that runs
     for the duration of the simulation.
     """
+
+    state_schema: ClassVar[StateSchema] = StateSchema({"shopfloor": FieldSpec("str", nullable=True)})
 
     def __init__(
         self,
@@ -56,6 +59,8 @@ class Router:
         due_date_offset_distribution: dict[str, Sampler[float]],
         priority_policies: Callable[[ProductionJob, Server], float] | None = None,
         due_date_rule: dict[str, Callable[[Sequence[float]], float]] | None = None,
+        name: str | None = None,
+        label: str | None = None,
     ) -> None:
         """Initialize the Router and start the job generation process.
 
@@ -84,6 +89,8 @@ class Router:
                 ``due_date_offset_distribution`` for that SKU; otherwise the flat
                 offset is used. This enables work-content due-date rules such as
                 Total Work Content (TWK): ``due_date = now + K * sum(p_ij)``.
+            name: Optional id of the router; defaults to ``router-<n>``.
+            label: Optional display label; defaults to the id.
 
         Example:
             >>> router = Router(
@@ -111,7 +118,12 @@ class Router:
         self.priority_policies = priority_policies
         self.due_date_rule = due_date_rule
 
+        env.entities.attach(self, name=name, label=label)
         self.env.process(self.generate_job())
+
+    def snapshot(self) -> dict[str, Any]:
+        """Current entity state: the owning shop floor's id."""
+        return {"shopfloor": self.shopfloor.id, "label": self.label}
 
     def generate_job(self) -> Generator[Timeout, None, NoReturn]:
         """Infinite generator that creates and routes jobs at random intervals.

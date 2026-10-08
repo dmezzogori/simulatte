@@ -47,11 +47,12 @@ class TestServer:
         assert "id=" in repr_str
 
     def test_repr_without_shopfloor(self) -> None:
-        """Server created without shopfloor should have id=-1."""
+        """Server created without shopfloor still has an entity id."""
         env = Environment()
         server = Server(env=env, capacity=1, shopfloor=None)
 
-        assert "id=-1" in repr(server)
+        assert repr(server) == "Server(id='server-0')"
+        assert server._idx == -1
 
     def test_average_queue_length_at_t0(self) -> None:
         """average_queue_length should return 0.0 at t=0."""

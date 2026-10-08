@@ -52,7 +52,7 @@ print(f"Tardy jobs: {tardy}/{len(shopfloor.jobs_done)}")
 ## Notes
 
 - Simulatte avoids global singletons: pass the same `env` to every component you want in the same simulation.
-- `Server(id=...)` is assigned when the server is registered on a `ShopFloor` (via the `shopfloor=` argument).
+- Every server, shop floor, pre-shop pool and router has an `id`: the `name=` you pass, or a generated `server-0`, `server-1`, ... in creation order. Jobs are numbered `job-0`, `job-1`, ... per environment.
 
 ## Next
 
