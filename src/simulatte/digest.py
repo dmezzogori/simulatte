@@ -12,7 +12,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import struct
-from collections.abc import Mapping, MutableMapping
+from collections.abc import Callable, Mapping, MutableMapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -23,7 +23,7 @@ from simulatte.events import DomainEvent, Op
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.environment import Environment
 
-__all__ = ["Fingerprint", "SemanticDigest", "project_event", "project_state"]
+__all__ = ["Fingerprint", "SemanticDigest", "project_event", "project_event_parts", "project_state"]
 
 _BASE_FIELDS = frozenset({"t", "seq", "deltas", "ordinal"})
 _PAYLOAD_FIELDS: dict[type, tuple[str, ...]] = {}
@@ -38,16 +38,21 @@ class Fingerprint:
     kpis: dict[str, float]
 
 
-def project_state(state: Mapping[str, Mapping[str, Wire]]) -> bytes:
+def project_state(
+    state: Mapping[str, Mapping[str, Wire]], presentation_of: Callable[[str], frozenset[str]] | None = None
+) -> bytes:
     """Canonical bytes of an activation snapshot without presentation fields, entities sorted by id.
 
     `state` maps entity ids to their field maps, each with the ``"$kind"`` entry (see
-    :meth:`EntityRegistry.snapshot`); ``"$kind"`` is semantic and stays.
+    :meth:`EntityRegistry.snapshot`); ``"$kind"`` is semantic and stays. `presentation_of` returns the
+    presentation fields of a kind; it defaults to the registered kinds (a trace reader passes the kinds
+    stored in the trace).
     """
+    presentation_of = _presentation_of if presentation_of is None else presentation_of
     projected: Any = {}
     for entity_id in sorted(state):
         fields = state[entity_id]
-        presentation = _presentation_of(str(fields["$kind"]))
+        presentation = presentation_of(str(fields["$kind"]))
         projected[entity_id] = {name: value for name, value in fields.items() if name not in presentation}
     return canonical_pack(projected)
 
@@ -72,18 +77,48 @@ def project_event(event: DomainEvent, kinds: MutableMapping[str, str] | None = N
     resolved = {} if kinds is None else kinds
     ops: list[Any] = []
     for op in event.deltas.ops:
-        kept = _project_op(op, resolved, strict=kinds is not None)
+        kept = _project_op(op, resolved, _presentation_of, strict=kinds is not None)
         if kept is not None:
             ops.append(kept)
     item: Any = (event.ordinal, cls.type_name, cls.type_version, float(event.t), payload, tuple(ops))
     return canonical_pack(item)
 
 
-def _project_op(op: Op, kinds: MutableMapping[str, str], *, strict: bool) -> Op | None:
+def project_event_parts(
+    ordinal: int,
+    type_name: str,
+    version: int,
+    t: float,
+    payload: Mapping[str, Wire],
+    ops: tuple[Op, ...],
+    *,
+    payload_presentation: frozenset[str],
+    presentation_of: Callable[[str], frozenset[str]],
+    kinds: MutableMapping[str, str],
+) -> bytes:
+    """:func:`project_event` for an event given as decoded parts, such as one read back from a trace.
+
+    `payload` holds every payload field; those in `payload_presentation` are removed. `presentation_of`
+    returns the presentation state fields of a kind and `kinds` maps live entity ids to their kind, updated
+    by ``create`` and ``retire`` operations as in :func:`project_event` with a kind map.
+    """
+    kept_payload = {name: value for name, value in payload.items() if name not in payload_presentation}
+    projected: list[Any] = []
+    for op in ops:
+        kept = _project_op(op, kinds, presentation_of, strict=True)
+        if kept is not None:
+            projected.append(kept)
+    item: Any = (ordinal, type_name, version, float(t), kept_payload, tuple(projected))
+    return canonical_pack(item)
+
+
+def _project_op(
+    op: Op, kinds: MutableMapping[str, str], presentation_of: Callable[[str], frozenset[str]], *, strict: bool
+) -> Op | None:
     name = op[0]
     if name == "create":
         kinds[op[1]] = op[2]
-        presentation = _presentation_of(op[2])
+        presentation = presentation_of(op[2])
         return (name, op[1], op[2], {k: v for k, v in op[3].items() if k not in presentation})
     if name == "retire":
         kinds.pop(op[1], None)
@@ -91,7 +126,7 @@ def _project_op(op: Op, kinds: MutableMapping[str, str], *, strict: bool) -> Op 
     kind = kinds.get(op[1])
     if kind is None:
         return None if not strict and _presentation_everywhere(op[2]) else op
-    return None if op[2] in _presentation_of(kind) else op
+    return None if op[2] in presentation_of(kind) else op
 
 
 def _presentation_of(kind: str) -> frozenset[str]:
