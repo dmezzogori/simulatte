@@ -261,7 +261,7 @@ Three binding kinds cover the callback shapes that exist today:
 
 - MessagePack. Map keys are strings and are **escaped** reversibly (S16, T8): a key that is one of `__proto__`, `constructor`, `prototype` (the keys the JavaScript decoder rejects) or starts with `~` is prefixed with `~`; readers strip one `~`. The TypeScript reader rebuilds maps as objects without a prototype and defines an own `__proto__` property safely. Tests cover nested occurrences and collisions (`~__proto__` as an original key).
 - Canonical form: map keys sorted by escaped UTF-8 bytes; floats always float64 with `NaN` normalized; integers in the smallest form within ±(2⁵³−1); tuples as arrays.
-- A domain event's projection is `[ordinal, type, version, t, payload, deltas]` with presentation payload fields removed and delta operations on presentation state fields removed (S7). `seq` and observer events are excluded.
+- A domain event's projection is `[ordinal, type, version, t, payload, deltas]`, with `t` always encoded as float64 (ruling R9) with presentation payload fields removed and delta operations on presentation state fields removed (S7). `seq` and observer events are excluded.
 - The initial-state projection is the canonical encoding of the activation snapshot with presentation fields removed, entities sorted by id.
 
 ### 9.2 Digest
