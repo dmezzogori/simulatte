@@ -1,6 +1,6 @@
 # Simulatte Studio: global design
 
-- **Status:** revision 4, after adversarial reviews 1–3 ([`reviews/`](reviews/)); finding ids such as (A5), (B3) or (C2) mark the changes each review caused
+- **Status:** final (revision 4 plus the verification fix), approved by Davide on 2026-10-08 after adversarial reviews 1–3 and a verification pass ([`reviews/`](reviews/)); finding ids such as (A5), (B3) or (C2) mark the changes each review caused
 - **Date:** 2026-10-08
 - **Scope:** architecture of the visualization, layout, studio and experiments work that leads to Simulatte 1.0
 - **Decision log:** [`studio-decisions.md`](studio-decisions.md) (numbered decisions with rationale and rejected alternatives)
@@ -171,7 +171,7 @@ The encoding is *deferred to SP1*, under these requirements:
 #### C1.8 KPIs
 
 - A **KPI** is declared with a name, unit, kind (`series`, `scalar`, or both), and its **estimand** (A9): observation unit (job, operation, time-weighted state), cohort rule, denominator, how intervals crossing the window boundary are clipped, how entities still in the system at the horizon are treated (censoring), whether EMAs reset at warm-up, the value when there are no observations, and finalization. KPIs are computed only in Python.
-- **Observation window** (C7) depends on the stopping policy (§C5.5): `[warmup, horizon)` for steady-state runs and `[0, horizon)` for fixed-horizon terminating runs, both matching SimPy's `until`, which does not process events scheduled exactly at `horizon`; `[0, T_end]` for finite-population runs, where `T_end` is the time of the completion that drains the system, included in the window. Time-weighted KPIs divide by the actual length of the window.
+- **Observation window** (C7) depends on the stopping policy (§C5.5): `[warmup, horizon)` for steady-state runs and `[0, horizon)` for fixed-horizon terminating runs, both matching SimPy's `until`, which does not process events scheduled exactly at `horizon`; `[0, T_end]` for finite-population runs, where `T_end` is the policy's stopping time (§C5.5), included in the window. Time-weighted KPIs divide by the actual length of the window.
 - **Default cohort for job KPIs** (flow time, tardiness, lateness): jobs that complete within the window. Arrival-based cohorts are available per KPI (D32). For finite-population runs every job completes inside the window by construction; for fixed-horizon terminating runs, censoring applies (§C5.5).
 - **Time-weighted KPIs** (utilization, WIP) accumulate from state-change events and clip at the window boundaries, instead of crediting work at operation completion as `Server.worked_time` does today.
 - **Values over playback** (A41). Series are Python-generated samples of a KPI's value as of each time, so the viewer can show the value at the current playback time. Final scalars are shown separately and labelled as end-of-run results. Interpolation and missing-value rules are declared per series.
@@ -352,7 +352,7 @@ Any replication can be re-run at level `full` from its execution request. The co
 - An **experiment** is a set of configurations (parameter grid or explicit list, optionally layout variants) × N replications, of one of three types (B15):
   - **steady-state:** fixed horizon, warm-up, window `[warmup, horizon)`, completion cohort by default (§C1.8);
   - **terminating, fixed horizon:** no warm-up, window `[0, horizon)`; entities still in the system at the horizon are censored, and each KPI declares how censored entities are reported (count, excluded, or partial durations);
-  - **terminating, finite population:** arrivals stop at a cutoff (a number of jobs or a time); the run ends at `T_end`, the first time after the cutoff when no entity remains in the system and no arrival is pending, so every entity completes; a safety limit on simulated time ends runs that never drain, and such runs are reported as failed (C7).
+  - **terminating, finite population:** arrivals stop at a cutoff (a number of jobs or a time); the run ends at `T_end`, the earliest time at or after the cutoff when no entity remains in the system and no arrival is pending, so every entity completes. If the system is already empty when the cutoff is reached, `T_end` is the cutoff time (for a count cutoff, the time of the last arrival); otherwise it is the time of the completion that drains the system. The same `T_end` defines the window and the denominator of time-weighted KPIs; a safety limit on simulated time ends runs that never drain, and such runs are reported as failed (C7).
 
   The stopping policy is normalized (type plus its parameters) and is part of every execution request and manifest (C7).
 

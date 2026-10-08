@@ -224,3 +224,7 @@ Cited code facts checked and confirmed: `FleetCoordinator.cancel()` on an order 
 | C8 | C2.6 structural and negative dependencies |
 | C9 | C6 watching covers the whole source snapshot |
 | C10 | C1.6 conditional reproducibility guarantee |
+
+## Verification pass (Astra, 2026-10-08, on 950f1ad)
+
+C1–C6 and C8–C10 confirmed resolved. C7 not fully resolved: C1.8 and C5.5 defined `T_end` inconsistently when the system empties before the arrival cutoff. Fixed by defining `T_end` once in C5.5 (earliest time at or after the cutoff with an empty system and no pending arrival) and referencing it from C1.8.
