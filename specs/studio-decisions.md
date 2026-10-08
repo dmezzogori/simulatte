@@ -64,7 +64,7 @@ Format: **D<n>. Title** (date, source). Decision. Rationale. Rejected alternativ
 
 All 41 findings were accepted; see `reviews/2026-10-08-global-spec-review-1.md` for the triage. Decisions that changed the design:
 
-**D27. Layout lifecycle is declare → resolve → bind** (A1, A21). `build` declares; the layout resolves and freezes after `build` returns; components resolve handles against one frozen graph before the first event. Supersedes D26. Rejected: declaring physical entity ids before graph resolution (keeps the early freeze but adds a declaration step that every model must get right).
+**D27. Layout lifecycle is declare → resolve → bind** (A1, A21) (*extended by D38*). `build` declares; the layout resolves and freezes after `build` returns; components resolve handles against one frozen graph before the first event. Supersedes D26. Rejected: declaring physical entity ids before graph resolution (keeps the early freeze but adds a declaration step that every model must get right).
 
 **D28. Events carry state deltas** (A5). Replay is snapshot plus deltas, so the viewer needs no per-type reducers and custom events can replay. Rejected: versioned reducers per event type in TypeScript (duplicates simulation semantics in two languages).
 
@@ -85,3 +85,23 @@ All 41 findings were accepted; see `reviews/2026-10-08-global-spec-review-1.md` 
 **D36. Loopback only, no flag to bind other interfaces in 1.0** (A17). Token exchanged for an HttpOnly session cookie; Host and Origin checks. Amends D24.
 
 **D37. Source bundles use an explicit manifest** (A16): git-tracked files or a declared include list, plus declared inputs; `.gitignore` heuristics are not used. `uv sync --locked`, not `--frozen` (A15). Amends D19.
+
+## Adversarial review 2, 2026-10-08 (Astra; triage by Claude, question answered by Davide)
+
+All 25 findings were accepted; see `reviews/2026-10-08-global-spec-review-2.md` for the triage.
+
+**D38. Physical layout values may determine how many entities exist and how they are built** (review 2 question; Davide chose this over restricting 1.0 to configuring declared entities). Implemented as ordered **layout stages**: each stage reads frozen values of earlier stages through the physical accessor and may attach entities; the network is generated once after the last stage that affects it; later stages cannot change its inputs. The lifecycle becomes declare → resolve in stages → validate → bind → finalize → activate. Extends D27. Rejected: restricting layout to configuring entities declared in `build` (Claude's recommendation, simpler lifecycle).
+
+**D39. The semantic digest covers a projection of domain events** with their own ordinal and the initial state after activation, excluding logs, KPI samples and the global `seq` (B1). Refines D31.
+
+**D40. Execution requests are separate from resolved manifests** (B5). The coordinator submits what it knows; the worker reports runtime, dependencies and layout hashes at a `ready` step before simulating.
+
+**D41. `layout.json` is not part of source identity; runs store their layout layers** so presentation edits re-resolve as data (B6).
+
+**D42. All studio and CLI runs execute from immutable source and input snapshots** (B7); source capture moves from SP5 to SP4 (B16).
+
+**D43. Network obstacles are explicit** (`obstacle=True`) and must have explicit positions; drawn footprints alone do not shape the network (B4).
+
+**D44. SP1 is built behind feasibility gates**: vertical slice, minimal TypeScript conformance reader, benchmarks, then full migration (B25).
+
+**D45. Warm spare execution processes**, each used once, offset fresh-process start-up cost without weakening isolation (B20). Refines D29.

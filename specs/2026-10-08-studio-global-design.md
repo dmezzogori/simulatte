@@ -1,6 +1,6 @@
 # Simulatte Studio: global design
 
-- **Status:** revision 2, after adversarial review 1 ([`reviews/2026-10-08-global-spec-review-1.md`](reviews/2026-10-08-global-spec-review-1.md)); finding ids such as (A5) mark the changes it caused
+- **Status:** revision 3, after adversarial reviews 1 and 2 ([`reviews/`](reviews/)); finding ids such as (A5) or (B3) mark the changes each review caused
 - **Date:** 2026-10-08
 - **Scope:** architecture of the visualization, layout, studio and experiments work that leads to Simulatte 1.0
 - **Decision log:** [`studio-decisions.md`](studio-decisions.md) (numbered decisions with rationale and rejected alternatives)
@@ -82,13 +82,15 @@ Sub-projects are implemented in order. Each one merges into `main` and ships as 
 
 | # | Sub-project | Release | Contents |
 |---|---|---|---|
-| SP1 | Events and trace | 0.13 | Entity identity and lifecycle, event model with state deltas, event bus, semantic digest, logger unification, RNG streams and samplers, observer-purity audit, trace writer and Python reader, KPI collector API with window semantics, migration of existing collectors, benchmarks |
+| SP1 | Events and trace | 0.13 | Entity identity and lifecycle, event model with state deltas, event bus, semantic digest, logger unification, RNG streams and samplers, observer-purity audit, trace writer and Python reader, a minimal TypeScript conformance reader, KPI collector API with window semantics, caller-supplied provenance API, migration of existing collectors, benchmarks |
 | SP2 | Layout | 0.14 | Layout model, grid, auto-layout from static topology, code API, `layout.json`, network generators and overrides, declare/resolve/bind lifecycle, intralogistics migration to bound graphs, orphan and stale detection |
 | SP3 | Viewer | 0.15 | `studio/` workspace, TS trace reader, PixiJS scene, playback clock, KPI panels, inspector, HTML and video export, `simulatte view` with the minimal `[studio]` extra for static serving (A31) |
-| SP4 | Studio | 0.16 | Model entrypoint, worker supervisor and execution process (local transport), coordinator, minimal run store (A31), studio server and websocket protocol, parameter forms, layout editor, revisions and file watching, `simulatte studio` and `simulatte run` |
-| SP5 | Experiments | 0.17 | Experiment definition, replications, statistics, run store extensions, comparison UI, SSH transport, source bundles, `simulatte workers setup` |
+| SP4 | Studio | 0.16 | Model entrypoint, worker supervisor and execution process (local transport), source and input capture with canonical hashing (B16), coordinator, minimal run store (A31), studio server and websocket protocol, parameter forms, layout editor, revisions and file watching, `simulatte studio` and `simulatte run` |
+| SP5 | Experiments | 0.17 | Experiment definition, replications, statistics, run store extensions, comparison UI, SSH transport, remote provisioning, `simulatte workers setup` |
 
 Dependencies: SP2 depends on SP1 (entity ids). SP3 depends on SP1 (trace) and SP2 (layout schema). SP4 depends on SP1–SP3. SP5 depends on SP4.
+
+**SP1 feasibility gates** (B25). SP1 ships as one release but is built in stages, each a gate for the next: (1) a vertical slice with a few representative entity kinds, events with deltas, the digest and the trace codec; (2) a minimal TypeScript reader that decodes the slice's fixture traces and replays state, proving the format works in the browser; (3) benchmarks against §C1.9 on the slice; (4) only then the migration of every component. A failed gate changes the design before the migration starts.
 
 ## 5. Contracts
 
@@ -109,13 +111,14 @@ These are the interfaces between sub-projects. Changing any of them after its su
 #### C1.2 Events
 
 - An event is an immutable record with: `type` (stable string), `t` (simulation time), `seq` (per-environment strictly increasing integer), entity references by id, a semantic **payload**, and **state deltas** (below). The pair `(t, seq)` is the **event cursor**: a total order used for stepping, seeking and snapshot boundaries (A27).
-- **State deltas** (A5). Each event carries the field-level changes it makes to the viewer-visible state of the entities it affects: `{entity_id: {field: new_value}}`, plus entity creation and retirement. Replay is generic: state at cursor `c` = the latest snapshot before `c` with all deltas up to and including `c` applied in order. The viewer needs no per-type reducers.
+- **State deltas** (A5). Each event carries the changes it makes to the viewer-visible state of the entities it affects, plus entity creation and retirement. Replay is generic: state at cursor `c` = the latest snapshot before `c` with all deltas up to and including `c` applied in order. The viewer needs no per-type reducers.
+- **Delta operations** (B19). Scalar fields are replaced. Collection fields are updated with bounded operations (insert at position, remove, move), never by re-sending the whole collection, so the cost of a delta does not grow with queue length. A single event whose encoded size exceeds a configured limit is an error in debug mode and a recorded warning otherwise.
 - **Transition boundaries** (A5). An event is emitted after the state change it describes is complete. Operations with several phases (for example processing end, after-operation hooks, resource release and completion callbacks in `ShopFloor`) emit one event per phase, so every cursor position corresponds to a consistent state.
 - **Catalog.** Event types are registered with a name, a schema version, payload fields, and the entity state fields their deltas may touch. Entity kinds register their state schema (field names and wire types). The catalog is written to the trace.
 - **Custom events.** User-defined entities and processes register their own kinds and event types through the same API. A custom event with deltas replays fully; a custom event without deltas is **inspect-only**: it appears in the event log and inspector and changes no rendered state.
 - **Wire types** (A26). Payload and state values use a closed set of canonical types: integers within ±(2⁵³−1) (larger values raise), float64 including explicitly encoded `+inf`, `-inf` and `NaN`, UTF-8 strings, booleans, null, lists, and maps with string keys. Each field declares nullability. These are representable in Python and in browser JavaScript without loss.
 - **Deep immutability** (A6). Payloads and deltas contain only the wire types above, stored as immutable containers (tuples and frozen mappings). Debug mode validates this at emit time.
-- **Motion** (A23). A motion event is emitted when movement actually begins, after any traffic permission is granted, and covers one or more arc traversals with per-segment start and end times and the speed profile used. The viewer interpolates position along the segment; when the speed profile exposes a position function it is used, otherwise interpolation is linear and the trace records that it is approximate. Any deviation (interruption, rerouting, stranding) emits a superseding event that states the position the simulation actually uses. If the simulation treats an interrupted vehicle as being at the previous node, the viewer shows that discontinuity; physics is never changed to make animation smoother. Snapshots include each entity's active motion plan.
+- **Motion** (A23). A motion event is emitted when movement actually begins, after any traffic permission is granted, and covers one or more arc traversals with per-segment start and end times and the speed profile used. The viewer interpolates position along the segment from a **portable motion description** (B14): either one of a fixed set of curve primitives (constant speed; trapezoidal acceleration and deceleration) with its parameters, or Python-generated keyframes with a declared accuracy. A speed profile that can provide neither is drawn with linear interpolation, and the trace marks the motion as approximate. Any deviation (interruption, rerouting, stranding) emits a superseding event that states the position the simulation actually uses. If the simulation treats an interrupted vehicle as being at the previous node, the viewer shows that discontinuity; physics is never changed to make animation smoother. Snapshots include each entity's active motion plan.
 
 #### C1.3 Event bus
 
@@ -123,7 +126,7 @@ These are the interfaces between sub-projects. Changing any of them after its su
 - **Interest checks** (A32). `env.wants(EventType)` is true when at least one subscriber (including the semantic digest when enabled) takes that type. Emitting sites guard event construction with it, so only events someone listens to are built.
 - **Delivery order** (A6). Subscribers are called synchronously, in subscription order. Events emitted by a subscriber during delivery are queued and delivered FIFO after the current event has reached every subscriber; their `seq` is assigned at emit time. Subscription changes during delivery take effect from the next event.
 - **Observers do not interfere.** Subscribers must not schedule SimPy events, draw random numbers, or mutate simulation state. They may emit derived events (for example KPI samples), which only other observers see. Behavior-changing extension stays with hooks, dispatchers and policies.
-- **Observer invariance** (A7). The semantic digest (§C1.6) and all KPI values must be identical across observer configurations: none, default logging, KPI only, full trace. Getters that observers call must be pure; accounting that behavior depends on (for example the server utilization read by dispatching rules) stays in the core and is updated by the simulation, not by observers. SP1 includes an audit of current observational reads; known cases are `AGV.utilization()` and its siblings, which flush state when read.
+- **Observer invariance** (A7, B18). The core outcome of a run (the semantic projection of §C1.6 and the final state of the model) does not depend on which observers are attached. Among instrumented configurations (default logging, KPI only, full trace, any added collectors) the digest and every KPI common to them are identical. Getters that observers call must be pure; accounting that behavior depends on (for example the server utilization read by dispatching rules) stays in the core and is updated by the simulation, not by observers. SP1 includes an audit of current observational reads; known cases are `AGV.utilization()` and its siblings, which flush state when read.
 - Subscriber exceptions propagate.
 
 #### C1.4 Logging
@@ -142,8 +145,10 @@ These are the interfaces between sub-projects. Changing any of them after its su
 
 #### C1.6 Determinism and reproducibility
 
-- **Semantic digest** (A3). A rolling hash over the canonical encoding of all non-log events, in cursor order. It is computed in `kpi` and `full` recording modes, and is off by default in plain scripts. Its cost is part of the benchmarks (§C1.9).
+- **Semantic projection** (A3, B1). The digest covers a projection of the run that observers cannot change: the canonical initial state after activation (§C2.7), then every **domain event** (events emitted by simulation components, excluding `log` events, KPI samples and any other observer-derived or diagnostic events) in order, each with its own **domain ordinal** (a counter over domain events only, independent of `seq`), its type, time, entity references, payload and deltas. Presentation fields are excluded. The global `seq` is not part of the projection, so adding a log line or a collector does not change the digest.
+- **Semantic digest.** A rolling hash over the canonical encoding of the semantic projection. It is computed in `kpi` and `full` recording modes, and is off by default in plain scripts. Its cost is part of the benchmarks (§C1.9). Comparing digests is a logical comparison of trajectories; comparing complete trace files is a separate, stricter check used only in determinism tests.
 - **Fingerprint** = semantic digest + KPI scalars. A re-run of a replication must reproduce the fingerprint exactly; this proves the animated trajectory is the one whose KPIs are reported (D31).
+- **Provenance** (B16). SP1 provides a caller-supplied provenance API: whoever starts a run (a script, `Runner`, or later the coordinator) supplies source, input and dependency identities it knows, and every field it cannot supply is recorded as `unavailable`. Plain scripts therefore produce honest, partial manifests; SP4 adds automatic source and input capture.
 - **Run manifest** (A4). Every run records: simulatte version; Python implementation and version; OS and architecture; the resolved dependency set (lockfile hash, or the list of installed distributions and versions); RNG algorithm identifier; model source bundle hash; hashes of declared inputs; parameters; seed; physical and full layout hashes; horizon; warm-up; time unit; unmanaged-randomness flag.
 - **Volatile fields** (A34) such as wall-clock start, host name and durations are stored separately and excluded from all comparisons and from the canonical content of a trace.
 - Given identical manifests, a run produces identical canonical content: the same events, deltas, digest and KPI values. Across platforms or runtimes, results may differ (libm, Python's `random` algorithms between versions); this is detected by fingerprint comparison, not prevented.
@@ -154,9 +159,10 @@ These are the interfaces between sub-projects. Changing any of them after its su
 The encoding is *deferred to SP1*, under these requirements:
 
 - One file with a **header** (format version, required and optional features, catalog, entity registry at the start, the **resolved layout** from SP2 on, the run manifest, volatile metadata kept apart), a body of **chunks**, an **index**, and a **footer**.
-- **Chunks** (A25) are closed when any limit is reached: a simulation-time window, a maximum number of events, a maximum size in bytes, or a maximum wall-clock latency while a run is in progress (so a slow run still publishes regularly). Chunk boundaries are cursor positions `(t, seq)`, not times. Each chunk starts with a **snapshot** of live entities and bounded summary state, and is decodable on its own.
+- **Chunks** (A25) are closed when any limit is reached: a simulation-time window, a maximum number of events, a maximum size in bytes, or a maximum wall-clock age of the oldest completed but unpublished event (B12). The latency bound covers completed events only; it cannot force progress inside long-running model code. Chunk boundaries are cursor positions `(t, seq)`, not times. Each chunk starts with a **snapshot** of live entities and bounded summary state, and is decodable on its own.
+- **Safe points** (B12). Snapshots are built only between events, from the recorder's replay state (snapshot plus applied deltas), never by reading live simulation objects in the middle of a transition. Publishing a closed chunk never waits for the simulation.
 - **Commit protocol.** A chunk is written completely before its index record is appended. Readers of a growing file see only chunks with index records. The footer records the outcome: `completed`, `cancelled` or `failed`. A missing footer means the run is in progress or the file is truncated; an incomplete trailing chunk is skipped.
-- **Catalog growth** (A26). Event types and kinds first registered during a run are written as catalog-extension records before their first use.
+- **Catalog growth** (A26, B17). Event types and kinds first registered during a run are written as catalog-extension records before their first use. The index records catalog epochs, so a reader seeking directly to a chunk can fetch every definition it needs without replaying the prefix.
 - **Reader compatibility** (A26). Readers support the same major format version. Optional features they do not know are ignored; unknown required features make them refuse the file with a clear error.
 - **Recording levels:** `full` (events with deltas, snapshots, KPIs), `kpi` (KPI series and scalars, digest), `none`.
 - Readable from Python and from browser TypeScript without native extensions; compression allowed under the same condition.
@@ -182,6 +188,8 @@ Benchmarks run in CI on CPython and PyPy, on reference workloads defined in SP1 
 | KPI only, with digest | measured and reported; target fixed in SP1 |
 | Full trace | measured: overhead, memory, write throughput |
 
+Workloads include a congested case (long queues) so that delta and digest costs that grow with state size are caught (B19). **End-to-end replication throughput** (B20) is measured separately, on CPython and PyPy, for short and long runs, including process start, imports and warm-up; SP4 and SP5 establish the supported workload envelope from it before promising experiment throughput.
+
 The workload, logging level and hardware class are recorded with the results; CI compares against the stored baseline with a tolerance band.
 
 ### C2. Layout (SP2)
@@ -203,10 +211,11 @@ The workload, logging level and hardware class are recorded with the results; CI
   - **lattice:** a node per free grid point inside a bounding area, arcs to 4 or 8 neighbours;
   - **lanes:** user-drawn polylines snapped to the grid; lane intersections become nodes;
   - **explicit:** a hand-built `LayoutGraph`.
-- **Vehicle geometry** (A35). Vehicles are points. A layout-wide `clearance` radius inflates footprints and blocked areas before generation, which is how aisle width is modeled in 1.0. Diagonal arcs are not generated when they would cut the corner of an obstacle.
-- **Ports** connect to the network through connectors that must not cross footprints or blocked areas. A port with no valid connector is a resolution error with a diagnostic.
+- **Obstacles** (B4). A footprint is drawn for every placed entity, but only entities explicitly marked `obstacle=True` (and blocked areas) shape the network. Obstacles must have an explicit position from code or file; an auto-positioned obstacle is a resolution error. Moving entities (AGVs) are never obstacles.
+- **Vehicle geometry** (A35). Vehicles are points. A layout-wide `clearance` radius inflates obstacles and blocked areas before generation, which is how aisle width is modeled in 1.0. Diagonal arcs are not generated when they would cut the corner of an obstacle.
+- **Ports** connect to the network through connectors. Each port has an **approach point** outside its owner's inflated envelope, along the port's approach direction; the segment from the port to its approach point is exempt from the owner's clearance but checked against every other obstacle (B24). A port with no valid connector is a resolution error with a diagnostic.
 - Arcs carry `enabled`, direction (`both`, `forward`, `backward`), an optional `speed_limit`, and traffic attributes (*deferred to SP2*).
-- **Stable addressing** (A20). Lattice nodes are addressed by grid indices `(i, j)`, lane elements by lane id and vertex index, explicit nodes by their id, and arcs by their endpoint pair. Bulk overrides are stored as geometric selectors (row, column, rectangle, lane) rather than element lists. An override whose target no longer exists after regeneration is **stale**: reported and not applied, like an orphan.
+- **Stable addressing** (A20, B13). Lattice nodes are addressed by grid indices `(i, j)`; lane vertices have persistent ids assigned when created and kept across edits, and lane segments are addressed by their vertex-id pair, so inserting a vertex changes no existing address; explicit nodes are addressed by their id, and arcs by their endpoint pair. Bulk overrides are stored as geometric selectors (row, column, rectangle, lane) rather than element lists. An override whose target no longer exists after regeneration is **stale**: reported and not applied, like an orphan.
 
 #### C2.4 Layout sources and precedence
 
@@ -219,21 +228,32 @@ Precedence is resolved **per property**. The result is the **resolved layout**, 
 #### C2.5 `layout.json`
 
 - Versioned schema, published as JSON Schema, with separate sections (A20): `grid`, `network` (generator settings, clearance, blocked areas, lanes, element and selector overrides) and `placements` (keyed by entity id).
-- **Override semantics:** an absent property inherits from code or auto-layout; `null` resets to the inherited value; lists are replaced as a whole.
+- **Override semantics** (B23): an absent property inherits from code or auto-layout; an explicit `{"$unset": true}` removes an inherited optional value (for example, no speed limit on an arc whose code sets one); lists are replaced as a whole. Resetting an override to the inherited value means deleting it from the file.
+- **Not part of source identity** (B6). `layout.json` is a run input with its own revision, excluded from the source bundle and its hash, so a presentation edit never changes the source identity.
 - **Numbers** are serialized round-trip-safe (shortest exact representation) (A37). Keys are sorted. Hashes are computed over a normalized form, independent of formatting.
 - **Orphans and stale targets** are reported and not applied. The studio lists them and offers to reassign or delete them.
 
 #### C2.6 Physical versus presentation properties
 
-- **Physical** properties change simulation results; **presentation** properties do not. Classification is **transitive** (A2): when the network is generated (lattice or lanes), everything generation reads is physical: grid, clearance, blocked areas, lanes, and the position, rotation, footprint and ports of every entity with a footprint.
-- **Model-read properties** (D33). A model may read any layout property at bind time, but only through the layout's physical accessor, which records the dependency and makes that property physical. Reading presentation properties by other means is unsupported and documented as such.
+- **Physical** properties change simulation results; **presentation** properties do not. Classification is **transitive** (A2, B4): when the network is generated (lattice or lanes), everything generation reads is physical: grid, clearance, blocked areas, lanes, and the position, rotation, footprint and ports of every obstacle.
+- **Model-read properties** (D33). A model may read any resolved layout property, in a layout stage or at bind time, but only through the layout's physical accessor, which records the dependency and makes that property physical. Reading presentation properties by other means is unsupported and documented as such.
 - The trace stores the **full** and the **physical** layout hash. A change of physical hash marks earlier results as stale; presentation edits do not.
 
-#### C2.7 Layout lifecycle: declare, resolve, bind (A1, A21)
+#### C2.7 Layout lifecycle (A1, A21, B2, B3, D38)
 
-1. **Declare.** The caller (studio, CLI or script) creates a `Layout`, loads `layout.json` if any, and passes it to `build`. Inside `build`, model code constructs entities and declares placements, the grid, the network spec and overrides. Components that need physical data take **handles** (node ids, port references such as `layout.port("WH-A", "out")`), not resolved objects.
-2. **Resolve.** After `build` returns, all entities exist. The layout applies precedence, detects orphans and stale targets, validates ports and connectors, generates the network, computes hashes and freezes. Resolution errors stop the run before any simulation event.
-3. **Bind.** Before the first simulation event, components resolve their handles against the frozen graph. Fleet routing, traffic resources, warehouse bays, AGV initial nodes and distance computations all use **this one graph** instance.
+1. **Declare.** The caller (studio, CLI or script) creates a `Layout`, loads `layout.json` if any, and passes it to `build`. Inside `build`, model code attaches entities and declares placements, the grid, the network spec, overrides, and optional **layout stages**. Components that need physical data take **handles** (node ids, port references such as `layout.port("WH-A", "out")`), not resolved objects.
+2. **Resolve, in stages.** Everything declared in `build` is stage 0. A **layout stage** is a function registered with `layout.stage(reads=..., after=...)`. It receives the resolved, frozen values it declared it reads and may attach further entities and declare their placements, so physical layout values can decide how many entities exist and how they are built (for example the number of servers that fit a floor area). Rules:
+   - Each stage is resolved (precedence applied) and frozen before any later stage runs. A stage reads only values of earlier stages, through the physical accessor, so everything a stage reads is physical.
+   - Stages run in a deterministic order: declaration order, constrained by `after`. Cycles are rejected.
+   - The network is generated once, after the last stage that declares obstacles, blocked areas, lanes, grid or clearance. Later stages may read the network but cannot change any of those inputs; trying to raises.
+   - Stages draw random numbers only from named RNG streams.
+   - File overrides apply to stage-created entities by id like any other. When an edit changes how many entities a stage creates, overrides for ids that no longer exist become orphans.
+3. **Validate.** After the last stage, orphans and stale targets are detected against all attached entities and all declared definitions, including layout nodes that are bound later (B3). Ports and connectors are validated. Errors stop the run before any simulation event.
+4. **Bind.** Components resolve their handles against the one frozen graph. Fleet routing, traffic resources, warehouse bays, AGV initial nodes and distance computations all use **this one graph** instance. Binding may read further layout values through the accessor; those reads join the physical dependency set (B2).
+5. **Finalize.** The physical dependency closure and the physical and full hashes are computed, and the layout is frozen completely. A later read of a property outside the closure raises.
+6. **Activate.** The canonical initial state is captured for the semantic projection (§C1.6) and the simulation starts. Operations that need bound physical data and are called before activation (for example `FleetCoordinator.submit()` in setup code) are queued and executed at activation, in call order, at time zero, before any other event (B3).
+
+**Stored layers** (B6). Each run stores its layout **layers**: the code declarations of every stage, the static topology used by auto-layout, the file overrides and the physical dependency closure. A later edit that touches nothing in the closure is re-resolved from the stored layers as pure data, without running model code. Any other edit requires a re-run.
 
 Scripts that do not use a `Layout` keep passing an explicit `LayoutGraph` to their components, and that graph is authoritative. Mixing a `Layout` with directly passed graphs in one environment is an error. The intralogistics builders move to handles in SP2.
 
@@ -268,6 +288,7 @@ def build(env: Environment, layout: Layout, params: Params) -> None:
 - `inputs` declares the files the model reads (A16, A29). They are hashed into the manifest, included in source bundles and watched by the studio.
 - Supported parameter types: `bool`, `int`, `float`, `str`, `Literal[...]`, `Enum`, each optionally `Annotated` with constraints and a description. The studio generates forms; the CLI accepts `--param name=value`.
 - `build` must not run the simulation. The seed and time unit are set on the `Environment` before `build` is called.
+- **Immutable inputs** (B7). Studio and CLI runs, local or remote, execute from an immutable snapshot of the source and the declared inputs (§C5.2). The working directory is the snapshot, and the import path contains the snapshot, never the editable project, so edits made during a run cannot leak into it.
 - Models must be **retry-safe** (D34): a run may execute more than once. Files are written only to `env.artifacts_dir`, a per-attempt directory provided by Simulatte. Other external side effects are the user's responsibility, and the documentation says so.
 - A model file may define several decorated models, selected by name (`simulatte studio plant.py:build`).
 - `Runner` and the builders keep working without the decorator.
@@ -276,10 +297,11 @@ def build(env: Environment, layout: Layout, params: Params) -> None:
 
 - **Two processes per worker** (A11, A12). The **supervisor** (`simulatte worker --stdio`) speaks the protocol on its stdin and stdout and never runs user code. For each run it starts a fresh **execution process**, connected over a private pipe. The execution process's stdout and stderr are captured as bounded diagnostics tagged with the run and attempt ids, so `print()` and native writes cannot corrupt protocol frames.
 - **Framing.** Length-prefixed binary frames. The first frame from a supervisor is `hello`, preceded by a fixed magic sequence; bytes before it (for example bootstrap output on a remote shell) are logged as noise, not parsed. Encoding *deferred to SP4*; it must be implementable with the standard library or a pure-Python dependency.
-- **Messages** at minimum: `hello` (protocol version, simulatte version, runtime, platform, capabilities), `run` (run spec, attempt id), `cancel`, `heartbeat`, `progress` (simulation time, event count), `trace_chunk`, `kpi`, `diagnostics`, `result` (scalars, fingerprint), `error`, `shutdown`. Incompatible versions refuse to run with an explicit error.
+- **Messages** at minimum: `hello` (protocol version, simulatte version, supervisor runtime, platform, capabilities), `run` (execution request, attempt id), `ready` (B5: sent after preparation, that is after the execution environment is provisioned, the model is loaded and the layout is finalized, and before the first simulation event; it carries the resolved manifest: the actual execution runtime, dependency set, layout hashes and capabilities), `cancel`, `heartbeat`, `progress` (simulation time, event count), `trace_chunk`, `kpi`, `diagnostics`, `result` (scalars, fingerprint), `error`, `shutdown`. Incompatible versions refuse to run with an explicit error.
 - **Liveness and progress** (A13). The supervisor sends heartbeats independently of the execution process. Missing heartbeats past a timeout mean the worker is lost. Lack of simulation progress is reported as `stalled`, which is distinct from loss and does not kill the run unless a configured run timeout expires.
-- **Cancellation** (A13). The supervisor terminates the execution process's process group (graceful signal, then forced kill after a grace period). When the supervisor's stdin closes (coordinator gone, SSH disconnected) it kills all its execution processes and exits; execution processes also exit when their supervisor dies.
-- **Backpressure** (A13). Buffers are bounded. The execution process writes trace chunks to a local run directory; the supervisor ships committed chunks. A slow consumer delays shipping, not the simulation, until a configured disk bound is hit, at which point the run pauses its writes (observers cannot change results, so pausing is safe).
+- **Cancellation and containment** (A13, B21). Cancellation is graceful first, forced after a grace period, and covers every process the model started. On Linux and macOS the execution process runs in its own process group, and a parent-death mechanism (for example `PR_SET_PDEATHSIG` on Linux, a watcher on macOS) ends it when the supervisor dies. On Windows (local studio only, N5) the execution process runs in a Job Object that kills all descendants when closed. Where a platform cannot guarantee descendant cleanup, the documentation says so. When the supervisor's stdin closes (coordinator gone, SSH disconnected) it ends all its execution processes and exits.
+- **Spool and backpressure** (A13, B11). The execution process writes each committed chunk as a separate file in a spool directory. The supervisor ships chunks and deletes each one after the coordinator acknowledges durable receipt, so shipping frees space. A slow consumer delays shipping, not the simulation, until the spool reaches its configured bound; then the simulation blocks on its next write (observers cannot change results, so blocking is safe) and the supervisor reports `backpressure`, distinct from `stalled`. Cancellation remains responsive while blocked. If the bound is reached and nothing can be reclaimed (for example the coordinator is gone), the attempt ends with outcome `disk_full`.
+- **Start-up cost** (B20). To hide interpreter start and import time, the supervisor may keep **warm spare** execution processes that have imported Simulatte but no user code. Each process still runs exactly one run and then exits, so isolation is unchanged.
 - **Transports.** Local: the supervisor is a subprocess of the coordinator and runs in the current Python environment. SSH (SP5): the coordinator runs `ssh <host> <bootstrap command>` with the system `ssh` client and the user's SSH configuration; no extra ports, no daemon.
 
 ### C5. Coordinator, run store and experiments (SP4, SP5)
@@ -287,16 +309,18 @@ def build(env: Environment, layout: Layout, params: Params) -> None:
 #### C5.1 Coordinator and run identity (A14)
 
 - The coordinator runs inside the studio server or the headless CLI and owns the scheduler, the run store and the workers.
-- A **run spec** is immutable and identified by a hash of: model reference, source bundle hash, manifest inputs, parameters, seed, layout hashes, horizon, warm-up, recording level and KPI selection. A `full` re-run of a `kpi` replication is a separate run spec linked to it as `replay-of`.
-- **Attempts.** Each execution of a run spec is an attempt with its own id. Execution is at-least-once. Only the attempt the coordinator currently assigns may publish results; late results from superseded attempts are discarded (fencing).
-- **Publication.** Artifacts are written to staging, verified, moved into place, and then recorded in the index in one transaction. A run is visible only after publication completes.
+- An **execution request** (B5) is immutable and identified by a hash of what the coordinator knows before running anything: model reference, source snapshot hash, input hashes, layout file revision, parameters, seed, horizon, warm-up, recording level, KPI selection and the requested runtime and provisioning spec. It contains no value that only execution can produce. A stored result remains valid for a new request that differs only in the layout file revision when the difference touches nothing in that result's physical dependency closure (B6); the coordinator reuses it instead of re-running.
+- The **resolved manifest** is produced by the worker during preparation and reported in `ready`: actual runtime, resolved dependencies, physical and full layout hashes, physical dependency closure. Results carry both. A `full` re-run of a `kpi` replication is a separate request linked to it as `replay-of`; verification compares resolved manifests and fingerprints.
+- **Attempts.** Each execution of a request is an attempt with its own id. Execution is at-least-once. Only the attempt the coordinator currently assigns may publish results; late results from superseded attempts are discarded (fencing).
+- **Publication** (B8). While an attempt runs, its committed chunks and KPI updates are **provisionally visible**: served to viewers tagged with the attempt and revision, and only for the attempt the coordinator currently assigns. Cancellation or supersession invalidates them, and viewers are notified. Final results are **committed** atomically: artifacts are written to staging, verified, moved into place, and recorded in the index in one transaction. Experiments, comparisons and replays use committed results only.
 
 #### C5.2 Remote environments (SP5) (A15, A16)
 
 - Remote hosts need non-interactive SSH access, a POSIX shell (Linux or macOS), and **uv**. They do not need Python; uv provides it.
 - `simulatte workers setup <host>` checks connectivity, platform and uv, shows what it will change, and installs uv on request. This is the only step that installs uv. A missing uv makes runs fail with a message pointing to it.
 - **Bootstrap before handshake.** The coordinator starts the supervisor through uv, pinned to the coordinator's simulatte version and the project's Python requirement, so the supervisor exists before the first `hello`.
-- **Runtime provisioning is authorized by running.** For each source bundle, the worker creates an isolated environment in its cache with `uv sync --locked` (which fails if the lockfile does not match the project metadata), including the extras and dependency groups the run spec names. The project's locked simulatte version must be protocol-compatible with the coordinator's; this is checked before scheduling.
+- **Runtime provisioning is authorized by running.** The worker creates isolated environments in its cache with `uv sync --locked` (which fails if the lockfile does not match the project metadata), including the extras and dependency groups the request names. Environments are keyed by the complete **provisioning spec** (runtime implementation and version, lockfile hash, extras, groups, installation options), not by the source bundle, are built under a lock, and are immutable once published (B10). The project's locked simulatte version must be protocol-compatible with the coordinator's; this is checked before scheduling.
+- **Source capture** (B7, B16) is built in SP4 and used for local runs too: the source snapshot, input capture and canonical hashing below. SP5 adds shipping snapshots to remote hosts.
 - **Source bundles.** The bundle manifest is explicit: git-tracked files of the project when it is a git repository, otherwise `[tool.simulatte.bundle] include`, plus declared `inputs`, minus configured excludes. Ignored files are never included implicitly, and untracked files never travel unless listed.
 - **Preflight** before scheduling rejects: path dependencies or workspace members outside the project root, symlinks escaping it, bundles above a configured size, and dependencies on private indexes unless the worker has its own credentials (Simulatte never ships credentials).
 - Bundles are normalized archives (sorted entries, fixed metadata) so their hash is stable; workers verify content against the hash before use.
@@ -304,16 +328,21 @@ def build(env: Environment, layout: Layout, params: Params) -> None:
 
 #### C5.3 Run store
 
-- Per project directory, `.simulatte/`: a SQLite index of experiments, run specs, attempts (host, platform, status, fingerprint, timings), KPI scalars, and artifact files. SP4 introduces the minimal store for single runs; SP5 extends it.
+- Per project directory, `.simulatte/`: a SQLite index of experiments, execution requests, attempts (host, platform, status, resolved manifest, fingerprint, timings), KPI scalars, and artifact files. SP4 introduces the minimal store for single runs; SP5 extends it.
 - Schema is versioned and migrated forward. The store is safe to delete.
 
 #### C5.4 Replays
 
-Any replication can be re-run at level `full` from its run spec. The coordinator prefers the original host, otherwise a host with an identical runtime manifest. The re-run's fingerprint must match the stored one; a mismatch is reported prominently and the replay is labelled as not verified.
+Any replication can be re-run at level `full` from its execution request. The coordinator prefers the original host, otherwise a host with an identical resolved runtime. The re-run's resolved manifest and fingerprint must match the stored ones; a mismatch is reported prominently and the replay is labelled as not verified.
 
 #### C5.5 Experiments and statistics (A10)
 
-- An **experiment** is a set of configurations (parameter grid or explicit list, optionally layout variants) × N replications, of type **steady-state** (with warm-up) or **terminating** (no warm-up; every entity counts). Experiments can be defined in Python, in a file or in the studio.
+- An **experiment** is a set of configurations (parameter grid or explicit list, optionally layout variants) × N replications, of one of three types (B15):
+  - **steady-state:** fixed horizon, warm-up, window `[warmup, horizon)`, completion cohort by default (§C1.8);
+  - **terminating, fixed horizon:** no warm-up, window `[0, horizon)`; entities still in the system at the horizon are censored, and each KPI declares how censored entities are reported (count, excluded, or partial durations);
+  - **terminating, finite population:** arrivals stop at a cutoff (a number of jobs or a time); the run ends when the system has drained, so every entity completes; a safety limit on simulated time ends runs that never drain, and such runs are reported as failed.
+
+  Experiments can be defined in Python, in a file or in the studio.
 - **Observations** are replication-level estimates: one value per KPI per replication. Jobs or time samples are never treated as independent observations.
 - **Intervals:** t-based, configurable level, reported with the actual number of successful replications. Fewer than two observations is reported as insufficient, not as an interval.
 - **Paired comparisons** pair replications by replication index (same seed, same stream names), never by completion order. Failed or missing pairs are reported and excluded explicitly.
@@ -324,13 +353,13 @@ Any replication can be re-run at level `full` from its run spec. The coordinator
 ### C6. Studio server and websocket protocol (SP4)
 
 - **Binding.** The server listens on `127.0.0.1` on a free port only (A17).
-- **Authentication.** The CLI opens a URL carrying a random one-time token. The server exchanges it for an `HttpOnly`, `SameSite=Strict` session cookie and redirects to a URL without the token, so it does not stay in history. Tokens and cookies are never logged.
+- **Authentication** (B9). The CLI opens a URL carrying a random one-time token. The server exchanges it for an `HttpOnly`, `SameSite=Strict` session cookie whose name includes a random instance id, so several studios on one machine do not overwrite each other's cookies, and redirects to a URL without the token, so it does not stay in history. This bootstrap request is the only request exempt from the `Origin` rule below. Browsers send cookies to every port of a host, so other loopback services are treated as untrusted: privileged operations (running code, writing files, websocket connections) additionally require a per-instance secret that the page receives in its response body and presents in a request header or the first websocket message; it is never stored in a cookie. Tokens, cookies and secrets are never logged.
 - **Request checks.** The `Host` header must be the loopback address and port (or `localhost` with that port), which blocks DNS rebinding. Websocket connections and state-changing requests must carry the server's own `Origin`.
 - **File access** is limited to the model project directory. Layout writes go only to the configured layout path, atomically (temporary file and rename). Messages and uploads have size and parsing limits.
 - **Untrusted content.** All strings from traces, models and layouts are rendered as text, never as HTML.
 - **Protocol.** One websocket per tab carries versioned JSON messages for: model info and parameter schema, run control, progress, trace chunk availability (chunks are fetched over HTTP), KPI updates, layout reads and writes, validation results, orphans and stale targets, experiment control and results, input changes, errors. The UI in a wheel always matches its server.
 - **Revisions** (A29). Each input set (source bundle hash, layout revision, parameters) has a revision id. Commands carry the revision they were based on. Layout writes use optimistic concurrency: a write based on an old revision is rejected, so two tabs cannot silently overwrite each other. Results are tagged with their revision; results for superseded revisions stay in the store but never replace the current view.
-- **Watching** (A29). The studio watches the model file, its project-local imports (recorded while `build` runs) and declared inputs. Physical changes and source changes trigger a debounced re-run that cancels the previous one. Presentation-only layout edits re-resolve and re-render without re-running. An invalid file is reported and the last good run stays on screen.
+- **Watching** (A29). The studio watches the model file, its project-local imports (recorded while `build` runs) and declared inputs. Physical changes and source changes trigger a debounced re-run that cancels the previous one. Presentation-only layout edits are re-resolved from the run's stored layout layers (§C2.7) and re-rendered without re-running. An invalid file is reported and the last good run stays on screen.
 
 ### C7. Viewer (SP3)
 
@@ -356,7 +385,7 @@ A job transfer between servers takes no simulated time (N4). At the transfer's c
 
 #### C7.5 Exports (A30)
 
-- **Video.** Frames are rendered in manual clock mode and encoded in the browser with WebCodecs, then muxed by a pure-JavaScript library. Capabilities are checked with `VideoEncoder.isConfigSupported` before export. **Required:** MP4 (H.264) on current Chromium-based browsers and Safari. **Fallbacks:** WebM (VP9 or VP8) where MP4 encoding is unavailable, then a PNG frame sequence as a last resort. Output is streamed to a file rather than held in memory, and exports can be cancelled. Firefox support is verified in SP3 (D35).
+- **Video.** Frames are rendered in manual clock mode and encoded in the browser with WebCodecs, then muxed by a pure-JavaScript library. Capabilities are checked with `VideoEncoder.isConfigSupported` before export. **Required:** MP4 (H.264) on current Chromium-based browsers and Safari. **Fallbacks:** WebM (VP9 or VP8) where MP4 encoding is unavailable, then a PNG frame sequence as a last resort. The **output sink** is specified and tested separately from encoding (B22): where the File System Access API is available, output streams to the chosen file; elsewhere (Safari) it is staged in the Origin Private File System and then offered as a download. Memory use stays bounded in both cases. Storage exhaustion ends the export with a clear error, and exports can be cancelled at any point. Firefox support is verified in SP3 (D35).
 - **HTML.** A single file containing the scene, a read-only player and an embedded trace as data. Fonts, icons and scripts are inlined; it works with networking disabled; a Content Security Policy forbids network access and inline event handlers. Size limits *deferred to SP3*.
 - Both are tested independently of interactive playback.
 
@@ -384,15 +413,15 @@ Inside the studio (live, editable); `simulatte view run.trace` (static local ser
 ## 8. Testing strategy
 
 - **Core:** unit tests for ids, lifecycle, bus ordering, RNG streams and samplers, recorder and reader round-trips.
-- **Observer invariance** (A40): the same model run with no observers, default logging, KPI only and full trace yields identical digests and KPIs.
+- **Observer invariance** (A40, B18): the same model run with default logging, KPI only, full trace and extra collectors yields identical digests and identical values for every KPI the configurations share. A separate test checks that a run with no subscribers reaches the same final model state as an instrumented run. The no-subscriber benchmarks stay free of instrumentation.
 - **Determinism:** fresh processes with different `PYTHONHASHSEED` values yield identical canonical content; golden traces for reference models, regenerated deliberately.
 - **Replay:** state reached by uninterrupted replay equals state reached by seeking, at every chunk boundary and at sampled cursors, including several events at the same `t`.
 - **Malformed input:** truncated and corrupted traces, unknown required features, oversized messages.
 - **Overhead:** the benchmark suite of §C1.9.
-- **Layout:** property tests for precedence, network generation (connectivity, clearance, corner cutting, one-way arcs), connectors, stale and orphan detection, schema and number round-trips, hash normalization.
+- **Layout:** property tests for stage ordering and cycle rejection, layout-dependent entity counts, pre-activation queuing, precedence, network generation (connectivity, clearance, corner cutting, one-way arcs), connectors, stale and orphan detection, schema and number round-trips, hash normalization.
 - **Cross-language:** the Python writer and the TypeScript reader are tested on shared fixture traces, including non-finite floats and integer limits.
-- **Frontend:** Vitest for the scene, clock and stores; Playwright end-to-end tests against a running studio: seek, stepping, export (video and offline HTML), a physical layout edit triggering a re-run, a presentation edit not triggering one, and a stale-revision write being rejected.
-- **Workers:** protocol tests with a fake transport; local integration tests for cancellation, supervisor death, execution-process crash, `print()` noise, backpressure and stale-attempt fencing; SSH transport against a `localhost` sshd in CI where available, otherwise marked and run manually.
+- **Frontend:** Vitest for the scene, clock and stores; Playwright end-to-end tests against a running studio: seek, stepping, export (video including the Safari sink path, and offline HTML), a physical layout edit triggering a re-run, a presentation edit not triggering one, and a stale-revision write being rejected.
+- **Workers:** protocol tests with a fake transport; local integration tests for cancellation (including processes the model started), supervisor death, execution-process crash, `print()` noise, spool backpressure and reclamation, `disk_full`, and stale-attempt fencing; SSH transport against a `localhost` sshd in CI where available, otherwise marked and run manually.
 - **Packaging:** install-from-wheel and wheel-from-sdist smoke tests that start `simulatte view` and load a fixture trace.
 - **Statistics:** formulas tested deterministically against known values; interval coverage tested over controlled ensembles (for example many M/M/1 replications) against a binomial tolerance, in a slow suite, never as a single interval that must contain the true mean.
 
@@ -437,7 +466,7 @@ The studio executes user code and accepts requests only from the local machine w
 ## 11. Open questions for sub-project specs
 
 - SP1: trace encoding and compression; event catalog and delta schema per kind; snapshot and chunk limits; stream naming and per-job substreams; history and SQLite query APIs; loguru; benchmark workloads.
-- SP2: auto-layout algorithm; traffic attributes on arcs; lane intersection rules; handle API for intralogistics components.
+- SP2: auto-layout algorithm; traffic attributes on arcs; lane intersection rules; handle API for intralogistics components; layout stage API.
 - SP3: chart library (uPlot default candidate); docking library (dockview default candidate); MP4 muxing library; HTML export size limits; visual style and icon set; Firefox video support.
-- SP4: frame encoding; module names; file watcher library; import tracking for watching.
+- SP4: frame encoding; module names; file watcher library; import tracking for watching; spool bounds; warm spare policy; source snapshot mechanism.
 - SP5: worker host config; bundle manifest details; warm-up aids; experiment file format; store retention.
