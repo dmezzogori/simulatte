@@ -15,7 +15,7 @@ import pytest
 from simulatte._wire import FrozenMap, pack, unpack
 from simulatte.builders import build_immediate_release_system
 from simulatte.digest import Fingerprint
-from simulatte.entities import Entity, FieldSpec, StateSchema
+from simulatte.entities import KINDS, Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 from simulatte.events import Deltas, DomainEvent, apply_deltas, event_type
 from simulatte.provenance import Provenance
@@ -803,3 +803,18 @@ def test_adjacent_damaged_records_before_valid_ones_are_corruption(tmp_path: Pat
     trace = Trace.open(_write(tmp_path, "tail", tail + garbage_record + b"\x00\x00\x00"))
     assert trace.truncated
     assert len(trace.index) == k
+
+
+def test_kind_schemas_are_read_with_state_schema_from_wire(tmp_path: Path) -> None:
+    path, _, _ = _record_shop(tmp_path)
+    data = path.read_bytes()
+    offset, _, size = _frames(data)[0]
+    header: Any = unpack(data[offset + 9 : offset + size])
+    assert header["kinds"]["server"] == KINDS["server"].to_wire()  # the writer stores StateSchema.to_wire()
+    assert Trace.open(_write(tmp_path, "ok", _header_only(header))).outcome is None
+
+    lamp: Any = header["kinds"]["test_reader_lamp"]
+    loose = FrozenMap({**lamp, "label": FrozenMap({**lamp["label"], "presentation": "yes"})})
+    hostile = FrozenMap({**header, "kinds": FrozenMap({**header["kinds"], "test_reader_lamp": loose})})
+    with pytest.raises(TraceCorrupted, match="malformed catalog"):
+        Trace.open(_write(tmp_path, "loose", _header_only(hostile)))

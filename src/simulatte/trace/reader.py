@@ -14,9 +14,7 @@ cursor is at or before the given one; the activation cursor ``(t_activation, -1)
 
 from __future__ import annotations
 
-import hashlib
 import os
-import struct
 import zlib
 from bisect import bisect_right
 from collections import OrderedDict
@@ -28,7 +26,8 @@ from types import MappingProxyType
 from typing import Any, BinaryIO, Literal, NamedTuple, TypeAlias, TypeVar
 
 from simulatte._wire import FrozenMap, Wire, unpack
-from simulatte.digest import Fingerprint, project_event_parts, project_state
+from simulatte.digest import DigestAccumulator, Fingerprint
+from simulatte.entities import StateSchema
 from simulatte.events import CatalogEntry, Deltas, Op, apply_deltas
 from simulatte.trace.format import (
     FORMAT_MAJOR,
@@ -50,7 +49,6 @@ State: TypeAlias = dict[str, dict[str, Wire]]
 """Replay state: entity id to field values, each with the entity kind under ``"$kind"``."""
 
 _FRAME = RECORD_HEADER.size
-_U64 = struct.Struct(">Q")
 _CACHED_CHUNKS = 4
 _MALFORMED = (KeyError, TypeError, ValueError, IndexError, AttributeError)
 _T = TypeVar("_T")
@@ -376,10 +374,14 @@ class Trace:
     def _build_catalog(self) -> None:
         def build() -> tuple[dict[str, CatalogEntry], dict[str, frozenset[str]], dict[str, float]]:
             catalog = {str(name): CatalogEntry.from_wire(entry) for name, entry in self._header["catalog"].items()}
-            kinds = {str(kind): _presentation(schema) for kind, schema in self._header["kinds"].items()}
+            kinds = {
+                str(kind): StateSchema.from_wire(schema).presentation for kind, schema in self._header["kinds"].items()
+            }
             for ext in sorted(self._exts.values(), key=lambda ext: ext["epoch"]):
                 catalog.update({str(name): CatalogEntry.from_wire(entry) for name, entry in ext["types"].items()})
-                kinds.update({str(kind): _presentation(schema) for kind, schema in ext["kinds"].items()})
+                kinds.update(
+                    {str(kind): StateSchema.from_wire(schema).presentation for kind, schema in ext["kinds"].items()}
+                )
             scalars: dict[str, float] = {}
             for record in self._kpi_records:
                 scalars.update(record["scalars"])
@@ -585,17 +587,10 @@ class Trace:
         stored = self.fingerprint
         if self._level != "full" or stored is None or stored.digest is None:
             return "not_verifiable"
-        digest = hashlib.blake2b(digest_size=32)
-
-        def feed(item: bytes) -> None:
-            digest.update(_U64.pack(len(item)))
-            digest.update(item)
-
+        digest = DigestAccumulator()  # the same framing and rolled kind map as the live SemanticDigest
         presentation_of = self._presentation_of
-        kinds: dict[str, str] = {}
         if self._initial is not None:
-            kinds = {entity: str(fields["$kind"]) for entity, fields in self._initial.items()}
-            feed(project_state(self._initial, presentation_of))
+            digest.feed_state(self._initial, presentation_of)
         payload_presentation: dict[str, frozenset[str]] = {}
         for i in range(len(self._index)):
             for event in self._chunk(i).events:
@@ -607,18 +602,15 @@ class Trace:
                     hidden = payload_presentation[event.type] = frozenset(
                         f.name for f in entry.fields if f.presentation
                     )
-                feed(
-                    project_event_parts(
-                        event.ordinal,
-                        event.type,
-                        entry.version,
-                        event.t,
-                        event.payload,
-                        event.deltas,
-                        payload_presentation=hidden,
-                        presentation_of=presentation_of,
-                        kinds=kinds,
-                    )
+                digest.feed_event_parts(
+                    event.ordinal,
+                    event.type,
+                    entry.version,
+                    event.t,
+                    event.payload,
+                    event.deltas,
+                    payload_presentation=hidden,
+                    presentation_of=presentation_of,
                 )
         return digest.hexdigest() == stored.digest
 
@@ -674,8 +666,8 @@ def _check_index(index: tuple[ChunkInfo, ...], start: int, end: int) -> None:
         previous_last = info.last
 
 
-def _presentation(schema: Any) -> frozenset[str]:
-    return frozenset(str(name) for name, spec in schema.items() if spec["presentation"] is True)
+def _presentation(schema: Wire) -> frozenset[str]:
+    return StateSchema.from_wire(schema).presentation
 
 
 def _copy(state: Mapping[str, Mapping[str, Wire]]) -> State:

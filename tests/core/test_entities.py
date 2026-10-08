@@ -8,7 +8,7 @@ from typing import Any, ClassVar
 
 import pytest
 
-from simulatte._wire import FrozenMap, freeze
+from simulatte._wire import FrozenMap, freeze, pack, unpack
 from simulatte.entities import (
     KINDS,
     LABEL_FIELD,
@@ -433,3 +433,25 @@ def test_debug_validates_production_creations(env_debug: Environment) -> None:
     job = _job(env_debug, [server], due_date=7)
     env_debug.entities.retire(job)
     assert len(seen) == 6
+
+
+def test_state_schema_wire_roundtrip_and_validation() -> None:
+    schema = StateSchema(
+        {"a": FieldSpec("int", nullable=True), "b": FieldSpec("str", collection="list"), "label": LABEL_FIELD}
+    )
+    wire: Any = schema.to_wire()
+    assert list(wire) == ["a", "b", "label"]
+    assert wire["b"] == {"type": "str", "nullable": False, "collection": "list", "presentation": False}
+    assert StateSchema.from_wire(wire) == schema
+    assert StateSchema.from_wire(unpack(pack(wire))) == schema  # as read back from a trace
+
+    with pytest.raises(TypeError, match="map"):
+        StateSchema.from_wire(("a",))
+    with pytest.raises(TypeError, match="declaration"):
+        StateSchema.from_wire(FrozenMap({"a": "int"}))
+    with pytest.raises(TypeError, match="booleans"):
+        StateSchema.from_wire(FrozenMap({"a": FrozenMap({**wire["a"], "presentation": 1})}))
+    with pytest.raises(ValueError, match="wire type"):
+        StateSchema.from_wire(FrozenMap({"a": FrozenMap({**wire["a"], "type": "decimal"})}))
+    with pytest.raises(KeyError):
+        StateSchema.from_wire(FrozenMap({"a": FrozenMap({"type": "int"})}))

@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-from simulatte._wire import Wire, freeze
+from simulatte._wire import FrozenMap, Wire, freeze
 from simulatte.events import Deltas, DomainEvent, Op, event_type, matches_wire_type
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -122,6 +122,39 @@ class StateSchema(Mapping[str, FieldSpec]):
     def presentation(self) -> frozenset[str]:
         """Names of the presentation fields."""
         return self._presentation
+
+    def to_wire(self) -> FrozenMap:
+        """The schema as stored in trace headers and catalog extensions: field name to its declaration."""
+        return FrozenMap(
+            {
+                name: FrozenMap(
+                    {
+                        "type": spec.wire_type,
+                        "nullable": spec.nullable,
+                        "collection": spec.collection,
+                        "presentation": spec.presentation,
+                    }
+                )
+                for name, spec in self._fields.items()
+            }
+        )
+
+    @classmethod
+    def from_wire(cls, wire: Wire) -> StateSchema:
+        """Invert :meth:`to_wire`. Raises `TypeError` or `ValueError` for a malformed schema."""
+        if not isinstance(wire, Mapping):
+            raise TypeError(f"a state schema is a map, got {type(wire).__name__}")
+        fields: dict[str, FieldSpec] = {}
+        for name, spec in wire.items():
+            if not isinstance(spec, Mapping):
+                raise TypeError(f"state field {name!r}: a field declaration is a map, got {type(spec).__name__}")
+            nullable, presentation = spec["nullable"], spec["presentation"]
+            if not isinstance(nullable, bool) or not isinstance(presentation, bool):
+                raise TypeError(f"state field {name!r}: nullable and presentation must be booleans")
+            fields[name] = FieldSpec(
+                spec["type"], nullable, spec["collection"], presentation
+            )  # FieldSpec checks type and collection
+        return cls(fields)
 
 
 # ---------------------------------------------------------------------------------------------------------

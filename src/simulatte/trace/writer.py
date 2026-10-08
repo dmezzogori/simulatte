@@ -28,15 +28,15 @@ import threading
 import time
 import zlib
 from collections import deque
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import msgpack
 
-from simulatte._wire import FrozenMap, Wire, new_packer, pack, prepared, prepared_op
-from simulatte.entities import KINDS, StateSchema
+from simulatte._wire import FrozenMap, new_packer, pack, prepared, prepared_op
+from simulatte.entities import KINDS
 from simulatte.events import CATALOG, Deltas, DomainEvent, Subscription, apply_deltas
 from simulatte.trace.format import (
     OPTIONAL_FEATURES,
@@ -163,7 +163,7 @@ class TraceRecorder:
         header: Any = {
             "features": {"required": REQUIRED_FEATURES, "optional": OPTIONAL_FEATURES},
             "catalog": CATALOG.to_wire(),
-            "kinds": {kind: _schema_wire(KINDS[kind]) for kind in sorted(self._known_kinds)},
+            "kinds": {kind: KINDS[kind].to_wire() for kind in sorted(self._known_kinds)},
             "manifest": {k: v for k, v in requested.items() if k not in ACTIVATION_MANIFEST_FIELDS},
             "level": level,
             "chunk_limits": limits.to_wire(),
@@ -300,7 +300,7 @@ class TraceRecorder:
         ext: Any = {
             "epoch": epoch,
             "types": {name: CATALOG.get(name).to_wire() for name in new_types},
-            "kinds": {kind: _schema_wire(KINDS[kind]) for kind in new_kinds},
+            "kinds": {kind: KINDS[kind].to_wire() for kind in new_kinds},
         }
         payload = pack(ext)
         self._enqueue("ext", len(payload), (epoch, payload))
@@ -566,18 +566,3 @@ class TraceRecorder:
         parts.append(packer.pack_array_header(len(entries)))
         parts.extend(entries)
         return b"".join(parts)
-
-
-def _schema_wire(schema: StateSchema) -> Wire:
-    fields: Mapping[str, Wire] = {
-        name: FrozenMap(
-            {
-                "type": spec.wire_type,
-                "nullable": spec.nullable,
-                "collection": spec.collection,
-                "presentation": spec.presentation,
-            }
-        )
-        for name, spec in schema.items()
-    }
-    return FrozenMap(fields)
