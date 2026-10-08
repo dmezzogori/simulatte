@@ -113,3 +113,17 @@ All 10 findings were accepted; see `reviews/2026-10-08-global-spec-review-3.md`.
 **D46. Activation is a core SP1 contract** (C2, C3): prelude collapsed into the initial state, initializers that do not advance time, initial-state capture and `ready`, then one ordered queue of all pre-activation commands executed as recorded transitions; a failing queued command fails the attempt without rollback.
 
 **D47. Worker environment caches hold external dependencies only; local packages always load from the run's snapshot**, verified at preparation, locally and remotely (C5).
+
+## SP1 decisions, 2026-10-08 (Davide, on Claude's recommendations from the SP1 inventory)
+
+**D48. SP1 may lift two structural constraints when that simplifies design or implementation:** `simulatte/__init__.py` may export a public surface, and the import audit that forbids `intralogistics` modules from importing core production modules may be relaxed.
+
+**D49. Investigate and fix in SP1 the possible off-by-one in the server `queue_length` log value** (inventory §3), with a regression test.
+
+**D50. Drop loguru.** Text, JSON and SQLite sinks become plain bus subscribers; the log level becomes per-environment.
+
+**D51. Built-in components stop calling `env.debug(...)`; their activity is expressed as domain events**, which the text sink renders as log lines at DEBUG. Filtered messages cost nothing, and debug arguments (for example `job.priority()`) are no longer evaluated eagerly. `env.info()` and friends stay for user code.
+
+**D52. Old collector protocols are replaced by bus collectors.** `MetricsCollector`, `TimeSeriesCollector`, the intralogistics collector hooks and the `collect_time_series`/`collect_workload` wiring go; the default collectors keep their result attributes and plot helpers (`ema_*`, `wip_ts`, `plot_wip()`, …). Rejected: adapters for the old hook protocols until 1.0.
+
+**D53. Trace encoding: MessagePack chunks compressed with deflate in a small custom container.** Python uses `msgpack` (pure-Python fallback on PyPy); the browser uses `@msgpack/msgpack` and the built-in `DecompressionStream`. Rejected: Arrow IPC (pyarrow is heavy), SQLite (needs a WebAssembly build in the browser).
