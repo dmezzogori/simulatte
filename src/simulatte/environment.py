@@ -4,7 +4,9 @@ import functools
 import operator
 import os
 import random
+import time
 import types
+from datetime import UTC, datetime
 from collections.abc import Callable, Generator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
@@ -13,10 +15,19 @@ from typing import Any, Concatenate, Literal, ParamSpec, Protocol, TypeVar, over
 import simpy
 from simpy.core import StopSimulation
 
-from simulatte._wire import Wire
+from simulatte._wire import FrozenMap, Wire
+from simulatte.digest import Fingerprint, SemanticDigest
 from simulatte.entities import EntityRegistry
 from simulatte.events import DomainEvent, Event, EventBus, Op, validate_event
 from simulatte.logger import EventHistoryBuffer, SimLogger
+from simulatte.provenance import (
+    Provenance,
+    RunManifest,
+    VolatileMetadata,
+    build_final,
+    build_requested,
+    volatile_metadata,
+)
 from simulatte.rng import BindingKind, CountingRandom, DrawCounter, derive_seed, resolve_binding
 
 SEED_LIMIT = 2**63
@@ -46,6 +57,8 @@ class Environment(simpy.Environment):
         self,
         *,
         seed: int | None = None,
+        time_unit: str | None = None,
+        provenance: Provenance | None = None,
         debug: bool = False,
         log_file: str | Path | None = None,
         log_format: Literal["text", "json"] = "text",
@@ -57,6 +70,10 @@ class Environment(simpy.Environment):
         Args:
             seed: Seed of every RNG stream, an integer in ``[0, 2**63)``. ``None`` draws one from
                   ``os.urandom``; read it back from :attr:`seed` to reproduce the run.
+            time_unit: Optional name of the unit of simulated time (for example ``"minute"``), recorded in the
+                       run manifest.
+            provenance: Optional hashes of the model, source, inputs and dependencies, recorded in the run
+                        manifest (see :class:`simulatte.provenance.Provenance`).
             debug: Validate emitted events against the catalog and the entity state schemas, and reject
                    subscribers that schedule SimPy events or draw from :meth:`rng`. Slower; meant for tests
                    and model development.
@@ -74,6 +91,14 @@ class Environment(simpy.Environment):
                 raise ValueError(f"seed must be in [0, 2**63), got {seed}")
         super().__init__()
         self._seed = seed
+        self.time_unit = time_unit
+        """Name of the unit of simulated time, or None."""
+        self._provenance = provenance
+        self._digest: SemanticDigest | None = None
+        self._requested: FrozenMap | None = None
+        self._stopping_policy: Wire | None = None
+        self._wall_clock_start: str | None = None
+        self._run_seconds = 0.0
         self._streams: dict[str, random.Random] = {}
         self._draws = DrawCounter()  # incremented only by the counting streams of debug mode
         self.opaque_sampler_owners: list[str] = []
@@ -270,6 +295,7 @@ class Environment(simpy.Environment):
             listener(state)
         if listeners:
             self._projection_active = True
+        self._requested = self._build_requested()
         self._activated = True
 
         commands, self._commands = self._commands, []
@@ -306,10 +332,58 @@ class Environment(simpy.Environment):
                 self.__dict__["schedule"] = blocked
 
     def run(self, until: float | simpy.Event | None = None) -> Any:
-        """Activate the environment on first use (see :meth:`activate`), then run the simulation."""
+        """Activate the environment on first use (see :meth:`activate`), then run the simulation.
+
+        The stopping policy of the manifest is the one of the last call: a horizon for a numeric `until`,
+        exhaustion for ``None``.
+        """
         if not self._activated:
             self.activate()
-        return super().run(until)
+        if until is None:
+            self._stopping_policy = FrozenMap({"type": "exhaustion"})
+        elif isinstance(until, simpy.Event):
+            self._stopping_policy = FrozenMap({"type": "event"})
+        else:
+            self._stopping_policy = FrozenMap({"type": "horizon", "horizon": float(until)})
+        if self._wall_clock_start is None:
+            self._wall_clock_start = datetime.now(UTC).isoformat()
+        started = time.perf_counter()
+        try:
+            return super().run(until)
+        finally:
+            self._run_seconds += time.perf_counter() - started
+
+    # -------------------------------------------------------------------------
+    # Digest and manifest
+    # -------------------------------------------------------------------------
+
+    def enable_digest(self) -> SemanticDigest:
+        """Attach the semantic digest of the run and return it; later calls return the same digest.
+
+        Raises `RuntimeError` after activation unless the digest was already enabled.
+        """
+        if self._digest is None:
+            self._digest = SemanticDigest.attach(self)
+        return self._digest
+
+    def fingerprint(self) -> Fingerprint:
+        """The digest (None unless :meth:`enable_digest` was called) and the KPI scalars of the run."""
+        return Fingerprint(digest=None if self._digest is None else self._digest.hexdigest(), kpis={})
+
+    def manifest(self) -> RunManifest:
+        """The manifest of the run: the requested part, plus the final part once :meth:`run` was called."""
+        requested = self._requested if self._requested is not None else self._build_requested()
+        final = None
+        if self._stopping_policy is not None:
+            final = build_final(requested, self._stopping_policy, self.opaque_sampler_owners)
+        return RunManifest(requested=requested, final=final)
+
+    def volatile_metadata(self) -> VolatileMetadata:
+        """Host, wall-clock start and wall-clock time spent in :meth:`run`; separate from the manifest."""
+        return volatile_metadata(self._wall_clock_start, self._run_seconds)
+
+    def _build_requested(self) -> FrozenMap:
+        return build_requested(seed=self._seed, time_unit=self.time_unit, provenance=self._provenance)
 
     def step(self) -> None:
         """
