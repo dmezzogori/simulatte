@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 import simpy
 from simpy.resources.resource import PriorityRequest
 
+from simulatte._wire import Wire, freeze
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 from simulatte.events import Deltas, DomainEvent, event_type
@@ -50,12 +51,16 @@ class JobQueued(DomainEvent):
 
     `queue_length` counts the waiting requests when the job joins, the job itself included: a job that finds
     a free slot has ``queue_length == 1`` and is granted in the next event. `priority` is the priority
-    stored on the request at construction.
+    stored on the request at construction, as a wire value: a number becomes a float, another wire value (for
+    example a tuple of numbers or a string) is frozen, and a priority that is not a wire value (for example a
+    ``Decimal`` or a user object) is recorded as None. Building the event therefore never fails for a priority
+    SimPy can sort, and never calls user code such as ``__repr__`` (whose output could also hold memory
+    addresses and make the digest irreproducible).
     """
 
     job: str
     server: str
-    priority: float
+    priority: Wire
     queue_length: int
 
 
@@ -462,7 +467,7 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
                     JobQueued(
                         job=job_id,
                         server=self.id,
-                        priority=float(arrival.priority),
+                        priority=_wire_priority(arrival.priority),
                         queue_length=len(queue),
                         deltas=Deltas.build()
                         .insert(self.id, "queue", queue.index(arrival), job_id)
@@ -559,6 +564,19 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
 
 def _request_key(request: Any) -> Any:
     return request.key
+
+
+def _wire_priority(priority: object) -> Wire:
+    """`priority` as recorded by ``job.queued`` (see :class:`JobQueued`); never raises."""
+    if isinstance(priority, (int, float)):
+        try:
+            return float(priority)
+        except OverflowError:  # an int beyond float range
+            return None
+    try:
+        return freeze(priority)
+    except (TypeError, OverflowError):
+        return None
 
 
 def _longest_increasing_run(values: list[int]) -> set[int]:

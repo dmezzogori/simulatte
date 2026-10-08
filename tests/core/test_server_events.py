@@ -311,3 +311,84 @@ def test_counting_priority_policy_unaffected_by_recording() -> None:
     assert plain_calls > 0
     assert recorded_calls == plain_calls
     assert recorded_schedule == plain_schedule
+
+
+def _priority_run(policy: Any, observe: str, tmp_path: Any) -> tuple[list[tuple[str, float]], list[Any]]:
+    """Jobs with `policy` contend for one server; returns (job id, finish time) and the recorded priorities."""
+    from simulatte.trace import Trace, TraceRecorder
+
+    env = Environment(seed=3)
+    path = tmp_path / f"{observe}.simtrace"
+    queued: list[JobQueued] = []
+    if observe == "subscriber":
+        env.bus.subscribe(lambda event: queued.append(event) if isinstance(event, JobQueued) else None, "*")
+    elif observe == "recorder":
+        TraceRecorder(env, path)
+    server = Server(env=env, capacity=1, name="s")
+    done: list[tuple[str, float]] = []
+
+    def run_job(i: int) -> ProcessGenerator:
+        sku = f"k{i % 3}"
+        job = ProductionJob(
+            env=env, sku=sku, servers=[server], processing_times=[1.0], due_date=10.0 - i, priority_policy=policy
+        )
+        yield env.timeout(0.1 * i)
+        yield env.process(_hold(env, server, job, 1.0))
+        done.append((job.id, env.now))
+
+    for i in range(6):
+        env.process(run_job(i))
+    env.run()
+    env.close()
+    priorities: list[Any] = [event.priority for event in queued]
+    if observe == "recorder":
+        priorities = [event.payload["priority"] for event in Trace.open(path).events() if event.type == "job.queued"]
+        assert Trace.open(path).verify() is True
+    return done, priorities
+
+
+@pytest.mark.parametrize(
+    ("policy", "expected"),
+    [
+        (lambda job, server: (job.due_date, job.sku), lambda job_due, sku: (job_due, sku)),
+        (lambda job, server: job.sku, lambda job_due, sku: sku),
+        (lambda job, server: _Opaque(job.due_date), lambda job_due, sku: None),
+    ],
+    ids=["tuple", "str", "opaque"],
+)
+def test_any_priority_simpy_accepts_is_recorded_without_raising(policy: Any, expected: Any, tmp_path: Any) -> None:
+    """Observer invariance (spec §6.1): building job.queued never raises for a priority SimPy can sort, and never
+    calls user code (no repr); priorities that are not wire values are recorded as None."""
+    plain, _ = _priority_run(policy, "none", tmp_path)
+    observed, live = _priority_run(policy, "subscriber", tmp_path)
+    recorded, stored = _priority_run(policy, "recorder", tmp_path)
+
+    assert observed == plain and recorded == plain
+    dues = {f"job-{i}": (10.0 - i, f"k{i % 3}") for i in range(6)}
+    assert live == stored == [expected(*dues[f"job-{i}"]) for i in range(6)]
+
+
+class _Opaque:
+    """A sortable priority that is not a wire value; its repr would be user code (and hold an address)."""
+
+    def __init__(self, key: float) -> None:
+        self.key = key
+
+    def __lt__(self, other: _Opaque) -> bool:
+        return self.key < other.key
+
+    def __repr__(self) -> str:  # pragma: no cover - must never be called
+        raise AssertionError("event construction called repr() on the priority")
+
+
+def test_numeric_priorities_stay_float() -> None:
+    env = Environment(seed=1)
+    seen = _record(env, (JobQueued,))
+    server = Server(env=env, capacity=1, name="s")
+    for value in (3, 2.5, True, 10**400):
+        policy = (lambda v: lambda job, server: v)(value)
+        env.process(_hold(env, server, _job(env, server, priority_policy=policy), 1.0))
+    env.run()
+    priorities = [event.priority for event in seen if isinstance(event, JobQueued)]
+    assert priorities == [3.0, 2.5, 1.0, None]
+    assert [type(p) for p in priorities[:3]] == [float, float, float]
