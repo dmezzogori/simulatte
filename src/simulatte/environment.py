@@ -6,12 +6,16 @@ from typing import Any, Literal
 import simpy
 from simpy.core import StopSimulation
 
+from simulatte.events import DomainEvent, Event, EventBus, Op, validate_event
 from simulatte.logger import EventHistoryBuffer, SimLogger
 
 
 class Environment(simpy.Environment):
     """
-    Thin wrapper around ``simpy.Environment`` with integrated logging.
+    Thin wrapper around ``simpy.Environment`` with an event bus and integrated logging.
+
+    Events are published with :meth:`emit` and delivered through :attr:`bus`; emitting sites guard event
+    construction with :meth:`wants`.
 
     Each environment has its own logger that:
     - Automatically includes simulation time in log output
@@ -23,6 +27,7 @@ class Environment(simpy.Environment):
     def __init__(
         self,
         *,
+        debug: bool = False,
         log_file: str | Path | None = None,
         log_format: Literal["text", "json"] = "text",
         log_history_size: int = 1000,
@@ -31,6 +36,8 @@ class Environment(simpy.Environment):
         """Initialize the simulation environment.
 
         Args:
+            debug: Validate emitted events against the catalog and reject subscribers that schedule
+                   SimPy events. Slower; meant for tests and model development.
             log_file: Optional file path for log output (defaults to stderr)
             log_format: Output format ("text" or "json")
             log_history_size: Maximum number of events to keep in history buffer
@@ -38,6 +45,11 @@ class Environment(simpy.Environment):
                          If provided, events are stored in both memory buffer and SQLite.
         """
         super().__init__()
+        self._debug = debug
+        self._seq = 0
+        self._ordinal = 0
+        self._projection_active = False
+        self.bus = EventBus(probe=self._queue_length if debug else None)
         self._logger = SimLogger(
             env=self,
             log_file=log_file,
@@ -45,6 +57,54 @@ class Environment(simpy.Environment):
             history_size=log_history_size,
             db_path=log_db_path,
         )
+
+    # -------------------------------------------------------------------------
+    # Events
+    # -------------------------------------------------------------------------
+
+    def emit(self, event: Event) -> None:
+        """Stamp `event` and deliver it to the subscribers of its type.
+
+        Stamps `t`, `seq` and, for domain events while the projection is active, `ordinal`. Raises
+        `ValueError` for an instance that was already emitted or a non-domain event carrying deltas, and
+        `RuntimeError` for a domain event emitted while subscribers are being called. Exceptions raised by
+        subscribers propagate.
+        """
+        if event.seq != -1:
+            raise ValueError(f"event already emitted (seq={event.seq}); emit a fresh instance")
+        domain = isinstance(event, DomainEvent)
+        if domain:
+            if self.bus.delivering:
+                raise RuntimeError("cannot emit a DomainEvent while subscribers are being called")
+        elif event.deltas.ops:
+            raise ValueError(f"{type(event).__name__} is not a DomainEvent and cannot carry deltas")
+        if self._debug:
+            validate_event(event, entity_kind=self._entity_kind, check_lifecycle=self._check_lifecycle_op)
+        object.__setattr__(event, "t", self._now)
+        object.__setattr__(event, "seq", self._seq)
+        self._seq += 1
+        if domain and self._projection_active:
+            object.__setattr__(event, "ordinal", self._ordinal)
+            self._ordinal += 1
+        self.bus.publish(event)
+
+    def wants(self, event_type: type[Event]) -> bool:
+        """Whether any subscriber listens to `event_type` (guard event construction with it)."""
+        return self.bus.wants(event_type)
+
+    def _entity_kind(self, entity_id: str) -> str | None:
+        """Kind of the live entity `entity_id`, or None when unknown (debug validation of touches)."""
+        return None
+
+    def _check_lifecycle_op(self, op: Op) -> None:
+        """Validate a ``create``/``retire`` operation against entity state (debug mode).
+
+        Extension point for the entity registry: ``create`` against the schema of the kind it names,
+        ``retire`` against the existence of the addressed live entity.
+        """
+
+    def _queue_length(self) -> int:
+        return len(self._queue)
 
     def step(self) -> None:
         """
