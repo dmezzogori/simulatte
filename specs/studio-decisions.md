@@ -28,7 +28,7 @@ Format: **D<n>. Title** (date, source). Decision. Rationale. Rejected alternativ
 
 **D11. Explicit emits from components, observer-only subscribers.** Rejected: deriving events from existing hooks and logs (incomplete); wrapping SimPy internals (fragile).
 
-**D12. Stable entity ids with optional names.** Placeable entities take an optional `name`; otherwise per-kind construction-order ids. Transient entities get sequential ids, replacing `uuid4`. Orphaned layout entries are reported, not applied. Rejected: mandatory names (breaks every model; heavy for research scripts).
+**D12. Stable entity ids with optional names** (*amended by D30*). Placeable entities take an optional `name`; otherwise per-kind construction-order ids. Transient entities get sequential ids, replacing `uuid4`. Orphaned layout entries are reported, not applied. Rejected: mandatory names (breaks every model; heavy for research scripts).
 
 **D13. PixiJS for the scene**, as a framework-independent TypeScript module. Rejected: Canvas2D and SVG (do not scale to thousands of moving entities).
 
@@ -42,7 +42,7 @@ Format: **D<n>. Title** (date, source). Decision. Rationale. Rejected alternativ
 
 **D18. Local and remote SSH workers in 1.0.** Davide's call ("aim big"). One stdio protocol for both transports, plain `ssh` with the user's configuration, generic over any network. Rejected for 1.0: local pool only.
 
-**D19. Remote environments shipped automatically with uv.** The model must be a uv project for remote runs; source bundles by content hash, `uv sync --frozen` on the worker. Rejected: pre-provisioned environments (fragile); Docker images (slow loop, Docker required everywhere).
+**D19. Remote environments shipped automatically with uv** (*amended by D37*). The model must be a uv project for remote runs; source bundles by content hash, `uv sync --frozen` on the worker. Rejected: pre-provisioned environments (fragile); Docker images (slow loop, Docker required everywhere).
 
 **D20. uv installed on remote hosts only through an explicit `simulatte workers setup <host>`.** Rejected: silent auto-bootstrap (installing software unasked); documentation only (no connection check).
 
@@ -54,8 +54,34 @@ Format: **D<n>. Title** (date, source). Decision. Rationale. Rejected alternativ
 
 **D23. Per-environment named RNG streams replace the global `random` module.** Found while writing the spec: `Runner` seeds the global generator and `distributions.py` and `router.py` draw from it. Named streams make runs reproducible inside a long-lived process and enable common random numbers across experiment configurations.
 
-**D24. Studio binds to 127.0.0.1 with a session token**, because it executes user code.
+**D24. Studio binds to 127.0.0.1 with a session token** (*amended by D36*), because it executes user code.
 
 **D25. Zero-subscriber overhead budget of 3 %**, enforced by a CI benchmark on CPython and PyPy.
 
-**D26. Layout lifecycle: physical properties freeze at the first physical access** (for example `layout.graph()`), presentation properties after `build` returns; auto-layout is presentation-only.
+**D26. Layout lifecycle: physical properties freeze at the first physical access.** *Superseded by D27* (review 1, A1: existing builders create warehouses after the graph, so early freezing cannot bind entities reliably).
+
+## Adversarial review 1, 2026-10-08 (Astra; triage by Claude, questions answered by Davide)
+
+All 41 findings were accepted; see `reviews/2026-10-08-global-spec-review-1.md` for the triage. Decisions that changed the design:
+
+**D27. Layout lifecycle is declare → resolve → bind** (A1, A21). `build` declares; the layout resolves and freezes after `build` returns; components resolve handles against one frozen graph before the first event. Supersedes D26. Rejected: declaring physical entity ids before graph resolution (keeps the early freeze but adds a declaration step that every model must get right).
+
+**D28. Events carry state deltas** (A5). Replay is snapshot plus deltas, so the viewer needs no per-type reducers and custom events can replay. Rejected: versioned reducers per event type in TypeScript (duplicates simulation semantics in two languages).
+
+**D29. Worker = supervisor plus a fresh execution process per run** (A11, A12, A13). The supervisor runs no user code, owns the protocol channel, heartbeats and cancellation. Rejected: reusing interpreters per source hash (state leaks between runs).
+
+**D30. Physical layout overrides require explicit entity names** (A18). Presentation overrides on generated ids are allowed with a warning. Amends D12.
+
+**D31. Replays must reproduce the trajectory** (review question 1, Davide: agreed). The fingerprint includes a semantic event digest, computed in `kpi` and `full` modes. Rejected: KPI-only agreement (two trajectories can share KPIs).
+
+**D32. Default job-KPI cohort: jobs completing within `[warmup, horizon)`** (question 2, Davide: agreed). Arrival-based cohorts are available per KPI; terminating experiments are a separate type.
+
+**D33. Models may read layout properties as physical inputs only through the physical accessor**, which declares the dependency (question 3, Davide: agreed).
+
+**D34. Models must be retry-safe** (question 5, Davide: agreed). Execution is at-least-once; files go to `env.artifacts_dir`.
+
+**D35. Video export: MP4 (H.264) required on Chromium-based browsers and Safari; WebM, then PNG frames, as fallbacks** (question 4, Davide: agreed). Firefox verified in SP3.
+
+**D36. Loopback only, no flag to bind other interfaces in 1.0** (A17). Token exchanged for an HttpOnly session cookie; Host and Origin checks. Amends D24.
+
+**D37. Source bundles use an explicit manifest** (A16): git-tracked files or a declared include list, plus declared inputs; `.gitignore` heuristics are not used. `uv sync --locked`, not `--frozen` (A15). Amends D19.
