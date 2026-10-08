@@ -243,7 +243,7 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         job.current_server = self
 
         self.env.debug(
-            f"Job {job.id[:8]} entered queue",
+            f"Job {job.id} entered queue",
             component="Server",
             job_id=job.id,
             server_id=self._idx,
@@ -275,7 +275,7 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         job = request.job
         entry_time = job.servers_entry_at.get(self, self.env.now)
         self.env.debug(
-            f"Job {job.id[:8]} released",
+            f"Job {job.id} released",
             component="Server",
             job_id=job.id,
             server_id=self._idx,
@@ -302,7 +302,7 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
             self._jobs.append(job)
 
         self.env.debug(
-            f"Job {job.id[:8]} processing started",
+            f"Job {job.id} processing started",
             component="Server",
             job_id=job.id,
             server_id=self._idx,

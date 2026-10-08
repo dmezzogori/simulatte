@@ -99,7 +99,7 @@ class PreShopPool(Entity, kind="psp"):
         self._psp.append(job)
 
         self.env.debug(
-            f"Job {job.id[:8]} entered PSP",
+            f"Job {job.id} entered PSP",
             component="PreShopPool",
             job_id=job.id,
             sku=job.sku,
@@ -135,7 +135,7 @@ class PreShopPool(Entity, kind="psp"):
         job.psp_exit_at = self.env.now
 
         self.env.debug(
-            f"Job {job.id[:8]} released from PSP",
+            f"Job {job.id} released from PSP",
             component="PreShopPool",
             job_id=job.id,
             time_in_psp=time_in_psp,

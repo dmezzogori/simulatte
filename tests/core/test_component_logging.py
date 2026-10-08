@@ -298,3 +298,27 @@ class TestIntegrationLogging:
         finally:
             SimLogger.set_level(original_level)
             env.close()
+
+
+def test_job_messages_carry_full_job_ids() -> None:
+    """Log messages show the whole job id, so job-10000 never reads as job-1000."""
+    original_level = SimLogger.get_level()
+    env = Environment()
+    try:
+        SimLogger.set_level("DEBUG")
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        for _ in range(10_000):
+            ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
+        assert job.id == "job-10000"
+
+        sf.add(job)
+        env.run()
+
+        messages = [e.message for e in env.log_history if e.extra.get("job_id") == job.id]
+        assert len(messages) >= 5
+        assert all(m.startswith("Job job-10000 ") for m in messages), messages
+    finally:
+        SimLogger.set_level(original_level)
+        env.close()

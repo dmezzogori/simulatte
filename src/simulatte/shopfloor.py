@@ -969,7 +969,7 @@ class ShopFloor(Entity, kind="shopfloor"):
             self._time_series_collector.on_job_entered(self, job)
 
         self.env.debug(
-            f"Job {job.id[:8]} entered shopfloor",
+            f"Job {job.id} entered shopfloor",
             component="ShopFloor",
             job_id=job.id,
             sku=job.sku,
@@ -1053,7 +1053,7 @@ class ShopFloor(Entity, kind="shopfloor"):
         """
         for op_index, (server, processing_time) in enumerate(job.server_processing_times):
             self.env.debug(
-                f"Job {job.id[:8]} queued at server {server._idx}",
+                f"Job {job.id} queued at server {server._idx}",
                 component="ShopFloor",
                 job_id=job.id,
                 server_id=server._idx,
@@ -1098,7 +1098,7 @@ class ShopFloor(Entity, kind="shopfloor"):
                         raise TypeError(f"OperationHook must return None or a generator, got {type(result).__name__}")
 
                 self.env.debug(
-                    f"Job {job.id[:8]} completed op at server {server._idx}",
+                    f"Job {job.id} completed op at server {server._idx}",
                     component="ShopFloor",
                     job_id=job.id,
                     server_id=server._idx,
@@ -1122,7 +1122,7 @@ class ShopFloor(Entity, kind="shopfloor"):
         self.total_time_in_system += job.time_in_system
 
         self.env.debug(
-            f"Job {job.id[:8]} finished",
+            f"Job {job.id} finished",
             component="ShopFloor",
             job_id=job.id,
             sku=job.sku,

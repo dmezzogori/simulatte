@@ -70,7 +70,7 @@ for e in server_events:
 
 Notes:
 
-- Most job-related messages include `job.id[:8]` for readability; the full id is in `extra["job_id"]`.
+- Job-related messages include the full job id (`job-0`, `job-1`, ...), also available in `extra["job_id"]`.
 - `server_id` / `warehouse_id` refer to the component’s internal `_idx` (usually set when registered on a `ShopFloor`).
 - Some “started” events may be emitted before a blocking wait (e.g., waiting for inventory/AGV capacity); use timestamps
   and follow-up events to infer actual durations.
@@ -79,33 +79,33 @@ Notes:
 
 | Event | Message (example) | `extra` keys |
 | --- | --- | --- |
-| Queue entry | `Job ab12cd34 entered queue` | `job_id`, `server_id`, `priority`, `queue_length`, `sku` |
-| Processing start | `Job ab12cd34 processing started` | `job_id`, `server_id`, `processing_time` |
-| Release | `Job ab12cd34 released` | `job_id`, `server_id`, `time_at_server` |
+| Queue entry | `Job job-0 entered queue` | `job_id`, `server_id`, `priority`, `queue_length`, `sku` |
+| Processing start | `Job job-0 processing started` | `job_id`, `server_id`, `processing_time` |
+| Release | `Job job-0 released` | `job_id`, `server_id`, `time_at_server` |
 
 #### ShopFloor (`component="ShopFloor"`)
 
 | Event | Message (example) | `extra` keys |
 | --- | --- | --- |
-| Job entry | `Job ab12cd34 entered shopfloor` | `job_id`, `sku`, `wip_total`, `jobs_count` |
-| Operation queued | `Job ab12cd34 queued at server 0` | `job_id`, `server_id`, `op_index` |
-| Operation completed | `Job ab12cd34 completed op at server 0` | `job_id`, `server_id`, `op_index`, `processing_time` |
-| Job finished | `Job ab12cd34 finished` | `job_id`, `sku`, `makespan`, `lateness`, `total_queue_time` |
+| Job entry | `Job job-0 entered shopfloor` | `job_id`, `sku`, `wip_total`, `jobs_count` |
+| Operation queued | `Job job-0 queued at server 0` | `job_id`, `server_id`, `op_index` |
+| Operation completed | `Job job-0 completed op at server 0` | `job_id`, `server_id`, `op_index`, `processing_time` |
+| Job finished | `Job job-0 finished` | `job_id`, `sku`, `makespan`, `lateness`, `total_queue_time` |
 
 #### Router (`component="Router"`)
 
 | Event | Message (example) | `extra` keys |
 | --- | --- | --- |
-| Job created | `Job ab12cd34 created` | `job_id`, `sku`, `routing_length`, `due_date`, `total_processing_time` |
-| Routed to PSP | `Job ab12cd34 routed to PSP` | `job_id`, `destination` |
-| Routed to ShopFloor | `Job ab12cd34 routed to ShopFloor` | `job_id`, `destination` |
+| Job created | `Job job-0 created` | `job_id`, `sku`, `routing_length`, `due_date`, `total_processing_time` |
+| Routed to PSP | `Job job-0 routed to PSP` | `job_id`, `destination` |
+| Routed to ShopFloor | `Job job-0 routed to ShopFloor` | `job_id`, `destination` |
 
 #### PreShopPool (`component="PreShopPool"`)
 
 | Event | Message (example) | `extra` keys |
 | --- | --- | --- |
-| PSP entry | `Job ab12cd34 entered PSP` | `job_id`, `sku`, `psp_size`, `due_date` |
-| PSP release | `Job ab12cd34 released from PSP` | `job_id`, `time_in_psp`, `psp_size_after` |
+| PSP entry | `Job job-0 entered PSP` | `job_id`, `sku`, `psp_size`, `due_date` |
+| PSP release | `Job job-0 released from PSP` | `job_id`, `time_in_psp`, `psp_size_after` |
 
 #### Warehouse (`component="Warehouse"`)
 

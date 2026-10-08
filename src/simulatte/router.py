@@ -172,7 +172,7 @@ class Router(Entity, kind="router"):
             )
 
             self.env.debug(
-                f"Job {job.id[:8]} created",
+                f"Job {job.id} created",
                 component="Router",
                 job_id=job.id,
                 sku=sku,
@@ -183,7 +183,7 @@ class Router(Entity, kind="router"):
 
             if self.psp is not None:
                 self.env.debug(
-                    f"Job {job.id[:8]} routed to PSP",
+                    f"Job {job.id} routed to PSP",
                     component="Router",
                     job_id=job.id,
                     destination="PSP",
@@ -191,7 +191,7 @@ class Router(Entity, kind="router"):
                 self.psp.add(job)
             else:
                 self.env.debug(
-                    f"Job {job.id[:8]} routed to ShopFloor",
+                    f"Job {job.id} routed to ShopFloor",
                     component="Router",
                     job_id=job.id,
                     destination="ShopFloor",
