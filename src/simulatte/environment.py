@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import functools
 import operator
 import os
 import random
-from collections.abc import Callable, Sequence
+import types
+from collections.abc import Callable, Generator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Literal, overload
+from typing import Any, Concatenate, Literal, ParamSpec, Protocol, TypeVar, overload
 
 import simpy
 from simpy.core import StopSimulation
 
+from simulatte._wire import Wire
 from simulatte.entities import EntityRegistry
 from simulatte.events import DomainEvent, Event, EventBus, Op, validate_event
 from simulatte.logger import EventHistoryBuffer, SimLogger
@@ -17,6 +21,9 @@ from simulatte.rng import BindingKind, CountingRandom, DrawCounter, derive_seed,
 
 SEED_LIMIT = 2**63
 """Seeds are integers in ``[0, SEED_LIMIT)``."""
+
+InitialState = dict[str, dict[str, Wire]]
+"""Canonical initial state: live entity states as wire values, sorted by id (see `EntityRegistry.snapshot`)."""
 
 
 class Environment(simpy.Environment):
@@ -75,6 +82,12 @@ class Environment(simpy.Environment):
         self._seq = 0
         self._ordinal = 0
         self._projection_active = False
+        self._projection_listeners: list[Callable[[InitialState], None]] = []
+        self._initializers: list[Callable[[], object]] = []
+        self._commands: list[tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]]] = []
+        self._activation_started = False
+        self._activated = False
+        self._initial_state: InitialState | None = None
         self.bus = EventBus(probe=self._probe if debug else None)
         self.entities = EntityRegistry(self)
         self._logger = SimLogger(
@@ -187,6 +200,117 @@ class Environment(simpy.Environment):
             self.opaque_sampler_owners.append(owner)
         return callback
 
+    # -------------------------------------------------------------------------
+    # Preparation and activation
+    # -------------------------------------------------------------------------
+
+    @property
+    def activated(self) -> bool:
+        """Whether :meth:`activate` completed its initializers and captured the initial state."""
+        return self._activated
+
+    @property
+    def initial_state(self) -> InitialState:
+        """Canonical initial state captured at activation, after the initializers (spec §10).
+
+        Raises `RuntimeError` before activation.
+        """
+        if self._initial_state is None:
+            raise RuntimeError("the environment is not activated yet; the initial state is captured by activate()")
+        return self._initial_state
+
+    def on_activate(self, fn: Callable[[], object]) -> None:
+        """Register `fn` as an activation initializer.
+
+        Initializers run in registration order when the environment activates; one registered after activation
+        runs immediately. While an initializer runs, scheduling any SimPy event raises `RuntimeError`, and
+        simulated time must not advance.
+        """
+        if self._activated:
+            self._run_initializer(fn)
+        else:
+            self._initializers.append(fn)
+
+    def request_projection(self, on_initial_state: Callable[[InitialState], None]) -> None:
+        """Request the semantic projection; `on_initial_state` receives the initial state at activation.
+
+        Digests and trace recorders call this when they attach. Domain events get ordinals only once the
+        projection is active, which happens after every listener received the initial state; the first domain
+        event after activation has ordinal 0. Raises `RuntimeError` after activation.
+        """
+        if self._activated:
+            raise RuntimeError("request_projection() must be called before activation")
+        self._projection_listeners.append(on_initial_state)
+
+    def activate(self) -> None:
+        """End preparation and start the run (spec §10). Idempotent; :meth:`run` calls it on first use.
+
+        The sequence is: run the initializers in registration order, capture :attr:`initial_state`, notify the
+        projection listeners and activate the projection, then execute the queued deferrable commands in call
+        order at the current time, before any scheduled event is processed. An exception from an initializer or
+        a command propagates; commands after a failing one are dropped. Calling it again after a failed
+        initializer, or from an initializer, raises `RuntimeError`.
+        """
+        if self._activated:
+            return
+        if self._activation_started:
+            raise RuntimeError("activation is in progress or failed; the environment cannot be activated again")
+        self._activation_started = True
+        initializers = self._initializers
+        index = 0
+        while index < len(initializers):  # initializers may register further initializers
+            self._run_initializer(initializers[index])
+            index += 1
+        self._initializers = []
+
+        state = self.entities.snapshot()
+        self._initial_state = state
+        listeners = self._projection_listeners
+        for listener in listeners:
+            listener(state)
+        if listeners:
+            self._projection_active = True
+        self._activated = True
+
+        commands, self._commands = self._commands, []
+        for fn, args, kwargs in commands:
+            fn(*args, **kwargs)
+
+    def _run_initializer(self, fn: Callable[[], object]) -> None:
+        """Call `fn` with scheduling blocked, and fail if it advanced simulated time."""
+        now = self._now
+        # Shadow the class method with an instance attribute only while the initializer runs, so the hot
+        # scheduling path stays untouched otherwise.
+        self.__dict__["schedule"] = self._schedule_blocked
+        try:
+            fn()
+        finally:
+            self.__dict__.pop("schedule", None)
+        if self._now != now:
+            raise RuntimeError(f"initializer {fn!r} advanced simulated time from {now} to {self._now}")
+
+    def _schedule_blocked(self, event: simpy.Event, priority: int = 1, delay: float = 0) -> None:
+        raise RuntimeError(
+            "cannot schedule SimPy events while an activation initializer runs "
+            "(initializers must not start processes, create timeouts or trigger events)"
+        )
+
+    @contextmanager
+    def _internal_scheduling(self) -> Generator[None, None, None]:
+        """Allow scheduling inside an initializer (internal; used by ``place_now`` for immediate grants)."""
+        blocked = self.__dict__.pop("schedule", None)
+        try:
+            yield
+        finally:
+            if blocked is not None:
+                self.__dict__["schedule"] = blocked
+
+    def run(self, until: float | simpy.Event | None = None) -> Any:
+        """Activate the environment on first use (see :meth:`activate`), then run the simulation."""
+        if not self._activated:
+            self.activate()
+        return super().run(until)
+
     def step(self) -> None:
         """
         Process the next event in the queue.
@@ -276,3 +400,37 @@ class Environment(simpy.Environment):
             >>> env.logger.enable_component("ShopFloor")
         """
         return self._logger
+
+
+# ---------------------------------------------------------------------------------------------------------
+# Deferrable commands
+# ---------------------------------------------------------------------------------------------------------
+
+
+class _HasEnvironment(Protocol):
+    @property
+    def env(self) -> Environment: ...
+
+
+_S = TypeVar("_S", bound=_HasEnvironment)
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+def deferrable(method: Callable[Concatenate[_S, _P], _R]) -> Callable[Concatenate[_S, _P], _R | None]:
+    """Make a component command deferrable until its environment (``self.env``) activates.
+
+    Before activation a call appends ``(bound method, args, kwargs)`` to the environment's command queue, in
+    call order across all components, and returns None; :meth:`Environment.activate` executes the queue.
+    During and after activation the call runs immediately and returns the method's result.
+    """
+
+    @functools.wraps(method)
+    def wrapper(self: _S, /, *args: _P.args, **kwargs: _P.kwargs) -> _R | None:
+        env = self.env
+        if env._activated:
+            return method(self, *args, **kwargs)
+        env._commands.append((types.MethodType(method, self), args, kwargs))
+        return None
+
+    return wrapper
