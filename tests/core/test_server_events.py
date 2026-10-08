@@ -1,0 +1,308 @@
+"""Server resource events: job.queued, job.granted, job.queue_left, job.released, server.queue_reordered."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+import pytest
+import simpy
+
+from simulatte.environment import Environment
+from simulatte.events import DomainEvent, Event, apply_deltas
+from simulatte.job import ProductionJob
+from simulatte.server import (
+    JobGranted,
+    JobQueued,
+    JobQueueLeft,
+    JobReleased,
+    Server,
+    ServerQueueReordered,
+)
+from simulatte.shopfloor import ShopFloor
+
+if TYPE_CHECKING:
+    from simulatte.typing import ProcessGenerator
+
+SERVER_EVENTS = (JobQueued, JobGranted, JobQueueLeft, JobReleased, ServerQueueReordered)
+
+
+def _job(env: Environment, server: Server, **kwargs: Any) -> ProductionJob:
+    return ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0, **kwargs)
+
+
+def _record(env: Environment, types: Any = SERVER_EVENTS) -> list[Event]:
+    seen: list[Event] = []
+    env.bus.subscribe(seen.append, types)
+    return seen
+
+
+def _hold(env: Environment, server: Server, job: ProductionJob, duration: float) -> ProcessGenerator:
+    with server.request(job=job) as request:
+        yield request
+        yield env.timeout(duration)
+
+
+class ReplayChecker:
+    """Applies the deltas of every domain event and compares the result with the live registry."""
+
+    def __init__(self, env: Environment) -> None:
+        self.env = env
+        self.state: dict[str, dict[str, Any]] = {}
+        self.checked: list[str] = []
+        env.bus.subscribe(self, "*")
+
+    def __call__(self, event: DomainEvent) -> None:
+        apply_deltas(self.state, event.deltas)
+        assert self.state == self.env.entities.snapshot(), event
+        self.checked.append(event.type_name)
+
+
+@pytest.mark.parametrize("capacity", [1, 2])
+def test_queue_length_includes_newcomer(capacity: int) -> None:
+    env = Environment(debug=True)
+    server = Server(env=env, capacity=capacity)
+    seen = _record(env, (JobQueued,))
+    for _ in range(capacity + 2):
+        env.process(_hold(env, server, _job(env, server), 5.0))
+    env.run()
+
+    assert [e.queue_length for e in seen if isinstance(e, JobQueued)] == [1] * capacity + [1, 2]
+
+
+def test_immediate_grant_inside_constructor_ordering() -> None:
+    env = Environment(debug=True)
+    server = Server(env=env, capacity=1)
+    job = _job(env, server)
+    seen = _record(env)
+
+    request = server.request(job=job)
+
+    assert request.triggered
+    assert [e.type_name for e in seen] == ["job.queued", "job.granted"]
+    queued, granted = seen
+    assert isinstance(queued, JobQueued)
+    assert (queued.job, queued.server, queued.queue_length, queued.priority) == (job.id, server.id, 1, 0.0)
+    assert queued.deltas.ops == (("insert", server.id, "queue", 0, job.id),)
+    assert isinstance(granted, JobGranted)
+    assert (granted.job, granted.server) == (job.id, server.id)
+    assert granted.deltas.ops == (
+        ("remove", server.id, "queue", job.id),
+        ("insert", server.id, "users", 0, job.id),
+    )
+
+
+def test_direct_server_use_without_shopfloor() -> None:
+    env = Environment(debug=True)
+    server = Server(env=env, capacity=1, name="lathe")
+    job = _job(env, server)
+    seen = _record(env)
+    replay = ReplayChecker(env)
+    replay.state = env.entities.snapshot()
+
+    env.process(_hold(env, server, job, 3.0))
+    env.run()
+
+    assert [(e.type_name, e.t) for e in seen] == [("job.queued", 0), ("job.granted", 0), ("job.released", 3)]
+    released = seen[-1]
+    assert isinstance(released, JobReleased)
+    assert (released.job, released.server) == (job.id, "lathe")
+    assert released.deltas.ops == (("remove", "lathe", "users", job.id),)
+    assert replay.checked == ["job.queued", "job.granted", "job.released"]
+    assert job.servers_entry_at[server] == 0
+    assert job.servers_exit_at[server] == 3
+    assert job.current_server is server
+
+
+def test_replay_equals_live_at_every_event() -> None:
+    """Capacity 2, dynamic priorities, simultaneous releases, an interrupt and a duplicate release."""
+    env = Environment(debug=True)
+    replay = ReplayChecker(env)  # subscribed before any entity exists: replay starts from {}
+    seen = _record(env)
+    server = Server(env=env, capacity=2)
+    ranks: dict[str, float] = {}
+
+    def rank(job: Any, _server: Server) -> float:
+        return ranks.get(job.id, 0.0)
+
+    jobs = [_job(env, server, priority_policy=rank) for _ in range(6)]
+    for i, job in enumerate(jobs):
+        ranks[job.id] = float(10 - i)  # later jobs rank better while waiting
+
+    def interrupted(job: ProductionJob) -> ProcessGenerator:
+        try:
+            with server.request(job=job) as request:
+                yield request
+                yield env.timeout(1.0)
+        except simpy.Interrupt:
+            pass
+
+    def double_release(job: ProductionJob) -> ProcessGenerator:
+        request = server.request(job=job)
+        yield request
+        yield env.timeout(2.0)
+        server.release(request)
+        server.release(request)
+
+    def driver() -> ProcessGenerator:
+        env.process(_hold(env, server, jobs[0], 4.0))
+        env.process(_hold(env, server, jobs[1], 4.0))
+        victim = env.process(interrupted(jobs[2]))
+        env.process(_hold(env, server, jobs[3], 1.0))
+        env.process(double_release(jobs[4]))
+        yield env.timeout(1.0)
+        ranks[jobs[3].id] = -5.0  # moves to the front of the waiting queue
+        server.sort_queue()
+        victim.interrupt()
+        env.process(_hold(env, server, jobs[5], 1.0))
+
+    env.process(driver())
+    env.run()
+
+    types = [e.type_name for e in seen]
+    assert types.count("job.queued") == 6
+    assert types.count("job.granted") == 5
+    assert types.count("job.released") == 5
+    assert types.count("job.queue_left") == 1
+    assert "server.queue_reordered" in types
+    assert env.entities.snapshot()[server.id]["users"] == ()
+    assert env.entities.snapshot()[server.id]["queue"] == ()
+    assert replay.state == env.entities.snapshot()
+    assert len(replay.checked) == len([e for e in seen if isinstance(e, DomainEvent)]) + 7  # + entity.created
+
+
+def test_reorder_emits_minimal_moves() -> None:
+    env = Environment(debug=True)
+    server = Server(env=env, capacity=1)
+    ranks: dict[str, float] = {}
+
+    def rank(job: Any, _server: Server) -> float:
+        return ranks[job.id]
+
+    blocker = _job(env, server, priority_policy=rank)
+    waiting = [_job(env, server, priority_policy=rank) for _ in range(4)]
+    for i, job in enumerate([blocker, *waiting]):
+        ranks[job.id] = float(i)
+    env.process(_hold(env, server, blocker, 10.0))
+    for job in waiting:
+        env.process(_hold(env, server, job, 1.0))
+    env.run(until=1)
+    replay = ReplayChecker(env)
+    replay.state = env.entities.snapshot()
+    seen = _record(env, (ServerQueueReordered,))
+
+    server.sort_queue()  # nothing changed
+    assert seen == []
+
+    ranks[waiting[3].id] = -1.0
+    server.sort_queue()
+
+    assert len(seen) == 1
+    reordered = seen[0]
+    assert isinstance(reordered, ServerQueueReordered)
+    assert reordered.server == server.id
+    assert reordered.deltas.ops == (("move", server.id, "queue", waiting[3].id, 0),)
+    assert replay.state[server.id]["queue"] == (waiting[3].id, waiting[0].id, waiting[1].id, waiting[2].id)
+
+    # Reverse the queue: n - 1 moves, the minimum for a reversal.
+    for i, job in enumerate([waiting[2], waiting[1], waiting[0], waiting[3]]):
+        ranks[job.id] = float(i)
+    server.sort_queue()
+    assert len(seen) == 2
+    assert len(seen[1].deltas) == 3
+    assert replay.state[server.id]["queue"] == (waiting[2].id, waiting[1].id, waiting[0].id, waiting[3].id)
+
+
+def test_interrupted_waiting_request_leaves_queue() -> None:
+    env = Environment(debug=True)
+    server = Server(env=env, capacity=1)
+    blocker, waiter = _job(env, server), _job(env, server)
+    replay = ReplayChecker(env)
+    replay.state = env.entities.snapshot()
+    seen = _record(env)
+
+    def wait() -> ProcessGenerator:
+        try:
+            with server.request(job=waiter) as request:
+                yield request
+        except simpy.Interrupt:
+            pass
+
+    env.process(_hold(env, server, blocker, 5.0))
+    process = env.process(wait())
+
+    def interrupter() -> ProcessGenerator:
+        yield env.timeout(1.0)
+        process.interrupt()
+
+    env.process(interrupter())
+    env.run()
+
+    left = [e for e in seen if isinstance(e, JobQueueLeft)]
+    assert len(left) == 1
+    assert (left[0].job, left[0].server, left[0].reason, left[0].t) == (waiter.id, server.id, "cancelled", 1)
+    assert left[0].deltas.ops == (("remove", server.id, "queue", waiter.id),)
+    # The with-block also releases the ungranted request: that changes nothing and emits nothing.
+    assert [e.job for e in seen if isinstance(e, JobReleased)] == [blocker.id]
+    assert replay.state == env.entities.snapshot()
+
+
+def test_duplicate_release_emits_nothing() -> None:
+    env = Environment(debug=True)
+    server = Server(env=env, capacity=1)
+    job = _job(env, server)
+    request = server.request(job=job)
+    seen = _record(env)
+
+    server.release(request)
+    server.release(request)
+    env.run()
+
+    assert [e.type_name for e in seen] == ["job.released"]
+
+
+def _counting_policy_run(subscribe: bool) -> tuple[int, list[tuple[str, object, object]]]:
+    env = Environment(seed=7)
+    received: list[Event] = []
+    if subscribe:
+        env.bus.subscribe(received.append, "**")
+    sf = ShopFloor(env=env)
+    servers = [Server(env=env, capacity=1, shopfloor=sf) for _ in range(2)]
+    calls = 0
+
+    def policy(job: Any, server: Server) -> float:
+        nonlocal calls
+        calls += 1
+        return float((calls * 7 + int(job.id.split("-")[1])) % 5)
+
+    jobs: list[ProductionJob] = []
+
+    def source() -> ProcessGenerator:
+        for i in range(12):
+            job = ProductionJob(
+                env=env,
+                sku="A",
+                servers=[servers[i % 2], servers[(i + 1) % 2]],
+                processing_times=[1.0 + i % 3, 2.0],
+                due_date=50.0,
+                priority_policy=policy,
+            )
+            jobs.append(job)
+            sf.add(job)
+            yield env.timeout(0.5)
+
+    env.process(source())
+    env.run()
+    assert bool(received) == subscribe
+    schedule: list[tuple[str, object, object]] = [
+        (job.id, job.servers_entry_at[s], job.servers_exit_at[s]) for job in jobs for s in job.servers
+    ]
+    return calls, schedule
+
+
+def test_counting_priority_policy_unaffected_by_recording() -> None:
+    plain_calls, plain_schedule = _counting_policy_run(subscribe=False)
+    recorded_calls, recorded_schedule = _counting_policy_run(subscribe=True)
+
+    assert plain_calls > 0
+    assert recorded_calls == plain_calls
+    assert recorded_schedule == plain_schedule

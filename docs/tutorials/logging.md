@@ -75,13 +75,24 @@ Notes:
 - Some “started” events may be emitted before a blocking wait (e.g., waiting for inventory/AGV capacity); use timestamps
   and follow-up events to infer actual durations.
 
-#### Server (`component="Server"`)
+#### Server
 
-| Event | Message (example) | `extra` keys |
+Servers no longer write log messages. They emit typed events on `env.bus` instead (classes in `simulatte.server`):
+
+| Event type | Class | Payload |
 | --- | --- | --- |
-| Queue entry | `Job job-0 entered queue` | `job_id`, `server_id`, `priority`, `queue_length`, `sku` |
-| Processing start | `Job job-0 processing started` | `job_id`, `server_id`, `processing_time` |
-| Release | `Job job-0 released` | `job_id`, `server_id`, `time_at_server` |
+| `job.queued` | `JobQueued` | `job`, `server`, `priority`, `queue_length` (waiting requests when the job joins, itself included) |
+| `job.granted` | `JobGranted` | `job`, `server` |
+| `job.queue_left` | `JobQueueLeft` | `job`, `server`, `reason` (`cancelled`) |
+| `job.released` | `JobReleased` | `job`, `server` |
+| `server.queue_reordered` | `ServerQueueReordered` | `server` |
+
+```python
+from simulatte.server import JobQueued
+
+queued = []
+env.bus.subscribe(queued.append, (JobQueued,))
+```
 
 #### ShopFloor (`component="ShopFloor"`)
 

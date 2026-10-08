@@ -7,6 +7,7 @@ job requests with priority information.
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
@@ -15,6 +16,7 @@ from simpy.resources.resource import PriorityRequest
 
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
+from simulatte.events import Deltas, DomainEvent, event_type
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterable
@@ -24,6 +26,69 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.job import BaseJob
     from simulatte.shopfloor import ShopFloor
     from simulatte.typing import ProcessGenerator
+
+
+__all__ = [
+    "JobGranted",
+    "JobQueueLeft",
+    "JobQueued",
+    "JobReleased",
+    "Server",
+    "ServerPriorityRequest",
+    "ServerQueueReordered",
+]
+
+
+# ---------------------------------------------------------------------------------------------------------
+# Resource events
+# ---------------------------------------------------------------------------------------------------------
+
+
+@event_type("job.queued", touches={"server": ("queue",)})
+class JobQueued(DomainEvent):
+    """A request entered the server queue (``insert`` at its index).
+
+    `queue_length` counts the waiting requests when the job joins, the job itself included: a job that finds
+    a free slot has ``queue_length == 1`` and is granted in the next event. `priority` is the priority
+    stored on the request at construction.
+    """
+
+    job: str
+    server: str
+    priority: float
+    queue_length: int
+
+
+@event_type("job.granted", touches={"server": ("queue", "users")})
+class JobGranted(DomainEvent):
+    """A queued request was granted a slot: queue ``remove``, users ``insert``."""
+
+    job: str
+    server: str
+
+
+@event_type("job.queue_left", touches={"server": ("queue",)})
+class JobQueueLeft(DomainEvent):
+    """A waiting request left the queue without being granted; `reason` is ``"cancelled"``."""
+
+    job: str
+    server: str
+    reason: str
+
+
+@event_type("job.released", touches={"server": ("users",)})
+class JobReleased(DomainEvent):
+    """A granted request released its slot (users ``remove``)."""
+
+    job: str
+    server: str
+
+
+@event_type("server.queue_reordered", touches={"server": ("queue",)})
+class ServerQueueReordered(DomainEvent):
+    """Refreshed priorities changed the queue order; the deltas are the minimal set of ``move`` operations."""
+
+    server: str
 
 
 class ServerPriorityRequest(PriorityRequest):
@@ -51,7 +116,9 @@ class ServerPriorityRequest(PriorityRequest):
     ``Server.sort_queue``. ``sort_queue`` reads
     ``req.job.priority(req.server)`` for every queued request including the
     one being constructed, so ``server`` and ``job`` must already be set on
-    ``self`` by then.
+    ``self`` by then. For the same reason the request registers itself as the
+    server's pending arrival just before ``super().__init__()``, so that
+    ``_trigger_put`` emits its ``job.queued`` event.
     """
 
     def __init__(self, resource: Server, job: BaseJob, preempt: bool = True) -> None:
@@ -66,10 +133,33 @@ class ServerPriorityRequest(PriorityRequest):
         self.job = job
         self.preempt = preempt
         self.time = resource.env.now
-        super().__init__(resource=resource, priority=job.priority(resource), preempt=preempt)  # ty: ignore[invalid-argument-type]  # SimPy annotates int but works with float
+        priority = job.priority(resource)
+        resource._arrival = self
+        super().__init__(resource=resource, priority=priority, preempt=preempt)  # ty: ignore[invalid-argument-type]  # SimPy annotates int but works with float
 
     def __repr__(self) -> str:
         return f"ServerPriorityRequest(job={self.job}, server={self.server})"
+
+    def cancel(self) -> None:
+        """Withdraw a waiting request from the queue (SimPy calls this when a ``with`` block exits).
+
+        Emits ``job.queue_left`` only when the request was actually removed, i.e. it had not been granted.
+        """
+        if self.triggered:
+            return
+        super().cancel()
+        server = self.server
+        env = server.env
+        if env.wants(JobQueueLeft):
+            job_id = self.job.id
+            env.emit(
+                JobQueueLeft(
+                    job=job_id,
+                    server=server.id,
+                    reason="cancelled",
+                    deltas=Deltas.build().remove(server.id, "queue", job_id).done(),
+                )
+            )
 
 
 class Server(simpy.PriorityResource, Entity, kind="server"):
@@ -126,6 +216,7 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
             label: Optional display label; defaults to the id.
         """
         self.env = env
+        self._arrival: ServerPriorityRequest | None = None  # request being constructed, set by its __init__
         super().__init__(env, capacity)
         self.worked_time: float = 0
 
@@ -242,16 +333,6 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         job.servers_entry_at[self] = self.env.now
         job.current_server = self
 
-        self.env.debug(
-            f"Job {job.id} entered queue",
-            component="Server",
-            job_id=job.id,
-            server_id=self._idx,
-            priority=job.priority(self),
-            queue_length=len(self.queue) + 1,
-            sku=getattr(job, "sku", None),
-        )
-
         self._update_queue_history(None)
         self._update_ut()
         request.callbacks.append(self._update_queue_history)
@@ -271,17 +352,6 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         """
         release = super().release(request)
         request.job.servers_exit_at[self] = self.env.now
-
-        job = request.job
-        entry_time = job.servers_entry_at.get(self, self.env.now)
-        self.env.debug(
-            f"Job {job.id} released",
-            component="Server",
-            job_id=job.id,
-            server_id=self._idx,
-            time_at_server=self.env.now - cast(float | int, entry_time),
-        )
-
         self._update_ut()
         return release
 
@@ -300,14 +370,6 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         """
         if self._jobs is not None:
             self._jobs.append(job)
-
-        self.env.debug(
-            f"Job {job.id} processing started",
-            component="Server",
-            job_id=job.id,
-            server_id=self._idx,
-            processing_time=processing_time,
-        )
 
         yield self.env.timeout(processing_time)
         self.worked_time += processing_time
@@ -331,12 +393,41 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         Requires that every queued request expose ``job``, ``server``,
         ``time``, and ``preempt`` attributes (which ``ServerPriorityRequest``
         does).
+
+        When the relative order changes, emits ``server.queue_reordered`` with the minimal set of ``move``
+        operations.
         """
         queue_list = cast(list, self.queue)
         for req in queue_list:
             fresh_priority = req.job.priority(req.server)
             req.key = (fresh_priority, req.time, not req.preempt)
-        queue_list.sort(key=lambda req: req.key)
+        if len(queue_list) < 2 or not self.env.wants(ServerQueueReordered):
+            queue_list.sort(key=_request_key)
+            return
+        before = queue_list[:]
+        queue_list.sort(key=_request_key)
+        if any(old is not new for old, new in zip(before, queue_list, strict=True)):
+            self.env.emit(ServerQueueReordered(server=self.id, deltas=self._reorder_deltas(before, queue_list)))
+
+    def _reorder_deltas(self, before: list[Any], after: list[Any]) -> Deltas:
+        """Minimal ``move`` operations that turn the queue order `before` into `after`.
+
+        The requests on a longest increasing subsequence of old positions keep their place; every other
+        request is moved, in final order, to just after its final predecessor. Each move is applied to a
+        working copy so that its index is valid when the moves are replayed in sequence.
+        """
+        position = {id(req): i for i, req in enumerate(before)}
+        keep = _longest_increasing_run([position[id(req)] for req in after])
+        current = before[:]
+        build = Deltas.build()
+        for i, req in enumerate(after):
+            if i in keep:
+                continue
+            current.remove(req)
+            index = 0 if i == 0 else current.index(after[i - 1]) + 1
+            current.insert(index, req)
+            build.move(self.id, "queue", req.job.id, index)
+        return build.done()
 
     def _trigger_put(self, get_event: Release | None) -> None:
         """Refresh queue priorities before SimPy iterates the put queue.
@@ -349,9 +440,62 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         appended to ``put_queue``) and as a callback on every Release event
         (``simpy.resources.base.Get.__init__`` registers it). Refreshing
         here therefore covers both the new-arrival and release dispatch paths.
+
+        Events: on entry, the request being constructed (if any) is announced with ``job.queued`` at its
+        current queue index; after SimPy returns, a request appended to ``users`` is announced with
+        ``job.granted``. SimPy pops a granted request from the queue only after ``_do_put`` returns, so
+        this is the first point where both changes are complete. ``users`` only grows here (a
+        ``PriorityResource`` never preempts) and ``Resource._do_put`` stops SimPy's loop after the first
+        request it processes, so comparing lengths finds the single grant.
         """
+        env = self.env
+        arrival = self._arrival
+        if arrival is not None:
+            self._arrival = None
+            if env.wants(JobQueued):
+                queue = self.queue
+                job_id = arrival.job.id
+                env.emit(
+                    JobQueued(
+                        job=job_id,
+                        server=self.id,
+                        priority=float(arrival.priority),
+                        queue_length=len(queue),
+                        deltas=Deltas.build().insert(self.id, "queue", queue.index(arrival), job_id).done(),
+                    )
+                )
         self.sort_queue()
+        users = self.users
+        before = len(users)
         super()._trigger_put(get_event)
+        if len(users) != before and env.wants(JobGranted):
+            for index in range(before, len(users)):
+                job_id = cast(ServerPriorityRequest, users[index]).job.id
+                env.emit(
+                    JobGranted(
+                        job=job_id,
+                        server=self.id,
+                        deltas=Deltas.build()
+                        .remove(self.id, "queue", job_id)
+                        .insert(self.id, "users", index, job_id)
+                        .done(),
+                    )
+                )
+
+    def _do_get(self, event: Release) -> None:
+        """Remove the released request from ``users`` and emit ``job.released`` if it was there.
+
+        Releasing a request that was never granted or was already released changes nothing and emits
+        nothing.
+        """
+        users = self.users
+        before = len(users)
+        super()._do_get(event)
+        if len(users) != before and self.env.wants(JobReleased):
+            job_id = cast(ServerPriorityRequest, event.request).job.id
+            self.env.emit(
+                JobReleased(job=job_id, server=self.id, deltas=Deltas.build().remove(self.id, "users", job_id).done())
+            )
 
     def plot_qt(self) -> None:  # pragma: no cover
         """Display a step plot of queue length over simulation time.
@@ -389,3 +533,29 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         plt.xlabel("Simulation Time")
         plt.ylabel("Utilization rate")
         plt.show()
+
+
+def _request_key(request: Any) -> Any:
+    return request.key
+
+
+def _longest_increasing_run(values: list[int]) -> set[int]:
+    """Indices of one longest strictly increasing subsequence of non-empty `values` (patience sorting, O(n log n))."""
+    tails: list[int] = []  # smallest tail value of an increasing subsequence of each length
+    tail_index: list[int] = []  # index in `values` of that tail
+    previous = [-1] * len(values)
+    for i, value in enumerate(values):
+        length = bisect_left(tails, value)
+        if length == len(tails):
+            tails.append(value)
+            tail_index.append(i)
+        else:
+            tails[length] = value
+            tail_index[length] = i
+        previous[i] = tail_index[length - 1] if length else -1
+    result: set[int] = set()
+    i = tail_index[-1]
+    while i != -1:
+        result.add(i)
+        i = previous[i]
+    return result
