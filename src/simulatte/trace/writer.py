@@ -222,13 +222,7 @@ class TraceRecorder:
             raise error
         cls = type(event)
         name = cls.type_name
-        if name not in self._known_types:
-            self._extend_catalog(types=(name,))
         deltas = event.deltas
-        if name == "entity.created":
-            new_kinds = {op[2] for op in deltas.ops if op[0] == "create" and op[2] not in self._known_kinds}
-            if new_kinds:
-                self._extend_catalog(kinds=new_kinds)
         names = _PAYLOAD_FIELDS.get(cls)
         if names is None:
             names = _PAYLOAD_FIELDS[cls] = tuple(f.name for f in dataclasses.fields(cls) if f.name not in _BASE_FIELDS)
@@ -241,15 +235,27 @@ class TraceRecorder:
         if size > limits.max_event_bytes:
             self._oversized(name, seq, size)
 
-        window = limits.max_sim_window
-        if self._entries and (
-            self._buf_bytes + size > limits.max_bytes or (window is not None and t - self._first[0] >= window)
-        ):
-            # Publish the full buffer before opening the next one, so the writer never sees them out of order.
-            with self._cond:
-                batch = self._seal_locked() if self._entries else None
-            if batch is not None:  # pragma: no branch - None only if the writer sealed it first (latency)
-                self._enqueue("batch", batch.size, batch)
+        # An exception while waiting for backpressure (for example KeyboardInterrupt) still queues the item
+        # (see _enqueue); the event is then recorded too, so the trace stays consistent, and it is re-raised.
+        interrupted: BaseException | None = None
+        try:
+            if name not in self._known_types:
+                self._extend_catalog(types=(name,))
+            if name == "entity.created":
+                new_kinds = {op[2] for op in deltas.ops if op[0] == "create" and op[2] not in self._known_kinds}
+                if new_kinds:
+                    self._extend_catalog(kinds=new_kinds)
+            window = limits.max_sim_window
+            if self._entries and (
+                self._buf_bytes + size > limits.max_bytes or (window is not None and t - self._first[0] >= window)
+            ):
+                # Publish the full buffer before opening the next one, so the writer never sees them out of order.
+                with self._cond:
+                    batch = self._seal_locked() if self._entries else None
+                if batch is not None:  # pragma: no branch - None only if the writer sealed it first (latency)
+                    self._enqueue("batch", batch.size, batch)
+        except BaseException as exc:
+            interrupted = exc
         sealed = None
         with self._cond:
             entries = self._entries
@@ -267,6 +273,8 @@ class TraceRecorder:
             self._last_seq = seq
         if sealed is not None:
             self._enqueue("batch", sealed.size, sealed)
+        if interrupted is not None:
+            raise interrupted
 
     def _oversized(self, name: str, seq: int, size: int) -> None:
         message = (
@@ -336,7 +344,9 @@ class TraceRecorder:
         """Append an item to the publication queue, blocking while pending bytes would exceed the bound.
 
         An item that does not fit even in an empty queue is admitted once the queue has drained. Raises the
-        latched writer exception.
+        latched writer exception. Any other exception raised while waiting (for example KeyboardInterrupt)
+        is re-raised after the item was queued anyway, overshooting the bound once, so that what the
+        simulation thread already committed to (sealed events, catalog extensions) reaches the file (R10).
         """
         cond = self._cond
         blocked_since: float | None = None
@@ -354,15 +364,13 @@ class TraceRecorder:
                     self._producer_waiting = True
                     cond.notify_all()
                     cond.wait()
-            finally:
+            except BaseException as exc:
                 self._producer_waiting = False
-            self._queue.append((kind, size, data))
-            self._pending = pending = pending + size
-            if pending > self._peak_pending:
-                self._peak_pending = pending
-            if kind == "ext":
-                self._epoch = data[0]
-            cond.notify_all()
+                if exc is not self._error:
+                    self._admit_locked(kind, size, data)
+                raise
+            self._producer_waiting = False
+            self._admit_locked(kind, size, data)
         if blocked_since is not None:
             blocked = self._clock() - blocked_since
             self._env.warning(
@@ -371,6 +379,15 @@ class TraceRecorder:
                 component="TraceRecorder",
                 blocked_s=blocked,
             )
+
+    def _admit_locked(self, kind: str, size: int, data: Any) -> None:
+        self._queue.append((kind, size, data))
+        self._pending = pending = self._pending + size
+        if pending > self._peak_pending:
+            self._peak_pending = pending
+        if kind == "ext":
+            self._epoch = data[0]
+        self._cond.notify_all()
 
     def close(self, outcome: Outcome | None = None) -> None:
         """Seal the open chunk, write the KPI scalars and the footer, and wait until all is on disk.

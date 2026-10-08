@@ -719,3 +719,73 @@ def test_close_failure_stops_writer_without_footer(
         rec.close()
     assert not rec._thread.is_alive()
     assert [r.type for r in _read(path)] == [RecordType.HEADER]
+
+
+@pytest.mark.parametrize("interrupted", ["ext", "batch"])
+def test_interrupt_during_backpressure_keeps_trace_consistent(
+    tmp_path: Path, make_recorder: Callable[..., TraceRecorder], monkeypatch: pytest.MonkeyPatch, interrupted: str
+) -> None:
+    path = tmp_path / "t.simtrace"
+    env = Environment(seed=1)
+    rec = make_recorder(env, path, chunk_limits=ChunkLimits(max_events=2), max_pending_bytes=1, clock=FakeClock())
+
+    @event_type(f"test.trace_rare_{interrupted}")  # first used after the header: needs a CATALOG_EXT
+    class Rare(DomainEvent):
+        value: int
+
+    gauge = Gauge(env, name="g")
+    _drain(rec)
+    armed: list[bool] = []  # one KeyboardInterrupt for the next backpressure wait of the simulation thread
+    real_wait = rec._cond.wait
+
+    def wait(timeout: float | None = None) -> bool:
+        if armed and threading.current_thread() is threading.main_thread() and rec._producer_waiting:
+            armed.clear()
+            raise KeyboardInterrupt
+        return real_wait(timeout)
+
+    monkeypatch.setattr(rec._cond, "wait", wait)
+    # Chunks and extensions are written only while the simulation waits unarmed, or at close.
+    for rtype in (RecordType.CHUNK, RecordType.CATALOG_EXT):
+        _gate_writes(monkeypatch, rec, rtype, lambda: rec._closing or (rec._producer_waiting and not armed))
+
+    def first() -> Any:
+        yield env.timeout(1)
+        _emit_set(env, gauge, 1.0)
+        _emit_set(env, gauge, 2.0)  # sealed; its chunk stays queued
+        if interrupted == "ext":
+            armed.append(True)
+            env.emit(Rare(value=1))  # the CATALOG_EXT wait is interrupted
+        else:
+            env.emit(Rare(value=1))  # CATALOG_EXT admitted after a regular wait, then held by the gate
+            armed.append(True)
+            _emit_set(env, gauge, 3.0)  # sealed with Rare; the batch wait is interrupted
+
+    env.process(first())
+    env.run()  # the KeyboardInterrupt becomes StopSimulation
+    assert env._interrupted
+    assert not armed
+    if interrupted == "ext":
+
+        def resumed() -> Any:
+            env.emit(Rare(value=2))  # its type is known now: its extension must already be queued
+            yield env.timeout(0)
+
+        env.process(resumed())
+        env.run()
+    rec.close()
+
+    records = _read(path)
+    footer = records[-1].body
+    assert footer["outcome"] == "cancelled"
+    chunks = _of(records, RecordType.CHUNK)
+    events = [e for c in chunks for e in c.body["events"]]
+    assert [e[1] for e in events] == [0, 1, 2, 3]  # every domain event recorded, ordinals without gaps
+    assert [e[0] for e in events] == list(range(events[0][0], events[0][0] + 4))
+    assert footer["cursor"] == chunks[-1].body["last"]
+    index = footer["index"]
+    assert [i["first"][1] for i in index[1:]] == [i["last"][1] + 1 for i in index[:-1]]
+    (ext,) = _of(records, RecordType.CATALOG_EXT)
+    rare_chunk = next(c for c in chunks if any(e[2] == Rare.type_name for e in c.body["events"]))
+    assert records.index(ext) < records.index(rare_chunk)
+    assert rare_chunk.body["epoch"] == 1
