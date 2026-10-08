@@ -14,12 +14,15 @@ others queue at the same simulated time. The criteria:
 from __future__ import annotations
 
 import os
+import platform
 import random
 import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+import pytest
 
 from simulatte.builders import build_lumscor_system
 from simulatte.environment import Environment
@@ -201,3 +204,26 @@ def test_g1_acceptance(tmp_path: Path) -> None:
 
     # 4. The trace verifies: the digest recomputed from the file equals the recorded one.
     assert trace.verify() is True
+
+
+# The G1 reference digest (specs/research/sp1-g1-report.md) and the canonical content of its full trace with
+# CHUNK_EVENTS-event chunks. Pinned on macOS arm64; RNG samples go through the platform's libm (log, exp), whose
+# last-bit results may differ elsewhere, so other platforms only check that the values are stable in-process.
+GOLDEN_REFERENCE_DIGEST = "9032ec344577870a45a32b7aa251f3db06145d9d1dd499b94664c5bd4e29c51f"
+GOLDEN_REFERENCE_CONTENT = "6514ec161aa0812a8d7fba6d1f8414d9cc34f951c06e4a7496d3d9e2af2fd973"
+_GOLDEN_PLATFORM = sys.platform == "darwin" and platform.machine() == "arm64"
+
+
+def test_golden_reference_digest_and_trace_content(tmp_path: Path, trace_content: Callable[[Path], str]) -> None:
+    path = tmp_path / "golden.simtrace"
+    env = Environment(seed=SEED)
+    TraceRecorder(env, path, chunk_limits=ChunkLimits(max_events=CHUNK_EVENTS))
+    build_reference_shop(env)
+    env.run(until=HORIZON)
+    env.close()
+    digest = env.fingerprint().digest
+    assert digest == run_digest()
+    content = trace_content(path)
+    if not _GOLDEN_PLATFORM:
+        pytest.skip("golden values are pinned on macOS arm64 (libm-dependent samples)")
+    assert (digest, content) == (GOLDEN_REFERENCE_DIGEST, GOLDEN_REFERENCE_CONTENT)

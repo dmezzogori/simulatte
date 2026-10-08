@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import math
 import subprocess
 import sys
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any, ClassVar
 
 import pytest
@@ -243,3 +246,135 @@ def test_projection_rolls_the_kind_map_over_create_and_retire() -> None:
     assert kinds == {"dial": "test_digest_dial"}
     project_event(seen[1], kinds)
     assert kinds == {}
+
+
+# ---------------------------------------------------------------------------------------------------------
+# Golden: the canonical encoding path (digest and recorded content) must not change for the same run
+# ---------------------------------------------------------------------------------------------------------
+
+
+class GoldenBox(Entity, kind="test_golden_box"):
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {
+            "level": FieldSpec("float"),
+            "items": FieldSpec("any", collection="list"),
+            "table": FieldSpec("any", collection="map"),
+            "memo": FieldSpec("str", presentation=True),
+        }
+    )
+
+    def __init__(self, env: Environment, *, name: str | None = None) -> None:
+        self.env = env
+        self.level = -0.0
+        self.items = ["a", 1, (2, 3.5)]
+        self.table = {"~x": 1, "__proto__": {"constructor": None}, "é": float("inf"), "z": (True, False)}
+        self.memo = "hidden"
+        env.entities.attach(self, name=name, label="Box")
+
+
+@event_type(
+    "test.golden_changed",
+    touches={"test_golden_box": ("level", "items", "table", "memo", "label")},
+    presentation=frozenset({"remark"}),
+)
+class GoldenChanged(DomainEvent):
+    box: str
+    constructor: int
+    values: tuple[Any, ...]
+    extra: Any
+    remark: str = ""
+
+
+@event_type("test.golden_plain", touches={"test_golden_box": ("level", "items", "table")})
+class GoldenPlain(DomainEvent):
+    box: str
+    amount: float
+    tags: Any
+
+
+_GOLDEN_VALUES = (  # fmt: skip
+    0,
+    127,
+    128,
+    255,
+    256,
+    65535,
+    65536,
+    2**32 - 1,
+    2**32,
+    2**53 - 1,
+    -1,
+    -32,
+    -33,
+    -(2**53 - 1),
+    0.0,
+    -0.0,
+    1e300,
+    float("inf"),
+    float("-inf"),
+    float("nan"),
+    math.copysign(float("nan"), -1.0),
+    True,
+    False,
+    None,
+    "",
+    "x" * 40,
+    "ü€😀",
+)
+
+
+def _golden_run(path: Path, content_of: Callable[[Path], str]) -> tuple[str, str]:
+    from simulatte.trace import TraceRecorder
+
+    env = Environment(seed=7)
+    TraceRecorder(env, path)
+    box = GoldenBox(env, name="box")
+    env.emit(GoldenPlain(box="box", amount=1.0, tags=None))  # prelude: delivered, recorded, never projected
+    env.activate()
+    unfrozen: Any = {"z": float("nan"), "a": (1, {"y": 2, "x": 1}), "é": -0.0}  # a FrozenMap built directly
+    hostile = {"~a": 1, "__proto__": 2, "constructor": 3, "prototype": {"~": [], "b": FrozenMap({"z": 1, "a": 2})}}
+    env.emit(
+        GoldenChanged(
+            box="box",
+            constructor=3,
+            values=_GOLDEN_VALUES,
+            extra=FrozenMap(unfrozen),
+            remark="presentation",
+            deltas=Deltas.build()
+            .set("box", "level", 2.5)
+            .set("box", "memo", "still hidden")
+            .set("box", "label", "Box 2")
+            .insert("box", "items", 0, hostile)
+            .remove("box", "items", "a")
+            .move("box", "items", 1, 0)
+            .put("box", "table", "new", {"q": (1, 2), "p": None})
+            .delete("box", "table", "z")
+            .done(),
+        )
+    )
+    env.emit(GoldenPlain(box="box", amount=float("nan"), tags=("t", 2**40, {"k": "v"})))
+    env.emit(GoldenPlain(box="box", amount=-0.0, tags=FrozenMap({"b": 1, "a": 2})))
+    late = GoldenBox(env, name="late")
+    env.emit(GoldenPlain(box="late", amount=3.0, tags=hostile, deltas=Deltas.build().set("late", "level", 3.0).done()))
+    env.entities.retire(late)
+    env.entities.retire(box)
+    env.run()
+    env.close()
+    digest = env.fingerprint().digest
+    assert digest is not None
+    return digest, content_of(path)
+
+
+GOLDEN_SYNTHETIC_DIGEST = "437f67a9b6cb5bdb7c680a83f62bdfe90bd1b17a41bfa77da5da755488eab58a"
+GOLDEN_SYNTHETIC_CONTENT = "cc16aa3e5ebbec97c7f7ae113b94f74ba6a441f6d391f97f8e57a0a8f833919a"
+
+
+def test_golden_synthetic_digest_and_trace_content(tmp_path: Path, trace_content: Callable[[Path], str]) -> None:
+    """Edge values (integer widths, signed zero, infinities, NaN payloads, hostile and non-ASCII keys, nested and
+    unfrozen maps, presentation fields and ops, prelude, late create and retire) encode to
+    pinned bytes; the recorded trace verifies and holds pinned canonical content."""
+    from simulatte.trace import Trace
+
+    digest, content = _golden_run(tmp_path / "golden.simtrace", trace_content)
+    assert Trace.open(tmp_path / "golden.simtrace").verify() is True
+    assert (digest, content) == (GOLDEN_SYNTHETIC_DIGEST, GOLDEN_SYNTHETIC_CONTENT)
