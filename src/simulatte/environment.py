@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import functools
 import operator
 import os
@@ -10,7 +11,7 @@ from datetime import UTC, datetime
 from collections.abc import Callable, Generator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Concatenate, Literal, ParamSpec, Protocol, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Concatenate, Literal, ParamSpec, Protocol, TypeVar, overload
 
 import simpy
 from simpy.core import StopSimulation
@@ -29,6 +30,9 @@ from simulatte.provenance import (
     volatile_metadata,
 )
 from simulatte.rng import BindingKind, CountingRandom, DrawCounter, derive_seed, resolve_binding
+
+if TYPE_CHECKING:  # pragma: no cover
+    from simulatte.trace.writer import TraceRecorder
 
 SEED_LIMIT = 2**63
 """Seeds are integers in ``[0, SEED_LIMIT)``."""
@@ -99,6 +103,9 @@ class Environment(simpy.Environment):
         self._requested_inputs: tuple[int, str | None, Provenance | None] | None = None
         self._stopping_policy: Wire | None = None
         self._wall_clock_start: str | None = None
+        self._run_failed = False  # some run() raised
+        self._interrupted = False  # some run() was stopped by KeyboardInterrupt (see step)
+        self._recorders: list[TraceRecorder] = []  # closed by close()
         self._run_seconds = 0.0
         self._streams: dict[str, random.Random] = {}
         self._draws = DrawCounter()  # incremented only by the counting streams of debug mode
@@ -336,23 +343,27 @@ class Environment(simpy.Environment):
         """Activate the environment on first use (see :meth:`activate`), then run the simulation.
 
         The stopping policy of the manifest is the one of the last call: a horizon for a numeric `until`,
-        exhaustion for ``None``.
+        exhaustion for ``None``. If it raises, trace recorders report the run as ``failed``.
         """
-        if not self._activated:
-            self.activate()
-        if until is None:
-            self._stopping_policy = FrozenMap({"type": "exhaustion"})
-        elif isinstance(until, simpy.Event):
-            self._stopping_policy = FrozenMap({"type": "event"})
-        else:
-            self._stopping_policy = FrozenMap({"type": "horizon", "horizon": float(until)})
-        if self._wall_clock_start is None:
-            self._wall_clock_start = datetime.now(UTC).isoformat()
-        started = time.perf_counter()
         try:
-            return super().run(until)
-        finally:
-            self._run_seconds += time.perf_counter() - started
+            if not self._activated:
+                self.activate()
+            if until is None:
+                self._stopping_policy = FrozenMap({"type": "exhaustion"})
+            elif isinstance(until, simpy.Event):
+                self._stopping_policy = FrozenMap({"type": "event"})
+            else:
+                self._stopping_policy = FrozenMap({"type": "horizon", "horizon": float(until)})
+            if self._wall_clock_start is None:
+                self._wall_clock_start = datetime.now(UTC).isoformat()
+            started = time.perf_counter()
+            try:
+                return super().run(until)
+            finally:
+                self._run_seconds += time.perf_counter() - started
+        except BaseException:
+            self._run_failed = True
+            raise
 
     # -------------------------------------------------------------------------
     # Digest and manifest
@@ -396,17 +407,26 @@ class Environment(simpy.Environment):
         Process the next event in the queue.
 
         If user interrupts the simulation via KeyboardInterrupt
-        raise a StopSimulation exception to gently pause the simulation.
+        raise a StopSimulation exception to gently pause the simulation; trace recorders then report the run
+        as ``cancelled``.
         """
 
         try:
             super().step()
-        except KeyboardInterrupt:  # pragma: no cover
+        except KeyboardInterrupt:
+            self._interrupted = True
             raise StopSimulation("KeyboardInterrupt")
 
     def close(self) -> None:
-        """Release logger resources associated with this environment."""
-        self._logger.close()
+        """Close the trace recorders attached to this environment, then release logger resources.
+
+        Every recorder is closed even if one raises; the exception propagates afterwards.
+        """
+        recorders, self._recorders = self._recorders, []
+        with contextlib.ExitStack() as stack:
+            stack.callback(self._logger.close)
+            for recorder in reversed(recorders):
+                stack.callback(recorder.close)
 
     def __enter__(self) -> Environment:
         return self

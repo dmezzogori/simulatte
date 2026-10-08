@@ -1,0 +1,562 @@
+"""Trace writer: :class:`TraceRecorder` (spec §11.2).
+
+The recorder writes one trace file per environment. Two threads share the work:
+
+- The **simulation thread** encodes each domain event as ``[seq, ordinal, type, t, payload, deltas]`` and
+  appends it to the open buffer. It seals the buffer itself when the event-count, byte or simulated-time
+  limit of :class:`ChunkLimits` is reached. Before activation the buffer becomes a ``PRELUDE`` record, after
+  it a ``CHUNK``.
+- The **writer thread** seals the open buffer when it has been open longer than the latency limit, whatever
+  the simulation does, and serves the single FIFO publication queue: it writes every record of the file
+  (header, prelude, initial state, catalog extensions, each chunk followed by its committing index, KPI,
+  footer) in queue order. It builds each chunk's start snapshot from its own replay state (the initial state
+  plus the deltas of earlier chunks), never from live simulation objects.
+
+Pending queued bytes are bounded by ``max_pending_bytes``: the simulation thread blocks until the writer
+drains, and a single batch larger than the bound waits until the queue is empty. An exception in the writer
+thread is latched and re-raised in the simulation thread at its next append and by :meth:`close`; the trace
+then ends without a footer.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import math
+import threading
+import time
+import zlib
+from collections import deque
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
+
+import msgpack
+
+from simulatte._wire import FrozenMap, Wire, pack
+from simulatte.entities import KINDS, StateSchema
+from simulatte.events import CATALOG, Deltas, DomainEvent, Subscription, apply_deltas
+from simulatte.trace.format import (
+    OPTIONAL_FEATURES,
+    REQUIRED_FEATURES,
+    RecordType,
+    write_preamble,
+    write_record,
+    write_trailer,
+)
+
+if TYPE_CHECKING:  # pragma: no cover
+    from simulatte.environment import Environment, InitialState
+
+__all__ = ["ChunkLimits", "Outcome", "TraceRecorder"]
+
+Outcome = Literal["completed", "cancelled", "failed"]
+"""How a recorded run ended (stored in the footer)."""
+
+ACTIVATION_MANIFEST_FIELDS: frozenset[str] = frozenset({"parameters", "time_unit", "warmup"})
+"""Requested-manifest fields fixed only at activation: stored in ``INITIAL``, the rest in ``HEADER`` (U1)."""
+
+_OUTCOMES = frozenset({"completed", "cancelled", "failed"})
+_BASE_FIELDS = frozenset({"t", "seq", "deltas", "ordinal"})
+_PAYLOAD_FIELDS: dict[type, tuple[str, ...]] = {}
+
+
+@dataclass(frozen=True, slots=True)
+class ChunkLimits:
+    """When the open buffer of events is sealed into a record.
+
+    A buffer is sealed when it holds `max_events` events or `max_bytes` encoded bytes (a single larger event
+    makes a chunk of its own), when it has been open for `max_latency_s` seconds of the recorder clock, or,
+    when `max_sim_window` is set, before an event whose simulated time is that far from the buffer's first
+    event. An event above `max_event_bytes` is recorded with a warning, or raises in debug mode.
+    """
+
+    max_events: int = 10_000
+    max_bytes: int = 1 << 20
+    max_latency_s: float = 1.0
+    max_event_bytes: int = 256 << 10
+    max_sim_window: float | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("max_events", "max_bytes", "max_event_bytes"):
+            if getattr(self, name) < 1:
+                raise ValueError(f"ChunkLimits.{name} must be >= 1, got {getattr(self, name)}")
+        if not self.max_latency_s > 0:
+            raise ValueError(f"ChunkLimits.max_latency_s must be > 0, got {self.max_latency_s}")
+        if self.max_sim_window is not None and not self.max_sim_window > 0:
+            raise ValueError(f"ChunkLimits.max_sim_window must be > 0 or None, got {self.max_sim_window}")
+
+    def to_wire(self) -> FrozenMap:
+        return FrozenMap(
+            {
+                "max_events": self.max_events,
+                "max_bytes": self.max_bytes,
+                "max_latency_s": float(self.max_latency_s),
+                "max_event_bytes": self.max_event_bytes,
+                "max_sim_window": None if self.max_sim_window is None else float(self.max_sim_window),
+            }
+        )
+
+
+@dataclass(slots=True)
+class _Batch:
+    """A sealed buffer: encoded events and, for chunks, their deltas for the writer's replay state."""
+
+    rtype: RecordType
+    entries: list[bytes]
+    deltas: list[Deltas]
+    first: tuple[float, int]
+    last: tuple[float, int]
+    epoch: int
+    size: int
+
+
+# Queue items: (kind, pending size, data). Kinds: "header", "record", "ext", "initial", "batch", "footer".
+_Item = tuple[str, int, Any]
+
+
+class TraceRecorder:
+    """Record the run of `env` to a trace file at `path` (spec §11).
+
+    Attach it before activation (it raises `RuntimeError` afterwards). It enables the semantic digest of
+    `env`, writes the header immediately, records prelude events and, at activation, the initial state. At
+    ``level="full"`` it records every domain event in chunks; at ``level="kpi"`` only the header, the initial
+    state, KPI records and the footer. Several :meth:`Environment.run` calls continue the same trace.
+
+    :meth:`close` (also called by :meth:`Environment.close`) seals the open chunk, writes the footer and
+    waits until everything is on disk. `clock` is the time source of the latency limit and of the blocked
+    time reported when backpressure stops the simulation.
+    """
+
+    def __init__(
+        self,
+        env: Environment,
+        path: str | Path,
+        *,
+        level: Literal["full", "kpi"] = "full",
+        chunk_limits: ChunkLimits | None = None,
+        max_pending_bytes: int = 64 << 20,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        if env.activated:
+            raise RuntimeError(
+                "cannot attach a TraceRecorder after activation: the trace must hold the initial state and every "
+                "domain event; create it before the first env.run() or env.activate()"
+            )
+        if level not in ("full", "kpi"):
+            raise ValueError(f"level must be 'full' or 'kpi', got {level!r}")
+        if max_pending_bytes < 1:
+            raise ValueError(f"max_pending_bytes must be >= 1, got {max_pending_bytes}")
+        limits = ChunkLimits() if chunk_limits is None else chunk_limits
+        self._env = env
+        self._level = level
+        self._limits = limits
+        self._max_pending = max_pending_bytes
+        self._clock = clock
+
+        # Catalog known to readers so far (simulation thread).
+        self._known_types: set[str] = set(CATALOG.names())
+        self._known_kinds: set[str] = set(KINDS)
+        self._next_epoch = 1
+        requested = env.manifest().requested
+        header: Any = {
+            "features": {"required": REQUIRED_FEATURES, "optional": OPTIONAL_FEATURES},
+            "catalog": CATALOG.to_wire(),
+            "kinds": {kind: _schema_wire(KINDS[kind]) for kind in sorted(self._known_kinds)},
+            "manifest": {k: v for k, v in requested.items() if k not in ACTIVATION_MANIFEST_FIELDS},
+            "level": level,
+            "chunk_limits": limits.to_wire(),
+            "volatile": dataclasses.asdict(env.volatile_metadata()),
+        }
+        header_payload = pack(header)
+
+        # Shared state, guarded by _cond.
+        self._cond = threading.Condition()
+        self._queue: deque[_Item] = deque()
+        self._pending = 0
+        self._peak_pending = 0
+        self._producer_waiting = False
+        self._closing = False
+        self._stop = False
+        self._error: BaseException | None = None
+        self._epoch = 0
+        self._chunks_written = 0
+        self._buf_type = RecordType.PRELUDE
+        self._entries: list[bytes] = []
+        self._deltas: list[Deltas] = []
+        self._buf_bytes = 0
+        self._first: tuple[float, int] = (0.0, -1)
+        self._last: tuple[float, int] = (0.0, -1)
+        self._opened_at = 0.0
+
+        # Simulation thread only.
+        self._closed = False
+        self._last_seq = -1
+        self._subscription: Subscription | None = None
+
+        # Writer thread only.
+        self._offset = 0
+        self._index: list[FrozenMap] = []
+        self._epochs: list[int] = []
+        self._replay: dict[str, dict[str, Any]] = {}
+        self._packer = msgpack.Packer()
+
+        self._file = open(path, "wb")  # closed by close() once the writer thread has finished
+        self._thread = threading.Thread(target=self._run, name="simulatte-trace-writer", daemon=True)
+        self._thread.start()
+        self._enqueue("header", len(header_payload), header_payload)
+
+        env.enable_digest()
+        env.request_projection(self._on_initial_state)
+        if level == "full":
+            self._subscription = env.bus.subscribe(self._on_event, "*")
+        env._recorders.append(self)
+
+    # -------------------------------------------------------------------------
+    # Simulation thread
+    # -------------------------------------------------------------------------
+
+    def _on_event(self, event: DomainEvent) -> None:
+        error = self._error
+        if error is not None:
+            raise error
+        cls = type(event)
+        name = cls.type_name
+        if name not in self._known_types:
+            self._extend_catalog(types=(name,))
+        deltas = event.deltas
+        if name == "entity.created":
+            new_kinds = {op[2] for op in deltas.ops if op[0] == "create" and op[2] not in self._known_kinds}
+            if new_kinds:
+                self._extend_catalog(kinds=new_kinds)
+        names = _PAYLOAD_FIELDS.get(cls)
+        if names is None:
+            names = _PAYLOAD_FIELDS[cls] = tuple(f.name for f in dataclasses.fields(cls) if f.name not in _BASE_FIELDS)
+        t = float(event.t)
+        seq = event.seq
+        item: Any = (seq, event.ordinal, name, t, {n: getattr(event, n) for n in names}, deltas.ops)
+        entry = pack(item)
+        size = len(entry)
+        limits = self._limits
+        if size > limits.max_event_bytes:
+            self._oversized(name, seq, size)
+
+        window = limits.max_sim_window
+        if self._entries and (
+            self._buf_bytes + size > limits.max_bytes or (window is not None and t - self._first[0] >= window)
+        ):
+            # Publish the full buffer before opening the next one, so the writer never sees them out of order.
+            with self._cond:
+                batch = self._seal_locked() if self._entries else None
+            if batch is not None:  # pragma: no branch - None only if the writer sealed it first (latency)
+                self._enqueue("batch", batch.size, batch)
+        sealed = None
+        with self._cond:
+            entries = self._entries
+            if not entries:
+                self._first = (t, seq)
+                self._opened_at = self._clock()
+                self._cond.notify_all()  # the writer starts timing the latency limit
+            entries.append(entry)
+            self._deltas.append(deltas)
+            self._buf_bytes += size
+            self._last = (t, seq)
+            if len(entries) >= limits.max_events or self._buf_bytes >= limits.max_bytes:
+                sealed = self._seal_locked()
+        if self._buf_type is RecordType.CHUNK:
+            self._last_seq = seq
+        if sealed is not None:
+            self._enqueue("batch", sealed.size, sealed)
+
+    def _oversized(self, name: str, seq: int, size: int) -> None:
+        message = (
+            f"event {name} (seq {seq}) encodes to {size} bytes, above ChunkLimits.max_event_bytes="
+            f"{self._limits.max_event_bytes}"
+        )
+        if self._env._debug:
+            raise ValueError(message)
+        self._env.warning(f"{message}; recorded anyway", component="TraceRecorder")
+
+    def _extend_catalog(self, *, types: Iterable[str] = (), kinds: Iterable[str] = ()) -> None:
+        """Enqueue a ``CATALOG_EXT`` record for event types or kinds absent from the header."""
+        new_types = sorted(types)
+        new_kinds = sorted(kinds)
+        epoch = self._next_epoch
+        self._next_epoch += 1
+        self._known_types.update(new_types)
+        self._known_kinds.update(new_kinds)
+        ext: Any = {
+            "epoch": epoch,
+            "types": {name: CATALOG.get(name).to_wire() for name in new_types},
+            "kinds": {kind: _schema_wire(KINDS[kind]) for kind in new_kinds},
+        }
+        payload = pack(ext)
+        self._enqueue("ext", len(payload), (epoch, payload))
+
+    def _on_initial_state(self, state: InitialState) -> None:
+        """Activation: publish the prelude, then the ``INITIAL`` record; later events go to chunks."""
+        if self._closed:
+            return
+        with self._cond:
+            batch = self._seal_locked() if self._entries else None
+            self._buf_type = RecordType.CHUNK
+        if batch is not None:
+            self._enqueue("batch", batch.size, batch)
+        new_kinds = {str(fields["$kind"]) for fields in state.values()} - self._known_kinds
+        if new_kinds:
+            self._extend_catalog(kinds=new_kinds)
+        env = self._env
+        requested = env.manifest().requested
+        initial: Any = {
+            "cursor": (float(env.now), -1),
+            "state": state,
+            "manifest": {k: v for k, v in requested.items() if k in ACTIVATION_MANIFEST_FIELDS},
+        }
+        payload = pack(initial)
+        replay = {entity: dict(fields) for entity, fields in state.items()}
+        self._enqueue("initial", len(payload), (payload, replay))
+
+    def _seal_locked(self) -> _Batch:
+        """Take the open buffer as a batch (the caller holds the lock and checked it is not empty)."""
+        batch = _Batch(
+            rtype=self._buf_type,
+            entries=self._entries,
+            deltas=self._deltas,
+            first=self._first,
+            last=self._last,
+            epoch=self._epoch,
+            size=self._buf_bytes,
+        )
+        self._entries = []
+        self._deltas = []
+        self._buf_bytes = 0
+        return batch
+
+    def _enqueue(self, kind: str, size: int, data: Any) -> None:
+        """Append an item to the publication queue, blocking while pending bytes would exceed the bound.
+
+        An item that does not fit even in an empty queue is admitted once the queue has drained. Raises the
+        latched writer exception.
+        """
+        cond = self._cond
+        blocked_since: float | None = None
+        with cond:
+            try:
+                while True:
+                    error = self._error
+                    if error is not None:
+                        raise error
+                    pending = self._pending
+                    if pending == 0 or pending + size <= self._max_pending:
+                        break
+                    if blocked_since is None:
+                        blocked_since = self._clock()
+                    self._producer_waiting = True
+                    cond.notify_all()
+                    cond.wait()
+            finally:
+                self._producer_waiting = False
+            self._queue.append((kind, size, data))
+            self._pending = pending = pending + size
+            if pending > self._peak_pending:
+                self._peak_pending = pending
+            if kind == "ext":
+                self._epoch = data[0]
+            cond.notify_all()
+        if blocked_since is not None:
+            blocked = self._clock() - blocked_since
+            self._env.warning(
+                f"trace writer backpressure: the simulation blocked for {blocked:.3f} s "
+                f"(max_pending_bytes={self._max_pending})",
+                component="TraceRecorder",
+                blocked_s=blocked,
+            )
+
+    def close(self, outcome: Outcome | None = None) -> None:
+        """Seal the open chunk, write the KPI scalars and the footer, and wait until all is on disk.
+
+        `outcome` defaults to ``"failed"`` if :meth:`Environment.run` raised, ``"cancelled"`` if a run was
+        interrupted, else ``"completed"``. Raises the latched writer exception, if any; the trace then has no
+        footer. Repeated calls do nothing.
+        """
+        if outcome is not None and outcome not in _OUTCOMES:
+            raise ValueError(f"outcome must be one of {sorted(_OUTCOMES)}, got {outcome!r}")
+        if self._closed:
+            return
+        self._closed = True
+        if self._subscription is not None:
+            self._subscription.cancel()
+        env = self._env
+        cond = self._cond
+        try:
+            with cond:
+                self._closing = True
+                batch = self._seal_locked() if self._entries else None
+                cond.notify_all()
+            if batch is not None:
+                self._enqueue("batch", batch.size, batch)
+            fingerprint = env.fingerprint()
+            kpis: Any = dict(fingerprint.kpis)
+            if kpis:
+                payload = pack(FrozenMap({"scalars": kpis}))
+                self._enqueue("record", len(payload), (RecordType.KPI, payload))
+            if outcome is None:
+                outcome = "failed" if env._run_failed else "cancelled" if env._interrupted else "completed"
+            footer = {
+                "outcome": outcome,
+                "cursor": (float(env.now), self._last_seq),
+                "manifest": env.manifest().final,
+                "fingerprint": {"digest": fingerprint.digest, "kpis": kpis},
+                "volatile": dataclasses.asdict(env.volatile_metadata()),
+            }
+            self._enqueue("footer", 0, footer)
+        finally:
+            with cond:
+                self._stop = True
+                cond.notify_all()
+            self._thread.join()
+            self._file.close()
+        error = self._error
+        if error is not None:
+            raise error
+
+    # -------------------------------------------------------------------------
+    # Writer thread
+    # -------------------------------------------------------------------------
+
+    def _run(self) -> None:
+        cond = self._cond
+        try:
+            while True:
+                with cond:
+                    item = self._next_item_locked()
+                if item is None:
+                    return
+                kind, size, data = item
+                done = self._write_item(kind, data)
+                with cond:
+                    self._pending -= size
+                    if kind == "batch" and data.rtype is RecordType.CHUNK:
+                        self._chunks_written += 1
+                    cond.notify_all()
+                if done:
+                    return
+        except BaseException as exc:  # latched for the simulation thread
+            with cond:
+                self._error = exc
+                cond.notify_all()
+
+    def _next_item_locked(self) -> _Item | None:
+        """The next item to write, sealing the open buffer on latency while the queue is empty."""
+        cond = self._cond
+        latency = self._limits.max_latency_s
+        while True:
+            if self._queue:
+                return self._queue.popleft()
+            if self._stop:
+                return None
+            timeout = None
+            if self._entries:
+                remaining = self._opened_at + latency - self._clock()
+                if remaining <= 0:
+                    # The queue is empty, so admitting the batch respects both backpressure rules.
+                    batch = self._seal_locked()
+                    self._pending = batch.size
+                    self._peak_pending = max(self._peak_pending, batch.size)
+                    return ("batch", batch.size, batch)
+                timeout = remaining if math.isfinite(remaining) else None
+            cond.wait(timeout)
+
+    def _write_item(self, kind: str, data: Any) -> bool:
+        """Write one queue item; return True after the footer."""
+        f = self._file
+        if kind == "batch":
+            self._write_batch(data)
+        elif kind == "record":
+            rtype, payload = data
+            self._offset += write_record(f, rtype, payload)
+        elif kind == "ext":
+            self._epochs.append(self._offset)
+            self._offset += write_record(f, RecordType.CATALOG_EXT, data[1])
+        elif kind == "initial":
+            payload, self._replay = data
+            self._offset += write_record(f, RecordType.INITIAL, payload)
+        elif kind == "header":
+            self._offset += write_preamble(f)
+            self._epochs.append(self._offset)
+            self._offset += write_record(f, RecordType.HEADER, data)
+        else:  # footer
+            footer: Any = {**data, "index": tuple(self._index), "epochs": tuple(self._epochs)}
+            offset = self._offset
+            self._offset += write_record(f, RecordType.FOOTER, pack(footer))
+            self._offset += write_trailer(f, offset)
+            f.flush()
+            return True
+        f.flush()
+        return False
+
+    def _write_batch(self, batch: _Batch) -> None:
+        f = self._file
+        first: Any = batch.first
+        last: Any = batch.last
+        if batch.rtype is RecordType.PRELUDE:
+            body = self._frame([("first", pack(first)), ("last", pack(last))], batch.entries)
+            self._offset += write_record(f, RecordType.PRELUDE, body)
+            return
+        replay: Any = self._replay  # plain dicts of wire values
+        body = self._frame(
+            [
+                ("first", pack(first)),
+                ("last", pack(last)),
+                ("t_start", pack(first[0])),
+                ("t_end", pack(last[0])),
+                ("epoch", pack(batch.epoch)),
+                ("snapshot", pack(replay)),
+            ],
+            batch.entries,
+        )
+        offset = self._offset
+        length = write_record(f, RecordType.CHUNK, zlib.compress(body))
+        self._offset += length
+        entry = FrozenMap(
+            {
+                "offset": offset,
+                "length": length,
+                "first": first,
+                "last": last,
+                "t_start": first[0],
+                "t_end": last[0],
+                "epoch": batch.epoch,
+            }
+        )
+        self._offset += write_record(f, RecordType.INDEX, pack(entry))
+        self._index.append(entry)
+        for deltas in batch.deltas:
+            apply_deltas(replay, deltas)
+
+    def _frame(self, fields: list[tuple[str, bytes]], entries: list[bytes]) -> bytes:
+        """A MessagePack map of pre-encoded `fields` plus ``"events"``, the array of pre-encoded `entries`."""
+        packer = self._packer
+        parts = [packer.pack_map_header(len(fields) + 1)]
+        for key, value in fields:
+            parts.append(pack(key))
+            parts.append(value)
+        parts.append(pack("events"))
+        parts.append(packer.pack_array_header(len(entries)))
+        parts.extend(entries)
+        return b"".join(parts)
+
+
+def _schema_wire(schema: StateSchema) -> Wire:
+    fields: Mapping[str, Wire] = {
+        name: FrozenMap(
+            {
+                "type": spec.wire_type,
+                "nullable": spec.nullable,
+                "collection": spec.collection,
+                "presentation": spec.presentation,
+            }
+        )
+        for name, spec in schema.items()
+    }
+    return FrozenMap(fields)
