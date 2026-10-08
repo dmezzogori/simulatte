@@ -9,7 +9,18 @@ from typing import Any
 import msgpack
 import pytest
 
-from simulatte._wire import FrozenMap, canonical_pack, escape_key, freeze, pack, unescape_key, unpack
+from simulatte._wire import (
+    FrozenMap,
+    canonical_pack,
+    escape_key,
+    freeze,
+    new_packer,
+    pack,
+    prepared,
+    prepared_op,
+    unescape_key,
+    unpack,
+)
 
 
 def fz(value: object) -> Any:
@@ -233,3 +244,81 @@ class TestPackUnpack:
         hostile = b"\x91\x82\xaa~prototype\x01\xa9prototype\x02"  # "~prototype" and a raw "prototype"
         with pytest.raises(ValueError, match="duplicate map key"):
             upk(hostile)
+
+
+class TestCanonicalByConstruction:
+    """freeze() builds canonical values, which the fast packers emit without per-item preparation."""
+
+    def test_freeze_sorts_map_keys_by_escaped_utf8_bytes(self) -> None:
+        v = fz({"é": 1, "z": 2, "__proto__": 3, "a": 4, "~b": 5})
+
+        assert list(v) == ["a", "z", "__proto__", "~b", "é"]  # escaped: a, z, ~__proto__, ~~b, é
+        assert v._wire == {"a": 4, "z": 2, "~__proto__": 3, "~~b": 5, "é": 1}
+        assert freeze(v) is v  # a canonical map is returned unchanged
+
+    def test_freeze_normalizes_nan_and_keeps_signed_zero(self) -> None:
+        negative_nan = math.copysign(float("nan"), -1.0)
+        v = fz({"n": negative_nan, "z": -0.0})
+
+        assert struct.pack(">d", v["n"]) == b"\x7f\xf8\x00\x00\x00\x00\x00\x00"
+        assert struct.pack(">d", v["z"]) == struct.pack(">d", -0.0)
+
+    def test_constructor_maps_are_not_canonical(self) -> None:
+        direct = FrozenMap({"b": 1, "a": 2})
+
+        assert direct._wire is None and list(direct) == ["b", "a"]
+        assert freeze(direct) == direct and list(fz(direct)) == ["a", "b"]
+        assert cpack(direct) == cpack(fz(direct))
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            None,
+            True,
+            0,
+            -33,
+            2**53 - 1,
+            1.5,
+            -0.0,
+            float("inf"),
+            float("nan"),
+            math.copysign(float("nan"), -1.0),
+            "é",
+            (1, "a", (2.5, None)),
+            [1, {"b": 1, "a": 2}],
+            {"z": {"constructor": [float("nan")]}, "a": FrozenMap({"y": 1, "x": 2})},
+            fz({"z": {"~": [1, {"q": -0.0}]}, "__proto__": None}),
+        ],
+    )
+    def test_fast_packer_matches_canonical_pack(self, value: Any) -> None:
+        packer = new_packer()
+
+        assert packer.pack(prepared(value)) == cpack(value)
+        op = ("set", "e", "f", value)
+        assert packer.pack(prepared_op(op)) == cpack(op)
+
+    def test_fast_path_leaves_ready_values_unprepared(self) -> None:
+        frozen = fz({"b": [1, 2], "a": None})
+        op = ("put", "e", "f", "k", frozen)
+
+        assert prepared(frozen) is frozen
+        assert prepared_op(op) is op
+        assert prepared_op(("set", "e", "f", (1, 2))) == ["set", "e", "f", [1, 2]]  # tuples go the full way
+
+    def test_fast_path_rejects_like_canonical_pack(self) -> None:
+        with pytest.raises(OverflowError):
+            prepared(2**53)
+        with pytest.raises(OverflowError):
+            prepared_op(("set", "e", "f", -(2**53)))
+        with pytest.raises(TypeError):
+            prepared(b"x")
+        with pytest.raises(TypeError, match="not a prepared wire value"):
+            new_packer().pack(FrozenMap({"a": 1}))  # only canonical maps may reach the packer unprepared
+
+    def test_without_keeps_canonical_maps_canonical(self) -> None:
+        canonical = fz({"c": 3, "~a": 1, "b": 2})
+        direct = FrozenMap({"c": 3, "a": 1})
+
+        smaller = canonical.without(frozenset({"b"}))
+        assert smaller == {"c": 3, "~a": 1} and smaller._wire == {"c": 3, "~~a": 1}
+        assert direct.without(frozenset({"a"})) == {"c": 3} and direct.without(frozenset())._wire is None

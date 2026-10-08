@@ -17,6 +17,7 @@ from simulatte.entities import (
     EntityRetired,
     FieldSpec,
     StateSchema,
+    presentation_of,
 )
 from simulatte.environment import Environment
 from simulatte.events import CATALOG, Deltas, Event, apply_deltas
@@ -300,6 +301,8 @@ def test_state_schema_and_field_spec_validation() -> None:
     schema = StateSchema({"a": FieldSpec("int"), "b": FieldSpec("float", collection="map", presentation=True)})
     assert list(schema) == ["a", "b"] and len(schema) == 2 and schema["a"] == FieldSpec("int")
     assert schema.presentation == frozenset({"b"})
+    assert schema.presentation is schema.presentation  # computed once
+    assert presentation_of("test_widget") == frozenset({"label"}) and presentation_of("no_such_kind") == frozenset()
     assert "StateSchema" in repr(schema)
     assert Widget.state_schema["label"] == FieldSpec("str", presentation=True)  # label is added to every kind
 

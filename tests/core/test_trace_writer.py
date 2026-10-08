@@ -789,3 +789,40 @@ def test_interrupt_during_backpressure_keeps_trace_consistent(
     rare_chunk = next(c for c in chunks if any(e[2] == Rare.type_name for e in c.body["events"]))
     assert records.index(ext) < records.index(rare_chunk)
     assert rare_chunk.body["epoch"] == 1
+
+
+def test_recorder_reuses_the_digest_encoding(
+    tmp_path: Path, make_recorder: Callable[..., TraceRecorder], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each event is encoded once: the recorder stores the digest's canonical ``payload, deltas`` tail when the
+    event has no presentation field, and encodes the event itself otherwise (here: entity.created's label)."""
+    from simulatte.digest import SemanticDigest
+
+    reused: list[str] = []
+    real = SemanticDigest.shared_tail
+
+    def spy(self: SemanticDigest, event: DomainEvent) -> bytes | None:
+        tail = real(self, event)
+        if tail is not None:
+            reused.append(type(event).type_name)
+        return tail
+
+    monkeypatch.setattr(SemanticDigest, "shared_tail", spy)
+    env = Environment(seed=1)
+    rec = make_recorder(env, tmp_path / "a.simtrace", clock=FakeClock())
+    gauge = Gauge(env, name="g")
+    env.activate()
+    _emit_set(env, gauge, 1.5, note="n")
+    Gauge(env, name="late")
+    rec.close()
+
+    assert reused == ["test.trace_set"]
+    (chunk,) = _of(_read(tmp_path / "a.simtrace"), RecordType.CHUNK)
+    set_event, created = chunk.body["events"]
+    assert set_event[2:] == (
+        "test.trace_set",
+        0.0,
+        {"gauge": "g", "level": 1.5, "note": "n"},
+        (("set", "g", "level", 1.5),),
+    )
+    assert created[2] == "entity.created" and created[4]["label"] == "late"

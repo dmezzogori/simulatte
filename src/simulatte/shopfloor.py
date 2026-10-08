@@ -24,7 +24,7 @@ import inspect
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, cast, runtime_checkable
 
-from simulatte._wire import FrozenMap
+from simulatte._wire import FrozenMap, freeze
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 from simulatte.events import Deltas, DomainEvent, event_type
@@ -1190,8 +1190,8 @@ class ShopFloor(Entity, kind="shopfloor"):
                 self._wip_strategy.complete_operation(job, server, op_index, processing_time, self.wip)
                 if before is not None:
                     build = Deltas.build()
-                    changes = self._wip_deltas(build, before)
-                    env.emit(ShopFloorWipUpdated(shopfloor=self.id, changes=FrozenMap(changes), deltas=build.done()))
+                    changes = cast(FrozenMap, freeze(self._wip_deltas(build, before)))  # canonical: packs as is
+                    env.emit(ShopFloorWipUpdated(shopfloor=self.id, changes=changes, deltas=build.done()))
 
                 # Notify time-series collector
                 if self._time_series_collector is not None:

@@ -41,6 +41,7 @@ __all__ = [
     "EntityRetired",
     "FieldSpec",
     "StateSchema",
+    "presentation_of",
 ]
 
 _WIRE_TYPES = frozenset({"str", "int", "float", "bool", "array", "map", "any"})
@@ -94,7 +95,7 @@ class StateSchema(Mapping[str, FieldSpec]):
     Field names are non-empty strings that do not start with ``$`` (``"$kind"`` is reserved in state maps).
     """
 
-    __slots__ = ("_fields",)
+    __slots__ = ("_fields", "_presentation")
 
     def __init__(self, fields: Mapping[str, FieldSpec]) -> None:
         for name, spec in fields.items():
@@ -103,6 +104,7 @@ class StateSchema(Mapping[str, FieldSpec]):
             if not isinstance(spec, FieldSpec):
                 raise TypeError(f"state field {name!r} must be declared with a FieldSpec, got {type(spec).__name__}")
         self._fields: dict[str, FieldSpec] = dict(fields)
+        self._presentation = frozenset(name for name, spec in self._fields.items() if spec.presentation)
 
     def __getitem__(self, name: str) -> FieldSpec:
         return self._fields[name]
@@ -119,7 +121,7 @@ class StateSchema(Mapping[str, FieldSpec]):
     @property
     def presentation(self) -> frozenset[str]:
         """Names of the presentation fields."""
-        return frozenset(name for name, spec in self._fields.items() if spec.presentation)
+        return self._presentation
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -129,6 +131,15 @@ class StateSchema(Mapping[str, FieldSpec]):
 _KINDS: dict[str, StateSchema] = {}
 KINDS: Mapping[str, StateSchema] = MappingProxyType(_KINDS)
 """Registered entity kinds and their state schemas (global, read-only view)."""
+
+_PRESENTATION: dict[str, frozenset[str]] = {}
+_NO_FIELDS: frozenset[str] = frozenset()
+
+
+def presentation_of(kind: str) -> frozenset[str]:
+    """Presentation state fields of the registered `kind` (empty for an unknown kind)."""
+    return _PRESENTATION.get(kind, _NO_FIELDS)
+
 
 _reserved: re.Pattern[str] | None = None
 
@@ -141,6 +152,7 @@ def _register_kind(kind: object, schema: StateSchema) -> None:
     if existing is not None and existing != schema:
         raise ValueError(f"entity kind {kind!r} is already registered with a different state schema")
     _KINDS[kind] = schema
+    _PRESENTATION[kind] = schema.presentation
     _reserved = None
 
 

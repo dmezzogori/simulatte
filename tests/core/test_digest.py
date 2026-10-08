@@ -13,7 +13,7 @@ import pytest
 
 from simulatte._wire import FrozenMap, canonical_pack, unpack
 from simulatte.builders import build_immediate_release_system
-from simulatte.digest import Fingerprint, SemanticDigest, project_event, project_state
+from simulatte.digest import DigestAccumulator, Fingerprint, SemanticDigest, project_event, project_state
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 from simulatte.events import Deltas, DomainEvent, event_type
@@ -378,3 +378,76 @@ def test_golden_synthetic_digest_and_trace_content(tmp_path: Path, trace_content
     digest, content = _golden_run(tmp_path / "golden.simtrace", trace_content)
     assert Trace.open(tmp_path / "golden.simtrace").verify() is True
     assert (digest, content) == (GOLDEN_SYNTHETIC_DIGEST, GOLDEN_SYNTHETIC_CONTENT)
+
+
+def test_fast_path_equals_project_event_with_the_rolled_kind_map(tmp_path: Path) -> None:
+    """SemanticDigest's fused encoder yields the bytes of project_event, fed through a DigestAccumulator."""
+    from simulatte.trace import TraceRecorder
+
+    env = Environment(seed=7)
+    seen: list[DomainEvent] = []
+    digest = env.enable_digest()
+    TraceRecorder(env, tmp_path / "t.simtrace")  # shares the digest's tails
+    env.bus.subscribe(seen.append, "*")
+    GoldenBox(env, name="box")
+    env.activate()
+    env.emit(GoldenPlain(box="box", amount=2.0, tags=(1, {"b": 2, "a": 1}), deltas=Deltas.build().done()))
+    env.emit(GoldenChanged(box="box", constructor=1, values=(float("nan"),), extra=None, remark="r"))
+    late = GoldenBox(env, name="late")
+    env.emit(GoldenPlain(box="late", amount=-0.0, tags=None, deltas=Deltas.build().set("late", "memo", "m").done()))
+    env.entities.retire(late)
+    env.close()
+
+    replayed = DigestAccumulator()
+    replayed.feed_state(env.initial_state)
+    for event in seen:
+        if event.ordinal is not None:
+            replayed.feed(project_event(event, replayed.kinds))
+    assert replayed.kinds == {"box": "test_golden_box"}
+    assert replayed.hexdigest() == digest.hexdigest()
+
+
+def test_shared_tail_only_for_events_without_presentation() -> None:
+    env = Environment(seed=7)
+    digest = env.enable_digest()
+    seen: list[DomainEvent] = []
+    env.bus.subscribe(lambda event: seen.append(event) if digest.shared_tail(event) is not None else None, "*")
+    box = GoldenBox(env, name="box")
+    env.activate()
+    plain = GoldenPlain(box="box", amount=1.0, tags=None, deltas=Deltas.build().set("box", "level", 1.0).done())
+    env.emit(plain)
+    assert seen == []  # tails are kept only after share_tails() (a recorder asks for them)
+
+    digest.share_tails()
+    env.emit(GoldenPlain(box="box", amount=1.0, tags=None, deltas=Deltas.build().set("box", "level", 1.0).done()))
+    env.emit(GoldenChanged(box="box", constructor=1, values=(), extra=None))  # presentation payload field
+    env.emit(GoldenPlain(box="box", amount=1.0, tags=None, deltas=Deltas.build().set("box", "memo", "x").done()))
+    GoldenBox(env, name="late")  # entity.created: label is presentation
+    env.entities.retire(box)
+    assert [type(event).__name__ for event in seen] == ["GoldenPlain", "EntityRetired"]
+    assert digest.shared_tail(plain) is None  # only the event projected last
+    tail = digest.shared_tail(seen[-1])
+    assert tail is not None and unpack(b"\x92" + tail) == (
+        FrozenMap({"entity": "box", "kind": "test_golden_box"}),
+        (("retire", "box"),),
+    )
+
+
+def test_create_projection_accepts_plain_state_maps() -> None:
+    from simulatte._wire import freeze
+    from simulatte.digest import project_event_parts
+
+    state = {"setting": 1.0, "note": "n", "label": "L"}
+
+    def project(created: Any) -> bytes:
+        return project_event_parts(0, "x", 1, 0.0, {}, (("create", "d", "test_digest_dial", created),), kinds={})
+
+    assert project(state) == project(freeze(state)) == project(FrozenMap(state))
+    assert unpack(project(state)) == (
+        0,
+        "x",
+        1,
+        0.0,
+        FrozenMap({}),
+        (("create", "d", "test_digest_dial", FrozenMap({"setting": 1.0})),),
+    )

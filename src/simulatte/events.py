@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, ClassVar, Literal, TypeAlias, TypeVar, dataclass_transform
 
-from simulatte._wire import FrozenMap, Wire, freeze
+from simulatte._wire import FrozenMap, Wire, escape_key, freeze
 
 __all__ = [
     "CATALOG",
@@ -210,6 +210,15 @@ class Event:
     type_version: ClassVar[int]
     touches: ClassVar[Mapping[str, tuple[str, ...]]]
     presentation_fields: ClassVar[frozenset[str]]
+    payload_fields: ClassVar[tuple[str, ...]]
+    """Payload field names in declaration order (set by :func:`event_type`)."""
+    semantic_fields: ClassVar[tuple[str, ...]]
+    """Payload field names without the presentation ones, in canonical order: sorted by the UTF-8 bytes of the
+    escaped name (set by :func:`event_type`)."""
+    wire_payload: ClassVar[tuple[tuple[str, str], ...]]
+    """``(escaped key, field name)`` of every payload field in canonical order, for the encoders."""
+    wire_semantic: ClassVar[tuple[tuple[str, str], ...]]
+    """``(escaped key, field name)`` of the :attr:`semantic_fields`, for the encoders."""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -366,10 +375,16 @@ def event_type(
             touches=_freeze_touches(touches or {}),
         )
         CATALOG.register(entry)
+        names = tuple(f.name for f in payload)
+        canonical = sorted(names, key=escape_key)  # code point order of the escaped names = UTF-8 byte order
         cls.type_name = name
         cls.type_version = version
         cls.touches = entry.touches
         cls.presentation_fields = frozenset(presentation)
+        cls.payload_fields = names
+        cls.semantic_fields = tuple(n for n in canonical if n not in presentation)
+        cls.wire_payload = tuple((escape_key(n), n) for n in canonical)
+        cls.wire_semantic = tuple((escape_key(n), n) for n in cls.semantic_fields)
         return cls
 
     return register

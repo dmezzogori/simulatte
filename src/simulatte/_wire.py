@@ -11,6 +11,11 @@ prefixed with ``~``. Decoders strip one leading ``~``.
 :func:`canonical_pack` is the byte-stable form used for digests: map keys sorted by the UTF-8 bytes of
 the escaped key, floats always float64, NaN normalized, integers in their smallest MessagePack form.
 :func:`pack` uses the same escaping but keeps insertion order.
+
+Values made by :func:`freeze` are canonical by construction: NaN is normalized and every :class:`FrozenMap` it
+builds keeps its keys sorted by the UTF-8 bytes of the escaped key and holds the escaped form ready for the
+packer. Encoding such values skips the per-item preparation; :func:`prepared` and :func:`prepared_op` give the
+hot paths (digest, recorder) packable values and fall back to the full preparation for anything else.
 """
 
 from __future__ import annotations
@@ -28,7 +33,10 @@ __all__ = [
     "canonical_pack",
     "escape_key",
     "freeze",
+    "new_packer",
     "pack",
+    "prepared",
+    "prepared_op",
     "unescape_key",
     "unpack",
 ]
@@ -42,13 +50,19 @@ Wire: TypeAlias = "None | bool | int | float | str | tuple[Wire, ...] | FrozenMa
 
 
 class FrozenMap(Mapping[str, "Wire"]):
-    """Immutable, hashable mapping from ``str`` to wire values."""
+    """Immutable, hashable mapping from ``str`` to wire values.
 
-    __slots__ = ("_data", "_hash")
+    The constructor keeps the insertion order and does not validate the values. A map built by :func:`freeze` is
+    *canonical*: keys sorted by the UTF-8 bytes of the escaped key and values frozen, so the packers emit it
+    as is.
+    """
+
+    __slots__ = ("_data", "_hash", "_wire")
 
     def __init__(self, data: Mapping[str, Wire]) -> None:
         self._data: dict[str, Wire] = dict(data)
         self._hash: int | None = None
+        self._wire: dict[str, Wire] | None = None  # canonical maps only: escaped keys, ready for the packer
 
     def __getitem__(self, key: str) -> Wire:
         return self._data[key]
@@ -67,24 +81,53 @@ class FrozenMap(Mapping[str, "Wire"]):
     def __repr__(self) -> str:
         return f"FrozenMap({self._data!r})"
 
+    def without(self, keys: frozenset[str]) -> FrozenMap:
+        """This map without `keys`; the result is canonical when this map is."""
+        if self._wire is None:
+            return FrozenMap({k: v for k, v in self._data.items() if k not in keys})
+        return _canonical_sorted({k: v for k, v in self._data.items() if k not in keys})
+
 
 def freeze(value: object) -> Wire:
-    """Return `value` as an immutable wire value.
+    """Return `value` as an immutable wire value, canonical by construction.
 
-    Lists and tuples become tuples, mappings become :class:`FrozenMap`. Raises `TypeError` for anything
-    that is not a wire value (including non-``str`` keys and ``bytes``) and `OverflowError` for integers
-    outside +/-(2**53 - 1).
+    Lists and tuples become tuples, mappings become canonical :class:`FrozenMap` (keys sorted by the UTF-8 bytes
+    of the escaped key), NaN becomes the normalized NaN; a canonical map is returned unchanged. Raises
+    `TypeError` for anything that is not a wire value (including non-``str`` keys and ``bytes``) and
+    `OverflowError` for integers outside +/-(2**53 - 1).
     """
-    if value is None or isinstance(value, (bool, float, str)):
+    if value is None or isinstance(value, (bool, str)):
         return value
+    if isinstance(value, float):
+        return _NAN if value != value else value
     if isinstance(value, int):
         _check_int(value)
+        return value
+    if isinstance(value, FrozenMap) and value._wire is not None:
         return value
     if isinstance(value, (list, tuple)):
         return tuple(freeze(item) for item in value)
     if isinstance(value, Mapping):
-        return FrozenMap({_check_key(k): freeze(v) for k, v in value.items()})
+        return _canonical_map({_check_key(k): freeze(v) for k, v in value.items()})
     raise TypeError(f"not a wire value: {type(value).__name__}")
+
+
+def _canonical_map(data: dict[str, Wire]) -> FrozenMap:
+    """A canonical :class:`FrozenMap` of `data`, whose keys are ``str`` and values frozen."""
+    # Code point order equals UTF-8 byte order, so sorting the escaped strings sorts by their UTF-8 bytes.
+    return _canonical_sorted({k: data[k] for k in sorted(data, key=escape_key)})
+
+
+def _canonical_sorted(ordered: dict[str, Wire]) -> FrozenMap:
+    """A canonical :class:`FrozenMap` of `ordered`, already in canonical key order with frozen values."""
+    result = FrozenMap.__new__(FrozenMap)
+    result._data = ordered
+    result._hash = None
+    if any(k in _HOSTILE_KEYS or k.startswith("~") for k in ordered):
+        result._wire = {escape_key(k): v for k, v in ordered.items()}
+    else:
+        result._wire = ordered
+    return result
 
 
 def escape_key(k: str) -> str:
@@ -104,6 +147,52 @@ def unescape_key(k: str) -> str:
 def canonical_pack(value: Wire) -> bytes:
     """Encode `value` to byte-stable MessagePack (see module docstring)."""
     return _packb(_prepare(value, canonical=True))
+
+
+def prepared(value: Any) -> Any:
+    """`value` ready for a packer from :func:`new_packer`, which then emits its canonical encoding.
+
+    Scalars and canonical maps are returned as they are (NaN normalized); anything else goes through the full
+    preparation, which raises like :func:`canonical_pack` for values outside the wire model.
+    """
+    t = type(value)
+    if t is str or t is bool or value is None:
+        return value
+    if t is int:
+        if -MAX_SAFE_INT <= value <= MAX_SAFE_INT:
+            return value
+    elif t is float:
+        return _NAN if value != value else value
+    elif t is FrozenMap and value._wire is not None:
+        return value
+    return _prepare(value, canonical=True)
+
+
+def prepared_op(op: tuple[Any, ...]) -> Any:
+    """A delta operation ready for a packer from :func:`new_packer` (see :func:`prepared`).
+
+    Operations made of strings, safe integers, non-NaN floats, booleans, None and canonical maps are returned
+    unchanged; any other item sends the whole operation through the full preparation.
+    """
+    for item in op:
+        t = type(item)
+        if t is str or item is None or t is bool:
+            continue
+        if t is int:
+            if -MAX_SAFE_INT <= item <= MAX_SAFE_INT:
+                continue
+        elif t is float:
+            if item == item:
+                continue
+        elif t is FrozenMap and item._wire is not None:
+            continue
+        return _prepare(op, canonical=True)
+    return op
+
+
+def new_packer() -> msgpack.Packer:
+    """A MessagePack packer for values from :func:`prepared` and :func:`prepared_op` (one per thread)."""
+    return msgpack.Packer(use_bin_type=True, use_single_float=False, default=_pack_default, autoreset=True)
 
 
 def pack(value: Wire) -> bytes:
@@ -144,12 +233,24 @@ def _check_key(key: object) -> str:
 
 
 def _packb(obj: object) -> bytes:
-    return msgpack.packb(obj, use_bin_type=True, use_single_float=False)
+    return msgpack.packb(obj, use_bin_type=True, use_single_float=False, default=_pack_default)
+
+
+def _pack_default(obj: object) -> Any:
+    """Packer hook: a canonical :class:`FrozenMap` packs as its escaped, sorted form."""
+    if isinstance(obj, FrozenMap) and obj._wire is not None:
+        return obj._wire
+    raise TypeError(f"not a prepared wire value: {type(obj).__name__}")
 
 
 def _prepare(value: object, *, canonical: bool) -> Any:
-    """Validate `value` and turn it into plain containers ready for the MessagePack packer."""
+    """Validate `value` and turn it into plain containers ready for the MessagePack packer.
+
+    Canonical maps are already validated and sorted; they are left for the packer hook.
+    """
     if value is None or isinstance(value, (bool, str)):
+        return value
+    if type(value) is FrozenMap and value._wire is not None:
         return value
     if isinstance(value, float):
         return _NAN if canonical and value != value else value

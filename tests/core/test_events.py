@@ -317,6 +317,11 @@ def test_event_type_sets_class_attributes() -> None:
     assert dict(Rich.touches) == {"job": ("location",), "server": ("queue",)}
     assert Rich.presentation_fields == frozenset({"label"})
     assert Pong.touches == {} and Pong.presentation_fields == frozenset()
+    # payload metadata is computed once per class: declaration order, and canonical order for the encoders
+    assert Rich.payload_fields == ("job", "label", "weight", "route", "info", "flag", "anything")
+    assert Rich.semantic_fields == ("anything", "flag", "info", "job", "route", "weight")
+    assert Rich.wire_semantic == tuple((name, name) for name in Rich.semantic_fields)
+    assert [name for _, name in Rich.wire_payload] == sorted(Rich.payload_fields)
     assert {"log", "kpi.sample", "test.ping"} <= set(CATALOG.names())
     assert list(CATALOG.names()) == sorted(CATALOG.names())
     assert "test.ping" in CATALOG and "test.nope" not in CATALOG

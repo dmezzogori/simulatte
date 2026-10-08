@@ -3,7 +3,9 @@
 The recorder writes one trace file per environment. Two threads share the work:
 
 - The **simulation thread** encodes each domain event as ``[seq, ordinal, type, t, payload, deltas]`` and
-  appends it to the open buffer. It seals the buffer itself when the event-count, byte or simulated-time
+  appends it to the open buffer. Payload maps and deltas use the canonical encoding; when the semantic digest
+  already encoded an event's ``payload, deltas`` tail (no presentation field involved), that tail is reused, so
+  each event is encoded once. It seals the buffer itself when the event-count, byte or simulated-time
   limit of :class:`ChunkLimits` is reached. Before activation the buffer becomes a ``PRELUDE`` record, after
   it a ``CHUNK``.
 - The **writer thread** seals the open buffer when it has been open longer than the latency limit, whatever
@@ -33,7 +35,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import msgpack
 
-from simulatte._wire import FrozenMap, Wire, pack
+from simulatte._wire import FrozenMap, Wire, new_packer, pack, prepared, prepared_op
 from simulatte.entities import KINDS, StateSchema
 from simulatte.events import CATALOG, Deltas, DomainEvent, Subscription, apply_deltas
 from simulatte.trace.format import (
@@ -57,8 +59,7 @@ ACTIVATION_MANIFEST_FIELDS: frozenset[str] = frozenset({"parameters", "time_unit
 """Requested-manifest fields fixed only at activation: stored in ``INITIAL``, the rest in ``HEADER`` (U1)."""
 
 _OUTCOMES = frozenset({"completed", "cancelled", "failed"})
-_BASE_FIELDS = frozenset({"t", "seq", "deltas", "ordinal"})
-_PAYLOAD_FIELDS: dict[type, tuple[str, ...]] = {}
+_ENTRY_HEADER = b"\x96"  # MessagePack fixarray of 6: [seq, ordinal, type, t, payload, deltas]
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,6 +194,7 @@ class TraceRecorder:
         self._closed = False
         self._last_seq = -1
         self._subscription: Subscription | None = None
+        self._event_packer = new_packer()
 
         # Writer thread only.
         self._offset = 0
@@ -206,7 +208,8 @@ class TraceRecorder:
         self._thread.start()
         self._enqueue("header", len(header_payload), header_payload)
 
-        env.enable_digest()
+        self._digest = env.enable_digest()  # subscribed before this recorder, so it projects each event first
+        self._digest.share_tails()
         env.request_projection(self._on_initial_state)
         if level == "full":
             self._subscription = env.bus.subscribe(self._on_event, "*")
@@ -223,13 +226,14 @@ class TraceRecorder:
         cls = type(event)
         name = cls.type_name
         deltas = event.deltas
-        names = _PAYLOAD_FIELDS.get(cls)
-        if names is None:
-            names = _PAYLOAD_FIELDS[cls] = tuple(f.name for f in dataclasses.fields(cls) if f.name not in _BASE_FIELDS)
         t = float(event.t)
         seq = event.seq
-        item: Any = (seq, event.ordinal, name, t, {n: getattr(event, n) for n in names}, deltas.ops)
-        entry = pack(item)
+        pack_event = self._event_packer.pack
+        tail = self._digest.shared_tail(event)
+        if tail is None:
+            payload = {key: prepared(getattr(event, n)) for key, n in cls.wire_payload}
+            tail = pack_event((payload, tuple(map(prepared_op, deltas.ops))))[1:]
+        entry = _ENTRY_HEADER + pack_event((seq, event.ordinal, name, t))[1:] + tail
         size = len(entry)
         limits = self._limits
         if size > limits.max_event_bytes:
