@@ -66,12 +66,38 @@ See the [architecture diagram](../introduction/architecture.md) for how these ob
       heading_level: 3
       members: false
 
-::: simulatte.shopfloor.MetricsCollector
+::: simulatte.shopfloor.Dispatcher
     options:
       heading_level: 3
       members: false
 
-::: simulatte.shopfloor.Dispatcher
+## Collectors
+
+Built-in collectors on the event bus (`simulatte.collectors`). Each is bound to its owner (a shop floor or a server) and
+attached with `collector.attach(env)`; every `ShopFloor` attaches an `EMACollector` as `shopfloor.metrics` unless built
+with `default_metrics=False`.
+
+::: simulatte.collectors.EMACollector
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.collectors.ShopFloorTimeSeries
+    options:
+      heading_level: 3
+      members: true
+
+::: simulatte.collectors.CurrentWorkloadCollector
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.collectors.ServerTimeSeries
+    options:
+      heading_level: 3
+      members: true
+
+::: simulatte.collectors.ShopFloorKPIs
     options:
       heading_level: 3
       members: false

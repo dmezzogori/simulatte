@@ -39,7 +39,7 @@ Your simulation scripts are unchanged — only the interpreter differs.
 | Intralogistics (AGV fleet, warehouse, graph/pathfinding) | ✅ fully supported |
 | Text / JSON logging | ✅ supported |
 | SQLite logging (`Environment(log_db_path=…)`) | ✅ supported |
-| Plotting (`Server.plot_qt`, collector `plot_*`, …) | ⚠️ works, but matplotlib/numpy run through PyPy's slower `cpyext` C-extension bridge |
+| Plotting (collector `plot_*`, …) | ⚠️ works, but matplotlib/numpy run through PyPy's slower `cpyext` C-extension bridge |
 | `simulatte.experimental` (Gymnasium RL wrapper) | ⚠️ best-effort — depends on numpy/gymnasium via `cpyext`; the module is unstable regardless |
 
 Notes:

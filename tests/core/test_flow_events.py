@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import pytest
 
@@ -21,6 +21,7 @@ from simulatte.entities import EntityRetired
 from simulatte.environment import Environment
 from simulatte.events import DomainEvent, Event, apply_deltas
 from simulatte.job import ProductionJob
+from simulatte.kpi import Collector
 from simulatte.psp import PreShopPool, PspEntered, PspExited
 from simulatte.scenario import Scenario
 from simulatte.server import Server
@@ -248,9 +249,12 @@ def test_job_retired_after_completion_callbacks() -> None:
     observed: list[tuple[str, Any, bool, bool]] = []
     seen = _record(env, (JobFinished, EntityRetired))
 
-    class Metrics:
-        def record(self, job: ProductionJob) -> None:
-            observed.append(("metrics", env.entities.kind_of(job.id), _has(JobFinished), _has(EntityRetired)))
+    class Metrics(Collector):
+        subscribes: ClassVar = (JobFinished,)
+
+        def on_event(self, event: Event) -> None:
+            assert isinstance(event, JobFinished)
+            observed.append(("metrics", env.entities.kind_of(event.job), _has(JobFinished), _has(EntityRetired)))
 
     def _has(cls: type[Event]) -> bool:
         return any(isinstance(e, cls) for e in seen)
@@ -258,7 +262,8 @@ def test_job_retired_after_completion_callbacks() -> None:
     def callback(job: ProductionJob) -> None:
         observed.append(("callback", env.entities.kind_of(job.id), _has(JobFinished), _has(EntityRetired)))
 
-    sf = ShopFloor(env=env, metrics_collector=Metrics(), on_job_finished=callback)
+    sf = ShopFloor(env=env, default_metrics=False, on_job_finished=callback)
+    Metrics(sf).attach(env)
     server = Server(env=env, capacity=1, shopfloor=sf)
     job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
     waiter: list[Any] = []

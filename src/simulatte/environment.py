@@ -437,6 +437,15 @@ class Environment(simpy.Environment):
         """The warm-up set with :meth:`configure_kpis` (default 0): the start of the KPI observation window."""
         return self._warmup
 
+    @property
+    def collectors(self) -> tuple[Collector, ...]:
+        """The KPI collectors attached to this environment, in attachment order.
+
+        Builders attach collectors when asked (for example ``collect_workload=True``); find them here by type and
+        scope.
+        """
+        return tuple(self._collectors)
+
     # -------------------------------------------------------------------------
     # Digest and manifest
     # -------------------------------------------------------------------------

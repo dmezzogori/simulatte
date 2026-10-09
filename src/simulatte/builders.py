@@ -49,8 +49,9 @@ def build_immediate_release_system(
             ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
             several systems in one environment.
         priority_policies: Optional callable used to assign job priorities at servers.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
-        collect_time_series: If True, servers collect queue length time series.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
+        collect_time_series: If True, attach a ``ServerTimeSeries`` (queue length and utilization) to each
+            server (listed in ``env.collectors``).
         retain_job_history: If True, servers retain completed job references.
 
     Returns:
@@ -103,7 +104,7 @@ def build_focus_system(
         focus_weights: FOCUS mechanism weights ``(w1, w2, w3, w4, w5)`` for
             (pi, omega, psi, gamma, beta); must each be in ``[0, 1]`` and sum
             to 1. Defaults to beta-dormant ``(0.25, 0.25, 0.25, 0.25, 0.0)``.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
         ``BuiltSystem[None]`` with ``psp=None`` (push system; no PSP) and
@@ -161,7 +162,7 @@ def build_lumscor_system(
             released only if adding them keeps corrected WIP at or below this level.
         allowance_factor: Buffer time per server for due date calculation.
             Higher values result in earlier (more conservative) releases.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
         ``BuiltSystem[LumsCor]`` whose ``policy`` is the wired ``LumsCor``
@@ -229,7 +230,7 @@ def build_slar_system(
             ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
             ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
             several systems in one environment.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
         ``BuiltSystem[Slar]`` whose ``policy`` is the wired ``Slar`` instance.
@@ -291,7 +292,7 @@ def build_slar_limit_system(
             ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
             ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
             several systems in one environment.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector`` to
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``) to
             the shopfloor for workload time-series.
 
     Returns:
@@ -367,7 +368,7 @@ def build_draco_system(
             ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
             ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
             several systems in one environment.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
         ``BuiltSystem[Draco]`` whose ``policy`` is the wired ``Draco`` instance.
@@ -428,7 +429,7 @@ def build_conwip_system(
             ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
             ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
             several systems in one environment.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
         ``BuiltSystem[ConWIP]`` whose ``policy`` is the wired ``ConWIP`` instance
@@ -481,7 +482,7 @@ def build_continuous_release_system(
             ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
             ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
             several systems in one environment.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
         ``BuiltSystem[ContinuousRelease]`` whose ``policy`` is the wired
@@ -534,7 +535,7 @@ def build_starvation_avoidance_system(
             ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
             ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
             several systems in one environment.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
         ``BuiltSystem[None]`` with ``policy=None``: this builder wires plain

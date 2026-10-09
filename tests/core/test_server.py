@@ -86,44 +86,6 @@ class TestServer:
         assert job2 in queueing
         assert job1 not in queueing  # job1 is processing, not queuing
 
-    def test_time_series_collection(self) -> None:
-        """Server with collect_time_series=True should track queue and utilization."""
-        env = Environment()
-        sf = ShopFloor(env=env)
-        server = Server(env=env, capacity=1, shopfloor=sf, collect_time_series=True)
-        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5], due_date=100)
-
-        sf.add(job)
-        env.run()
-
-        # Qt and Ut should have data
-        assert server._qt is not None and len(server._qt) > 0
-        assert server._ut is not None and len(server._ut) > 0
-
-    def test_time_series_not_collected_by_default(self) -> None:
-        """Server without collect_time_series should not track time series."""
-        env = Environment()
-        sf = ShopFloor(env=env)
-        server = Server(env=env, capacity=1, shopfloor=sf, collect_time_series=False)
-
-        assert server._qt is None
-        assert server._ut is None
-
-    def test_update_ut_no_change(self) -> None:
-        """_update_ut should not add duplicate entries for same status."""
-        env = Environment()
-        sf = ShopFloor(env=env)
-        server = Server(env=env, capacity=1, shopfloor=sf, collect_time_series=True)
-
-        initial_len = len(server._ut) if server._ut else 0
-
-        # Call _update_ut twice with same status - should not add duplicate
-        server._update_ut()
-        server._update_ut()
-
-        # Should still have same length (no duplicate 0.0 entries)
-        assert len(server._ut) if server._ut else 0 == initial_len
-
     def test_process_job_with_history(self) -> None:
         """Server with retain_job_history=True should track processed jobs."""
         env = Environment()

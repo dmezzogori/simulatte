@@ -176,8 +176,8 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
     """A server/workstation for job-shop simulation with queue and utilization tracking.
 
     Server extends SimPy's PriorityResource to process jobs with priority-based
-    queueing. It tracks queue lengths, utilization rates, and optionally records
-    time-series data for visualization. Its id is the ``name`` given to the
+    queueing. It tracks queue lengths and utilization rates; time series of both
+    come from :class:`~simulatte.collectors.ServerTimeSeries`. Its id is the ``name`` given to the
     constructor, or ``server-<n>`` in attachment order. When attached to a ShopFloor,
     the server is automatically registered on it.
 
@@ -207,7 +207,6 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         env: Environment,
         capacity: int,
         shopfloor: ShopFloor | None = None,
-        collect_time_series: bool = False,
         retain_job_history: bool = False,
         name: str | None = None,
         label: str | None = None,
@@ -219,8 +218,6 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
             capacity: Maximum number of jobs that can be processed simultaneously.
             shopfloor: Optional ShopFloor for automatic registration. If provided,
                 the server is added to the shopfloor's server list.
-            collect_time_series: If True, record queue length and utilization
-                over time for later visualization via plot_qt() and plot_ut().
             retain_job_history: If True, maintain a list of all processed jobs.
             name: Optional id of the server; defaults to ``server-<n>``.
             label: Optional display label; defaults to the id.
@@ -231,8 +228,6 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         self.worked_time: float = 0
 
         self._queue_history: dict[int, float] = defaultdict(float)
-        self._qt: list[tuple[float, int]] | None = [] if collect_time_series else None
-        self._ut: list[tuple[float, float]] | None = [(0, 0.0)] if collect_time_series else None
 
         self._last_queue_level: int = 0
         self._last_queue_level_timestamp: float = 0
@@ -299,27 +294,11 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         """Iterator over jobs currently waiting in the queue."""
         return (request.job for request in self.queue)
 
-    def _update_qt(self) -> None:
-        """Record current queue length to the time-series if collection is enabled."""
-        if self._qt is None:
-            return
-        self._qt.append((self.env.now, len(self.queue)))
-
-    def _update_ut(self) -> None:
-        """Record current utilization to the time-series if collection is enabled."""
-        if self._ut is None:
-            return
-        status = self.count / self.capacity if self.capacity else 0.0
-        if self._ut and self._ut[-1][1] == status:
-            return
-        self._ut.append((self.env.now, status))
-
     def _update_queue_history(self, _: simpy.Event | None) -> None:
-        """Update queue histogram and trigger time-series updates."""
+        """Update the queue-length histogram behind :attr:`average_queue_length`."""
         self._queue_history[self._last_queue_level] += self.env.now - self._last_queue_level_timestamp
         self._last_queue_level_timestamp = self.env.now
         self._last_queue_level = len(self.queue)
-        self._update_qt()
 
     def request(  # ty: ignore[invalid-method-override]
         self,
@@ -344,15 +323,13 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         job.current_server = self
 
         self._update_queue_history(None)
-        self._update_ut()
         request.callbacks.append(self._update_queue_history)
-        request.callbacks.append(lambda _: self._update_ut())
         return request
 
     def release(self, request: ServerPriorityRequest) -> Release:  # ty: ignore[invalid-method-override]
         """Release the server after job processing.
 
-        Records the job's exit time and updates utilization tracking. SimPy removes the request from ``users``
+        Records the job's exit time. SimPy removes the request from ``users``
         while creating the Release event; if it was there, the job's location becomes ``transit`` and
         ``job.released`` is emitted. Releasing a request that was never granted or was already released changes
         neither and emits nothing.
@@ -383,7 +360,6 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
                     )
                 )
         job.servers_exit_at[self] = env.now
-        self._update_ut()
         return release
 
     def process_job(self, job: BaseJob, processing_time: float) -> ProcessGenerator:
@@ -525,43 +501,6 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
                             .done(),
                         )
                     )
-
-    def plot_qt(self) -> None:  # pragma: no cover
-        """Display a step plot of queue length over simulation time.
-
-        Raises:
-            RuntimeError: If time-series collection was not enabled at initialization.
-        """
-        import matplotlib.pyplot as plt  # lazy: keeps headless sim runs free of the matplotlib/numpy import
-
-        if self._qt is None:
-            raise RuntimeError("Queue time-series collection is disabled for this Server.")
-        x, y = zip(*self._qt, strict=False)
-        plt.step(x, y, where="pre")
-        plt.fill_between(x, y, step="pre", alpha=1.0)
-        plt.title(f"Q(t): {self} queue length over time")
-        plt.xlabel("Simulation Time")
-        plt.ylabel("Queue Length")
-        plt.show()
-
-    def plot_ut(self) -> None:  # pragma: no cover
-        """Display a step plot of utilization rate over simulation time.
-
-        Raises:
-            RuntimeError: If time-series collection was not enabled at initialization.
-        """
-        import matplotlib.pyplot as plt  # lazy: keeps headless sim runs free of the matplotlib/numpy import
-
-        if self._ut is None:
-            raise RuntimeError("Utilization time-series collection is disabled for this Server.")
-        ut = [*self._ut, (self.env.now, self._ut[-1][1])]
-        x, y = zip(*ut, strict=False)
-        plt.step(x, y, where="post")
-        plt.fill_between(x, y, step="post", alpha=1.0)
-        plt.title(f"U(t): {self} utilization over time")
-        plt.xlabel("Simulation Time")
-        plt.ylabel("Utilization rate")
-        plt.show()
 
 
 def _request_key(request: Any) -> Any:

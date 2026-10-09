@@ -33,7 +33,8 @@ from simulatte.distributions import (
 )
 from simulatte.router import Router
 from simulatte.server import Server
-from simulatte.shopfloor import CurrentWorkLoadCollector, ShopFloor
+from simulatte.collectors import CurrentWorkloadCollector, ServerTimeSeries
+from simulatte.shopfloor import ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable, Sequence
@@ -258,24 +259,26 @@ class Scenario:
         """Create the ShopFloor and ``n_servers`` single-capacity servers.
 
         The entities are named ``f"{prefix}shopfloor"`` and ``f"{prefix}wc-{i}"`` (``i`` from 0), so systems built
-        with different prefixes can share an environment.
+        with different prefixes can share an environment. `collect_workload` attaches a
+        :class:`~simulatte.collectors.CurrentWorkloadCollector` to the shop floor and `collect_time_series` a
+        :class:`~simulatte.collectors.ServerTimeSeries` to each server; ``env.collectors`` lists them.
         """
-        shop_floor = ShopFloor(
-            env=env,
-            time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
-            name=f"{prefix}shopfloor",
-        )
+        shop_floor = ShopFloor(env=env, name=f"{prefix}shopfloor")
         servers = tuple(
             Server(
                 env=env,
                 capacity=1,
                 shopfloor=shop_floor,
-                collect_time_series=collect_time_series,
                 retain_job_history=retain_job_history,
                 name=f"{prefix}wc-{i}",
             )
             for i in range(self.n_servers)
         )
+        if collect_workload:
+            CurrentWorkloadCollector(shop_floor).attach(env)
+        if collect_time_series:
+            for server in servers:
+                ServerTimeSeries(server).attach(env)
         return shop_floor, servers
 
     def build_router(

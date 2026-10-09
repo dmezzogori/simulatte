@@ -13,6 +13,7 @@ from simulatte.builders import (
     build_slar_system,
     build_starvation_avoidance_system,
 )
+from simulatte.collectors import CurrentWorkloadCollector, ServerTimeSeries
 from simulatte.dispatching_rules import shortest_processing_time
 from simulatte.environment import Environment
 from simulatte.job import ProductionJob
@@ -64,9 +65,9 @@ class TestBuildImmediateReleaseSystem:
 
         assert psp is None
         assert len(servers) == 2
-        # Verify time series collection is enabled
-        assert servers[0]._qt is not None
-        assert servers[0]._ut is not None
+        # One ServerTimeSeries per server
+        series = [c for c in env.collectors if isinstance(c, ServerTimeSeries)]
+        assert [c.scope for c in series] == list(servers)
         # Verify job history retention is enabled
         assert servers[0]._jobs is not None
 
@@ -246,41 +247,36 @@ class TestScenarioShopTypes:
 class TestCollectWorkload:
     """Tests for the collect_workload parameter on all builder functions."""
 
-    def test_build_immediate_release_collect_workload_false(self) -> None:
-        from simulatte.shopfloor import CurrentWorkLoadCollector
+    @staticmethod
+    def _workload(env: Environment) -> list[CurrentWorkloadCollector]:
+        return [c for c in env.collectors if isinstance(c, CurrentWorkloadCollector)]
 
+    def test_build_immediate_release_collect_workload_false(self) -> None:
         env = Environment()
         _, _, shop_floor, _, _ = build_immediate_release_system(env=env, scenario=Scenario(n_servers=2))
-        assert not isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
+        assert self._workload(env) == []
+        assert env.collectors == (shop_floor.metrics,)  # only the default EMA collector
 
     def test_build_immediate_release_collect_workload_true(self) -> None:
-        from simulatte.shopfloor import CurrentWorkLoadCollector
-
         env = Environment()
         _, _, shop_floor, _, _ = build_immediate_release_system(
             env=env, scenario=Scenario(n_servers=2), collect_workload=True
         )
-        assert isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
+        assert [c.scope for c in self._workload(env)] == [shop_floor]
 
     def test_build_lumscor_collect_workload_true(self) -> None:
-        from simulatte.shopfloor import CurrentWorkLoadCollector
-
         env = Environment()
         _, _, shop_floor, _, _ = build_lumscor_system(
             env=env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2, collect_workload=True
         )
-        assert isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
+        assert [c.scope for c in self._workload(env)] == [shop_floor]
 
     def test_build_slar_collect_workload_true(self) -> None:
-        from simulatte.shopfloor import CurrentWorkLoadCollector
-
         env = Environment()
         _, _, shop_floor, _, _ = build_slar_system(env=env, allowance_factor=3.0, collect_workload=True)
-        assert isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
+        assert [c.scope for c in self._workload(env)] == [shop_floor]
 
     def test_build_slar_limit_collect_workload_true(self) -> None:
-        from simulatte.shopfloor import CurrentWorkLoadCollector
-
         env = Environment()
         _, _, shop_floor, _, _ = build_slar_limit_system(
             env=env,
@@ -288,7 +284,7 @@ class TestCollectWorkload:
             wl_norm_level=5.0,
             collect_workload=True,
         )
-        assert isinstance(shop_floor.time_series_collector, CurrentWorkLoadCollector)
+        assert [c.scope for c in self._workload(env)] == [shop_floor]
 
 
 class TestBuiltSystemPolicyField:

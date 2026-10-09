@@ -15,13 +15,14 @@ The ShopFloor integrates with:
 Extensibility is provided through:
 - OperationHook: Sync or generator-based hooks for before/after each operation
 - WIPStrategy: Pluggable WIP calculation strategies
-- MetricsCollector: Pluggable metrics recording
+
+Metrics come from collectors on the event bus (:mod:`simulatte.collectors`); every ShopFloor attaches an
+:class:`~simulatte.collectors.EMACollector` as ``metrics`` unless built with ``default_metrics=False``.
 """
 
 from __future__ import annotations
 
 import inspect
-import math
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, cast, runtime_checkable
 
@@ -31,15 +32,12 @@ from simulatte.environment import Environment
 from simulatte.events import Deltas, DomainEvent, event_type
 
 if TYPE_CHECKING:  # pragma: no cover
+    from simulatte.collectors import EMACollector
     from simulatte.events import DeltaBuilder
     from simulatte.job import ProductionJob
     from simulatte.psp import PreShopPool
     from simulatte.server import Server
     from simulatte.typing import ProcessGenerator
-
-
-# Sentinel to differentiate "use default" vs "explicitly None" for metrics.
-_DEFAULT_METRICS_COLLECTOR = object()
 
 
 # =============================================================================
@@ -128,106 +126,6 @@ class WIPStrategy(Protocol):
             op_index: Zero-based index of the completed operation.
             processing_time: Duration of the completed operation.
             wip: Dictionary mapping servers to their current WIP values.
-        """
-        ...
-
-
-@runtime_checkable
-class MetricsCollector(Protocol):
-    """Collector for job completion metrics.
-
-    Metrics collectors receive completed jobs and can compute any desired
-    performance metrics. The built-in EMAMetricsCollector computes exponential
-    moving averages for common metrics.
-
-    Example:
-        A simple throughput collector::
-
-            class ThroughputCollector:
-                def __init__(self):
-                    self.count = 0
-                    self.tardy = 0
-
-                def record(self, job):
-                    self.count += 1
-                    if job.lateness > 0:
-                        self.tardy += 1
-
-            collector = ThroughputCollector()
-            shopfloor = ShopFloor(env=env, metrics_collector=collector)
-    """
-
-    def record(self, job: ProductionJob) -> None:
-        """Record metrics for a completed job.
-
-        Args:
-            job: The job that just completed its routing.
-        """
-        ...
-
-
-@runtime_checkable
-class TimeSeriesCollector(Protocol):
-    """Collector for time-series data during simulation.
-
-    Time-series collectors receive lifecycle events from the ShopFloor
-    and can record metrics over simulation time. The built-in
-    DefaultTimeSeriesCollector provides WIP, job count, throughput, and
-    lateness tracking with matplotlib plotting.
-
-    Example:
-        A custom collector tracking only tardy jobs::
-
-            class TardyTracker:
-                def __init__(self):
-                    self.tardy_times: list[float] = []
-
-                def on_job_entered(self, shopfloor, job):
-                    pass
-
-                def on_operation_completed(self, shopfloor, job, server, op_index):
-                    pass
-
-                def on_job_finished(self, shopfloor, job):
-                    if job.lateness > 0:
-                        self.tardy_times.append(shopfloor.env.now)
-
-            tracker = TardyTracker()
-            shopfloor = ShopFloor(env=env, time_series_collector=tracker)
-    """
-
-    def on_job_entered(self, shopfloor: ShopFloor, job: ProductionJob) -> None:
-        """Called when a job enters the shop floor.
-
-        Args:
-            shopfloor: The ShopFloor instance.
-            job: The job that just entered.
-        """
-        ...
-
-    def on_operation_completed(
-        self,
-        shopfloor: ShopFloor,
-        job: ProductionJob,
-        server: Server,
-        op_index: int,
-    ) -> None:
-        """Called when a job completes an operation at a server.
-
-        Args:
-            shopfloor: The ShopFloor instance.
-            job: The job that completed the operation.
-            server: The server where the operation completed.
-            op_index: Zero-based index of the completed operation.
-        """
-        ...
-
-    def on_job_finished(self, shopfloor: ShopFloor, job: ProductionJob) -> None:
-        """Called when a job completes its entire routing.
-
-        Args:
-            shopfloor: The ShopFloor instance.
-            job: The job that just finished.
         """
         ...
 
@@ -369,285 +267,6 @@ class CorrectedWIPStrategy:
 
 
 # =============================================================================
-# Built-in Metrics Collector
-# =============================================================================
-
-
-class EMAMetricsCollector:
-    """Exponential moving average (EMA) metrics collector.
-
-    Computes EMAs for common job shop performance metrics:
-    - ema_makespan: Job completion time (creation to finish)
-    - ema_tardy_jobs: Proportion of jobs finishing late
-    - ema_early_jobs: Proportion of jobs finishing early
-    - ema_in_window_jobs: Proportion of jobs finishing in due date window
-    - ema_time_in_psp: Time spent in Pre-Shop Pool
-    - ema_time_in_shopfloor: Time spent on shop floor
-    - ema_total_queue_time: Total time waiting in queues
-
-    Attributes:
-        alpha: Smoothing factor (0 < alpha <= 1). Smaller values give
-            more weight to historical data.
-    """
-
-    def __init__(self, alpha: float = 0.01) -> None:
-        """Initialize the collector.
-
-        Args:
-            alpha: EMA smoothing factor. Defaults to 0.01.
-        """
-        self.alpha = alpha
-        self.ema_makespan: float = 0.0
-        self.ema_tardy_jobs: float = 0.0
-        self.ema_early_jobs: float = 0.0
-        self.ema_in_window_jobs: float = 0.0
-        self.ema_time_in_psp: float = 0.0
-        self.ema_time_in_shopfloor: float = 0.0
-        self.ema_total_queue_time: float = 0.0
-
-    def record(self, job: ProductionJob) -> None:
-        """Update all EMA metrics based on the completed job."""
-        lateness = job.lateness
-        in_window = job.is_finished_in_due_date_window()
-
-        self.ema_makespan += self.alpha * (job.makespan - self.ema_makespan)
-
-        tardy_indicator = 1 if not in_window and lateness > 0 else 0
-        self.ema_tardy_jobs += self.alpha * (tardy_indicator - self.ema_tardy_jobs)
-
-        early_indicator = 1 if not in_window and lateness < 0 else 0
-        self.ema_early_jobs += self.alpha * (early_indicator - self.ema_early_jobs)
-
-        in_window_indicator = 1 if in_window else 0
-        self.ema_in_window_jobs += self.alpha * (in_window_indicator - self.ema_in_window_jobs)
-
-        self.ema_time_in_psp += self.alpha * (job.time_in_psp - self.ema_time_in_psp)
-        self.ema_time_in_shopfloor += self.alpha * (job.time_in_shopfloor - self.ema_time_in_shopfloor)
-        self.ema_total_queue_time += self.alpha * (job.total_queue_time - self.ema_total_queue_time)
-
-
-# =============================================================================
-# Built-in Time-Series Collector
-# =============================================================================
-
-
-class DefaultTimeSeriesCollector:
-    """Default time-series collector providing standard shop floor metrics.
-
-    Collects time-series data for:
-    - wip_ts: Total WIP over time as (time, wip) tuples
-    - job_count_ts: Jobs in system over time as (time, count) tuples
-    - throughput_ts: Cumulative completed jobs as (time, count) tuples
-    - lateness_ts: Job lateness at completion as (time, lateness) tuples
-
-    Each metric is stored as a list of (timestamp, value) tuples suitable
-    for step plots. Plot methods use matplotlib for visualization.
-
-    Example:
-        Basic usage::
-
-            from simulatte import Environment, Server, ProductionJob, ShopFloor
-            from simulatte.shopfloor import DefaultTimeSeriesCollector
-
-            collector = DefaultTimeSeriesCollector()
-            env = Environment()
-            shop_floor = ShopFloor(env=env, time_series_collector=collector)
-            server = Server(env=env, capacity=1, shopfloor=shop_floor)
-
-            # Add jobs and run simulation...
-            env.run()
-
-            # Plot collected metrics
-            collector.plot_wip()
-            collector.plot_throughput()
-    """
-
-    def __init__(self) -> None:
-        """Initialize the collector with empty time-series."""
-        self.wip_ts: list[tuple[float, float]] = []
-        self.job_count_ts: list[tuple[float, int]] = []
-        self.throughput_ts: list[tuple[float, int]] = [(0.0, 0)]
-        self.lateness_ts: list[tuple[float, float]] = []
-
-    def on_job_entered(self, shopfloor: ShopFloor, job: ProductionJob) -> None:
-        """Record WIP and job count when a job enters the shop floor."""
-        del job  # Unused but required by protocol
-        now = shopfloor.env.now
-        self.wip_ts.append((now, math.fsum(shopfloor.wip.values())))
-        self.job_count_ts.append((now, len(shopfloor.jobs)))
-
-    def on_operation_completed(
-        self,
-        shopfloor: ShopFloor,
-        job: ProductionJob,
-        server: Server,
-        op_index: int,
-    ) -> None:
-        """Record WIP after an operation completes."""
-        del job, server, op_index  # Unused but required by protocol
-        now = shopfloor.env.now
-        self.wip_ts.append((now, math.fsum(shopfloor.wip.values())))
-
-    def on_job_finished(self, shopfloor: ShopFloor, job: ProductionJob) -> None:
-        """Record job count, throughput, and lateness when a job finishes."""
-        now = shopfloor.env.now
-        self.job_count_ts.append((now, len(shopfloor.jobs)))
-        self.throughput_ts.append((now, len(shopfloor.jobs_done)))
-        self.lateness_ts.append((now, job.lateness))
-
-    def plot_wip(self) -> None:  # pragma: no cover
-        """Display a step plot of total WIP over simulation time.
-
-        Raises:
-            RuntimeError: If no WIP data has been collected.
-        """
-        import matplotlib.pyplot as plt
-
-        if not self.wip_ts:
-            raise RuntimeError("No WIP data collected.")
-        x, y = zip(*self.wip_ts, strict=False)
-        plt.step(x, y, where="post")
-        plt.fill_between(x, y, step="post", alpha=0.3)
-        plt.title("Total WIP over time")
-        plt.xlabel("Simulation Time")
-        plt.ylabel("WIP (total processing time)")
-        plt.show()
-
-    def plot_job_count(self) -> None:  # pragma: no cover
-        """Display a step plot of job count over simulation time.
-
-        Raises:
-            RuntimeError: If no job count data has been collected.
-        """
-        import matplotlib.pyplot as plt
-
-        if not self.job_count_ts:
-            raise RuntimeError("No job count data collected.")
-        x, y = zip(*self.job_count_ts, strict=False)
-        plt.step(x, y, where="post")
-        plt.fill_between(x, y, step="post", alpha=0.3)
-        plt.title("Jobs in system over time")
-        plt.xlabel("Simulation Time")
-        plt.ylabel("Job Count")
-        plt.show()
-
-    def plot_throughput(self) -> None:  # pragma: no cover
-        """Display a step plot of cumulative throughput over simulation time.
-
-        Raises:
-            RuntimeError: If no throughput data has been collected.
-        """
-        import matplotlib.pyplot as plt
-
-        if len(self.throughput_ts) <= 1:
-            raise RuntimeError("No throughput data collected.")
-        x, y = zip(*self.throughput_ts, strict=False)
-        plt.step(x, y, where="post")
-        plt.title("Cumulative throughput over time")
-        plt.xlabel("Simulation Time")
-        plt.ylabel("Completed Jobs")
-        plt.show()
-
-    def plot_lateness(self) -> None:  # pragma: no cover
-        """Display a scatter plot of job lateness over simulation time.
-
-        Jobs are colored green if early (lateness < 0) and red if tardy
-        (lateness > 0). A horizontal line at y=0 marks the on-time threshold.
-
-        Raises:
-            RuntimeError: If no lateness data has been collected.
-        """
-        import matplotlib.pyplot as plt
-
-        if not self.lateness_ts:
-            raise RuntimeError("No lateness data collected.")
-        x, y = zip(*self.lateness_ts, strict=False)
-        colors = ["red" if lat > 0 else "green" for lat in y]
-        plt.scatter(x, y, c=colors, alpha=0.6)
-        plt.axhline(y=0, color="black", linestyle="--", linewidth=0.5)
-        plt.title("Job lateness over time")
-        plt.xlabel("Simulation Time")
-        plt.ylabel("Lateness (positive = tardy)")
-        plt.show()
-
-
-class CurrentWorkLoadCollector:
-    """Time-series collector measuring true remaining processing work on the shop floor.
-
-    At each snapshot, records the sum of remaining processing times across all jobs
-    currently in the system, regardless of WIP strategy. An operation is considered
-    remaining if its server has not yet been released (servers_exit_at is None),
-    which includes operations in queue, currently processing, and not yet started.
-
-    Unlike DefaultTimeSeriesCollector.wip_ts, these values are not affected by
-    CorrectedWIPStrategy's position discounting and represent actual workload.
-
-    Attributes:
-        wip_ts: Time series of (simulation_time, total_remaining_work) tuples.
-            Appended on every job entry and every operation completion.
-    """
-
-    def __init__(self) -> None:
-        self.wip_ts: list[tuple[float, float]] = []
-
-    def _snapshot(
-        self,
-        shopfloor: ShopFloor,
-        skip_job: ProductionJob | None = None,
-        skip_server: Server | None = None,
-    ) -> None:
-        total = math.fsum(
-            job.routing[s]
-            for job in shopfloor.jobs
-            for s in job.servers
-            if job.servers_exit_at[s] is None and not (job is skip_job and s is skip_server)
-        )
-        self.wip_ts.append((shopfloor.env.now, total))
-
-    def on_job_entered(
-        self,
-        shopfloor: ShopFloor,
-        job: ProductionJob,
-    ) -> None:
-        """Record total remaining work when a job enters the shop floor."""
-        del job  # Already included via shopfloor.jobs
-        self._snapshot(shopfloor)
-
-    def on_operation_completed(
-        self,
-        shopfloor: ShopFloor,
-        job: ProductionJob,
-        server: Server,
-        op_index: int,
-    ) -> None:
-        """Record total remaining work after an operation completes.
-
-        The (job, server) pair is explicitly skipped because this callback fires
-        inside the `with server.request()` block in ShopFloor.main(), before the
-        block exits and Server.release() stamps servers_exit_at[server]. Without
-        the skip, the just-completed operation would still read as remaining work.
-
-        TODO: move this notification to after the `with` block exits so that
-        servers_exit_at is already stamped, at which point the skip can be removed
-        and this method becomes uniform with on_job_entered.
-        """
-        del op_index  # Unused but required by protocol
-        self._snapshot(shopfloor, skip_job=job, skip_server=server)
-
-    def on_job_finished(
-        self,
-        shopfloor: ShopFloor,
-        job: ProductionJob,
-    ) -> None:
-        """No-op: job is already removed from shopfloor.jobs before this fires.
-
-        The last on_operation_completed already captured the WIP drop to zero
-        for the finishing job via the skip mechanism.
-        """
-        del shopfloor, job  # Unused but required by protocol
-
-
-# =============================================================================
 # Flow events
 # =============================================================================
 
@@ -725,8 +344,6 @@ class ShopFloor(Entity, kind="shopfloor"):
     Extensibility is provided through composition:
     - on_before_operation / on_after_operation: Hooks for custom logic at each operation
     - wip_strategy: Pluggable WIP calculation
-    - metrics_collector: Pluggable metrics recording
-    - time_series_collector: Pluggable time-series data collection
     - on_job_finished: Callbacks when jobs complete
     - material_coordinator: Optional material delivery coordination
 
@@ -737,6 +354,8 @@ class ShopFloor(Entity, kind="shopfloor"):
         jobs: Jobs currently on the shop floor, as an insertion-ordered dict keyed by job (values are
             None): membership, ``len`` and iteration in entry order.
         jobs_done: List of completed jobs in order of completion.
+        metrics: The default :class:`~simulatte.collectors.EMACollector` (``ema_*`` averages of completed jobs),
+            or None when built with ``default_metrics=False``.
         wip: Dictionary mapping each server to its current WIP value.
         total_time_in_system: Cumulative time spent by all completed jobs.
         job_processing_end: SimPy event triggered when any job finishes
@@ -778,9 +397,7 @@ class ShopFloor(Entity, kind="shopfloor"):
         ema_alpha: float = 0.01,
         material_coordinator: MaterialCoordinator | None = None,
         wip_strategy: WIPStrategy | None = None,
-        metrics_collector: MetricsCollector | None | object = _DEFAULT_METRICS_COLLECTOR,
-        collect_time_series: bool = False,
-        time_series_collector: TimeSeriesCollector | None = None,
+        default_metrics: bool = True,
         on_before_operation: OperationHook | Sequence[OperationHook] | None = None,
         on_after_operation: OperationHook | Sequence[OperationHook] | None = None,
         on_job_finished: Callable[[ProductionJob], None] | Sequence[Callable[[ProductionJob], None]] | None = None,
@@ -792,23 +409,18 @@ class ShopFloor(Entity, kind="shopfloor"):
         Args:
             env: The simulation environment that provides time management,
                 event scheduling, and process coordination.
-            ema_alpha: Smoothing factor for the default EMAMetricsCollector.
-                Must be in range (0, 1]. Ignored if a custom metrics_collector
-                is provided. Defaults to 0.01.
+            ema_alpha: Smoothing factor of the default EMACollector, in
+                range (0, 1]. Defaults to 0.01.
             material_coordinator: Optional coordinator for handling material
                 delivery to servers. When provided, the shop floor will
                 ensure materials are delivered before processing begins
                 at each operation, implementing FIFO blocking behavior.
             wip_strategy: Strategy for WIP calculation. Defaults to
                 StandardWIPStrategy which uses full processing times.
-            metrics_collector: Collector for job completion metrics. Defaults
-                to EMAMetricsCollector. Pass None to disable metrics.
-            collect_time_series: If True and time_series_collector is None,
-                creates a DefaultTimeSeriesCollector for WIP, job count,
-                throughput, and lateness tracking. Defaults to False.
-            time_series_collector: Collector for time-series data. If provided,
-                overrides collect_time_series. Pass None to disable time-series
-                collection. Defaults to None.
+            default_metrics: If True (the default), attach an
+                :class:`~simulatte.collectors.EMACollector` as ``metrics``.
+                Pass False to run without it; other collectors from
+                :mod:`simulatte.collectors` are attached with ``attach(env)``.
             on_before_operation: Hook(s) called after acquiring server but before
                 material delivery and processing. Can be a single hook or list.
             on_after_operation: Hook(s) called after processing completes but
@@ -829,18 +441,6 @@ class ShopFloor(Entity, kind="shopfloor"):
 
         # Strategies with defaults
         self._wip_strategy: WIPStrategy = wip_strategy if wip_strategy is not None else StandardWIPStrategy()
-        if metrics_collector is _DEFAULT_METRICS_COLLECTOR:
-            self._metrics_collector: MetricsCollector | None = EMAMetricsCollector(alpha=ema_alpha)
-        else:
-            self._metrics_collector = cast(MetricsCollector | None, metrics_collector)
-
-        # Time-series collector: explicit collector takes precedence over flag
-        if time_series_collector is not None:
-            self._time_series_collector: TimeSeriesCollector | None = time_series_collector
-        elif collect_time_series:
-            self._time_series_collector = DefaultTimeSeriesCollector()
-        else:
-            self._time_series_collector = None
 
         # Core state
         self.servers: list[Server] = []
@@ -858,6 +458,12 @@ class ShopFloor(Entity, kind="shopfloor"):
         self.maximum_shopfloor_jobs: int = 0
 
         env.entities.attach(self, name=name, label=label)
+
+        self.metrics: EMACollector | None = None
+        if default_metrics:
+            from simulatte.collectors import EMACollector  # the collectors import this module
+
+            self.metrics = EMACollector(self, alpha=ema_alpha).attach(env)
 
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: WIP per server id and the number of jobs in the system."""
@@ -979,24 +585,6 @@ class ShopFloor(Entity, kind="shopfloor"):
         self._wip_strategy = strategy
 
     @property
-    def metrics_collector(self) -> MetricsCollector | None:
-        """Collector called when jobs complete (or None if disabled)."""
-        return self._metrics_collector
-
-    def set_metrics_collector(self, collector: MetricsCollector | None) -> None:
-        """Replace the shopfloor's metrics collector (or disable with None)."""
-        self._metrics_collector = collector
-
-    @property
-    def time_series_collector(self) -> TimeSeriesCollector | None:
-        """Collector for time-series data (or None if disabled)."""
-        return self._time_series_collector
-
-    def set_time_series_collector(self, collector: TimeSeriesCollector | None) -> None:
-        """Replace the shopfloor's time-series collector (or disable with None)."""
-        self._time_series_collector = collector
-
-    @property
     def average_time_in_system(self) -> float:
         """Average time jobs spend in the system from first server entry to completion.
 
@@ -1016,7 +604,7 @@ class ShopFloor(Entity, kind="shopfloor"):
         This method performs the following actions:
         1. Adds the job to the active jobs
         2. Updates WIP values via the configured WIP strategy
-        3. Emits ``shopfloor.entered`` and notifies the time-series collector
+        3. Emits ``shopfloor.entered``
         4. Records the PSP exit timestamp on the job
         5. Spawns the main processing coroutine for the job
 
@@ -1041,10 +629,6 @@ class ShopFloor(Entity, kind="shopfloor"):
             self._wip_deltas(build, before)
             build.set(job.id, "shopfloor", self.id).set(job.id, "location", "transit")
             env.emit(ShopFloorEntered(job=job.id, shopfloor=self.id, deltas=build.done()))
-
-        # Notify time-series collector
-        if self._time_series_collector is not None:
-            self._time_series_collector.on_job_entered(self, job)
 
         job.psp_exit_at = self.env.now
         self.env.process(self.main(job))
@@ -1139,8 +723,7 @@ class ShopFloor(Entity, kind="shopfloor"):
         After all operations complete, it:
         - Records the finish timestamp on the job
         - Moves the job from active (jobs) to completed (jobs_done)
-        - Emits ``job.finished``
-        - Records metrics via the configured metrics collector
+        - Emits ``job.finished`` (the default EMACollector and other collectors update on it)
         - Calls on_job_finished callbacks
         - Signals job completion via signal_job_finished()
         - Retires the job from the environment's entity registry (``entity.retired``); ``jobs_done`` and
@@ -1198,10 +781,6 @@ class ShopFloor(Entity, kind="shopfloor"):
                     changes = cast(FrozenMap, freeze(self._wip_deltas(build, before)))  # canonical: packs as is
                     env.emit(ShopFloorWipUpdated(shopfloor=self.id, changes=changes, deltas=build.done()))
 
-                # Notify time-series collector
-                if self._time_series_collector is not None:
-                    self._time_series_collector.on_operation_completed(self, job, server, op_index)
-
                 # After-operation hooks (server still held)
                 for hook in self._after_operation:
                     result = hook(job, server, op_index, processing_time)
@@ -1243,14 +822,6 @@ class ShopFloor(Entity, kind="shopfloor"):
                     .done(),
                 )
             )
-
-        # Record metrics via collector
-        if self._metrics_collector is not None:
-            self._metrics_collector.record(job)
-
-        # Notify time-series collector
-        if self._time_series_collector is not None:
-            self._time_series_collector.on_job_finished(self, job)
 
         # Job finished callbacks
         for callback in self._on_job_finished:
