@@ -223,6 +223,34 @@ def test_counting_priority_policy_unaffected_by_recording(): ... # call count an
 - [ ] **Step 2:** Wire the CI job (two environments: `simulatte==0.12.0` and the branch; summary table to `$GITHUB_STEP_SUMMARY`).
 - [ ] **Step 3:** Write `specs/research/sp1-g3-report.md` with measurements against C1.7/C1.9 and a proposed budget for sampling cost. Commit `ci: benchmark suite and overhead gate`. **Stop and report to Davide; G4 starts after acceptance.**
 
+### Task 12a: Two-baseline overhead gate (D55)
+
+**Files:** Modify `.github/workflows/ci.yml` (job `bench`), `benchmarks/compare.py`, `benchmarks/summarize.py`, `benchmarks/README.md`, `specs/research/sp1-g3-report.md` (§8).
+
+**Interfaces — Produces:** in CI, a third environment `stripped`: `simulatte==0.12.0` installed, then `benchmarks/strip_debug.py <site-packages>/simulatte <dir>` and runs with `PYTHONPATH=<dir>`; mode `none` compared against both baselines; `compare.py` gains `--budget`/`--noise` per comparison (already present) and the job invokes it twice with: released → `--budget 0.03 --noise 0.02` (CPython) / `--noise 0.05` (PyPy); stripped → `--budget 0.10 --noise 0.02` (CPython) / `--budget 0.03 --noise 0.05` (PyPy). Summary table shows both rows with their budgets. Budgets live in one place in `ci.yml` (env vars) with a comment pointing to D55.
+
+- [ ] **Steps 1–3:** implement; dry-run the CI step scripts locally on CPython (and PyPy if feasible) for both comparisons; commit `ci(bench): gate against released and debug-stripped 0.12.0 (D55)`.
+
+### Task 12b: Hot-path tuning of the emission guard (D56)
+
+**Files:** Modify `src/simulatte/environment.py`, `src/simulatte/events.py`, emitting sites as needed (`server.py`, `shopfloor.py`, `psp.py`, `router.py`, `entities.py`); `benchmarks/` only for measurement. Test: existing suites; `tests/core/test_guard_pattern.py` adjusted if the guard idiom changes.
+
+**Interfaces — Produces:** a cheaper guard with unchanged semantics (`env.wants(cls)` keeps working for users). Candidate directions (measure each; keep what helps): avoid two Python frames per check (e.g. expose the route dict so sites can do a single dict `get`, or cache per-site booleans invalidated by subscribe/cancel via a bus generation counter); hoist repeated `wants` checks at sites that test several types in sequence; avoid work done unconditionally on the unobserved path (the per-operation `_operate` wrapper process, attribute writes, `_trigger_put` bookkeeping) where it is not needed for live state.
+
+**Constraints:** digests and decoded trace contents unchanged (all golden tests pass unmodified); observer invariance unchanged; replay-equals-live tests pass; no new per-event work when nobody listens.
+
+- [ ] **Step 1:** Baseline: run `benchmarks/run.py --mode none` on the CI-size workloads against the branch and the stripped 0.12.0 (CPython and PyPy); record.
+- [ ] **Step 2:** Profile; implement one change at a time; re-measure; keep or revert; commit each kept change separately (`perf(core): ...`).
+- [ ] **Step 3:** Update `specs/research/sp1-g3-report.md` with a "§9 Tuning" section (before/after per change) and propose the tightened stripped-baseline budget (achieved worst case + 2 % headroom, not below 3 %); apply it in `ci.yml` (D55 says "tightened after tuning"). Commit `docs(specs): G3 tuning results`.
+
+### Task 12c: Exactly rounded float sums (D58)
+
+**Files:** Modify `src/simulatte/job.py` (`total_queue_time` and any other float `sum()` whose result reaches an event payload, KPI or snapshot — grep `sum(` in `src/simulatte`), golden digests in `tests/core/test_g1_acceptance.py` and `tests/core/test_digest.py` if affected, `specs/research/sp1-g1-report.md` (note), generated trace fixtures if their content changes (regenerate with `tests/fixtures/traces/generate.py`; never touch `frozen/`).
+
+- [ ] **Step 1:** Failing test `test_total_queue_time_is_exactly_rounded` (`sum([0.1]*10)` style queue times → `math.fsum` result `1.0`).
+- [ ] **Step 2:** Replace with `math.fsum`; audit other observable float sums; re-pin affected goldens (record old → new values in the commit message and the G1 report); regenerate generated fixtures if needed and confirm `pnpm -C studio test` still passes.
+- [ ] **Step 3:** Full suite with coverage; PyPy core lane; commit `fix(core)!: exactly rounded float sums in observable values (D58)`.
+
 ## Gate G4: migration
 
 ### Task 13: Release policies

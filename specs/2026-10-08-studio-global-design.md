@@ -183,10 +183,10 @@ Benchmarks run in CI on CPython and PyPy, on reference workloads defined in SP1 
 
 | Mode | Budget |
 |---|---|
-| No subscribers | ≤ 3 % wall-clock overhead against the pre-SP1 baseline |
+| No subscribers | ≤ 3 % + band against released 0.12.0; SP1's own cost ≤ 10 % + 2 % (CPython) / ≤ 3 % + 5 % (PyPy) against 0.12.0 with debug calls stripped, tightened after tuning (D55) |
 | Default logging | ≤ 5 % (target, confirmed in SP1) |
-| KPI only, with digest | measured and reported; target fixed in SP1 |
-| Full trace | measured: overhead, memory, write throughput |
+| KPI only, with digest | digest ≤ 3.2× CPython / ≤ 4.3× PyPy of no-subscriber time (D57); KPI collectors' share fixed at the end of SP1 |
+| Full trace | ≤ 4.9× CPython / ≤ 7.0× PyPy; ≤ 1.75 KB/job; seek p95 ≤ 100 ms at 50k jobs; extra peak RSS ≤ 256 MB (D57) |
 
 Workloads include a congested case (long queues) so that delta and digest costs that grow with state size are caught (B19). **End-to-end replication throughput** (B20) is measured separately, on CPython and PyPy, for short and long runs, including process start, imports and warm-up; SP4 and SP5 establish the supported workload envelope from it before promising experiment throughput.
 

@@ -129,3 +129,13 @@ All 10 findings were accepted; see `reviews/2026-10-08-global-spec-review-3.md`.
 **D53. Trace encoding: MessagePack chunks compressed with deflate in a small custom container.** Python uses `msgpack` (pure-Python fallback on PyPy); the browser uses `@msgpack/msgpack` and the built-in `DecompressionStream`. Rejected: Arrow IPC (pyarrow is heavy), SQLite (needs a WebAssembly build in the browser).
 
 **D54. When the trace writer saturates, recording applies bounded backpressure** (the simulation blocks until the writer drains) rather than failing the run. Proposed by Astra and Claude in SP1 review 2; confirmed by Davide on 2026-10-08.
+
+## SP1 gate G3, 2026-10-09 (Davide, on Claude's recommendations from the G3 report and its review)
+
+**D55. The CI overhead gate compares against two baselines with separate budgets.** Released `simulatte==0.12.0`: ≤ 3 % + calibrated band (the user-facing promise). 0.12.0 with its `env.debug` calls stripped (`benchmarks/strip_debug.py`): ≤ 10 % + 2 % on CPython and ≤ 3 % + 5 % on PyPy, tightened after tuning. Rejected: released baseline only (≈22 % slack hides SP1 regressions); stripped baseline only (synthetic; fails today).
+
+**D56. A small hot-path tuning task precedes G4**, targeting the `env.wants` guard cost (≈46 checks per job), so SP1's own unobserved-path cost moves toward 3 % + band before G4 multiplies the emitting sites.
+
+**D57. Regression budgets accepted** (reported in CI, not gated until calibrated on runners): digest ≤ 3.2× CPython / ≤ 4.3× PyPy; full ≤ 4.9× / ≤ 7.0×; ≤ 1.75 KB trace per job (10-server shop); cold seek p95 ≤ 100 ms at 50k jobs; extra peak RSS ≤ 256 MB; sampling ≤ 1.03 + band vs 0.12.0. The `digest` budget is the starting point for the `kpi` mode.
+
+**D58. Float sums that reach events, KPIs or the digest use `math.fsum`** (exactly rounded, identical on CPython 3.11, 3.12+ and PyPy), starting with `BaseJob.total_queue_time`. This changes the pinned reference digests once.
