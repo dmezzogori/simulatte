@@ -39,7 +39,11 @@ _LIFECYCLE = frozenset({"create", "retire"})
 
 @dataclass(frozen=True, slots=True)
 class Fingerprint:
-    """Comparable summary of a run: the semantic digest (None when none is enabled) and the KPI scalars."""
+    """Comparable summary of a run: the semantic digest (None when none is enabled) and the KPI scalars.
+
+    `kpis` maps ``"<scope id>/<kpi name>"`` to the scalar, so two systems sharing an environment never merge
+    their results (spec §12.1). ``kpi.sample`` events are observer events: they never enter the digest.
+    """
 
     digest: str | None
     kpis: dict[str, float]

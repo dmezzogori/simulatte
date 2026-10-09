@@ -40,10 +40,13 @@ from simulatte.trace.format import (
     RecordType,
 )
 
-__all__ = ["ChunkInfo", "Cursor", "ReaderLimits", "Trace", "TraceCorrupted", "TraceEvent"]
+__all__ = ["ChunkInfo", "Cursor", "KpiPoint", "ReaderLimits", "Trace", "TraceCorrupted", "TraceEvent"]
 
 Cursor: TypeAlias = tuple[float, int]
 """A position in a trace: ``(t, seq)``."""
+
+KpiPoint: TypeAlias = tuple[Cursor, float]
+"""A KPI sample: its cursor ``(t, seq)`` and its value."""
 
 State: TypeAlias = dict[str, dict[str, Wire]]
 """Replay state: entity id to field values, each with the entity kind under ``"$kind"``."""
@@ -251,7 +254,8 @@ class Trace:
             for offset in epochs[1:]:
                 if offset not in self._exts:
                     self._exts[offset] = self._read_ext(file, offset, footer_offset)
-            self._kpi_records = tail.kpis
+            # KPI sample records may also sit between earlier chunks.
+            self._kpi_records = self._read_kpis(file, head.stop, tail_start) + tail.kpis
             self.truncated = False
         footer = self._footer
         if footer is not None:
@@ -371,8 +375,27 @@ class Trace:
             raise TraceCorrupted(f"CATALOG_EXT record at offset {offset} fails its CRC check")
         return file.decode(data, "a CATALOG_EXT record")
 
+    def _read_kpis(self, file: _File, start: int, end: int) -> list[Any]:
+        """The decoded ``KPI`` records between `start` and `end`, walking the frames of the other records."""
+        records: list[Any] = []
+        pos = start
+        while pos < end:
+            frame = file.frame(pos, end)
+            if frame is None:
+                raise TraceCorrupted(f"record at offset {pos} is cut short")
+            rtype, length, crc = frame
+            if rtype == RecordType.KPI:
+                data = file.payload(pos, length, crc)
+                if data is None:
+                    raise TraceCorrupted(f"KPI record at offset {pos} fails its CRC check")
+                records.append(file.decode(data, "a KPI record"))
+            pos += _FRAME + length
+        return records
+
     def _build_catalog(self) -> None:
-        def build() -> tuple[dict[str, CatalogEntry], dict[str, frozenset[str]], dict[str, float]]:
+        def build() -> tuple[
+            dict[str, CatalogEntry], dict[str, frozenset[str]], dict[str, float], dict[str, list[KpiPoint]]
+        ]:
             catalog = {str(name): CatalogEntry.from_wire(entry) for name, entry in self._header["catalog"].items()}
             kinds = {
                 str(kind): StateSchema.from_wire(schema).presentation for kind, schema in self._header["kinds"].items()
@@ -383,14 +406,19 @@ class Trace:
                     {str(kind): StateSchema.from_wire(schema).presentation for kind, schema in ext["kinds"].items()}
                 )
             scalars: dict[str, float] = {}
+            series: dict[str, list[KpiPoint]] = {}
             for record in self._kpi_records:
-                scalars.update(record["scalars"])
-            return catalog, kinds, scalars
+                if "scalars" in record:
+                    scalars.update(record["scalars"])
+                for seq, t, key, value in record.get("samples", ()):
+                    series.setdefault(str(key), []).append(((float(t), int(seq)), float(value)))
+            return catalog, kinds, scalars, series
 
         built = _decoded(build, "catalog or KPI record")
         self._catalog: dict[str, CatalogEntry] = built[0]
         self._kind_presentation: dict[str, frozenset[str]] = built[1]
         self._kpis: dict[str, float] = built[2]
+        self._kpi_series: dict[str, list[KpiPoint]] = built[3]
 
     # -------------------------------------------------------------------------
     # Metadata
@@ -456,6 +484,13 @@ class Trace:
     def kpis(self) -> dict[str, float]:
         """The KPI scalars of the ``KPI`` records, later records overriding earlier ones."""
         return dict(self._kpis)
+
+    def kpi_series(self) -> dict[str, list[KpiPoint]]:
+        """The KPI samples of the ``KPI`` records: for each ``"<scope id>/<kpi>"``, ``(cursor, value)`` pairs.
+
+        The cursor ``(t, seq)`` of a sample orders it among the domain events; samples are in emission order.
+        """
+        return {key: list(points) for key, points in self._kpi_series.items()}
 
     # -------------------------------------------------------------------------
     # Seeking

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import math
 import operator
 import os
 import random
@@ -33,6 +34,7 @@ from simulatte.provenance import (
 from simulatte.rng import BindingKind, CountingRandom, DrawCounter, derive_seed, resolve_binding
 
 if TYPE_CHECKING:  # pragma: no cover
+    from simulatte.kpi import Collector
     from simulatte.trace.writer import TraceRecorder
 
 SEED_LIMIT = 2**63
@@ -111,7 +113,9 @@ class Environment(simpy.Environment):
         self._provenance = provenance
         self._digest: SemanticDigest | None = None
         self._requested: FrozenMap | None = None
-        self._requested_inputs: tuple[int, str | None, Provenance | None] | None = None
+        self._requested_inputs: tuple[int, str | None, Provenance | None, float] | None = None
+        self._warmup = 0.0
+        self._collectors: list[Collector] = []  # attached KPI collectors, in attachment order
         self._stopping_policy: Wire | None = None
         self._wall_clock_start: str | None = None
         self._run_failed = False  # some run() raised
@@ -348,7 +352,8 @@ class Environment(simpy.Environment):
             listener(state)
         if listeners:
             self._projection_active = True
-        self._requested_inputs = (self._seed, self.time_unit, self._provenance)  # cheap; the manifest is built lazily
+        # cheap; the manifest is built lazily
+        self._requested_inputs = (self._seed, self.time_unit, self._provenance, self._warmup)
         self._activated = True
 
         commands, self._commands = self._commands, []
@@ -411,6 +416,28 @@ class Environment(simpy.Environment):
             raise
 
     # -------------------------------------------------------------------------
+    # KPIs
+    # -------------------------------------------------------------------------
+
+    def configure_kpis(self, *, warmup: float = 0.0) -> None:
+        """Set the warm-up of the KPI observation window (spec §12.2), recorded in the requested manifest.
+
+        The window starts at `warmup`, a finite time ``>= 0``; see :func:`simulatte.kpi.observation_window`.
+        Raises `RuntimeError` once activation started and `ValueError` for an invalid warm-up.
+        """
+        if self._activation_started:
+            raise RuntimeError("configure_kpis() must be called before activation")
+        value = float(warmup)
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"warmup must be a finite time >= 0, got {warmup!r}")
+        self._warmup = value
+
+    @property
+    def warmup(self) -> float:
+        """The warm-up set with :meth:`configure_kpis` (default 0): the start of the KPI observation window."""
+        return self._warmup
+
+    # -------------------------------------------------------------------------
     # Digest and manifest
     # -------------------------------------------------------------------------
 
@@ -424,18 +451,26 @@ class Environment(simpy.Environment):
         return self._digest
 
     def fingerprint(self) -> Fingerprint:
-        """The digest (None unless :meth:`enable_digest` was called) and the KPI scalars of the run."""
-        return Fingerprint(digest=None if self._digest is None else self._digest.hexdigest(), kpis={})
+        """The digest (None unless :meth:`enable_digest` was called) and the KPI scalars of the run.
+
+        The scalars are those of every attached :class:`~simulatte.kpi.Collector`, keyed
+        ``"<scope id>/<kpi name>"`` and sorted by key.
+        """
+        kpis: dict[str, float] = {}
+        for collector in self._collectors:
+            kpis.update(collector.scalars())
+        digest = None if self._digest is None else self._digest.hexdigest()
+        return Fingerprint(digest=digest, kpis=dict(sorted(kpis.items())))
 
     def manifest(self) -> RunManifest:
         """The manifest of the run: the requested part, plus the final part once :meth:`run` was called."""
         requested = self._requested
         if requested is None:
             inputs = self._requested_inputs  # fixed at activation; before it, the current values
-            seed, time_unit, provenance = (
-                inputs if inputs is not None else (self._seed, self.time_unit, self._provenance)
+            seed, time_unit, provenance, warmup = (
+                inputs if inputs is not None else (self._seed, self.time_unit, self._provenance, self._warmup)
             )
-            requested = build_requested(seed=seed, time_unit=time_unit, provenance=provenance)
+            requested = build_requested(seed=seed, time_unit=time_unit, provenance=provenance, warmup=warmup)
             if inputs is not None:
                 self._requested = requested
         final = None

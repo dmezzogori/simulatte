@@ -8,6 +8,9 @@ The recorder writes one trace file per environment. Two threads share the work:
   each event is encoded once. It seals the buffer itself when the event-count, byte or simulated-time
   limit of :class:`ChunkLimits` is reached. Before activation the buffer becomes a ``PRELUDE`` record, after
   it a ``CHUNK``.
+- ``kpi.sample`` events are encoded as ``[seq, t, "<scope id>/<kpi>", value]`` and published in ``KPI``
+  records of ``{"samples": [...]}`` after the initial state, each time the event-count or byte limit is reached
+  and when the recorder closes; the scalars follow in a last ``KPI`` record ``{"scalars": {...}}``.
 - The **writer thread** seals the open buffer when it has been open longer than the latency limit, whatever
   the simulation does, and serves the single FIFO publication queue: it writes every record of the file
   (header, prelude, initial state, catalog extensions, each chunk followed by its committing index, KPI,
@@ -38,7 +41,7 @@ import msgpack
 
 from simulatte._wire import FrozenMap, new_packer, pack, prepared, prepared_op
 from simulatte.entities import KINDS
-from simulatte.events import CATALOG, Deltas, DomainEvent, Subscription, apply_deltas
+from simulatte.events import CATALOG, Deltas, DomainEvent, KpiSample, Subscription, apply_deltas
 from simulatte.trace.format import (
     OPTIONAL_FEATURES,
     REQUIRED_FEATURES,
@@ -123,11 +126,12 @@ class TraceRecorder:
     Attach it before activation (it raises `RuntimeError` afterwards). It enables the semantic digest of
     `env`, writes the header immediately, records prelude events and, at activation, the initial state. At
     ``level="full"`` it records every domain event in chunks; at ``level="kpi"`` only the header, the initial
-    state, KPI records and the footer. Several :meth:`Environment.run` calls continue the same trace.
+    state, KPI records and the footer. At both levels it records ``kpi.sample`` events (the KPI series) in
+    ``KPI`` records. Several :meth:`Environment.run` calls continue the same trace.
 
-    :meth:`close` (also called by :meth:`Environment.close`) seals the open chunk, writes the footer and
-    waits until everything is on disk. `clock` is the time source of the latency limit and of the blocked
-    time reported when backpressure stops the simulation.
+    :meth:`close` (also called by :meth:`Environment.close`) seals the open chunk, writes the remaining KPI
+    samples, the KPI scalars and the footer, and waits until everything is on disk. `clock` is the time source
+    of the latency limit and of the blocked time reported when backpressure stops the simulation.
     """
 
     def __init__(
@@ -195,6 +199,8 @@ class TraceRecorder:
         self._closed = False
         self._last_seq = -1
         self._subscription: Subscription | None = None
+        self._samples: list[bytes] = []  # encoded kpi.sample entries not yet published
+        self._sample_bytes = 0
         self._event_packer = new_packer()
         self._blocked_count = 0  # backpressure episodes: the first is logged, all are summarized at close()
         self._blocked_total = 0.0
@@ -216,6 +222,7 @@ class TraceRecorder:
         env.request_projection(self._on_initial_state)
         if level == "full":
             self._subscription = env.bus.subscribe(self._on_event, "*")
+        self._sample_subscription = env.bus.subscribe(self._on_sample, (KpiSample,))
         env._recorders.append(self)
 
     # -------------------------------------------------------------------------
@@ -282,6 +289,27 @@ class TraceRecorder:
             self._enqueue("batch", sealed.size, sealed)
         if interrupted is not None:
             raise interrupted
+
+    def _on_sample(self, event: KpiSample) -> None:
+        """Buffer a KPI sample; publish the buffer once the event-count or byte limit is reached."""
+        entry = pack((event.seq, float(event.t), f"{event.scope}/{event.kpi}", event.value))
+        self._samples.append(entry)
+        self._sample_bytes += len(entry)
+        limits = self._limits
+        # Samples wait for activation, so that KPI records follow the INITIAL record.
+        if self._buf_type is RecordType.CHUNK and (
+            len(self._samples) >= limits.max_events or self._sample_bytes >= limits.max_bytes
+        ):
+            self._flush_samples()
+
+    def _flush_samples(self) -> None:
+        """Publish the buffered KPI samples as a ``KPI`` record ``{"samples": [...]}``."""
+        samples = self._samples
+        self._samples = []
+        self._sample_bytes = 0
+        packer = self._event_packer
+        payload = b"".join([b"\x81", pack("samples"), packer.pack_array_header(len(samples)), *samples])
+        self._enqueue("record", len(payload), (RecordType.KPI, payload))
 
     def _oversized(self, name: str, seq: int, size: int) -> None:
         message = (
@@ -414,6 +442,7 @@ class TraceRecorder:
         self._closed = True
         if self._subscription is not None:
             self._subscription.cancel()
+        self._sample_subscription.cancel()
         env = self._env
         cond = self._cond
         try:
@@ -423,6 +452,8 @@ class TraceRecorder:
                 cond.notify_all()
             if batch is not None:
                 self._enqueue("batch", batch.size, batch)
+            if self._samples:
+                self._flush_samples()
             fingerprint = env.fingerprint()
             kpis: Any = dict(fingerprint.kpis)
             if kpis:
