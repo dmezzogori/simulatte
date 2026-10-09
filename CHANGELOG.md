@@ -91,7 +91,7 @@ many APIs and, because RNG streams are now derived from the seed and entity name
 - **Breaking:** collectors. `ShopFloor(metrics_collector=...)`, `collect_time_series`, `time_series_collector`,
   `Server(collect_time_series=...)` and `FleetCoordinator(order_metrics_collector=..., time_series_collector=...)` are
   replaced by `default_metrics=` and bus collectors attached with `collector.attach(env)`; see the table below.
-  Builder flags `collect_workload` and `collect_time_series` are kept and attach the new collectors. `inventory_ts`
+  Builder flags are kept and attach the new collectors: every `build_*_system` and `Scenario.build_floor` take `collect_workload`; `collect_time_series` exists only on `build_immediate_release_system` and `Scenario.build_floor`. `inventory_ts`
   is keyed by warehouse id with SKU-id keys instead of `Warehouse` and `SKU` objects.
 - `Router` binds its distributions, routings and service times at construction: changing the arguments afterwards has
   no effect.
@@ -150,7 +150,7 @@ many APIs and, because RNG streams are now derived from the seed and entity name
   `env.log_history`, `env.log_db`) and `sink.enable_component` / `disable_component`.
 - From `simulatte.shopfloor`: `MetricsCollector`, `EMAMetricsCollector`, `TimeSeriesCollector`,
   `DefaultTimeSeriesCollector`, `CurrentWorkLoadCollector`, `ShopFloor.metrics_collector`, `set_metrics_collector`,
-  `time_series_collector`, `set_time_series_collector`. `Server.plot_qt` / `plot_ut` and `Server(collect_time_series=)`.
+  `time_series_collector`, `set_time_series_collector`. `Server(collect_time_series=)`; `Server.plot_qt` / `plot_ut` moved to `ServerTimeSeries`.
 - From `simulatte.intralogistics`: `OrderMetricsCollector`, `EMAOrderMetrics`, `IntralogisticsTimeSeriesCollector`,
   `DefaultIntralogisticsCollector`, `FleetCoordinator(order_metrics_collector=, time_series_collector=)`.
 - `FleetCoordinator.create_order(id=)`, `TrafficManager.place`, `Distribution.__call__`, the `*_time_fn` parameters
@@ -177,13 +177,22 @@ rng = env.rng("my-stream")            # for your own draws
 ```python
 # 0.12
 env.logger.disable_component("Server")
-rows = env.logger.query_sql("SELECT ...")
+rows = env.logger.query_sql(level="ERROR", component="Server")
+raw = env.logger.execute_sql("SELECT ...")
+if env.logger.db_enabled: ...
+db_env_id = env.logger.env_id
 SimLogger.set_level("DEBUG")
 
 # 0.13
 for sink in env.sinks:
     sink.disable_component("Server")
-rows = env.log_db.query("SELECT ...")      # Environment(log_db_path=...)
+rows = env.log_db.query(level="ERROR", component="Server")  # Environment(log_db_path=...); returns LogEvents
+raw = env.log_db.execute_sql("SELECT ...")
+try:                                       # db_enabled: env.log_db raises RuntimeError without log_db_path
+    env.log_db
+except RuntimeError:
+    ...
+db_env_id = env.log_db.env_id
 env = Environment(log_level="DEBUG")       # per environment
 ```
 
