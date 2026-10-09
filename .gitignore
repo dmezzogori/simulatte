@@ -168,3 +168,6 @@ cython_debug/
 
 # Git worktrees
 .claude/worktrees/
+
+# Fonts fetched by scripts/brand/build_identity.py (not redistributed)
+scripts/brand/.fonts/

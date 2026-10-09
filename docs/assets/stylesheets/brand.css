@@ -1,0 +1,45 @@
+/* Simulatte brand — see scripts/brand/README.md.
+   Generated assets live in docs/assets/brand/ and are produced by
+   scripts/brand/build_identity.py. Do not hand-edit them. */
+
+/* The header mark is inlined by the theme, so its ink follows currentColor.
+   Only the accent needs supplying, and it differs per palette. */
+[data-md-color-scheme="default"] {
+  --simulatte-accent: #0b6b33;
+}
+[data-md-color-scheme="slate"] {
+  --simulatte-accent: #3dfb86;
+}
+
+/* The mark's crop is taller than it is wide; without this the theme's square
+   logo box would letterbox it down to roughly half the available height. */
+.md-header__button.md-logo :is(img, svg),
+.md-nav__button.md-logo :is(img, svg) {
+  width: auto;
+  height: 1.4rem;
+}
+
+/* Home page hero. Two cuts, because the palette toggle can override the OS
+   preference and a single image cannot follow it. */
+.brand-hero {
+  display: block;
+  width: min(100%, 30rem);
+  margin: 0 auto;
+  height: auto;
+}
+[data-md-color-scheme="default"] .brand-hero--on-dark,
+[data-md-color-scheme="slate"] .brand-hero--on-light {
+  display: none;
+}
+
+.brand-figure {
+  margin: 0 0 1.6rem;
+  text-align: center;
+}
+.brand-figure figcaption {
+  margin-top: 0.6rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+}

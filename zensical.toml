@@ -5,7 +5,11 @@ repo_url = "https://github.com/dmezzogori/simulatte"
 edit_uri = "edit/main/docs/"
 docs_dir = "docs"
 site_dir = "site"
-extra_css = ["assets/stylesheets/pyodide-run.css", "assets/stylesheets/version-badge.css"]
+extra_css = [
+  "assets/stylesheets/pyodide-run.css",
+  "assets/stylesheets/version-badge.css",
+  "assets/stylesheets/brand.css",
+]
 extra_javascript = ["assets/javascripts/pyodide-run.js"]
 
 nav = [
@@ -91,6 +95,10 @@ members = false
 
 [project.theme]
 custom_dir = "overrides"
+# The header mark is inlined from overrides/.icons/ rather than set via
+# `logo`, which would emit an <img>: an <img> cannot inherit the palette, so
+# it would be the wrong colour in one of the two schemes.
+favicon = "assets/brand/favicon.svg"
 features = [
   "content.action.edit",
   "content.action.view",
@@ -104,6 +112,9 @@ features = [
 ]
 
 # Palette toggle for automatic mode
+[project.theme.icon]
+logo = "simulatte/mark"
+
 [[project.theme.palette]]
 media = "(prefers-color-scheme)"
 toggle.icon = "lucide/sun-moon"

@@ -56,6 +56,7 @@ exclude = [
 
 [dependency-groups]
 dev = [
+    "fonttools>=4.50",
     "mkdocstrings[python]>=1.0.4",
     "pre-commit>=3.3.3",
     "pytest>=8.0.0",

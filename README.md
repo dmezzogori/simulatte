@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/dmezzogori/simulatte/main/docs/assets/logo.png" alt="Simulatte" width="200">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/dmezzogori/simulatte/main/docs/assets/brand/logo-tagline-on-dark.svg">
+    <img src="https://raw.githubusercontent.com/dmezzogori/simulatte/main/docs/assets/brand/logo-tagline-on-light.svg" alt="Simulatte — Python discrete event simulation" width="440">
+  </picture>
 </p>
 
 # Simulatte
