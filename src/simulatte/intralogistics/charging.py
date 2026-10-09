@@ -6,6 +6,8 @@ import simpy
 from simpy.events import ProcessGenerator
 
 from simulatte.entities import Entity, FieldSpec, StateSchema
+from simulatte.events import Deltas
+from simulatte.intralogistics.events import AgvBatteryChanged
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -102,6 +104,7 @@ class ChargingStation(Entity, kind="charging_station"):
             recharge_amount = target_level - agv.battery.level
             if recharge_amount > 0:
                 agv.battery.recharge(recharge_amount)
+                self._battery_changed(agv)
 
             occupied = self.env.now - start
             self.total_occupied_time += occupied
@@ -143,6 +146,7 @@ class ChargingStation(Entity, kind="charging_station"):
 
             # Set AGV battery to full
             agv.battery.level = agv.battery.capacity
+            self._battery_changed(agv)
 
             occupied = self.env.now - start
             self.total_occupied_time += occupied
@@ -157,6 +161,15 @@ class ChargingStation(Entity, kind="charging_station"):
             self.env.process(self._replenish_pool())
         finally:
             self._slots.release(req)
+
+    def _battery_changed(self, agv: AGV) -> None:
+        """Emit ``agv.battery_changed`` after a recharge or a swap changed the AGV's battery level."""
+        env = self.env
+        if env.wants(AgvBatteryChanged):
+            level = float(agv.battery.level)
+            env.emit(
+                AgvBatteryChanged(agv=agv.id, battery=level, deltas=Deltas.build().set(agv.id, "battery", level).done())
+            )
 
     def _replenish_pool(self) -> ProcessGenerator:
         """Background process: recharge a depleted battery and return it to the pool."""

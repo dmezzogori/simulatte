@@ -157,11 +157,28 @@ The router has no events of its own. A new job appears as `entity.created` (clas
 | Put start | `[{name}] Put started (sku={sku.id}, qty={quantity})` | none beyond component |
 | Put completed | `[{name}] Put completed (sku={sku.id}, qty={quantity})` | none beyond component |
 
-#### AGV (`component="AGV"`)
+#### FleetCoordinator, AGVs and transfer orders
 
-| Event | Message (example) | `extra` keys |
+Classes in `simulatte.intralogistics.events`. The coordinator keeps its warnings and errors as log messages
+(`component="FleetCoordinator"`, for example "No path from ..."); everything else is an event:
+
+| Event type | Class | Payload |
 | --- | --- | --- |
-| State transition | `{agv_id} OLD_STATE -> NEW_STATE` | none beyond component |
+| `fleet.agv_added` | `FleetAgvAdded` | `fleet`, `agv` (at coordinator construction, per AGV) |
+| `fleet.pending_changed` | `FleetPendingChanged` | `fleet`, `order`, `op` (`added` or `removed`), `index` |
+| `order.status_changed` | `OrderStatusChanged` | `order`, `status`, `previous`, `reason` (for example `dispatched`, `picked`, `delivered`, `cancelled`, `travel_failed`) |
+| `order.assigned` | `OrderAssigned` | `order`, `agv` |
+| `order.unassigned` | `OrderUnassigned` | `order`, `agv` (re-queue after an interruption, mission cleanup) |
+| `agv.state_changed` | `AgvStateChanged` | `agv`, `state`, `previous` (every `AGV.transition_to`) |
+| `agv.placed` | `AgvPlaced` | `agv`, `node`, `previous` (created at a bound node, or `current_node` assigned directly) |
+| `agv.move_started` | `AgvMoveStarted` | `agv`, `from_node`, `to_node`, `t_end`, `motion` (the speed profile's motion description), `loaded` |
+| `agv.move_ended` | `AgvMoveEnded` | `agv`, `node`, `battery` |
+| `agv.move_interrupted` | `AgvMoveInterrupted` | `agv`, `node` (the node the AGV stays at), `reason` |
+| `agv.load_changed` | `AgvLoadChanged` | `agv`, `load` (SKU id to quantity, or null) |
+| `agv.battery_changed` | `AgvBatteryChanged` | `agv`, `battery` (recharge or battery swap) |
+| `agv.stranded` | `AgvStranded` | `agv`, `node`, `reason` (`no_reachable_charger` or `insufficient_after_charging`) |
+
+An order retires (`entity.retired`) when it reaches `COMPLETED`, `CANCELLED` or `FAILED`, after its mission cleanup.
 
 #### MaterialCoordinator
 

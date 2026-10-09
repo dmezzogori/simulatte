@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from simulatte.entities import EntityCreated
 from simulatte.environment import Environment
+from simulatte.events import DomainEvent
 from simulatte.intralogistics.agv import AGV, AGVState
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
 from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
 
 from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph, _system
+from tests.intralogistics.test_fleet_events import FleetReplay
 
 
 def test_pending_activation_status() -> None:
@@ -45,10 +49,13 @@ def test_pending_activation_status() -> None:
 
 
 def test_submit_then_cancel_before_run_cancels() -> None:
-    env = Environment()
+    env = Environment(debug=True)
+    FleetReplay(env)  # live state equals the replay at every event, in the prelude and after activation
     coordinator, (agv,), wh_a, wh_b, _ = _system(env)
     order = coordinator.create_order(sku=SKU_A, quantity=1, origin=wh_a, destination=wh_b)
     queued = coordinator.create_order(sku=SKU_A, quantity=1, origin=wh_a, destination=wh_b)
+    seen: list[DomainEvent] = []
+    env.bus.subscribe(seen.append, "*")
     coordinator.submit(order)
     coordinator.submit(queued)
     assert coordinator.cancel(order) is None
@@ -60,6 +67,36 @@ def test_submit_then_cancel_before_run_cancels() -> None:
     assert order.picked_at is None and wh_a.get_inventory_level(SKU_A) == 100
     assert not env.entities.is_live(order) and not env.entities.is_live(queued)
     assert agv.state is AGVState.IDLE and agv.order is None
+    # Ruling R19: the order is dispatched at t=0, then cancelled.
+    assert order.dispatched_at == 0 and order.assigned_agv is agv
+
+    def describe(e: DomainEvent) -> tuple[Any, ...]:
+        fields = [getattr(e, name) for name in e.payload_fields if name not in ("motion", "t_end", "loaded")]
+        return (e.t, e.type_name, *fields)
+
+    assert [describe(e) for e in seen] == [
+        (0, "order.status_changed", order.id, "PENDING_ACTIVATION", "PENDING", "awaiting_activation"),
+        (0, "order.status_changed", queued.id, "PENDING_ACTIVATION", "PENDING", "awaiting_activation"),
+        # activation: the queued commands run in call order
+        (0, "order.status_changed", order.id, "DISPATCHED", "PENDING_ACTIVATION", "dispatched"),
+        (0, "order.assigned", order.id, agv.id),
+        (0, "agv.state_changed", agv.id, "TRAVELING_EMPTY", "IDLE"),
+        (0, "order.status_changed", queued.id, "PENDING", "PENDING_ACTIVATION", "no_idle_agv"),
+        (0, "fleet.pending_changed", coordinator.id, queued.id, "added", 0),
+        (0, "order.status_changed", order.id, "CANCELLED", "DISPATCHED", "cancelled"),
+        (0, "fleet.pending_changed", coordinator.id, queued.id, "removed", 0),
+        (0, "order.status_changed", queued.id, "CANCELLED", "PENDING", "cancelled"),
+        (0, "entity.retired", queued.id, "order"),
+        # the mission starts its first segment, then receives the interrupt
+        (0, "agv.move_started", agv.id, "C1", "OUT"),
+        (0, "agv.move_interrupted", agv.id, "C1", "cancelled"),
+        (0, "order.status_changed", order.id, "CANCELLED", "CANCELLED", "cancelled"),
+        (0, "agv.state_changed", agv.id, "IDLE", "TRAVELING_EMPTY"),
+        (0, "order.unassigned", order.id, agv.id),
+        (0, "entity.retired", order.id, "order"),
+    ]
+    dispatched = seen[2]
+    assert dispatched.deltas.ops == (("set", order.id, "status", "DISPATCHED"), ("set", order.id, "dispatched_at", 0.0))
 
 
 def test_placement_conflict_raises_at_activation() -> None:
