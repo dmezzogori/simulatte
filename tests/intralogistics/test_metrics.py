@@ -229,8 +229,8 @@ class TestCollectorReceivesStateTransitions:
             n_slots=2,
             products=[sku],
             initial_inventory={sku: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -240,8 +240,8 @@ class TestCollectorReceivesStateTransitions:
             n_slots=2,
             products=[sku],
             initial_inventory={sku: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = AGVType(
@@ -250,8 +250,8 @@ class TestCollectorReceivesStateTransitions:
             battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
         )
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
 

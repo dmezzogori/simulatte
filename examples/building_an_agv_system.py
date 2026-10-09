@@ -82,8 +82,8 @@ def main() -> None:
             n_slots=3,
             products=products,
             initial_inventory={sku_a: 50, sku_b: 30},
-            pick_time_fn=lambda sku, qty: 5.0 + qty * 2.0,
-            put_time_fn=lambda sku, qty: 3.0 + qty * 1.0,
+            pick_time=lambda sku, qty: 5.0 + qty * 2.0,
+            put_time=lambda sku, qty: 3.0 + qty * 1.0,
         )
 
         production_line = Warehouse(
@@ -94,8 +94,8 @@ def main() -> None:
             n_slots=3,
             products=products,
             initial_inventory={},
-            pick_time_fn=lambda sku, qty: 2.0,
-            put_time_fn=lambda sku, qty: 2.0,
+            pick_time=2.0,
+            put_time=2.0,
         )
 
         # ------------------------------------------------------------------ #
@@ -112,8 +112,8 @@ def main() -> None:
             battery_capacity=1000.0,
             weight_capacity=50.0,
             volume_capacity=2.0,
-            load_time_fn=lambda: 5.0,
-            unload_time_fn=lambda: 5.0,
+            load_time=5.0,
+            unload_time=5.0,
         )
         # Two AGVs starting at C1 (ids are generated: agv-0, agv-1)
         agvs = [AGV(env=env, agv_type=agv_type, initial_node=c1) for _ in range(2)]

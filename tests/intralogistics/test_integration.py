@@ -69,8 +69,8 @@ def _build_test_system(
         n_slots=max(2, n_agvs),
         products=[sku],
         initial_inventory={sku: initial_inventory_a},
-        pick_time_fn=lambda s, q: 1.0,
-        put_time_fn=lambda s, q: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
 
     wh_b = Warehouse(
@@ -81,8 +81,8 @@ def _build_test_system(
         n_slots=max(2, n_agvs),
         products=[sku],
         initial_inventory={sku: initial_inventory_b},
-        pick_time_fn=lambda s, q: 1.0,
-        put_time_fn=lambda s, q: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
 
     charging_station = ChargingStation(
@@ -104,8 +104,8 @@ def _build_test_system(
         battery_capacity=battery_capacity,
         weight_capacity=500.0,
         volume_capacity=10.0,
-        load_time_fn=lambda: 1.0,
-        unload_time_fn=lambda: 1.0,
+        load_time=1.0,
+        unload_time=1.0,
     )
 
     agvs: list[AGV] = [AGV(env=env, agv_type=agv_type, agv_id=f"AGV-{i}", initial_node=node_b) for i in range(n_agvs)]
@@ -392,8 +392,8 @@ class TestTrafficManagement:
             n_slots=4,
             products=[sku],
             initial_inventory={sku: 200},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -403,8 +403,8 @@ class TestTrafficManagement:
             n_slots=4,
             products=[sku],
             initial_inventory={sku: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         charging_station = ChargingStation(
@@ -431,8 +431,8 @@ class TestTrafficManagement:
             battery_capacity=1000.0,
             weight_capacity=500.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
         )
 
         agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-0", initial_node=node_b)

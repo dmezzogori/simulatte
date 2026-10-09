@@ -36,8 +36,8 @@ def _agv_type() -> AGVType:
         battery_capacity=1000.0,
         weight_capacity=100.0,
         volume_capacity=10.0,
-        load_time_fn=lambda: 1.0,
-        unload_time_fn=lambda: 1.0,
+        load_time=1.0,
+        unload_time=1.0,
     )
 
 
@@ -57,8 +57,8 @@ def _warehouses(env: Environment, nodes: list[Node]) -> tuple[Warehouse, Warehou
             n_slots=2,
             products=[SKU_A],
             initial_inventory={SKU_A: level},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
     return make("WH-A", nodes[0], 100), make("WH-B", nodes[-1], 0)

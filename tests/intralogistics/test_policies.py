@@ -82,8 +82,8 @@ def _make_warehouse(
         n_slots=5,
         products=products,
         initial_inventory=initial_inventory,
-        pick_time_fn=lambda _sku, _qty: 1.0,
-        put_time_fn=lambda _sku, _qty: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
 
 

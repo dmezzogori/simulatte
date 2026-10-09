@@ -157,8 +157,8 @@ agv_type = AGVType(
     depletion_fn=lambda distance, load_weight, speed: distance * 0.02 * (1.0 + load_weight / 200),
     low_battery_threshold=0.2,
     critical_battery_threshold=0.05,
-    load_time_fn=lambda: 12.0,
-    unload_time_fn=lambda: 10.0,
+    load_time=12.0,
+    unload_time=10.0,
 )
 ```
 

@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from simulatte.intralogistics.order import TransferOrder
     from simulatte.intralogistics.sku import SKU
     from simulatte.intralogistics.speed import SpeedProfile
+    from simulatte.rng import SamplerDescription
 
 
 class AGVState(Enum):
@@ -55,8 +56,13 @@ class AGVType:
     recharge_fn: Callable[[float, float], float] | None = None
     low_battery_threshold: float = 0.2
     critical_battery_threshold: float = 0.05
-    load_time_fn: Callable[[], float] = field(default=lambda: 0.0)
-    unload_time_fn: Callable[[], float] = field(default=lambda: 0.0)
+    load_time: SamplerDescription[float] | float | Callable[[], float] = 0.0
+    """Load duration: a distribution description or a number (managed), or a zero-argument callable (opaque).
+
+    Each AGV binds it to its own stream ``<agv id>/load`` when it attaches.
+    """
+    unload_time: SamplerDescription[float] | float | Callable[[], float] = 0.0
+    """Unload duration, like :attr:`load_time`, bound to the stream ``<agv id>/unload``."""
 
 
 class AGV(Entity, kind="agv"):
@@ -113,6 +119,8 @@ class AGV(Entity, kind="agv"):
         self.state_durations: dict[AGVState, float] = {s: 0.0 for s in AGVState}
 
         env.entities.attach(self, name=agv_id, label=label)
+        self._load_time = env.bind(agv_type.load_time, kind="scalar", stream=f"{self.id}/load", owner=self.id)
+        self._unload_time = env.bind(agv_type.unload_time, kind="scalar", stream=f"{self.id}/unload", owner=self.id)
         if initial_node is not None:
             binding = env.entities.node_binding(initial_node)
             if binding is not None:  # bound before this AGV existed: its create delta did not list it
@@ -129,6 +137,14 @@ class AGV(Entity, kind="agv"):
                             .done(),
                         )
                     )
+
+    def sample_load_time(self) -> float:
+        """Draw the duration of the next load from the AGV's ``<id>/load`` binding."""
+        return self._load_time()
+
+    def sample_unload_time(self) -> float:
+        """Draw the duration of the next unload from the AGV's ``<id>/unload`` binding."""
+        return self._unload_time()
 
     @property
     def agv_id(self) -> str:

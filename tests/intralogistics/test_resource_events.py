@@ -213,8 +213,8 @@ def test_free_traffic_multiple_agvs_on_node() -> None:
             n_slots=1,
             products=[SKU_A],
             initial_inventory={SKU_A: level},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         for name, bay, level in (("WH-A", nodes[0], 10), ("WH-B", nodes[-1], 0))
     )
@@ -280,8 +280,8 @@ def _fleet_on(env: Environment, graph: LayoutGraph, start: Node, origin: Node, d
             n_slots=2,
             products=[SKU_A],
             initial_inventory={SKU_A: level},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
     wh_a, wh_b = warehouse("WH-A", origin, 10), warehouse("WH-B", destination, 0)
@@ -361,8 +361,8 @@ def test_deadlock_wait_and_backoff() -> None:
             n_slots=2,
             products=[SKU_A],
             initial_inventory={SKU_A: 5},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         for name, bay in (("WH-S", start), ("WH-E", end))
     )
@@ -412,8 +412,8 @@ def test_inventory_levels_replay() -> None:
         n_slots=1,
         products=[SKU_A],
         initial_inventory={SKU_A: 1},
-        pick_time_fn=lambda s, q: 2.0,
-        put_time_fn=lambda s, q: 1.0,
+        pick_time=2.0,
+        put_time=1.0,
     )
     noise: list[float] = []
 
@@ -461,8 +461,8 @@ def test_slot_request_withdrawn_while_waiting_emits_nothing() -> None:
         output_bays=[node],
         n_slots=1,
         products=[SKU_A],
-        pick_time_fn=lambda s, q: 1.0,
-        put_time_fn=lambda s, q: 2.0,
+        pick_time=1.0,
+        put_time=2.0,
     )
 
     def put() -> Any:
@@ -493,8 +493,8 @@ def test_container_built_like_simpy_reports_nothing() -> None:
         output_bays=[nodes[0]],
         n_slots=1,
         products=[SKU_A],
-        pick_time_fn=lambda s, q: 1.0,
-        put_time_fn=lambda s, q: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
     loose = type(wh.inventory[SKU_A])(env=env, capacity=10, init=5)
     loose.get(2)
@@ -558,7 +558,7 @@ def test_recharge_slots_and_interruption() -> None:
     env = Environment(debug=True)
     nodes, _ = _line_graph()
     station = ChargingStation(
-        env=env, name="CS", node=nodes[0], n_slots=1, recharge_fn=lambda level, target: (target - level) / 100.0
+        env=env, name="CS", node=nodes[0], n_slots=1, recharge_time=lambda level, target: (target - level) / 100.0
     )
     agvs = [_drained(env, name, 500.0) for name in ("A", "B", "C")]
     replay = FullReplay(env, from_snapshot=True)
@@ -685,8 +685,8 @@ def _run_congested(monkeypatch: pytest.MonkeyPatch) -> FullReplay:
             n_slots=1,
             products=skus,
             initial_inventory={SKU_A: level},
-            pick_time_fn=lambda s, q: 4.0,
-            put_time_fn=lambda s, q: 3.0,
+            pick_time=4.0,
+            put_time=3.0,
         )
 
     source, sink, buffer = (
@@ -703,8 +703,8 @@ def _run_congested(monkeypatch: pytest.MonkeyPatch) -> FullReplay:
         depletion_fn=lambda distance, load, speed: distance * 0.5,
         low_battery_threshold=0.4,
         critical_battery_threshold=0.1,
-        load_time_fn=lambda: 2.0,
-        unload_time_fn=lambda: 2.0,
+        load_time=2.0,
+        unload_time=2.0,
     )
     starts = [grid[1, 1], grid[0, 2], grid[1, 0], grid[2, 1]]
     agvs = [AGV(env=env, agv_type=agv_type, agv_id=f"V{k}", initial_node=node) for k, node in enumerate(starts)]

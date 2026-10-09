@@ -82,8 +82,8 @@ def build_simple_system(
         n_slots=max(2, n_agvs),
         products=products,
         initial_inventory=initial_inventory_a,
-        pick_time_fn=lambda s, q: 1.0,
-        put_time_fn=lambda s, q: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
 
     warehouse_b = Warehouse(
@@ -94,8 +94,8 @@ def build_simple_system(
         n_slots=max(2, n_agvs),
         products=products,
         initial_inventory=initial_inventory_b,
-        pick_time_fn=lambda s, q: 1.0,
-        put_time_fn=lambda s, q: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
 
     # -- Charging station at N2 (center) --
@@ -119,8 +119,8 @@ def build_simple_system(
         battery_capacity=agv_battery_capacity,
         weight_capacity=agv_weight_capacity,
         volume_capacity=agv_volume_capacity,
-        load_time_fn=lambda: 1.0,
-        unload_time_fn=lambda: 1.0,
+        load_time=1.0,
+        unload_time=1.0,
     )
 
     # -- Fleet --

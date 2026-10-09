@@ -162,8 +162,8 @@ def _fleet(
             n_slots=2,
             products=[SKU_A],
             initial_inventory={SKU_A: level},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
     wh_a = warehouse("WH-A", origin_bay, origin_input or origin_bay, 100)
@@ -174,8 +174,8 @@ def _fleet(
         battery_capacity=battery,
         weight_capacity=100.0,
         volume_capacity=10.0,
-        load_time_fn=lambda: 1.0,
-        unload_time_fn=lambda: 1.0,
+        load_time=1.0,
+        unload_time=1.0,
     )
     agv = AGV(env=env, agv_type=agv_type, initial_node=by_id["C1"])
     coordinator = FleetCoordinator(

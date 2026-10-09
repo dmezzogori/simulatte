@@ -36,6 +36,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.trace.writer import TraceRecorder
 
 SEED_LIMIT = 2**63
+_UNBOUND = object()  # sentinel: a stream not bound yet
 """Seeds are integers in ``[0, SEED_LIMIT)``."""
 
 _EMITTABLE: set[type] = set()
@@ -119,6 +120,7 @@ class Environment(simpy.Environment):
         self._draws = DrawCounter()  # incremented only by the counting streams of debug mode
         self.opaque_sampler_owners: list[str] = []
         """Owners of the opaque samplers bound with :meth:`bind`, in order of first binding."""
+        self._bound_streams: dict[str, object] = {}  # stream name -> bound value (debug mode only)
         self._debug = debug
         self._seq = 0
         self._ordinal = 0
@@ -250,11 +252,19 @@ class Environment(simpy.Environment):
 
         Descriptions draw from :meth:`rng` ``(stream)``. Any other callable is *opaque*: it is returned
         unchanged and `owner` is recorded in :attr:`opaque_sampler_owners`. Raises `ValueError` for an
-        unknown kind and `TypeError` for a value of no accepted form.
+        unknown kind and `TypeError` for a value of no accepted form. In debug mode binding a value to a
+        stream already bound to a different value raises `ValueError`: the two samplers would share one
+        stream and the result would depend on the order of their draws.
         """
+        if self._debug:
+            bound = self._bound_streams.get(stream, _UNBOUND)
+            if bound is not _UNBOUND and bound is not value and bound != value:
+                raise ValueError(f"stream {stream!r} is already bound to a different value ({owner!r})")
         callback, opaque = resolve_binding(value, kind=kind, stream=lambda: self.rng(stream))
         if opaque and owner not in self.opaque_sampler_owners:
             self.opaque_sampler_owners.append(owner)
+        if self._debug:
+            self._bound_streams.setdefault(stream, value)
         return callback
 
     # -------------------------------------------------------------------------

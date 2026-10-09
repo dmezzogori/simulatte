@@ -79,8 +79,8 @@ class Warehouse:
         n_slots: int,              # concurrent pick/put operations
         products: list[SKU],
         initial_inventory: dict[SKU, int] | None = None,
-        pick_time_fn: Callable[[SKU, int], float],
-        put_time_fn: Callable[[SKU, int], float],
+        pick_time: SamplerDescription | float | Callable[[SKU, int], float],  # streams "<name>/pick", "<name>/put"
+        put_time: SamplerDescription | float | Callable[[SKU, int], float],   # number/description: managed; callable: opaque
     ) -> None: ...
 
     def get_inventory_level(self, sku: SKU) -> float: ...
@@ -129,8 +129,8 @@ class AGVType:
     recharge_fn: Callable[[float, float], float] | None = None          # (current_level, target_level) -> time
     low_battery_threshold: float = 0.2       # fraction, triggers charging after mission
     critical_battery_threshold: float = 0.05 # fraction, triggers mid-trip charging
-    load_time_fn: Callable[[], float] = lambda: 0.0
-    unload_time_fn: Callable[[], float] = lambda: 0.0
+    load_time: SamplerDescription | float | Callable[[], float] = 0.0    # bound per AGV: "<agv id>/load"
+    unload_time: SamplerDescription | float | Callable[[], float] = 0.0  # bound per AGV: "<agv id>/unload"
 ```
 
 Default depletion: `distance * 1.0`. Default recharge: `(target - current) * 1.0`.
@@ -198,7 +198,8 @@ class Battery:
 ```python
 class ChargingStation:
     def __init__(self, *, env, name: str, node: Node, n_slots: int,
-                 recharge_fn=None, supports_swap=False, swap_pool_size=0,
+                 recharge_time=None,  # number | description | (current_level, target_level) -> time; stream "<name>/recharge"
+                 supports_swap=False, swap_pool_size=0,
                  swap_time=0.0, swap_recharge_time=0.0) -> None: ...
 
     node: Node

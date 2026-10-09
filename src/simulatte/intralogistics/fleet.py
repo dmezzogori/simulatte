@@ -587,7 +587,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             yield from order.origin.pick(order.sku, order.quantity, on_committed=_mark_pick_committed)
             del self._committed_picks[order.id]
             self._set_load(agv, {order.sku: order.quantity}, picked=order)
-            yield self.env.timeout(agv.agv_type.load_time_fn())
+            yield self.env.timeout(agv.sample_load_time())
 
             # Fire pickup hooks
             for cb in self._hooks_on_pickup_complete:
@@ -627,7 +627,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             self._transition_agv(agv, AGVState.WAITING_UNLOAD)
             yield from order.destination.put(order.sku, order.quantity)
             self._set_load(agv, None)
-            yield self.env.timeout(agv.agv_type.unload_time_fn())
+            yield self.env.timeout(agv.sample_unload_time())
             order.delivered_at = self.env.now
             self._set_status(order, OrderStatus.COMPLETED, "delivered")
 
@@ -712,7 +712,7 @@ class FleetCoordinator(Entity, kind="fleet"):
                             self._transition_agv(agv, AGVState.WAITING_UNLOAD)
                             yield from order.destination.put(order.sku, order.quantity)
                             self._set_load(agv, None)
-                            yield self.env.timeout(agv.agv_type.unload_time_fn())
+                            yield self.env.timeout(agv.sample_unload_time())
                             order.delivered_at = self.env.now
                             self._set_status(order, OrderStatus.COMPLETED, "delivered")
                             self._order_metrics_collector.record(order)

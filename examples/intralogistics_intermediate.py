@@ -92,10 +92,10 @@ def main() -> None:
         skus = [steel, plastic, electronics]
 
         # --- Warehouses ---
-        def pick_time_fn(sku: SKU, qty: int) -> float:
+        def pick_time(sku: SKU, qty: int) -> float:
             return 15.0 + qty * 5.0
 
-        def put_time_fn(sku: SKU, qty: int) -> float:
+        def put_time(sku: SKU, qty: int) -> float:
             return 10.0 + qty * 3.0
 
         raw_materials = Warehouse(
@@ -106,8 +106,8 @@ def main() -> None:
             n_slots=2,
             products=skus,
             initial_inventory={sku: 20 for sku in skus},
-            pick_time_fn=pick_time_fn,
-            put_time_fn=put_time_fn,
+            pick_time=pick_time,
+            put_time=put_time,
         )
 
         finished_goods = Warehouse(
@@ -118,8 +118,8 @@ def main() -> None:
             n_slots=2,
             products=skus,
             initial_inventory={sku: 0 for sku in skus},
-            pick_time_fn=pick_time_fn,
-            put_time_fn=put_time_fn,
+            pick_time=pick_time,
+            put_time=put_time,
         )
 
         # --- Fleet ---
@@ -135,8 +135,8 @@ def main() -> None:
             weight_capacity=100.0,
             volume_capacity=3.0,
             depletion_fn=lambda distance, load_weight, speed: distance * 0.01,
-            load_time_fn=lambda: 10.0,
-            unload_time_fn=lambda: 8.0,
+            load_time=10.0,
+            unload_time=8.0,
         )
         starting_nodes = [rm_out, c2, p]
         agvs = [

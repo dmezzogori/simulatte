@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import random
-
 from simpy.events import ProcessGenerator
 
+from simulatte.distributions import Uniform
 from simulatte.environment import Environment
 from simulatte.intralogistics import (
     AGV,
@@ -39,18 +38,20 @@ def outbound_order_stream(
     dispatch: Warehouse,
     skus: list[SKU],
     orders: list,
-    rng: random.Random,
     weight_capacity: float,
     volume_capacity: float,
 ) -> ProcessGenerator:
+    rng = env.rng("outbound-orders")
+    interval = env.bind(Uniform(300, 600), kind="scalar", stream="outbound-orders/interval", owner="outbound-orders")
+    due_offset = env.bind(Uniform(1800, 3600), kind="scalar", stream="outbound-orders/due", owner="outbound-orders")
     while True:
-        yield env.timeout(rng.uniform(300, 600))
+        yield env.timeout(interval())
         sku = rng.choice(skus)
         max_by_weight = max(1, int(weight_capacity // sku.weight))
         max_by_volume = max(1, int(volume_capacity // sku.volume))
         max_qty = min(max_by_weight, max_by_volume)
         quantity = rng.randint(1, min(3, max_qty))
-        due_date = env.now + rng.uniform(1800, 3600)
+        due_date = env.now + due_offset()
         order = coordinator.create_order(
             sku=sku,
             quantity=quantity,
@@ -63,9 +64,7 @@ def outbound_order_stream(
 
 
 def main() -> None:
-    rng = random.Random(42)
-
-    with Environment() as env:
+    with Environment(seed=42) as env:
         # --- Nodes (16) ---
         rcv_in = Node(id="RCV_IN", x=0, y=30)
         rcv_out = Node(id="RCV_OUT", x=20, y=30)
@@ -166,8 +165,8 @@ def main() -> None:
             n_slots=3,
             products=skus,
             initial_inventory={sku: 200 for sku in skus},
-            pick_time_fn=rcv_pick_time,
-            put_time_fn=rcv_put_time,
+            pick_time=rcv_pick_time,
+            put_time=rcv_put_time,
         )
 
         bulk_storage = Warehouse(
@@ -178,8 +177,8 @@ def main() -> None:
             n_slots=4,
             products=skus,
             initial_inventory={sku: 30 for sku in skus},
-            pick_time_fn=bulk_pick_time,
-            put_time_fn=bulk_put_time,
+            pick_time=bulk_pick_time,
+            put_time=bulk_put_time,
         )
 
         dispatch = Warehouse(
@@ -190,8 +189,8 @@ def main() -> None:
             n_slots=3,
             products=skus,
             initial_inventory={sku: 0 for sku in skus},
-            pick_time_fn=dsp_pick_time,
-            put_time_fn=dsp_put_time,
+            pick_time=dsp_pick_time,
+            put_time=dsp_put_time,
         )
 
         # --- Fleet (5 AGVs) ---
@@ -211,8 +210,8 @@ def main() -> None:
             depletion_fn=lambda distance, load_weight, speed: distance * 0.02 * (1.0 + load_weight / 200),
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
-            load_time_fn=lambda: 12.0,
-            unload_time_fn=lambda: 10.0,
+            load_time=12.0,
+            unload_time=10.0,
         )
         starting_nodes = [park, bulk_out, b1, r1, b3]
         agvs = [
@@ -285,7 +284,6 @@ def main() -> None:
                 dispatch,
                 skus,
                 outbound_orders,
-                rng,
                 agv_type.weight_capacity,
                 agv_type.volume_capacity,
             )

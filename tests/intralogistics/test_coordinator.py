@@ -42,8 +42,8 @@ def _make_agv_type(speed: TrapezoidalProfile) -> AGVType:
         battery_capacity=1000.0,
         weight_capacity=100.0,
         volume_capacity=10.0,
-        load_time_fn=lambda: 1.0,
-        unload_time_fn=lambda: 1.0,
+        load_time=1.0,
+        unload_time=1.0,
         low_battery_threshold=0.2,
         critical_battery_threshold=0.05,
     )
@@ -80,8 +80,8 @@ def _build_simple_system(
         n_slots=2,
         products=[sku],
         initial_inventory={sku: origin_inventory},
-        pick_time_fn=lambda s, q: 1.0,
-        put_time_fn=lambda s, q: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
 
     wh_b = Warehouse(
@@ -92,8 +92,8 @@ def _build_simple_system(
         n_slots=2,
         products=[sku],
         initial_inventory={sku: 0},
-        pick_time_fn=lambda s, q: 1.0,
-        put_time_fn=lambda s, q: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
 
     agv_type = AGVType(
@@ -102,8 +102,8 @@ def _build_simple_system(
         battery_capacity=battery_capacity,
         weight_capacity=100.0,
         volume_capacity=10.0,
-        load_time_fn=lambda: 1.0,
-        unload_time_fn=lambda: 1.0,
+        load_time=1.0,
+        unload_time=1.0,
         low_battery_threshold=0.2,
         critical_battery_threshold=0.05,
     )
@@ -260,8 +260,8 @@ def _build_system_with_charger(
         n_slots=2,
         products=[sku],
         initial_inventory={sku: origin_inventory},
-        pick_time_fn=lambda s, q: 1.0,
-        put_time_fn=lambda s, q: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
 
     wh_b = Warehouse(
@@ -272,8 +272,8 @@ def _build_system_with_charger(
         n_slots=2,
         products=[sku],
         initial_inventory={sku: 0},
-        pick_time_fn=lambda s, q: 1.0,
-        put_time_fn=lambda s, q: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
 
     charger = ChargingStation(
@@ -289,8 +289,8 @@ def _build_system_with_charger(
         battery_capacity=battery_capacity,
         weight_capacity=100.0,
         volume_capacity=10.0,
-        load_time_fn=lambda: 1.0,
-        unload_time_fn=lambda: 1.0,
+        load_time=1.0,
+        unload_time=1.0,
         low_battery_threshold=0.2,
         critical_battery_threshold=0.05,
     )
@@ -350,8 +350,8 @@ class TestCancellation:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -361,8 +361,8 @@ class TestCancellation:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         agv_type = AGVType(
             name="test-type",
@@ -370,8 +370,8 @@ class TestCancellation:
             battery_capacity=10000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
         )
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
 
@@ -473,8 +473,8 @@ class TestBattery:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -484,8 +484,8 @@ class TestBattery:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         # Charger is at the same node as the AGV (no travel needed to reach it)
@@ -502,8 +502,8 @@ class TestBattery:
             battery_capacity=100.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
         )
         # Battery starts at 3.0 — enough for nothing (5-unit arc costs 5 energy)
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a_out)
@@ -723,8 +723,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -734,8 +734,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -772,8 +772,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 0.0,
-            put_time_fn=lambda s, q: 0.0,
+            pick_time=0.0,
+            put_time=0.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -783,8 +783,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 0.0,
-            put_time_fn=lambda s, q: 0.0,
+            pick_time=0.0,
+            put_time=0.0,
         )
 
         agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_origin)
@@ -841,8 +841,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 200},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_c = Warehouse(
             env=env,
@@ -852,8 +852,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -909,8 +909,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -920,8 +920,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_a)
         coordinator = FleetCoordinator(
@@ -962,8 +962,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -973,8 +973,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_a)
         coordinator = FleetCoordinator(
@@ -1015,8 +1015,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b1 = Warehouse(
             env=env,
@@ -1026,8 +1026,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
         coordinator1 = FleetCoordinator(
@@ -1056,8 +1056,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b2 = Warehouse(
             env=env2,
@@ -1067,8 +1067,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         agv2 = AGV(env=env2, agv_type=agv_type, agv_id="AGV-2", initial_node=node_a)
         coordinator2 = FleetCoordinator(
@@ -1112,8 +1112,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -1163,8 +1163,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_c = Warehouse(
             env=env,
@@ -1174,8 +1174,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         charger = ChargingStation(env=env, name="CS-1", node=node_charger, n_slots=1)
@@ -1186,8 +1186,8 @@ class TestTravelCorrectness:
             battery_capacity=100.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
@@ -1254,8 +1254,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 200},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_d = Warehouse(
             env=env,
@@ -1265,8 +1265,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -1343,8 +1343,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_end = Warehouse(
             env=env,
@@ -1354,8 +1354,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -1424,8 +1424,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_end = Warehouse(
             env=env,
@@ -1435,8 +1435,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         agv_type = _make_agv_type(simple_speed)
         blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=node_blocked)
@@ -1487,8 +1487,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_end = Warehouse(
             env=env,
@@ -1498,8 +1498,8 @@ class TestTravelCorrectness:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -1576,8 +1576,8 @@ class TestInterruptSafety:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -1587,8 +1587,8 @@ class TestInterruptSafety:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -1651,8 +1651,8 @@ class TestInterruptSafety:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -1662,8 +1662,8 @@ class TestInterruptSafety:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -1725,8 +1725,8 @@ class TestInterruptSafety:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 2.0,  # 2s pick time to widen the window
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=2.0,  # 2s pick time to widen the window
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -1736,8 +1736,8 @@ class TestInterruptSafety:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -1813,8 +1813,8 @@ class TestInterruptSafety:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 0.0,
-            put_time_fn=lambda s, q: 0.0,
+            pick_time=0.0,
+            put_time=0.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -1824,8 +1824,8 @@ class TestInterruptSafety:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 0.0,
-            put_time_fn=lambda s, q: 0.0,
+            pick_time=0.0,
+            put_time=0.0,
         )
         agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_origin)
         coordinator = FleetCoordinator(
@@ -1882,8 +1882,8 @@ class TestInterruptSafety:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -1893,8 +1893,8 @@ class TestInterruptSafety:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -1972,8 +1972,8 @@ class TestCriticalBatteryInterruption:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_c = Warehouse(
             env=env,
@@ -1983,8 +1983,8 @@ class TestCriticalBatteryInterruption:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         charger = ChargingStation(env=env, name="CS-1", node=node_b, n_slots=1)
@@ -1995,8 +1995,8 @@ class TestCriticalBatteryInterruption:
             battery_capacity=100.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
@@ -2080,8 +2080,8 @@ class TestOnLowBatteryOverride:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -2091,8 +2091,8 @@ class TestOnLowBatteryOverride:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         charger = ChargingStation(
@@ -2117,8 +2117,8 @@ class TestOnLowBatteryOverride:
             battery_capacity=100.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
@@ -2241,8 +2241,8 @@ class TestResumeDeliveryRecovery:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -2252,8 +2252,8 @@ class TestResumeDeliveryRecovery:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -2324,8 +2324,8 @@ class TestEventDrivenReplenishment:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -2335,8 +2335,8 @@ class TestEventDrivenReplenishment:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_c = Warehouse(
             env=env,
@@ -2346,8 +2346,8 @@ class TestEventDrivenReplenishment:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 500},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -2416,8 +2416,8 @@ class TestFleetEdgeCases:
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         coordinator = FleetCoordinator(
             env=env,
@@ -2442,8 +2442,8 @@ class TestFleetEdgeCases:
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         coordinator = FleetCoordinator(
             env=env,
@@ -2490,8 +2490,8 @@ class TestInitialPlacementSkipsNodelessAGV:
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -2542,8 +2542,8 @@ class TestRepositioningAfterDelivery:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -2553,8 +2553,8 @@ class TestRepositioningAfterDelivery:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         parking = ParkingArea(env=env, name="P1", node=node_park, capacity=2)
@@ -2610,8 +2610,8 @@ class TestRepositioningFailure:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -2621,8 +2621,8 @@ class TestRepositioningFailure:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         parking = ParkingArea(env=env, name="P1", node=node_park, capacity=2)
@@ -2682,8 +2682,8 @@ class TestResumeDeliveryChargingRetry:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -2693,8 +2693,8 @@ class TestResumeDeliveryChargingRetry:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         charger = ChargingStation(env=env, name="CS-1", node=node_charger, n_slots=1)
@@ -2705,8 +2705,8 @@ class TestResumeDeliveryChargingRetry:
             battery_capacity=100.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
@@ -2794,8 +2794,8 @@ class TestResumeDeliveryStranded:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -2805,8 +2805,8 @@ class TestResumeDeliveryStranded:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         # AGV with very limited battery: enough for first arc but not for resume
@@ -2816,8 +2816,8 @@ class TestResumeDeliveryStranded:
             battery_capacity=100.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
@@ -2889,8 +2889,8 @@ class TestResumeDeliveryFallbackToReturn:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -2900,8 +2900,8 @@ class TestResumeDeliveryFallbackToReturn:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = AGVType(
@@ -2910,8 +2910,8 @@ class TestResumeDeliveryFallbackToReturn:
             battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
         )
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
@@ -2976,8 +2976,8 @@ class TestResumeDeliveryFallbackChain:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -2987,8 +2987,8 @@ class TestResumeDeliveryFallbackChain:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = AGVType(
@@ -2997,8 +2997,8 @@ class TestResumeDeliveryFallbackChain:
             battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
         )
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
@@ -3072,8 +3072,8 @@ class TestResumeDeliveryWithHooksAndCollector:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -3083,8 +3083,8 @@ class TestResumeDeliveryWithHooksAndCollector:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -3147,8 +3147,8 @@ class TestInterruptBeforePickup:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -3158,8 +3158,8 @@ class TestInterruptBeforePickup:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -3216,8 +3216,8 @@ class TestOnIdleHookAfterInterrupt:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -3227,8 +3227,8 @@ class TestOnIdleHookAfterInterrupt:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -3308,8 +3308,8 @@ class TestAlternativePathAlsoInfeasible:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 200},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_d = Warehouse(
             env=env,
@@ -3319,8 +3319,8 @@ class TestAlternativePathAlsoInfeasible:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -3393,8 +3393,8 @@ class TestSuccessfulAlternativePath:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 200},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_d = Warehouse(
             env=env,
@@ -3404,8 +3404,8 @@ class TestSuccessfulAlternativePath:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -3457,8 +3457,8 @@ class TestStrandedAfterCharging:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_c = Warehouse(
             env=env,
@@ -3468,8 +3468,8 @@ class TestStrandedAfterCharging:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         charger = ChargingStation(env=env, name="CS-1", node=node_b, n_slots=1)
@@ -3483,8 +3483,8 @@ class TestStrandedAfterCharging:
             battery_capacity=50.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
@@ -3527,8 +3527,8 @@ class TestChargeAgvNoStation:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -3538,8 +3538,8 @@ class TestChargeAgvNoStation:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
@@ -3550,8 +3550,8 @@ class TestChargeAgvNoStation:
             battery_capacity=100.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
@@ -3598,8 +3598,8 @@ class TestChargeTravelFailure:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -3609,8 +3609,8 @@ class TestChargeTravelFailure:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
@@ -3621,8 +3621,8 @@ class TestChargeTravelFailure:
             battery_capacity=100.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
@@ -3702,8 +3702,8 @@ class TestEventDrivenReplenishmentUnrelatedWarehouse:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -3713,8 +3713,8 @@ class TestEventDrivenReplenishmentUnrelatedWarehouse:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         # WH-C is unrelated to the delivery
         wh_c = Warehouse(
@@ -3725,8 +3725,8 @@ class TestEventDrivenReplenishmentUnrelatedWarehouse:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 500},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -3786,8 +3786,8 @@ class TestCriticalBatteryDuringLoadedTravel:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_d = Warehouse(
             env=env,
@@ -3797,8 +3797,8 @@ class TestCriticalBatteryDuringLoadedTravel:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         # Charger co-located at C
@@ -3810,8 +3810,8 @@ class TestCriticalBatteryDuringLoadedTravel:
             battery_capacity=100.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
@@ -3872,8 +3872,8 @@ class TestChargingDiversionDuringEmptyTravel:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -3883,8 +3883,8 @@ class TestChargingDiversionDuringEmptyTravel:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         # Charger co-located at FAR so the diversion doesn't need travel
@@ -3896,8 +3896,8 @@ class TestChargingDiversionDuringEmptyTravel:
             battery_capacity=100.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
@@ -3948,8 +3948,8 @@ class TestReturnToOriginRecoveryPath:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -3959,8 +3959,8 @@ class TestReturnToOriginRecoveryPath:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = _make_agv_type(simple_speed)
@@ -4021,8 +4021,8 @@ class TestFindReachableChargerEdgeCases:
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         coordinator = FleetCoordinator(
@@ -4060,8 +4060,8 @@ class TestFindReachableChargerEdgeCases:
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         coordinator = FleetCoordinator(
@@ -4094,8 +4094,8 @@ class TestFindReachableChargerEdgeCases:
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         coordinator = FleetCoordinator(
@@ -4128,8 +4128,8 @@ class TestFindReachableChargerEdgeCases:
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         coordinator = FleetCoordinator(
@@ -4165,8 +4165,8 @@ class TestFindReachableChargerEdgeCases:
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         coordinator = FleetCoordinator(
@@ -4231,8 +4231,8 @@ class TestReturnCargoToOrigin:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 90},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -4242,8 +4242,8 @@ class TestReturnCargoToOrigin:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = AGVType(
@@ -4252,8 +4252,8 @@ class TestReturnCargoToOrigin:
             battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
         )
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_mid)
         agv.current_load = {sku_a: 10}
@@ -4302,8 +4302,8 @@ class TestReturnCargoToOrigin:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 90},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -4313,8 +4313,8 @@ class TestReturnCargoToOrigin:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = AGVType(
@@ -4323,8 +4323,8 @@ class TestReturnCargoToOrigin:
             battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
         )
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_mid)
         agv.current_load = {sku_a: 10}
@@ -4418,8 +4418,8 @@ class TestUnfulfillableOrderAllBusy:
             n_slots=2,
             products=[sku_a, sku_b],
             initial_inventory={sku_a: 100, sku_b: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -4429,8 +4429,8 @@ class TestUnfulfillableOrderAllBusy:
             n_slots=2,
             products=[sku_a, sku_b],
             initial_inventory={sku_a: 0, sku_b: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         # AGV type that rejects SKU-B via compatibility_fn
@@ -4441,8 +4441,8 @@ class TestUnfulfillableOrderAllBusy:
             weight_capacity=100.0,
             volume_capacity=10.0,
             compatibility_fn=lambda sku: sku.id != "SKU-B",
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
@@ -4495,8 +4495,8 @@ class TestUnfulfillableOrderAllBusy:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -4506,8 +4506,8 @@ class TestUnfulfillableOrderAllBusy:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_agv)
         coordinator = FleetCoordinator(
@@ -4542,8 +4542,8 @@ class TestConfigurableRetryDelay:
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         coordinator = FleetCoordinator(
             env=env,
@@ -4566,8 +4566,8 @@ class TestConfigurableRetryDelay:
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         coordinator = FleetCoordinator(
             env=env,
@@ -4603,8 +4603,8 @@ class TestReturnToOriginPhysicalReturn:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 90},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -4614,8 +4614,8 @@ class TestReturnToOriginPhysicalReturn:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = AGVType(
@@ -4624,8 +4624,8 @@ class TestReturnToOriginPhysicalReturn:
             battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
         )
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
@@ -4687,8 +4687,8 @@ class TestCancelWithCargoReturn:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_dest = Warehouse(
             env=env,
@@ -4698,8 +4698,8 @@ class TestCancelWithCargoReturn:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = AGVType(
@@ -4708,8 +4708,8 @@ class TestCancelWithCargoReturn:
             battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
         )
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
@@ -4781,8 +4781,8 @@ class TestRepositioningStranded:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -4792,8 +4792,8 @@ class TestRepositioningStranded:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         parking = ParkingArea(env=env, name="P1", node=node_park, capacity=2)
@@ -4853,8 +4853,8 @@ class TestSubmitBeforeRun:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -4864,8 +4864,8 @@ class TestSubmitBeforeRun:
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         agv_type = AGVType(
@@ -4874,8 +4874,8 @@ class TestSubmitBeforeRun:
             battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
         )
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
 

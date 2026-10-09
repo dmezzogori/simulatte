@@ -195,6 +195,27 @@ def test_bind_scalar_routing_contextual_forms() -> None:
         env.bind(Exponential, kind="scalar", stream="o/z", owner="o")  # a class, not a description
 
 
+def test_debug_rejects_two_values_on_one_stream() -> None:
+    env = Environment(seed=3, debug=True)
+    shared = Uniform(1.0, 2.0)
+    env.bind(shared, kind="scalar", stream="o/s", owner="o")
+    env.bind(shared, kind="scalar", stream="o/s", owner="o")  # the same value again is not a conflict
+    env.bind(Uniform(1.0, 2.0), kind="scalar", stream="o/s", owner="o")  # an equal description neither
+    env.bind(2.5, kind="contextual", stream="o/n", owner="o")
+    with pytest.raises(ValueError, match="stream 'o/s' is already bound to a different value"):
+        env.bind(Uniform(1.0, 3.0), kind="scalar", stream="o/s", owner="o")
+    with pytest.raises(ValueError, match="stream 'o/n' is already bound"):
+        env.bind(2.6, kind="contextual", stream="o/n", owner="o")
+    with pytest.raises(ValueError, match="stream 'o/s' is already bound"):
+        env.bind(lambda: 1.0, kind="scalar", stream="o/s", owner="p")
+    assert env.opaque_sampler_owners == []  # a rejected binding records nothing
+
+    # Outside debug mode the check is off.
+    plain = Environment(seed=3)
+    plain.bind(1.0, kind="scalar", stream="o/s", owner="o")
+    plain.bind(2.0, kind="scalar", stream="o/s", owner="o")
+
+
 def test_shared_description_independent_samplers() -> None:
     env = Environment(seed=5)
     shared = Exponential(1.0)

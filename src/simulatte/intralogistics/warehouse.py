@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from simulatte.environment import Environment
     from simulatte.intralogistics.graph import LayoutGraph, Node
     from simulatte.intralogistics.sku import SKU
+    from simulatte.rng import SamplerDescription
 
 
 class Warehouse(Entity, kind="warehouse"):
@@ -26,6 +27,9 @@ class Warehouse(Entity, kind="warehouse"):
 
     Events (spec §6.4): ``warehouse.inventory_changed`` whenever an inventory container completes a put or a get,
     and ``warehouse.slot_changed`` whenever a pick or put slot is acquired or released.
+
+    ``pick_time`` and ``put_time`` are a distribution description or a number (managed) or a callable
+    ``(sku, quantity) -> float`` (opaque); they are bound to the streams ``<name>/pick`` and ``<name>/put``.
     """
 
     state_schema: ClassVar[StateSchema] = StateSchema(
@@ -42,16 +46,14 @@ class Warehouse(Entity, kind="warehouse"):
         n_slots: int,
         products: list[SKU],
         initial_inventory: dict[SKU, int] | None = None,
-        pick_time_fn: Callable[[SKU, int], float],
-        put_time_fn: Callable[[SKU, int], float],
+        pick_time: SamplerDescription[float] | float | Callable[[SKU, int], float],
+        put_time: SamplerDescription[float] | float | Callable[[SKU, int], float],
         label: str | None = None,
     ) -> None:
         self.env = env
         self.name = name
         self.input_bays = list(input_bays)
         self.output_bays = list(output_bays)
-        self.pick_time_fn = pick_time_fn
-        self.put_time_fn = put_time_fn
         self._slots = NotifyingResource(env, capacity=n_slots, on_change=self._slot_changed)
 
         initial = initial_inventory or {}
@@ -70,6 +72,8 @@ class Warehouse(Entity, kind="warehouse"):
         self._total_pick_time: float = 0.0
         self._total_put_time: float = 0.0
         env.entities.attach(self, name=name, label=label)
+        self._pick_time = env.bind(pick_time, kind="contextual", stream=f"{self.id}/pick", owner=self.id)
+        self._put_time = env.bind(put_time, kind="contextual", stream=f"{self.id}/put", owner=self.id)
 
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: inventory level per SKU id and the number of slots in use."""
@@ -132,7 +136,7 @@ class Warehouse(Entity, kind="warehouse"):
         # Then acquire a slot for the physical pick operation
         with self._slots.request() as req:
             yield req
-            pick_time = self.pick_time_fn(sku, quantity)
+            pick_time = self._pick_time(sku, quantity)
             yield self.env.timeout(pick_time)
             self.total_picks += 1
             self._total_pick_time += pick_time
@@ -142,7 +146,7 @@ class Warehouse(Entity, kind="warehouse"):
             raise KeyError(f"Unknown product: {sku.id}")
         with self._slots.request() as req:
             yield req
-            put_time = self.put_time_fn(sku, quantity)
+            put_time = self._put_time(sku, quantity)
             yield self.env.timeout(put_time)
             yield self.inventory[sku].put(quantity)
             self.total_puts += 1

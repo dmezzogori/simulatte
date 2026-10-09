@@ -44,7 +44,7 @@ graph = LayoutGraph([store_out, c1, c2, line_in, park_node], arcs)
 
 ## 2. SKUs and warehouses
 
-Define your SKUs first, then create warehouses with initial inventory. `pick_time_fn` and `put_time_fn` control how long a warehouse slot is occupied during pick/put operations.
+Define your SKUs first, then create warehouses with initial inventory. `pick_time` and `put_time` control how long a warehouse slot is occupied during pick/put operations. Each accepts a number, a distribution description such as `Uniform(4.0, 6.0)` (both managed: they draw from the environment's seeded RNG streams `<warehouse>/pick` and `<warehouse>/put`) or a callable `(sku, qty) -> float` (opaque: it is used as is and makes the run manifest incomplete).
 
 ```python
 from simulatte.intralogistics import SKU, Warehouse
@@ -61,8 +61,8 @@ storage = Warehouse(
     n_slots=3,
     products=products,
     initial_inventory={sku_a: 50, sku_b: 30},
-    pick_time_fn=lambda sku, qty: 5.0 + qty * 2.0,
-    put_time_fn=lambda sku, qty: 3.0 + qty * 1.0,
+    pick_time=lambda sku, qty: 5.0 + qty * 2.0,
+    put_time=lambda sku, qty: 3.0 + qty * 1.0,
 )
 
 production_line = Warehouse(
@@ -73,8 +73,8 @@ production_line = Warehouse(
     n_slots=3,
     products=products,
     initial_inventory={},
-    pick_time_fn=lambda sku, qty: 2.0,
-    put_time_fn=lambda sku, qty: 2.0,
+    pick_time=2.0,
+    put_time=2.0,
 )
 ```
 
@@ -82,7 +82,7 @@ production_line = Warehouse(
 
 ## 3. AGV fleet
 
-An `AGVType` bundles the speed profile, battery, capacity, and load/unload time functions. All AGVs of the same type share these settings.
+An `AGVType` bundles the speed profile, battery, capacity, and load/unload times (`load_time` and `unload_time`, each a number, a distribution description or a zero-argument callable). All AGVs of the same type share these settings.
 
 ```python
 from simulatte.intralogistics import AGV, AGVType, TrapezoidalProfile
@@ -98,8 +98,8 @@ agv_type = AGVType(
     battery_capacity=1000.0,
     weight_capacity=50.0,
     volume_capacity=2.0,
-    load_time_fn=lambda: 5.0,
-    unload_time_fn=lambda: 5.0,
+    load_time=5.0,
+    unload_time=5.0,
 )
 # Two AGVs starting at the corridor junction C1 (ids are generated: agv-0, agv-1)
 agvs = [AGV(env=env, agv_type=agv_type, initial_node=c1) for _ in range(2)]

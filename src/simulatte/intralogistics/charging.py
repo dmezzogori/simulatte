@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from simulatte.environment import Environment
     from simulatte.intralogistics.agv import AGV
     from simulatte.intralogistics.graph import Node
+    from simulatte.rng import SamplerDescription
 
 
 class _SlotRequest(Request):
@@ -43,6 +44,10 @@ class ChargingStation(Entity, kind="charging_station"):
     Events (spec §6.4): ``charging.started`` when an AGV is granted a slot and ``charging.ended`` when it releases
     it, ``charging.pool_changed`` whenever the swap pool changes, and ``agv.battery_changed`` after a recharge or a
     swap.
+
+    ``recharge_time`` is a distribution description or a number (managed) or a callable
+    ``(current_level, target_level) -> float`` (opaque), bound to the stream ``<name>/recharge``; without it the
+    recharge time is computed from the AGV battery's charging rate.
     """
 
     state_schema: ClassVar[StateSchema] = StateSchema(
@@ -56,7 +61,7 @@ class ChargingStation(Entity, kind="charging_station"):
         name: str,
         node: Node,
         n_slots: int,
-        recharge_fn: Callable[[float, float], float] | None = None,
+        recharge_time: SamplerDescription[float] | float | Callable[[float, float], float] | None = None,
         supports_swap: bool = False,
         swap_pool_size: int = 0,
         swap_time: float = 0.0,
@@ -66,7 +71,6 @@ class ChargingStation(Entity, kind="charging_station"):
         self.env = env
         self.name = name
         self.node = node
-        self._recharge_fn = recharge_fn
         self.supports_swap = supports_swap
         self.swap_time = swap_time
         self.swap_recharge_time = swap_recharge_time
@@ -84,6 +88,11 @@ class ChargingStation(Entity, kind="charging_station"):
         self.total_swaps: int = 0
         self.total_occupied_time: float = 0.0
         env.entities.attach(self, name=name, label=label)
+        self._recharge_time: Callable[..., float] | None = (
+            None
+            if recharge_time is None
+            else env.bind(recharge_time, kind="contextual", stream=f"{self.id}/recharge", owner=self.id)
+        )
 
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: slots in use and the swap-pool level (None without battery swapping)."""
@@ -97,7 +106,7 @@ class ChargingStation(Entity, kind="charging_station"):
     def recharge(self, agv: AGV, target_pct: float = 1.0) -> ProcessGenerator:
         """Acquire a slot, recharge the AGV battery, and release the slot.
 
-        Uses the station's ``recharge_fn`` if set, otherwise falls back to the
+        Uses the station's ``recharge_time`` if set, otherwise falls back to the
         AGV battery's own ``recharge_time`` method.
         """
         req = _SlotRequest(self._slots, agv, "recharge")
@@ -108,8 +117,8 @@ class ChargingStation(Entity, kind="charging_station"):
 
             if target_level <= agv.battery.level:
                 duration = 0.0
-            elif self._recharge_fn is not None:
-                duration = self._recharge_fn(agv.battery.level, target_level)
+            elif self._recharge_time is not None:
+                duration = self._recharge_time(agv.battery.level, target_level)
             else:
                 duration = agv.battery.recharge_time(target_pct)
 
