@@ -15,7 +15,8 @@ f-strings and keyword arguments on every step even at the default INFO level. To
 **+7.2 % to +9.9 % on CPython**. About half of this is the `env.wants(...)` guards: roughly 46 calls per job.
 On PyPy the branch is still 16–23 % faster than the copy. The gate as specified (against the released 0.12.0)
 passes with a wide margin. However, the logging rebuild of Task 19 (`default_logging`, ≤ 5 %) will spend part
-of that margin. No library code was tuned in this task.
+of that margin. No library code was tuned in this task. Task 12b later tuned the guard and the queue hot path
+(§9): SP1's own CPython cost is now about +4 to +5 %, and the stripped-baseline budget is 6.5 % on CPython.
 
 ## 1. Methodology
 
@@ -320,10 +321,10 @@ Job `bench` in `.github/workflows/ci.yml`, a matrix over CPython 3.14 and PyPy 3
    | Baseline | Budget | Noise | Limit |
    |---|---|---|---|
    | Released 0.12.0 | 3 % | 2 % CPython, 5 % PyPy | 5 % / 8 % |
-   | 0.12.0 without `env.debug` calls | 10 % CPython, 3 % PyPy | 2 % CPython, 5 % PyPy | 12 % / 8 % |
+   | 0.12.0 without `env.debug` calls | 6.5 % CPython, 3 % PyPy (after tuning, §9; was 10 % CPython) | 2 % CPython, 5 % PyPy | 8.5 % / 8 % |
 
    The released baseline is the user-facing promise; the stripped one isolates SP1's own cost on the unobserved
-   path (§5.2) and is tightened after the `env.wants` tuning (D56).
+   path (§5.2) and was tightened after the tuning of D56 (§9).
 3. Reporting step (runs even when the gate fails): `digest` and `full` against the branch's `none` (200 seeks),
    the sampling benchmark (20,000 jobs) against 0.12.0, and two tables from `summarize.py`. The details table
    has peak RSS, trace size, chunks, seek p50/p95, jobs/s and draws/s. The provenance table has, per version,
@@ -338,7 +339,56 @@ The CI duration is estimated from eva's timings, scaled for slower runners. I ha
 nothing was pushed: about 7 minutes on CPython (about 2.3 min gate, now with three environments, 3 min reporting,
 setup) and about 11 minutes on PyPy (it was 6 and 9 with two). `timeout-minutes` is 30.
 
-## 9. Findings and follow-ups (not changed in this task)
+## 9. Tuning (Task 12b, D56)
+
+Task 12b tuned the unobserved path against the stripped 0.12.0, one change at a time, on eva (same interpreters
+as §2). Each comparison interleaves the variants round by round: in every round each variant runs `run.py --mode
+none` with the CI settings (`--repeat 5 --processes 3`, warm-up 1 or 8) on both CI workloads, in rotated order, and
+the samples are pooled over the rounds (3–6 rounds, 45–90 samples per variant and workload). The machine was not
+idle: `mediaanalysisd` used about two cores for part of the session, and the absolute times drifted between
+sessions (stripped 0.12.0 on u90-5k: 0.62–0.70 s on CPython, 0.39–0.50 s on PyPy), so only ratios within one
+interleaved run are compared. Per-round ratios of identical code varied by about ±1 % on CPython and ±4 % on PyPy.
+
+Effect of each change, as the change in median time against the previous kept state (u90-5k / u95-5k):
+
+| # | Change | CPython 3.14 | PyPy 3.11 | Outcome |
+|---|---|---|---|---|
+| 1 | `env.wants` becomes the bound `__getitem__` of a per-bus interest cache (a dict subclass whose `__missing__` computes the route; cleared on subscribe and cancel): one C call instead of two Python frames and a `dict.get`. Sites and `bus.wants` unchanged. | −2.3 % / −0.6 % (3 rounds) | −1.4 % / +1.0 % (3 rounds, noise) | kept, ec06f50 |
+| 2 | Fold the `_operate` wrapper into `Server.process_job(..., op_index=)`, which emits `operation.completed` (the event class moves to `server.py`) | +0.3 % / −0.3 % (6 rounds) | −1.3 % / −0.6 % (4 rounds) | reverted: no measurable gain for an API change |
+| 3 | `operator.attrgetter("key")` as the queue sort key | −0.4 % / −2.1 % (5 rounds) | −1.3 % / +4.4 % (4 rounds) | reverted: slower on PyPy (17 % slower per sort in a micro-benchmark); after change 4, a CPython-only variant gave +0.1 % / −0.2 % (6 rounds) |
+| 4 | `sort_queue` skips sorting queues shorter than two (the sort still called the key function) | −0.2 % / −0.7 % (5 rounds) | −6.6 % / −3.2 % (4 rounds) | kept, 3cf7e4a |
+| 5 | Release detection (location `transit`, `job.released`) moves from a `_do_get` override into `Server.release`, in the same order relative to every other emission | −1.2 % / −1.5 % (6 rounds) | −1.4 % / +0.2 % (4 rounds) | kept, bb4d8cf |
+| 6 | No runtime `typing.cast()` calls in `sort_queue` and on grants | −0.8 % / −0.5 % (6 rounds) | −3.7 % / −1.7 % (4 rounds) | kept, cb2cb38 |
+| 7 | Unroll SimPy's put loop inside `Server._trigger_put` (one `_do_put` on the head request, no `super()` call) | −1.3 % / −1.3 % (5 rounds) | not measured | not applied: it relies on `Resource._do_put` returning None and on SimPy's queue invariant (`simpy>=4.0.1` is not pinned), and breaks a `Server` subclass whose `_do_put` continues the loop |
+
+Ablations of the state after change 5, to locate what remains (CPython, 3 rounds, points of overhead removed
+against the stripped copy, u90 / u95): every guard replaced by `False` (a lower bound for any guard idiom)
+2.0 / 1.2; the `_operate` wrapper removed together with its emission 1.3 / 1.0; `_trigger_put` reduced to 0.12.0's
+body (no location, arrival or grant bookkeeping) 1.9 / 2.5. The remaining cost is the live-state bookkeeping that
+SP1 needs (job locations, entity registry) and the guards themselves; a guard is now a single C-level dict lookup
+(about 25 ns against 70 ns before, CPython micro-benchmark), and the guarded checks cannot be hoisted across
+`yield`s or user code without changing which events a later subscriber receives.
+
+**Result.** Final state cb2cb38 against the baselines, one interleaved run per interpreter (4 rounds, 60 samples
+per variant and workload). "Before" is the branch at cf5e962.
+
+| Interpreter | Workload | Stripped 0.12.0 | Released 0.12.0 | Before | After | Before vs stripped | After vs stripped | After vs released |
+|---|---|---|---|---|---|---|---|---|
+| CPython 3.14 | u90-5k | 0.700 s | 0.998 s | 0.752 s | 0.728 s | +7.4 % | **+3.9 %** | −27.1 % |
+| CPython 3.14 | u95-5k | 0.748 s | 1.056 s | 0.806 s | 0.782 s | +7.7 % | **+4.5 %** | −25.9 % |
+| PyPy 3.11 | u90-5k | 0.499 s | 0.686 s | 0.406 s | 0.359 s | −18.6 % | −28.2 % | −47.7 % |
+| PyPy 3.11 | u95-5k | 0.531 s | 0.648 s | 0.395 s | 0.386 s | −25.5 % | −27.3 % | −40.4 % |
+
+An earlier run on a quieter machine, with the state after change 5, gave +8.4 % / +8.0 % before and +4.9 % / +5.2 %
+after on CPython. SP1's own CPython cost on the unobserved path is therefore about +4 to +5 %, down from +7 to
++9 %; it did not reach 3 %. Change 7 would take about another point, at the price stated above.
+
+**Budget.** The stripped-baseline budget becomes the achieved worst case plus 2 % headroom, not below 3 %:
+**6.5 % on CPython** (worst case 4.5 %, u95-5k; limit with the 2 % band 8.5 %, was 12 %) and **3 % on PyPy** (the
+floor: the branch is faster than the stripped copy; limit 8 %, unchanged). Applied as `BUDGET_STRIPPED` in
+`ci.yml`. The released-baseline budget stays at 3 %.
+
+## 10. Findings and follow-ups (not changed in this task)
 
 - **CPython and PyPy digests differ even without random draws.** On `u90-5k` the trajectories are identical,
   yet the digests differ (`482d8c1c…` on CPython, `b2357072…` on PyPy). The first differing event is
