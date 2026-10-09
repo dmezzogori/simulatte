@@ -410,7 +410,9 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         for req in queue_list:
             fresh_priority = req.job.priority(req.server)
             req.key = (fresh_priority, req.time, not req.preempt)
-        if len(queue_list) < 2 or not self.env.wants(ServerQueueReordered):
+        if len(queue_list) < 2:
+            return  # nothing to order (sorting would still call the key function)
+        if not self.env.wants(ServerQueueReordered):
             queue_list.sort(key=_request_key)
             return
         before = queue_list[:]
