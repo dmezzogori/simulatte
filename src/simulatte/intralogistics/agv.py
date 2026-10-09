@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum, auto
@@ -103,22 +104,22 @@ class AGV:
 
     def utilization(self) -> float:
         self._flush_current_state()
-        total = sum(self.state_durations.values())
+        total = math.fsum(self.state_durations.values())
         if total == 0:
             return 0.0
-        utilized = sum(self.state_durations[s] for s in _UTILIZED_STATES)
+        utilized = math.fsum(self.state_durations[s] for s in _UTILIZED_STATES)
         return utilized / total
 
     def state_percentage(self, state: AGVState) -> float:
         self._flush_current_state()
-        total = sum(self.state_durations.values())
+        total = math.fsum(self.state_durations.values())
         if total == 0:
             return 0.0
         return self.state_durations[state] / total
 
     def time_allocation(self) -> dict[AGVState, float]:
         self._flush_current_state()
-        total = sum(self.state_durations.values())
+        total = math.fsum(self.state_durations.values())
         if total == 0:
             return {s: 0.0 for s in AGVState}
         return {s: self.state_durations[s] / total for s in AGVState}

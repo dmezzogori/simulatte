@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
@@ -110,7 +111,7 @@ class DefaultIntralogisticsCollector:
             self.inventory_ts.setdefault(order.destination, []).append((order.delivered_at, inv_snapshot))
 
     def on_agv_state_changed(self, coordinator: FleetCoordinator, agv: AGV, old: AGVState, new: AGVState) -> None:
-        avg_util = sum(a.utilization() for a in coordinator.fleet) / len(coordinator.fleet)
+        avg_util = math.fsum(a.utilization() for a in coordinator.fleet) / len(coordinator.fleet)
         self.fleet_utilization_ts.append((agv.env.now, avg_util))
 
     def plot_fleet_utilization(self) -> None:  # pragma: no cover

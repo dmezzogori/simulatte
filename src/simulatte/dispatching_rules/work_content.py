@@ -6,6 +6,7 @@ next machine on its route. Lower numeric value = served first.
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -40,7 +41,7 @@ def _work_in_next_queue(job: BaseJob, server: Server) -> float:
     next_server = _next_server_after(job, server)
     if next_server is None:
         return 0.0
-    return sum(q.routing[next_server] for q in next_server.queueing_jobs)
+    return math.fsum(q.routing[next_server] for q in next_server.queueing_jobs)
 
 
 def work_in_next_queue(job: BaseJob, server: Server) -> float:

@@ -61,10 +61,10 @@ def _entropy(workloads: Iterable[float]) -> float:
     so the choice is purely cosmetic — convention (a) keeps the code
     uniform with the bin-level ``0 · ln 0 = 0`` rule.
     """
-    total = sum(workloads)
+    total = math.fsum(workloads)
     if total <= 0:
         return 0.0
-    return -sum((w / total) * math.log(w / total) for w in workloads if w > 0)
+    return -math.fsum((w / total) * math.log(w / total) for w in workloads if w > 0)
 
 
 def _delta_entropy(
@@ -340,7 +340,8 @@ class Focus:
         servers: Sequence[Server] = shopfloor.servers
         server_index: dict[Server, int] = {s: i for i, s in enumerate(servers)}
         workloads: list[float] = [
-            sum(j.routing[s] for j in s.queueing_jobs) + sum(j.routing[s] for j in s.current_jobs) for s in servers
+            math.fsum(j.routing[s] for j in s.queueing_jobs) + math.fsum(j.routing[s] for j in s.current_jobs)
+            for s in servers
         ]
         pre_entropy = _entropy(workloads)
 
@@ -455,7 +456,7 @@ class Focus:
         remaining = job.unfinished_routing
         if not remaining:
             return 1.0
-        s_i = job.due_date - now - sum(job.routing[srv] for srv in remaining)
+        s_i = job.due_date - now - math.fsum(job.routing[srv] for srv in remaining)
         v_i = s_i / len(remaining)
         if v_i <= 0:
             return 1.0
@@ -518,7 +519,7 @@ class Focus:
     @staticmethod
     def _slack(job: BaseJob, now: float) -> float:
         """``S_i = d_i - now - sum(p_ij for j in R_i)`` over ``job.unfinished_routing``."""
-        return job.due_date - now - sum(job.routing[srv] for srv in job.unfinished_routing)
+        return job.due_date - now - math.fsum(job.routing[srv] for srv in job.unfinished_routing)
 
 
 class FocusPriorityRule:

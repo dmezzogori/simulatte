@@ -50,7 +50,7 @@ class LayoutGraph:
 
     @staticmethod
     def path_distance(path: list[Node]) -> float:
-        return sum(math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y) for i in range(len(path) - 1))
+        return math.fsum(math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y) for i in range(len(path) - 1))
 
     def shortest_path(self, source: Node, target: Node) -> list[Node] | None:
         from simulatte.intralogistics.pathfinding import DijkstraPlanner

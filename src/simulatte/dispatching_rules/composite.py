@@ -64,7 +64,7 @@ def raghu_rajendran(
     def _rr(job: BaseJob, server: Server) -> float:
         p = job.routing[server]
         u = utilization if utilization is not None else server.utilization_rate
-        rpt = sum(job.routing[s] for s in job.unfinished_routing)
+        rpt = math.fsum(job.routing[s] for s in job.unfinished_routing)
         winq = _work_in_next_queue(job, server)
         if rpt <= 0:
             return math.exp(u) * p + winq

@@ -260,7 +260,7 @@ class FleetCoordinator:
         """Average utilization across the fleet."""
         if not self.fleet:
             return 0.0
-        return sum(agv.utilization() for agv in self.fleet) / len(self.fleet)
+        return math.fsum(agv.utilization() for agv in self.fleet) / len(self.fleet)
 
     def fleet_time_allocation(self) -> dict[AGVState, float]:
         """Average time-allocation percentages across the fleet."""
@@ -629,7 +629,7 @@ class FleetCoordinator:
 
                     distance = math.hypot(next_node.x - current.x, next_node.y - current.y)
                     if loaded and agv.current_load:
-                        load_weight = sum(sku.weight * qty for sku, qty in agv.current_load.items())
+                        load_weight = math.fsum(sku.weight * qty for sku, qty in agv.current_load.items())
                     else:
                         load_weight = 0.0
 

@@ -207,20 +207,17 @@ def test_g1_acceptance(tmp_path: Path) -> None:
 
 
 # The G1 reference digest (specs/research/sp1-g1-report.md) and the canonical content of its full trace with
-# CHUNK_EVENTS-event chunks, per interpreter: CPython and PyPy draw different samples from the same streams (the
-# derived methods of random.Random are not part of Python's cross-implementation guarantee, spec §8.1). Pinned on
-# macOS arm64; RNG samples go through the platform's libm (log, exp), whose last-bit results may differ
-# elsewhere, so other platforms only check that the values are stable in-process.
-GOLDEN_REFERENCE = {
-    "cpython": (
-        "9032ec344577870a45a32b7aa251f3db06145d9d1dd499b94664c5bd4e29c51f",
-        "6514ec161aa0812a8d7fba6d1f8414d9cc34f951c06e4a7496d3d9e2af2fd973",
-    ),
-    "pypy": (
-        "5a4e55a2fcbdc31c31936c484e033764006dcc9ae07a48eaca12d2bd00587196",
-        "a381059dcd1746b6fcd83009d414a12073d25fbd44c62a19cb40c00838158908",
-    ),
-}
+# CHUNK_EVENTS-event chunks. CPython and PyPy used to differ here only because the builtin sum() of floats is
+# compensated on CPython 3.12+ and plain elsewhere; with math.fsum in every observable float sum (D58) both pin
+# the same values. They stay keyed per interpreter: the derived methods of random.Random are not part of Python's
+# cross-implementation guarantee (spec §8.1). Pinned on macOS arm64; RNG samples go through the platform's libm
+# (log, exp), whose last-bit results may differ elsewhere, so other platforms only check that the values are
+# stable in-process.
+_GOLDEN_REFERENCE_VALUES = (
+    "9032ec344577870a45a32b7aa251f3db06145d9d1dd499b94664c5bd4e29c51f",
+    "6514ec161aa0812a8d7fba6d1f8414d9cc34f951c06e4a7496d3d9e2af2fd973",
+)
+GOLDEN_REFERENCE = {"cpython": _GOLDEN_REFERENCE_VALUES, "pypy": _GOLDEN_REFERENCE_VALUES}
 _GOLDEN_PLATFORM = sys.platform == "darwin" and platform.machine() == "arm64"
 
 

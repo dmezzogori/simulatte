@@ -21,6 +21,7 @@ Extensibility is provided through:
 from __future__ import annotations
 
 import inspect
+import math
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, cast, runtime_checkable
 
@@ -472,7 +473,7 @@ class DefaultTimeSeriesCollector:
         """Record WIP and job count when a job enters the shop floor."""
         del job  # Unused but required by protocol
         now = shopfloor.env.now
-        self.wip_ts.append((now, sum(shopfloor.wip.values())))
+        self.wip_ts.append((now, math.fsum(shopfloor.wip.values())))
         self.job_count_ts.append((now, len(shopfloor.jobs)))
 
     def on_operation_completed(
@@ -485,7 +486,7 @@ class DefaultTimeSeriesCollector:
         """Record WIP after an operation completes."""
         del job, server, op_index  # Unused but required by protocol
         now = shopfloor.env.now
-        self.wip_ts.append((now, sum(shopfloor.wip.values())))
+        self.wip_ts.append((now, math.fsum(shopfloor.wip.values())))
 
     def on_job_finished(self, shopfloor: ShopFloor, job: ProductionJob) -> None:
         """Record job count, throughput, and lateness when a job finishes."""
@@ -595,7 +596,7 @@ class CurrentWorkLoadCollector:
         skip_job: ProductionJob | None = None,
         skip_server: Server | None = None,
     ) -> None:
-        total = sum(
+        total = math.fsum(
             job.routing[s]
             for job in shopfloor.jobs
             for s in job.servers

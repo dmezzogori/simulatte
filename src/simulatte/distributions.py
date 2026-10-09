@@ -129,7 +129,7 @@ class TruncatedErlang:
 
         def sample() -> float:
             while True:
-                value = sum(expovariate(rate) for _ in range(shape))
+                value = math.fsum(expovariate(rate) for _ in range(shape))
                 if value <= max_value:
                     return value
 
@@ -425,7 +425,7 @@ def twk_due_date(allowance_factor: float) -> Callable[[Sequence[float]], float]:
     """
 
     def rule(processing_times: Sequence[float]) -> float:
-        return allowance_factor * sum(processing_times)
+        return allowance_factor * math.fsum(processing_times)
 
     return rule
 

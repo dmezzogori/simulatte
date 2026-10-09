@@ -15,6 +15,7 @@ several product types arriving on one shared stream.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, TypedDict
@@ -231,8 +232,8 @@ class Scenario:
         """
         if self.arrival_rate is not None:
             return self.arrival_rate
-        total_weight = sum(f.weight for f in self.families)
-        expected_work = sum(
+        total_weight = math.fsum(f.weight for f in self.families)
+        expected_work = math.fsum(
             (f.weight / total_weight) * f.mean_routing_length(self.shop_type, self.n_servers) * f.service_time.mean
             for f in self.families
         )

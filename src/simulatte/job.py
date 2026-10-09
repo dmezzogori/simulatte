@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -165,7 +166,7 @@ class BaseJob(ABC):
         if None in queue_times.values():
             raise ValueError("Job has missing timing information. Cannot calculate total queue time.")
 
-        return sum(qt for qt in queue_times.values() if qt is not None)
+        return math.fsum(qt for qt in queue_times.values() if qt is not None)
 
     @property
     def slack_time(self) -> float:
@@ -308,7 +309,7 @@ class BaseJob(ABC):
         Returns:
             Target release time: due_date - total_processing - (servers * allowance).
         """
-        return self.due_date - (sum(self._processing_times) + len(self._servers) * allowance)
+        return self.due_date - (math.fsum(self._processing_times) + len(self._servers) * allowance)
 
     def starts_at(self, server: Server) -> bool:
         """Check if this job's routing begins at the given server.

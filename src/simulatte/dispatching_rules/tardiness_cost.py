@@ -77,7 +77,7 @@ def apparent_tardiness_cost(
             p_bar = avg_processing
         else:
             queued = [q.routing[server] for q in server.queueing_jobs]
-            p_bar = sum(queued) / len(queued) if queued else p
+            p_bar = math.fsum(queued) / len(queued) if queued else p
             if p_bar <= 0:
                 p_bar = p
         slack = max(0.0, job.due_date - p - server.env.now)
@@ -134,7 +134,7 @@ def cost_over_time(
         if p <= 0:
             return float("-inf")
         w = weight(job) if weight is not None else 1.0
-        rpt = sum(job.routing[s] for s in job.unfinished_routing)
+        rpt = math.fsum(job.routing[s] for s in job.unfinished_routing)
         if rpt <= 0:
             return 0.0
         slack = max(0.0, job.due_date - server.env.now - rpt)

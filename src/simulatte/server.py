@@ -7,6 +7,7 @@ job requests with priority information.
 
 from __future__ import annotations
 
+import math
 from bisect import bisect_left
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -279,7 +280,7 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         """Time-weighted average queue length over the simulation."""
         if self.env.now == 0:
             return 0.0
-        return sum(queue_length * time for queue_length, time in self._queue_history.items()) / self.env.now
+        return math.fsum(queue_length * time for queue_length, time in self._queue_history.items()) / self.env.now
 
     @property
     def utilization_rate(self) -> float:
