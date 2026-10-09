@@ -26,7 +26,7 @@ from simulatte.intralogistics.events import (
     TrafficWaitEnded,
     TrafficWaitStarted,
 )
-from simulatte.intralogistics.metrics import EMAOrderMetrics
+from simulatte.intralogistics.metrics import OrderEMACollector
 from simulatte.intralogistics.order import TERMINAL_STATUSES, OrderStatus, TransferOrder
 from simulatte.intralogistics.pathfinding import DijkstraPlanner
 from simulatte.intralogistics.policies import (
@@ -48,10 +48,6 @@ if TYPE_CHECKING:
     from simulatte.intralogistics.agv import AGV
     from simulatte.intralogistics.charging import ChargingStation
     from simulatte.intralogistics.graph import LayoutGraph, Node
-    from simulatte.intralogistics.metrics import (
-        IntralogisticsTimeSeriesCollector,
-        OrderMetricsCollector,
-    )
     from simulatte.intralogistics.parking import ParkingArea
     from simulatte.intralogistics.pathfinding import PathPlanner
     from simulatte.intralogistics.policies import (
@@ -109,6 +105,10 @@ class FleetCoordinator(Entity, kind="fleet"):
     the mission bookkeeping was cleaned up. :meth:`submit` and :meth:`cancel` are deferrable: before
     activation they are queued and run at activation (spec §10).
 
+    Unless built with ``default_metrics=False``, it attaches an :class:`~simulatte.intralogistics.OrderEMACollector`
+    as ``metrics``; other collectors (:class:`~simulatte.intralogistics.FleetTimeSeries`,
+    :class:`~simulatte.intralogistics.FleetKPIs`) are attached with ``collector.attach(env)``.
+
     Events (spec §6.4): ``fleet.agv_added`` per AGV at construction, ``fleet.pending_changed`` at every change of
     the pending queue, ``order.status_changed`` at every assignment of an order status, ``order.assigned`` /
     ``order.unassigned`` for the order-AGV link, and the AGV events of movement (``agv.move_started``,
@@ -133,8 +133,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         dispatch_strategy: DispatchStrategy | None = None,
         repositioning_policy: RepositioningPolicy | None = None,
         load_recovery_strategy: LoadRecoveryStrategy | None = None,
-        order_metrics_collector: OrderMetricsCollector | None = None,
-        time_series_collector: IntralogisticsTimeSeriesCollector | None = None,
+        default_metrics: bool = True,
         on_low_battery: Callable[[AGV], ProcessGenerator | None] | None = None,
         max_dispatch_retries: int = 10,
         pending_retry_delay: float = 1.0,
@@ -153,8 +152,6 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._dispatch_strategy: DispatchStrategy = dispatch_strategy or NearestIdleStrategy()
         self._repositioning_policy: RepositioningPolicy = repositioning_policy or StayInPlace()
         self._load_recovery_strategy: LoadRecoveryStrategy = load_recovery_strategy or ReturnToOrigin()
-        self._order_metrics_collector: OrderMetricsCollector = order_metrics_collector or EMAOrderMetrics()
-        self._time_series_collector: IntralogisticsTimeSeriesCollector | None = time_series_collector
         self._on_low_battery = on_low_battery
         self._max_dispatch_retries = max_dispatch_retries
         self._dispatch_retries: dict[str, int] = {}
@@ -187,6 +184,9 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._hooks_on_agv_idle: list[Callable[[AGV], None]] = []
 
         env.entities.attach(self, name=name, label=label)
+        self.metrics: OrderEMACollector | None = OrderEMACollector(self).attach(env) if default_metrics else None
+        """The default :class:`OrderEMACollector` (``ema_*`` averages of delivered orders), or None when built with
+        ``default_metrics=False``."""
         for node in sorted(graph.nodes, key=lambda node: node.id):
             env.entities.bind_node(node)
         for agv in self.fleet:
@@ -256,8 +256,6 @@ class FleetCoordinator(Entity, kind="fleet"):
         # Fire hooks
         for cb in self._hooks_on_order_submitted:
             cb(order)
-        if self._time_series_collector is not None:
-            self._time_series_collector.on_order_submitted(self, order)
 
         agv = self._dispatch_strategy.select(order, self.fleet, self.graph)
         if agv is not None:
@@ -389,11 +387,8 @@ class FleetCoordinator(Entity, kind="fleet"):
     # ------------------------------------------------------------------
 
     def _transition_agv(self, agv: AGV, new_state: AGVState) -> None:
-        """Transition an AGV to *new_state* and notify the time-series collector."""
-        old_state = agv.state
+        """Transition an AGV to *new_state* (``AGV.transition_to`` emits ``agv.state_changed``)."""
         agv.transition_to(new_state)
-        if self._time_series_collector is not None:
-            self._time_series_collector.on_agv_state_changed(self, agv, old_state, new_state)
 
     def _set_status(self, order: TransferOrder, status: OrderStatus, reason: str) -> None:
         """Assign `status` to `order` and emit ``order.status_changed``."""
@@ -546,8 +541,6 @@ class FleetCoordinator(Entity, kind="fleet"):
         # Fire hooks
         for cb in self._hooks_on_order_dispatched:
             cb(order, agv)
-        if self._time_series_collector is not None:
-            self._time_series_collector.on_order_dispatched(self, order, agv)
 
     def _require_current_node(self, agv: AGV) -> Node:
         """Return the AGV's current node, or fail on a broken mission invariant."""
@@ -592,8 +585,6 @@ class FleetCoordinator(Entity, kind="fleet"):
             # Fire pickup hooks
             for cb in self._hooks_on_pickup_complete:
                 cb(order, agv)
-            if self._time_series_collector is not None:
-                self._time_series_collector.on_pickup_complete(self, order, agv)
 
             # 3. Travel loaded to destination input bay
             self._set_status(order, OrderStatus.IN_TRANSIT, "picked")
@@ -632,12 +623,8 @@ class FleetCoordinator(Entity, kind="fleet"):
             self._set_status(order, OrderStatus.COMPLETED, "delivered")
 
             # 5. Post-mission
-            self._order_metrics_collector.record(order)
-
             for cb in self._hooks_on_delivery_complete:
                 cb(order, agv)
-            if self._time_series_collector is not None:
-                self._time_series_collector.on_delivery_complete(self, order, agv)
 
             # Battery check after mission
             if agv.battery.is_low and self.charging_stations:
@@ -715,12 +702,9 @@ class FleetCoordinator(Entity, kind="fleet"):
                             yield self.env.timeout(agv.sample_unload_time())
                             order.delivered_at = self.env.now
                             self._set_status(order, OrderStatus.COMPLETED, "delivered")
-                            self._order_metrics_collector.record(order)
 
                             for cb in self._hooks_on_delivery_complete:
                                 cb(order, agv)
-                            if self._time_series_collector is not None:
-                                self._time_series_collector.on_delivery_complete(self, order, agv)
                     elif agv.current_load is not None:
                         # ReturnToOrigin (or similar) — physically return cargo
                         yield from self._return_cargo_to_origin(order, agv)

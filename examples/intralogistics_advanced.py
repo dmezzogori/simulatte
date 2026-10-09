@@ -10,13 +10,13 @@ from simulatte.intralogistics import (
     AGVType,
     Arc,
     ChargingStation,
-    DefaultIntralogisticsCollector,
-    EMAOrderMetrics,
     FleetCoordinator,
+    FleetTimeSeries,
     LayoutGraph,
     NearestParkingPolicy,
     RoundRobinStrategy,
     Node,
+    OrderEMACollector,
     OrderStatus,
     ParkingArea,
     ReorderPointPolicy,
@@ -223,10 +223,6 @@ def main() -> None:
         parking_area = ParkingArea(env=env, name="Parking", node=park, capacity=3)
         charging_station = ChargingStation(env=env, name="Charger", node=chrg, n_slots=2)
 
-        # --- Metrics ---
-        order_metrics = EMAOrderMetrics(alpha=0.05)
-        ts_collector = DefaultIntralogisticsCollector()
-
         # --- Coordinator ---
         coordinator = FleetCoordinator(
             env=env,
@@ -238,9 +234,12 @@ def main() -> None:
             dispatch_strategy=RoundRobinStrategy(),
             repositioning_policy=NearestParkingPolicy(),
             load_recovery_strategy=ReturnToOrigin(),
-            order_metrics_collector=order_metrics,
-            time_series_collector=ts_collector,
+            default_metrics=False,
         )
+
+        # --- Metrics ---
+        order_metrics = OrderEMACollector(coordinator, alpha=0.05).attach(env)
+        ts_collector = FleetTimeSeries(coordinator).attach(env)
 
         # --- Replenishment policy ---
         thresholds = {
@@ -268,7 +267,7 @@ def main() -> None:
             wh: {sku: wh.get_inventory_level(sku) for sku in skus} for wh in [receiving, bulk_storage, dispatch]
         }
         for wh in [receiving, bulk_storage, dispatch]:
-            ts_collector.inventory_ts[wh] = [(0.0, {sku: float(c.level) for sku, c in wh.inventory.items()})]
+            ts_collector.inventory_ts[wh.id] = [(0.0, {sku.id: float(c.level) for sku, c in wh.inventory.items()})]
 
         # Track all orders (outbound + replenishment) via hook
         all_orders: list = []

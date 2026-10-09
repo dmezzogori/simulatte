@@ -7,8 +7,8 @@ from simulatte.intralogistics import (
     AGV,
     AGVType,
     Arc,
-    DefaultIntralogisticsCollector,
     FleetCoordinator,
+    FleetTimeSeries,
     LayoutGraph,
     NearestIdleStrategy,
     NearestParkingPolicy,
@@ -147,9 +147,6 @@ def main() -> None:
         # --- Parking ---
         parking = ParkingArea(env=env, name="Parking", node=p, capacity=3)
 
-        # --- Metrics ---
-        ts_collector = DefaultIntralogisticsCollector()
-
         # --- Coordinator ---
         coordinator = FleetCoordinator(
             env=env,
@@ -160,8 +157,10 @@ def main() -> None:
             parking_areas=[parking],
             dispatch_strategy=NearestIdleStrategy(),
             repositioning_policy=NearestParkingPolicy(),
-            time_series_collector=ts_collector,
         )
+
+        # --- Metrics ---
+        ts_collector = FleetTimeSeries(coordinator).attach(env)
 
         # Record initial inventory
         initial_rm = {sku: raw_materials.get_inventory_level(sku) for sku in skus}

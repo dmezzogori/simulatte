@@ -130,7 +130,7 @@ All corridor arcs are bidirectional. `PROD_A → PROD_B` is one-way, providing a
 - **Dispatch strategy** --- `NearestIdleStrategy` selects the closest idle AGV for each order
 - **Parking and repositioning** --- `ParkingArea` at node P with `NearestParkingPolicy` sending idle AGVs back to parking
 - **Staggered order batches** --- three batches at t=0, t=30 min, and t=60 min to show queuing dynamics
-- **Time-series plots** --- `DefaultIntralogisticsCollector` with `plot_fleet_utilization()` and `plot_pending_orders()`
+- **Time-series plots** --- `FleetTimeSeries` with `plot_fleet_utilization()` and `plot_pending_orders()`
 
 **Key configuration:**
 
@@ -185,8 +185,8 @@ from simulatte.intralogistics import (
     AGV,
     AGVType,
     Arc,
-    DefaultIntralogisticsCollector,
     FleetCoordinator,
+    FleetTimeSeries,
     LayoutGraph,
     NearestIdleStrategy,
     NearestParkingPolicy,
@@ -325,9 +325,6 @@ def main() -> None:
         # --- Parking ---
         parking = ParkingArea(env=env, name="Parking", node=p, capacity=3)
 
-        # --- Metrics ---
-        ts_collector = DefaultIntralogisticsCollector()
-
         # --- Coordinator ---
         coordinator = FleetCoordinator(
             env=env,
@@ -338,8 +335,10 @@ def main() -> None:
             parking_areas=[parking],
             dispatch_strategy=NearestIdleStrategy(),
             repositioning_policy=NearestParkingPolicy(),
-            time_series_collector=ts_collector,
         )
+
+        # --- Metrics ---
+        ts_collector = FleetTimeSeries(coordinator).attach(env)
 
         # Record initial inventory
         initial_rm = {sku: raw_materials.get_inventory_level(sku) for sku in skus}
@@ -433,7 +432,7 @@ Main corridors are bidirectional. The `B2 → B4 → B5 → B6 → B3` alternate
 - **Automatic replenishment** --- `ReorderPointPolicy` monitors Bulk Storage inventory and triggers transfers from Receiving when stock drops below thresholds
 - **Round-robin dispatch** --- `RoundRobinStrategy` cycles through idle AGVs for balanced fleet utilization
 - **Load recovery** --- `ReturnToOrigin` returns cargo to the origin warehouse if an AGV is interrupted
-- **EMA metrics** --- `EMAOrderMetrics` tracks fulfillment time, dispatch delay, travel times (empty/loaded), and late order rate
+- **EMA metrics** --- `OrderEMACollector` (with `alpha=0.05`, in place of the coordinator's default) tracks fulfillment time, dispatch delay, travel times (empty/loaded), and late order rate
 - **4 time-series plots** --- fleet utilization, throughput, pending orders, and inventory levels over time
 
 **Key configuration:**
@@ -501,13 +500,13 @@ from simulatte.intralogistics import (
     AGVType,
     Arc,
     ChargingStation,
-    DefaultIntralogisticsCollector,
-    EMAOrderMetrics,
     FleetCoordinator,
+    FleetTimeSeries,
     LayoutGraph,
     NearestParkingPolicy,
     RoundRobinStrategy,
     Node,
+    OrderEMACollector,
     OrderStatus,
     ParkingArea,
     ReorderPointPolicy,
@@ -714,10 +713,6 @@ def main() -> None:
         parking_area = ParkingArea(env=env, name="Parking", node=park, capacity=3)
         charging_station = ChargingStation(env=env, name="Charger", node=chrg, n_slots=2)
 
-        # --- Metrics ---
-        order_metrics = EMAOrderMetrics(alpha=0.05)
-        ts_collector = DefaultIntralogisticsCollector()
-
         # --- Coordinator ---
         coordinator = FleetCoordinator(
             env=env,
@@ -729,9 +724,12 @@ def main() -> None:
             dispatch_strategy=RoundRobinStrategy(),
             repositioning_policy=NearestParkingPolicy(),
             load_recovery_strategy=ReturnToOrigin(),
-            order_metrics_collector=order_metrics,
-            time_series_collector=ts_collector,
+            default_metrics=False,
         )
+
+        # --- Metrics ---
+        order_metrics = OrderEMACollector(coordinator, alpha=0.05).attach(env)
+        ts_collector = FleetTimeSeries(coordinator).attach(env)
 
         # --- Replenishment policy ---
         thresholds = {
@@ -759,7 +757,7 @@ def main() -> None:
             wh: {sku: wh.get_inventory_level(sku) for sku in skus} for wh in [receiving, bulk_storage, dispatch]
         }
         for wh in [receiving, bulk_storage, dispatch]:
-            ts_collector.inventory_ts[wh] = [(0.0, {sku: float(c.level) for sku, c in wh.inventory.items()})]
+            ts_collector.inventory_ts[wh.id] = [(0.0, {sku.id: float(c.level) for sku, c in wh.inventory.items()})]
 
         # Track all orders (outbound + replenishment) via hook
         all_orders: list = []
@@ -871,7 +869,7 @@ if __name__ == "__main__":
 | Speed profile | Default | Basic `TrapezoidalProfile` | With battery/load degradation |
 | Replenishment | None | None | `ReorderPointPolicy` (event-driven) |
 | Load recovery | Default | Default | `ReturnToOrigin` |
-| Order metrics | None | None | `EMAOrderMetrics` |
+| Order metrics | Default | Default | `OrderEMACollector(alpha=0.05)` |
 | Time-series | None | 2 plots | 4 plots |
 | Order flow | All at once | Staggered batches | Continuous random arrivals |
 | Due dates | None | None | Random due dates |

@@ -121,17 +121,11 @@ class TestImportSurface:
         assert FleetCoordinator is not None
 
     def test_metrics_exports(self) -> None:
-        from simulatte.intralogistics import (
-            DefaultIntralogisticsCollector,
-            EMAOrderMetrics,
-            IntralogisticsTimeSeriesCollector,
-            OrderMetricsCollector,
-        )
+        from simulatte.intralogistics import FleetKPIs, FleetTimeSeries, OrderEMACollector
 
-        assert OrderMetricsCollector is not None
-        assert EMAOrderMetrics is not None
-        assert IntralogisticsTimeSeriesCollector is not None
-        assert DefaultIntralogisticsCollector is not None
+        assert OrderEMACollector is not None
+        assert FleetTimeSeries is not None
+        assert FleetKPIs is not None
 
     def test_builder_export(self) -> None:
         from simulatte.intralogistics import build_simple_system

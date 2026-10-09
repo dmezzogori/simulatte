@@ -3046,12 +3046,12 @@ class TestResumeDeliveryFallbackChain:
 
 
 class TestResumeDeliveryWithHooksAndCollector:
-    """ResumeDelivery path with hooks and time-series collector (lines 457, 459)."""
+    """ResumeDelivery path with hooks and the time-series collector."""
 
     def test_resume_delivery_fires_hooks_and_collector(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
-        from simulatte.intralogistics.metrics import DefaultIntralogisticsCollector
+        from simulatte.intralogistics.metrics import FleetTimeSeries
         from simulatte.intralogistics.policies import ResumeDelivery
 
         node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
@@ -3090,7 +3090,6 @@ class TestResumeDeliveryWithHooksAndCollector:
         agv_type = _make_agv_type(simple_speed)
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
-        collector = DefaultIntralogisticsCollector()
         delivery_hooks: list[tuple[TransferOrder, AGV]] = []
 
         coordinator = FleetCoordinator(
@@ -3100,8 +3099,8 @@ class TestResumeDeliveryWithHooksAndCollector:
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
             load_recovery_strategy=ResumeDelivery(),
-            time_series_collector=collector,
         )
+        collector = FleetTimeSeries(coordinator).attach(env)
         coordinator.on_delivery_complete(lambda o, a: delivery_hooks.append((o, a)))
 
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
@@ -3120,6 +3119,8 @@ class TestResumeDeliveryWithHooksAndCollector:
         assert order.status == OrderStatus.COMPLETED
         assert len(delivery_hooks) >= 1
         assert delivery_hooks[-1][0] is order
+        assert collector.throughput_ts == [(0.0, 0), (order.delivered_at, 1)]
+        assert coordinator.metrics is not None and coordinator.metrics.ema_fulfillment_time == order.delivered_at
 
 
 class TestInterruptBeforePickup:

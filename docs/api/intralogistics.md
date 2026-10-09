@@ -200,22 +200,21 @@ For a conceptual overview and worked examples, see the
 
 ## Metrics
 
-::: simulatte.intralogistics.OrderMetricsCollector
+Built-in fleet collectors on the event bus. Each is bound to its fleet coordinator and attached with
+`collector.attach(env)`; every `FleetCoordinator` attaches an `OrderEMACollector` as `coordinator.metrics` unless
+built with `default_metrics=False`.
+
+::: simulatte.intralogistics.OrderEMACollector
     options:
       heading_level: 3
       members: false
 
-::: simulatte.intralogistics.EMAOrderMetrics
+::: simulatte.intralogistics.FleetTimeSeries
     options:
       heading_level: 3
-      members: false
+      members: true
 
-::: simulatte.intralogistics.IntralogisticsTimeSeriesCollector
-    options:
-      heading_level: 3
-      members: false
-
-::: simulatte.intralogistics.DefaultIntralogisticsCollector
+::: simulatte.intralogistics.FleetKPIs
     options:
       heading_level: 3
       members: false
