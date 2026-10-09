@@ -155,7 +155,7 @@ Server events are emitted from the resource itself, each after SimPy has complet
 | Queue order changes | `Server.sort_queue`, after sorting, only when relative order changed (priorities are refreshed on every put, so a newcomer may move again) | `server.queue_reordered` with the minimal `move` set (elements outside the longest increasing subsequence of old positions) |
 | Requests are granted | `Server._trigger_put`, after `super()._trigger_put` returns, for each request that is now in `users` and was not before; SimPy pops granted requests from the queue only after `_do_put` returns, so this is the first point where both changes are complete | `job.granted`: queue `remove`, users `insert` |
 | A waiting request is cancelled | `ServerPriorityRequest.cancel`, only when it actually removed the request from the queue (an interrupted waiting process leaving its `with` block) | `job.queue_left` (`reason`: `cancelled`): queue `remove` |
-| A request is released | `Server._do_get`, only when `users.remove` actually removed it (releasing an ungranted or already released request changes nothing and emits nothing) | `job.released`: users `remove` |
+| A request is released | `Server.release`, only when SimPy's release actually removed it from `users` (releasing an ungranted or already released request changes nothing and emits nothing) | `job.released`: users `remove` |
 
 With this boundary, `queue_length` counts the requests waiting when the job joins, itself included: a job that finds a free slot has `queue_length = 1` and is granted in the next event. The old log value (`len(queue) + 1` measured after the grant) double-counted every waiting job; that is the off-by-one D49 fixes.
 

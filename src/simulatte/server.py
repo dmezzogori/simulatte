@@ -351,7 +351,10 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
     def release(self, request: ServerPriorityRequest) -> Release:  # ty: ignore[invalid-method-override]
         """Release the server after job processing.
 
-        Records the job's exit time and updates utilization tracking.
+        Records the job's exit time and updates utilization tracking. SimPy removes the request from ``users``
+        while creating the Release event; if it was there, the job's location becomes ``transit`` and
+        ``job.released`` is emitted. Releasing a request that was never granted or was already released changes
+        neither and emits nothing.
 
         Args:
             request: The ServerPriorityRequest to release.
@@ -359,8 +362,26 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         Returns:
             A SimPy Release event.
         """
+        users = self.users
+        before = len(users)
         release = super().release(request)
-        request.job.servers_exit_at[self] = self.env.now
+        env = self.env
+        job = request.job
+        if len(users) != before:
+            job._location = "transit"
+            if env.wants(JobReleased):
+                job_id = job.id
+                env.emit(
+                    JobReleased(
+                        job=job_id,
+                        server=self.id,
+                        deltas=Deltas.build()
+                        .remove(self.id, "users", job_id)
+                        .set(job_id, "location", "transit")
+                        .done(),
+                    )
+                )
+        job.servers_exit_at[self] = env.now
         self._update_ut()
         return release
 
@@ -503,31 +524,6 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
                             .done(),
                         )
                     )
-
-    def _do_get(self, event: Release) -> None:
-        """Remove the released request from ``users`` and emit ``job.released`` if it was there.
-
-        Releasing a request that was never granted or was already released changes nothing and emits
-        nothing.
-        """
-        users = self.users
-        before = len(users)
-        super()._do_get(event)
-        if len(users) != before:
-            job = cast(ServerPriorityRequest, event.request).job
-            job._location = "transit"
-            if self.env.wants(JobReleased):
-                job_id = job.id
-                self.env.emit(
-                    JobReleased(
-                        job=job_id,
-                        server=self.id,
-                        deltas=Deltas.build()
-                        .remove(self.id, "users", job_id)
-                        .set(job_id, "location", "transit")
-                        .done(),
-                    )
-                )
 
     def plot_qt(self) -> None:  # pragma: no cover
         """Display a step plot of queue length over simulation time.
