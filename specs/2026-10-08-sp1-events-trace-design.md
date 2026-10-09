@@ -215,7 +215,7 @@ The plan verifies with replay-equals-live checks after every event, including a 
 ### 7.1 Bus
 
 - `env.bus.subscribe(handler, types)` with `types` a tuple of event classes, `"*"` (all domain events, including types registered later) or `"**"` (everything); returns a `Subscription` with `.cancel()`.
-- `env.wants(cls)` is an O(1) lookup. Emitting sites use the guard pattern; arguments are evaluated only when someone listens, and only from captured data (§6.1).
+- `env.wants(cls)` is an O(1) lookup. It is a bound lookup into the bus's interest cache, set when the environment is constructed (ruling R16): it is not an overridable method, and replacing `env.bus` after construction is unsupported. Emitting sites use the guard pattern; arguments are evaluated only when someone listens, and only from captured data (§6.1).
 - **Domain ordinals** are assigned only while the projection is active (digest or recorder attached); both subscribe to `"*"`, so every domain event is then built and counted. Otherwise `ordinal` is `None`.
 - Delivery is synchronous, in subscription order; nested observer emissions are queued FIFO after the current event reaches every subscriber. If a subscriber raises, the exception propagates from `env.emit`, the nested queue is cleared, and later emissions work normally.
 
