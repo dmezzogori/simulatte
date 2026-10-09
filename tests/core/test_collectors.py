@@ -14,13 +14,12 @@ from simulatte.collectors import (
 )
 from simulatte.environment import Environment
 from simulatte.events import Event
-from simulatte.kpi import Collector
 from simulatte.job import ProductionJob
+from simulatte.kpi import Collector
 from simulatte.scenario import Scenario
 from simulatte.server import Server
 from simulatte.shopfloor import CorrectedWIPStrategy, JobFinished, OperationCompleted, ShopFloor, ShopFloorEntered
 from simulatte.typing import ProcessGenerator
-
 
 EMA_FIELDS = (
     "ema_makespan",

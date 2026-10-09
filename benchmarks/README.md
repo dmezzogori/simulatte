@@ -13,7 +13,7 @@ the interpreter that runs them, so each version is installed in its own virtual 
 |---|---|
 | `workload_gen.py` | Draws a job-shop workload once and writes it as JSON (arrival, SKU, routing as server indices, processing times, due date per job). |
 | `feeder.py` | Builds a 10-server LumsCor job shop with constructors present in both versions and replays a workload through `PreShopPool.add`, without the router and without any random draw. Checks the job and operation counts and fingerprints the trajectory. |
-| `run.py` | Times one mode (`none`, `digest`, `full`) on a workload: warm-up runs, timed runs, optionally in several fresh processes; peak memory in a separate process; in mode `full` the trace size, chunk count and cold-seek latency. Writes JSON. |
+| `run.py` | Times one mode (`none`, `default`, `digest`, `full`) on a workload: warm-up runs, timed runs, optionally in several fresh processes; peak memory in a separate process; in mode `full` the trace size, chunk count and cold-seek latency. Writes JSON. |
 | `compare.py` | Compares two results; exits 1 when both are mode `none` and the median overhead exceeds `--budget + --noise` (`--budget` has no default and is required for such a pair), 2 when the results are not comparable. The Limit column shows the sum and its parts. |
 | `bench_sampling.py` | Router-only workload: a `Scenario.pure_job_shop` router generates a fixed number of jobs into a counting sink (no processing); reports jobs and sampler calls per second. |
 | `summarize.py` | Markdown tables of results (time, peak memory, trace, seeks, sampling) and of their provenance (commit, logging level, hardware). |
@@ -70,12 +70,16 @@ settle at speeds up to about 10 % apart, which is why the gate pools three proce
   creating a `TraceRecorder` with default chunk limits), building the shop, `env.run(until=horizon)` and
   `env.close()` (which flushes the trace). Loading the workload JSON is excluded. `gc.collect()` runs before each
   run, outside the timing.
-- **Observers.** Both versions run with their own defaults: the shop floor's default EMA metrics
-  (`EMAMetricsCollector` in 0.12.0, called at each completion; on the branch `EMACollector`, a bus subscriber of
-  `job.finished`, so that event is built), the per-environment logging at its default level (INFO: `SimLogger` in
-  0.12.0, the default log sinks on the branch, which subscribe to `log` events only) and, on the branch, no other
-  subscriber of domain events. The feeder fails a mode-`none` run that finds any other bus subscription taking
-  domain events. 0.12.0 calls `env.debug(...)` at every queue
+- **Observers.** Both versions log at their default level (INFO: `SimLogger` in 0.12.0, the default log sinks on
+  the branch, which subscribe to `log` events only). The modes differ in the shop floor's default EMA metrics:
+
+  | Mode | Shop floor metrics | Domain-event subscribers on the branch | Gated |
+  |---|---|---|---|
+  | `none` | disabled in both versions (`metrics_collector=None` in 0.12.0, which skips the per-job `record` call; `default_metrics=False` on the branch) | none; the feeder fails a run that finds one | yes |
+  | `default` | each version's default: `EMAMetricsCollector` called at each completion in 0.12.0, `EMACollector` on the branch, a bus subscriber of `job.finished` (so that event is built) | the default `EMACollector` only | no; budget proposed at Task 25 with `default_logging` and `kpi` |
+  | `digest`, `full` | disabled, as in `none` | the digest or the trace recorder | no (ratio against `none`) |
+
+  0.12.0 calls `env.debug(...)` at every queue
   entry, release, processing start, PSP entry and exit and shop-floor step, building the f-string and keyword
   arguments before the level check; the branch replaced these calls with events guarded by `env.wants`. That
   difference is part of the comparison (the G3 report quantifies it separately).
@@ -116,7 +120,8 @@ Job `bench` in `.github/workflows/ci.yml` runs on CPython 3.14 and PyPy 3.11. It
 branch, `simulatte==0.12.0` (with the branch's dependency versions as constraints) and a stripped copy of that
 release (`strip_debug.py` on the installed package, run with `PYTHONPATH`; the job prints `simulatte.__file__` and
 fails unless the stripped copy is the one imported). It runs mode `none` on both CI workloads in all three and
-compares the branch with each baseline. The budgets are job-level environment variables in `ci.yml` (decision D55):
+compares the branch with each baseline. Mode `default` runs on the u90 workload in all three and is reported against
+each baseline without a budget. The budgets are job-level environment variables in `ci.yml` (decision D55):
 
 | Baseline | Budget | Noise, CPython | Noise, PyPy | Limit, CPython | Limit, PyPy |
 |---|---|---|---|---|---|
@@ -125,5 +130,6 @@ compares the branch with each baseline. The budgets are job-level environment va
 
 The job fails when the median mode-`none` overhead exceeds `budget + noise` against either baseline; both
 comparisons always run. The step summary has one row per baseline, workload and interpreter, with the limit and
-its two parts. Modes `digest` and `full` (against the branch's `none`), the sampling benchmark and a details table
+its two parts. Mode `default` (against each baseline's `default`), modes `digest` and `full` (against the branch's
+`none`), the sampling benchmark and a details table
 are written to the step summary without gating, and every result JSON is uploaded as an artifact.

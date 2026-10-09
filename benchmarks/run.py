@@ -12,7 +12,8 @@ Usage::
         --warmup 2 --repeat 10 --json none.json
 
 Run it with the interpreter of the environment to measure (``simulatte==0.12.0`` or the branch); modes
-``digest`` and ``full`` need the branch.
+``digest`` and ``full`` need the branch. Mode ``none`` runs without the shop floor's default metrics and without
+any domain-event subscriber; mode ``default`` keeps each version's default metrics (see ``feeder.py``).
 """
 
 from __future__ import annotations

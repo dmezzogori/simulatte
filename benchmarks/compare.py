@@ -3,7 +3,8 @@
 The overhead is ``median(head) / median(base) - 1``. When both results are mode ``none`` (the no-subscriber
 comparison against ``simulatte==0.12.0``), the command exits with status 1 if the overhead exceeds
 ``--budget + --noise`` (the Limit column shows the sum and its parts); ``--budget`` has no default and is
-required for such a pair. Every other pair (``digest`` or ``full`` against ``none``, sampling) is reported only.
+required for such a pair. Every other pair (``default`` against ``default``, ``digest`` or ``full`` against
+``none``, sampling) is reported only.
 Both results must come from the same workload, interpreter and job/operation counts (status 2 otherwise).
 
 Usage::

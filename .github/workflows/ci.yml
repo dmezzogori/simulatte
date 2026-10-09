@@ -130,8 +130,8 @@ jobs:
   # user-facing promise) and a copy of it without its env.debug calls (benchmarks/strip_debug.py), which isolates
   # what SP1 itself added on the unobserved path. Only mode `none` can fail the job: when the median overhead
   # against the released baseline exceeds BUDGET_RELEASED + NOISE_RELEASED, or against the stripped one
-  # BUDGET_STRIPPED + NOISE_STRIPPED; digest/full ratios, trace size, seeks, memory and sampling are reported in
-  # the step summary. Expected duration (estimated from local timings): about 7 minutes on CPython and 11 on PyPy,
+  # BUDGET_STRIPPED + NOISE_STRIPPED; mode default (each version's default shop-floor metrics, budget proposed at
+  # Task 25), digest/full ratios, trace size, seeks, memory and sampling are reported in the step summary. Expected duration (estimated from local timings): about 7 minutes on CPython and 11 on PyPy,
   # setup included.
   bench:
     name: bench (${{ matrix.python }})
@@ -216,13 +216,22 @@ jobs:
           done
           exit $status
 
-      - name: Modes digest and full, sampling (reported only)
+      - name: Modes default, digest and full, sampling (reported only)
         if: success() || failure()
         working-directory: benchmarks
         run: |
           w=jobshop10-u90-5k
-          echo "### Recording modes and sampling, ${{ matrix.python }} (not gated)" >> "$GITHUB_STEP_SUMMARY"
-          header=""
+          echo "### Default metrics, recording modes and sampling, ${{ matrix.python }} (not gated)" >> "$GITHUB_STEP_SUMMARY"
+          # Mode default: each version's default shop-floor metrics (budget proposed at Task 25, not gated yet).
+          /tmp/base/bin/python run.py --mode default --workload workloads/$w.json $RUN --json /tmp/out/base-default-$w.json
+          PYTHONPATH=/tmp/stripped /tmp/base/bin/python run.py --mode default --workload workloads/$w.json $RUN \
+            --label "0.12.0 without env.debug calls" --json /tmp/out/stripped-default-$w.json
+          /tmp/head/bin/python run.py --mode default --workload workloads/$w.json $RUN --json /tmp/out/head-default-$w.json
+          /tmp/head/bin/python compare.py /tmp/out/base-default-$w.json /tmp/out/head-default-$w.json \
+            --summary "$GITHUB_STEP_SUMMARY"
+          /tmp/head/bin/python compare.py /tmp/out/stripped-default-$w.json /tmp/out/head-default-$w.json \
+            --summary "$GITHUB_STEP_SUMMARY" --no-header
+          header=--no-header
           for mode in digest full; do
             /tmp/head/bin/python run.py --mode $mode --workload workloads/$w.json $RUN --json /tmp/out/head-$mode-$w.json
             /tmp/head/bin/python compare.py /tmp/out/head-none-$w.json /tmp/out/head-$mode-$w.json \

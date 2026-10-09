@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, TypedDict
 
+from simulatte.collectors import CurrentWorkloadCollector, ServerTimeSeries
 from simulatte.distributions import (
     Distribution,
     Exponential,
@@ -33,7 +34,6 @@ from simulatte.distributions import (
 )
 from simulatte.router import Router
 from simulatte.server import Server
-from simulatte.collectors import CurrentWorkloadCollector, ServerTimeSeries
 from simulatte.shopfloor import ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover

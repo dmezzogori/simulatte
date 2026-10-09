@@ -808,6 +808,15 @@ class ShopFloor(Entity, kind="shopfloor"):
         self.total_time_in_system += job.time_in_system
         if env.wants(JobFinished):
             job_id = job.id
+            # Built directly, without DeltaBuilder: the default EMACollector makes this event part of every run with
+            # a shop floor. The values are already wire values (ids, a finite time, a count), so freeze() is a no-op.
+            deltas = Deltas(
+                (
+                    ("set", job_id, "location", "done"),
+                    ("set", job_id, "finished_at", float(finished_at)),
+                    ("set", self.id, "jobs_in_system", len(self.jobs)),
+                )
+            )
             env.emit(
                 JobFinished(
                     job=job_id,
@@ -815,11 +824,7 @@ class ShopFloor(Entity, kind="shopfloor"):
                     makespan=float(job.makespan),
                     lateness=float(job.lateness),
                     total_queue_time=float(job.total_queue_time),
-                    deltas=Deltas.build()
-                    .set(job_id, "location", "done")
-                    .set(job_id, "finished_at", float(finished_at))
-                    .set(self.id, "jobs_in_system", len(self.jobs))
-                    .done(),
+                    deltas=deltas,
                 )
             )
 
