@@ -96,3 +96,31 @@ jobs:
         env:
           MPLBACKEND: Agg
         run: uv run --python pypy-3.11 pytest tests/core tests/intralogistics -o addopts="-q -p no:cacheprovider"
+
+  # TypeScript conformance reader (gate G2): the studio trace package reads the committed trace fixtures
+  # and must reproduce the states the Python reader wrote into their expected JSON.
+  trace-ts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm version comes from studio/package.json)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm -C studio install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm -C studio typecheck
+
+      - name: Run tests
+        run: pnpm -C studio test
