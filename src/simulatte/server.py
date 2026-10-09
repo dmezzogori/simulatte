@@ -427,7 +427,7 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         When the relative order changes, emits ``server.queue_reordered`` with the minimal set of ``move``
         operations.
         """
-        queue_list = cast(list, self.queue)
+        queue_list: list[Any] = self.queue  # ty: ignore[invalid-assignment]  # a SortedQueue; no cast() call here
         for req in queue_list:
             fresh_priority = req.job.priority(req.server)
             req.key = (fresh_priority, req.time, not req.preempt)
@@ -509,7 +509,7 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
             location = self._server_location
             wants = env.wants(JobGranted)
             for index in range(before, len(users)):
-                job = cast(ServerPriorityRequest, users[index]).job
+                job = users[index].job  # ty: ignore[unresolved-attribute]  # a ServerPriorityRequest; no cast() call
                 job._location = location
                 if wants:
                     job_id = job.id
