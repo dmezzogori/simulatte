@@ -264,7 +264,6 @@ class TestBatteryManagement:
         assert order.status == OrderStatus.COMPLETED
         assert agv.state == AGVState.IDLE
         # The AGV must have spent time in the CHARGING state
-        agv._flush_current_state()
         assert agv.state_durations[AGVState.CHARGING] > 0
 
 

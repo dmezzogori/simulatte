@@ -247,33 +247,36 @@ class AGV(Entity, kind="agv"):
         total_volume = sku.volume * quantity
         return total_weight <= self.agv_type.weight_capacity and total_volume <= self.agv_type.volume_capacity
 
+    def _durations_now(self) -> dict[AGVState, float]:
+        """``state_durations`` plus the open interval of the current state, as a copy.
+
+        Pure: reads ``env.now`` and never writes; only :meth:`transition_to` writes the accounting.
+        """
+        durations = dict(self.state_durations)
+        durations[self._state] += self.env.now - self._state_entered_at
+        return durations
+
     def utilization(self) -> float:
-        self._flush_current_state()
-        total = math.fsum(self.state_durations.values())
+        durations = self._durations_now()
+        total = math.fsum(durations.values())
         if total == 0:
             return 0.0
-        utilized = math.fsum(self.state_durations[s] for s in _UTILIZED_STATES)
+        utilized = math.fsum(durations[s] for s in _UTILIZED_STATES)
         return utilized / total
 
     def state_percentage(self, state: AGVState) -> float:
-        self._flush_current_state()
-        total = math.fsum(self.state_durations.values())
+        durations = self._durations_now()
+        total = math.fsum(durations.values())
         if total == 0:
             return 0.0
-        return self.state_durations[state] / total
+        return durations[state] / total
 
     def time_allocation(self) -> dict[AGVState, float]:
-        self._flush_current_state()
-        total = math.fsum(self.state_durations.values())
+        durations = self._durations_now()
+        total = math.fsum(durations.values())
         if total == 0:
             return {s: 0.0 for s in AGVState}
-        return {s: self.state_durations[s] / total for s in AGVState}
-
-    def _flush_current_state(self) -> None:
-        elapsed = self.env.now - self._state_entered_at
-        if elapsed > 0:
-            self.state_durations[self._state] += elapsed
-            self._state_entered_at = self.env.now
+        return {s: durations[s] / total for s in AGVState}
 
     def __repr__(self) -> str:
         return f"AGV(id={self.agv_id!r}, state={self._state.name})"
