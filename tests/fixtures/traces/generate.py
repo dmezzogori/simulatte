@@ -4,8 +4,9 @@
 :data:`SEEDS` a ``<name>.simtrace`` and a ``<name>.expected.json`` holding the canonical state at every chunk
 boundary and at sampled cursors, computed by the reference Python reader. They are reproducible: explicit seeds,
 explicit provenance, fixed volatile metadata and event-count chunk limits only (no byte or latency limits).
-Their bytes are not stable across machines (the manifest records the platform and the zlib output may vary), so
-``tests/core/test_trace_fixtures.py`` compares :func:`canonical_content`, not bytes.
+Every fixture is RNG-free (constant samplers), so canonical content is the same on every interpreter and
+platform. Their bytes are not stable across machines (the manifest records the platform and the zlib output may
+vary), so ``tests/core/test_trace_fixtures.py`` compares :func:`canonical_content`, not bytes.
 
 The *frozen* fixtures in ``frozen/`` are made once by ``make_frozen.py`` and never regenerated.
 
@@ -31,7 +32,8 @@ from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 from simulatte.events import Deltas, DomainEvent, event_type
 from simulatte.provenance import Provenance, VolatileMetadata
-from simulatte.scenario import Scenario
+from simulatte.distributions import Deterministic
+from simulatte.scenario import Scenario, ShopType
 from simulatte.trace import ChunkLimits, Trace, TraceRecorder
 
 HERE = Path(__file__).resolve().parent
@@ -84,13 +86,34 @@ def record(
     return env
 
 
+def deterministic_scenario(*, service_time: float, due_date_offset: float) -> Scenario:
+    """A three-machine pure flow shop with constant inter-arrival time (1.0), service time and due-date offset.
+
+    Nothing is sampled, so the trace content is the same on every interpreter and platform: CPython and PyPy draw
+    different samples from the same seed and libm may differ in the last bit, neither of which touches constant
+    samplers.
+    """
+    return Scenario.single(
+        service_time=Deterministic(service_time),
+        due_date_offset=Deterministic(due_date_offset),
+        shop_type=ShopType.PFS,
+        n_servers=3,
+        arrival_rate=1.0,
+        arrival_process=lambda rate: Deterministic(1.0 / rate),
+    )
+
+
 def build_shop_small(env: Environment) -> None:
-    build_immediate_release_system(env=env, scenario=Scenario(n_servers=3))
+    build_immediate_release_system(env=env, scenario=deterministic_scenario(service_time=1.5, due_date_offset=12.0))
 
 
 def build_lumscor(env: Environment) -> None:
     build_lumscor_system(
-        env=env, scenario=Scenario(n_servers=3), check_timeout=5.0, wl_norm_level=6.0, allowance_factor=2
+        env=env,
+        scenario=deterministic_scenario(service_time=2.0, due_date_offset=20.0),
+        check_timeout=5.0,
+        wl_norm_level=6.0,
+        allowance_factor=2,
     )
 
 

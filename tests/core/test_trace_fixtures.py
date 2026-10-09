@@ -36,6 +36,10 @@ def _expected(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
 def test_generated_fixtures_canonically_up_to_date(tmp_path: Path) -> None:
     # A fresh interpreter: the fixtures record the registered entity kinds, which other tests extend.
     subprocess.run([sys.executable, str(TRACES / "generate.py"), "--out", str(tmp_path)], check=True, timeout=120)
@@ -48,9 +52,14 @@ def test_generated_fixtures_canonically_up_to_date(tmp_path: Path) -> None:
         p.name for p in GENERATED.glob("*.expected.json")
     )
     for name in committed:
-        assert generate.canonical_content(tmp_path / name) == generate.canonical_content(GENERATED / name), name
+        # Text, not parsed values: in Python -0.0 == 0.0 and 1 == 1.0, so only the canonical text can tell a reader
+        # that collapses them from one that does not (ruling R12). The generated fixtures are RNG-free, so their
+        # content does not depend on the interpreter or the platform.
+        fresh = generate.dump(generate.canonical_content(tmp_path / name))
+        assert fresh == generate.dump(generate.canonical_content(GENERATED / name)), name
         expected = name.removesuffix(".simtrace") + ".expected.json"
-        assert _expected(tmp_path / expected) == _expected(GENERATED / expected), expected
+        assert _text(tmp_path / expected) == _text(GENERATED / expected), expected
+        assert generate.dump(generate.expected_document(GENERATED / name)) == _text(GENERATED / expected), expected
 
 
 def test_generated_fixtures_use_explicit_seeds() -> None:
@@ -75,7 +84,8 @@ def test_frozen_fixtures_match_the_reference_reader() -> None:
     } <= set(names)
     for name in names:
         document = generate.expected_document(FROZEN / name)
-        assert document == _expected(FROZEN / (name.removesuffix(".simtrace") + ".expected.json")), name
+        expected = FROZEN / (name.removesuffix(".simtrace") + ".expected.json")
+        assert generate.dump(document) == _text(expected), name  # text: -0.0 and 1.0 must not collapse
 
 
 def test_frozen_fixtures_cover_the_hard_cases() -> None:
@@ -87,7 +97,3 @@ def test_frozen_fixtures_cover_the_hard_cases() -> None:
     hostile = json.dumps(_expected(FROZEN / "hostile_keys.expected.json"))
     for key in ("__proto__", "constructor", "prototype", "~x", "~__proto__"):
         assert json.dumps(key) + ":" in hostile, key
-
-    numbers = json.dumps(_expected(FROZEN / "nonfinite.expected.json"))
-    for text in ('"+inf"', '"-inf"', '"nan"', "-0.0"):
-        assert text in numbers, text
