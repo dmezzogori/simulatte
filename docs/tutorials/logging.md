@@ -363,6 +363,11 @@ class MyServer(Server):
         )
 ```
 
+The keyword arguments become the `extra` of the record. With `Environment(debug=True)` they must be wire values
+(numbers, strings, booleans, `None`, lists and string-keyed maps); anything else raises, so a log call cannot put
+an arbitrary object into a trace or a digest.
+
 ## Next
 
+- [Events, traces and KPIs](../guides/events-and-traces.md)
 - [Troubleshooting](../guides/troubleshooting.md)

@@ -108,6 +108,8 @@ print(metrics.ema_makespan, metrics.ema_total_queue_time)
 
 It exposes `ema_makespan`, `ema_tardy_jobs`, `ema_early_jobs`, `ema_in_window_jobs`, `ema_time_in_psp`, `ema_time_in_shopfloor` and `ema_total_queue_time`.
 
+The EMAs split jobs by the due-date window (±7 time units): `ema_tardy_jobs` counts late jobs *outside* the window and `ema_in_window_jobs` those inside it, so a job that finishes a little late is not "tardy" here. `ShopFloorKPIs` (below) defines tardy as any positive lateness.
+
 ### Disable the default metrics
 
 ```python

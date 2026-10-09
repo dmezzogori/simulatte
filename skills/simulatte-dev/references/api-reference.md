@@ -11,28 +11,87 @@ from simulatte.environment import Environment
 
 Environment(
     *,
-    log_file: str | Path | None = None,        # Log output path (default: stderr)
+    seed: int | None = None,                    # 0 <= seed < 2**63; None draws from os.urandom (read env.seed)
+    time_unit: str | None = None,               # Recorded in the manifest
+    provenance: Provenance | None = None,       # Hashes of model/source/inputs/dependencies
+    debug: bool = False,                        # Validate events and state schemas (slower)
+    log_level: str = "INFO",                    # Per environment, applies to the default sinks
+    log_file: str | Path | None = None,         # Log output path (default: stderr)
     log_format: Literal["text", "json"] = "text",
-    log_history_size: int = 1000,               # In-memory ring buffer capacity
+    log_history_size: int = 1000,               # In-memory history capacity
     log_db_path: str | Path | None = None,      # SQLite path for persistent logs
 )
 ```
 
-Extends `simpy.Environment`. Supports context manager (`with Environment() as env:`).
+Extends `simpy.Environment`. Supports context manager (`with Environment() as env:`),
+which closes trace recorders and log sinks on exit.
+
+**Members:** `env.seed`, `env.rng(name)` (named `random.Random` stream),
+`env.bind(value, *, kind, stream, owner)`, `env.bus` (`subscribe(handler, types)`),
+`env.emit(event)`, `env.wants(EventClass)`, `env.entities` (registry),
+`env.activate()` / `env.activated` / `env.on_activate(fn)`, `env.configure_kpis(warmup=)`,
+`env.collectors`, `env.enable_digest()`, `env.fingerprint()`, `env.manifest()`,
+`env.opaque_sampler_owners`, `env.sinks`, `env.log_history`, `env.log_db`, `env.close()`.
+`env.run()` activates on first use; call `env.activate()` before driving manually
+with `env.step()`.
 
 **Logging methods:** `env.debug(msg, component=..., **extra)`, `.info()`,
-`.warning()`, `.error()`.
+`.warning()`, `.error()`. They emit `log` events written by the sinks of
+`simulatte.logsinks`. There is no `env.logger`.
 
 **Log querying:**
 ```python
-env.log_history.query(level="ERROR", component="Server", since=100.0, until=500.0)
+env.log_history.query(level="ERROR", component="Server", since=100.0)
+env.log_db.query(...)          # needs log_db_path; also env.log_db.execute_sql(...)
 ```
 
-**Component filtering:**
+**Component filtering** (per sink):
 ```python
-env.logger.disable_component("Server")
-env.logger.enable_component("ShopFloor")
+for sink in env.sinks:
+    sink.disable_component("Server")
+    sink.enable_component("ShopFloor")
 ```
+
+## Events, traces and KPIs
+
+```python
+from simulatte import (
+    Collector, DomainEvent, Environment, Event, KPI, ObserverEvent, Provenance, Runner, Trace, TraceRecorder,
+)
+from simulatte.events import event_type
+from simulatte.trace import ChunkLimits, ReaderLimits, TraceCorrupted
+from simulatte.collectors import (
+    EMACollector, ShopFloorTimeSeries, CurrentWorkloadCollector, ServerTimeSeries, ShopFloorKPIs,
+)
+```
+
+```python
+env.bus.subscribe(handler, (JobFinished,))        # or "*" (domain events) / "**" (all); returns Subscription
+if env.wants(MyEvent): env.emit(MyEvent(...))    # guard pattern; payload from data you already hold
+
+TraceRecorder(env, path, *, level="full" | "kpi", chunk_limits=None)   # before activation
+trace = Trace.open(path, *, limits=None)
+trace.state_at((t, seq)); trace.events(start, end); trace.kpis(); trace.kpi_series()
+trace.manifest; trace.fingerprint; trace.outcome; trace.truncated; trace.cursor_range
+trace.check()      # raises TraceCorrupted on damage
+trace.verify()     # True / False / "not_verifiable"
+```
+
+**Catalog** (`entity.created/retired`, `psp.entered/exited`, `shopfloor.entered`,
+`operation.started/completed`, `shopfloor.wip_updated`, `job.finished`, `job.queued/granted/queue_left/released`,
+`server.queue_reordered`, `policy.decision`, and the intralogistics events): classes live in
+`simulatte.shopfloor`, `simulatte.server`, `simulatte.psp`, `simulatte.policies`,
+`simulatte.intralogistics.events`. Observer events: `log`, `kpi.sample`.
+
+**Collector** (`simulatte.kpi`): subclass with class attributes `kpis: tuple[KPI, ...]`,
+`subscribes`, `scope_field`; implement `on_event(event)`; call `self.observe(kpi, value)` for
+scalar aggregates (mean, sum, count, min, max) or `self.sample(kpi, value)` for a series KPI;
+attach with `collector.attach(env)`. Results: `collector.scalars()` keyed
+`"<scope id>/<kpi>"`, merged in `env.fingerprint().kpis`.
+
+**Entity ids**: `job-<n>`, `server-<n>` (or `name=`), builders use `wc-<i>`, `shopfloor`,
+`router`, `psp` (+ `prefix=`). Names must not contain `/` or NUL and must not match
+`<kind>-<n>`.
 
 ## ShopFloor
 
@@ -45,19 +104,18 @@ ShopFloor(
     ema_alpha: float = 0.01,                    # EMA smoothing (0, 1]
     material_coordinator=None,                  # Experimental, skip
     wip_strategy: WIPStrategy | None = None,    # Default: StandardWIPStrategy
-    metrics_collector=_DEFAULT,                  # Default: EMAMetricsCollector
-    collect_time_series: bool = False,           # Auto-create DefaultTimeSeriesCollector
-    time_series_collector: TimeSeriesCollector | None = None,
+    default_metrics: bool = True,                # Attach EMACollector as shopfloor.metrics
     on_before_operation: OperationHook | list[OperationHook] | None = None,
     on_after_operation: OperationHook | list[OperationHook] | None = None,
     on_job_finished: Callable | list[Callable] | None = None,
+    name: str | None = None,                     # Entity id (default shopfloor-<n>)
+    label: str | None = None,
 )
 ```
 
 **Key methods:**
 - `shopfloor.add(job)` — release a job onto the shopfloor
 - `shopfloor.set_wip_strategy(strategy)` — replace WIP strategy at runtime
-- `shopfloor.set_metrics_collector(collector)` — replace or disable (None) metrics
 - `shopfloor.on_before_operation(hook)` — register hook post-construction
 - `shopfloor.on_after_operation(hook)` — register hook post-construction
 - `shopfloor.on_job_finished(callback)` — register callback post-construction
@@ -65,7 +123,8 @@ ShopFloor(
 - `shopfloor.attach_dispatcher(dispatcher, *, psp=None)` — wire a dispatcher object's methods
 
 **Key attributes:**
-- `shopfloor.jobs: set[ProductionJob]` — currently active jobs
+- `shopfloor.jobs: dict[ProductionJob, None]` — currently active jobs (insertion ordered; use `jobs[job] = None` / `del jobs[job]`)
+- `shopfloor.metrics: EMACollector | None` — default EMA collector (`ema_*` attributes)
 - `shopfloor.jobs_done: list[ProductionJob]` — completed jobs (in order)
 - `shopfloor.wip: dict[Server, float]` — current WIP per server
 - `shopfloor.average_time_in_system: float`
@@ -90,8 +149,9 @@ Server(
     env: Environment,
     capacity: int,                              # Concurrent job slots
     shopfloor: ShopFloor | None = None,         # Auto-registers if provided
-    collect_time_series: bool = False,           # Queue length & utilization plots
     retain_job_history: bool = False,            # Keep list of processed jobs
+    name: str | None = None,                     # Entity id (default server-<n>)
+    label: str | None = None,
 )
 ```
 
@@ -110,8 +170,7 @@ Extends `simpy.PriorityResource`.
 
 **Methods:**
 - `server.sort_queue()` — re-sort queue by priority keys
-- `server.plot_qt()` — queue length over time (requires `collect_time_series=True`)
-- `server.plot_ut()` — utilization over time (requires `collect_time_series=True`)
+- Queue length and utilization over time: `ServerTimeSeries(server).attach(env)` gives `qt`, `ut`, `plot_qt()`, `plot_ut()`
 
 ## ProductionJob
 
@@ -170,17 +229,24 @@ Router(
     shopfloor: ShopFloor,
     servers: Sequence[Server],                  # All available servers
     psp: PreShopPool | None,                    # None = push, set = pull
-    inter_arrival_distribution: Callable[[], float],
-    sku_distributions: dict[str, float],        # SKU -> probability weight
-    sku_routings: dict[str, Callable[[], Sequence[Server]]],
-    sku_service_times: dict[str, dict[Server, Callable[[], float]]],
-    due_date_offset_distribution: dict[str, Callable[[], float]],
+    inter_arrival_distribution: ScalarSource,   # Distribution description, number or callable
+    sku_distributions: Mapping[str, float],     # SKU -> probability weight
+    sku_routings: Mapping[str, RoutingSource],  # Routing description, fixed servers or callable
+    sku_service_times: Mapping[str, Mapping[Server, ScalarSource]],
+    due_date_offset_distribution: Mapping[str, ScalarSource],
     priority_policies: Callable[[ProductionJob, Server], float] | None = None,
+    name: str | None = None,                    # Entity id (default router-<n>)
+    label: str | None = None,
 )
 ```
 
 The Router auto-starts as a SimPy process on instantiation. It runs forever,
-generating jobs at intervals drawn from `inter_arrival_distribution`.
+generating jobs at intervals drawn from `inter_arrival_distribution`. Distribution
+descriptions, numbers and routing descriptions are *managed*: they are bound to the named
+streams `<router>/interarrival`, `<router>/sku`, `<router>/routing/<sku>`,
+`<router>/service/<sku>/<server>` and `<router>/due/<sku>` of `env.seed`. A plain callable
+is *opaque* (accepted, not reproducible, makes the manifest incomplete). Changing the
+arguments after construction has no effect.
 
 **Configuration structure for `sku_service_times`:**
 ```python
@@ -190,8 +256,8 @@ generating jobs at intervals drawn from `inter_arrival_distribution`.
         server2: TruncatedErlang(rate=2.0, shape=2, max_value=4.0),
     },
     "SKU_B": {
-        server1: lambda: random.uniform(1.0, 3.0),
-        server2: lambda: random.expovariate(0.5),
+        server1: Uniform(1.0, 3.0),
+        server2: Exponential(rate=0.5),
     },
 }
 ```
@@ -204,14 +270,14 @@ generating jobs at intervals drawn from `inter_arrival_distribution`.
 ```python
 from simulatte.psp import PreShopPool
 
-PreShopPool(*, env: Environment, shopfloor: ShopFloor)
+PreShopPool(*, env: Environment, shopfloor: ShopFloor, name: str | None = None, label: str | None = None)
 ```
 
 Pure container — no built-in release logic. Release policies are external.
 
 **Methods:**
 - `psp.add(job)` — add job, triggers `psp.new_job` event
-- `psp.remove(job=None)` — remove specific job or FIFO (oldest)
+- `psp.remove(job=None, *, reason="removed")` — remove specific job or FIFO (oldest); `reason` (`released`, `postponed`, `removed`) is recorded in the `psp.exited` event
 - `psp.release(job)` — remove from PSP and add to shopfloor
 - `psp.jobs_starting_at(server) -> list[ProductionJob]` — jobs whose routing starts at server
 - `psp.on_arrival(callback)` — callback `(job, psp) -> None`, fires synchronously on add
@@ -392,37 +458,34 @@ class MyStrategy:
 Built-in: `StandardWIPStrategy` (full processing times), `CorrectedWIPStrategy`
 (position-discounted: 1/1, 1/2, 1/3, ...).
 
-### MetricsCollector
+### Collector
 
 ```python
-class MyCollector:
-    def record(self, job: ProductionJob) -> None: ...
+from typing import ClassVar
+from simulatte.kpi import KPI, Collector
+from simulatte.shopfloor import JobFinished
+
+class MyCollector(Collector):
+    kpis: ClassVar = (KPI("max_lateness", unit="time", aggregation="max"),)
+    subscribes: ClassVar = (JobFinished,)
+    scope_field: ClassVar = "shopfloor"           # only events of the owner
+
+    def on_event(self, event: JobFinished) -> None:
+        self.observe("max_lateness", event.lateness)
+
+MyCollector(shopfloor).attach(env)
 ```
 
-Called when each job completes. Built-in: `EMAMetricsCollector(alpha=0.01)`.
-
-### TimeSeriesCollector
-
-```python
-class MyTSCollector:
-    def on_job_entered(self, shopfloor, job) -> None: ...
-    def on_operation_completed(self, shopfloor, job, server, op_index) -> None: ...
-    def on_job_finished(self, shopfloor, job) -> None: ...
-```
-
-Built-in: `DefaultTimeSeriesCollector` (WIP, job count, throughput, lateness
-with matplotlib plots), `CurrentWorkLoadCollector` (true remaining work).
+Collectors replace the 0.12 `MetricsCollector` / `TimeSeriesCollector` protocols. Built-in
+(`simulatte.collectors`): `EMACollector(shopfloor, alpha=0.01)` (the default `shopfloor.metrics`),
+`ShopFloorTimeSeries(shopfloor)` (`wip_ts`, `job_count_ts`, `throughput_ts`, `lateness_ts`, `plot_*`),
+`CurrentWorkloadCollector(shopfloor)` (true remaining work), `ServerTimeSeries(server)` (`qt`, `ut`,
+`plot_qt`, `plot_ut`) and `ShopFloorKPIs(shopfloor)` (window-aware KPIs).
 
 ## WIP Strategy Classes
 
 ```python
-from simulatte.shopfloor import (
-    StandardWIPStrategy,
-    CorrectedWIPStrategy,
-    EMAMetricsCollector,
-    DefaultTimeSeriesCollector,
-    CurrentWorkLoadCollector,
-)
+from simulatte.shopfloor import StandardWIPStrategy, CorrectedWIPStrategy
 ```
 
 ## Scenario
@@ -497,7 +560,7 @@ from simulatte.builders import (
 )
 ```
 
-Every builder takes `scenario: Scenario = Scenario()`. Pass a preset or a custom
+Every builder takes `scenario: Scenario | None = None` (a fresh `Scenario()`) and `prefix: str = ""` (prefixes every entity id). Pass a preset or a custom
 `Scenario` to vary the shop environment independently of the control method.
 
 ### build_immediate_release_system
@@ -506,7 +569,8 @@ Every builder takes `scenario: Scenario = Scenario()`. Pass a preset or a custom
 build_immediate_release_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,       # None: a fresh Scenario()
+    prefix: str = "",                         # Entity id prefix
     priority_policies: Callable | None = None,
     collect_workload: bool = False,
     collect_time_series: bool = False,
@@ -520,7 +584,8 @@ build_immediate_release_system(
 build_lumscor_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,       # None: a fresh Scenario()
+    prefix: str = "",                         # Entity id prefix
     check_timeout: float,                       # Periodic release interval
     wl_norm_level: float,                       # Workload norm per server
     allowance_factor: int,                      # Buffer per server for due dates
@@ -534,7 +599,8 @@ build_lumscor_system(
 build_slar_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,       # None: a fresh Scenario()
+    prefix: str = "",                         # Entity id prefix
     allowance_factor: float,                    # Slack allowance per operation
     collect_workload: bool = False,
 ) -> BuiltSystem[Slar]  # (psp, servers, shopfloor, router, slar)
@@ -546,7 +612,8 @@ build_slar_system(
 build_slar_limit_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,       # None: a fresh Scenario()
+    prefix: str = "",                         # Entity id prefix
     allowance_factor: float,                    # Slack allowance per operation
     wl_norm_level: float,                       # Workload norm per server
     collect_workload: bool = False,
@@ -561,7 +628,8 @@ Requires `CorrectedWIPStrategy` on the shopfloor (set automatically by the build
 build_focus_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,       # None: a fresh Scenario()
+    prefix: str = "",                         # Entity id prefix
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     collect_workload: bool = False,
 ) -> BuiltSystem[None]  # (None, servers, shopfloor, router, None)
@@ -575,7 +643,8 @@ Immediate-release push system whose queue ordering is FOCUS (via `FocusPriorityR
 build_draco_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,       # None: a fresh Scenario()
+    prefix: str = "",                         # Entity id prefix
     wip_target: int,                                  # tau (job count)
     loop_target: int,                                 # epsilon (scalar; use Draco() for per-pair)
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
@@ -592,7 +661,8 @@ Non-hierarchical release+dispatch. Wires `Draco.priority_policy`, `shopfloor.on_
 build_conwip_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,       # None: a fresh Scenario()
+    prefix: str = "",                         # Entity id prefix
     wip_cap: int,                               # max jobs on the floor at once
     collect_workload: bool = False,
 ) -> BuiltSystem[ConWIP]  # (psp, servers, shopfloor, router, conwip)
@@ -608,7 +678,8 @@ self-wires release on PSP arrival and on every completion.
 build_continuous_release_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,       # None: a fresh Scenario()
+    prefix: str = "",                         # Entity id prefix
     wl_norm_level: float,                       # corrected workload norm per server
     allowance_factor: int = 2,                  # buffer per server for due-date planning
     collect_workload: bool = False,
@@ -624,7 +695,8 @@ sets `CorrectedWIPStrategy` on the shopfloor and self-wires its triggers.
 build_starvation_avoidance_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,       # None: a fresh Scenario()
+    prefix: str = "",                         # Entity id prefix
     collect_workload: bool = False,
 ) -> BuiltSystem[None]  # (psp, servers, shopfloor, router, None)
 ```
@@ -797,14 +869,15 @@ Runner(
     n_jobs: int | None = None,                  # Parallel workers (default: CPU count)
     log_dir: Path | None = None,                # Per-run log files
     log_format: Literal["text", "json"] = "text",
+    log_level: str = "INFO",                    # Level of the per-run log files
 )
 ```
 
 **Method:** `runner.run(until: float) -> list[T]` — returns extracted results
 in seed order, one entry per seed.
 
-Each run creates its own `Environment` (with optional per-run log file),
-seeds `random.seed(seed)`, calls `builder(env=env)`, runs `env.run(until=until)`,
+Each run creates its own `Environment(seed=seed)` (with optional per-run log file), does not
+touch Python's global `random` module, calls `builder(env=env)`, runs `env.run(until=until)`,
 and extracts results via `extract_fn(system)`.
 
 ## SimulatteEnv (Gymnasium Wrapper)

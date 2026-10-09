@@ -32,7 +32,7 @@ class LayoutGraph:
     def __init__(self, nodes: Iterable[Node], arcs: Iterable[Arc]) -> None: ...
 
     @property
-    def nodes(self) -> frozenset[Node]: ...
+    def nodes(self) -> tuple[Node, ...]: ...   # insertion order
     def neighbors(self, node: Node) -> list[Node]: ...
     def arc_between(self, source: Node, target: Node) -> Arc | None: ...
     def distance(self, source: Node, target: Node) -> float: ...  # Euclidean, requires arc
@@ -238,6 +238,7 @@ class OrderStatus(Enum):
     COMPLETED = auto()
     FAILED = auto()
     CANCELLED = auto()
+    PENDING_ACTIVATION = auto()   # submitted before the environment activated
 ```
 
 ### TransferOrder
@@ -250,7 +251,7 @@ class TransferOrder:
     origin: Warehouse
     destination: Warehouse
     created_at: float
-    id: str = field(default_factory=uuid4)
+    id: str = field(default=None, init=False)   # None until attached; then "order-<n>"
     due_date: float | None = None
     priority: float = 0.0
     status: OrderStatus = OrderStatus.PENDING
@@ -276,6 +277,9 @@ Creates a `simpy.Resource` per node. `check_path` rejects paths sharing
 future nodes with other AGVs' intents — this effectively serializes
 traffic on shared paths. Use only with layouts that have true parallel routes.
 
+`place_now(agv, node)` (renamed from `place`) reserves the node for an AGV at activation and
+requires an immediate grant; a conflict raises. `TrafficManager` is a runtime-checkable protocol.
+
 ### FreeTrafficManager
 
 No-op. All paths are feasible, no resource acquisition. Default when
@@ -295,17 +299,19 @@ class FleetCoordinator:
         dispatch_strategy: DispatchStrategy | None = None,    # default: NearestIdleStrategy
         repositioning_policy: RepositioningPolicy | None = None,  # default: StayInPlace
         load_recovery_strategy: LoadRecoveryStrategy | None = None, # default: ReturnToOrigin
-        order_metrics_collector: OrderMetricsCollector | None = None, # default: EMAOrderMetrics
-        time_series_collector: IntralogisticsTimeSeriesCollector | None = None,
+        default_metrics: bool = True,                         # attach OrderEMACollector as self.metrics
         on_low_battery: Callable[[AGV], ProcessGenerator | None] | None = None,
         max_dispatch_retries: int = 10,
         pending_retry_delay: float = 1.0,
+        name: str | None = None,                              # entity id (default fleet-<n>)
+        label: str | None = None,
     ) -> None: ...
 
     # Order management
     def create_order(self, *, sku, quantity, origin, destination, **kwargs) -> TransferOrder: ...
-    def submit(self, order) -> None: ...
-    def cancel(self, order) -> None: ...
+    # Attaches the order at once (id "order-<n>"); there is no id= argument.
+    def submit(self, order) -> None: ...   # deferred until activation if called before env.run()/activate()
+    def cancel(self, order) -> None: ...   # likewise; deferred orders report PENDING_ACTIVATION
 
     # Replenishment
     def add_replenishment_policy(self, policy, warehouse, check_interval=None) -> None: ...
@@ -377,46 +383,53 @@ class ResumeDelivery:
 
 ## Metrics
 
-### EMAOrderMetrics
+Collectors replace the 0.12 `OrderMetricsCollector`, `EMAOrderMetrics`,
+`IntralogisticsTimeSeriesCollector` and `DefaultIntralogisticsCollector`. Each is bound to a
+fleet coordinator and attached with `collector.attach(env)` (before the run); `env.collectors`
+lists them.
+
+### OrderEMACollector
 
 ```python
-@dataclass
-class EMAOrderMetrics:
-    alpha: float = 0.01
+class OrderEMACollector(Collector):
+    def __init__(self, fleet: FleetCoordinator, alpha: float = 0.01) -> None: ...
 
     ema_fulfillment_time: float | None   # created_at -> delivered_at
     ema_dispatch_delay: float | None     # created_at -> dispatched_at
     ema_travel_time_empty: float | None  # dispatched_at -> picked_at
     ema_travel_time_loaded: float | None # picked_at -> delivered_at
     ema_late_orders: float | None        # fraction (0-1)
-
-    def record(self, order: TransferOrder) -> None: ...
 ```
 
-First observation initializes EMA directly (no bias toward 0).
+First observation initializes EMA directly (no bias toward 0). Every coordinator attaches
+one as `coordinator.metrics` unless `default_metrics=False`. It declares no KPIs, so it is not
+part of the fingerprint.
 
-### DefaultIntralogisticsCollector
+### FleetTimeSeries
 
 ```python
-@dataclass
-class DefaultIntralogisticsCollector:
+class FleetTimeSeries(Collector):
+    def __init__(self, fleet: FleetCoordinator) -> None: ...
+
     fleet_utilization_ts: list[tuple[float, float]]
     pending_orders_ts: list[tuple[float, int]]
     throughput_ts: list[tuple[float, int]]
-    inventory_ts: dict[Warehouse, list[tuple[float, dict[SKU, float]]]]
+    inventory_ts: dict[str, list[tuple[float, dict[str, float]]]]   # warehouse id -> (t, {sku id: level})
 
     def plot_fleet_utilization(self) -> None: ...
     def plot_pending_orders(self) -> None: ...
     def plot_throughput(self) -> None: ...
     def plot_inventory(self) -> None: ...
-
-    # Protocol methods (called by FleetCoordinator automatically):
-    def on_order_submitted(self, coordinator, order) -> None: ...
-    def on_order_dispatched(self, coordinator, order, agv) -> None: ...
-    def on_pickup_complete(self, coordinator, order, agv) -> None: ...
-    def on_delivery_complete(self, coordinator, order, agv) -> None: ...
-    def on_agv_state_changed(self, coordinator, agv, old, new) -> None: ...
 ```
+
+Built from `agv.state_changed`, `order.status_changed` and `fleet.pending_changed` events.
+
+### FleetKPIs
+
+`FleetKPIs(fleet)` computes window-aware KPIs (warm-up from `env.configure_kpis`): order means
+`fulfillment_time`, `dispatch_delay`, `travel_time_empty`, `travel_time_loaded`, `late_fraction`,
+`throughput`, and the time-weighted `utilization` and `pending_orders`. Keys are
+`"<fleet id>/<kpi>"`; they appear in `env.fingerprint().kpis`.
 
 ## Builder
 
@@ -434,6 +447,7 @@ def build_simple_system(
     products: list[SKU] | None = None,
     initial_inventory_a: dict[SKU, int] | None = None,
     initial_inventory_b: dict[SKU, int] | None = None,
+    prefix: str = "",                    # entity id prefix, to host several systems in one env
 ) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, LayoutGraph]: ...
 ```
 

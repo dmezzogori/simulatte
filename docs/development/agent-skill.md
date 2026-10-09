@@ -43,21 +43,22 @@ Covers job-shop simulation with release control and dispatching:
 - **Custom dispatching** — writing priority policies (SPT, EDD, custom rules)
 - **Operation hooks** — injecting setup times, breakdowns, or other logic before/after processing
 - **Multi-run experiments** — configuring `Runner` with seeds, parallel execution, and result extraction
-- **Result inspection** — accessing job-level, server-level, and shopfloor-level metrics
+- **Result inspection** — accessing job-level, server-level, and shopfloor-level metrics, EMA and window-aware KPI collectors, and time-series plots
+- **Events, traces and reproducibility** — subscribing to the event bus, named RNG streams, the semantic digest and run manifest, recording and reading traces, writing custom `Collector` subclasses
 - **Gymnasium wrapper** — wrapping simulations as Gymnasium environments for RL training with `SimulatteEnv`
-- **Common pitfalls** — generator hooks, absolute due dates, arrival rate semantics, lambda closures, and more
+- **Common pitfalls** — generator hooks, absolute due dates, arrival rate semantics, opaque callables and the global `random` module, entity prefixes, and more
 
 ## simulatte-intralogistics — Warehouse and AGV Simulation
 
 Covers the `simulatte.intralogistics` subpackage:
 
 - **Layout design** — constructing warehouse graphs with nodes, arcs, and pathfinding; avoiding common topology traps (one-way dead ends, placement deadlocks)
-- **Fleet configuration** — AGV types, trapezoidal speed profiles, battery lifecycle, capacity constraints
+- **Fleet configuration** — AGV types, trapezoidal speed profiles, battery lifecycle, capacity constraints, managed time parameters (numbers and distributions) versus opaque callables
 - **FleetCoordinator wiring** — the 10-step manual composition sequence for custom systems
 - **Policies** — dispatch strategies (NearestIdle, RoundRobin), repositioning, replenishment (ReorderPointPolicy), and load recovery
 - **Battery management** — depletion sanity checks, charging stations, automatic vs custom charging behavior
 - **Capacity checks** — weight AND volume validation for orders and replenishment quantities
-- **Metrics and plots** — EMA order metrics, time-series collection, fleet utilization / throughput / inventory plots
+- **Metrics and plots** — `OrderEMACollector`, `FleetTimeSeries` and `FleetKPIs` collectors on the event bus, fleet utilization / throughput / inventory plots
 - **Tracking and debugging** — order-to-AGV mapping, diagnosing silent dispatch failures
 - **Common pitfalls** — 7 specific failure modes discovered during development, with fixes
 

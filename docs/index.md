@@ -56,6 +56,7 @@ print(f"Utilization: {server.utilization_rate:.1%}")
 - [Basic Usage](introduction/basic-usage.md): from install to first simulation.
 - [Tutorials](tutorials/index.md): copy/paste-friendly walkthroughs covering the core building blocks.
 - [Intralogistics](guides/intralogistics.md): warehouse layouts, AGV fleets, and material transport.
+- [Events, Traces & KPIs](guides/events-and-traces.md): the event bus, reproducible runs, trace recording and KPI collectors.
 - [Agent Skill](development/agent-skill.md): the AI coding agent skill that helps write correct Simulatte simulations.
 - [Experimental](guides/reinforcement-learning.md): unstable APIs (Gymnasium RL wrapper).
 

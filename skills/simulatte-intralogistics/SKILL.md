@@ -44,12 +44,19 @@ a fleet with sensible defaults. Good for smoke tests and prototyping.
 from simulatte.environment import Environment
 from simulatte.intralogistics import build_simple_system, OrderStatus
 
-with Environment() as env:
+with Environment(seed=1) as env:
     coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env)
     order = coordinator.create_order(sku=sku, quantity=5, origin=wh_a, destination=wh_b)
     coordinator.submit(order)
     env.run(until=120.0)
 ```
+
+`create_order` attaches the order at once (it has its `order-<n>` id immediately).
+`submit` and `cancel` called before the first `env.run()` / `env.activate()` are
+deferred: the order reports `OrderStatus.PENDING_ACTIVATION` until activation, when the
+queue drains at time 0. Entity names (warehouses, charging stations, parking areas, AGV
+ids, graph node ids) share one namespace per environment and must not look like
+`<kind>-<n>` (for example `agv-0` is reserved for generated AGV ids).
 
 ## Manual composition
 
@@ -73,7 +80,7 @@ from simulatte.intralogistics import (
     AGV, AGVType, TrapezoidalProfile,
     FleetCoordinator, ParkingArea, ChargingStation,
     NearestIdleStrategy, NearestParkingPolicy,
-    DefaultIntralogisticsCollector, EMAOrderMetrics,
+    OrderEMACollector, FleetTimeSeries, FleetKPIs,
 )
 ```
 
@@ -157,10 +164,18 @@ agv_type = AGVType(
     depletion_fn=lambda distance, load_weight, speed: distance * 0.02 * (1.0 + load_weight / 200),
     low_battery_threshold=0.2,
     critical_battery_threshold=0.05,
-    load_time=12.0,
+    load_time=12.0,       # number, distribution (Uniform(8, 16)) or callable; bound to <agv id>/load
     unload_time=10.0,
 )
 ```
+
+Time parameters are *managed* when they are numbers or distribution descriptions
+(`AGVType.load_time` / `unload_time`, `Warehouse(pick_time=, put_time=)`,
+`ChargingStation(recharge_time=)`): they draw from named streams of `env.seed` and the run
+stays reproducible. A plain callable (for example `pick_time=lambda sku, qty: 5 + qty`) is
+accepted but *opaque*: it is recorded in `env.opaque_sampler_owners` and makes the run
+manifest incomplete. The 0.12 names `load_time_fn`, `unload_time_fn`, `pick_time_fn`,
+`put_time_fn` and `ChargingStation(recharge_fn=)` are gone.
 
 ### Battery depletion sanity check
 
@@ -184,7 +199,7 @@ When generating random orders, cap quantities by BOTH weight AND volume:
 max_by_weight = int(agv_type.weight_capacity // sku.weight)
 max_by_volume = int(agv_type.volume_capacity // sku.volume)
 max_qty = min(max_by_weight, max_by_volume)
-quantity = rng.randint(1, min(3, max(1, max_qty)))
+quantity = env.rng("orders").randint(1, min(3, max(1, max_qty)))  # a named, seeded stream
 ```
 
 Forgetting volume is a common mistake — orders that exceed capacity will
@@ -245,7 +260,9 @@ warehouse). Pass `check_interval=60.0` for periodic polling instead.
 
 ### Order-level metrics
 
-`EMAOrderMetrics` tracks exponential moving averages:
+Every `FleetCoordinator` attaches an `OrderEMACollector` as `coordinator.metrics`
+(`None` with `default_metrics=False`). It tracks exponential moving averages, each
+`None` until the first delivery:
 
 - `ema_fulfillment_time`: created → delivered
 - `ema_dispatch_delay`: created → dispatched
@@ -253,9 +270,16 @@ warehouse). Pass `check_interval=60.0` for periodic polling instead.
 - `ema_travel_time_loaded`: picked → delivered
 - `ema_late_orders`: fraction of late deliveries
 
+For another smoothing factor, build the coordinator with `default_metrics=False` and attach
+`OrderEMACollector(coordinator, alpha=0.05).attach(env)`. `FleetKPIs(coordinator).attach(env)`
+adds window-aware KPIs (fulfillment time, dispatch delay, travel times, late fraction,
+throughput, time-weighted utilization and pending orders), keyed `"<fleet id>/<kpi>"`
+and merged into `env.fingerprint().kpis`; set the warm-up with `env.configure_kpis(warmup=...)`.
+
 ### Time-series plots
 
-`DefaultIntralogisticsCollector` records time-series data and provides:
+`FleetTimeSeries(coordinator).attach(env)` (attach before the run) records time-series
+data from the event bus and provides:
 
 ```python
 ts.plot_fleet_utilization()  # fleet-wide utilization over time
@@ -264,13 +288,12 @@ ts.plot_pending_orders()     # queue depth over time
 ts.plot_inventory()          # per-SKU inventory levels per warehouse
 ```
 
-Pass as `time_series_collector=ts` to `FleetCoordinator`.
-
-To include initial inventory in the plot, seed the collector before running:
+`inventory_ts` is keyed by warehouse id with SKU-id keys. To include initial inventory in
+the plot, seed it before running:
 
 ```python
 for wh in warehouses:
-    ts.inventory_ts[wh] = [(0.0, {sku: float(c.level) for sku, c in wh.inventory.items()})]
+    ts.inventory_ts[wh.id] = [(0.0, {sku.id: float(c.level) for sku, c in wh.inventory.items()})]
 ```
 
 ## Orders and due dates
@@ -288,7 +311,7 @@ coordinator.submit(order)
 ```
 
 `due_date` does NOT affect dispatch priority or ordering — it is only
-used by `EMAOrderMetrics` to track `ema_late_orders` (fraction of orders
+used by `OrderEMACollector` to track `ema_late_orders` (fraction of orders
 delivered after their due date). Custom priority-based dispatch is not
 built in; use `priority` for application-level sorting.
 
@@ -373,9 +396,10 @@ same direction, AGVs get trapped. Use bidirectional arcs for main
 corridors; reserve one-way for bypass routes.
 
 **Multiple AGVs at one node with `node_capacity=1`.**
-`ResourceBasedTrafficManager._initial_placement()` acquires a node
-resource for each AGV. With `node_capacity=1`, placing two AGVs at the
-same node deadlocks the simulation.
+At activation `ResourceBasedTrafficManager.place_now(agv, node)` reserves a node
+resource for each AGV and requires an immediate grant. With `node_capacity=1`,
+placing two AGVs at the same node raises instead of waiting. (`place` was renamed
+`place_now`.)
 
 **`NearestIdleStrategy` + single parking = fleet collapse.**
 All AGVs reposition to the same parking node. Tie-breaking by `agv_id`
@@ -394,4 +418,4 @@ Three progressive examples in `examples/`:
 
 - `intralogistics_simple.py`: 5-node preset, 2 AGVs, text output
 - `intralogistics_intermediate.py`: 10-node custom layout, 3 AGVs, 3 SKUs, staggered batches, plots
-- `intralogistics_advanced.py`: 16-node hub, 5 AGVs, 5 SKUs, 3 warehouses, battery, charging, replenishment, EMA metrics, 4 plots
+- `intralogistics_advanced.py`: 16-node hub, 5 AGVs, 5 SKUs, 3 warehouses, battery, charging, replenishment, EMA metrics (`OrderEMACollector`), 4 plots
