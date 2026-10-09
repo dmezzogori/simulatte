@@ -207,10 +207,20 @@ def test_g1_acceptance(tmp_path: Path) -> None:
 
 
 # The G1 reference digest (specs/research/sp1-g1-report.md) and the canonical content of its full trace with
-# CHUNK_EVENTS-event chunks. Pinned on macOS arm64; RNG samples go through the platform's libm (log, exp), whose
-# last-bit results may differ elsewhere, so other platforms only check that the values are stable in-process.
-GOLDEN_REFERENCE_DIGEST = "9032ec344577870a45a32b7aa251f3db06145d9d1dd499b94664c5bd4e29c51f"
-GOLDEN_REFERENCE_CONTENT = "6514ec161aa0812a8d7fba6d1f8414d9cc34f951c06e4a7496d3d9e2af2fd973"
+# CHUNK_EVENTS-event chunks, per interpreter: CPython and PyPy draw different samples from the same streams (the
+# derived methods of random.Random are not part of Python's cross-implementation guarantee, spec §8.1). Pinned on
+# macOS arm64; RNG samples go through the platform's libm (log, exp), whose last-bit results may differ
+# elsewhere, so other platforms only check that the values are stable in-process.
+GOLDEN_REFERENCE = {
+    "cpython": (
+        "9032ec344577870a45a32b7aa251f3db06145d9d1dd499b94664c5bd4e29c51f",
+        "6514ec161aa0812a8d7fba6d1f8414d9cc34f951c06e4a7496d3d9e2af2fd973",
+    ),
+    "pypy": (
+        "5a4e55a2fcbdc31c31936c484e033764006dcc9ae07a48eaca12d2bd00587196",
+        "a381059dcd1746b6fcd83009d414a12073d25fbd44c62a19cb40c00838158908",
+    ),
+}
 _GOLDEN_PLATFORM = sys.platform == "darwin" and platform.machine() == "arm64"
 
 
@@ -224,6 +234,7 @@ def test_golden_reference_digest_and_trace_content(tmp_path: Path, trace_content
     digest = env.fingerprint().digest
     assert digest == run_digest()
     content = trace_content(path)
-    if not _GOLDEN_PLATFORM:
-        pytest.skip("golden values are pinned on macOS arm64 (libm-dependent samples)")
-    assert (digest, content) == (GOLDEN_REFERENCE_DIGEST, GOLDEN_REFERENCE_CONTENT)
+    expected = GOLDEN_REFERENCE.get(sys.implementation.name)
+    if not _GOLDEN_PLATFORM or expected is None:
+        pytest.skip("golden values are pinned on macOS arm64 for CPython and PyPy (libm-dependent samples)")
+    assert (digest, content) == expected

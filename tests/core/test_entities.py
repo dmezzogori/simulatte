@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import gc
+import platform
 import weakref
 from typing import Any, ClassVar
 
@@ -485,6 +486,7 @@ class Slim(Entity, kind="test_slim"):
         env.entities.attach(self)
 
 
+@pytest.mark.skipif(platform.python_implementation() == "PyPy", reason="every PyPy object supports weak references")
 def test_retire_is_atomic_for_kinds_without_weak_references() -> None:
     env = Environment()
     seen = _record(env, (EntityRetired,))
