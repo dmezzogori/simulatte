@@ -666,10 +666,6 @@ def _check_index(index: tuple[ChunkInfo, ...], start: int, end: int) -> None:
         previous_last = info.last
 
 
-def _presentation(schema: Wire) -> frozenset[str]:
-    return StateSchema.from_wire(schema).presentation
-
-
 def _copy(state: Mapping[str, Mapping[str, Wire]]) -> State:
     return {entity: dict(fields) for entity, fields in state.items()}
 
