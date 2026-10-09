@@ -112,8 +112,8 @@ FLEET_KINDS = frozenset({"agv", "order", "fleet"})
 class FleetReplay:
     """Applies the deltas of every domain event and compares the replayed state of `kinds` with the live registry.
 
-    Warehouse and traffic events arrive with Task 16, so by default only ``agv``, ``order`` and ``fleet`` entities
-    are compared.
+    By default only ``agv``, ``order`` and ``fleet`` entities are compared; ``test_resource_events.py`` compares
+    every kind.
     """
 
     def __init__(self, env: Environment, kinds: frozenset[str] = FLEET_KINDS) -> None:

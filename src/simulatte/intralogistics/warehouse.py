@@ -5,11 +5,16 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import simpy
 
 from simulatte.entities import Entity, FieldSpec, StateSchema
+from simulatte.events import Deltas
+from simulatte.intralogistics._resources import NotifyingContainer, NotifyingResource
+from simulatte.intralogistics.events import WarehouseInventoryChanged, WarehouseSlotChanged
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from simpy.events import ProcessGenerator
+    from simpy.resources.container import ContainerAmount
+    from simpy.resources.resource import Request
 
     from simulatte.environment import Environment
     from simulatte.intralogistics.graph import LayoutGraph, Node
@@ -17,7 +22,11 @@ if TYPE_CHECKING:
 
 
 class Warehouse(Entity, kind="warehouse"):
-    """A storage facility with per-SKU inventory and finite pick/put slots; its id is ``name``."""
+    """A storage facility with per-SKU inventory and finite pick/put slots; its id is ``name``.
+
+    Events (spec §6.4): ``warehouse.inventory_changed`` whenever an inventory container completes a put or a get,
+    and ``warehouse.slot_changed`` whenever a pick or put slot is acquired or released.
+    """
 
     state_schema: ClassVar[StateSchema] = StateSchema(
         {"inventory": FieldSpec("float", collection="map"), "slots_in_use": FieldSpec("int")}
@@ -43,11 +52,17 @@ class Warehouse(Entity, kind="warehouse"):
         self.output_bays = list(output_bays)
         self.pick_time_fn = pick_time_fn
         self.put_time_fn = put_time_fn
-        self._slots = simpy.Resource(env, capacity=n_slots)
+        self._slots = NotifyingResource(env, capacity=n_slots, on_change=self._slot_changed)
 
         initial = initial_inventory or {}
         self.inventory: dict[SKU, simpy.Container] = {
-            product: simpy.Container(env, capacity=float("inf"), init=initial.get(product, 0)) for product in products
+            product: NotifyingContainer(
+                env,
+                capacity=float("inf"),
+                init=initial.get(product, 0),
+                on_change=self._inventory_reporter(product),
+            )
+            for product in products
         }
 
         self.total_picks: int = 0
@@ -64,6 +79,38 @@ class Warehouse(Entity, kind="warehouse"):
             "label": self.label,
         }
 
+    def _inventory_reporter(self, sku: SKU) -> Callable[[NotifyingContainer, ContainerAmount], None]:
+        """The change callback of the container of `sku`: emits ``warehouse.inventory_changed``."""
+
+        def changed(container: NotifyingContainer, amount: ContainerAmount) -> None:
+            env = self.env
+            if env.wants(WarehouseInventoryChanged):
+                level = float(container.level)
+                env.emit(
+                    WarehouseInventoryChanged(
+                        warehouse=self.id,
+                        sku=sku.id,
+                        level=level,
+                        delta=float(amount),
+                        deltas=Deltas.build().put(self.id, "inventory", sku.id, level).done(),
+                    )
+                )
+
+        return changed
+
+    def _slot_changed(self, request: Request, granted: bool) -> None:
+        """Emit ``warehouse.slot_changed`` after a slot was acquired or released."""
+        env = self.env
+        if env.wants(WarehouseSlotChanged):
+            in_use = self._slots.count
+            env.emit(
+                WarehouseSlotChanged(
+                    warehouse=self.id,
+                    in_use=in_use,
+                    deltas=Deltas.build().set(self.id, "slots_in_use", in_use).done(),
+                )
+            )
+
     def get_inventory_level(self, sku: SKU) -> float:
         if sku not in self.inventory:
             raise KeyError(f"Unknown product: {sku.id}")
@@ -72,10 +119,6 @@ class Warehouse(Entity, kind="warehouse"):
     def pick(self, sku: SKU, quantity: int, *, on_committed: Callable[[], None] | None = None) -> ProcessGenerator:
         if sku not in self.inventory:
             raise KeyError(f"Unknown product: {sku.id}")
-        self.env.debug(
-            f"[{self.name}] Pick started (sku={sku.id}, qty={quantity})",
-            component="Warehouse",
-        )
         # Wait for inventory FIRST (no slot held — prevents deadlock with put)
         get_event = self.inventory[sku].get(quantity)
         try:
@@ -93,18 +136,10 @@ class Warehouse(Entity, kind="warehouse"):
             yield self.env.timeout(pick_time)
             self.total_picks += 1
             self._total_pick_time += pick_time
-            self.env.debug(
-                f"[{self.name}] Pick completed (sku={sku.id}, qty={quantity})",
-                component="Warehouse",
-            )
 
     def put(self, sku: SKU, quantity: int) -> ProcessGenerator:
         if sku not in self.inventory:
             raise KeyError(f"Unknown product: {sku.id}")
-        self.env.debug(
-            f"[{self.name}] Put started (sku={sku.id}, qty={quantity})",
-            component="Warehouse",
-        )
         with self._slots.request() as req:
             yield req
             put_time = self.put_time_fn(sku, quantity)
@@ -112,10 +147,6 @@ class Warehouse(Entity, kind="warehouse"):
             yield self.inventory[sku].put(quantity)
             self.total_puts += 1
             self._total_put_time += put_time
-            self.env.debug(
-                f"[{self.name}] Put completed (sku={sku.id}, qty={quantity})",
-                component="Warehouse",
-            )
 
     def nearest_input_bay(self, from_node: Node, graph: LayoutGraph) -> Node:
         return self._nearest_bay(from_node, self.input_bays, graph)

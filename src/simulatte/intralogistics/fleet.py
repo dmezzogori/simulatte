@@ -23,6 +23,8 @@ from simulatte.intralogistics.events import (
     OrderAssigned,
     OrderStatusChanged,
     OrderUnassigned,
+    TrafficWaitEnded,
+    TrafficWaitStarted,
 )
 from simulatte.intralogistics.metrics import EMAOrderMetrics
 from simulatte.intralogistics.order import TERMINAL_STATUSES, OrderStatus, TransferOrder
@@ -110,7 +112,9 @@ class FleetCoordinator(Entity, kind="fleet"):
     Events (spec §6.4): ``fleet.agv_added`` per AGV at construction, ``fleet.pending_changed`` at every change of
     the pending queue, ``order.status_changed`` at every assignment of an order status, ``order.assigned`` /
     ``order.unassigned`` for the order-AGV link, and the AGV events of movement (``agv.move_started``,
-    ``agv.move_ended``, ``agv.move_interrupted``), cargo (``agv.load_changed``) and stranding (``agv.stranded``).
+    ``agv.move_ended``, ``agv.move_interrupted``), cargo (``agv.load_changed``) and stranding (``agv.stranded``),
+    and ``traffic.wait_started`` / ``traffic.wait_ended`` around the delays a path check or a deadlock backoff
+    imposes.
     """
 
     state_schema: ClassVar[StateSchema] = StateSchema({"pending": FieldSpec("str", collection="list")})
@@ -804,7 +808,7 @@ class FleetCoordinator(Entity, kind="fleet"):
                     if alt_result.delay_until is not None:
                         wait = max(0.0, alt_result.delay_until - self.env.now)
                         if wait > 0:
-                            yield self.env.timeout(wait)
+                            yield from self._traffic_delay(agv, alt_path[1], wait, "path_delay")
                         path = alt_path
                         continue
                     self.env.error(
@@ -816,7 +820,7 @@ class FleetCoordinator(Entity, kind="fleet"):
                 if result.delay_until is not None:
                     wait = max(0.0, result.delay_until - self.env.now)
                     if wait > 0:
-                        yield self.env.timeout(wait)
+                        yield from self._traffic_delay(agv, path[1], wait, "path_delay")
                     continue
 
                 self.env.error(
@@ -1029,9 +1033,24 @@ class FleetCoordinator(Entity, kind="fleet"):
             priority_fn = getattr(self._traffic_manager, "priority", None)
             priority = priority_fn(agv) if priority_fn is not None else 0.0
             backoff_multiplier = attempt + 1 if priority > 0 else 2**attempt
-            yield self.env.timeout(timeout * backoff_multiplier)
+            yield from self._traffic_delay(agv, node, timeout * backoff_multiplier, "deadlock_backoff")
 
         return _EnterOutcome.GAVE_UP
+
+    def _traffic_delay(self, agv: AGV, node: Node, delay: float, reason: str) -> ProcessGenerator:
+        """Wait `delay` before trying to enter `node` again, between ``traffic.wait_started`` (with `reason`) and
+        ``traffic.wait_ended`` (``elapsed``, or ``interrupted`` when the mission is interrupted meanwhile)."""
+        env = self.env
+        if env.wants(TrafficWaitStarted):
+            env.emit(TrafficWaitStarted(agv=agv.id, node=node.id, reason=reason))
+        try:
+            yield env.timeout(delay)
+        except simpy.Interrupt:
+            if env.wants(TrafficWaitEnded):
+                env.emit(TrafficWaitEnded(agv=agv.id, node=node.id, reason="interrupted"))
+            raise
+        if env.wants(TrafficWaitEnded):
+            env.emit(TrafficWaitEnded(agv=agv.id, node=node.id, reason="elapsed"))
 
     def _initial_placement(self) -> None:
         """Activation initializer: register the starting positions of all AGVs with the traffic manager (S1).

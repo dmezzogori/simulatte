@@ -1,8 +1,10 @@
-"""Events emitted by the fleet coordinator, AGVs and transfer orders (spec §6.4, §6.5).
+"""Events of the intralogistics subsystem (spec §6.4, §6.5): fleet, AGVs, transfer orders, traffic, warehouses,
+charging stations and parking areas.
 
 Every event is emitted after the state change it describes, and its deltas carry every change of ``agv``,
-``order`` and ``fleet`` state made since the previous event, so replaying the deltas reproduces the live state
-at each event. Payload values come from data the transition already computed.
+``order``, ``fleet``, ``node``, ``warehouse``, ``charging_station`` and ``parking_area`` state made since the
+previous event, so replaying the deltas reproduces the live state at each event. Payload values come from data the
+transition already computed.
 """
 
 from __future__ import annotations
@@ -19,11 +21,22 @@ __all__ = [
     "AgvPlaced",
     "AgvStateChanged",
     "AgvStranded",
+    "ChargingEnded",
+    "ChargingPoolChanged",
+    "ChargingStarted",
     "FleetAgvAdded",
     "FleetPendingChanged",
     "OrderAssigned",
     "OrderStatusChanged",
     "OrderUnassigned",
+    "ParkingEntered",
+    "ParkingLeft",
+    "TrafficReleased",
+    "TrafficReserved",
+    "TrafficWaitEnded",
+    "TrafficWaitStarted",
+    "WarehouseInventoryChanged",
+    "WarehouseSlotChanged",
 ]
 
 
@@ -55,6 +68,9 @@ class FleetPendingChanged(DomainEvent):
 @event_type("order.status_changed", touches={"order": ("status", "dispatched_at", "delivered_at", "agv")})
 class OrderStatusChanged(DomainEvent):
     """The status of an order was assigned; `previous` may equal `status` when a site reassigns the same value.
+
+    At dispatch this event precedes the ``order.assigned`` event that links the order and the AGV, so an observer
+    of this event must take the link from the next event, not from the live order.
 
     The deltas set ``status`` and, for ``DISPATCHED`` and ``COMPLETED``, the matching timestamp
     (``dispatched_at``, ``delivered_at``); with reason ``load_recovery`` they also set the order's ``agv`` when the
@@ -182,3 +198,132 @@ class AgvStranded(DomainEvent):
     agv: str
     node: str
     reason: str
+
+
+# --- traffic -----------------------------------------------------------------------------------------------
+
+
+@event_type("traffic.reserved", touches={"node": ("reserved_by",)})
+class TrafficReserved(DomainEvent):
+    """The traffic manager recorded a reservation of `node` for the AGV: at its initial placement (``place_now``)
+    or when ``enter_node`` resumed after the grant. The node's ``reserved_by`` gains the AGV."""
+
+    agv: str
+    node: str
+
+
+@event_type("traffic.released", touches={"node": ("reserved_by",)})
+class TrafficReleased(DomainEvent):
+    """The AGV left `node` (``leave_node`` released a recorded reservation); the node's ``reserved_by`` loses it."""
+
+    agv: str
+    node: str
+
+
+@event_type("traffic.wait_started")
+class TrafficWaitStarted(DomainEvent):
+    """The AGV started waiting before entering `node`, the next node it means to enter.
+
+    `reason` is ``"node_occupied"`` (``enter_node`` found the node fully reserved), ``"path_delay"`` (the traffic
+    manager's path check asked to wait until a later time) or ``"deadlock_backoff"`` (the coordinator backs off
+    after a deadlock timeout found no alternative route). It changes no state.
+    """
+
+    agv: str
+    node: str
+    reason: str
+
+
+@event_type("traffic.wait_ended")
+class TrafficWaitEnded(DomainEvent):
+    """A wait announced by ``traffic.wait_started`` ended; `node` is the same node.
+
+    `reason` is the outcome: ``"granted"`` (the node was reserved; ``traffic.reserved`` follows), ``"cancelled"``
+    (the traffic manager withdrew the waiting request), ``"interrupted"`` (the waiting process was interrupted) or
+    ``"elapsed"`` (a delay or a backoff ran out). It changes no state.
+    """
+
+    agv: str
+    node: str
+    reason: str
+
+
+# --- warehouses --------------------------------------------------------------------------------------------
+
+
+@event_type("warehouse.inventory_changed", touches={"warehouse": ("inventory",)})
+class WarehouseInventoryChanged(DomainEvent):
+    """The inventory of `sku` changed by `delta` (positive for a put, negative for a get) to `level`.
+
+    Emitted by the inventory container itself when SimPy completes the put or the get, which for a get that waited
+    for stock happens when a later put is processed.
+    """
+
+    warehouse: str
+    sku: str
+    level: float
+    delta: float
+
+
+@event_type("warehouse.slot_changed", touches={"warehouse": ("slots_in_use",)})
+class WarehouseSlotChanged(DomainEvent):
+    """A pick or put slot was acquired or released; `in_use` is the number of slots in use afterwards."""
+
+    warehouse: str
+    in_use: int
+
+
+# --- charging stations -------------------------------------------------------------------------------------
+
+
+@event_type("charging.started", touches={"charging_station": ("slots_in_use",)})
+class ChargingStarted(DomainEvent):
+    """The AGV was granted a slot of the charging station; `mode` is ``"recharge"`` or ``"swap"``.
+
+    The deltas set the station's ``slots_in_use``. A swap then takes a battery from the pool, which emits
+    ``charging.pool_changed``.
+    """
+
+    station: str
+    agv: str
+    mode: str
+
+
+@event_type("charging.ended", touches={"charging_station": ("slots_in_use",)})
+class ChargingEnded(DomainEvent):
+    """The AGV released its slot of the charging station (completed or interrupted); the deltas set
+    ``slots_in_use``."""
+
+    station: str
+    agv: str
+    mode: str
+
+
+@event_type("charging.pool_changed", touches={"charging_station": ("swap_pool",)})
+class ChargingPoolChanged(DomainEvent):
+    """The swap pool of the station changed: a swap took a charged battery, or ``_replenish_pool`` returned one.
+
+    `swap_pool` is the number of charged batteries in the pool afterwards.
+    """
+
+    station: str
+    swap_pool: float
+
+
+# --- parking areas -----------------------------------------------------------------------------------------
+
+
+@event_type("parking.entered", touches={"parking_area": ("parked",)})
+class ParkingEntered(DomainEvent):
+    """The AGV took a slot of the parking area (``ParkingArea.enter``); the area's ``parked`` gains it."""
+
+    area: str
+    agv: str
+
+
+@event_type("parking.left", touches={"parking_area": ("parked",)})
+class ParkingLeft(DomainEvent):
+    """The AGV released its parking slot (``ParkingArea.leave``); the area's ``parked`` loses it."""
+
+    area: str
+    agv: str

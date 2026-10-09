@@ -69,28 +69,19 @@ Ids in payloads are entity ids: `job-0`, `job-1`, ... for jobs, and the `name=` 
 id. The builders name their entities `wc-0`, `wc-1`, ..., `shopfloor`, `router` and `psp`, each with the optional
 `prefix=`.
 
-The intralogistics components still emit structured **DEBUG** log messages. These are **best-effort** (not a stable
-API): message text and `extra` keys may change between releases. The in-memory `env.log_history` only records
-messages that pass the current global log level, so enable DEBUG to collect them:
+The intralogistics components (`FleetCoordinator`, AGVs, traffic managers, warehouses, charging stations and
+parking areas) emit typed events as well. The fleet coordinator keeps its warnings and errors as log messages
+(`component="FleetCoordinator"`); query them from the in-memory history after the run:
 
 ```python
-from simulatte.logger import SimLogger
-
-SimLogger.set_level("DEBUG")
-
 # ... run ...
 
-warehouse_messages = env.log_history.query(component="Warehouse")
-for e in warehouse_messages:
-    print(e.timestamp, e.message, e.extra)
+fleet_problems = env.log_history.query(component="FleetCoordinator")
+for e in fleet_problems:
+    print(e.timestamp, e.level, e.message)
 ```
 
 ### Catalog
-
-Notes:
-
-- Some “started” log messages may be emitted before a blocking wait (e.g., waiting for inventory/AGV capacity); use
-  timestamps and follow-up messages to infer actual durations.
 
 #### Server
 
@@ -148,15 +139,6 @@ at the server's queue head, followed by `release` when the winner came from the 
 The router has no events of its own. A new job appears as `entity.created` (class `EntityCreated` in
 `simulatte.entities`, with `kind == "job"`), followed in the same instant by `psp.entered` or `shopfloor.entered`.
 
-#### Warehouse (`component="Warehouse"`)
-
-| Event | Message (example) | `extra` keys |
-| --- | --- | --- |
-| Pick start | `[{name}] Pick started (sku={sku.id}, qty={quantity})` | none beyond component |
-| Pick completed | `[{name}] Pick completed (sku={sku.id}, qty={quantity})` | none beyond component |
-| Put start | `[{name}] Put started (sku={sku.id}, qty={quantity})` | none beyond component |
-| Put completed | `[{name}] Put completed (sku={sku.id}, qty={quantity})` | none beyond component |
-
 #### FleetCoordinator, AGVs and transfer orders
 
 Classes in `simulatte.intralogistics.events`. The coordinator keeps its warnings and errors as log messages
@@ -179,6 +161,27 @@ Classes in `simulatte.intralogistics.events`. The coordinator keeps its warnings
 | `agv.stranded` | `AgvStranded` | `agv`, `node`, `reason` (`no_reachable_charger` or `insufficient_after_charging`) |
 
 An order retires (`entity.retired`) when it reaches `COMPLETED`, `CANCELLED` or `FAILED`, after its mission cleanup.
+
+#### Traffic, warehouses, charging stations and parking areas
+
+Classes in `simulatte.intralogistics.events`:
+
+| Event type | Class | Payload |
+| --- | --- | --- |
+| `traffic.reserved` | `TrafficReserved` | `agv`, `node` (initial placement, or `enter_node` granted) |
+| `traffic.released` | `TrafficReleased` | `agv`, `node` (`leave_node`) |
+| `traffic.wait_started` | `TrafficWaitStarted` | `agv`, `node` (the next node the AGV means to enter), `reason` (`node_occupied`, `path_delay` or `deadlock_backoff`) |
+| `traffic.wait_ended` | `TrafficWaitEnded` | `agv`, `node`, `reason` (`granted`, `cancelled`, `interrupted` or `elapsed`) |
+| `warehouse.inventory_changed` | `WarehouseInventoryChanged` | `warehouse`, `sku`, `level`, `delta` (positive for a put, negative for a pick) |
+| `warehouse.slot_changed` | `WarehouseSlotChanged` | `warehouse`, `in_use` (a pick or put slot acquired or released) |
+| `charging.started` | `ChargingStarted` | `station`, `agv`, `mode` (`recharge` or `swap`; the AGV was granted a slot) |
+| `charging.ended` | `ChargingEnded` | `station`, `agv`, `mode` (the slot was released) |
+| `charging.pool_changed` | `ChargingPoolChanged` | `station`, `swap_pool` (a swap took a charged battery, or one was returned) |
+| `parking.entered` | `ParkingEntered` | `area`, `agv` (`ParkingArea.enter`) |
+| `parking.left` | `ParkingLeft` | `area`, `agv` (`ParkingArea.leave`) |
+
+Only the `ResourceBasedTrafficManager` reserves nodes; with the default free traffic, several AGVs share a node and
+no reservation events occur. `FleetCoordinator` never calls `ParkingArea.enter` or `leave` itself.
 
 #### MaterialCoordinator
 
@@ -235,8 +238,8 @@ for event in env.log_history:
 Disable noisy components:
 
 ```python
-env.logger.disable_component("Warehouse")  # Silence Warehouse logs
-env.logger.enable_component("Warehouse")   # Re-enable
+env.logger.disable_component("FleetCoordinator")  # Silence the fleet's warnings and errors
+env.logger.enable_component("FleetCoordinator")   # Re-enable
 ```
 
 ## 8) Per-simulation logs with Runner
