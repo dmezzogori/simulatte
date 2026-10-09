@@ -2,8 +2,8 @@
 
 The overhead is ``median(head) / median(base) - 1``. When both results are mode ``none`` (the no-subscriber
 comparison against ``simulatte==0.12.0``), the command exits with status 1 if the overhead exceeds
-``--budget + --noise`` (the Limit column shows the sum and its parts); every other pair (``digest`` or ``full``
-against ``none``, sampling) is reported only.
+``--budget + --noise`` (the Limit column shows the sum and its parts); ``--budget`` has no default and is
+required for such a pair. Every other pair (``digest`` or ``full`` against ``none``, sampling) is reported only.
 Both results must come from the same workload, interpreter and job/operation counts (status 2 otherwise).
 
 Usage::
@@ -57,7 +57,7 @@ def compare(base: dict[str, Any], head: dict[str, Any], *, budget: float, noise:
     failed = gated and overhead > limit
     if gated:
         verdict = "**FAIL**" if failed else "pass"
-        limit_text = f"{limit:+.1%} ({budget:.0%} + {noise:.0%})"
+        limit_text = f"{limit:+.1%} ({budget:.1%} + {noise:.1%})"
     else:
         verdict = "info"
         limit_text = "–"
@@ -75,7 +75,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("base")
     parser.add_argument("head")
-    parser.add_argument("--budget", type=float, default=0.03, help="allowed median overhead of mode none")
+    parser.add_argument(
+        "--budget", type=float, help="allowed median overhead of mode none (required when both results are mode none)"
+    )
     parser.add_argument("--noise", type=float, default=0.0, help="noise band added to the budget")
     parser.add_argument("--summary", help="also append the printed Markdown to this file")
     parser.add_argument("--no-header", action="store_true", help="print the row without the table header")
@@ -85,7 +87,9 @@ def main(argv: list[str] | None = None) -> int:
     if problem is not None:
         print(f"compare.py: {args.base} and {args.head} are not comparable: {problem}", file=sys.stderr)
         return 2
-    row, failed = compare(base, head, budget=args.budget, noise=args.noise)
+    if base["mode"] == head["mode"] == "none" and args.budget is None:
+        parser.error("--budget is required when both results are mode none (the gated comparison)")
+    row, failed = compare(base, head, budget=args.budget or 0.0, noise=args.noise)
     text = row if args.no_header else HEADER + row
     sys.stdout.write(text)
     if args.summary:

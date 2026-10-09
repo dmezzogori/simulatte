@@ -14,7 +14,7 @@ the interpreter that runs them, so each version is installed in its own virtual 
 | `workload_gen.py` | Draws a job-shop workload once and writes it as JSON (arrival, SKU, routing as server indices, processing times, due date per job). |
 | `feeder.py` | Builds a 10-server LumsCor job shop with constructors present in both versions and replays a workload through `PreShopPool.add`, without the router and without any random draw. Checks the job and operation counts and fingerprints the trajectory. |
 | `run.py` | Times one mode (`none`, `digest`, `full`) on a workload: warm-up runs, timed runs, optionally in several fresh processes; peak memory in a separate process; in mode `full` the trace size, chunk count and cold-seek latency. Writes JSON. |
-| `compare.py` | Compares two results; exits 1 when both are mode `none` and the median overhead exceeds `--budget + --noise`, 2 when the results are not comparable. The Limit column shows the sum and its parts. |
+| `compare.py` | Compares two results; exits 1 when both are mode `none` and the median overhead exceeds `--budget + --noise` (`--budget` has no default and is required for such a pair), 2 when the results are not comparable. The Limit column shows the sum and its parts. |
 | `bench_sampling.py` | Router-only workload: a `Scenario.pure_job_shop` router generates a fixed number of jobs into a counting sink (no processing); reports jobs and sampler calls per second. |
 | `summarize.py` | Markdown tables of results (time, peak memory, trace, seeks, sampling) and of their provenance (commit, logging level, hardware). |
 | `strip_debug.py` | Writes a copy of an installed 0.12.0 without its `env.debug(...)` calls, to isolate what SP1 added on the unobserved path; the CI gate's second baseline (D55). |
@@ -103,7 +103,7 @@ python strip_debug.py /tmp/base/lib/python3.14/site-packages/simulatte /tmp/stri
 PYTHONPATH=/tmp/stripped /tmp/base/bin/python -c 'import simulatte; print(simulatte.__file__)'   # must be under /tmp/stripped
 PYTHONPATH=/tmp/stripped /tmp/base/bin/python run.py --mode none --workload $W --warmup 1 --repeat 5 --processes 3 \
     --label "0.12.0 without env.debug calls" --json /tmp/nolog.json
-python compare.py /tmp/nolog.json /tmp/head.json --budget 0.10 --noise 0.02   # PyPy: --budget 0.03 --noise 0.05
+python compare.py /tmp/nolog.json /tmp/head.json --budget 0.065 --noise 0.02   # PyPy: --budget 0.03 --noise 0.05
 ```
 
 ## CI
@@ -117,7 +117,7 @@ compares the branch with each baseline. The budgets are job-level environment va
 | Baseline | Budget | Noise, CPython | Noise, PyPy | Limit, CPython | Limit, PyPy |
 |---|---|---|---|---|---|
 | Released 0.12.0 (the user-facing promise) | 3 % | 2 % | 5 % | 5 % | 8 % |
-| 0.12.0 without `env.debug` calls | 10 % on CPython, 3 % on PyPy | 2 % | 5 % | 12 % | 8 % |
+| 0.12.0 without `env.debug` calls | 6.5 % on CPython, 3 % on PyPy (after tuning, G3 report §9) | 2 % | 5 % | 8.5 % | 8 % |
 
 The job fails when the median mode-`none` overhead exceeds `budget + noise` against either baseline; both
 comparisons always run. The step summary has one row per baseline, workload and interpreter, with the limit and

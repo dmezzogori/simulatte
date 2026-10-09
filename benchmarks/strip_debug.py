@@ -3,7 +3,7 @@
 0.12.0 builds an f-string and keyword arguments for ``env.debug`` on every queue entry, release, processing start,
 pre-shop-pool entry and exit and shop-floor step, even at the default INFO level. The branch replaced these calls
 with events guarded by ``env.wants``. Comparing the branch with this stripped copy isolates what SP1 added on the
-unobserved path. Diagnostic only: the gate compares against the released 0.12.0.
+unobserved path. The CI gate uses this copy as its second baseline, next to the released 0.12.0 (decision D55).
 
 Every expression statement ``<x>.env.debug(...)`` in ``psp.py``, ``server.py``, ``shopfloor.py`` and ``router.py``
 is replaced by ``pass`` (12 statements in 0.12.0); the rest of the package is copied unchanged.

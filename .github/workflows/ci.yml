@@ -128,8 +128,9 @@ jobs:
   # Overhead gate (spec §14, gate G3, decision D55): the branch's mode `none` against two baselines built from
   # simulatte==0.12.0, on the same pre-generated workloads (benchmarks/README.md): the released package (the
   # user-facing promise) and a copy of it without its env.debug calls (benchmarks/strip_debug.py), which isolates
-  # what SP1 itself added on the unobserved path. Only mode `none` can fail the job, above BUDGET + NOISE median
-  # overhead against either baseline; digest/full ratios, trace size, seeks, memory and sampling are reported in
+  # what SP1 itself added on the unobserved path. Only mode `none` can fail the job: when the median overhead
+  # against the released baseline exceeds BUDGET_RELEASED + NOISE_RELEASED, or against the stripped one
+  # BUDGET_STRIPPED + NOISE_STRIPPED; digest/full ratios, trace size, seeks, memory and sampling are reported in
   # the step summary. Expected duration (estimated from local timings): about 7 minutes on CPython and 11 on PyPy,
   # setup included.
   bench:
@@ -147,12 +148,14 @@ jobs:
             warmup: 8  # the JIT settles after about 7 runs of the CI workload
             pypy: true
     env:
-      # Overhead budgets and noise bands, the only place they are set (D55). The gate fails above BUDGET + NOISE.
+      # Overhead budgets and noise bands, the only place they are set (D55). Each baseline has its own pair: the
+      # gate fails above BUDGET_RELEASED + NOISE_RELEASED against the released 0.12.0, or above
+      # BUDGET_STRIPPED + NOISE_STRIPPED against the stripped copy.
       # Noise bands are calibrated at G3 (specs/research/sp1-g3-report.md §3). The stripped baseline's budget is
-      # tightened after tuning (D56): 10 % on CPython, 3 % on PyPy.
+      # tightened after the tuning of D56 (G3 report §9): 6.5 % on CPython (was 10 %), 3 % on PyPy (the floor).
       BUDGET_RELEASED: "0.03"
       NOISE_RELEASED: ${{ matrix.pypy && '0.05' || '0.02' }}
-      BUDGET_STRIPPED: ${{ matrix.pypy && '0.03' || '0.10' }}
+      BUDGET_STRIPPED: ${{ matrix.pypy && '0.03' || '0.065' }}
       NOISE_STRIPPED: ${{ matrix.pypy && '0.05' || '0.02' }}
       RUN: --warmup ${{ matrix.warmup }} --repeat 5 --processes 3
       MPLBACKEND: Agg
