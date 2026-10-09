@@ -292,6 +292,9 @@ class TraceRecorder:
 
     def _on_sample(self, event: KpiSample) -> None:
         """Buffer a KPI sample; publish the buffer once the event-count or byte limit is reached."""
+        error = self._error
+        if error is not None:
+            raise error
         entry = pack((event.seq, float(event.t), f"{event.scope}/{event.kpi}", event.value))
         self._samples.append(entry)
         self._sample_bytes += len(entry)

@@ -10,6 +10,7 @@ from typing import Any, ClassVar, Literal
 
 import pytest
 
+import simulatte.trace.writer as writer_mod
 from simulatte._wire import unpack
 from simulatte.digest import Fingerprint
 from simulatte.entities import Entity, FieldSpec, StateSchema
@@ -386,6 +387,9 @@ def test_exact_sum_non_finite_terms() -> None:
     assert summed(-math.inf, 1.0) == -math.inf
     assert math.isnan(summed(math.inf, -math.inf))
     assert math.isnan(summed(1.0, math.nan))
+    assert summed(1e308, 1e308) == math.inf  # math.fsum raises OverflowError here
+    assert summed(-1e308, 1.0, -1e308) == -math.inf
+    assert math.isnan(summed(1e308, 1e308, -math.inf))
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -646,3 +650,74 @@ def _lengths(data: bytes) -> list[int]:
         out.append(length)
         pos += RECORD_HEADER.size + length
     return out
+
+
+class Occupancy(Collector):
+    """Time-weighted number of completed jobs at a desk, from an accumulator built at activation."""
+
+    kpis: ClassVar[tuple[KPI, ...]] = (KPI("done", unit="jobs", observation="time_weighted", clip="window"),)
+    subscribes: ClassVar[tuple[type[Event], ...]] = (Done,)
+    scope_field: ClassVar[str | None] = "desk"
+
+    def __init__(self, desk: Desk) -> None:
+        super().__init__(desk)
+        self.done: TimeWeighted | None = None
+        self.activations = 0
+
+    def on_activate(self) -> None:
+        self.activations += 1
+        self.done = TimeWeighted(self.window.start)
+
+    def on_event(self, event: Event) -> None:
+        assert self.done is not None
+        self.done.update(event.t, self.done.value + 1)
+
+    def scalar_values(self) -> Mapping[str, float | None]:
+        assert self.done is not None
+        window = self.window
+        return {"done": self.done.mean(window.start, window.end)}
+
+
+def test_on_activate_builds_window_state_with_the_warmup() -> None:
+    env = Environment(seed=1)
+    desk = Desk(env, name="d")
+    occupancy = Occupancy(desk).attach(env)
+    env.configure_kpis(warmup=3.0)  # after the collector was built and attached
+    _schedule(env, desk, [(0.0, 2.0), (0.0, 4.0), (0.0, 6.0)])
+    assert occupancy.done is None
+    env.run(until=8)
+    assert occupancy.activations == 1
+    assert occupancy.done is not None and occupancy.done.start == 3.0
+    # 1 done on [3, 4), 2 on [4, 6), 3 on [6, 8): (1 + 4 + 6) / 5
+    assert env.fingerprint().kpis == {"d/done": 11 / 5}
+
+    late = Occupancy(Desk(env, name="late")).attach(env)  # attached after activation: runs at once
+    assert late.activations == 1 and late.done is not None and late.done.start == 3.0
+    assert Plain(Desk(env, name="p")).attach(env).on_activate() is None  # the default does nothing
+
+
+def test_writer_failure_propagates_on_samples(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    real = writer_mod.write_record
+
+    def failing(f: Any, rtype: int, payload: bytes) -> int:
+        if rtype == RecordType.KPI:
+            raise OSError("disk full")
+        return real(f, rtype, payload)
+
+    monkeypatch.setattr(writer_mod, "write_record", failing)
+    path = tmp_path / "kpi.simtrace"
+    env = Environment(seed=1)
+    rec = TraceRecorder(env, path, level="kpi", chunk_limits=ChunkLimits(max_events=2))
+    collector = Plain(Desk(env, name="d")).attach(env)
+    env.activate()
+    collector.sample("level", 1.0)
+    collector.sample("level", 2.0)  # the limit: published, and the writer fails on it
+    with rec._cond:
+        assert rec._cond.wait_for(lambda: rec._error is not None, timeout=10)
+    with pytest.raises(OSError, match="disk full"):
+        collector.sample("level", 3.0)  # the next append re-raises, though it would not publish anything
+    assert rec._samples == []
+    with pytest.raises(OSError, match="disk full"):
+        rec.close()
+    assert not rec._thread.is_alive()
+    assert RecordType.FOOTER not in [rtype for rtype, _ in _records(path)]

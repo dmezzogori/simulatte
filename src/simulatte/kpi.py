@@ -144,7 +144,13 @@ def observation_window(env: Environment) -> Window:
 
 
 class _ExactSum:
-    """Running sum, exactly rounded like :func:`math.fsum` (D58), in a few partials instead of every term."""
+    """Running sum, exactly rounded like :func:`math.fsum` (D58), in a few partials instead of every term.
+
+    Non-finite terms are summed apart and added at the end, so the sum is ``inf``, ``-inf`` or ``NaN`` as with
+    plain float addition. Unlike :func:`math.fsum`, which raises `ValueError` for ``inf + -inf``, the sum is then
+    ``NaN``, and a sum of finite terms beyond the float range is ``inf`` or ``-inf`` where fsum raises
+    `OverflowError`: a collector never stops the run on an unusual value.
+    """
 
     __slots__ = ("_partials", "_special")
 
@@ -162,6 +168,10 @@ class _ExactSum:
             if abs(x) < abs(y):
                 x, y = y, x
             hi = x + y
+            if not math.isfinite(hi):  # the sum overflows: it is infinite from now on
+                del partials[i:]
+                self._special += hi
+                return
             lo = y - (hi - x)
             if lo:
                 partials[i] = lo
@@ -217,9 +227,10 @@ class TimeWeighted:
     """Time-weighted mean of a piecewise-constant signal, accumulated in constant memory.
 
     The signal starts with `value` and changes at each :meth:`update`. Only its part from `start` on is
-    accumulated, so `start` is the left edge of the window: create the accumulator with the warm-up (the
-    window start of :func:`observation_window`, fixed at activation). Updates before `start` only set the
-    value carried into the window. Integrals are exactly rounded sums (D58).
+    accumulated, so `start` is the left edge of the window. The warm-up, which is that edge, is fixed only at
+    activation (:meth:`Environment.configure_kpis` may be called after a collector is built), so collectors
+    create their accumulators in :meth:`Collector.on_activate` with ``self.window.start``. Updates before
+    `start` only set the value carried into the window. Integrals are exactly rounded sums (D58).
     """
 
     __slots__ = ("_integral", "_last", "_t", "_value", "start")
@@ -277,6 +288,9 @@ class Collector:
     with :meth:`observe` and series samples with :meth:`sample`, and expose further results as attributes.
     Scalars that are not plain aggregations of observations (time-weighted means, rates) come from
     :meth:`scalar_values`. :meth:`attach` subscribes the collector and registers it with the environment.
+
+    State that depends on the observation window, such as :class:`TimeWeighted` accumulators started at the
+    warm-up, is built in :meth:`on_activate`, which runs at activation, once the warm-up is fixed.
 
     When :attr:`scope_field` names a payload field (``"shopfloor"``, ``"fleet"``, ``"server"``), events whose
     field holds another entity's id are not delivered; events without the field are, and the collector
@@ -341,6 +355,7 @@ class Collector:
         if self.subscribes:
             self._subscription = env.bus.subscribe(self._handler(), self.subscribes)
         env._collectors.append(self)
+        env.on_activate(self.on_activate)
         return self
 
     def _handler(self) -> Callable[[Event], None]:
@@ -360,6 +375,15 @@ class Collector:
 
     def on_event(self, event: Event) -> None:
         """Handle a subscribed event of this scope; the default ignores it."""
+
+    def on_activate(self) -> None:
+        """Build window-dependent state; the default does nothing.
+
+        Registered with :meth:`Environment.on_activate` by :meth:`attach`: it runs when the environment
+        activates, after :meth:`Environment.configure_kpis` can no longer change the warm-up, or immediately
+        when attached after activation. Like every initializer it must not schedule SimPy events. Events
+        emitted before activation (the prelude) reach :meth:`on_event` before it.
+        """
 
     @property
     def window(self) -> Window:
