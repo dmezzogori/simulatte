@@ -168,3 +168,9 @@ cython_debug/
 
 # Git worktrees
 .claude/worktrees/
+
+# Studio (TypeScript workspace)
+studio/node_modules/
+studio/packages/*/node_modules/
+studio/packages/*/dist/
+studio/packages/*/coverage/

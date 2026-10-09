@@ -44,6 +44,7 @@ exclude = [
   "docs/",
   "specs/",
   "plans/",
+  "studio/",
   "tests/",
   "overrides/",
   ".claude/",
