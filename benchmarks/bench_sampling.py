@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 import feeder
-from run import _version, quartiles
+from run import _version, provenance, quartiles
 from simulatte.environment import Environment
 from simulatte.scenario import Scenario
 
@@ -100,6 +100,7 @@ def main(argv: list[str] | None = None) -> int:
             "build": platform.python_build()[0],
         },
         "platform": {"system": platform.system(), "machine": platform.machine(), "node": platform.node()},
+        **provenance(),
         # compare.py checks that both sides ran the same workload and job count.
         "workload": {"path": "router-only", "sha256": hashlib.sha256(spec.encode()).hexdigest(), "spec": spec},
         "counts": {"jobs": args.jobs},

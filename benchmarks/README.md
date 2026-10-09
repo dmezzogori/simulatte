@@ -16,7 +16,8 @@ the interpreter that runs them, so each version is installed in its own virtual 
 | `run.py` | Times one mode (`none`, `digest`, `full`) on a workload: warm-up runs, timed runs, optionally in several fresh processes; peak memory in a separate process; in mode `full` the trace size, chunk count and cold-seek latency. Writes JSON. |
 | `compare.py` | Compares two results; exits 1 when both are mode `none` and the median overhead exceeds `--budget + --noise`, 2 when the results are not comparable. |
 | `bench_sampling.py` | Router-only workload: a `Scenario.pure_job_shop` router generates a fixed number of jobs into a counting sink (no processing); reports jobs and sampler calls per second. |
-| `summarize.py` | Markdown table of results (time, peak memory, trace, seeks, sampling). |
+| `summarize.py` | Markdown tables of results (time, peak memory, trace, seeks, sampling) and of their provenance (commit, logging level, hardware). |
+| `strip_debug.py` | Diagnostic: writes a copy of an installed 0.12.0 without its `env.debug(...)` calls, to isolate what SP1 added on the unobserved path. |
 | `workloads/` | The committed CI-size workloads. |
 
 ## Workloads
@@ -52,7 +53,7 @@ cd benchmarks
 W=workloads/jobshop10-u90-5k.json
 /tmp/base/bin/python run.py --mode none --workload $W --warmup 1 --repeat 5 --processes 3 --json /tmp/base.json
 /tmp/head/bin/python run.py --mode none --workload $W --warmup 1 --repeat 5 --processes 3 --json /tmp/head.json
-python compare.py /tmp/base.json /tmp/head.json --budget 0.03 --noise 0.03
+python compare.py /tmp/base.json /tmp/head.json --budget 0.03 --noise 0.02   # PyPy: --noise 0.05
 
 /tmp/head/bin/python run.py --mode full --workload $W --warmup 1 --repeat 5 --json /tmp/full.json
 python compare.py /tmp/head.json /tmp/full.json        # ratio only, never gated
@@ -84,6 +85,25 @@ settle at speeds up to about 10 % apart, which is why the gate pools three proce
   chunk cache is cleared before each) at uniformly random times, seed 0.
 - **Sampling** (`bench_sampling.py`): sampler calls per job are the inter-arrival time, the SKU, the routing, one
   processing time per operation and the due-date offset.
+
+- **Provenance** (C1.9): every result records `commit` (`git rev-parse HEAD` of the benchmark checkout, else
+  `GITHUB_SHA`, else `unknown`; for `head` this is the measured branch, since `simulatte_version` still reads
+  0.12.0 on both sides), `log_level` (`SimLogger.get_level()`) and `hardware` (machine, CPU model, CPU count),
+  besides the workload and interpreter.
+- **Seeks** default to 200 per run (`--seeks`); the G3 report used 500.
+
+## Diagnostic: 0.12.0 without its debug calls
+
+0.12.0 builds an f-string and keyword arguments for `env.debug(...)` at every step even at the INFO level; the
+branch removed these calls. To measure SP1's own cost on the unobserved path, strip them from a copy and put it
+first on `PYTHONPATH`:
+
+```bash
+python strip_debug.py /tmp/base/lib/python3.14/site-packages/simulatte /tmp/stripped
+PYTHONPATH=/tmp/stripped /tmp/base/bin/python run.py --mode none --workload $W --warmup 1 --repeat 5 --processes 3 \
+    --label "0.12.0 without env.debug calls" --json /tmp/nolog.json
+python compare.py /tmp/nolog.json /tmp/head.json   # diagnostic; the gate compares with the released 0.12.0
+```
 
 ## CI
 

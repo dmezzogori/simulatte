@@ -1,4 +1,7 @@
-"""Print a Markdown table of ``run.py`` and ``bench_sampling.py`` results (time, memory, trace, seeks, sampling).
+"""Print Markdown tables of ``run.py`` and ``bench_sampling.py`` results and of their provenance.
+
+The first table has time, memory, trace, seeks and sampling; the second the commit, logging level and hardware of
+each version.
 
 Usage::
 
@@ -38,12 +41,30 @@ def row(result: dict[str, Any]) -> str:
     )
 
 
+def provenance_table(results: list[dict[str, Any]]) -> str:
+    """One row per distinct version, interpreter, commit, logging level and hardware (C1.9 provenance)."""
+    rows = []
+    for result in results:
+        python = result["python"]
+        hardware = result.get("hardware") or {}
+        row = (
+            f"| {result['label']} | {result['simulatte_version']} | {python['implementation']} {python['version']} "
+            f"| `{str(result.get('commit', 'unknown'))[:12]}` | {result.get('log_level', '–')} "
+            f"| {hardware.get('machine', '–')}, {hardware.get('cpu', '–')}, {hardware.get('cpus', '–')} CPUs |\n"
+        )
+        if row not in rows:
+            rows.append(row)
+    header = "| Version | Package version | Interpreter | Commit | Log level | Hardware |\n|---|---|---|---|---|---|\n"
+    return header + "".join(rows)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("results", nargs="+")
     args = parser.parse_args(argv)
     results = [json.loads(Path(path).read_text()) for path in sorted(args.results)]
-    print(COLUMNS + "".join(row(result) for result in results), end="")
+    print(COLUMNS + "".join(row(result) for result in results))
+    print(provenance_table(results), end="")
     return 0
 
 

@@ -66,7 +66,8 @@ the seventh). Fresh PyPy processes settle at speeds up to about 10 % apart (§3)
 across processes. The reported values are the median and the interquartile range (IQR) of the samples.
 
 **Peak memory** is `ru_maxrss` of a separate process that loads the workload and runs it once. **Seeks** use
-`Trace.open` on the trace of the last timed run, then 500 cold `state_at` calls at uniformly random times (seed
+`Trace.open` on the trace of the last timed run, then 500 cold `state_at` calls (`--seeks 500`; every seek number
+in this report uses 500, while the CI job uses `run.py`'s default of 200) at uniformly random times (seed
 0). The reader's chunk cache is cleared before each call. This differs from G1, which seeked to random event
 cursors, so the two reports' seek numbers are not directly comparable. **Sampling** (`bench_sampling.py`, T14) is
 described in §5.6.
@@ -144,7 +145,9 @@ For reference, G1 measured 7.25 s for 50k jobs with the router. The feeder's 6.7
 
 To separate SP1's additions from the removed logging, I made a copy of 0.12.0 (CPython and PyPy venvs) with every
 `*.env.debug(...)` statement deleted from `psp.py`, `server.py`, `shopfloor.py` and `router.py`. The deletion
-uses an AST pass that replaces each such expression statement with `pass` (12 statements). It is not committed.
+uses an AST pass that replaces each such expression statement with `pass` (12 statements). The pass is committed
+as `benchmarks/strip_debug.py`, with usage in `benchmarks/README.md`. Its output is byte-identical to the copy
+measured here. A rerun through it (`PYTHONPATH` copy, `--repeat 3`, one process) gave +10.0 % on CPython u90-5k.
 The copy produces the same trajectory fingerprint as 0.12.0 and the branch.
 
 | Interpreter | Workload | 0.12.0 without `env.debug` | Branch | Branch overhead |
@@ -207,7 +210,7 @@ and snapshot encoding under the GIL, is the bottleneck of `full` on long runs.
 
 ### 5.4 Trace size, chunks and seek (C1.7)
 
-Default chunk limits. Seeks: 500 cold seeks at uniformly random times.
+Default chunk limits. Seeks: 500 cold seeks at uniformly random times (CI uses 200).
 
 | Interpreter | Workload | Trace | Per job | Chunks | `Trace.open` | Seek p50 | Seek p95 | Seek max |
 |---|---|---|---|---|---|---|---|---|
@@ -309,9 +312,11 @@ Job `bench` in `.github/workflows/ci.yml`, a matrix over CPython 3.14 and PyPy 3
 2. Gate step: mode `none` on `jobshop10-u90-5k` and `jobshop10-u95-5k` in both environments with the settings
    of §1 (`--repeat 5 --processes 3`, warm-up 1 or 8). `compare.py --budget 0.03 --noise 0.02|0.05` appends a
    table to `$GITHUB_STEP_SUMMARY` and fails the job above the limit.
-3. Reporting step (runs even when the gate fails): `digest` and `full` against the branch's `none`, the sampling
-   benchmark (20,000 jobs) against 0.12.0, and a details table from `summarize.py` (peak RSS, trace size,
-   chunks, seek p50/p95, jobs/s, draws/s). The result JSON files are uploaded as artifacts.
+3. Reporting step (runs even when the gate fails): `digest` and `full` against the branch's `none` (200 seeks),
+   the sampling benchmark (20,000 jobs) against 0.12.0, and two tables from `summarize.py`. The details table
+   has peak RSS, trace size, chunks, seek p50/p95, jobs/s and draws/s. The provenance table has, per version,
+   the commit, logging level and hardware (machine, CPU model, CPU count), the fields C1.9 asks to record. The
+   result JSON files, which carry the same fields, are uploaded as artifacts.
 
 I checked the step scripts by running them on eva against fresh `/tmp/ci-*` environments, with `--repeat 1
 --processes 2` and Linux-only steps skipped. Both the summary output and the gate's exit status behaved as

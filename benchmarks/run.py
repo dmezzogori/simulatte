@@ -43,6 +43,42 @@ def _version() -> str:
         return "unknown"
 
 
+def _cpu_model() -> str:
+    """CPU model name, or ``platform.processor()`` when the OS does not expose it cheaply."""
+    try:
+        if sys.platform == "darwin":
+            command = ["sysctl", "-n", "machdep.cpu.brand_string"]
+            return subprocess.run(command, capture_output=True, text=True, check=True).stdout.strip()
+        if sys.platform.startswith("linux"):
+            for line in Path("/proc/cpuinfo").read_text().splitlines():
+                if line.startswith("model name"):
+                    return line.split(":", 1)[1].strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return platform.processor() or "unknown"
+
+
+def _commit() -> str:
+    """Commit of the benchmark checkout (the measured branch for ``head``): git, else ``GITHUB_SHA``."""
+    try:
+        command = ["git", "rev-parse", "HEAD"]
+        cwd = Path(__file__).parent
+        return subprocess.run(command, capture_output=True, text=True, check=True, cwd=cwd).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return os.environ.get("GITHUB_SHA", "unknown")
+
+
+def provenance() -> dict[str, Any]:
+    """What C1.9 asks to record with the results besides the workload: commit, logging level, hardware class."""
+    from simulatte.logger import SimLogger
+
+    return {
+        "commit": _commit(),
+        "log_level": SimLogger.get_level(),
+        "hardware": {"machine": platform.machine(), "cpu": _cpu_model(), "cpus": os.cpu_count()},
+    }
+
+
 def _max_rss_mb() -> float:
     """Peak resident set size of this process so far, in MB (ru_maxrss is bytes on macOS, KiB elsewhere)."""
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
@@ -139,6 +175,7 @@ def _in_process(args: argparse.Namespace) -> dict[str, Any]:
                 "build": platform.python_build()[0],
             },
             "platform": {"system": platform.system(), "machine": platform.machine(), "node": platform.node()},
+            **provenance(),
             "workload": {
                 "path": workload.path,
                 "sha256": workload.sha256,
