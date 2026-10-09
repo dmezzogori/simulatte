@@ -204,6 +204,14 @@ The plan verifies with replay-equals-live checks after every event, including a 
 
 `ParkingArea.enter/leave` are never called by `FleetCoordinator` today; SP1 instruments them without changing that.
 
+**Amendments from implementation (ruling R21, SP1 Task 15):**
+- `agv.placed` (`agv`, `node`, `previous`; deltas agv `node`, node `agvs` remove/insert) is emitted when an AGV is created at an already-bound node and on a direct `current_node` assignment that changes the node.
+- `agv.move_started` names its payload fields `from_node` and `to_node` (`from` is a Python keyword); the AGV `motion` state map keeps `from`/`to` and gains `"stalled": true` with `t_end = +inf` for non-finite travel times.
+- `order.status_changed` may also set the order's `agv` when a load-recovery strategy changed both; `order.unassigned` carries only the side actually cleared.
+- `agv.load_changed` at pickup also sets the order's `picked_at`.
+- "Every assignment" includes self-transitions (for example `CANCELLED` → `CANCELLED`); replay is unaffected.
+- Only framework transitions emit events: direct user writes to `agv.battery.level`, `agv.current_load`, order fields or `_pending_queue` emit nothing, and load-recovery strategies are observed after `recover` returns.
+
 **Observer events:** `log` (`level`, `message`, `component`, `extra`), `kpi.sample` (`kpi`, `scope`, `value`).
 
 ### 6.5 Motion description
