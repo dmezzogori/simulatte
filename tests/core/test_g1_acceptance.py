@@ -214,8 +214,8 @@ def test_g1_acceptance(tmp_path: Path) -> None:
 # (log, exp), whose last-bit results may differ elsewhere, so other platforms only check that the values are
 # stable in-process.
 _GOLDEN_REFERENCE_VALUES = (
-    "9032ec344577870a45a32b7aa251f3db06145d9d1dd499b94664c5bd4e29c51f",
-    "6514ec161aa0812a8d7fba6d1f8414d9cc34f951c06e4a7496d3d9e2af2fd973",
+    "815b439078239991112919e8562ca659a213aa9cd27f93cd5f470670635e95ab",
+    "be43e318100725dcd51fa551889943985a95321b6615abd502fb1a52b73e1acf",
 )
 GOLDEN_REFERENCE = {"cpython": _GOLDEN_REFERENCE_VALUES, "pypy": _GOLDEN_REFERENCE_VALUES}
 _GOLDEN_PLATFORM = sys.platform == "darwin" and platform.machine() == "arm64"

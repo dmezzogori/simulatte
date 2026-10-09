@@ -19,6 +19,7 @@ import math
 from typing import TYPE_CHECKING, cast
 
 from simulatte.dispatching_rules.focus import Focus, FocusContext, _StateMemo, _next_server_after
+from simulatte.policies.events import PolicyDecision
 from simulatte.policies.starvation_avoidance import starvation_avoidance
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -291,12 +292,17 @@ class Draco:
         # carry ProductionJob), so the cast is safe.
         winner_job: ProductionJob = cast("ProductionJob", winner)
         self._forced_at_server[server_k] = winner_job
+        env = self._shopfloor.env
+        if env.wants(PolicyDecision):
+            env.emit(PolicyDecision(policy=type(self).__name__, job=winner_job.id, action="force_pin"))
 
         if winner in psp_scores and psp is not None:
             # PSP winner: release it onto the shop floor (psp_scores is non-empty
             # only when self._psp is not None). The new process's URGENT Initialize
             # precedes the NORMAL Release, so it grabs the freed slot immediately.
-            psp.remove(job=winner_job)
+            if env.wants(PolicyDecision):
+                env.emit(PolicyDecision(policy=type(self).__name__, job=winner_job.id, action="release"))
+            psp.remove(job=winner_job, reason="released")
             psp.shopfloor.add(winner_job)
         # else: queue winner — already in server_k.queue; the force flag alone
         # pins it at queue[0] for the imminent Release event's sort_queue.

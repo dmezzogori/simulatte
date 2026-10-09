@@ -5,6 +5,7 @@ from __future__ import annotations
 from .continuous_release import ContinuousRelease
 from .conwip import ConWIP
 from .draco import Draco
+from .events import PolicyDecision
 from .lumscor import LumsCor
 from .slar import Slar
 from .slar_limit import SlarLimit
@@ -16,6 +17,7 @@ __all__ = [
     "ConWIP",
     "Draco",
     "LumsCor",
+    "PolicyDecision",
     "Slar",
     "SlarLimit",
     "on_arrival_trigger",

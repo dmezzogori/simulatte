@@ -129,6 +129,20 @@ Classes in `simulatte.psp`:
 | `psp.entered` | `PspEntered` | `job`, `psp`, `position` |
 | `psp.exited` | `PspExited` | `job`, `psp`, `reason` (`released`, `postponed` or `removed`) |
 
+#### Release policies
+
+Class in `simulatte.policies`. `ConWIP`, `ContinuousRelease`, `Draco`, `LumsCor`, `Slar` and `SlarLimit` emit one
+decision event per job they act on; it carries no state change (the `psp.exited` and `shopfloor.entered` events that
+follow do):
+
+| Event type | Class | Payload |
+| --- | --- | --- |
+| `policy.decision` | `PolicyDecision` | `policy` (the policy's class name), `job`, `action` (`release`, `postpone` or `force_pin`) |
+
+A `postpone` is a release after a short delay: the job leaves the pool at once (`psp.exited` with reason `postponed`,
+location `transit`) and enters the shop floor 0.001 time units later. Draco emits `force_pin` when it pins the winner
+at the server's queue head, followed by `release` when the winner came from the pool.
+
 #### Router
 
 The router has no events of its own. A new job appears as `entity.created` (class `EntityCreated` in

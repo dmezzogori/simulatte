@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from simulatte.policies.events import PolicyDecision
 from simulatte.policies.triggers import on_completion_trigger
 
 if TYPE_CHECKING:
@@ -78,6 +79,9 @@ class ConWIP:
         shopfloor = psp.shopfloor
         while not psp.empty and len(shopfloor.jobs) < self.wip_cap:
             candidate = min(psp.jobs, key=lambda j: j.due_date)
+            env = psp.env
+            if env.wants(PolicyDecision):
+                env.emit(PolicyDecision(policy=type(self).__name__, job=candidate.id, action="release"))
             psp.release(candidate)
 
     def on_arrival_release(self, job: ProductionJob, psp: PreShopPool) -> None:
@@ -94,4 +98,7 @@ class ConWIP:
         if job not in psp:
             return
         if len(psp.shopfloor.jobs) < self.wip_cap:
+            env = psp.env
+            if env.wants(PolicyDecision):
+                env.emit(PolicyDecision(policy=type(self).__name__, job=job.id, action="release"))
             psp.release(job)
