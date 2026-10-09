@@ -3,8 +3,8 @@
 Runs the workload ``--warmup`` times without recording the time (on PyPy this is the JIT warm-up), then
 ``--repeat`` times, each in a fresh environment, and reports the median and interquartile range of the wall time
 (build + run + close). With ``--processes P`` this is done in P fresh interpreters in turn and the samples are
-pooled. Peak memory comes from a separate process that runs the workload once. Mode ``full`` also
-reports the size and chunk count of the trace and the latency of cold seeks into it.
+pooled. Peak memory comes from a separate process that runs the workload once. Modes ``kpi`` and ``full`` also
+report the size of the trace, and mode ``full`` its chunk count and the latency of cold seeks into it.
 
 Usage::
 
@@ -12,8 +12,9 @@ Usage::
         --warmup 2 --repeat 10 --json none.json
 
 Run it with the interpreter of the environment to measure (``simulatte==0.12.0`` or the branch); modes
-``digest`` and ``full`` need the branch. Mode ``none`` runs without the shop floor's default metrics and without
-any domain-event subscriber; mode ``default`` keeps each version's default metrics (see ``feeder.py``).
+``bare``, ``kpi``, ``digest`` and ``full`` need the branch. Mode ``none`` runs without the shop floor's default
+metrics and without any domain-event subscriber; ``default`` keeps each version's default metrics and
+``default_logging`` makes the default logging explicit (see ``feeder.py`` for all modes).
 """
 
 from __future__ import annotations
@@ -223,10 +224,11 @@ def _in_process(args: argparse.Namespace) -> dict[str, Any]:
             "seek_max_ms": None,
             "seeks": None,
         }
+        if args.mode in ("kpi", "full"):
+            out["trace_bytes"] = os.path.getsize(trace_path)
         if args.mode == "full":
             from simulatte.trace import Trace
 
-            out["trace_bytes"] = os.path.getsize(trace_path)
             out["chunks"] = len(Trace.open(trace_path).index)
             if args.seeks:
                 out.update(measure_seeks(trace_path, count=args.seeks, seed=args.seek_seed))

@@ -130,9 +130,11 @@ jobs:
   # user-facing promise) and a copy of it without its env.debug calls (benchmarks/strip_debug.py), which isolates
   # what SP1 itself added on the unobserved path. Only mode `none` can fail the job: when the median overhead
   # against the released baseline exceeds BUDGET_RELEASED + NOISE_RELEASED, or against the stripped one
-  # BUDGET_STRIPPED + NOISE_STRIPPED; mode default (each version's default shop-floor metrics, budget proposed at
-  # Task 25), digest/full ratios, trace size, seeks, memory and sampling are reported in the step summary. Expected duration (estimated from local timings): about 7 minutes on CPython and 11 on PyPy,
-  # setup included.
+  # BUDGET_STRIPPED + NOISE_STRIPPED; modes default (each version's default shop-floor metrics), default_logging
+  # and kpi, the digest/full ratios, trace size, seeks, memory, sampling and the scaled-up intralogistics example
+  # are reported in the step summary (budgets for default, default_logging and kpi proposed in the final report,
+  # specs/research/sp1-final-report.md, pending acceptance). Expected duration (an estimate from local timings, not
+  # observed on a runner): about 15 minutes on CPython and 20 on PyPy, setup included.
   bench:
     name: bench (${{ matrix.python }})
     runs-on: ubuntu-latest
@@ -216,32 +218,48 @@ jobs:
           done
           exit $status
 
-      - name: Modes default, digest and full, sampling (reported only)
+      - name: Other modes, sampling and intralogistics (reported only)
         if: success() || failure()
         working-directory: benchmarks
         run: |
           w=jobshop10-u90-5k
-          echo "### Default metrics, recording modes and sampling, ${{ matrix.python }} (not gated)" >> "$GITHUB_STEP_SUMMARY"
-          # Mode default: each version's default shop-floor metrics (budget proposed at Task 25, not gated yet).
-          /tmp/base/bin/python run.py --mode default --workload workloads/$w.json $RUN --json /tmp/out/base-default-$w.json
-          PYTHONPATH=/tmp/stripped /tmp/base/bin/python run.py --mode default --workload workloads/$w.json $RUN \
-            --label "0.12.0 without env.debug calls" --json /tmp/out/stripped-default-$w.json
-          /tmp/head/bin/python run.py --mode default --workload workloads/$w.json $RUN --json /tmp/out/head-default-$w.json
-          /tmp/head/bin/python compare.py /tmp/out/base-default-$w.json /tmp/out/head-default-$w.json \
-            --summary "$GITHUB_STEP_SUMMARY"
-          /tmp/head/bin/python compare.py /tmp/out/stripped-default-$w.json /tmp/out/head-default-$w.json \
-            --summary "$GITHUB_STEP_SUMMARY" --no-header
-          header=--no-header
-          for mode in digest full; do
+          echo "### Other modes, sampling and intralogistics, ${{ matrix.python }} (not gated)" >> "$GITHUB_STEP_SUMMARY"
+          # Modes default and default_logging: each version's defaults, against each baseline (budgets proposed, not gated).
+          header=""
+          for mode in default default_logging; do
+            /tmp/base/bin/python run.py --mode $mode --workload workloads/$w.json $RUN --json /tmp/out/base-$mode-$w.json
+            PYTHONPATH=/tmp/stripped /tmp/base/bin/python run.py --mode $mode --workload workloads/$w.json $RUN \
+              --label "0.12.0 without env.debug calls" --json /tmp/out/stripped-$mode-$w.json
             /tmp/head/bin/python run.py --mode $mode --workload workloads/$w.json $RUN --json /tmp/out/head-$mode-$w.json
-            /tmp/head/bin/python compare.py /tmp/out/head-none-$w.json /tmp/out/head-$mode-$w.json \
+            /tmp/head/bin/python compare.py /tmp/out/base-$mode-$w.json /tmp/out/head-$mode-$w.json \
               --summary "$GITHUB_STEP_SUMMARY" $header
             header=--no-header
+            /tmp/head/bin/python compare.py /tmp/out/stripped-$mode-$w.json /tmp/out/head-$mode-$w.json \
+              --summary "$GITHUB_STEP_SUMMARY" --no-header
+          done
+          # Logging cost: the default logging against the same shop with the default log sinks closed (branch only).
+          /tmp/head/bin/python run.py --mode bare --workload workloads/$w.json $RUN --json /tmp/out/head-bare-$w.json
+          /tmp/head/bin/python compare.py /tmp/out/head-bare-$w.json /tmp/out/head-default_logging-$w.json \
+            --summary "$GITHUB_STEP_SUMMARY" --no-header
+          # Recording modes, against the branch's none.
+          for mode in kpi digest full; do
+            /tmp/head/bin/python run.py --mode $mode --workload workloads/$w.json $RUN --json /tmp/out/head-$mode-$w.json
+            /tmp/head/bin/python compare.py /tmp/out/head-none-$w.json /tmp/out/head-$mode-$w.json \
+              --summary "$GITHUB_STEP_SUMMARY" --no-header
           done
           /tmp/base/bin/python bench_sampling.py --jobs 20000 --warmup ${{ matrix.warmup }} --repeat 5 --json /tmp/out/base-sampling.json
           /tmp/head/bin/python bench_sampling.py --jobs 20000 --warmup ${{ matrix.warmup }} --repeat 5 --json /tmp/out/head-sampling.json
           /tmp/head/bin/python compare.py /tmp/out/base-sampling.json /tmp/out/head-sampling.json \
             --summary "$GITHUB_STEP_SUMMARY" --no-header
+          # Scaled-up advanced intralogistics example (half-size here), every mode against the branch's own none.
+          IL="--shifts 10 --warmup ${{ matrix.pypy && 2 || 1 }} --repeat 3 --no-memory"
+          for mode in none default default_logging bare kpi digest full; do
+            /tmp/head/bin/python intralogistics.py --mode $mode $IL --json /tmp/out/il-$mode.json
+          done
+          for mode in default default_logging bare kpi digest full; do
+            /tmp/head/bin/python compare.py /tmp/out/il-none.json /tmp/out/il-$mode.json \
+              --summary "$GITHUB_STEP_SUMMARY" --no-header
+          done
           /tmp/head/bin/python summarize.py /tmp/out/*.json >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the benchmark results

@@ -18,6 +18,15 @@ Modes:
 - ``default`` (reported, not gated): each version's defaults, the same as ``none`` plus the shop floor's default
   EMA metrics (``EMAMetricsCollector`` called at each completion in 0.12.0; ``EMACollector`` on the branch, a bus
   subscriber of ``job.finished``, so that event is built at each completion).
+- ``default_logging`` (reported, not gated): the default logging of each version on the shop of ``none`` (default
+  metrics off). Every mode of this feeder runs with the default log sinks (``Environment()``'s on the branch,
+  ``SimLogger`` at INFO in 0.12.0), so this configuration is the one of ``none``; the mode makes it explicit, checks
+  that the default logging is active and gives its budget a name. The logging cost is read against ``bare``.
+- ``bare`` (branch only, diagnostic): ``none`` with the default log sinks closed before the shop is built, so the
+  bus has no subscriber at all. It is the floor that ``default_logging`` is compared with.
+- ``kpi`` (branch only): ``TraceRecorder(level="kpi")`` (which enables the semantic digest and records only the
+  header, the initial state, the KPI records and the footer), the default ``EMACollector`` and a ``ShopFloorKPIs``
+  collector (the window-aware KPIs, the ones a KPI-level trace exists for).
 - ``digest`` and ``full`` (branch only): ``none`` plus ``env.enable_digest()`` or a ``TraceRecorder`` with default
   chunk limits, created before the shop as a user would.
 """
@@ -26,6 +35,7 @@ from __future__ import annotations
 
 import gc
 import hashlib
+import importlib
 import inspect
 import json
 import time
@@ -42,8 +52,10 @@ from simulatte.psp import PreShopPool
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
 
-MODES = ("none", "default", "digest", "full")
-_TRACE_MODES = ("digest", "full")
+MODES = ("none", "default", "default_logging", "bare", "kpi", "digest", "full")
+_TRACE_MODES = ("digest", "full", "kpi")  # branch only: need the SP1 digest and trace recorder
+_BRANCH_ONLY_MODES = (*_TRACE_MODES, "bare")
+_NO_SUBSCRIBER_MODES = ("none", "default_logging", "bare")
 
 # LumsCor parameters of the G1 reference shop.
 CHECK_TIMEOUT = 5.0
@@ -149,6 +161,18 @@ def _domain_subscribers(bus: Any) -> int:
     return sum(1 for s in bus._subscriptions if not all(issubclass(c, ObserverEvent) for c in s._classes))
 
 
+def _check_logging(env: Any, *, active: bool) -> None:
+    """Fail unless the default logging is active (all modes but ``bare``) or fully detached (``bare``)."""
+    if has_trace():
+        live = [sink for sink in env.sinks if not sink.closed]
+        if bool(live) != active:
+            raise RuntimeError(f"expected the default log sinks to be {'active' if active else 'closed'}: {live}")
+    else:
+        level = importlib.import_module("simulatte.logger").SimLogger.get_level()  # simulatte 0.12.0
+        if level != "INFO":
+            raise RuntimeError(f"0.12.0's default log level should be INFO, found {level}")
+
+
 def run(workload: Workload, *, mode: str = "none", trace_path: str | Path | None = None) -> RunResult:
     """Build the shop, replay `workload` until its horizon and close the environment, timing all of it.
 
@@ -156,22 +180,29 @@ def run(workload: Workload, *, mode: str = "none", trace_path: str | Path | None
     """
     if mode not in MODES:
         raise ValueError(f"mode must be one of {MODES}, got {mode!r}")
-    if mode in _TRACE_MODES and not has_trace():
+    if mode in _BRANCH_ONLY_MODES and not has_trace():
         raise RuntimeError(f"mode {mode!r} needs the SP1 trace support, absent from this simulatte")
-    if mode == "full" and trace_path is None:
-        raise ValueError("mode 'full' needs a trace path")
+    if mode in ("full", "kpi") and trace_path is None:
+        raise ValueError(f"mode {mode!r} needs a trace path")
     rows = workload.jobs
     gc.collect()
     start = time.perf_counter()
     env = _new_environment()
     if mode == "digest":
         env.enable_digest()
-    elif mode == "full":
+    elif mode in ("full", "kpi"):
         from simulatte.trace import TraceRecorder
 
         assert trace_path is not None
-        TraceRecorder(env, trace_path)
-    shopfloor = _new_shopfloor(env, metrics=mode == "default")
+        TraceRecorder(env, trace_path, level=mode if mode == "kpi" else "full")
+    elif mode == "bare":
+        for sink in env.sinks:
+            sink.close()
+    shopfloor = _new_shopfloor(env, metrics=mode in ("default", "kpi"))
+    if mode == "kpi":
+        from simulatte.collectors import ShopFloorKPIs
+
+        ShopFloorKPIs(shopfloor).attach(env)
     servers = [Server(env=env, capacity=1, shopfloor=shopfloor) for _ in range(workload.servers)]
     psp = PreShopPool(env=env, shopfloor=shopfloor)
     router = types.SimpleNamespace(priority_policies=None)
@@ -184,6 +215,7 @@ def run(workload: Workload, *, mode: str = "none", trace_path: str | Path | None
         allowance_factor=ALLOWANCE_FACTOR,
     )
     env.process(_feed(env, rows, servers, psp, router.priority_policies))
+    _check_logging(env, active=mode != "bare")  # before close(), which closes the sinks
     env.run(until=workload.horizon)
     env.close()
     wall = time.perf_counter() - start
@@ -212,6 +244,6 @@ def run(workload: Workload, *, mode: str = "none", trace_path: str | Path | None
             f"{result.jobs_done}/{result.jobs_fed} jobs and {result.operations_done}/{result.operations_fed} "
             f"operations finished by the horizon {workload.horizon}; regenerate the workload with a longer --drain"
         )
-    if mode == "none" and subscribers:
-        raise RuntimeError(f"mode 'none' must run without domain-event subscribers, found {subscribers}")
+    if mode in _NO_SUBSCRIBER_MODES and subscribers:
+        raise RuntimeError(f"mode {mode!r} must run without domain-event subscribers, found {subscribers}")
     return result
