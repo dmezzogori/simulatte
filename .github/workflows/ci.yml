@@ -125,29 +125,35 @@ jobs:
       - name: Run tests
         run: pnpm -C studio test
 
-  # Overhead gate (spec §14, gate G3): the branch against simulatte==0.12.0, installed in two environments of
-  # the same job, on the same pre-generated workloads (benchmarks/README.md). Only mode `none` can fail the job,
-  # above BUDGET + NOISE median overhead; digest/full ratios, trace size, seeks, memory and sampling are reported in
-  # the step summary. Expected duration (estimated from local timings): about 6 minutes on CPython and 9 on PyPy,
+  # Overhead gate (spec §14, gate G3, decision D55): the branch's mode `none` against two baselines built from
+  # simulatte==0.12.0, on the same pre-generated workloads (benchmarks/README.md): the released package (the
+  # user-facing promise) and a copy of it without its env.debug calls (benchmarks/strip_debug.py), which isolates
+  # what SP1 itself added on the unobserved path. Only mode `none` can fail the job, above BUDGET + NOISE median
+  # overhead against either baseline; digest/full ratios, trace size, seeks, memory and sampling are reported in
+  # the step summary. Expected duration (estimated from local timings): about 7 minutes on CPython and 11 on PyPy,
   # setup included.
   bench:
     name: bench (${{ matrix.python }})
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
-          # NOISE: noise band calibrated at G3 (specs/research/sp1-g3-report.md §3), added to the 3 % budget.
           - python: "3.14"
             warmup: 1
-            noise: "0.02"
+            pypy: false
           - python: pypy-3.11
             warmup: 8  # the JIT settles after about 7 runs of the CI workload
-            noise: "0.05"
+            pypy: true
     env:
-      BUDGET: "0.03"
-      NOISE: ${{ matrix.noise }}
+      # Overhead budgets and noise bands, the only place they are set (D55). The gate fails above BUDGET + NOISE.
+      # Noise bands are calibrated at G3 (specs/research/sp1-g3-report.md §3). The stripped baseline's budget is
+      # tightened after tuning (D56): 10 % on CPython, 3 % on PyPy.
+      BUDGET_RELEASED: "0.03"
+      NOISE_RELEASED: ${{ matrix.pypy && '0.05' || '0.02' }}
+      BUDGET_STRIPPED: ${{ matrix.pypy && '0.03' || '0.10' }}
+      NOISE_STRIPPED: ${{ matrix.pypy && '0.05' || '0.02' }}
       RUN: --warmup ${{ matrix.warmup }} --repeat 5 --processes 3
       MPLBACKEND: Agg
 
@@ -167,7 +173,7 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libjpeg-dev zlib1g-dev
 
-      - name: Create the environments (branch, then simulatte==0.12.0 with the same dependency versions)
+      - name: Create the environments (branch, released 0.12.0 with the same dependency versions, stripped 0.12.0)
         run: |
           uv venv /tmp/head --python ${{ matrix.python }}
           uv pip install --python /tmp/head .
@@ -175,19 +181,35 @@ jobs:
           uv venv /tmp/base --python ${{ matrix.python }}
           uv pip install --python /tmp/base simulatte==0.12.0 --constraint /tmp/constraints.txt
           mkdir -p /tmp/out
+          # The stripped baseline runs in the released environment with a copy of the package, without its
+          # env.debug calls, first on PYTHONPATH (D55).
+          pkg=$(/tmp/base/bin/python -c 'import os, simulatte; print(os.path.dirname(simulatte.__file__))')
+          /tmp/base/bin/python benchmarks/strip_debug.py "$pkg" /tmp/stripped
+          # Fail the job unless the stripped copy is the one imported (and the released one otherwise).
+          PYTHONPATH=/tmp/stripped /tmp/base/bin/python -c 'import simulatte; print("stripped:", simulatte.__file__); assert simulatte.__file__.startswith("/tmp/stripped/")'
+          /tmp/base/bin/python -c 'import simulatte; print("released:", simulatte.__file__); assert not simulatte.__file__.startswith("/tmp/stripped/")'
 
-      - name: Mode none against 0.12.0 (gate)
+      - name: Mode none against released and stripped 0.12.0 (gate)
         working-directory: benchmarks
         run: |
-          echo "### Overhead gate, ${{ matrix.python }}: budget ${BUDGET}, noise band ${NOISE}" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Overhead gate, ${{ matrix.python }}"
+            echo "- released 0.12.0: budget ${BUDGET_RELEASED}, noise band ${NOISE_RELEASED}"
+            echo "- 0.12.0 without env.debug calls: budget ${BUDGET_STRIPPED}, noise band ${NOISE_STRIPPED}"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
           status=0
           header=""
           for w in jobshop10-u90-5k jobshop10-u95-5k; do
             /tmp/base/bin/python run.py --mode none --workload workloads/$w.json $RUN --json /tmp/out/base-none-$w.json
+            PYTHONPATH=/tmp/stripped /tmp/base/bin/python run.py --mode none --workload workloads/$w.json $RUN \
+              --label "0.12.0 without env.debug calls" --json /tmp/out/stripped-none-$w.json
             /tmp/head/bin/python run.py --mode none --workload workloads/$w.json $RUN --json /tmp/out/head-none-$w.json
             /tmp/head/bin/python compare.py /tmp/out/base-none-$w.json /tmp/out/head-none-$w.json \
-              --budget "$BUDGET" --noise "$NOISE" --summary "$GITHUB_STEP_SUMMARY" $header || status=1
+              --budget "$BUDGET_RELEASED" --noise "$NOISE_RELEASED" --summary "$GITHUB_STEP_SUMMARY" $header || status=1
             header=--no-header
+            /tmp/head/bin/python compare.py /tmp/out/stripped-none-$w.json /tmp/out/head-none-$w.json \
+              --budget "$BUDGET_STRIPPED" --noise "$NOISE_STRIPPED" --summary "$GITHUB_STEP_SUMMARY" $header || status=1
           done
           exit $status
 

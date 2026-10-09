@@ -308,10 +308,22 @@ Job `bench` in `.github/workflows/ci.yml`, a matrix over CPython 3.14 and PyPy 3
 
 1. Installs the branch in `/tmp/head`, freezes its dependencies as constraints, and installs
    `simulatte==0.12.0` in `/tmp/base` with them. Both versions run on the same versions of their shared dependencies
-   (simpy and the rest).
-2. Gate step: mode `none` on `jobshop10-u90-5k` and `jobshop10-u95-5k` in both environments with the settings
-   of §1 (`--repeat 5 --processes 3`, warm-up 1 or 8). `compare.py --budget 0.03 --noise 0.02|0.05` appends a
-   table to `$GITHUB_STEP_SUMMARY` and fails the job above the limit.
+   (simpy and the rest). A third environment, `stripped` (D55), is `/tmp/base` with a copy of the installed package
+   written by `benchmarks/strip_debug.py` (the 12 `env.debug` statements removed) into `/tmp/stripped` and run with
+   `PYTHONPATH=/tmp/stripped`. The step prints `simulatte.__file__` for both and fails unless the stripped copy is
+   the one imported under `PYTHONPATH`.
+2. Gate step: mode `none` on `jobshop10-u90-5k` and `jobshop10-u95-5k` in the three environments with the settings
+   of §1 (`--repeat 5 --processes 3`, warm-up 1 or 8). `compare.py` runs twice per workload and appends two rows
+   per workload to `$GITHUB_STEP_SUMMARY`, each with its limit (budget + noise); the job fails if either exceeds
+   it (both comparisons always run). The budgets are job-level environment variables in `ci.yml` (D55):
+
+   | Baseline | Budget | Noise | Limit |
+   |---|---|---|---|
+   | Released 0.12.0 | 3 % | 2 % CPython, 5 % PyPy | 5 % / 8 % |
+   | 0.12.0 without `env.debug` calls | 10 % CPython, 3 % PyPy | 2 % CPython, 5 % PyPy | 12 % / 8 % |
+
+   The released baseline is the user-facing promise; the stripped one isolates SP1's own cost on the unobserved
+   path (§5.2) and is tightened after the `env.wants` tuning (D56).
 3. Reporting step (runs even when the gate fails): `digest` and `full` against the branch's `none` (200 seeks),
    the sampling benchmark (20,000 jobs) against 0.12.0, and two tables from `summarize.py`. The details table
    has peak RSS, trace size, chunks, seek p50/p95, jobs/s and draws/s. The provenance table has, per version,
@@ -323,8 +335,8 @@ I checked the step scripts by running them on eva against fresh `/tmp/ci-*` envi
 intended: exit 1 above the limit, 2 for incomparable results.
 
 The CI duration is estimated from eva's timings, scaled for slower runners. I have not observed it, since
-nothing was pushed: about 6 minutes on CPython (1.5 min gate, 3 min reporting, setup) and about 9 minutes on
-PyPy. `timeout-minutes` is 25.
+nothing was pushed: about 7 minutes on CPython (about 2.3 min gate, now with three environments, 3 min reporting,
+setup) and about 11 minutes on PyPy (it was 6 and 9 with two). `timeout-minutes` is 30.
 
 ## 9. Findings and follow-ups (not changed in this task)
 

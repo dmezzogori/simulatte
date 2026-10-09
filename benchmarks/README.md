@@ -14,10 +14,10 @@ the interpreter that runs them, so each version is installed in its own virtual 
 | `workload_gen.py` | Draws a job-shop workload once and writes it as JSON (arrival, SKU, routing as server indices, processing times, due date per job). |
 | `feeder.py` | Builds a 10-server LumsCor job shop with constructors present in both versions and replays a workload through `PreShopPool.add`, without the router and without any random draw. Checks the job and operation counts and fingerprints the trajectory. |
 | `run.py` | Times one mode (`none`, `digest`, `full`) on a workload: warm-up runs, timed runs, optionally in several fresh processes; peak memory in a separate process; in mode `full` the trace size, chunk count and cold-seek latency. Writes JSON. |
-| `compare.py` | Compares two results; exits 1 when both are mode `none` and the median overhead exceeds `--budget + --noise`, 2 when the results are not comparable. |
+| `compare.py` | Compares two results; exits 1 when both are mode `none` and the median overhead exceeds `--budget + --noise`, 2 when the results are not comparable. The Limit column shows the sum and its parts. |
 | `bench_sampling.py` | Router-only workload: a `Scenario.pure_job_shop` router generates a fixed number of jobs into a counting sink (no processing); reports jobs and sampler calls per second. |
 | `summarize.py` | Markdown tables of results (time, peak memory, trace, seeks, sampling) and of their provenance (commit, logging level, hardware). |
-| `strip_debug.py` | Diagnostic: writes a copy of an installed 0.12.0 without its `env.debug(...)` calls, to isolate what SP1 added on the unobserved path. |
+| `strip_debug.py` | Writes a copy of an installed 0.12.0 without its `env.debug(...)` calls, to isolate what SP1 added on the unobserved path; the CI gate's second baseline (D55). |
 | `workloads/` | The committed CI-size workloads. |
 
 ## Workloads
@@ -53,7 +53,7 @@ cd benchmarks
 W=workloads/jobshop10-u90-5k.json
 /tmp/base/bin/python run.py --mode none --workload $W --warmup 1 --repeat 5 --processes 3 --json /tmp/base.json
 /tmp/head/bin/python run.py --mode none --workload $W --warmup 1 --repeat 5 --processes 3 --json /tmp/head.json
-python compare.py /tmp/base.json /tmp/head.json --budget 0.03 --noise 0.02   # PyPy: --noise 0.05
+python compare.py /tmp/base.json /tmp/head.json --budget 0.03 --noise 0.02   # released baseline; PyPy: --noise 0.05
 
 /tmp/head/bin/python run.py --mode full --workload $W --warmup 1 --repeat 5 --json /tmp/full.json
 python compare.py /tmp/head.json /tmp/full.json        # ratio only, never gated
@@ -92,23 +92,34 @@ settle at speeds up to about 10 % apart, which is why the gate pools three proce
   besides the workload and interpreter.
 - **Seeks** default to 200 per run (`--seeks`); the G3 report used 500.
 
-## Diagnostic: 0.12.0 without its debug calls
+## Baseline: 0.12.0 without its debug calls
 
 0.12.0 builds an f-string and keyword arguments for `env.debug(...)` at every step even at the INFO level; the
 branch removed these calls. To measure SP1's own cost on the unobserved path, strip them from a copy and put it
-first on `PYTHONPATH`:
+first on `PYTHONPATH`. The CI gate uses this copy as its second baseline (decision D55):
 
 ```bash
 python strip_debug.py /tmp/base/lib/python3.14/site-packages/simulatte /tmp/stripped
+PYTHONPATH=/tmp/stripped /tmp/base/bin/python -c 'import simulatte; print(simulatte.__file__)'   # must be under /tmp/stripped
 PYTHONPATH=/tmp/stripped /tmp/base/bin/python run.py --mode none --workload $W --warmup 1 --repeat 5 --processes 3 \
     --label "0.12.0 without env.debug calls" --json /tmp/nolog.json
-python compare.py /tmp/nolog.json /tmp/head.json   # diagnostic; the gate compares with the released 0.12.0
+python compare.py /tmp/nolog.json /tmp/head.json --budget 0.10 --noise 0.02   # PyPy: --budget 0.03 --noise 0.05
 ```
 
 ## CI
 
-Job `bench` in `.github/workflows/ci.yml` runs on CPython 3.14 and PyPy 3.11. It installs the branch and
-`simulatte==0.12.0` (with the branch's dependency versions as constraints) in two environments, runs mode `none` on
-both CI workloads in both, and fails only when a mode-`none` overhead exceeds `BUDGET + NOISE`. Modes `digest` and
-`full` (against the branch's `none`), the sampling benchmark and a details table are written to the step summary
-without gating, and every result JSON is uploaded as an artifact.
+Job `bench` in `.github/workflows/ci.yml` runs on CPython 3.14 and PyPy 3.11. It creates three environments: the
+branch, `simulatte==0.12.0` (with the branch's dependency versions as constraints) and a stripped copy of that
+release (`strip_debug.py` on the installed package, run with `PYTHONPATH`; the job prints `simulatte.__file__` and
+fails unless the stripped copy is the one imported). It runs mode `none` on both CI workloads in all three and
+compares the branch with each baseline. The budgets are job-level environment variables in `ci.yml` (decision D55):
+
+| Baseline | Budget | Noise, CPython | Noise, PyPy | Limit, CPython | Limit, PyPy |
+|---|---|---|---|---|---|
+| Released 0.12.0 (the user-facing promise) | 3 % | 2 % | 5 % | 5 % | 8 % |
+| 0.12.0 without `env.debug` calls | 10 % on CPython, 3 % on PyPy | 2 % | 5 % | 12 % | 8 % |
+
+The job fails when the median mode-`none` overhead exceeds `budget + noise` against either baseline; both
+comparisons always run. The step summary has one row per baseline, workload and interpreter, with the limit and
+its two parts. Modes `digest` and `full` (against the branch's `none`), the sampling benchmark and a details table
+are written to the step summary without gating, and every result JSON is uploaded as an artifact.

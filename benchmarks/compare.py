@@ -2,7 +2,8 @@
 
 The overhead is ``median(head) / median(base) - 1``. When both results are mode ``none`` (the no-subscriber
 comparison against ``simulatte==0.12.0``), the command exits with status 1 if the overhead exceeds
-``--budget + --noise``; every other pair (``digest`` or ``full`` against ``none``, sampling) is reported only.
+``--budget + --noise`` (the Limit column shows the sum and its parts); every other pair (``digest`` or ``full``
+against ``none``, sampling) is reported only.
 Both results must come from the same workload, interpreter and job/operation counts (status 2 otherwise).
 
 Usage::
@@ -56,7 +57,7 @@ def compare(base: dict[str, Any], head: dict[str, Any], *, budget: float, noise:
     failed = gated and overhead > limit
     if gated:
         verdict = "**FAIL**" if failed else "pass"
-        limit_text = f"{limit:+.1%}"
+        limit_text = f"{limit:+.1%} ({budget:.0%} + {noise:.0%})"
     else:
         verdict = "info"
         limit_text = "–"
