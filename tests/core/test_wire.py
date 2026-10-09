@@ -342,3 +342,24 @@ def test_freeze_accepts_scalar_subclasses_like_before() -> None:
     with pytest.raises(OverflowError):
         freeze(type("Big", (int,), {})(2**60))
     assert cpack(fz({"c": Color.RED, "l": Level.HIGH})) == cpack({"c": "red", "l": 3})
+
+
+class TestPureFallbackDecoder:
+    """msgpack's pure-Python fallback (the one PyPy uses) hands ``object_pairs_hook`` a generator, not a list."""
+
+    @pytest.fixture(autouse=True)
+    def _fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from msgpack import fallback
+
+        monkeypatch.setattr(msgpack, "unpackb", fallback.unpackb)
+
+    def test_maps_decode_from_a_generator_of_pairs(self) -> None:
+        v = {"b": (1, {"y": 2.5, "__proto__": None}), "~a": "é", "c": {}}
+
+        assert upk(wpack(v)) == v
+        assert upk(cpack(fz(v))) == v
+
+    def test_duplicate_keys_still_rejected(self) -> None:
+        raw = msgpack.packb({"a": 1, "~a": 2})
+        with pytest.raises(ValueError, match="duplicate map key"):
+            unpack(raw)

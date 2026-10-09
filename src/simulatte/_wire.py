@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from bisect import bisect_left
 from collections import Counter
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from typing import Any, TypeAlias
 
 import msgpack
@@ -285,7 +285,8 @@ def _prepare(value: object, *, canonical: bool) -> Any:
     raise TypeError(f"not a wire value: {type(value).__name__}")
 
 
-def _decode_map(pairs: list[tuple[object, Wire]]) -> FrozenMap:
+def _decode_map(pairs: Iterable[tuple[object, Wire]]) -> FrozenMap:
+    pairs = list(pairs)  # msgpack's pure-Python fallback (used on PyPy) passes a generator
     data = {unescape_key(_decode_key(k)): v for k, v in pairs}
     if len(data) != len(pairs):  # two encoded keys decode to the same key: the map would be ambiguous
         counts = Counter(unescape_key(_decode_key(k)) for k, _ in pairs)
