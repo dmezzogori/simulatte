@@ -533,6 +533,24 @@ class Subscription:
             self._bus._remove(self)
 
 
+class _Interest(dict[type, bool]):
+    """Whether any subscriber takes each event class: filled on lookup, cleared when the subscriptions change.
+
+    A dict subclass so that a cached answer costs one C-level lookup, without a Python frame: the emission guard
+    :attr:`Environment.wants <simulatte.environment.Environment.wants>` is its bound ``__getitem__`` (D56).
+    """
+
+    __slots__ = ("_route",)
+
+    def __init__(self, route: Callable[[type], tuple[Handler, ...]]) -> None:
+        super().__init__()
+        self._route = route
+
+    def __missing__(self, cls: type) -> bool:
+        wanted = self[cls] = bool(self._route(cls))
+        return wanted
+
+
 class EventBus:
     """Synchronous event delivery with nested emissions queued FIFO.
 
@@ -541,11 +559,12 @@ class EventBus:
     drew from ``env.rng``, which raises `RuntimeError` (debug mode).
     """
 
-    __slots__ = ("_delivering", "_pending", "_probe", "_routes", "_subscriptions")
+    __slots__ = ("_delivering", "_interest", "_pending", "_probe", "_routes", "_subscriptions")
 
     def __init__(self, *, probe: Callable[[], tuple[int, int]] | None = None) -> None:
         self._subscriptions: list[Subscription] = []
         self._routes: dict[type, tuple[Handler, ...]] = {}
+        self._interest = _Interest(self._route)
         self._pending: deque[Event] = deque()
         self._delivering = False
         self._probe = probe
@@ -576,14 +595,12 @@ class EventBus:
         subscription = Subscription(self, handler, types, classes)
         self._subscriptions.append(subscription)
         self._routes.clear()
+        self._interest.clear()
         return subscription
 
     def wants(self, cls: type[Event]) -> bool:
         """Whether any subscriber listens to events of type `cls`."""
-        handlers = self._routes.get(cls)
-        if handlers is None:
-            handlers = self._route(cls)
-        return bool(handlers)
+        return self._interest[cls]
 
     def publish(self, event: Event) -> None:
         """Deliver `event`, or queue it if delivery is in progress.
@@ -630,6 +647,7 @@ class EventBus:
     def _remove(self, subscription: Subscription) -> None:
         self._subscriptions.remove(subscription)
         self._routes.clear()
+        self._interest.clear()
 
 
 # ---------------------------------------------------------------------------------------------------------

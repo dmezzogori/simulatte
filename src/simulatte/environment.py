@@ -52,7 +52,7 @@ class Environment(simpy.Environment):
     Thin wrapper around ``simpy.Environment`` with an event bus and integrated logging.
 
     Events are published with :meth:`emit` and delivered through :attr:`bus`; emitting sites guard event
-    construction with :meth:`wants`. Components register themselves in :attr:`entities`. Randomness comes
+    construction with :attr:`wants`. Components register themselves in :attr:`entities`. Randomness comes
     from the named streams of :meth:`rng`, derived from :attr:`seed`; components resolve their samplers
     with :meth:`bind`.
 
@@ -131,6 +131,11 @@ class Environment(simpy.Environment):
         self._activated = False
         self._initial_state: InitialState | None = None
         self.bus = EventBus(probe=self._probe if debug else None)
+        self.wants: Callable[[type[Event]], bool] = self.bus._interest.__getitem__
+        """``wants(event_type)``: whether any subscriber listens to `event_type` (guard event construction with it).
+
+        The bound lookup of the bus's interest cache rather than a method, so that a check costs one C call and no
+        Python frame while nobody listens (D56)."""
         self.entities = EntityRegistry(self)
         self._logger = SimLogger(
             env=self,
@@ -183,10 +188,6 @@ class Environment(simpy.Environment):
     def debug_mode(self) -> bool:
         """Whether the environment validates events and subscribers (the ``debug`` constructor argument)."""
         return self._debug
-
-    def wants(self, event_type: type[Event]) -> bool:
-        """Whether any subscriber listens to `event_type` (guard event construction with it)."""
-        return self.bus.wants(event_type)
 
     def _entity_kind(self, entity_id: str) -> str | None:
         """Kind of the live entity `entity_id`, or None when unknown (debug validation of touches)."""
