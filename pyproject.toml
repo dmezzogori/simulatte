@@ -41,6 +41,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.sdist]
 exclude = [
+  "benchmarks/",
   "docs/",
   "specs/",
   "plans/",

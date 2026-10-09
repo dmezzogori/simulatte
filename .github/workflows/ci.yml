@@ -124,3 +124,95 @@ jobs:
 
       - name: Run tests
         run: pnpm -C studio test
+
+  # Overhead gate (spec §14, gate G3): the branch against simulatte==0.12.0, installed in two environments of
+  # the same job, on the same pre-generated workloads (benchmarks/README.md). Only mode `none` can fail the job,
+  # above BUDGET + NOISE median overhead; digest/full ratios, trace size, seeks, memory and sampling are reported in
+  # the step summary. Expected duration (estimated from local timings): about 6 minutes on CPython and 9 on PyPy,
+  # setup included.
+  bench:
+    name: bench (${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # NOISE: noise band calibrated at G3 (specs/research/sp1-g3-report.md §3), added to the 3 % budget.
+          - python: "3.14"
+            warmup: 1
+            noise: "0.02"
+          - python: pypy-3.11
+            warmup: 8  # the JIT settles after about 7 runs of the CI workload
+            noise: "0.05"
+    env:
+      BUDGET: "0.03"
+      NOISE: ${{ matrix.noise }}
+      RUN: --warmup ${{ matrix.warmup }} --repeat 5 --processes 3
+      MPLBACKEND: Agg
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install ${{ matrix.python }}
+        run: uv python install ${{ matrix.python }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libjpeg-dev zlib1g-dev
+
+      - name: Create the environments (branch, then simulatte==0.12.0 with the same dependency versions)
+        run: |
+          uv venv /tmp/head --python ${{ matrix.python }}
+          uv pip install --python /tmp/head .
+          uv pip freeze --python /tmp/head | grep -v '^simulatte' > /tmp/constraints.txt
+          uv venv /tmp/base --python ${{ matrix.python }}
+          uv pip install --python /tmp/base simulatte==0.12.0 --constraint /tmp/constraints.txt
+          mkdir -p /tmp/out
+
+      - name: Mode none against 0.12.0 (gate)
+        working-directory: benchmarks
+        run: |
+          echo "### Overhead gate, ${{ matrix.python }}: budget ${BUDGET}, noise band ${NOISE}" >> "$GITHUB_STEP_SUMMARY"
+          status=0
+          header=""
+          for w in jobshop10-u90-5k jobshop10-u95-5k; do
+            /tmp/base/bin/python run.py --mode none --workload workloads/$w.json $RUN --json /tmp/out/base-none-$w.json
+            /tmp/head/bin/python run.py --mode none --workload workloads/$w.json $RUN --json /tmp/out/head-none-$w.json
+            /tmp/head/bin/python compare.py /tmp/out/base-none-$w.json /tmp/out/head-none-$w.json \
+              --budget "$BUDGET" --noise "$NOISE" --summary "$GITHUB_STEP_SUMMARY" $header || status=1
+            header=--no-header
+          done
+          exit $status
+
+      - name: Modes digest and full, sampling (reported only)
+        if: success() || failure()
+        working-directory: benchmarks
+        run: |
+          w=jobshop10-u90-5k
+          echo "### Recording modes and sampling, ${{ matrix.python }} (not gated)" >> "$GITHUB_STEP_SUMMARY"
+          header=""
+          for mode in digest full; do
+            /tmp/head/bin/python run.py --mode $mode --workload workloads/$w.json $RUN --json /tmp/out/head-$mode-$w.json
+            /tmp/head/bin/python compare.py /tmp/out/head-none-$w.json /tmp/out/head-$mode-$w.json \
+              --summary "$GITHUB_STEP_SUMMARY" $header
+            header=--no-header
+          done
+          /tmp/base/bin/python bench_sampling.py --jobs 20000 --warmup ${{ matrix.warmup }} --repeat 5 --json /tmp/out/base-sampling.json
+          /tmp/head/bin/python bench_sampling.py --jobs 20000 --warmup ${{ matrix.warmup }} --repeat 5 --json /tmp/out/head-sampling.json
+          /tmp/head/bin/python compare.py /tmp/out/base-sampling.json /tmp/out/head-sampling.json \
+            --summary "$GITHUB_STEP_SUMMARY" --no-header
+          /tmp/head/bin/python summarize.py /tmp/out/*.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the benchmark results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bench-${{ matrix.python }}
+          path: /tmp/out/*.json
