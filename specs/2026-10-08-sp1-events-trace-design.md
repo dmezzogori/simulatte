@@ -212,6 +212,14 @@ The plan verifies with replay-equals-live checks after every event, including a 
 - "Every assignment" includes self-transitions (for example `CANCELLED` → `CANCELLED`); replay is unaffected.
 - Only framework transitions emit events: direct user writes to `agv.battery.level`, `agv.current_load`, order fields or `_pending_queue` emit nothing, and load-recovery strategies are observed after `recover` returns.
 
+**Amendments from implementation (ruling R22, SP1 Task 16):**
+- `charging.started`/`charging.ended` touch only station `slots_in_use`; `charging.pool_changed` is emitted at every swap-pool change (the swap's pool get, which may wait, and `_replenish_pool`'s put). `charging.ended` is emitted at every slot release, including after an interruption.
+- Warehouse slot and inventory events and charging slot events are emitted from the resource itself when SimPy completes the grant or get, before the waiting process resumes. At a slot grant the request may still sit in the resource's internal queue (SimPy pops it right after); the declared state (`slots_in_use`) is already complete.
+- `cancel` is not a reservation site: `reserved_by` changes only at `place_now`, an `enter_node` grant and `leave_node`; `cancel` ends a pending wait (`traffic.wait_ended` with reason `cancelled`).
+- Wait reasons: `traffic.wait_started.reason` ∈ {`node_occupied`, `path_delay`, `deadlock_backoff`}; `traffic.wait_ended.reason` ∈ {`granted`, `cancelled`, `interrupted`, `elapsed`}; `node` is the next node to enter; the fleet's path-delay and deadlock-backoff waits are emitted from the fleet.
+- Re-entering a parking area emits `parking.entered` with no delta.
+- Payload types: `level`, `delta`, `swap_pool` are floats; `in_use` is an integer.
+
 **Observer events:** `log` (`level`, `message`, `component`, `extra`), `kpi.sample` (`kpi`, `scope`, `value`).
 
 ### 6.5 Motion description
