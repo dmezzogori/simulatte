@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import simpy
 import simpy.resources.resource
 from simpy.events import ProcessGenerator
+
+from simulatte.entities import Entity, FieldSpec, StateSchema
 
 if TYPE_CHECKING:
     from simulatte.environment import Environment
@@ -12,13 +14,15 @@ if TYPE_CHECKING:
     from simulatte.intralogistics.graph import Node
 
 
-class ParkingArea:
+class ParkingArea(Entity, kind="parking_area"):
     """A facility where idle AGVs wait for their next assignment.
 
     Wraps a ``simpy.Resource`` to model finite parking capacity. Each AGV's
     resource request is tracked individually so that ``leave()`` releases the
-    correct slot.
+    correct slot. Its id is ``name``.
     """
+
+    state_schema: ClassVar[StateSchema] = StateSchema({"parked": FieldSpec("str", collection="list")})
 
     def __init__(
         self,
@@ -27,12 +31,18 @@ class ParkingArea:
         name: str,
         node: Node,
         capacity: int,
+        label: str | None = None,
     ) -> None:
         self.env = env
         self.name = name
         self.node = node
         self._resource = simpy.Resource(env, capacity=capacity)
         self._agv_requests: dict[AGV, simpy.resources.resource.Request] = {}
+        env.entities.attach(self, name=name, label=label)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Current entity state: the ids of the parked AGVs, in order of arrival."""
+        return {"parked": [agv.id for agv in self._agv_requests], "label": self.label}
 
     @property
     def available_capacity(self) -> int:

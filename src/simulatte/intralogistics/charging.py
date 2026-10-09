@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import simpy
 from simpy.events import ProcessGenerator
+
+from simulatte.entities import Entity, FieldSpec, StateSchema
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -13,14 +15,18 @@ if TYPE_CHECKING:
     from simulatte.intralogistics.graph import Node
 
 
-class ChargingStation:
+class ChargingStation(Entity, kind="charging_station"):
     """Models a battery charging/swapping facility placed on a graph node.
 
     AGVs navigate to this station when their battery is low. The station
     provides concurrent charging slots (modeled as a ``simpy.Resource``) and
     optionally supports battery swapping via a finite pool of pre-charged
-    batteries (modeled as a ``simpy.Container``).
+    batteries (modeled as a ``simpy.Container``). Its id is ``name``.
     """
+
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {"slots_in_use": FieldSpec("int"), "swap_pool": FieldSpec("float", nullable=True)}
+    )
 
     def __init__(
         self,
@@ -34,6 +40,7 @@ class ChargingStation:
         swap_pool_size: int = 0,
         swap_time: float = 0.0,
         swap_recharge_time: float = 0.0,
+        label: str | None = None,
     ) -> None:
         self.env = env
         self.name = name
@@ -53,6 +60,16 @@ class ChargingStation:
         self.total_recharges: int = 0
         self.total_swaps: int = 0
         self.total_occupied_time: float = 0.0
+        env.entities.attach(self, name=name, label=label)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Current entity state: slots in use and the swap-pool level (None without battery swapping)."""
+        pool = self._swap_pool
+        return {
+            "slots_in_use": self._slots.count,
+            "swap_pool": None if pool is None else float(pool.level),
+            "label": self.label,
+        }
 
     def recharge(self, agv: AGV, target_pct: float = 1.0) -> ProcessGenerator:
         """Acquire a slot, recharge the AGV battery, and release the slot.

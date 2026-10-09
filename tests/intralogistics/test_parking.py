@@ -39,8 +39,8 @@ class TestEnterLeaveLifecycle:
     def test_enter_occupies_slot_leave_frees_it(self, env: Environment, parking_node: Node, agv_type: AGVType) -> None:
         """AGV enters parking, slot is occupied. After leave, a new AGV can enter immediately."""
         area = ParkingArea(env=env, name="P1", node=parking_node, capacity=1)
-        agv1 = _make_agv(env, agv_type, agv_id="agv-1")
-        agv2 = _make_agv(env, agv_type, agv_id="agv-2")
+        agv1 = _make_agv(env, agv_type, agv_id="AGV-1")
+        agv2 = _make_agv(env, agv_type, agv_id="AGV-2")
 
         enter_times: dict[str, float] = {}
 
@@ -61,8 +61,8 @@ class TestEnterLeaveLifecycle:
         env.run()
 
         # AGV1 enters at t=0, leaves at t=10. AGV2 enters at t=10.
-        assert enter_times["agv-1"] == pytest.approx(0.0)
-        assert enter_times["agv-2"] == pytest.approx(10.0)
+        assert enter_times["AGV-1"] == pytest.approx(0.0)
+        assert enter_times["AGV-2"] == pytest.approx(10.0)
 
 
 class TestBlockingWhenFull:
@@ -71,8 +71,8 @@ class TestBlockingWhenFull:
     ) -> None:
         """Capacity=1, two AGVs. Second blocks until first leaves."""
         area = ParkingArea(env=env, name="P1", node=parking_node, capacity=1)
-        agv1 = _make_agv(env, agv_type, agv_id="agv-1")
-        agv2 = _make_agv(env, agv_type, agv_id="agv-2")
+        agv1 = _make_agv(env, agv_type, agv_id="AGV-1")
+        agv2 = _make_agv(env, agv_type, agv_id="AGV-2")
 
         enter_times: list[float] = []
 
@@ -140,7 +140,7 @@ class TestAvailableCapacity:
     def test_decremented_after_enter(self, env: Environment, parking_node: Node, agv_type: AGVType) -> None:
         """Available capacity decreases by one after an AGV enters."""
         area = ParkingArea(env=env, name="P1", node=parking_node, capacity=2)
-        agv = _make_agv(env, agv_type, agv_id="agv-1")
+        agv = _make_agv(env, agv_type, agv_id="AGV-1")
 
         def park(agv: AGV) -> ProcessGenerator:
             yield from area.enter(agv)
@@ -153,7 +153,7 @@ class TestAvailableCapacity:
     def test_restored_after_leave(self, env: Environment, parking_node: Node, agv_type: AGVType) -> None:
         """Available capacity is restored after an AGV leaves."""
         area = ParkingArea(env=env, name="P1", node=parking_node, capacity=1)
-        agv = _make_agv(env, agv_type, agv_id="agv-1")
+        agv = _make_agv(env, agv_type, agv_id="AGV-1")
 
         def park_and_leave(agv: AGV) -> ProcessGenerator:
             yield from area.enter(agv)

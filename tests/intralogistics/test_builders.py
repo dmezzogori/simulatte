@@ -280,3 +280,36 @@ class TestBuildSimpleSystemParkingArea:
         env = Environment()
         coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env)
         assert len(coordinator.parking_areas) > 0
+
+
+# ---------------------------------------------------------------------------
+# Part 5: Entity names and prefixes
+# ---------------------------------------------------------------------------
+
+
+class TestBuildSimpleSystemNames:
+    def test_default_ids(self, env: Environment) -> None:
+        from simulatte.intralogistics.builders import build_simple_system
+
+        coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env)
+        assert [agv.id for agv in agvs] == ["agv-0", "agv-1"]  # generated: agv-<n> is reserved for names
+        assert (coordinator.id, wh_a.id, wh_b.id) == ("fleet", "WH-A", "WH-B")
+        assert [node.id for node in graph.nodes] == ["WH_A_OUT", "N1", "N2", "N3", "WH_B_IN"]
+        assert (coordinator.charging_stations[0].id, coordinator.parking_areas[0].id) == ("CS-CENTER", "PA-N1")
+
+    def test_prefixes_keep_two_systems_apart(self, env: Environment) -> None:
+        from simulatte.intralogistics.builders import build_simple_system
+
+        a = build_simple_system(env, prefix="a.")
+        b = build_simple_system(env, prefix="b.", n_agvs=1)
+        assert [agv.id for agv in a[1]] == ["a.agv-0", "a.agv-1"]
+        assert [agv.id for agv in b[1]] == ["b.agv-0"]
+        assert (a[0].id, b[0].id, b[2].id) == ("a.fleet", "b.fleet", "b.WH-A")
+        assert [node.id for node in b[4].nodes] == ["b.WH_A_OUT", "b.N1", "b.N2", "b.N3", "b.WH_B_IN"]
+        with pytest.raises(ValueError, match="already used"):
+            build_simple_system(env, prefix="a.")
+
+        order = b[0].create_order(sku=next(iter(b[2].inventory)), quantity=1, origin=b[2], destination=b[3])
+        b[0].submit(order)
+        env.run()
+        assert order.status is OrderStatus.COMPLETED and order.assigned_agv is b[1][0]

@@ -115,8 +115,8 @@ def main() -> None:
             load_time_fn=lambda: 5.0,
             unload_time_fn=lambda: 5.0,
         )
-        # Two AGVs starting at C1
-        agvs = [AGV(env=env, agv_type=agv_type, agv_id=f"agv-{i}", initial_node=c1) for i in range(2)]
+        # Two AGVs starting at C1 (ids are generated: agv-0, agv-1)
+        agvs = [AGV(env=env, agv_type=agv_type, initial_node=c1) for _ in range(2)]
 
         # ------------------------------------------------------------------ #
         # 4. Parking area and FleetCoordinator                               #

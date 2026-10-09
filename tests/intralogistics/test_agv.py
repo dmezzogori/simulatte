@@ -174,5 +174,5 @@ class TestAGV:
             weight_capacity=500.0,
             volume_capacity=2.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-42")
-        assert repr(agv) == "AGV(id='agv-42', state=IDLE)"
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-42")
+        assert repr(agv) == "AGV(id='AGV-42', state=IDLE)"

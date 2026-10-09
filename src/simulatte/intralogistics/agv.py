@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import math
-import uuid
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
+from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.intralogistics.battery import Battery
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from simulatte.environment import Environment
+    from simulatte.intralogistics.fleet import FleetCoordinator
     from simulatte.intralogistics.graph import Node
+    from simulatte.intralogistics.order import TransferOrder
     from simulatte.intralogistics.sku import SKU
     from simulatte.intralogistics.speed import SpeedProfile
 
@@ -53,7 +55,25 @@ class AGVType:
     unload_time_fn: Callable[[], float] = field(default=lambda: 0.0)
 
 
-class AGV:
+class AGV(Entity, kind="agv"):
+    """An automated guided vehicle.
+
+    Its id is ``agv_id`` when given, otherwise ``agv-<n>`` in attachment order; :attr:`agv_id` is an alias of
+    :attr:`id`. Setting :attr:`current_node` keeps the ``agvs`` lists of the node bindings up to date.
+    """
+
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {
+            "node": FieldSpec("str", nullable=True),
+            "state": FieldSpec("str"),
+            "battery": FieldSpec("float"),
+            "load": FieldSpec("int", nullable=True, collection="map"),
+            "order": FieldSpec("str", nullable=True),
+            "motion": FieldSpec("map", nullable=True),
+            "fleet": FieldSpec("str", nullable=True),
+        }
+    )
+
     def __init__(
         self,
         *,
@@ -61,12 +81,18 @@ class AGV:
         agv_type: AGVType,
         agv_id: str | None = None,
         initial_node: Node | None = None,
+        label: str | None = None,
     ) -> None:
         self.env = env
         self.agv_type = agv_type
-        self.agv_id = agv_id or f"agv-{uuid.uuid4().hex[:8]}"
-        self.current_node = initial_node
+        self._current_node = initial_node
         self.current_load: dict[SKU, int] | None = None
+        self.fleet: FleetCoordinator | None = None
+        """The coordinator that took this AGV (owner field, spec §5.2)."""
+        self.order: TransferOrder | None = None
+        """The order of the AGV's current mission."""
+        self.motion: dict[str, Any] | None = None
+        """The active movement segment (spec §6.5), or None."""
 
         self.battery = Battery(
             capacity=agv_type.battery_capacity,
@@ -79,6 +105,52 @@ class AGV:
         self._state = AGVState.IDLE
         self._state_entered_at: float = env.now
         self.state_durations: dict[AGVState, float] = {s: 0.0 for s in AGVState}
+
+        env.entities.attach(self, name=agv_id, label=label)
+        if initial_node is not None:
+            binding = env.entities.node_binding(initial_node)
+            if binding is not None:
+                binding.agvs.append(self.id)
+
+    @property
+    def agv_id(self) -> str:
+        """Alias of :attr:`id`."""
+        return self.id
+
+    @property
+    def current_node(self) -> Node | None:
+        """The node the AGV is at; during a segment, the node it left."""
+        return self._current_node
+
+    @current_node.setter
+    def current_node(self, node: Node | None) -> None:
+        previous = self._current_node
+        self._current_node = node
+        if node == previous:
+            return
+        entities = self.env.entities
+        if previous is not None:
+            binding = entities.node_binding(previous)
+            if binding is not None and self.id in binding.agvs:
+                binding.agvs.remove(self.id)
+        if node is not None:
+            binding = entities.node_binding(node)
+            if binding is not None:
+                binding.agvs.append(self.id)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Current entity state; nodes, SKUs, the order and the fleet are referenced by id."""
+        node, load, order, fleet = self._current_node, self.current_load, self.order, self.fleet
+        return {
+            "node": None if node is None else node.id,
+            "state": self._state.name,
+            "battery": float(self.battery.level),
+            "load": None if load is None else {sku.id: quantity for sku, quantity in load.items()},
+            "order": None if order is None else order.id,
+            "motion": self.motion,
+            "fleet": None if fleet is None else fleet.id,
+            "label": self.label,
+        }
 
     @property
     def state(self) -> AGVState:

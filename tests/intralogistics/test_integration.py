@@ -108,7 +108,7 @@ def _build_test_system(
         unload_time_fn=lambda: 1.0,
     )
 
-    agvs: list[AGV] = [AGV(env=env, agv_type=agv_type, agv_id=f"agv-{i}", initial_node=node_b) for i in range(n_agvs)]
+    agvs: list[AGV] = [AGV(env=env, agv_type=agv_type, agv_id=f"AGV-{i}", initial_node=node_b) for i in range(n_agvs)]
 
     if traffic_manager is None:
         traffic_manager = FreeTrafficManager()
@@ -435,8 +435,8 @@ class TestTrafficManagement:
             unload_time_fn=lambda: 1.0,
         )
 
-        agv1 = AGV(env=env, agv_type=agv_type, agv_id="agv-0", initial_node=node_b)
-        agv2 = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_b)
+        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-0", initial_node=node_b)
+        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_b)
 
         coordinator = FleetCoordinator(
             env=env,

@@ -3,10 +3,14 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar
+
+from simulatte.entities import Entity, FieldSpec, StateSchema
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+    from simulatte.environment import Environment
 
 
 @dataclass(frozen=True)
@@ -24,9 +28,52 @@ class Arc:
     speed_limit: float | None = None
 
 
+class NodeBinding(Entity, kind="node"):
+    """The entity of a graph :class:`Node` in one environment (spec §5.2).
+
+    `Node` stays an environment-free definition; ``env.entities.bind_node(node)`` creates its binding, whose id is
+    ``node.id``. ``agvs`` lists the AGVs located at the node and ``reserved_by`` the AGVs holding a traffic
+    reservation on it, both in arrival order.
+    """
+
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {
+            "x": FieldSpec("float"),
+            "y": FieldSpec("float"),
+            "agvs": FieldSpec("str", collection="list"),
+            "reserved_by": FieldSpec("str", collection="list"),
+        }
+    )
+
+    def __init__(self, env: Environment, node: Node) -> None:
+        self.node = node
+        # AGVs placed here before the binding existed; later moves update the list (AGV.current_node).
+        self.agvs: list[str] = [
+            entity.id
+            for entity in env.entities.live()
+            if entity.kind == "agv" and getattr(entity, "current_node", None) == node
+        ]
+        self.reserved_by: list[str] = []
+        env.entities.attach(self, name=node.id)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Current entity state: coordinates and the ids of the AGVs located at and reserving the node."""
+        node = self.node
+        return {
+            "x": float(node.x),
+            "y": float(node.y),
+            "agvs": list(self.agvs),
+            "reserved_by": list(self.reserved_by),
+            "label": self.label,
+        }
+
+    def __repr__(self) -> str:
+        return f"NodeBinding(id={self.id!r})"
+
+
 class LayoutGraph:
     def __init__(self, nodes: Iterable[Node], arcs: Iterable[Arc]) -> None:
-        self._nodes: set[Node] = set(nodes)
+        self._nodes: dict[Node, None] = dict.fromkeys(nodes)  # insertion-ordered (spec §5.3)
         self._adjacency: dict[Node, dict[Node, Arc]] = defaultdict(dict)
         for arc in arcs:
             self._adjacency[arc.source][arc.target] = arc
@@ -34,8 +81,9 @@ class LayoutGraph:
                 self._adjacency[arc.target][arc.source] = arc
 
     @property
-    def nodes(self) -> frozenset[Node]:
-        return frozenset(self._nodes)
+    def nodes(self) -> tuple[Node, ...]:
+        """The nodes in insertion order (the first occurrence of each)."""
+        return tuple(self._nodes)
 
     def neighbors(self, node: Node) -> list[Node]:
         return list(self._adjacency[node].keys())

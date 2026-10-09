@@ -31,6 +31,7 @@ from simulatte.events import Deltas, DomainEvent, Op, event_type, matches_wire_t
 
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.environment import Environment
+    from simulatte.intralogistics.graph import Node, NodeBinding
 
 __all__ = [
     "KINDS",
@@ -269,7 +270,7 @@ class EntityRegistry:
     weakly, and their ids are never reused.
     """
 
-    __slots__ = ("_counters", "_env", "_live", "_names", "_retired", "_retiring")
+    __slots__ = ("_counters", "_env", "_live", "_names", "_nodes", "_retired", "_retiring")
 
     def __init__(self, env: Environment) -> None:
         self._env = env
@@ -278,6 +279,7 @@ class EntityRegistry:
         self._names: set[str] = set()
         self._retired: weakref.WeakValueDictionary[str, Entity] = weakref.WeakValueDictionary()
         self._retiring: str | None = None
+        self._nodes: dict[str, NodeBinding] = {}
 
     def attach(self, obj: Entity, *, name: str | None = None, label: str | None = None) -> str:
         """Register `obj`, set its ``id`` and ``label`` and emit :class:`EntityCreated`; return the id.
@@ -360,6 +362,35 @@ class EntityRegistry:
                 env.emit(EntityRetired(entity=entity_id, kind=obj.kind, deltas=Deltas.build().retire(entity_id).done()))
             finally:
                 self._retiring = None
+
+    def bind_node(self, node: Node) -> NodeBinding:
+        """The environment-local entity of the graph `node`, created and attached on first use (spec §5.2).
+
+        Binding an equal `Node` again (two fleets sharing a graph) returns the existing binding. Raises
+        `ValueError` for a different `Node` with the id of a bound one, and for a node id that is not a valid,
+        unused entity name.
+        """
+        binding = self._nodes.get(node.id)
+        if binding is None:
+            from simulatte.intralogistics.graph import NodeBinding  # lazy: the intralogistics subsystem is optional
+
+            binding = NodeBinding(self._env, node)
+            self._nodes[node.id] = binding
+        elif binding.node != node:
+            raise ValueError(f"node id {node.id!r} is already bound to a different node: {binding.node!r}")
+        return binding
+
+    def node_binding(self, node: Node) -> NodeBinding | None:
+        """The binding of `node` in this environment, or None when it is not bound."""
+        binding = self._nodes.get(node.id)
+        if binding is None or binding.node != node:
+            return None
+        return binding
+
+    def is_live(self, obj: Entity) -> bool:
+        """Whether `obj` is a live entity of this environment."""
+        entity_id = getattr(obj, "id", None)
+        return entity_id is not None and self._live.get(entity_id) is obj
 
     def get(self, entity_id: str) -> Entity:
         """The entity with `entity_id`: live, or retired and still referenced elsewhere (`KeyError` otherwise)."""

@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import math
+import sys
 from enum import Enum, auto
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Any, ClassVar, TypedDict
 
 import simpy
 
+from simulatte.entities import Entity, FieldSpec, StateSchema
+from simulatte.environment import deferrable
 from simulatte.intralogistics.agv import AGVState
 from simulatte.intralogistics.metrics import EMAOrderMetrics
-from simulatte.intralogistics.order import OrderStatus, TransferOrder
+from simulatte.intralogistics.order import TERMINAL_STATUSES, OrderStatus, TransferOrder
 from simulatte.intralogistics.pathfinding import DijkstraPlanner
 from simulatte.intralogistics.policies import (
     NearestIdleStrategy,
@@ -48,7 +51,6 @@ if TYPE_CHECKING:
 class _TransferOrderOptions(TypedDict, total=False):
     """Optional ``TransferOrder`` fields accepted by ``FleetCoordinator.create_order``."""
 
-    id: str
     due_date: float | None
     priority: float
     status: OrderStatus
@@ -71,13 +73,22 @@ class _EnterOutcome(Enum):
     GAVE_UP = auto()
 
 
-class FleetCoordinator:
+class FleetCoordinator(Entity, kind="fleet"):
     """Central orchestrator for AGV fleet operations and mission lifecycle.
 
     Manages transfer orders from submission through dispatch, travel, pick,
     transit, deliver, and completion.  Analogous to ``ShopFloor`` for
     production simulations but focused on warehouse-to-warehouse AGV transport.
+
+    Its id is ``name`` when given, otherwise ``fleet-<n>``. Construction binds the graph's nodes (sorted by id)
+    in the environment and registers an activation initializer that places the AGVs on their starting nodes
+    with the traffic manager (``place_now``). Orders are attached by :meth:`create_order` (or by :meth:`submit`
+    for orders constructed directly) and retire at a terminal status, once the hooks of that transition ran and
+    the mission bookkeeping was cleaned up. :meth:`submit` and :meth:`cancel` are deferrable: before
+    activation they are queued and run at activation (spec §10).
     """
+
+    state_schema: ClassVar[StateSchema] = StateSchema({"pending": FieldSpec("str", collection="list")})
 
     def __init__(
         self,
@@ -98,6 +109,8 @@ class FleetCoordinator:
         on_low_battery: Callable[[AGV], ProcessGenerator | None] | None = None,
         max_dispatch_retries: int = 10,
         pending_retry_delay: float = 1.0,
+        name: str | None = None,
+        label: str | None = None,
     ) -> None:
         self.env = env
         self.graph = graph
@@ -144,8 +157,18 @@ class FleetCoordinator:
         self._hooks_on_charging_complete: list[Callable[[AGV, ChargingStation], None]] = []
         self._hooks_on_agv_idle: list[Callable[[AGV], None]] = []
 
-        # S1: Initial AGV placement — register starting positions with traffic manager
-        self.env.process(self._initial_placement())
+        env.entities.attach(self, name=name, label=label)
+        for node in sorted(graph.nodes, key=lambda node: node.id):
+            env.entities.bind_node(node)
+        for agv in self.fleet:
+            agv.fleet = self
+
+        # S1: Initial AGV placement — register starting positions with the traffic manager at activation
+        env.on_activate(self._initial_placement)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Current entity state: the ids of the pending orders, in queue order."""
+        return {"pending": [order.id for order in self._pending_queue], "label": self.label}
 
     # ------------------------------------------------------------------
     # Public API
@@ -160,8 +183,11 @@ class FleetCoordinator:
         destination: Warehouse,
         **kwargs: Unpack[_TransferOrderOptions],
     ) -> TransferOrder:
-        """Factory method that creates a ``TransferOrder`` with ``created_at`` set to now."""
-        return TransferOrder(
+        """Factory method that creates a ``TransferOrder`` with ``created_at`` set to now and attaches it.
+
+        The order is attached immediately, before activation too (ruling R18), so it has its id at once.
+        """
+        order = TransferOrder(
             sku=sku,
             quantity=quantity,
             origin=origin,
@@ -169,13 +195,31 @@ class FleetCoordinator:
             created_at=self.env.now,
             **kwargs,
         )
+        self._attach_order(order)
+        return order
+
+    def _attach_order(self, order: TransferOrder) -> None:
+        """Attach `order` with this fleet as its owner, unless it already has an id."""
+        if order.id is None:
+            order.fleet_id = self.id
+            self.env.entities.attach(order)
 
     def submit(self, order: TransferOrder) -> None:
         """Submit an order for dispatch.
 
         If an idle AGV is available, the mission is spawned immediately.
-        Otherwise the order enters ``_pending_queue``.
+        Otherwise the order enters ``_pending_queue``. An order constructed directly is attached first.
+
+        Deferrable: before activation the submission is queued and the order reports
+        ``OrderStatus.PENDING_ACTIVATION`` until it runs at activation.
         """
+        self._attach_order(order)
+        if not self.env.activated:
+            order.status = OrderStatus.PENDING_ACTIVATION
+        self._submit(order)
+
+    @deferrable
+    def _submit(self, order: TransferOrder) -> None:
         self.env.debug(
             f"Order {order.id} submitted (sku={order.sku.id}, qty={order.quantity})",
             component="FleetCoordinator",
@@ -199,13 +243,19 @@ class FleetCoordinator:
                 component="FleetCoordinator",
             )
 
+    @deferrable
     def cancel(self, order: TransferOrder) -> None:
-        """Cancel an active or pending order."""
+        """Cancel an active or pending order.
+
+        Deferrable: before activation the cancellation is queued and runs at activation, after the commands
+        queued before it.
+        """
         # If pending, just remove from queue
         if order in self._pending_queue:
             self._pending_queue.remove(order)
             order.status = OrderStatus.CANCELLED
             self.env.debug(f"Order {order.id} cancelled (was pending)", component="FleetCoordinator")
+            self._retire_if_terminal(order)
             return
 
         # If active, interrupt the mission process
@@ -214,6 +264,8 @@ class FleetCoordinator:
             process.interrupt("cancelled")
         order.status = OrderStatus.CANCELLED
         self.env.debug(f"Order {order.id} cancelled", component="FleetCoordinator")
+        if process is None:
+            self._retire_if_terminal(order)  # otherwise the mission retires it after its cleanup
 
     # ------------------------------------------------------------------
     # Lifecycle hooks
@@ -321,6 +373,11 @@ class FleetCoordinator:
         if self._time_series_collector is not None:
             self._time_series_collector.on_agv_state_changed(self, agv, old_state, new_state)
 
+    def _retire_if_terminal(self, order: TransferOrder) -> None:
+        """Retire `order` if its status is terminal and it is still live (spec §5.1)."""
+        if order.status in TERMINAL_STATUSES and self.env.entities.is_live(order):
+            self.env.entities.retire(order)
+
     def _dispatch(self, order: TransferOrder, agv: AGV) -> None:
         """Spawn a mission process for the given order/AGV pair.
 
@@ -330,6 +387,7 @@ class FleetCoordinator:
         order.assigned_agv = agv
         order.status = OrderStatus.DISPATCHED
         order.dispatched_at = self.env.now
+        agv.order = order
         self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
 
         process = self.env.process(self._run_mission(order, agv))
@@ -545,6 +603,11 @@ class FleetCoordinator:
             # Cleanup mission tracking
             self._active_missions.pop(order.id, None)
             self._agv_mission.pop(agv, None)
+            if agv.order is order:
+                agv.order = None
+            # A generator closed unfinished (the process is discarded, e.g. garbage-collected) retires nothing.
+            if not isinstance(sys.exc_info()[1], GeneratorExit):
+                self._retire_if_terminal(order)
 
             # Check pending queue
             self._check_pending_queue()
@@ -746,11 +809,14 @@ class FleetCoordinator:
 
         return _EnterOutcome.GAVE_UP
 
-    def _initial_placement(self) -> ProcessGenerator:
-        """Register starting positions of all AGVs with the traffic manager (S1)."""
+    def _initial_placement(self) -> None:
+        """Activation initializer: register the starting positions of all AGVs with the traffic manager (S1).
+
+        Raises `RuntimeError` when a starting node cannot be reserved immediately.
+        """
         for agv in self.fleet:
             if agv.current_node is not None:
-                yield from self._traffic_manager.place(agv, agv.current_node)
+                self._traffic_manager.place_now(agv, agv.current_node)
 
     def _charge_agv(self, agv: AGV, station: ChargingStation | None = None) -> ProcessGenerator:
         """Navigate to a charging station and recharge."""
@@ -899,6 +965,7 @@ class FleetCoordinator:
             self._pending_queue.remove(order)
             self._dispatch_retries.pop(order.id, None)
             order.status = OrderStatus.FAILED
+            self._retire_if_terminal(order)
 
         if self._pending_queue:
             self._ensure_pending_retry_loop()

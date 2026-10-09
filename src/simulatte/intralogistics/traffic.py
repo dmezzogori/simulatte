@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
     from simulatte.environment import Environment
     from simulatte.intralogistics.agv import AGV
-    from simulatte.intralogistics.graph import LayoutGraph, Node
+    from simulatte.intralogistics.graph import LayoutGraph, Node, NodeBinding
 
 
 @dataclass
@@ -25,7 +25,7 @@ class PathCheckResult:
 
 @runtime_checkable
 class TrafficManager(Protocol):
-    def place(self, agv: AGV, node: Node) -> ProcessGenerator: ...
+    def place_now(self, agv: AGV, node: Node) -> None: ...
     def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult: ...
     def register_intent(self, agv: AGV, path: list[Node]) -> None: ...
     def enter_node(self, agv: AGV, node: Node) -> ProcessGenerator: ...
@@ -34,9 +34,8 @@ class TrafficManager(Protocol):
 
 
 class FreeTrafficManager:
-    def place(self, agv: AGV, node: Node) -> ProcessGenerator:
-        return
-        yield  # make it a generator
+    def place_now(self, agv: AGV, node: Node) -> None:
+        pass
 
     def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult:
         return PathCheckResult(feasible=True)
@@ -85,34 +84,54 @@ class ResourceBasedTrafficManager:
     def priority(self, agv: AGV) -> float:
         return self._priority_fn(agv)
 
-    def place(self, agv: AGV, node: Node) -> ProcessGenerator:
+    def place_now(self, agv: AGV, node: Node) -> None:
+        """Reserve `node` for `agv` immediately; raise `RuntimeError` if the node is not free.
+
+        Used for the initial placement of AGVs, from an activation initializer (spec §10): only the node request
+        is allowed to schedule its (bookkeeping) grant event.
+        """
         resource = self._node_resources[node]
-        req = resource.request()
+        with self._env._internal_scheduling():
+            req = resource.request()
+        if not req.triggered:
+            req.cancel()
+            raise RuntimeError(
+                f"cannot place {agv.agv_id} at node {node.id}: the node is fully reserved "
+                f"(capacity {resource.capacity})"
+            )
         self._node_requests[(agv, node)] = req
-        yield req
+        self._reserve(agv, node)
+
+    def _binding(self, node: Node) -> NodeBinding | None:
+        return self._env.entities.node_binding(node)
+
+    def _reserve(self, agv: AGV, node: Node) -> None:
+        binding = self._binding(node)
+        if binding is not None:
+            binding.reserved_by.append(agv.id)
+
+    def _unreserve(self, agv: AGV, node: Node) -> None:
+        binding = self._binding(node)
+        if binding is not None and agv.id in binding.reserved_by:
+            binding.reserved_by.remove(agv.id)
 
     def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult:
         if len(path) < 2:
             return PathCheckResult(feasible=True)
 
-        path_future = set(path[1:])
-        conflict_nodes: list[Node] = []
-
+        others_future: set[Node] = set()
         for other_agv, other_path in self._intents.items():
-            if other_agv is agv:
-                continue
-            other_future = set(other_path[1:])
-            shared = path_future & other_future
-            if shared:
-                conflict_nodes.extend(shared)
+            if other_agv is not agv:
+                others_future.update(other_path[1:])
 
+        # Conflicts in path order, each once (spec §5.3): independent of hash seeds.
+        conflict_nodes = list(dict.fromkeys(node for node in path[1:] if node in others_future))
         if conflict_nodes:
-            unique_conflicts = list(set(conflict_nodes))
             self._env.debug(
-                f"Path conflict for {agv.agv_id}: {[n.id for n in unique_conflicts]}",
+                f"Path conflict for {agv.agv_id}: {[n.id for n in conflict_nodes]}",
                 component="TrafficManager",
             )
-            return PathCheckResult(feasible=False, conflict_nodes=unique_conflicts)
+            return PathCheckResult(feasible=False, conflict_nodes=conflict_nodes)
         return PathCheckResult(feasible=True)
 
     def register_intent(self, agv: AGV, path: list[Node]) -> None:
@@ -137,6 +156,7 @@ class ResourceBasedTrafficManager:
                 del self._node_requests[key]
             return
         self._pending_requests.pop(agv, None)
+        self._reserve(agv, node)
         self._env.debug(
             f"{agv.agv_id} entered node {node.id}",
             component="TrafficManager",
@@ -149,6 +169,7 @@ class ResourceBasedTrafficManager:
             resource = self._node_resources[node]
             if req.triggered:
                 resource.release(req)
+                self._unreserve(agv, node)
             else:
                 req.cancel()
         if agv in self._intents and node in self._intents[agv]:
@@ -177,6 +198,7 @@ class ResourceBasedTrafficManager:
                     if key[1] == agv.current_node:
                         continue
                     self._node_requests.pop(key, None)
+                    # Granted while enter_node was not resumed yet: never recorded in reserved_by.
                     self._node_resources[key[1]].release(req)
             else:
                 _cancel_request(req)

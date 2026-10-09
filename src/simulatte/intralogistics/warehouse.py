@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import simpy
+
+from simulatte.entities import Entity, FieldSpec, StateSchema
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -14,7 +16,13 @@ if TYPE_CHECKING:
     from simulatte.intralogistics.sku import SKU
 
 
-class Warehouse:
+class Warehouse(Entity, kind="warehouse"):
+    """A storage facility with per-SKU inventory and finite pick/put slots; its id is ``name``."""
+
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {"inventory": FieldSpec("float", collection="map"), "slots_in_use": FieldSpec("int")}
+    )
+
     def __init__(
         self,
         *,
@@ -27,6 +35,7 @@ class Warehouse:
         initial_inventory: dict[SKU, int] | None = None,
         pick_time_fn: Callable[[SKU, int], float],
         put_time_fn: Callable[[SKU, int], float],
+        label: str | None = None,
     ) -> None:
         self.env = env
         self.name = name
@@ -45,6 +54,15 @@ class Warehouse:
         self.total_puts: int = 0
         self._total_pick_time: float = 0.0
         self._total_put_time: float = 0.0
+        env.entities.attach(self, name=name, label=label)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Current entity state: inventory level per SKU id and the number of slots in use."""
+        return {
+            "inventory": {sku.id: float(container.level) for sku, container in self.inventory.items()},
+            "slots_in_use": self._slots.count,
+            "label": self.label,
+        }
 
     def get_inventory_level(self, sku: SKU) -> float:
         if sku not in self.inventory:

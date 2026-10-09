@@ -253,7 +253,7 @@ class TestCollectorReceivesStateTransitions:
             load_time_fn=lambda: 1.0,
             unload_time_fn=lambda: 1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
 
         collector = DefaultIntralogisticsCollector()
         coordinator = FleetCoordinator(

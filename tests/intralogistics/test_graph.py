@@ -91,13 +91,18 @@ class TestLayoutGraph:
         nodes, graph = self._make_line_graph()
         assert graph.arc_between(nodes[0], nodes[2]) is None
 
-    def test_nodes_returns_frozenset_of_all_nodes(self) -> None:
+    def test_nodes_returns_tuple_in_insertion_order(self) -> None:
         nodes, graph = self._make_line_graph()
         result = graph.nodes
-        assert isinstance(result, frozenset)
-        assert result == frozenset(nodes)
+        assert isinstance(result, tuple)
+        assert result == tuple(nodes)
 
-    def test_nodes_frozenset_is_defensive_copy(self) -> None:
+    def test_nodes_keeps_first_occurrence_of_duplicates(self) -> None:
+        a, b = Node(id="B", x=1.0, y=0.0), Node(id="A", x=0.0, y=0.0)
+        graph = LayoutGraph([a, b, a], [])
+        assert graph.nodes == (a, b)
+
+    def test_nodes_tuple_is_defensive_copy(self) -> None:
         nodes, graph = self._make_line_graph()
         result1 = graph.nodes
         result2 = graph.nodes

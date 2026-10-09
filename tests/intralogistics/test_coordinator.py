@@ -107,7 +107,7 @@ def _build_simple_system(
         low_battery_threshold=0.2,
         critical_battery_threshold=0.05,
     )
-    agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a_out)
+    agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a_out)
     if initial_battery is not None:
         agv.battery.level = initial_battery
 
@@ -218,6 +218,7 @@ class TestBasicLifecycle:
         order1 = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
         order2 = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
 
+        env.activate()  # submissions before activation are deferred
         coordinator.submit(order1)
         coordinator.submit(order2)
 
@@ -293,7 +294,7 @@ def _build_system_with_charger(
         low_battery_threshold=0.2,
         critical_battery_threshold=0.05,
     )
-    agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a_out)
+    agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a_out)
     if initial_battery is not None:
         agv.battery.level = initial_battery
 
@@ -316,6 +317,7 @@ class TestCancellation:
         coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed, origin_inventory=200)
         order1 = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
         order2 = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        env.activate()  # submissions before activation are deferred
         coordinator.submit(order1)
         coordinator.submit(order2)
 
@@ -371,7 +373,7 @@ class TestCancellation:
             load_time_fn=lambda: 1.0,
             unload_time_fn=lambda: 1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_far)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -504,7 +506,7 @@ class TestBattery:
             unload_time_fn=lambda: 1.0,
         )
         # Battery starts at 3.0 — enough for nothing (5-unit arc costs 5 energy)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a_out)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a_out)
         agv.battery.level = 3.0
 
         coordinator = FleetCoordinator(
@@ -651,7 +653,7 @@ class TestFleetMetrics:
 
         report = coordinator.agv_report()
         assert len(report) == 1
-        assert report[0]["agv_id"] == "agv-1"
+        assert report[0]["agv_id"] == "AGV-1"
         assert report[0]["state"] == "IDLE"
         assert isinstance(report[0]["utilization"], float)
 
@@ -737,7 +739,7 @@ class TestTravelCorrectness:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a_out)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a_out)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -785,7 +787,7 @@ class TestTravelCorrectness:
             put_time_fn=lambda s, q: 0.0,
         )
 
-        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="agv-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_origin)
         coordinator = FleetCoordinator(
             env=env,
             graph=graph,
@@ -813,6 +815,7 @@ class TestTravelCorrectness:
         # AGV-1 registers intent [A, B, C].  AGV-2's check_path detects
         # conflict on {B, C}.  No alternative route exists (linear graph),
         # so the order fails cleanly without battery-stranding the AGV.
+        # Node capacity 2 lets both AGVs start at A (placement must be granted at activation).
         node_a = Node(id="A", x=0.0, y=0.0)
         node_b = Node(id="B", x=5.0, y=0.0)
         node_c = Node(id="C", x=10.0, y=0.0)
@@ -826,7 +829,7 @@ class TestTravelCorrectness:
         traffic = ResourceBasedTrafficManager(
             graph=graph,
             env=env,
-            node_capacity=1,
+            node_capacity=2,
             deadlock_timeout=5.0,
         )
 
@@ -854,8 +857,8 @@ class TestTravelCorrectness:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv1 = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
-        agv2 = AGV(env=env, agv_type=agv_type, agv_id="agv-2", initial_node=node_a)
+        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=node_a)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -920,7 +923,7 @@ class TestTravelCorrectness:
             pick_time_fn=lambda s, q: 1.0,
             put_time_fn=lambda s, q: 1.0,
         )
-        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_a)
         coordinator = FleetCoordinator(
             env=env,
             graph=graph,
@@ -973,7 +976,7 @@ class TestTravelCorrectness:
             pick_time_fn=lambda s, q: 1.0,
             put_time_fn=lambda s, q: 1.0,
         )
-        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_a)
         coordinator = FleetCoordinator(
             env=env,
             graph=graph,
@@ -1026,7 +1029,7 @@ class TestTravelCorrectness:
             pick_time_fn=lambda s, q: 1.0,
             put_time_fn=lambda s, q: 1.0,
         )
-        agv1 = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
         coordinator1 = FleetCoordinator(
             env=env,
             graph=graph_unlimited,
@@ -1067,7 +1070,7 @@ class TestTravelCorrectness:
             pick_time_fn=lambda s, q: 1.0,
             put_time_fn=lambda s, q: 1.0,
         )
-        agv2 = AGV(env=env2, agv_type=agv_type, agv_id="agv-2", initial_node=node_a)
+        agv2 = AGV(env=env2, agv_type=agv_type, agv_id="AGV-2", initial_node=node_a)
         coordinator2 = FleetCoordinator(
             env=env2,
             graph=graph_limited,
@@ -1114,7 +1117,7 @@ class TestTravelCorrectness:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_start)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_start)
 
         _coordinator = FleetCoordinator(
             env=env,
@@ -1191,7 +1194,7 @@ class TestTravelCorrectness:
         # Battery at 7.0: enough for the first 5-unit arc (costs 5.0) but
         # after arriving at charger_node, battery=2.0 is not enough for the
         # next 5-unit arc (costs 5.0) -- triggers charging diversion.
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
         agv.battery.level = 7.0
 
         coordinator = FleetCoordinator(
@@ -1219,20 +1222,22 @@ class TestTravelCorrectness:
         # Diamond graph:  A -- B -- D
         #                  \       /
         #                   -- C --
-        # Two AGVs start at A, both going to D.  With capacity=1 on each
-        # node, they can use different routes (A-B-D and A-C-D).
+        # Two AGVs start at A and next to it (A0), both going to D.  With
+        # capacity=1 on each node, they can use different routes (A-B-D and A-C-D).
+        node_a0 = Node(id="A0", x=-5.0, y=0.0)
         node_a = Node(id="A", x=0.0, y=0.0)
         node_b = Node(id="B", x=5.0, y=5.0)
         node_c = Node(id="C", x=5.0, y=-5.0)
         node_d = Node(id="D", x=10.0, y=0.0)
 
         arcs = [
+            Arc(source=node_a0, target=node_a),
             Arc(source=node_a, target=node_b),
             Arc(source=node_a, target=node_c),
             Arc(source=node_b, target=node_d),
             Arc(source=node_c, target=node_d),
         ]
-        graph = LayoutGraph([node_a, node_b, node_c, node_d], arcs)
+        graph = LayoutGraph([node_a0, node_a, node_b, node_c, node_d], arcs)
 
         traffic = ResourceBasedTrafficManager(
             graph=graph,
@@ -1265,8 +1270,8 @@ class TestTravelCorrectness:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv1 = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
-        agv2 = AGV(env=env, agv_type=agv_type, agv_id="agv-2", initial_node=node_a)
+        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=node_a0)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -1587,7 +1592,7 @@ class TestInterruptSafety:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_far)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -1662,7 +1667,7 @@ class TestInterruptSafety:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -1736,7 +1741,7 @@ class TestInterruptSafety:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -1822,7 +1827,7 @@ class TestInterruptSafety:
             pick_time_fn=lambda s, q: 0.0,
             put_time_fn=lambda s, q: 0.0,
         )
-        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="agv-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_origin)
         coordinator = FleetCoordinator(
             env=env,
             graph=graph,
@@ -1893,7 +1898,7 @@ class TestInterruptSafety:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_far)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -1995,7 +2000,7 @@ class TestCriticalBatteryInterruption:
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
         agv.battery.level = 7.0
 
         coordinator = FleetCoordinator(
@@ -2117,7 +2122,7 @@ class TestOnLowBatteryOverride:
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a_out)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a_out)
         agv.battery.level = 25.0  # Will be low after mission
 
         coordinator = FleetCoordinator(
@@ -2171,6 +2176,7 @@ class TestUnfulfillableOrderRetries:
         wh_a.inventory[heavy_sku]._level = 50
 
         unfulfillable_order = coordinator.create_order(sku=heavy_sku, quantity=1, origin=wh_a, destination=wh_b)
+        env.activate()  # submissions before activation are deferred
         coordinator.submit(unfulfillable_order)
         assert unfulfillable_order.status == OrderStatus.PENDING
 
@@ -2251,7 +2257,7 @@ class TestResumeDeliveryRecovery:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -2345,7 +2351,7 @@ class TestEventDrivenReplenishment:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -2554,7 +2560,7 @@ class TestRepositioningAfterDelivery:
         parking = ParkingArea(env=env, name="P1", node=node_park, capacity=2)
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -2622,7 +2628,7 @@ class TestRepositioningFailure:
         parking = ParkingArea(env=env, name="P1", node=node_park, capacity=2)
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -2731,7 +2737,7 @@ class TestResumeDeliveryChargingRetry:
         # With level=12: ORIGIN->MID costs 5 (7 remaining), MID->CHARGER costs 5 (2 remaining).
         # pct=2/100=0.02 critical. S3 fires. _travel returns False.
         # Resume retry: not stranded, is_critical, has stations -> line 441-443!
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
         agv.battery.level = 12.0
 
         coordinator = FleetCoordinator(
@@ -2815,7 +2821,7 @@ class TestResumeDeliveryStranded:
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -2907,7 +2913,7 @@ class TestResumeDeliveryFallbackToReturn:
             load_time_fn=lambda: 1.0,
             unload_time_fn=lambda: 1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -2994,7 +3000,7 @@ class TestResumeDeliveryFallbackChain:
             load_time_fn=lambda: 1.0,
             unload_time_fn=lambda: 1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -3082,7 +3088,7 @@ class TestResumeDeliveryWithHooksAndCollector:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
         collector = DefaultIntralogisticsCollector()
         delivery_hooks: list[tuple[TransferOrder, AGV]] = []
@@ -3157,7 +3163,7 @@ class TestInterruptBeforePickup:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_far)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -3226,7 +3232,7 @@ class TestOnIdleHookAfterInterrupt:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_far)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -3318,9 +3324,9 @@ class TestAlternativePathAlsoInfeasible:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv1 = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
-        agv2 = AGV(env=env, agv_type=agv_type, agv_id="agv-2", initial_node=node_a)
-        agv3 = AGV(env=env, agv_type=agv_type, agv_id="agv-3", initial_node=node_a)
+        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=node_a)
+        agv3 = AGV(env=env, agv_type=agv_type, agv_id="AGV-3", initial_node=node_a)
 
         # AGV1 blocks path via B. Future nodes of [A, B] are {B}.
         traffic.register_intent(agv1, [node_a, node_b])
@@ -3403,8 +3409,8 @@ class TestSuccessfulAlternativePath:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv1 = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_b)
-        agv2 = AGV(env=env, agv_type=agv_type, agv_id="agv-2", initial_node=node_a)
+        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_b)
+        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=node_a)
 
         # AGV1 blocks B (but not C or D)
         traffic.register_intent(agv1, [node_a, node_b])
@@ -3482,7 +3488,7 @@ class TestStrandedAfterCharging:
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -3549,7 +3555,7 @@ class TestChargeAgvNoStation:
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
         agv.battery.level = 25.0  # Low after mission
 
         coordinator = FleetCoordinator(
@@ -3621,7 +3627,7 @@ class TestChargeTravelFailure:
             critical_battery_threshold=0.05,
         )
         # Battery just enough for mission (10 units) but not for travel to charger (100 units)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
         agv.battery.level = 20.0  # Enough for 10+10=20 (mission + return), low after
 
         coordinator = FleetCoordinator(
@@ -3724,7 +3730,7 @@ class TestEventDrivenReplenishmentUnrelatedWarehouse:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -3814,7 +3820,7 @@ class TestCriticalBatteryDuringLoadedTravel:
         # Loaded: B->C: cost 5, level=2, pct=0.02 <= 0.05. Critical.
         # _travel returns False. AGV now at C. Retry: critical -> charges at C.
         # After charge: full. Resume loaded travel from C->D.
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
         agv.battery.level = 12.0
 
         coordinator = FleetCoordinator(
@@ -3899,7 +3905,7 @@ class TestChargingDiversionDuringEmptyTravel:
         # _find_reachable_charger: charger at FAR. Distance=0, cost=0, reachable.
         # Charge at FAR. Level=100. Return False from _travel via H6.
         # Retry loop: not stranded, not critical -> 317->319 (skip charging).
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_far)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
         agv.battery.level = 4.0
 
         coordinator = FleetCoordinator(
@@ -3958,7 +3964,7 @@ class TestReturnToOriginRecoveryPath:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
         # ReturnToOrigin is the default load_recovery_strategy
         coordinator = FleetCoordinator(
@@ -4004,7 +4010,7 @@ class TestFindReachableChargerEdgeCases:
         charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
         agv.battery.level = 1.0
 
         wh = Warehouse(
@@ -4043,7 +4049,7 @@ class TestFindReachableChargerEdgeCases:
         charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
         agv.battery.level = 1.0  # Distance 50, depletion 50. level=1 < 50
 
         wh = Warehouse(
@@ -4078,7 +4084,7 @@ class TestFindReachableChargerEdgeCases:
         charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=None)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=None)
 
         wh = Warehouse(
             env=env,
@@ -4112,7 +4118,7 @@ class TestFindReachableChargerEdgeCases:
         charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=None)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=None)
 
         wh = Warehouse(
             env=env,
@@ -4149,7 +4155,7 @@ class TestFindReachableChargerEdgeCases:
         charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
 
         wh = Warehouse(
             env=env,
@@ -4249,7 +4255,7 @@ class TestReturnCargoToOrigin:
             load_time_fn=lambda: 1.0,
             unload_time_fn=lambda: 1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_mid)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_mid)
         agv.current_load = {sku_a: 10}
 
         coordinator = FleetCoordinator(
@@ -4320,7 +4326,7 @@ class TestReturnCargoToOrigin:
             load_time_fn=lambda: 1.0,
             unload_time_fn=lambda: 1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_mid)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_mid)
         agv.current_load = {sku_a: 10}
 
         coordinator = FleetCoordinator(
@@ -4440,7 +4446,7 @@ class TestUnfulfillableOrderAllBusy:
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -4454,6 +4460,7 @@ class TestUnfulfillableOrderAllBusy:
 
         # Submit a real mission with SKU-A to keep the AGV busy (~5s total)
         order_good = coordinator.create_order(sku=sku_a, quantity=1, origin=wh_a, destination=wh_b)
+        env.activate()  # submissions before activation are deferred
         coordinator.submit(order_good)
 
         # Submit an unfulfillable order with SKU-B
@@ -4502,7 +4509,7 @@ class TestUnfulfillableOrderAllBusy:
             pick_time_fn=lambda s, q: 1.0,
             put_time_fn=lambda s, q: 1.0,
         )
-        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="agv-1", initial_node=node_agv)
+        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_agv)
         coordinator = FleetCoordinator(
             env=env,
             graph=graph,
@@ -4620,7 +4627,7 @@ class TestReturnToOriginPhysicalReturn:
             load_time_fn=lambda: 1.0,
             unload_time_fn=lambda: 1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
         from simulatte.intralogistics.policies import ReturnToOrigin
 
@@ -4704,7 +4711,7 @@ class TestCancelWithCargoReturn:
             load_time_fn=lambda: 1.0,
             unload_time_fn=lambda: 1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
         coordinator = FleetCoordinator(
             env=env,
@@ -4797,7 +4804,7 @@ class TestRepositioningStranded:
         # 240/1000 = 24% > low_threshold (20%) -> no charging diversion.
         # Reposition B->PARK costs 300 > 240 -> STRANDED.
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
         agv.battery.level = 250.0
 
         coordinator = FleetCoordinator(
@@ -4870,7 +4877,7 @@ class TestSubmitBeforeRun:
             load_time_fn=lambda: 1.0,
             unload_time_fn=lambda: 1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
 
         tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=2)
         coordinator = FleetCoordinator(

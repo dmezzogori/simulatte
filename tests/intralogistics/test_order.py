@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+from simulatte.environment import Environment
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
 from simulatte.intralogistics.sku import SKU
 
@@ -19,8 +20,8 @@ def _make_order(**overrides: object) -> TransferOrder:
 
 
 class TestOrderStatus:
-    def test_all_eight_values_exist(self) -> None:
-        assert len(OrderStatus) == 8
+    def test_all_nine_values_exist(self) -> None:
+        assert len(OrderStatus) == 9
 
     def test_values(self) -> None:
         expected = {
@@ -32,6 +33,7 @@ class TestOrderStatus:
             "COMPLETED",
             "FAILED",
             "CANCELLED",
+            "PENDING_ACTIVATION",
         }
         assert {s.name for s in OrderStatus} == expected
 
@@ -39,17 +41,21 @@ class TestOrderStatus:
 class TestTransferOrder:
     def test_creation_with_defaults(self) -> None:
         order = _make_order()
-        assert order.id  # auto-generated, non-empty
+        assert order.id is None  # assigned at attachment
         assert order.status is OrderStatus.PENDING
         assert order.dispatched_at is None
         assert order.picked_at is None
         assert order.delivered_at is None
         assert order.assigned_agv is None
 
-    def test_two_orders_have_different_ids(self) -> None:
+    def test_attachment_assigns_sequential_ids(self) -> None:
+        env = Environment()
         order1 = _make_order()
         order2 = _make_order()
-        assert order1.id != order2.id
+        env.entities.attach(order1)
+        env.entities.attach(order2)
+        assert (order1.id, order2.id) == ("order-0", "order-1")
+        assert order1 != order2
 
     def test_status_can_be_updated(self) -> None:
         order = _make_order()
@@ -68,6 +74,7 @@ class TestTransferOrder:
 
     def test_repr(self) -> None:
         order = _make_order()
+        Environment().entities.attach(order)
         r = repr(order)
         assert "TransferOrder" in r
         assert order.id in r

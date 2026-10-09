@@ -101,12 +101,11 @@ agv_type = AGVType(
     load_time_fn=lambda: 5.0,
     unload_time_fn=lambda: 5.0,
 )
-# Two AGVs starting at the corridor junction C1
-agvs = [
-    AGV(env=env, agv_type=agv_type, agv_id=f"agv-{i}", initial_node=c1)
-    for i in range(2)
-]
+# Two AGVs starting at the corridor junction C1 (ids are generated: agv-0, agv-1)
+agvs = [AGV(env=env, agv_type=agv_type, initial_node=c1) for _ in range(2)]
 ```
+
+Ids such as `agv-0` are reserved for generated ids; pass `agv_id=` only for a custom name like `"forklift-A"`.
 
 `TrapezoidalProfile` models acceleration and deceleration; travel time between nodes is computed from the actual arc distance and the profile.
 
