@@ -2,19 +2,22 @@
 
 Goal: trace simulation events, debug behavior, and analyze what happened during a run.
 
-Each `Environment` has a built-in logger that:
+`env.debug()`, `env.info()`, `env.warning()` and `env.error()` emit `log` events (class `LogEvent` in
+`simulatte.events`) on the environment's event bus, stamped with the simulation time. Log sinks
+(`simulatte.logsinks`) subscribe to them and write them out. Every `Environment` attaches default sinks:
 
-- Automatically includes simulation time in output
-- Supports JSON or text format
-- Maintains an in-memory history buffer for post-run analysis
-- Allows per-component filtering
+- a text sink writing to stderr, or to `log_file`, in text or JSON format
+- an in-memory history for post-run analysis (`env.log_history`)
+- an SQLite database when `log_db_path` is given (`env.log_db`)
+
+Each sink has its own level and component filters.
 
 ## 1) Basic usage
 
 ```python
 from simulatte.environment import Environment
 
-env = Environment()
+env = Environment(log_level="DEBUG")
 env.run(until=100)
 
 env.info("Simulation checkpoint", component="Main")
@@ -26,23 +29,30 @@ env.error("Timeout exceeded", component="AGV")
 Output (to stderr by default):
 
 ```
-00d 00:01:40.00 | INFO     | Main         | Simulation checkpoint
-00d 00:01:40.00 | DEBUG    | Server       | Detailed info
-00d 00:01:40.00 | WARNING  | Router       | Queue getting long
-00d 00:01:40.00 | ERROR    | AGV          | Timeout exceeded
+0.0d 00:01:40.00 | INFO     | Main         | Simulation checkpoint
+0.0d 00:01:40.00 | DEBUG    | Server       | Detailed info
+0.0d 00:01:40.00 | WARNING  | Router       | Queue getting long
+0.0d 00:01:40.00 | ERROR    | AGV          | Timeout exceeded
 ```
 
 ## 2) Log levels
 
-Set the global log level to control verbosity:
+Each environment has its own level, applied to its default sinks; the default is `INFO`:
 
 ```python
-from simulatte.logger import SimLogger
-
-SimLogger.set_level("WARNING")  # Only WARNING and ERROR
-SimLogger.set_level("DEBUG")    # Everything
-SimLogger.set_level("INFO")     # Default
+quiet = Environment(log_level="WARNING")  # Only WARNING and ERROR
+verbose = Environment(log_level="DEBUG")  # Everything, including every domain event
 ```
+
+At `DEBUG` the text, JSON and SQLite sinks also write every domain event (see section 3) as a `DEBUG` record, with
+the namespace of its type as component:
+
+```
+0.0d 00:00:0.00 | DEBUG    | job          | job.queued job='job-0' server='wc-0' priority=0.0 queue_length=1
+```
+
+This makes every emitting site build its event, so a `DEBUG` run is slower. At any other level, and for the
+history, sinks listen to `log` events only and domain events are not built for them.
 
 ## 3) Built-in events and component logs
 
@@ -78,7 +88,7 @@ parking areas) emit typed events as well. The fleet coordinator keeps its warnin
 
 fleet_problems = env.log_history.query(component="FleetCoordinator")
 for e in fleet_problems:
-    print(e.timestamp, e.level, e.message)
+    print(e.t, e.level, e.message)
 ```
 
 ### Catalog
@@ -192,7 +202,10 @@ no reservation events occur. `FleetCoordinator` never calls `ParkingArea.enter` 
 ```python
 env = Environment(log_file="simulation.log")
 env.info("This goes to the file")
+env.close()
 ```
+
+The file is opened once, in append mode, when the environment is created, and closed by `env.close()`.
 
 ## 5) JSON format
 
@@ -206,12 +219,16 @@ env.info("Job completed", component="Server", job_id="J1", duration=5.2)
 Output:
 
 ```json
-{"sim_time": 0.0, "sim_time_formatted": "00d 00:00:0.00", "wall_time": "2025-12-25T12:00:00+00:00", "level": "INFO", "message": "Job completed", "component": "Server", "extra": {"job_id": "J1", "duration": 5.2}}
+{"sim_time": 0, "sim_time_formatted": "0.0d 00:00:0.00", "wall_time": "2025-12-25T12:00:00+00:00", "seq": 0, "kind": "log", "type": "log", "level": "INFO", "message": "Job completed", "component": "Server", "extra": {"job_id": "J1", "duration": 5.2}}
 ```
+
+A domain event written at `DEBUG` has `"kind": "domain"`, its event type as `type`, the namespace of the type as
+`component`, and its payload as `data`.
 
 ## 6) Query log history
 
-The environment keeps a ring buffer of recent log events (default: 1000 entries):
+`env.log_history` keeps the most recent log events (default: 1000 entries). Each one is a `LogEvent` with `t`
+(simulation time), `seq`, `level`, `message`, `component` and `extra`:
 
 ```python
 env = Environment(log_history_size=500)
@@ -230,19 +247,52 @@ server_events = env.log_history.query(
 
 # Iterate all events
 for event in env.log_history:
-    print(f"{event.timestamp}: {event.message}")
+    print(f"{event.t}: {event.message}")
 ```
 
-## 7) Component filtering
+## 7) Query the SQLite log
 
-Disable noisy components:
+With `log_db_path`, log events are also stored in an SQLite database, in the `events` table with the columns
+`env_id, seq, t, kind, type, level, component, message, data_json`. `env.log_db` is the SQLite sink:
 
 ```python
-env.logger.disable_component("FleetCoordinator")  # Silence the fleet's warnings and errors
-env.logger.enable_component("FleetCoordinator")   # Re-enable
+env = Environment(log_db_path="runs.db")
+
+# ... run simulation ...
+
+errors = env.log_db.query(level="ERROR", since=100.0, limit=50)  # LogEvent objects of this environment
+rows = env.log_db.execute_sql(
+    "SELECT component, COUNT(*) AS n FROM events WHERE env_id = ? GROUP BY component",
+    (env.log_db.env_id,),
+)
+env.close()
 ```
 
-## 8) Per-simulation logs with Runner
+Several environments can share one database file; `env_id` tells their rows apart. `query()` returns the `log`
+records only; at `DEBUG` the domain events are stored as rows with `kind = 'domain'` and their payload in
+`data_json`. Query before `env.close()`: closing the environment closes the connection.
+
+## 8) Component filtering and custom sinks
+
+Component filters belong to each sink. `env.sinks` lists the sinks attached to the environment:
+
+```python
+for sink in env.sinks:
+    sink.disable_component("FleetCoordinator")  # Silence the fleet's warnings and errors
+env.log_history.enable_component("FleetCoordinator")  # Re-enable it in the history only
+```
+
+More sinks attach with `attach(env)`; `env.close()` closes them too:
+
+```python
+from simulatte.logsinks import HistorySink, JsonSink, TextSink
+
+errors = HistorySink(10_000, level="ERROR").attach(env)
+TextSink("fleet.log", components=["FleetCoordinator"]).attach(env)
+JsonSink("trace.jsonl", level="DEBUG", exclude=["agv"]).attach(env)  # log events and domain events, without AGVs
+```
+
+## 9) Per-simulation logs with Runner
 
 When running parallel experiments, each simulation can write to its own log file:
 
@@ -269,6 +319,7 @@ if __name__ == "__main__":
         extract_fn=extract,
         log_dir=Path("logs"),  # Each run gets its own file
         log_format="json",  # Optional: use JSON format
+        log_level="INFO",  # Optional: the level of every run's environment
         # progress=None (default) auto-enables tqdm on TTY; set False to disable
     )
 
@@ -277,7 +328,7 @@ if __name__ == "__main__":
     # Creates: logs/sim_0000_seed_0.log, logs/sim_0001_seed_1.log, ...
 ```
 
-## 9) Context manager
+## 10) Context manager
 
 For explicit resource cleanup:
 
@@ -285,10 +336,10 @@ For explicit resource cleanup:
 with Environment(log_file="run.log") as env:
     # ... run simulation ...
     pass
-# Log file handler is automatically closed
+# The log file and the other sinks are closed
 ```
 
-## 10) Logging inside components
+## 11) Logging inside components
 
 Add logging to your custom components:
 

@@ -71,8 +71,9 @@ settle at speeds up to about 10 % apart, which is why the gate pools three proce
   `env.close()` (which flushes the trace). Loading the workload JSON is excluded. `gc.collect()` runs before each
   run, outside the timing.
 - **Observers.** Both versions run with their own defaults: the shop floor's default `EMAMetricsCollector`, the
-  per-environment `SimLogger` at its default level (INFO) and, on the branch, an event bus without subscribers.
-  The feeder fails a mode-`none` run that finds a bus subscriber. 0.12.0 calls `env.debug(...)` at every queue
+  per-environment logging at its default level (INFO: `SimLogger` in 0.12.0, the default log sinks on the branch,
+  which subscribe to `log` events only) and, on the branch, no subscriber of domain events. The feeder fails a
+  mode-`none` run that finds a bus subscription taking domain events. 0.12.0 calls `env.debug(...)` at every queue
   entry, release, processing start, PSP entry and exit and shop-floor step, building the f-string and keyword
   arguments before the level check; the branch replaced these calls with events guarded by `env.wants`. That
   difference is part of the comparison (the G3 report quantifies it separately).
@@ -88,8 +89,9 @@ settle at speeds up to about 10 % apart, which is why the gate pools three proce
 
 - **Provenance** (C1.9): every result records `commit` (`git rev-parse HEAD` of the benchmark checkout, else
   `GITHUB_SHA`, else `unknown`; for `head` this is the measured branch, since `simulatte_version` still reads
-  0.12.0 on both sides), `log_level` (`SimLogger.get_level()`) and `hardware` (machine, CPU model, CPU count),
-  besides the workload and interpreter.
+  0.12.0 on both sides), `log_level` (`SimLogger.get_level()` in 0.12.0, the default of
+  `Environment(log_level=...)` on the branch) and `hardware` (machine, CPU model, CPU count), besides the workload
+  and interpreter.
 - **Seeks** default to 200 per run (`--seeks`); the G3 report used 500.
 
 ## Baseline: 0.12.0 without its debug calls

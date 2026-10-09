@@ -44,7 +44,7 @@ Your simulation scripts are unchanged — only the interpreter differs.
 
 Notes:
 
-- The pure-Python dependencies (`simpy`, `loguru`, `tqdm`, `tabulate`) are first-class on PyPy.
+- The pure-Python dependencies (`simpy`, `tqdm`, `tabulate`) are first-class on PyPy.
 - `matplotlib` and `numpy` are only needed for **plotting** and the experimental RL module —
   they are never on the simulation hot path. If you run headless (no plots), you don't need
   them at all.

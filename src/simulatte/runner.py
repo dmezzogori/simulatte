@@ -45,6 +45,7 @@ class Runner(Generic[S, T]):
         n_jobs: int | None = None,
         log_dir: Path | None = None,
         log_format: Literal["text", "json"] = "text",
+        log_level: str = "INFO",
     ) -> None:
         """Initialize the runner.
 
@@ -58,6 +59,7 @@ class Runner(Generic[S, T]):
             log_dir: Optional directory for per-simulation log files.
                      Each simulation will create a file named sim_XXXX_seed_YYYY.log
             log_format: Log output format ("text" or "json")
+            log_level: Log level of every run's environment (``Environment(log_level=...)``)
         """
         self.builder = builder
         self.seeds = seeds
@@ -67,6 +69,7 @@ class Runner(Generic[S, T]):
         self.n_jobs = n_jobs
         self.log_dir = log_dir
         self.log_format = log_format
+        self.log_level = log_level
 
     def _run_single(self, args: tuple[int, int, float]) -> tuple[int, T]:
         """Run a single simulation.
@@ -89,6 +92,7 @@ class Runner(Generic[S, T]):
             seed=seed,
             log_file=log_file,
             log_format=self.log_format,
+            log_level=self.log_level,
         ) as env:
             system = self.builder(env=env)
             env.run(until=until)

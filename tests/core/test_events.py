@@ -113,7 +113,8 @@ def test_wants_tracks_subscriptions(env: Environment) -> None:
     assert not env.wants(Ping)
 
     star = env.bus.subscribe(lambda e: None, "*")
-    assert env.wants(Ping) and env.wants(Rich) and not env.wants(Pong) and not env.wants(LogEvent)
+    assert env.wants(Ping) and env.wants(Rich) and not env.wants(Pong) and not env.wants(KpiSample)
+    assert env.wants(LogEvent)  # the default log sinks listen to log events
     everything = env.bus.subscribe(lambda e: None, "**")
     assert env.wants(Pong) and env.wants(LogEvent) and env.wants(KpiSample)
     everything.cancel()

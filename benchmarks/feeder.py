@@ -10,7 +10,8 @@ operation counts are checked against the workload.
 ``priority_policies`` attribute and gives that rule to every job, as ``Router.generate_job`` does.
 
 Observers are each version's defaults: the shop floor's default ``EMAMetricsCollector``, the environment's
-``SimLogger`` at its default level and, on the branch, the event bus with no subscriber (mode ``none``). Modes
+logging at its default level (``SimLogger`` in 0.12.0; on the branch, the default log sinks, which subscribe to
+``log`` events only) and, on the branch, no subscriber of domain events (mode ``none``). Modes
 ``digest`` and ``full`` (branch only) add ``env.enable_digest()`` or a ``TraceRecorder`` with default chunk
 limits, created before the shop as a user would.
 """
@@ -68,6 +69,8 @@ class RunResult:
     jobs_done: int
     operations_done: int
     subscribers: int
+    """Bus subscriptions that take domain events (0 for a version without a bus); the default log sinks take
+    ``log`` observer events only and are not counted."""
     digest: str | None
     trajectory: str
     """SHA-256 of every finished job's SKU, due date, pool exit and finish time, in completion order: equal across
@@ -124,6 +127,13 @@ def _feed(env: Any, rows: list[list[Any]], servers: list[Any], psp: Any, priorit
         psp.add(job)
 
 
+def _domain_subscribers(bus: Any) -> int:
+    """Subscriptions of `bus` that take domain events (any subscription not limited to observer events)."""
+    from simulatte.events import ObserverEvent
+
+    return sum(1 for s in bus._subscriptions if not all(issubclass(c, ObserverEvent) for c in s._classes))
+
+
 def run(workload: Workload, *, mode: str = "none", trace_path: str | Path | None = None) -> RunResult:
     """Build the shop, replay `workload` until its horizon and close the environment, timing all of it.
 
@@ -164,7 +174,7 @@ def run(workload: Workload, *, mode: str = "none", trace_path: str | Path | None
     wall = time.perf_counter() - start
 
     bus = getattr(env, "bus", None)
-    subscribers = 0 if bus is None else len(bus._subscriptions)
+    subscribers = 0 if bus is None else _domain_subscribers(bus)
     digest = env.fingerprint().digest if mode != "none" else None
     done = shopfloor.jobs_done
     trajectory = hashlib.sha256()
@@ -188,5 +198,5 @@ def run(workload: Workload, *, mode: str = "none", trace_path: str | Path | None
             f"operations finished by the horizon {workload.horizon}; regenerate the workload with a longer --drain"
         )
     if mode == "none" and subscribers:
-        raise RuntimeError(f"mode 'none' must run without bus subscribers, found {subscribers}")
+        raise RuntimeError(f"mode 'none' must run without domain-event subscribers, found {subscribers}")
     return result

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytest
-
 from simulatte.environment import Environment
 from simulatte.events import DomainEvent
 from simulatte.intralogistics.agv import AGV
@@ -16,17 +14,6 @@ from simulatte.intralogistics.events import (
     WarehouseSlotChanged,
 )
 from simulatte.intralogistics.graph import Node
-from simulatte.logger import SimLogger
-
-
-@pytest.fixture
-def _debug_level():
-    """Temporarily set the global log level to DEBUG so env.debug() calls
-    are recorded in the history buffer."""
-    original = SimLogger.get_level()
-    SimLogger.set_level("DEBUG")
-    yield
-    SimLogger.set_level(original)
 
 
 class _Unreachable:
@@ -51,11 +38,10 @@ def _run_one_order(env: Environment, *, unreachable_parking: bool = False) -> No
     env.run()
 
 
-@pytest.mark.usefixtures("_debug_level")
 def test_intralogistics_transitions_are_events() -> None:
     """Fleet, AGV and warehouse transitions are domain events, not debug logs (spec §7.2): even at DEBUG, a run
     without errors records no intralogistics log message."""
-    env = Environment(log_history_size=5000)
+    env = Environment(log_level="DEBUG", log_history_size=5000)
     seen: list[DomainEvent] = []
     env.bus.subscribe(
         seen.append,
@@ -75,12 +61,11 @@ def test_intralogistics_transitions_are_events() -> None:
         assert env.log_history.query(component=component) == [], component
 
 
-@pytest.mark.usefixtures("_debug_level")
 def test_disable_component_suppresses_its_logs() -> None:
-    """``env.logger.disable_component("FleetCoordinator")`` suppresses the fleet's errors and warnings, which are
-    recorded otherwise."""
+    """``env.log_history.disable_component("FleetCoordinator")`` suppresses the fleet's errors and warnings, which
+    are recorded otherwise."""
     muted = Environment(log_history_size=5000)
-    muted.logger.disable_component("FleetCoordinator")
+    muted.log_history.disable_component("FleetCoordinator")
     _run_one_order(muted, unreachable_parking=True)
     assert muted.log_history.query(component="FleetCoordinator") == []
 

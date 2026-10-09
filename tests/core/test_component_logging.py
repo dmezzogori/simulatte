@@ -6,7 +6,6 @@ from simulatte.entities import EntityCreated
 from simulatte.environment import Environment
 from simulatte.events import Event
 from simulatte.job import ProductionJob
-from simulatte.logger import SimLogger
 from simulatte.psp import PreShopPool, PspEntered, PspExited
 from simulatte.router import Router
 from simulatte.server import JobGranted, JobQueued, JobReleased, Server
@@ -185,38 +184,31 @@ class TestLoggingFiltering:
     """Tests for logging level filtering."""
 
     def test_debug_logs_filtered_at_info_level(self) -> None:
-        original_level = SimLogger.get_level()
-        try:
-            SimLogger.set_level("INFO")
-            env = Environment()
-            sf = ShopFloor(env=env)
-            server = Server(env=env, capacity=1, shopfloor=sf)
-            job = ProductionJob(
-                env=env,
-                sku="A",
-                servers=[server],
-                processing_times=[5.0],
-                due_date=100.0,
-            )
+        env = Environment(log_level="INFO")
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(
+            env=env,
+            sku="A",
+            servers=[server],
+            processing_times=[5.0],
+            due_date=100.0,
+        )
 
-            sf.add(job)
-            env.run(until=10)
+        sf.add(job)
+        env.run(until=10)
 
-            events = list(env.log_history)
-            assert len(events) == 0
-        finally:
-            SimLogger.set_level(original_level)
-            env.close()
+        events = list(env.log_history)
+        assert len(events) == 0
+        env.close()
 
 
 class TestIntegrationEvents:
     """The job lifecycle across components, through events; core components write no log messages."""
 
     def test_job_lifecycle_events(self) -> None:
-        original_level = SimLogger.get_level()
+        env = Environment(debug=True, log_level="DEBUG")
         try:
-            SimLogger.set_level("DEBUG")
-            env = Environment(debug=True)
             seen: list[Event] = []
             env.bus.subscribe(seen.append, "*")
             sf = ShopFloor(env=env)
@@ -249,7 +241,6 @@ class TestIntegrationEvents:
             assert [e.seq for e in seen] == sorted(e.seq for e in seen)
             assert list(env.log_history) == []  # ShopFloor, Server, PreShopPool and Router no longer log
         finally:
-            SimLogger.set_level(original_level)
             env.close()
 
     def test_multiple_jobs_events(self) -> None:

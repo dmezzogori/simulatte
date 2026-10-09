@@ -18,6 +18,8 @@ Run it with the interpreter of the environment to measure (``simulatte==0.12.0``
 from __future__ import annotations
 
 import argparse
+import importlib
+import inspect
 import json
 import os
 import platform
@@ -68,13 +70,23 @@ def _commit() -> str:
         return os.environ.get("GITHUB_SHA", "unknown")
 
 
+def _log_level() -> str:
+    """Default log level of the installed simulatte: ``SimLogger``'s class-level one in 0.12.0, else the default of
+    ``Environment(log_level=...)``."""
+    try:
+        sim_logger = importlib.import_module("simulatte.logger").SimLogger  # simulatte 0.12.0
+    except ModuleNotFoundError:
+        from simulatte.environment import Environment
+
+        return inspect.signature(Environment).parameters["log_level"].default
+    return sim_logger.get_level()
+
+
 def provenance() -> dict[str, Any]:
     """What C1.9 asks to record with the results besides the workload: commit, logging level, hardware class."""
-    from simulatte.logger import SimLogger
-
     return {
         "commit": _commit(),
-        "log_level": SimLogger.get_level(),
+        "log_level": _log_level(),
         "hardware": {"machine": platform.machine(), "cpu": _cpu_model(), "cpus": os.cpu_count()},
     }
 

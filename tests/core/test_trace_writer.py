@@ -19,7 +19,7 @@ from simulatte.builders import build_immediate_release_system
 from simulatte.digest import Fingerprint
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
-from simulatte.events import Deltas, DomainEvent, apply_deltas, event_type
+from simulatte.events import Deltas, DomainEvent, LogEvent, apply_deltas, event_type
 from simulatte.scenario import Scenario
 from simulatte.trace import ChunkLimits, RecordType, TraceRecorder
 from simulatte.trace.format import FORMAT_MAJOR, FORMAT_MINOR, MAGIC, TRAILER_MAGIC
@@ -731,6 +731,8 @@ def test_interrupt_during_backpressure_keeps_trace_consistent(
 ) -> None:
     path = tmp_path / "t.simtrace"
     env = Environment(seed=1)
+    logged: list[LogEvent] = []  # a backpressure warning, when the simulation blocked, takes a seq too
+    env.bus.subscribe(logged.append, (LogEvent,))
     rec = make_recorder(env, path, chunk_limits=ChunkLimits(max_events=2), max_pending_bytes=1, clock=FakeClock())
 
     @event_type(f"test.trace_rare_{interrupted}")  # first used after the header: needs a CATALOG_EXT
@@ -785,10 +787,13 @@ def test_interrupt_during_backpressure_keeps_trace_consistent(
     chunks = _of(records, RecordType.CHUNK)
     events = [e for c in chunks for e in c.body["events"]]
     assert [e[1] for e in events] == [0, 1, 2, 3]  # every domain event recorded, ordinals without gaps
-    assert [e[0] for e in events] == list(range(events[0][0], events[0][0] + 4))
+    seqs = [e[0] for e in events]
+    log_seqs = {e.seq for e in logged}
+    assert seqs == [seq for seq in range(seqs[0], seqs[-1] + 1) if seq not in log_seqs]
     assert footer["cursor"] == chunks[-1].body["last"]
     index = footer["index"]
-    assert [i["first"][1] for i in index[1:]] == [i["last"][1] + 1 for i in index[:-1]]
+    domain_after = {seqs[k]: seqs[k + 1] for k in range(len(seqs) - 1)}  # seqs of consecutive domain events
+    assert [i["first"][1] for i in index[1:]] == [domain_after[i["last"][1]] for i in index[:-1]]
     (ext,) = _of(records, RecordType.CATALOG_EXT)
     rare_chunk = next(c for c in chunks if any(e[2] == Rare.type_name for e in c.body["events"]))
     assert records.index(ext) < records.index(rare_chunk)

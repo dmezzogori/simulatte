@@ -1,7 +1,7 @@
 # Core API
 
 The core of Simulatte is a small set of cooperating objects: `Environment` drives the SimPy
-clock and carries the logger; `ShopFloor` is the central orchestrator that tracks WIP, routes
+clock and carries the event bus and the log sinks; `ShopFloor` is the central orchestrator that tracks WIP, routes
 jobs, and fires hooks; `ProductionJob` represents a unit of work that moves through a sequence
 of `Server` resources via the `Router`; `PreShopPool` holds jobs before they are released to
 the floor; and `Runner` repeats multiple simulation replications with independent random seeds.

@@ -20,8 +20,8 @@ from simpy.core import StopSimulation
 from simulatte._wire import FrozenMap, Wire
 from simulatte.digest import Fingerprint, SemanticDigest
 from simulatte.entities import EntityRegistry
-from simulatte.events import DomainEvent, Event, EventBus, Op, validate_event
-from simulatte.logger import EventHistoryBuffer, SimLogger
+from simulatte.events import DomainEvent, Event, EventBus, LogEvent, Op, validate_event
+from simulatte.logsinks import HistorySink, JsonSink, LogSink, SQLiteSink, TextSink
 from simulatte.provenance import (
     Provenance,
     RunManifest,
@@ -57,11 +57,10 @@ class Environment(simpy.Environment):
     from the named streams of :meth:`rng`, derived from :attr:`seed`; components resolve their samplers
     with :meth:`bind`.
 
-    Each environment has its own logger that:
-    - Automatically includes simulation time in log output
-    - Supports JSON or text output format
-    - Maintains an in-memory history buffer
-    - Supports per-component filtering
+    :meth:`debug`, :meth:`info`, :meth:`warning` and :meth:`error` emit ``log`` events on the bus; the log sinks
+    of :mod:`simulatte.logsinks` write them out. The ``log_*`` arguments attach the default sinks: text or JSON
+    lines to stderr or `log_file`, the in-memory :attr:`log_history`, and an SQLite database (:attr:`log_db`). More
+    sinks attach with ``sink.attach(env)``; :attr:`sinks` lists them and :meth:`close` closes them.
     """
 
     def __init__(
@@ -71,6 +70,7 @@ class Environment(simpy.Environment):
         time_unit: str | None = None,
         provenance: Provenance | None = None,
         debug: bool = False,
+        log_level: str = "INFO",
         log_file: str | Path | None = None,
         log_format: Literal["text", "json"] = "text",
         log_history_size: int = 1000,
@@ -88,11 +88,13 @@ class Environment(simpy.Environment):
             debug: Validate emitted events against the catalog and the entity state schemas, and reject
                    subscribers that schedule SimPy events or draw from :meth:`rng`. Slower; meant for tests
                    and model development.
-            log_file: Optional file path for log output (defaults to stderr)
-            log_format: Output format ("text" or "json")
-            log_history_size: Maximum number of events to keep in history buffer
-            log_db_path: Optional SQLite database path for persistent event storage.
-                         If provided, events are stored in both memory buffer and SQLite.
+            log_level: Lowest level written by the default sinks (``DEBUG``, ``INFO``, ``WARNING``, ``ERROR`` or
+                       ``CRITICAL``), for this environment only. At ``DEBUG`` the text, JSON and SQLite sinks also
+                       write every domain event, which then gets built at each emitting site.
+            log_file: Optional file path for log output (defaults to stderr), opened once in append mode.
+            log_format: Output format ("text" or "json").
+            log_history_size: Maximum number of log records kept by :attr:`log_history`.
+            log_db_path: Optional SQLite database path for persistent log storage (see :attr:`log_db`).
         """
         if seed is None:
             seed = int.from_bytes(os.urandom(8), "big") >> 1
@@ -139,13 +141,17 @@ class Environment(simpy.Environment):
         The bound lookup of the bus's interest cache rather than a method, so that a check costs one C call and no
         Python frame while nobody listens (D56)."""
         self.entities = EntityRegistry(self)
-        self._logger = SimLogger(
-            env=self,
-            log_file=log_file,
-            log_format=log_format,
-            history_size=log_history_size,
-            db_path=log_db_path,
-        )
+        self._sinks: list[LogSink] = []
+        if log_format not in ("text", "json"):
+            raise ValueError(f"log_format must be 'text' or 'json', got {log_format!r}")
+        stream_sink = JsonSink if log_format == "json" else TextSink
+        stream_sink(log_file, level=log_level).attach(self)
+        self._log_history = HistorySink(log_history_size, level=log_level)
+        self._log_history.attach(self)
+        self._log_db: SQLiteSink | None = None
+        if log_db_path is not None:
+            self._log_db = SQLiteSink(log_db_path, level=log_level)
+            self._log_db.attach(self)
 
     # -------------------------------------------------------------------------
     # Events
@@ -457,13 +463,15 @@ class Environment(simpy.Environment):
             raise StopSimulation("KeyboardInterrupt")
 
     def close(self) -> None:
-        """Close the trace recorders attached to this environment, then release logger resources.
+        """Close the trace recorders attached to this environment, then its log sinks. Idempotent.
 
-        Every recorder is closed even if one raises; the exception propagates afterwards.
+        Every recorder and sink is closed even if one raises; the exception propagates afterwards. A closed sink
+        receives no further event; :attr:`log_history` keeps its records.
         """
         recorders, self._recorders = self._recorders, []
         with contextlib.ExitStack() as stack:
-            stack.callback(self._logger.close)
+            for sink in reversed(self._sinks):
+                stack.callback(sink.close)
             for recorder in reversed(recorders):
                 stack.callback(recorder.close)
 
@@ -474,71 +482,60 @@ class Environment(simpy.Environment):
         self.close()
 
     # -------------------------------------------------------------------------
-    # Logging convenience methods
+    # Logging
     # -------------------------------------------------------------------------
 
+    def _log(self, level: str, message: str, component: str | None, extra: dict[str, Any]) -> None:
+        if self.wants(LogEvent):
+            self.emit(LogEvent(level=level, message=message, component=component, extra=FrozenMap(extra)))
+
     def debug(self, message: str, *, component: str | None = None, **extra: Any) -> None:
-        """Log a debug message with simulation time context.
+        """Emit a ``DEBUG`` :class:`~simulatte.events.LogEvent` at the current simulation time.
 
         Args:
             message: The log message
-            component: Optional component class name for filtering (e.g., "Server")
-            **extra: Additional structured data to include in the log
+            component: Optional component name for filtering (e.g., "Server")
+            **extra: Additional structured data to include in the record (wire values in debug mode)
         """
-        self._logger.debug(message, component=component, **extra)
+        self._log("DEBUG", message, component, extra)
 
     def info(self, message: str, *, component: str | None = None, **extra: Any) -> None:
-        """Log an info message with simulation time context.
-
-        Args:
-            message: The log message
-            component: Optional component class name for filtering (e.g., "Server")
-            **extra: Additional structured data to include in the log
-        """
-        self._logger.info(message, component=component, **extra)
+        """Emit an ``INFO`` :class:`~simulatte.events.LogEvent`; arguments as for :meth:`debug`."""
+        self._log("INFO", message, component, extra)
 
     def warning(self, message: str, *, component: str | None = None, **extra: Any) -> None:
-        """Log a warning message with simulation time context.
-
-        Args:
-            message: The log message
-            component: Optional component class name for filtering (e.g., "Server")
-            **extra: Additional structured data to include in the log
-        """
-        self._logger.warning(message, component=component, **extra)
+        """Emit a ``WARNING`` :class:`~simulatte.events.LogEvent`; arguments as for :meth:`debug`."""
+        self._log("WARNING", message, component, extra)
 
     def error(self, message: str, *, component: str | None = None, **extra: Any) -> None:
-        """Log an error message with simulation time context.
-
-        Args:
-            message: The log message
-            component: Optional component class name for filtering (e.g., "Server")
-            **extra: Additional structured data to include in the log
-        """
-        self._logger.error(message, component=component, **extra)
+        """Emit an ``ERROR`` :class:`~simulatte.events.LogEvent`; arguments as for :meth:`debug`."""
+        self._log("ERROR", message, component, extra)
 
     @property
-    def log_history(self) -> EventHistoryBuffer:
-        """Access the event history buffer.
+    def sinks(self) -> tuple[LogSink, ...]:
+        """The log sinks attached to this environment, in attachment order (the default ones first)."""
+        return tuple(self._sinks)
 
-        Returns:
-            The EventHistoryBuffer containing recent log events.
-            Use .query() to filter events by level, component, or time range.
+    @property
+    def log_history(self) -> HistorySink:
+        """The in-memory history of recent log records (``log_history_size`` of them).
 
         Example:
             >>> env.log_history.query(level="ERROR", since=100.0)
         """
-        return self._logger.history
+        return self._log_history
 
     @property
-    def logger(self) -> SimLogger:
-        """Access the underlying SimLogger for advanced configuration.
+    def log_db(self) -> SQLiteSink:
+        """The SQLite sink created by ``log_db_path``, with :meth:`~simulatte.logsinks.SQLiteSink.query` and
+        :meth:`~simulatte.logsinks.SQLiteSink.execute_sql`.
 
-        Use this to enable/disable component-level filtering:
-            >>> env.logger.disable_component("Server")
-            >>> env.logger.enable_component("ShopFloor")
+        Raises:
+            RuntimeError: The environment was created without ``log_db_path``.
         """
-        return self._logger
+        if self._log_db is None:
+            raise RuntimeError("SQLite storage not enabled. Provide log_db_path to enable.")
+        return self._log_db
 
 
 # ---------------------------------------------------------------------------------------------------------
