@@ -13,12 +13,12 @@ from datetime import UTC, datetime
 from collections.abc import Callable, Generator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Concatenate, Literal, ParamSpec, Protocol, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Concatenate, Literal, ParamSpec, Protocol, TypeVar, cast, overload
 
 import simpy
 from simpy.core import StopSimulation
 
-from simulatte._wire import FrozenMap, Wire
+from simulatte._wire import FrozenMap, Wire, freeze
 from simulatte.digest import Fingerprint, SemanticDigest
 from simulatte.entities import EntityRegistry
 from simulatte.events import DomainEvent, Event, EventBus, LogEvent, Op, validate_event
@@ -531,7 +531,9 @@ class Environment(simpy.Environment):
 
     def _log(self, level: str, message: str, component: str | None, extra: dict[str, Any]) -> None:
         if self.wants(LogEvent):
-            self.emit(LogEvent(level=level, message=message, component=component, extra=FrozenMap(extra)))
+            # Debug mode records an immutable copy (R30), which also rejects values that are not wire values.
+            frozen = cast("FrozenMap", freeze(extra)) if self._debug else FrozenMap(extra)
+            self.emit(LogEvent(level=level, message=message, component=component, extra=frozen))
 
     def debug(self, message: str, *, component: str | None = None, **extra: Any) -> None:
         """Emit a ``DEBUG`` :class:`~simulatte.events.LogEvent` at the current simulation time.

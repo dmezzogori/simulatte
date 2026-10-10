@@ -284,7 +284,8 @@ class SemanticDigest:
         """The canonical ``payload, deltas`` tail of the projection of `event`, if a recorder can store it as is.
 
         It is available after :meth:`share_tails`, only for the event this digest projected last, when that event
-        has no presentation payload field and the projection kept all its operations unchanged; otherwise None.
+        has no presentation payload field and its operations, a tuple, are already immutable wire values that the
+        projection kept unchanged (so a recorder may keep them, ruling R30); otherwise None.
         """
         last = self._last
         if last is not None and last[0] is event:
@@ -307,19 +308,26 @@ class SemanticDigest:
             payload[key] = value if t is str or (t is float and value == value) or value is None else prepared(value)
         kinds = self._acc.kinds
         ops: list[Any] = []
-        unchanged = True
-        for op in event.deltas.ops:
+        event_ops = event.deltas.ops
+        # Shared only when the recorder can keep the operations themselves: a tuple of operations that are already
+        # immutable wire values (prepared_op returns those unchanged), which nobody can change after emit (R30).
+        unchanged = type(event_ops) is tuple
+        for op in event_ops:
             if op[0] in _LIFECYCLE:
                 kept = _project_op(op, kinds, _registered_presentation, strict=True)
-                if kept is not op:
+                ready = prepared_op(kept)  # ty: ignore[invalid-argument-type]  # lifecycle ops are always kept
+                if ready is not op:
                     unchanged = False
-                ops.append(prepared_op(kept))  # ty: ignore[invalid-argument-type]  # lifecycle ops are always kept
+                ops.append(ready)
                 continue
             kind = kinds.get(op[1])
             if kind is not None and op[2] in _registered_presentation(kind):
                 unchanged = False
                 continue
-            ops.append(prepared_op(op))
+            ready = prepared_op(op)
+            if ready is not op:
+                unchanged = False
+            ops.append(ready)
         item = self._packer.pack(
             (event.ordinal, cls.type_name, cls.type_version, prepared(float(event.t)), payload, ops)
         )

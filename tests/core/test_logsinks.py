@@ -117,6 +117,18 @@ def test_debug_mode_validates_extra() -> None:
     env.close()
 
 
+def test_debug_mode_freezes_extra() -> None:
+    """Event contents are immutable in debug mode (R30): a list in ``extra`` is recorded as a tuple, a copy the
+    caller can no longer change."""
+    env = Environment(debug=True)
+    values = [1, 2]
+    env.info("frozen", values=values, table={"k": values})
+    values.append(3)
+    (record,) = [event for event in env.log_history if event.message == "frozen"]
+    assert record.extra == {"values": (1, 2), "table": {"k": (1, 2)}}
+    env.close()
+
+
 # =============================================================================
 # text and JSON sinks
 # =============================================================================

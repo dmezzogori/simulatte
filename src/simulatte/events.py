@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import dataclasses
 from collections import deque
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, MutableMapping, MutableSequence, MutableSet
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, ClassVar, Literal, TypeAlias, TypeVar, dataclass_transform
@@ -444,10 +444,12 @@ def validate_event(
     """Validate `event` against the catalog (debug mode).
 
     Checks that the type is registered, that each payload value matches its declared wire type and
-    nullability, that field operations target ``(kind, field)`` pairs declared in ``touches`` (skipped
-    when `entity_kind` does not know the addressed entity), and that ``create``/``retire`` are carried
-    only by ``entity.created``/``entity.retired``. `check_lifecycle` is called for each lifecycle
-    operation so that the entity registry can check it against kind schemas and live entities.
+    nullability, that payload values and delta operations are deep-immutable wire values (tuples and
+    :class:`FrozenMap`, never lists, dicts or other mutable containers; global C1.2, ruling R30), that field
+    operations target ``(kind, field)`` pairs declared in ``touches`` (skipped when `entity_kind` does not know
+    the addressed entity), and that ``create``/``retire`` are carried only by ``entity.created``/``entity.retired``.
+    `check_lifecycle` is called for each lifecycle operation so that the entity registry can check it against
+    kind schemas and live entities.
     """
     cls = type(event)
     name = cls.__dict__.get("type_name")
@@ -457,7 +459,9 @@ def validate_event(
     for info in entry.fields:
         _check_value(name, info, getattr(event, info.name))
     touches = cls.touches
-    for op in event.deltas.ops:
+    ops = event.deltas.ops
+    _check_immutable(f"{name}: the delta operations", ops)
+    for op in ops:
         op_name = op[0]
         if op_name in FIELD_OPS:
             kind = entity_kind(op[1])
@@ -479,7 +483,40 @@ def _check_value(event_name: str, info: FieldInfo, value: object) -> None:
         return
     if not matches_wire_type(info.wire_type, value):
         raise TypeError(f"{event_name}.{info.name} expects {info.wire_type}, got {type(value).__name__}")
-    freeze(value)  # TypeError / OverflowError for values outside the wire model
+    _check_immutable(f"{event_name}.{info.name}", value)
+
+
+def _check_immutable(where: str, value: object) -> None:
+    """Raise unless `value` is a deep-immutable wire value (ruling R30).
+
+    Scalars (subclasses of ``str``, ``int`` and ``float`` included), tuples and :class:`FrozenMap` with ``str`` keys
+    are accepted; lists, dicts, sets and other mutable containers raise `TypeError`, as does anything that is not a
+    wire value; integers outside +/-(2**53 - 1) raise `OverflowError`. Calls no user code (subclasses are read through
+    the base type's methods).
+    """
+    stack: list[object] = [value]
+    while stack:
+        item = stack.pop()
+        t = type(item)
+        if item is None or t is str or t is bool or t is float:
+            continue
+        if issubclass(t, int):
+            freeze(int.__int__(item))  # ty: ignore[invalid-argument-type]  # OverflowError outside the safe range
+        elif issubclass(t, (str, float)):
+            continue
+        elif issubclass(t, tuple):
+            stack.extend(tuple.__getitem__(item, slice(None)))
+        elif issubclass(t, FrozenMap):
+            data: dict[Any, object] = item._data  # ty: ignore[unresolved-attribute]
+            if not all(type(key) is str for key in data):
+                raise TypeError(f"{where}: map keys must be str")
+            stack.extend(data.values())
+        elif issubclass(t, (MutableMapping, MutableSequence, MutableSet, bytearray)):
+            raise TypeError(
+                f"{where} holds a mutable {t.__name__}; event contents must be immutable (use a tuple or a FrozenMap)"
+            )
+        else:
+            raise TypeError(f"{where} holds {t.__name__}, which is not a wire value")
 
 
 def matches_wire_type(wire_type: str, value: object) -> bool:

@@ -499,7 +499,7 @@ def test_debug_lifecycle_ops_only_on_lifecycle_events(env_debug: Environment, mo
 
 
 def test_debug_validates_payload(env_debug: Environment) -> None:
-    env_debug.emit(Rich(job="j", label=None, weight=1.0, route=("a",), info=FrozenMap({"k": 1}), anything=[1, 2]))
+    env_debug.emit(Rich(job="j", label=None, weight=1.0, route=("a",), info=FrozenMap({"k": 1}), anything=(1, 2)))
     bad: list[Any] = [
         Rich(job=None),  # ty: ignore[invalid-argument-type]
         Rich(job="j", weight="heavy"),  # ty: ignore[invalid-argument-type]
@@ -515,6 +515,66 @@ def test_debug_validates_payload(env_debug: Environment) -> None:
     for event in bad:
         with pytest.raises((TypeError, OverflowError)):
             env_debug.emit(event)
+
+
+@event_type("test.mutable_payload")
+class MutablePayload(DomainEvent):
+    values: tuple[int, ...]
+
+
+def test_debug_rejects_mutable_payloads_and_delta_values(
+    env_debug: Environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Event contents are deep-immutable (global C1.2, ruling R30): debug mode rejects lists, dicts and other mutable
+    containers anywhere in a payload or a delta operation, not only values that cannot be encoded."""
+    monkeypatch.setattr(env_debug, "_entity_kind", {"s1": "server", "j1": "job"}.get)
+    seen = _record(env_debug)
+    env_debug.emit(
+        Rich(job="j", route=("a",), info=FrozenMap({"k": (1, FrozenMap({"n": 2}))}), anything=(1, FrozenMap({})))
+    )
+    env_debug.emit(Ping(deltas=Deltas((("set", "s1", "queue", ("j1",)), ("insert", "s1", "users", 0, "j1")))))
+    bad: list[Any] = [
+        Rich(job="j", anything=[1, 2]),
+        Rich(job="j", route=["a"]),  # ty: ignore[invalid-argument-type]
+        Rich(job="j", anything=(1, [2])),
+        Rich(job="j", info={"k": 1}),  # ty: ignore[invalid-argument-type]
+        Rich(job="j", info=FrozenMap({"k": [1]})),  # ty: ignore[invalid-argument-type]
+        Rich(job="j", anything=FrozenMap({"k": {"n": 1}})),  # ty: ignore[invalid-argument-type]
+        Rich(job="j", anything={1, 2}),
+        Rich(job="j", anything=bytearray(b"x")),
+        Ping(deltas=Deltas((("set", "s1", "queue", ["j1"]),))),
+        Ping(deltas=Deltas((("insert", "s1", "users", 0, {"j": 1}),))),
+        Ping(deltas=Deltas((("set", "s1", "queue", (["j1"],)),))),
+        Ping(deltas=Deltas((["set", "s1", "queue", "j1"],))),  # ty: ignore[invalid-argument-type]  # a list op
+        Ping(deltas=Deltas([("set", "s1", "queue", "j1")])),  # ty: ignore[invalid-argument-type]  # a list of ops
+    ]
+    for event in bad:
+        with pytest.raises(TypeError, match="mutable"):
+            env_debug.emit(event)
+    with pytest.raises(TypeError, match="keys must be str"):
+        env_debug.emit(Rich(job="j", info=FrozenMap({1: "x"})))  # ty: ignore[invalid-argument-type]
+
+    class Name(str):
+        pass
+
+    class Ratio(float):
+        pass
+
+    env_debug.emit(Rich(job="j", anything=(Name("n"), Ratio(0.5))))  # immutable scalar subclasses are accepted
+    assert len(seen) == 3
+
+
+def test_debug_mutable_payload_cannot_be_changed_by_an_observer(env_debug: Environment) -> None:
+    """Codex probe: an observer appended to a list payload and changed the digest under debug=True."""
+    env_debug.bus.subscribe(lambda event: event.values.append(2), (MutablePayload,))
+    env_debug.enable_digest()
+    env_debug.activate()
+    with pytest.raises(TypeError, match="mutable"):
+        env_debug.emit(MutablePayload(values=[1]))  # ty: ignore[invalid-argument-type]
+    event = MutablePayload(values=(1,))
+    with pytest.raises(AttributeError):  # a tuple cannot be appended to: the observer's error propagates
+        env_debug.emit(event)
+    assert event.values == (1,)
 
 
 def test_debug_rejects_unregistered_types(env_debug: Environment) -> None:

@@ -35,13 +35,13 @@ from collections import deque
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import msgpack
 
-from simulatte._wire import FrozenMap, new_packer, pack, prepared, prepared_op
+from simulatte._wire import FrozenMap, freeze, new_packer, pack, prepared, prepared_op
 from simulatte.entities import KINDS
-from simulatte.events import CATALOG, Deltas, DomainEvent, KpiSample, Subscription, apply_deltas
+from simulatte.events import CATALOG, Deltas, DomainEvent, KpiSample, Op, Subscription, apply_deltas
 from simulatte.trace.format import (
     OPTIONAL_FEATURES,
     REQUIRED_FEATURES,
@@ -114,6 +114,11 @@ class _Batch:
     last: tuple[float, int]
     epoch: int
     size: int
+
+
+def _frozen_op(op: Any) -> Op:
+    """An immutable copy of a delta operation, equal to its canonical encoding."""
+    return cast("Op", freeze(op))
 
 
 # Queue items: (kind, pending size, data). Kinds: "header", "record", "ext", "initial", "batch", "footer".
@@ -241,7 +246,13 @@ class TraceRecorder:
         tail = self._digest.shared_tail(event)
         if tail is None:
             payload = {key: prepared(getattr(event, n)) for key, n in cls.wire_payload}
-            tail = pack_event((payload, tuple(map(prepared_op, deltas.ops))))[1:]
+            ops = deltas.ops
+            prepared_ops = tuple(map(prepared_op, ops))
+            tail = pack_event((payload, prepared_ops))[1:]
+            if type(ops) is not tuple or any(p is not op for p, op in zip(prepared_ops, ops, strict=True)):
+                # Not all immutable already: replay an immutable copy of what was just encoded, never the caller's
+                # objects, which may change before the writer thread applies them (R30).
+                deltas = Deltas(tuple(map(_frozen_op, ops)))
         entry = _ENTRY_HEADER + pack_event((seq, event.ordinal, name, t))[1:] + tail
         size = len(entry)
         limits = self._limits

@@ -21,7 +21,7 @@ from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 from simulatte.events import Deltas, DomainEvent, LogEvent, apply_deltas, event_type
 from simulatte.scenario import Scenario
-from simulatte.trace import ChunkLimits, RecordType, TraceRecorder
+from simulatte.trace import ChunkLimits, RecordType, Trace, TraceRecorder
 from simulatte.trace.format import FORMAT_MAJOR, FORMAT_MINOR, MAGIC, TRAILER_MAGIC
 
 # ---------------------------------------------------------------------------------------------------------
@@ -835,3 +835,54 @@ def test_recorder_reuses_the_digest_encoding(
         (("set", "g", "level", 1.5),),
     )
     assert created[2] == "entity.created" and created[4]["label"] == "late"
+
+
+class Cell(Entity, kind="test_trace_cell"):
+    state_schema: ClassVar[StateSchema] = StateSchema({"values": FieldSpec("int", collection="list")})
+
+    def __init__(self, env: Environment) -> None:
+        self.values = (0,)
+        env.entities.attach(self, name="cell")
+
+
+@event_type("test.trace_cell_change", touches={"test_trace_cell": ("values",)})
+class CellChange(DomainEvent):
+    pass
+
+
+@pytest.mark.parametrize("mutate", ["value", "ops"])
+def test_recorder_does_not_depend_on_objects_mutated_after_emit(
+    tmp_path: Path, make_recorder: Callable[..., TraceRecorder], mutate: str
+) -> None:
+    """Ruling R30: the writer replays what was encoded, never the caller's objects. Codex probe: a list delta value
+    changed after emit, while the writer thread was busy, turned a later snapshot into (99,) and broke check()."""
+    env = Environment(seed=42)  # not debug: debug mode rejects the mutable delta at emit
+    Cell(env)
+    path = tmp_path / "mutated.simtrace"
+    rec = make_recorder(env, path, chunk_limits=ChunkLimits(max_events=1))
+    entered, release = threading.Event(), threading.Event()
+    write_batch = rec._write_batch
+
+    def delayed(batch: Any) -> None:
+        entered.set()
+        assert release.wait(10)
+        write_batch(batch)
+
+    rec._write_batch = delayed  # ty: ignore[invalid-assignment]
+    env.activate()
+    values = [1]
+    ops: Any = [("set", "cell", "values", values)]
+    env.emit(CellChange(deltas=Deltas(ops)))
+    assert entered.wait(10)
+    values[0] = 99
+    if mutate == "ops":
+        ops.append(("set", "cell", "values", (7,)))
+    env.emit(CellChange())
+    release.set()
+    rec.close()
+
+    trace = Trace.open(path)
+    assert [trace.state_at((e.t, e.seq))["cell"]["values"] for e in trace.events()] == [(1,), (1,)]
+    assert [e.deltas for e in trace.events()] == [(("set", "cell", "values", (1,)),), ()]
+    assert trace.verify() is True
+    trace.check()
