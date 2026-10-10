@@ -169,7 +169,9 @@ def apply_deltas(state: dict[str, dict[str, Any]], deltas: Deltas) -> None:
             raise ValueError(f"unknown delta operation {name!r}")
         if len(op) != arity:
             raise ValueError(f"{name}: an operation of {arity} items, got {len(op)}")
-        entity = _text(op[1], "entity")
+        entity = op[1]
+        if type(entity) is not str:  # inlined checks: the trace writer replays every operation
+            raise TypeError(f"entity must be a string, got {type(entity).__name__}")
         if name == "create":
             if entity in state:
                 raise ValueError(f"create: entity {entity!r} already exists")
@@ -181,7 +183,9 @@ def apply_deltas(state: dict[str, dict[str, Any]], deltas: Deltas) -> None:
             del state[entity]
             continue
         fields = state[entity]
-        field = _text(op[2], "field")
+        field = op[2]
+        if type(field) is not str:
+            raise TypeError(f"field must be a string, got {type(field).__name__}")
         if name == "set":
             fields[field] = op[3]
         elif name == "insert":

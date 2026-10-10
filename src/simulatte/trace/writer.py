@@ -241,7 +241,9 @@ class TraceRecorder:
         cls = type(event)
         name = cls.type_name
         deltas = event.deltas
-        t = wire_time(event.t)
+        t = event.t
+        if type(t) is not float or t != t:
+            t = wire_time(t)
         seq = event.seq
         pack_event = self._event_packer.pack
         tail = self._digest.shared_tail(event)

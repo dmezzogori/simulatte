@@ -330,7 +330,10 @@ class SemanticDigest:
             if ready is not op:
                 unchanged = False
             ops.append(ready)
-        item = self._packer.pack((event.ordinal, cls.type_name, cls.type_version, wire_time(event.t), payload, ops))
+        t = event.t
+        if type(t) is not float or t != t:
+            t = wire_time(t)
+        item = self._packer.pack((event.ordinal, cls.type_name, cls.type_version, t, payload, ops))
         update = self._acc._hash.update
         update(_U64.pack(len(item)))
         update(item)
