@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
+from types import MappingProxyType
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -73,6 +74,8 @@ class NodeBinding(Entity, kind="node"):
 
 
 class LayoutGraph:
+    _layout_frozen: bool = False
+
     def __init__(self, nodes: Iterable[Node], arcs: Iterable[Arc]) -> None:
         self._nodes: dict[Node, None] = dict.fromkeys(nodes)  # insertion-ordered (spec §5.3)
         self._adjacency: dict[Node, dict[Node, Arc]] = defaultdict(dict)
@@ -81,16 +84,47 @@ class LayoutGraph:
             if arc.bidirectional:
                 self._adjacency[arc.target][arc.source] = arc
 
+    @classmethod
+    def _from_layout(cls, nodes: Iterable[Node], arcs: Iterable[Arc]) -> LayoutGraph:
+        """Seal already-resolved directed traversals without changing legacy construction.
+
+        The resolver owns geometry and enabled validation. This boundary checks unique
+        canonical nodes and directed endpoint identity, preserving supplied iteration order.
+        NodeBinding's dynamic occupancy remains independent of this frozen topology.
+        """
+        ordered = tuple(nodes)
+        by_id = {node.id: node for node in ordered}
+        if len(by_id) != len(ordered):
+            raise ValueError("layout graph contains duplicate node ids")
+        adjacency: dict[Node, dict[Node, Arc]] = {node: {} for node in ordered}
+        for arc in arcs:
+            if by_id.get(arc.source.id) is not arc.source or by_id.get(arc.target.id) is not arc.target:
+                raise ValueError("layout graph endpoint is not a canonical node")
+            if arc.bidirectional:
+                raise ValueError("layout graph factory requires directed arcs")
+            if arc.target in adjacency[arc.source]:
+                raise ValueError("layout graph contains duplicate directed arcs")
+            adjacency[arc.source][arc.target] = arc
+        graph = cls((), ())
+        object.__setattr__(graph, "_nodes", MappingProxyType(dict.fromkeys(ordered)))
+        object.__setattr__(
+            graph, "_adjacency", MappingProxyType({node: MappingProxyType(edges) for node, edges in adjacency.items()})
+        )
+        graph._layout_frozen = True
+        return graph
+
     @property
     def nodes(self) -> tuple[Node, ...]:
         """The nodes in insertion order (the first occurrence of each)."""
         return tuple(self._nodes)
 
     def neighbors(self, node: Node) -> list[Node]:
-        return list(self._adjacency[node].keys())
+        return list(self._adjacency.get(node, {})) if self._layout_frozen else list(self._adjacency[node])
 
     def arc_between(self, source: Node, target: Node) -> Arc | None:
-        return self._adjacency[source].get(target)
+        return (
+            self._adjacency.get(source, {}).get(target) if self._layout_frozen else self._adjacency[source].get(target)
+        )
 
     def distance(self, source: Node, target: Node) -> float:
         if self.arc_between(source, target) is None:

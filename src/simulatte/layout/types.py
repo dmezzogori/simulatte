@@ -242,6 +242,7 @@ class Explicit:
         capacity: int | None = None,
     ) -> None:
         nodes = tuple(graph.nodes)
+        node_set = set(nodes)
         ids = [node.id for node in nodes]
         if len(set(ids)) != len(ids):
             raise LayoutError("explicit graph contains duplicate node ids")
@@ -252,7 +253,7 @@ class Explicit:
         arcs = []
         for source in nodes:
             for target, arc in graph._adjacency.get(source, {}).items():
-                if target not in nodes:
+                if target not in node_set:
                     raise LayoutError("explicit graph contains a foreign endpoint")
                 if positions[source.id] == positions[target.id]:
                     raise LayoutError(
@@ -261,7 +262,7 @@ class Explicit:
                 speed = None if arc.speed_limit is None else number(arc.speed_limit, "speed_limit", positive=True)
                 arcs.append(ExplicitArc(source.id, target.id, speed))
         # Observable adjacency can contain sources absent from graph.nodes as well.
-        if any(source not in nodes for source, edges in graph._adjacency.items() if edges):
+        if any(source not in node_set for source, edges in graph._adjacency.items() if edges):
             raise LayoutError("explicit graph contains a foreign endpoint")
         _capacity(capacity)
         object.__setattr__(self, "nodes", definitions)

@@ -251,3 +251,20 @@ def test_explicit_keeps_large_edges_with_distinct_stored_positions(axis):
     snapshot = Explicit(LayoutGraph([a, b], [Arc(a, b, bidirectional=False)]))
     assert snapshot.nodes[0].position != snapshot.nodes[1].position
     assert [(arc.source, arc.target) for arc in snapshot.arcs] == [("a", "b")]
+
+
+def test_explicit_snapshot_endpoint_membership_is_linear(monkeypatch):
+    nodes = [Node(f"n{i}", i, 0) for i in range(100)]
+    graph = LayoutGraph(nodes, [Arc(a, b) for a, b in zip(nodes, nodes[1:])])
+    equality_calls = 0
+    original = Node.__eq__
+
+    def counted(self, other):
+        nonlocal equality_calls
+        equality_calls += 1
+        return original(self, other)
+
+    monkeypatch.setattr(Node, "__eq__", counted)
+    snapshot = Explicit(graph)
+    assert len(snapshot.nodes) == 100 and len(snapshot.arcs) == 198
+    assert equality_calls < 1000
