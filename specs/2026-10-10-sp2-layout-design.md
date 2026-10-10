@@ -432,8 +432,10 @@ layout identity separately and documents that caller provenance must exclude lay
 ### 8.2 Provenance of values and physical dependency closure
 
 Every resolved leaf records its source: auto, code stage id, or file, plus whether it is a schema default.
-Schema defaults explicitly defined for a declared physical object (clearance=0, enabled=True, both directions)
-are valid physical inputs. Auto placement defaults are not. Distinguish absent, unset and present values.
+Schema defaults explicitly defined for a declared physical object (clearance=0, enabled=True, both directions
+for lattice/lane/connector segments) are valid physical inputs. Explicit effective arc records default to
+forward only, preserving §6.5's directed adjacency. Auto placement defaults are not. Distinguish absent, unset
+and present values.
 
 Preparation always records network presence/variant (including none). Grid presence is also recorded; its
 spacing/origin are physical only when used by lattice generation or a model read. Network generation records
