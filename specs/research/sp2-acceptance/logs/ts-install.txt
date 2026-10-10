@@ -1,0 +1,3 @@
+Scope: all 2 workspace projects
+Already up to date
+Done in 216ms using pnpm v11.5.1

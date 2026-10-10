@@ -1,0 +1,11 @@
+✔ extracts only blocks whose fence info contains .run (0.578292ms)
+✔ returns empty array when nothing is tagged (0.551375ms)
+✔ handles multiple tagged blocks (0.07625ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 67.791292

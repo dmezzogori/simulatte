@@ -1,0 +1,6 @@
+Using Python 3.14.1 environment at: /tmp/sp2-task10-acceptance/wheel-env
+msgpack==1.2.3
+simpy==4.1.2
+simulatte @ file:///tmp/sp2-task10-acceptance/dist/simulatte-0.13.0-py3-none-any.whl
+tabulate==0.10.0
+tqdm==4.70.1

@@ -1,0 +1,74 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.1, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/davide/Developer/simulatte
+configfile: pyproject.toml
+plugins: cov-7.1.0, timeout-2.4.0, platformdirs-4.12.3
+timeout: 60.0s
+timeout method: thread
+timeout func_only: False
+collected 4 items
+
+tests/layout/test_acceptance.py F...                                     [100%]
+
+=================================== FAILURES ===================================
+______________________ test_layout_guide_examples_execute ______________________
+
+tmp_path = PosixPath('/private/var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/pytest-of-davide/pytest-621/test_layout_guide_examples_exe0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b0da520>
+
+    def test_layout_guide_examples_execute(tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        guide = (ROOT / "docs/guides/layout.md").read_text()
+        blocks = re.findall(r"```python \{ \.run \}\n(.*?)\n```", guide, re.DOTALL)
+        assert len(blocks) == 7, "Every layout use case must remain executable"
+        for index, block in enumerate(blocks):
+>           exec(compile(block, f"layout.md:block-{index + 1}", "exec"), {"__name__": "__main__"})
+
+/Users/davide/Developer/simulatte/tests/layout/test_acceptance.py:16:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+layout.md:block-3:20: in <module>
+    ???
+/Users/davide/Developer/simulatte/src/simulatte/layout/layout.py:241: in prepare
+    return self._coordinator.prepare()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/Users/davide/Developer/simulatte/src/simulatte/layout/lifecycle.py:311: in prepare
+    self._build_network()
+/Users/davide/Developer/simulatte/src/simulatte/layout/lifecycle.py:285: in _build_network
+    self.network = self._network_builder(self._network_values, self.closure)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/Users/davide/Developer/simulatte/src/simulatte/layout/layout.py:262: in _build_network
+    network = resolve_network(values, closure, limits=self.limits)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/Users/davide/Developer/simulatte/src/simulatte/layout/network.py:595: in resolve_network
+    _physical_inputs(values, dependencies)
+/Users/davide/Developer/simulatte/src/simulatte/layout/network.py:573: in _physical_inputs
+    dependencies.read(values, ("placements", entity, leaf))
+/Users/davide/Developer/simulatte/src/simulatte/layout/dependencies.py:167: in read
+    return values.require(path, explicit=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = ResolvedValues(data=mappingproxy({'schema_version': '1.0', 'grid': mappingproxy({'dx': 5.0, 'dy': 5.0, 'origin': (0.0,...charging_station', 'vehicle-0': 'agv', 'vehicle-1': 'agv', 'PA-N1': 'parking_area', 'fleet': 'fleet'}), diagnostics=())
+path = ('placements', 'WH-A', 'rotation'), explicit = True
+
+    def require(self, path: Sequence[str], *, explicit: bool = False) -> Any:
+        """Require an input at actual use, rather than during a partial stage merge."""
+        leaf = self.at(path, explicit=explicit)
+        if leaf.state != "present":
+            diagnostic = LayoutDiagnostic(
+                "required-input",
+                "error",
+                tuple(path),
+                leaf.source.stage if leaf.source else None,
+                None,
+                f"required input is {leaf.state}",
+            )
+>           raise LayoutError(f"{'/'.join(path)}: {diagnostic.message}", diagnostics=(diagnostic,))
+E           simulatte.layout.errors.LayoutError: placements/WH-A/rotation: required input is absent
+
+/Users/davide/Developer/simulatte/src/simulatte/layout/layers.py:116: LayoutError
+----------------------------- Captured stdout call -----------------------------
+(0.0, 0.0, 0.0)
+=========================== short test summary info ============================
+FAILED tests/layout/test_acceptance.py::test_layout_guide_examples_execute - ...
+========================= 1 failed, 3 passed in 0.96s ==========================

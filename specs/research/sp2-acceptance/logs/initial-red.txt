@@ -1,0 +1,49 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.1, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/davide/Developer/simulatte
+configfile: pyproject.toml
+plugins: cov-7.1.0, timeout-2.4.0, platformdirs-4.12.3
+timeout: 60.0s
+timeout method: thread
+timeout func_only: False
+collected 1 item
+
+tests/layout/test_acceptance.py F                                        [100%]
+
+=================================== FAILURES ===================================
+______________________ test_layout_guide_examples_execute ______________________
+
+tmp_path = PosixPath('/private/var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/pytest-of-davide/pytest-620/test_layout_guide_examples_exe0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109382190>
+
+    def test_layout_guide_examples_execute(tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+>       guide = (ROOT / "docs/guides/layout.md").read_text()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+/Users/davide/Developer/simulatte/tests/layout/test_acceptance.py:12:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/Users/davide/.local/share/uv/python/cpython-3.14-macos-aarch64-none/lib/python3.14/pathlib/__init__.py:787: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = PosixPath('/Users/davide/Developer/simulatte/docs/guides/layout.md')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/Users/davide/Developer/simulatte/docs/guides/layout.md'
+
+/Users/davide/.local/share/uv/python/cpython-3.14-macos-aarch64-none/lib/python3.14/pathlib/__init__.py:771: FileNotFoundError
+=========================== short test summary info ============================
+FAILED tests/layout/test_acceptance.py::test_layout_guide_examples_execute - ...
+============================== 1 failed in 0.05s ===============================

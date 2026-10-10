@@ -1,0 +1,100 @@
+unformatted: File would be reformatted
+   --> docs/guides/layout.md:32:35
+    |
+31  |     assert env.now == 0 and result.bundle["network"] is None
+    -     view = reresolve_presentation(result.bundle, {
+    -         "schema_version": "1.0",
+    -         "placements": {"cutting": {"kind": "server", "visual": {"color": "blue"}}},
+    -     })
+32  +     view = reresolve_presentation(
+33  +         result.bundle,
+34  +         {
+35  +             "schema_version": "1.0",
+36  +             "placements": {"cutting": {"kind": "server", "visual": {"color": "blue"}}},
+37  +         },
+38  +     )
+39  |     assert not view.requires_rerun
+--------------------------------------------------------------------------------
+71  |     path = Path(directory) / "layout.json"
+    -     path.write_text(json.dumps({
+    -         "schema_version": "1.0",
+    -         "placements": {"press": {"kind": "server", "position": [4, 2, 0],
+    -                                    "visual": {"label": "File label"}}},
+    -     }))
+72  +     path.write_text(
+73  +         json.dumps(
+74  +             {
+75  +                 "schema_version": "1.0",
+76  +                 "placements": {"press": {"kind": "server", "position": [4, 2, 0], "visual": {"label": "File label"}}},
+77  +             }
+78  +         )
+79  +     )
+80  |     env = Environment(seed=7)
+--------------------------------------------------------------------------------
+117 |     sku = SKU("part", 1, 1)
+    -     roles = dict(zip(("WH_A_OUT", "N1", "N2", "N3", "WH_B_IN"),
+    -                      (layout.port("WH-A", "out"), node(1), node(2), node(3), node(4))))
+118 +     roles = dict(
+119 +         zip(("WH_A_OUT", "N1", "N2", "N3", "WH_B_IN"), (layout.port("WH-A", "out"), node(1), node(2), node(3), node(4)))
+120 +     )
+121 |     fleet, carts, origin, destination, handle = build_simple_system(
+    -         env, layout=layout, nodes=roles, products=[sku], initial_inventory_a={sku: 10},
+122 +         env,
+123 +         layout=layout,
+124 +         nodes=roles,
+125 +         products=[sku],
+126 +         initial_inventory_a={sku: 10},
+127 +     )
+128 +     layout.place(
+129 +         origin,
+130 +         position=Point(-2, 0),
+131 +         rotation=0,
+132 +         footprint=Footprint(2, 2),
+133 +         obstacle=True,
+134 +         ports={"out": Port(Point(1, 0), Point(1, 0), Connector())},
+135 |     )
+    -     layout.place(origin, position=Point(-2, 0), rotation=0, footprint=Footprint(2, 2), obstacle=True,
+    -                  ports={"out": Port(Point(1, 0), Point(1, 0), Connector())})
+136 |     layout.require_path(layout.port(origin, "out"), node(4))
+--------------------------------------------------------------------------------
+164 |     layout = Layout(env)
+    -     layout.set_network(Lanes({
+    -         "horizontal": {"vertices": [{"id": "west", "position": [-2, 0, 0]},
+    -                                      {"id": "east", "position": [2, 0, 0]}]},
+    -         "vertical": {"vertices": [{"id": "south", "position": [0, -2, 0]},
+    -                                    {"id": "north", "position": [0, 2, 0]}]},
+    -     }))
+165 +     layout.set_network(
+166 +         Lanes(
+167 +             {
+168 +                 "horizontal": {
+169 +                     "vertices": [{"id": "west", "position": [-2, 0, 0]}, {"id": "east", "position": [2, 0, 0]}]
+170 +                 },
+171 +                 "vertical": {
+172 +                     "vertices": [{"id": "south", "position": [0, -2, 0]}, {"id": "north", "position": [0, 2, 0]}]
+173 +                 },
+174 +             }
+175 +         )
+176 +     )
+177 |     west = layout.node_at(Address({"kind": "lane_vertex", "lane": "horizontal", "vertex": "west"}))
+--------------------------------------------------------------------------------
+201 | with Environment(seed=7) as env:
+    -     layout = Layout.from_dict(env, {
+    -         "schema_version": "1.0",
+    -         "placements": {"hall": {"kind": "server", "footprint": {"width": 9}},
+    -                        "machine-02": {"kind": "server", "visual": {"color": "green"}}},
+    -     })
+202 +     layout = Layout.from_dict(
+203 +         env,
+204 +         {
+205 +             "schema_version": "1.0",
+206 +             "placements": {
+207 +                 "hall": {"kind": "server", "footprint": {"width": 9}},
+208 +                 "machine-02": {"kind": "server", "visual": {"color": "green"}},
+209 +             },
+210 +         },
+211 +     )
+212 |     hall = Server(env=env, capacity=1, name="hall")
+    |
+
+1 file would be reformatted, 312 files already formatted

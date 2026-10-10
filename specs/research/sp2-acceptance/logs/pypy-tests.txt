@@ -1,0 +1,85 @@
+........................................................................ [  3%]
+........................................................................ [  6%]
+........................................................................ [ 10%]
+.....................................................s.................. [ 13%]
+........................................................................ [ 16%]
+........................................................................ [ 20%]
+........................................................................ [ 23%]
+........................................................................ [ 26%]
+.....................................s.................................. [ 30%]
+........................................................................ [ 33%]
+..................................................s..................... [ 37%]
+........................................................................ [ 40%]
+........................................................................ [ 43%]
+........................................................................ [ 47%]
+..........................................................ss............ [ 50%]
+........................................................................ [ 53%]
+........................................................................ [ 57%]
+........................................................................ [ 60%]
+........................................................................ [ 63%]
+........................................................................ [ 67%]
+........................................................................ [ 70%]
+..........................................................F.F........... [ 74%]
+........................................................................ [ 77%]
+........................................................................ [ 80%]
+........................................................................ [ 84%]
+........................................................................ [ 87%]
+........................................................................ [ 90%]
+........................................................................ [ 94%]
+........................................................................ [ 97%]
+..................................................                       [100%]
+=================================== FAILURES ===================================
+_______________ test_stage_file_edits_observers_and_saved_reuse ________________
+
+tmp_path = PosixPath('/private/var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/pytest-of-davide/pytest-624/test_stage_file_edits_observer0')
+
+    def test_stage_file_edits_observers_and_saved_reuse(tmp_path):
+>       from benchmarks.layout_acceptance import fixture, model
+
+tests/layout/test_acceptance.py:20:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+benchmarks/layout_acceptance.py:25: in <module>
+    import tracemalloc
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    from collections.abc import Sequence, Iterable
+    from functools import total_ordering
+    import fnmatch
+    import linecache
+    import os.path
+    import pickle
+
+    # Import types and functions implemented in C
+>   from _tracemalloc import *
+E   ModuleNotFoundError: No module named '_tracemalloc'
+
+../../.local/share/uv/python/pypy-3.11.11-macos-aarch64-none/lib/pypy3.11/tracemalloc.py:9: ModuleNotFoundError
+__________ test_generated_geometry_and_hashes_repeat_across_observers __________
+
+tmp_path = PosixPath('/private/var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/pytest-of-davide/pytest-624/test_generated_geometry_and_ha0')
+
+    def test_generated_geometry_and_hashes_repeat_across_observers(tmp_path):
+>       from benchmarks.layout_acceptance import fixture
+
+tests/layout/test_acceptance.py:81:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+benchmarks/layout_acceptance.py:25: in <module>
+    import tracemalloc
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    from collections.abc import Sequence, Iterable
+    from functools import total_ordering
+    import fnmatch
+    import linecache
+    import os.path
+    import pickle
+
+    # Import types and functions implemented in C
+>   from _tracemalloc import *
+E   ModuleNotFoundError: No module named '_tracemalloc'
+
+../../.local/share/uv/python/pypy-3.11.11-macos-aarch64-none/lib/pypy3.11/tracemalloc.py:9: ModuleNotFoundError
+=========================== short test summary info ============================
+FAILED tests/layout/test_acceptance.py::test_stage_file_edits_observers_and_saved_reuse
+FAILED tests/layout/test_acceptance.py::test_generated_geometry_and_hashes_repeat_across_observers
+2 failed, 2131 passed, 5 skipped in 75.90s (0:01:15)

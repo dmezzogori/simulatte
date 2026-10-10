@@ -1,5 +1,7 @@
 # Intralogistics
 
+For generated lattices, lanes, ports and migration from explicit graphs, see the [layout guide](../guides/layout.md).
+
 Simulatte's intralogistics subpackage models warehouse-to-warehouse material transport using AGV (Automated Guided Vehicle) fleets. It provides a complete toolkit for building, running, and analyzing intralogistics simulations.
 
 Import everything from a single namespace:

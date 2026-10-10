@@ -2,6 +2,26 @@
 
 All notable changes to Simulatte are documented here.
 
+## Unreleased
+
+### Added
+
+- `Layout`: layered code/file placement, deterministic static auto layout, explicit/lattice/lane transport
+  networks, ports/connectors, logical handles, staged physical reads and frozen dependency tracking.
+- Immutable saved layout bundles, full/physical/layers hashes and presentation-only re-resolution without
+  rerunning model code. JSON Schema 1.0 ships in the core package; no new runtime dependency.
+- [Runnable layout guide](docs/guides/layout.md), API reference and migration examples.
+
+### Changed
+
+- Traces now write container 1.1 with optional `INITIAL.layout`; Python and TypeScript readers retain 1.0
+  compatibility. Full/KPI levels store the same layout; Python checks its hashes. INITIAL has a separate
+  64 MiB encoded limit (`max_initial_bytes`), paired with the reader's `max_record` limit.
+- In layout mode, intralogistics constructors accept owner-scoped handles, physical getters raise
+  `LayoutNotReady` before binding, and static endpoints share one frozen canonical graph. The simple builder
+  returns a `GraphRef` and accepts a complete role mapping for an existing network. Explicit `LayoutGraph`
+  scripts retain their existing behavior. Traffic continues to reserve nodes only.
+
 ## 0.13.0 — 2026-10-10
 
 Simulatte now records everything that happens in a run as typed events on a per-environment bus. Logging, KPI

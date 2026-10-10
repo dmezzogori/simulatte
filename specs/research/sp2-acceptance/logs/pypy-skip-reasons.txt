@@ -1,0 +1,8 @@
+sssss                                                                    [100%]
+=========================== short test summary info ============================
+SKIPPED [1] tests/core/test_entities.py:489: every PyPy object supports weak references
+SKIPPED [1] tests/core/test_optional_dependencies.py:89: could not import 'gymnasium': No module named 'gymnasium'
+SKIPPED [1] tests/core/test_server_events.py:534: could not import 'numpy': No module named 'numpy'
+SKIPPED [1] tests/core/test_wire.py:547: could not import 'numpy': No module named 'numpy'
+SKIPPED [1] tests/core/test_wire.py:572: could not import 'numpy': No module named 'numpy'
+5 skipped in 0.13s

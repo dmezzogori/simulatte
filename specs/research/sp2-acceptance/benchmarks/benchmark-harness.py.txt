@@ -1,0 +1,138 @@
+import os, sys, subprocess, json, time, pathlib, shlex
+R=pathlib.Path('/tmp/simulatte-sp2-bench.jsKjEr')
+REPO=pathlib.Path('/Users/davide/Developer/simulatte')
+ENV=os.environ.copy(); ENV.pop('PYTHONPATH',None); ENV['MPLBACKEND']='Agg'
+def run(args, name, cwd=REPO, env=None, fail=True):
+    merged=ENV.copy(); merged.update(env or {})
+    logfile=R/(name+'.log'); logfile.parent.mkdir(parents=True,exist_ok=True)
+    entry={'name':name,'argv':list(map(str,args)),'cwd':str(cwd),'env_overrides':env or {},'start':time.strftime('%Y-%m-%dT%H:%M:%S%z'),'log':str(logfile)}
+    print('START '+name,flush=True)
+    start=time.monotonic()
+    with logfile.open('w') as f:
+        p=subprocess.run(list(map(str,args)),cwd=cwd,env=merged,stdout=f,stderr=subprocess.STDOUT)
+    entry.update(exit_status=p.returncode,elapsed_s=time.monotonic()-start,end=time.strftime('%Y-%m-%dT%H:%M:%S%z'))
+    with (R/'commands.jsonl').open('a') as f:f.write(json.dumps(entry)+'\n')
+    print('END '+name+' status='+str(p.returncode)+' elapsed='+str(round(entry['elapsed_s'],2)),flush=True)
+    if p.returncode:
+        print(logfile.read_text()[-12000:],flush=True)
+        if fail:sys.exit(p.returncode)
+    return p.returncode
+lanes=[('cpython','3.14',1,.02,.065),('pypy','pypy-3.11',8,.07,.03)]
+if sys.argv[1]=='setup':
+    run(['sh','-c','hostname; sw_vers; sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize; uv --version; node --version; pnpm --version; git rev-parse HEAD; git status --short; ps -axo pid,ppid,%cpu,command'], 'metadata')
+    for lane,py,*_ in lanes:
+        d=R/lane; (d/'out').mkdir(parents=True,exist_ok=True)
+        run(['uv','venv',d/'head','--python',py],lane+'/setup-head')
+        run(['uv','pip','install','--python',d/'head','.[all]'],lane+'/install-head')
+        run(['uv','pip','freeze','--python',d/'head'],lane+'/freeze-head')
+        lines=(d/'freeze-head.log').read_text().splitlines()
+        (d/'constraints.txt').write_text('\n'.join(x for x in lines if not x.startswith('simulatte'))+'\n')
+        run(['uv','venv',d/'base','--python',py],lane+'/setup-base')
+        run(['uv','pip','install','--python',d/'base','simulatte==0.12.0','--constraint',d/'constraints.txt'],lane+'/install-base')
+        run(['uv','pip','freeze','--python',d/'base'],lane+'/freeze-base')
+        bp=d/'base/bin/python'; hp=d/'head/bin/python'
+        pkg=subprocess.check_output([str(bp),'-c','import os, simulatte; print(os.path.dirname(simulatte.__file__))'],env=ENV,text=True).strip()
+        run([bp,'benchmarks/strip_debug.py',pkg,d/'stripped'],lane+'/strip')
+        for side,p,env in [('base',bp,{}),('stripped',bp,{'PYTHONPATH':str(d/'stripped')}),('head',hp,{})]:
+            expected=d/('stripped' if side=='stripped' else side)
+            code=f'import sys, platform, simulatte, importlib.metadata; print(sys.version); print(platform.platform()); print(sys.executable); print(simulatte.__file__); print(importlib.metadata.version("simulatte")); assert simulatte.__file__.startswith({str(expected)!r}+"/")'
+            run([p,'-c',code],lane+'/verify-'+side,env=env)
+if sys.argv[1]=='setup_resume':
+    for lane,py,*_ in lanes:
+        d=R/lane; (d/'out').mkdir(parents=True,exist_ok=True)
+        if lane=='pypy':
+            run(['uv','venv',d/'head','--python',py],lane+'/setup-head')
+            run(['uv','pip','install','--python',d/'head','.[all]'],lane+'/install-head')
+            run(['uv','pip','freeze','--python',d/'head'],lane+'/freeze-head')
+            run(['uv','venv',d/'base','--python',py],lane+'/setup-base')
+        run(['uv','-q','pip','freeze','--python',d/'head'],lane+'/freeze-head-quiet')
+        (d/'constraints.txt').write_text('\n'.join(x for x in (d/'freeze-head-quiet.log').read_text().splitlines() if not x.startswith('simulatte'))+'\n')
+        run(['uv','pip','install','--python',d/'base','simulatte==0.12.0','--constraint',d/'constraints.txt'],lane+'/install-base-corrected')
+        run(['uv','pip','freeze','--python',d/'base'],lane+'/freeze-base')
+        bp=d/'base/bin/python'; hp=d/'head/bin/python'
+        pkg=subprocess.check_output([str(bp),'-c','import os, simulatte; print(os.path.dirname(simulatte.__file__))'],env=ENV,text=True).strip()
+        run([bp,'benchmarks/strip_debug.py',pkg,d/'stripped'],lane+'/strip')
+        for side,p,env in [('base',bp,{}),('stripped',bp,{'PYTHONPATH':str(d/'stripped')}),('head',hp,{})]:
+            expected=d/('stripped' if side=='stripped' else side)
+            code=f'import sys, platform, simulatte, importlib.metadata; print(sys.version); print(platform.platform()); print(sys.executable); print(simulatte.__file__); print(importlib.metadata.version("simulatte")); assert simulatte.__file__.startswith({str(expected)!r}+"/")'
+            run([p,'-c',code],lane+'/verify-'+side,env=env)
+if sys.argv[1] in ('cpython','pypy'):
+    lane,py,warm,noise,stripped_budget=next(x for x in lanes if x[0]==sys.argv[1])
+    d=R/lane; out=d/'out'; hp=d/'head/bin/python'; bp=d/'base/bin/python'; cwd=REPO/'benchmarks'
+    def job(side,mode,w='jobshop10-u90-5k',info=False):
+        tag=f'{side}-'+('info-' if info else '')+f'{mode}-{w}'
+        args=[hp if side=='head' else bp,'run.py','--mode',mode,'--workload',f'workloads/{w}.json','--warmup',str(warm),'--repeat','5','--processes','3','--json',out/(tag+'.json')]
+        if side=='stripped':args+=['--label','0.12.0 without env.debug calls']
+        if info:args+=['--log-info','--no-memory']
+        run(args,lane+'/'+tag,cwd,env={'PYTHONPATH':str(d/'stripped')} if side=='stripped' else {})
+        return tag
+    def compare(b,h,extra=(),gate=False):
+        return run([hp,'compare.py',out/(b+'.json'),out/(h+'.json'),*extra,'--summary',d/'summary.md'],lane+'/compare-'+b+'--'+h,cwd,fail=not gate)
+    run(['ps','-axo','pid,ppid,%cpu,command'],lane+'/processes-before')
+    gate_status=0
+    for w in ['jobshop10-u90-5k','jobshop10-u95-5k']:
+        b=job('base','none',w); s=job('stripped','none',w); h=job('head','none',w)
+        for baseline,budget in [(b,.03),(s,stripped_budget)]:
+            status=compare(baseline,h,['--budget',str(budget),'--noise',str(noise)],True)
+            if status:
+                gate_status=1
+                print('GATE FAILURE '+lane+' '+baseline+' '+h,flush=True)
+                (R/'GATE_FAILURE').write_text(lane+' '+baseline+' '+h+'\n')
+                run(['ps','-axo','pid,ppid,%cpu,command'],lane+'/processes-after-gate-failure-'+baseline)
+    for mode in ['default','default_logging']:
+        b=job('base',mode); s=job('stripped',mode); h=job('head',mode)
+        compare(b,h);compare(s,h)
+    bare=job('head','bare');compare(bare,'head-default_logging-jobshop10-u90-5k')
+    for mode in ['kpi','digest','full']:
+        h=job('head',mode);compare('head-none-jobshop10-u90-5k',h)
+    b=job('head','bare',info=True);h=job('head','default_logging',info=True);compare(b,h)
+    for side,p in [('base',bp),('head',hp)]:
+        run([p,'bench_sampling.py','--jobs','20000','--warmup',str(warm),'--repeat','5','--json',out/(side+'-sampling.json')],lane+'/'+side+'-sampling',cwd)
+    compare('base-sampling','head-sampling')
+    for mode in ['none','default','default_logging','bare','kpi','digest','full']:
+        run([hp,'intralogistics.py','--mode',mode,'--shifts','10','--warmup',str(2 if lane=='pypy' else 1),'--repeat','3','--no-memory','--json',out/('il-'+mode+'.json')],lane+'/il-'+mode,cwd)
+    for mode in ['default','default_logging','bare','kpi','digest','full']:compare('il-none','il-'+mode)
+    for mode in ['none','default','default_logging']:
+        run([bp,'intralogistics.py','--mode',mode,'--shifts','10','--warmup',str(2 if lane=='pypy' else 1),'--repeat','3','--no-memory','--json',out/('il-base-'+mode+'.json')],lane+'/il-base-'+mode,cwd)
+        compare('il-base-'+mode,'il-'+mode,['--report-only'])
+    run([hp,'summarize.py',*sorted(out.glob('*.json'))],lane+'/details',cwd)
+    run([hp,'benchmarks/bench_replications.py','--replications','8','--horizon','1000','--workers','2','--repeat','3'],lane+'/replications')
+    run(['ps','-axo','pid,ppid,%cpu,command'],lane+'/processes-after')
+    print('LANE DONE '+lane+' gate_status='+str(gate_status),flush=True)
+if sys.argv[1]=='reports':
+    run([R/'cpython/head/bin/python','benchmarks/calibrate_noise.py',R/'cpython/out',R/'pypy/out'],'calibrate-noise')
+    run(['pnpm','--dir','studio/packages/trace','benchmark','--iterations','30','--cursors','8'],'ts-benchmark')
+if sys.argv[1]=='audit':
+    run([R/'cpython/head/bin/python','-c', '''from pathlib import Path
+import json
+r=Path('/tmp/simulatte-sp2-bench.jsKjEr')
+for lane in ['cpython','pypy']:
+    d=r/lane/'out'; rows=[json.loads(p.read_text()) for p in d.glob('*.json')]
+    print(lane, len(rows), 'measurement artifacts')
+    assert len(rows)==30
+    assert all(x['commit']=='6a3f131d8eec99d6552ed4c5ddf5807a3beea104' for x in rows)
+    def freeze(side):return {s.split('==')[0]:s.split('==')[1] for s in (r/lane/f'freeze-{side}.log').read_text().splitlines() if '==' in s}
+    b,h=freeze('base'),freeze('head');shared=set(b)&set(h)-{'simulatte'}
+    assert all(b[k]==h[k] for k in shared)
+    print('matching shared dependency pins', {k:b[k] for k in sorted(shared)})
+    for w in ['jobshop10-u90-5k','jobshop10-u95-5k']:
+        for side in ['base','stripped','head']:
+            row=json.loads((d/f'{side}-none-{w}.json').read_text())
+            assert row['repeat']==5 and row['processes']==3 and row['warmup']==(8 if lane=='pypy' else 1)
+print('All60 measurements retain source identity; environment constraints and exact gate sample configuration verified.')
+'''],'artifact-audit')
+if sys.argv[1]=='source_manifest':
+    run([R/'cpython/head/bin/python','-c', '''from pathlib import Path
+import hashlib,json,simulatte
+repo=Path('/Users/davide/Developer/simulatte/src/simulatte'); package=Path(simulatte.__file__).parent
+files=[]
+for p in sorted(repo.rglob('*')):
+    if not p.is_file() or '__pycache__' in p.parts:continue
+    rel=p.relative_to(repo); q=package/rel
+    if p.suffix not in ('.py','.json') and p.name!='py.typed':continue
+    assert q.is_file(),str(rel)
+    a=hashlib.sha256(p.read_bytes()).hexdigest();b=hashlib.sha256(q.read_bytes()).hexdigest()
+    assert a==b,str(rel)
+    files.append({'path':str(rel),'sha256':a})
+print(json.dumps({'source_commit':'6a3f131d8eec99d6552ed4c5ddf5807a3beea104','installed_package':str(package),'verified_source_files':len(files),'files':files},indent=2))
+'''],'source-manifest')

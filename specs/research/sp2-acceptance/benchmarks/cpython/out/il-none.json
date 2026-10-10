@@ -1,0 +1,69 @@
+{
+  "label": "head",
+  "simulatte_version": "0.13.0",
+  "has_trace": true,
+  "mode": "none",
+  "python": {
+    "implementation": "cpython",
+    "version": "3.14.1",
+    "build": "main"
+  },
+  "platform": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "node": "eva.local"
+  },
+  "commit": "6a3f131d8eec99d6552ed4c5ddf5807a3beea104",
+  "log_level": "INFO",
+  "hardware": {
+    "machine": "arm64",
+    "cpu": "Apple M1 Pro",
+    "cpus": 10
+  },
+  "workload": {
+    "path": "intralogistics-advanced",
+    "sha256": "33aa1c12c7a502640b55fd14ee88b998f3fee6ef2ac9d73cbbe41adc029fd74a",
+    "params": {
+      "agvs": 20,
+      "shifts": 10.0,
+      "interval": [
+        30.0,
+        60.0
+      ],
+      "seed": 42
+    },
+    "horizon": 288000.0
+  },
+  "counts": {
+    "orders": 10979,
+    "by_status": {
+      "DISPATCHED": 3,
+      "PICKING": 1,
+      "IN_TRANSIT": 3,
+      "DELIVERING": 3,
+      "COMPLETED": 10969
+    },
+    "inputs": "eec0cd3f88ac1cae4b50b2bb56461efe077e370a4a3bf21d2236bbb10f4a59be",
+    "trajectory": "79d15c6fd5acc342e5c91d88c893e0f85406c98fd16d6d377447a7dc14888bf9"
+  },
+  "subscribers": null,
+  "digest": null,
+  "warmup": 1,
+  "repeat": 3,
+  "processes": 1,
+  "process_medians_s": [
+    2.76160833297763
+  ],
+  "samples_s": [
+    2.7645234579977114,
+    2.76160833297763,
+    2.7547495839826297
+  ],
+  "median_s": 2.76160833297763,
+  "iqr_s": 0.004886937007540837,
+  "min_s": 2.7547495839826297,
+  "max_s": 2.7645234579977114,
+  "peak_mb": null,
+  "rss_before_mb": null,
+  "trace_bytes": null
+}

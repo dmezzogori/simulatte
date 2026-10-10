@@ -1,0 +1,13 @@
+error[unresolved-attribute]: Attribute `physical_hash` is not defined on `None` in union `LayoutBundle | None`
+  --> tests/layout/test_acceptance.py:44:12
+   |
+44 |     assert view.bundle.physical_hash == original.physical_hash
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[unresolved-attribute]: Attribute `full_hash` is not defined on `None` in union `LayoutBundle | None`
+  --> tests/layout/test_acceptance.py:45:12
+   |
+45 |     assert view.bundle.full_hash != original.full_hash
+   |            ^^^^^^^^^^^^^^^^^^^^^
+
+Found 2 diagnostics

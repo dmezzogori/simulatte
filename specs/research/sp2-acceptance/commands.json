@@ -1,0 +1,1578 @@
+[
+  {
+    "name": "format",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "ruff",
+      "format",
+      "benchmarks/layout_acceptance.py",
+      "tests/layout/test_acceptance.py"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.09951019287109375,
+    "log": "/tmp/sp2-task10-acceptance/format.txt",
+    "saved_log": "logs/format.txt"
+  },
+  {
+    "name": "focused",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "pytest",
+      "tests/layout/test_acceptance.py",
+      "--no-cov",
+      "-q"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 1,
+    "seconds": 1.1602320671081543,
+    "log": "/tmp/sp2-task10-acceptance/focused.txt",
+    "saved_log": "logs/focused.txt"
+  },
+  {
+    "name": "focused-green",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "pytest",
+      "tests/layout/test_acceptance.py",
+      "--no-cov",
+      "-q"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 1.1552550792694092,
+    "log": "/tmp/sp2-task10-acceptance/focused-green.txt",
+    "saved_log": "logs/focused-green.txt"
+  },
+  {
+    "name": "ruff-src-tests",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "ruff",
+      "check",
+      "src",
+      "tests"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.16234683990478516,
+    "log": "/tmp/sp2-task10-acceptance/ruff-src-tests.txt",
+    "saved_log": "logs/ruff-src-tests.txt"
+  },
+  {
+    "name": "ruff-format",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "ruff",
+      "format",
+      "--check"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 1,
+    "seconds": 0.0496211051940918,
+    "log": "/tmp/sp2-task10-acceptance/ruff-format.txt",
+    "saved_log": "logs/ruff-format.txt"
+  },
+  {
+    "name": "ty-src-strict",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "ty",
+      "check",
+      "src"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.21214604377746582,
+    "log": "/tmp/sp2-task10-acceptance/ty-src-strict.txt",
+    "saved_log": "logs/ty-src-strict.txt"
+  },
+  {
+    "name": "lock-check",
+    "command": [
+      "uv",
+      "lock",
+      "--check"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.016983747482299805,
+    "log": "/tmp/sp2-task10-acceptance/lock-check.txt",
+    "saved_log": "logs/lock-check.txt"
+  },
+  {
+    "name": "docs-native",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "pytest",
+      "tests/test_docs_run_blocks.py",
+      "tests/test_docs_links.py",
+      "tests/layout/test_acceptance.py",
+      "-o",
+      "addopts=-q"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 1.2081711292266846,
+    "log": "/tmp/sp2-task10-acceptance/docs-native.txt",
+    "saved_log": "logs/docs-native.txt"
+  },
+  {
+    "name": "docs-wheel",
+    "command": [
+      "./scripts/build_docs_wheel.sh"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 1.0574672222137451,
+    "log": "/tmp/sp2-task10-acceptance/docs-wheel.txt",
+    "saved_log": "logs/docs-wheel.txt"
+  },
+  {
+    "name": "docs-extractor",
+    "command": [
+      "node",
+      "--test",
+      "scripts/docs/extract-runnable.test.mjs"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.21622395515441895,
+    "log": "/tmp/sp2-task10-acceptance/docs-extractor.txt",
+    "saved_log": "logs/docs-extractor.txt"
+  },
+  {
+    "name": "docs-npm-install",
+    "command": [
+      "npm",
+      "ci"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte/scripts/docs",
+    "env": null,
+    "exit": 0,
+    "seconds": 1.945925235748291,
+    "log": "/tmp/sp2-task10-acceptance/docs-npm-install.txt",
+    "saved_log": "logs/docs-npm-install.txt"
+  },
+  {
+    "name": "format-docs",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "ruff",
+      "format",
+      "docs/guides/layout.md"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.2506837844848633,
+    "log": "/tmp/sp2-task10-acceptance/format-docs.txt",
+    "saved_log": "logs/format-docs.txt"
+  },
+  {
+    "name": "docs-pyodide",
+    "command": [
+      "node",
+      "smoke-runnable.mjs"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte/scripts/docs",
+    "env": null,
+    "exit": 0,
+    "seconds": 24.318360090255737,
+    "log": "/tmp/sp2-task10-acceptance/docs-pyodide.txt",
+    "saved_log": "logs/docs-pyodide.txt"
+  },
+  {
+    "name": "docs-build",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "zensical",
+      "build",
+      "--clean"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 2.280480146408081,
+    "log": "/tmp/sp2-task10-acceptance/docs-build.txt",
+    "saved_log": "logs/docs-build.txt"
+  },
+  {
+    "name": "docs-links",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "python",
+      "scripts/check_docs_links.py"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.07026886940002441,
+    "log": "/tmp/sp2-task10-acceptance/docs-links.txt",
+    "saved_log": "logs/docs-links.txt"
+  },
+  {
+    "name": "ts-install",
+    "command": [
+      "pnpm",
+      "--dir",
+      "studio",
+      "install",
+      "--frozen-lockfile"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.2771720886230469,
+    "log": "/tmp/sp2-task10-acceptance/ts-install.txt",
+    "saved_log": "logs/ts-install.txt"
+  },
+  {
+    "name": "ts-tests",
+    "command": [
+      "pnpm",
+      "--dir",
+      "studio",
+      "test"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 1.4940500259399414,
+    "log": "/tmp/sp2-task10-acceptance/ts-tests.txt",
+    "saved_log": "logs/ts-tests.txt"
+  },
+  {
+    "name": "ts-typecheck",
+    "command": [
+      "pnpm",
+      "--dir",
+      "studio",
+      "typecheck"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 1.3510241508483887,
+    "log": "/tmp/sp2-task10-acceptance/ts-typecheck.txt",
+    "saved_log": "logs/ts-typecheck.txt"
+  },
+  {
+    "name": "metadata",
+    "command": [
+      ".venv/bin/python",
+      "-c",
+      "import json, platform, subprocess, sys; from importlib.metadata import version; commands = [[\"uv\", \"--version\"], [\"node\", \"--version\"], [\"pnpm\", \"--version\"], [\"git\", \"rev-parse\", \"HEAD\"], [\"sysctl\", \"-n\", \"hw.model\", \"hw.memsize\", \"hw.ncpu\", \"machdep.cpu.brand_string\"], [\"sw_vers\"]]; print(json.dumps({\"python\": sys.version, \"platform\": platform.platform(), \"packages\": {name: version(name) for name in [\"simulatte\", \"pytest\", \"ruff\", \"ty\", \"zensical\", \"msgpack\", \"simpy\"]}, \"commands\": [{\"argv\": args, \"output\": subprocess.check_output(args, text=True).strip()} for args in commands]}, indent=2))"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.38221096992492676,
+    "log": "/tmp/sp2-task10-acceptance/metadata.txt",
+    "saved_log": "logs/metadata.txt"
+  },
+  {
+    "name": "pypy-sync",
+    "command": [
+      "uv",
+      "sync",
+      "--dev",
+      "--python",
+      "pypy-3.11",
+      "--frozen"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "UV_PROJECT_ENVIRONMENT": "/tmp/sp2-task10-acceptance/pypy-env"
+    },
+    "exit": 0,
+    "seconds": 14.609447002410889,
+    "log": "/tmp/sp2-task10-acceptance/pypy-sync.txt",
+    "saved_log": "logs/pypy-sync.txt"
+  },
+  {
+    "name": "helper-lint",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "ruff",
+      "check",
+      "benchmarks/layout_acceptance.py"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.24484825134277344,
+    "log": "/tmp/sp2-task10-acceptance/helper-lint.txt",
+    "saved_log": "logs/helper-lint.txt"
+  },
+  {
+    "name": "final-format",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "ruff",
+      "format",
+      "--check"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.04801797866821289,
+    "log": "/tmp/sp2-task10-acceptance/final-format.txt",
+    "saved_log": "logs/final-format.txt"
+  },
+  {
+    "name": "pypy-tests",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "-m",
+      "pytest",
+      "tests/core",
+      "tests/intralogistics",
+      "tests/layout",
+      "-o",
+      "addopts=-q -p no:cacheprovider"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "MPLBACKEND": "Agg"
+    },
+    "exit": 1,
+    "seconds": 77.69690704345703,
+    "log": "/tmp/sp2-task10-acceptance/pypy-tests.txt",
+    "saved_log": "logs/pypy-tests.txt"
+  },
+  {
+    "name": "package-build",
+    "command": [
+      "uv",
+      "build",
+      "--out-dir",
+      "/tmp/sp2-task10-acceptance/dist"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 1.0019502639770508,
+    "log": "/tmp/sp2-task10-acceptance/package-build.txt",
+    "saved_log": "logs/package-build.txt"
+  },
+  {
+    "name": "package-wheel-venv",
+    "command": [
+      "uv",
+      "venv",
+      "/tmp/sp2-task10-acceptance/wheel-env",
+      "--python",
+      "3.14"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.016130924224853516,
+    "log": "/tmp/sp2-task10-acceptance/package-wheel-venv.txt",
+    "saved_log": "logs/package-wheel-venv.txt"
+  },
+  {
+    "name": "package-wheel-install",
+    "command": [
+      "uv",
+      "pip",
+      "install",
+      "--python",
+      "/tmp/sp2-task10-acceptance/wheel-env",
+      "/tmp/sp2-task10-acceptance/dist/simulatte-0.13.0-py3-none-any.whl"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.1311779022216797,
+    "log": "/tmp/sp2-task10-acceptance/package-wheel-install.txt",
+    "saved_log": "logs/package-wheel-install.txt"
+  },
+  {
+    "name": "package-wheel-freeze",
+    "command": [
+      "uv",
+      "pip",
+      "freeze",
+      "--python",
+      "/tmp/sp2-task10-acceptance/wheel-env"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.011682987213134766,
+    "log": "/tmp/sp2-task10-acceptance/package-wheel-freeze.txt",
+    "saved_log": "logs/package-wheel-freeze.txt"
+  },
+  {
+    "name": "package-wheel-smoke",
+    "command": [
+      "/tmp/sp2-task10-acceptance/wheel-env/bin/python",
+      "-I",
+      "/Users/davide/Developer/simulatte/benchmarks/layout_acceptance.py",
+      "package",
+      "--guide",
+      "/Users/davide/Developer/simulatte/docs/guides/layout.md"
+    ],
+    "cwd": "/tmp/sp2-task10-acceptance/outside-checkout",
+    "env": {
+      "PYTHONPATH": ""
+    },
+    "exit": 0,
+    "seconds": 0.5813159942626953,
+    "log": "/tmp/sp2-task10-acceptance/package-wheel-smoke.txt",
+    "saved_log": "logs/package-wheel-smoke.txt"
+  },
+  {
+    "name": "package-sdist-venv",
+    "command": [
+      "uv",
+      "venv",
+      "/tmp/sp2-task10-acceptance/sdist-env",
+      "--python",
+      "3.14"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.013011932373046875,
+    "log": "/tmp/sp2-task10-acceptance/package-sdist-venv.txt",
+    "saved_log": "logs/package-sdist-venv.txt"
+  },
+  {
+    "name": "package-sdist-install",
+    "command": [
+      "uv",
+      "pip",
+      "install",
+      "--python",
+      "/tmp/sp2-task10-acceptance/sdist-env",
+      "/tmp/sp2-task10-acceptance/dist/simulatte-0.13.0.tar.gz"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.3651251792907715,
+    "log": "/tmp/sp2-task10-acceptance/package-sdist-install.txt",
+    "saved_log": "logs/package-sdist-install.txt"
+  },
+  {
+    "name": "package-sdist-freeze",
+    "command": [
+      "uv",
+      "pip",
+      "freeze",
+      "--python",
+      "/tmp/sp2-task10-acceptance/sdist-env"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.011001825332641602,
+    "log": "/tmp/sp2-task10-acceptance/package-sdist-freeze.txt",
+    "saved_log": "logs/package-sdist-freeze.txt"
+  },
+  {
+    "name": "package-sdist-smoke",
+    "command": [
+      "/tmp/sp2-task10-acceptance/sdist-env/bin/python",
+      "-I",
+      "/Users/davide/Developer/simulatte/benchmarks/layout_acceptance.py",
+      "package",
+      "--guide",
+      "/Users/davide/Developer/simulatte/docs/guides/layout.md"
+    ],
+    "cwd": "/tmp/sp2-task10-acceptance/outside-checkout",
+    "env": {
+      "PYTHONPATH": ""
+    },
+    "exit": 0,
+    "seconds": 0.46202707290649414,
+    "log": "/tmp/sp2-task10-acceptance/package-sdist-smoke.txt",
+    "saved_log": "logs/package-sdist-smoke.txt"
+  },
+  {
+    "name": "pypy-tests-final",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "-m",
+      "pytest",
+      "tests/core",
+      "tests/intralogistics",
+      "tests/layout",
+      "-o",
+      "addopts=-q -p no:cacheprovider"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 75.56331324577332,
+    "log": "/tmp/sp2-task10-acceptance/pypy-tests-final.txt",
+    "saved_log": "logs/pypy-tests-final.txt"
+  },
+  {
+    "name": "fixture-cpython-0-0",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "0"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "0"
+    },
+    "exit": 0,
+    "seconds": 0.1819310188293457,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-0-0.txt",
+    "saved_log": "logs/fixture-cpython-0-0.txt"
+  },
+  {
+    "name": "fixture-cpython-0-1",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "0"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "1"
+    },
+    "exit": 0,
+    "seconds": 0.16817903518676758,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-0-1.txt",
+    "saved_log": "logs/fixture-cpython-0-1.txt"
+  },
+  {
+    "name": "fixture-cpython-0-42",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "0"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "42"
+    },
+    "exit": 0,
+    "seconds": 0.15491008758544922,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-0-42.txt",
+    "saved_log": "logs/fixture-cpython-0-42.txt"
+  },
+  {
+    "name": "fixture-cpython-90-0",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "90"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "0"
+    },
+    "exit": 0,
+    "seconds": 0.15587687492370605,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-90-0.txt",
+    "saved_log": "logs/fixture-cpython-90-0.txt"
+  },
+  {
+    "name": "fixture-cpython-90-1",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "90"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "1"
+    },
+    "exit": 0,
+    "seconds": 0.17752623558044434,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-90-1.txt",
+    "saved_log": "logs/fixture-cpython-90-1.txt"
+  },
+  {
+    "name": "fixture-cpython-90-42",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "90"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "42"
+    },
+    "exit": 0,
+    "seconds": 0.17934679985046387,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-90-42.txt",
+    "saved_log": "logs/fixture-cpython-90-42.txt"
+  },
+  {
+    "name": "fixture-cpython-180-0",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "180"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "0"
+    },
+    "exit": 0,
+    "seconds": 0.17637300491333008,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-180-0.txt",
+    "saved_log": "logs/fixture-cpython-180-0.txt"
+  },
+  {
+    "name": "fixture-cpython-180-1",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "180"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "1"
+    },
+    "exit": 0,
+    "seconds": 0.16888022422790527,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-180-1.txt",
+    "saved_log": "logs/fixture-cpython-180-1.txt"
+  },
+  {
+    "name": "fixture-cpython-180-42",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "180"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "42"
+    },
+    "exit": 0,
+    "seconds": 0.16066670417785645,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-180-42.txt",
+    "saved_log": "logs/fixture-cpython-180-42.txt"
+  },
+  {
+    "name": "fixture-cpython-270-0",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "270"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "0"
+    },
+    "exit": 0,
+    "seconds": 0.1766190528869629,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-270-0.txt",
+    "saved_log": "logs/fixture-cpython-270-0.txt"
+  },
+  {
+    "name": "fixture-cpython-270-1",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "270"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "1"
+    },
+    "exit": 0,
+    "seconds": 0.1748049259185791,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-270-1.txt",
+    "saved_log": "logs/fixture-cpython-270-1.txt"
+  },
+  {
+    "name": "fixture-cpython-270-42",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "270"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "42"
+    },
+    "exit": 0,
+    "seconds": 0.1748030185699463,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-270-42.txt",
+    "saved_log": "logs/fixture-cpython-270-42.txt"
+  },
+  {
+    "name": "fixture-cpython-13.7-0",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "13.7"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "0"
+    },
+    "exit": 0,
+    "seconds": 0.17021894454956055,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-13.7-0.txt",
+    "saved_log": "logs/fixture-cpython-13.7-0.txt"
+  },
+  {
+    "name": "fixture-cpython-13.7-1",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "13.7"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "1"
+    },
+    "exit": 0,
+    "seconds": 0.19421815872192383,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-13.7-1.txt",
+    "saved_log": "logs/fixture-cpython-13.7-1.txt"
+  },
+  {
+    "name": "fixture-cpython-13.7-42",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "13.7"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "42"
+    },
+    "exit": 0,
+    "seconds": 0.18081402778625488,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-13.7-42.txt",
+    "saved_log": "logs/fixture-cpython-13.7-42.txt"
+  },
+  {
+    "name": "fixture-cpython-27.3-0",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "27.3"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "0"
+    },
+    "exit": 0,
+    "seconds": 0.17937707901000977,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-27.3-0.txt",
+    "saved_log": "logs/fixture-cpython-27.3-0.txt"
+  },
+  {
+    "name": "fixture-cpython-27.3-1",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "27.3"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "1"
+    },
+    "exit": 0,
+    "seconds": 0.1614072322845459,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-27.3-1.txt",
+    "saved_log": "logs/fixture-cpython-27.3-1.txt"
+  },
+  {
+    "name": "fixture-cpython-27.3-42",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "27.3"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "42"
+    },
+    "exit": 0,
+    "seconds": 0.15987777709960938,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-27.3-42.txt",
+    "saved_log": "logs/fixture-cpython-27.3-42.txt"
+  },
+  {
+    "name": "fixture-cpython-45-0",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "45"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "0"
+    },
+    "exit": 0,
+    "seconds": 0.17316198348999023,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-45-0.txt",
+    "saved_log": "logs/fixture-cpython-45-0.txt"
+  },
+  {
+    "name": "fixture-cpython-45-1",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "45"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "1"
+    },
+    "exit": 0,
+    "seconds": 0.1872711181640625,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-45-1.txt",
+    "saved_log": "logs/fixture-cpython-45-1.txt"
+  },
+  {
+    "name": "fixture-cpython-45-42",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "45"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "42"
+    },
+    "exit": 0,
+    "seconds": 0.1637430191040039,
+    "log": "/tmp/sp2-task10-acceptance/fixture-cpython-45-42.txt",
+    "saved_log": "logs/fixture-cpython-45-42.txt"
+  },
+  {
+    "name": "fixture-pypy-0-0",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "0"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "0"
+    },
+    "exit": 0,
+    "seconds": 0.6737439632415771,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-0-0.txt",
+    "saved_log": "logs/fixture-pypy-0-0.txt"
+  },
+  {
+    "name": "fixture-pypy-0-1",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "0"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "1"
+    },
+    "exit": 0,
+    "seconds": 0.6198220252990723,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-0-1.txt",
+    "saved_log": "logs/fixture-pypy-0-1.txt"
+  },
+  {
+    "name": "fixture-pypy-0-42",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "0"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "42"
+    },
+    "exit": 0,
+    "seconds": 0.5900089740753174,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-0-42.txt",
+    "saved_log": "logs/fixture-pypy-0-42.txt"
+  },
+  {
+    "name": "fixture-pypy-90-0",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "90"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "0"
+    },
+    "exit": 0,
+    "seconds": 0.6809859275817871,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-90-0.txt",
+    "saved_log": "logs/fixture-pypy-90-0.txt"
+  },
+  {
+    "name": "fixture-pypy-90-1",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "90"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "1"
+    },
+    "exit": 0,
+    "seconds": 0.6272382736206055,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-90-1.txt",
+    "saved_log": "logs/fixture-pypy-90-1.txt"
+  },
+  {
+    "name": "fixture-pypy-90-42",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "90"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "42"
+    },
+    "exit": 0,
+    "seconds": 0.6203620433807373,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-90-42.txt",
+    "saved_log": "logs/fixture-pypy-90-42.txt"
+  },
+  {
+    "name": "fixture-pypy-180-0",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "180"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "0"
+    },
+    "exit": 0,
+    "seconds": 0.6550812721252441,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-180-0.txt",
+    "saved_log": "logs/fixture-pypy-180-0.txt"
+  },
+  {
+    "name": "fixture-pypy-180-1",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "180"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "1"
+    },
+    "exit": 0,
+    "seconds": 0.6693592071533203,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-180-1.txt",
+    "saved_log": "logs/fixture-pypy-180-1.txt"
+  },
+  {
+    "name": "fixture-pypy-180-42",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "180"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "42"
+    },
+    "exit": 0,
+    "seconds": 0.6062068939208984,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-180-42.txt",
+    "saved_log": "logs/fixture-pypy-180-42.txt"
+  },
+  {
+    "name": "fixture-pypy-270-0",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "270"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "0"
+    },
+    "exit": 0,
+    "seconds": 0.6412961483001709,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-270-0.txt",
+    "saved_log": "logs/fixture-pypy-270-0.txt"
+  },
+  {
+    "name": "fixture-pypy-270-1",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "270"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "1"
+    },
+    "exit": 0,
+    "seconds": 0.5847699642181396,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-270-1.txt",
+    "saved_log": "logs/fixture-pypy-270-1.txt"
+  },
+  {
+    "name": "fixture-pypy-270-42",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "270"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "42"
+    },
+    "exit": 0,
+    "seconds": 0.6272120475769043,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-270-42.txt",
+    "saved_log": "logs/fixture-pypy-270-42.txt"
+  },
+  {
+    "name": "fixture-pypy-13.7-0",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "13.7"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "0"
+    },
+    "exit": 0,
+    "seconds": 0.635861873626709,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-13.7-0.txt",
+    "saved_log": "logs/fixture-pypy-13.7-0.txt"
+  },
+  {
+    "name": "fixture-pypy-13.7-1",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "13.7"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "1"
+    },
+    "exit": 0,
+    "seconds": 0.6137659549713135,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-13.7-1.txt",
+    "saved_log": "logs/fixture-pypy-13.7-1.txt"
+  },
+  {
+    "name": "fixture-pypy-13.7-42",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "13.7"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "42"
+    },
+    "exit": 0,
+    "seconds": 0.6174399852752686,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-13.7-42.txt",
+    "saved_log": "logs/fixture-pypy-13.7-42.txt"
+  },
+  {
+    "name": "fixture-pypy-27.3-0",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "27.3"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "0"
+    },
+    "exit": 0,
+    "seconds": 0.7245388031005859,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-27.3-0.txt",
+    "saved_log": "logs/fixture-pypy-27.3-0.txt"
+  },
+  {
+    "name": "fixture-pypy-27.3-1",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "27.3"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "1"
+    },
+    "exit": 0,
+    "seconds": 0.6285960674285889,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-27.3-1.txt",
+    "saved_log": "logs/fixture-pypy-27.3-1.txt"
+  },
+  {
+    "name": "fixture-pypy-27.3-42",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "27.3"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "42"
+    },
+    "exit": 0,
+    "seconds": 0.6761858463287354,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-27.3-42.txt",
+    "saved_log": "logs/fixture-pypy-27.3-42.txt"
+  },
+  {
+    "name": "fixture-pypy-45-0",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "45"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "0"
+    },
+    "exit": 0,
+    "seconds": 0.6867649555206299,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-45-0.txt",
+    "saved_log": "logs/fixture-pypy-45-0.txt"
+  },
+  {
+    "name": "fixture-pypy-45-1",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "45"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "1"
+    },
+    "exit": 0,
+    "seconds": 0.6615359783172607,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-45-1.txt",
+    "saved_log": "logs/fixture-pypy-45-1.txt"
+  },
+  {
+    "name": "fixture-pypy-45-42",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "fixture",
+      "--rotation",
+      "45"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": {
+      "PYTHONHASHSEED": "42"
+    },
+    "exit": 0,
+    "seconds": 0.6366071701049805,
+    "log": "/tmp/sp2-task10-acceptance/fixture-pypy-45-42.txt",
+    "saved_log": "logs/fixture-pypy-45-42.txt"
+  },
+  {
+    "name": "prepare-1000-time-0",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "prepare",
+      "--nodes",
+      "1000"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 2.658172845840454,
+    "log": "/tmp/sp2-task10-acceptance/prepare-1000-time-0.txt",
+    "saved_log": "logs/prepare-1000-time-0.txt"
+  },
+  {
+    "name": "prepare-1000-time-1",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "prepare",
+      "--nodes",
+      "1000"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 2.5677621364593506,
+    "log": "/tmp/sp2-task10-acceptance/prepare-1000-time-1.txt",
+    "saved_log": "logs/prepare-1000-time-1.txt"
+  },
+  {
+    "name": "prepare-1000-time-2",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "prepare",
+      "--nodes",
+      "1000"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 2.7430460453033447,
+    "log": "/tmp/sp2-task10-acceptance/prepare-1000-time-2.txt",
+    "saved_log": "logs/prepare-1000-time-2.txt"
+  },
+  {
+    "name": "prepare-1000-memory",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "prepare",
+      "--nodes",
+      "1000",
+      "--memory"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 14.502093076705933,
+    "log": "/tmp/sp2-task10-acceptance/prepare-1000-memory.txt",
+    "saved_log": "logs/prepare-1000-memory.txt"
+  },
+  {
+    "name": "prepare-10000-time-0",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "prepare",
+      "--nodes",
+      "10000"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 26.163436889648438,
+    "log": "/tmp/sp2-task10-acceptance/prepare-10000-time-0.txt",
+    "saved_log": "logs/prepare-10000-time-0.txt"
+  },
+  {
+    "name": "prepare-10000-time-1",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "prepare",
+      "--nodes",
+      "10000"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 26.605835914611816,
+    "log": "/tmp/sp2-task10-acceptance/prepare-10000-time-1.txt",
+    "saved_log": "logs/prepare-10000-time-1.txt"
+  },
+  {
+    "name": "prepare-10000-time-2",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "prepare",
+      "--nodes",
+      "10000"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 26.278382062911987,
+    "log": "/tmp/sp2-task10-acceptance/prepare-10000-time-2.txt",
+    "saved_log": "logs/prepare-10000-time-2.txt"
+  },
+  {
+    "name": "prepare-10000-memory",
+    "command": [
+      "/Users/davide/Developer/simulatte/.venv/bin/python",
+      "benchmarks/layout_acceptance.py",
+      "prepare",
+      "--nodes",
+      "10000",
+      "--memory"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 146.13622617721558,
+    "log": "/tmp/sp2-task10-acceptance/prepare-10000-memory.txt",
+    "saved_log": "logs/prepare-10000-memory.txt"
+  },
+  {
+    "name": "pypy-skip-reasons",
+    "command": [
+      "/tmp/sp2-task10-acceptance/pypy-env/bin/python",
+      "-m",
+      "pytest",
+      "tests/core/test_entities.py::test_retire_is_atomic_for_kinds_without_weak_references",
+      "tests/core/test_optional_dependencies.py::test_experimental_export_with_rl_extra",
+      "tests/core/test_server_events.py::test_numpy_scalar_priorities_are_numbers",
+      "tests/core/test_wire.py::TestWireFloat::test_numpy_scalars_convert_and_nothing_else_from_numpy",
+      "tests/core/test_wire.py::TestWireFloat::test_numpy_times_and_complex_numbers_are_not_numbers_for_events",
+      "-o",
+      "addopts=-q -rs -p no:cacheprovider"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.7388229370117188,
+    "log": "/tmp/sp2-task10-acceptance/pypy-skip-reasons.txt",
+    "saved_log": "logs/pypy-skip-reasons.txt"
+  },
+  {
+    "name": "hook-ty",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "ty",
+      "check",
+      "--ignore",
+      "unresolved-import"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 1,
+    "seconds": 0.37245798110961914,
+    "log": "/tmp/sp2-task10-acceptance/hook-ty.txt",
+    "saved_log": "logs/hook-ty.txt"
+  },
+  {
+    "name": "final-format-after-probe-fix",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "ruff",
+      "format",
+      "--check"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 1,
+    "seconds": 0.08549761772155762,
+    "log": "/tmp/sp2-task10-acceptance/final-format-after-probe-fix.txt",
+    "saved_log": "logs/final-format-after-probe-fix.txt"
+  },
+  {
+    "name": "final-helper-format",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "ruff",
+      "format",
+      "benchmarks/layout_acceptance.py",
+      "tests/layout/test_acceptance.py"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.042062997817993164,
+    "log": "/tmp/sp2-task10-acceptance/final-helper-format.txt",
+    "saved_log": "logs/final-helper-format.txt"
+  },
+  {
+    "name": "hook-ty-final",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "ty",
+      "check",
+      "--ignore",
+      "unresolved-import"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.2589151859283447,
+    "log": "/tmp/sp2-task10-acceptance/hook-ty-final.txt",
+    "saved_log": "logs/hook-ty-final.txt"
+  },
+  {
+    "name": "final-focused",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "pytest",
+      "tests/layout/test_acceptance.py",
+      "--no-cov",
+      "-q"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 1.2653260231018066,
+    "log": "/tmp/sp2-task10-acceptance/final-focused.txt",
+    "saved_log": "logs/final-focused.txt"
+  },
+  {
+    "name": "final-format-all",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "ruff",
+      "format",
+      "--check"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.04356122016906738,
+    "log": "/tmp/sp2-task10-acceptance/final-format-all.txt",
+    "saved_log": "logs/final-format-all.txt"
+  },
+  {
+    "name": "final-report-format",
+    "command": [
+      "uv",
+      "run",
+      "--all-extras",
+      "ruff",
+      "format",
+      "--check"
+    ],
+    "cwd": "/Users/davide/Developer/simulatte",
+    "env": null,
+    "exit": 0,
+    "seconds": 0.17928695678710938,
+    "log": "/tmp/sp2-task10-acceptance/final-report-format.txt",
+    "saved_log": "logs/final-report-format.txt"
+  }
+]

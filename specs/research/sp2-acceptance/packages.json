@@ -1,0 +1,34 @@
+{
+  "wheel": {
+    "artifact": "simulatte-0.13.0-py3-none-any.whl",
+    "sha256": "0fb75b57c9bef9cfe52e1b237c666eb55fb10b60eac831a6b330f3f474563698",
+    "schema_member": "simulatte/layout/schema/layout-v1.schema.json",
+    "schema_sha256": "4f251e76a5a3dccb2ec8dd666745cae5368f32bc3c22c087480de232deda18c7",
+    "package": "/tmp/sp2-task10-acceptance/wheel-env/lib/python3.14/site-packages/simulatte/__init__.py",
+    "prefix": "/tmp/sp2-task10-acceptance/wheel-env",
+    "snippets": 8,
+    "optional_absence": [
+      "matplotlib",
+      "numpy",
+      "gymnasium",
+      "jsonschema"
+    ],
+    "freeze": "Using Python 3.14.1 environment at: /tmp/sp2-task10-acceptance/wheel-env\nmsgpack==1.2.3\nsimpy==4.1.2\nsimulatte @ file:///tmp/sp2-task10-acceptance/dist/simulatte-0.13.0-py3-none-any.whl\ntabulate==0.10.0\ntqdm==4.70.1\n"
+  },
+  "sdist": {
+    "artifact": "simulatte-0.13.0.tar.gz",
+    "sha256": "3775712f6ca085789fe65c40b9796c9d3609fac17283d37dda1da765c8fbf659",
+    "schema_member": "simulatte-0.13.0/src/simulatte/layout/schema/layout-v1.schema.json",
+    "schema_sha256": "4f251e76a5a3dccb2ec8dd666745cae5368f32bc3c22c087480de232deda18c7",
+    "package": "/tmp/sp2-task10-acceptance/sdist-env/lib/python3.14/site-packages/simulatte/__init__.py",
+    "prefix": "/tmp/sp2-task10-acceptance/sdist-env",
+    "snippets": 8,
+    "optional_absence": [
+      "matplotlib",
+      "numpy",
+      "gymnasium",
+      "jsonschema"
+    ],
+    "freeze": "Using Python 3.14.1 environment at: /tmp/sp2-task10-acceptance/sdist-env\nmsgpack==1.2.3\nsimpy==4.1.2\nsimulatte @ file:///tmp/sp2-task10-acceptance/dist/simulatte-0.13.0.tar.gz\ntabulate==0.10.0\ntqdm==4.70.1\n"
+  }
+}

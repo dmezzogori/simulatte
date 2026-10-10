@@ -1,0 +1,46 @@
+{
+  "label": "simulatte 0.12.0",
+  "simulatte_version": "0.12.0",
+  "mode": "sampling",
+  "python": {
+    "implementation": "pypy",
+    "version": "3.11.11",
+    "build": "b38de282cead"
+  },
+  "platform": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "node": "eva.local"
+  },
+  "commit": "6a3f131d8eec99d6552ed4c5ddf5807a3beea104",
+  "log_level": "INFO",
+  "hardware": {
+    "machine": "arm64",
+    "cpu": "Apple M1 Pro",
+    "cpus": 10
+  },
+  "workload": {
+    "path": "router-only",
+    "sha256": "0d9570e9d6b70ef1e39166967672d776d8a57795ff89266268cd1b7e9feb9fbf",
+    "spec": "sampling servers=10 util=0.9 jobs=20000"
+  },
+  "counts": {
+    "jobs": 20000
+  },
+  "draws_mean": 189663.0,
+  "warmup": 8,
+  "repeat": 5,
+  "samples_s": [
+    0.3931424999900628,
+    0.38279983299435116,
+    0.38093975000083447,
+    0.39426262499182485,
+    0.3837252919911407
+  ],
+  "median_s": 0.3837252919911407,
+  "iqr_s": 0.010342666995711625,
+  "min_s": 0.38093975000083447,
+  "max_s": 0.39426262499182485,
+  "jobs_per_s": 52120.619665752325,
+  "draws_per_s": 494267.65438327915
+}

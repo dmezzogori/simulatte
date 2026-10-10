@@ -1,0 +1,99 @@
+{
+  "label": "head",
+  "simulatte_version": "0.13.0",
+  "has_trace": true,
+  "mode": "full",
+  "log_info": false,
+  "python": {
+    "implementation": "cpython",
+    "version": "3.14.1",
+    "build": "main"
+  },
+  "platform": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "node": "eva.local"
+  },
+  "commit": "6a3f131d8eec99d6552ed4c5ddf5807a3beea104",
+  "log_level": "INFO",
+  "hardware": {
+    "machine": "arm64",
+    "cpu": "Apple M1 Pro",
+    "cpus": 10
+  },
+  "workload": {
+    "path": "workloads/jobshop10-u90-5k.json",
+    "sha256": "13c8f5271a803d6bef515ae84501ecba3907f8dfe7cbb2985690b20be21f2a60",
+    "params": {
+      "servers": 10,
+      "jobs": 5000,
+      "util": 0.9,
+      "seed": 1,
+      "drain": 1000.0,
+      "arrival_rate": 1.6541746515531173,
+      "service": {
+        "dist": "truncated_erlang",
+        "rate": 2.0,
+        "shape": 2,
+        "max": 4.0
+      },
+      "due_offset": {
+        "dist": "uniform",
+        "low": 30.0,
+        "high": 45.0
+      },
+      "generator": "cpython"
+    },
+    "horizon": 4008.57985
+  },
+  "counts": {
+    "jobs_fed": 5000,
+    "operations_fed": 27566,
+    "jobs_done": 5000,
+    "operations_done": 27566,
+    "trajectory": "46a002564584e3dc64acc3b4c80bad2b4bc176a35e1e0cf5fba8e0bde7feab6f"
+  },
+  "subscribers": 1,
+  "digest": "cf6480d5fa80efb03eb30f138035e17b88a52f2a6596f1d098b6d4b724cc4c9a",
+  "warmup": 1,
+  "repeat": 5,
+  "processes": 3,
+  "process_medians_s": [
+    3.2378184580011293,
+    3.2208235419820994,
+    3.2461475410091225
+  ],
+  "samples_s": [
+    3.283127458009403,
+    3.2054602910066023,
+    3.2378184580011293,
+    3.2188705839798786,
+    3.2438644579960965,
+    3.2208235419820994,
+    3.215905874996679,
+    3.253526500018779,
+    3.2116122500156052,
+    3.242411458020797,
+    3.2461475410091225,
+    3.2548215840070043,
+    3.229212667007232,
+    3.2372647089941893,
+    3.2554739999759477
+  ],
+  "median_s": 3.2378184580011293,
+  "iqr_s": 0.029989957532961853,
+  "min_s": 3.2054602910066023,
+  "max_s": 3.283127458009403,
+  "peak_mb": 139.575296,
+  "rss_before_mb": 37.978112,
+  "trace_bytes": 8163145,
+  "chunks": 37,
+  "open_ms": 1.115916995331645,
+  "seek_p50_ms": 46.93147949001286,
+  "seek_p95_ms": 53.764797892654315,
+  "seek_max_ms": 67.98637501196936,
+  "seeks": 200,
+  "warm_seek_p50_ms": 4.794041495188139,
+  "warm_seek_p95_ms": 8.683500303595793,
+  "warm_seek_max_ms": 13.111750013194978
+}

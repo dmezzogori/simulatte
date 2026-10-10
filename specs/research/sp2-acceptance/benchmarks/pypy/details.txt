@@ -1,0 +1,38 @@
+| Interpreter | Workload | Version | Mode | Median (IQR) | Peak RSS | Trace | Chunks | Seek p50 / p95 | Warm seek p50 / p95 | Jobs/s | Draws/s |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| pypy 3.11.11 | jobshop10-u90-5k.json | simulatte 0.12.0 | default | 0.503 s (0.016) | 99 MB | – | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u90-5k.json | simulatte 0.12.0 | default_logging | 0.484 s (0.019) | 97 MB | – | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u90-5k.json | simulatte 0.12.0 | none | 0.521 s (0.034) | 101 MB | – | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u95-5k.json | simulatte 0.12.0 | none | 0.504 s (0.013) | 100 MB | – | – | – | – | – | – |
+| pypy 3.11.11 | router-only | simulatte 0.12.0 | sampling | 0.384 s (0.010) | – | – | – | – | – | 52,121 | 494,268 |
+| pypy 3.11.11 | jobshop10-u90-5k.json | head | bare | 0.298 s (0.009) | 95 MB | – | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u90-5k.json | head | default | 0.315 s (0.012) | 94 MB | – | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u90-5k.json | head | default_logging | 0.299 s (0.011) | 94 MB | – | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u90-5k.json | head | digest | 1.212 s (0.016) | 117 MB | – | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u90-5k.json | head | full | 1.971 s (0.044) | 138 MB | 8.16 MB | 37 | 31.6 / 47.2 ms | 3.8 / 7.5 ms | – | – |
+| pypy 3.11.11 | jobshop10-u90-5k.json | head | bare | 0.320 s (0.030) | – | – | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u90-5k.json | head | default_logging | 0.356 s (0.023) | – | – | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u90-5k.json | head | kpi | 1.242 s (0.039) | 119 MB | 0.01 MB | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u90-5k.json | head | none | 0.318 s (0.010) | 94 MB | – | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u95-5k.json | head | none | 0.333 s (0.012) | 96 MB | – | – | – | – | – | – |
+| pypy 3.11.11 | router-only | head | sampling | 0.089 s (0.000) | – | – | – | – | – | 225,964 | 2,150,824 |
+| pypy 3.11.11 | intralogistics-advanced | head | bare | 1.554 s (0.099) | – | – | – | – | – | – | – |
+| pypy 3.11.11 | intralogistics-advanced | simulatte 0.12.0 | default | 1.506 s (0.021) | – | – | – | – | – | – | – |
+| pypy 3.11.11 | intralogistics-advanced | simulatte 0.12.0 | default_logging | 1.459 s (0.035) | – | – | – | – | – | – | – |
+| pypy 3.11.11 | intralogistics-advanced | simulatte 0.12.0 | none | 1.404 s (0.038) | – | – | – | – | – | – | – |
+| pypy 3.11.11 | intralogistics-advanced | head | default | 1.569 s (0.019) | – | – | – | – | – | – | – |
+| pypy 3.11.11 | intralogistics-advanced | head | default_logging | 1.513 s (0.019) | – | – | – | – | – | – | – |
+| pypy 3.11.11 | intralogistics-advanced | head | digest | 3.733 s (0.015) | – | – | – | – | – | – | – |
+| pypy 3.11.11 | intralogistics-advanced | head | full | 5.757 s (0.204) | – | 16.53 MB | – | – | – | – | – |
+| pypy 3.11.11 | intralogistics-advanced | head | kpi | 3.971 s (0.076) | – | 0.02 MB | – | – | – | – | – |
+| pypy 3.11.11 | intralogistics-advanced | head | none | 1.508 s (0.022) | – | – | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u90-5k.json | 0.12.0 without env.debug calls | default | 0.396 s (0.014) | 100 MB | – | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u90-5k.json | 0.12.0 without env.debug calls | default_logging | 0.379 s (0.014) | 98 MB | – | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u90-5k.json | 0.12.0 without env.debug calls | none | 0.401 s (0.014) | 100 MB | – | – | – | – | – | – |
+| pypy 3.11.11 | jobshop10-u95-5k.json | 0.12.0 without env.debug calls | none | 0.412 s (0.009) | 98 MB | – | – | – | – | – | – |
+
+| Version | Package version | Interpreter | Commit | Log level | Hardware |
+|---|---|---|---|---|---|
+| simulatte 0.12.0 | 0.12.0 | pypy 3.11.11 | `6a3f131d8eec` | INFO | arm64, Apple M1 Pro, 10 CPUs |
+| head | 0.13.0 | pypy 3.11.11 | `6a3f131d8eec` | INFO | arm64, Apple M1 Pro, 10 CPUs |
+| 0.12.0 without env.debug calls | 0.12.0 | pypy 3.11.11 | `6a3f131d8eec` | INFO | arm64, Apple M1 Pro, 10 CPUs |
