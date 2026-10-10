@@ -246,6 +246,7 @@ class Explicit:
         if len(set(ids)) != len(ids):
             raise LayoutError("explicit graph contains duplicate node ids")
         definitions = tuple(ExplicitNode(node.id, Point(node.x, node.y)) for node in nodes)
+        positions = {node.id: node.position for node in definitions}
         for node in definitions:
             _definition({"id": node.id, "position": [node.position.x, node.position.y, 0]}, "explicitNode")
         arcs = []
@@ -253,8 +254,10 @@ class Explicit:
             for target, arc in graph._adjacency.get(source, {}).items():
                 if target not in nodes:
                     raise LayoutError("explicit graph contains a foreign endpoint")
-                if source.x == target.x and source.y == target.y:
-                    raise LayoutError("explicit graph contains a zero-length arc")
+                if positions[source.id] == positions[target.id]:
+                    raise LayoutError(
+                        f"explicit arc {source.id!r} -> {target.id!r} is zero-length after float64 normalization"
+                    )
                 speed = None if arc.speed_limit is None else number(arc.speed_limit, "speed_limit", positive=True)
                 arcs.append(ExplicitArc(source.id, target.id, speed))
         # Observable adjacency can contain sources absent from graph.nodes as well.

@@ -227,3 +227,27 @@ def test_geometry_accepts_large_finite_integer_notation(value):
 def test_counts_keep_safe_integer_bounds(factory):
     with pytest.raises(ValueError, match="safe integer"):
         factory()
+
+
+@pytest.mark.parametrize("axis", ["x", "y"])
+def test_explicit_rejects_edges_collapsed_by_float64_normalization(axis):
+    from simulatte.layout import LayoutError
+
+    a = Node("a", 2**53 if axis == "x" else 0, 2**53 if axis == "y" else 0)
+    b = Node("b", 2**53 + 1 if axis == "x" else 0, 2**53 + 1 if axis == "y" else 0)
+    graph = LayoutGraph([a, b], [Arc(a, b, bidirectional=False)])
+    assert (a.x, a.y) != (b.x, b.y)
+    assert Point(a.x, a.y) == Point(b.x, b.y)
+    with pytest.raises(LayoutError, match="zero-length.*float64"):
+        Explicit(graph)
+    assert graph.nodes == (a, b)
+    assert graph.neighbors(a) == [b]
+
+
+@pytest.mark.parametrize("axis", ["x", "y"])
+def test_explicit_keeps_large_edges_with_distinct_stored_positions(axis):
+    a = Node("a", 2**53 if axis == "x" else 0, 2**53 if axis == "y" else 0)
+    b = Node("b", 2**53 + 2 if axis == "x" else 0, 2**53 + 2 if axis == "y" else 0)
+    snapshot = Explicit(LayoutGraph([a, b], [Arc(a, b, bidirectional=False)]))
+    assert snapshot.nodes[0].position != snapshot.nodes[1].position
+    assert [(arc.source, arc.target) for arc in snapshot.arcs] == [("a", "b")]
