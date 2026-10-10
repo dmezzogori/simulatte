@@ -81,9 +81,10 @@ many APIs and, because RNG streams are now derived from the seed and entity name
   instead. Fleet warnings and errors stay `log` events.
 - Event construction calls no user code (observers cannot change results through it) for the value types it
   supports: `bool`, `int`, `float`, `str`, `None`, tuples and maps of them, subclasses of `int`, `float` and `str`
-  (read through the base type, so a subclass's own `__float__` is never called), `Fraction` and `Decimal`, and NumPy
-  scalar numbers. Anything else (user classes, NumPy arrays, `MappingProxyType`, user mappings) is not a wire value:
-  a priority is recorded as null, another number as `NaN`, and debug mode rejects it. Values derived only for an
+  (read through the base type, so a subclass's own `__float__` is never called), and, as numbers, `Fraction`,
+  `Decimal` and NumPy scalar numbers other than `timedelta64` and complex scalars. Anything else (user classes, NumPy
+  arrays, `MappingProxyType`, user mappings) is not convertible: a priority is recorded as null, another number as
+  `NaN`, and debug mode rejects it. Overrides of `Entity.snapshot()` must be pure: it runs only when observed. Values derived only for an
   event (`job.finished`'s `makespan`, `lateness`, `total_queue_time`) are computed from converted floats, not
   through model properties. Digests and traces read the simulation time the same way and never record a NaN time: a
   time of another type raises `TypeError`, a NaN time `ValueError`, at the first recorded event. Wire values are

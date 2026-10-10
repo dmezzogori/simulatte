@@ -179,7 +179,8 @@ def wire_float(value: object) -> float:
     The values converted without user code (ruling R34): ``float`` and ``int`` values, including instances of their
     subclasses, through the built-in methods (a subclass's own ``__float__`` is user code and is never called);
     ``fractions.Fraction`` and ``decimal.Decimal`` (exact types: the standard library is framework-safe, R32) and
-    NumPy scalar numbers (``numpy.number``, ``numpy.bool_``) whose ``__float__`` is NumPy's, with ``float()``.
+    NumPy scalar numbers (``numpy.number``, ``numpy.bool_``) whose ``__float__`` is NumPy's, with ``float()``, except
+    ``timedelta64`` and complex scalars.
     Anything else is NaN: an int beyond the float range, a user class, a NumPy array (an object array would call
     its items' methods), a non-number. The rule is the same on CPython and PyPy. See :func:`wire_float_or_none`
     for the variant that returns None instead.
@@ -204,7 +205,7 @@ def wire_float_or_none(value: object) -> float | None:
             return float(exact_int(value))  # ty: ignore[invalid-argument-type]
         if t is Fraction or t is Decimal or _is_numpy_scalar(t):
             return float(value)  # ty: ignore[invalid-argument-type]
-    except (OverflowError, ValueError):
+    except (OverflowError, ValueError, TypeError):  # conversions that refuse the value (built-in or NumPy code)
         return None
     return None
 
@@ -233,6 +234,9 @@ def _is_numpy_scalar(t: type) -> bool:
     """Whether `t` is a NumPy scalar number type whose ``__float__`` NumPy defines (not overridden by a subclass)."""
     numpy = sys.modules.get("numpy")  # a NumPy value implies an imported NumPy
     if numpy is None or not issubclass(t, (numpy.number, numpy.bool_)):
+        return False
+    # Durations (float() raises) and complex numbers (float() drops the imaginary part) are not numbers.
+    if issubclass(t, (numpy.timedelta64, numpy.complexfloating)):
         return False
     for klass in t.__mro__:
         if "__float__" in klass.__dict__:

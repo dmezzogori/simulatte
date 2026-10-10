@@ -400,7 +400,7 @@ class Collector:
         if kpi not in self._series:
             raise ValueError(f"{kpi!r} is not a series KPI of {type(self).__name__}")
         if env.wants(KpiSample):
-            env.emit(KpiSample(kpi=kpi, scope=self._scope_id, value=float(value)))
+            env.emit(KpiSample(kpi=kpi, scope=self._scope_id, value=wire_float(value)))
 
     def observe(self, kpi: str, value: float, *, arrived: float | None = None) -> None:
         """Record an observation of the scalar `kpi` made now, if it belongs to the KPI's cohort.

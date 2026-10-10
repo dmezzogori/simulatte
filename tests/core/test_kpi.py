@@ -442,6 +442,26 @@ def test_observe_aggregations_and_errors() -> None:
         arrival.observe("flow_time_by_arrival", 1.0)
 
 
+def test_kpi_sample_value_is_read_without_user_code() -> None:
+    """Fix wave 3: kpi.sample converts its value like every emitting site (wire_float), never through a subclass's
+    own ``__float__``."""
+    from simulatte.events import KpiSample
+
+    calls: list[str] = []
+
+    class Level(float):
+        def __float__(self) -> float:  # pragma: no cover - must never be called
+            calls.append("__float__")
+            return 99.0
+
+    env = Environment(seed=1)
+    seen: list[KpiSample] = []
+    env.bus.subscribe(seen.append, (KpiSample,))
+    collector = Plain(Desk(env, name="d")).attach(env)
+    collector.sample("level", Level(2.5))
+    assert calls == [] and [(e.value, type(e.value)) for e in seen] == [(2.5, float)]
+
+
 def test_scalar_values_take_precedence() -> None:
     class Computed(Plain):
         def __init__(self, scope: Entity, values: Mapping[str, float | None]) -> None:

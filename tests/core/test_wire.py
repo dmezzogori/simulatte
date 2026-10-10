@@ -23,6 +23,7 @@ from simulatte._wire import (
     wire_float,
     wire_equal,
     wire_float_or_none,
+    wire_time,
 )
 
 
@@ -561,6 +562,29 @@ class TestWireFloat:
         assert wire_float(np.bool_(True)) == 1.0 and wire_float(Plain(4)) == 4.0
         for value in (np.array(Number(), dtype=object), np.array(1.5), np.array([1.0]), Shadow(0.5)):
             assert wire_float_or_none(value) is None
+
+    def test_numpy_times_and_complex_numbers_are_not_numbers_for_events(self) -> None:
+        """Ruling R34 (fix wave 3): timedelta64 (a numpy.signedinteger), NaT, datetime64 and complex scalars are not
+        numbers for events. float() would raise or drop the imaginary part only when observed; they are NaN or None,
+        wire_time raises its documented TypeError and a priority is null."""
+        import warnings
+
+        np = pytest.importorskip("numpy")
+        from simulatte.server import _wire_priority
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # a ComplexWarning would mean float() ran on a complex value
+            for value in (
+                np.timedelta64(5, "s"),
+                np.timedelta64("NaT", "s"),
+                np.datetime64("2026-01-01"),
+                np.complex128(1 + 2j),
+                np.complex64(1),
+            ):
+                assert wire_float_or_none(value) is None and math.isnan(wire_float(value)), value
+                assert _wire_priority(value) is None, value
+                with pytest.raises(TypeError, match="numeric simulation time"):
+                    wire_time(value)
 
 
 class TestWireEqual:
