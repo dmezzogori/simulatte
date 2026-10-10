@@ -54,7 +54,7 @@ cd benchmarks
 W=workloads/jobshop10-u90-5k.json
 /tmp/base/bin/python run.py --mode none --workload $W --warmup 1 --repeat 5 --processes 3 --json /tmp/base.json
 /tmp/head/bin/python run.py --mode none --workload $W --warmup 1 --repeat 5 --processes 3 --json /tmp/head.json
-python compare.py /tmp/base.json /tmp/head.json --budget 0.03 --noise 0.02   # released baseline; PyPy: --noise 0.05
+python compare.py /tmp/base.json /tmp/head.json --budget 0.03 --noise 0.02   # released baseline; PyPy: --noise 0.07
 
 /tmp/head/bin/python run.py --mode full --workload $W --warmup 1 --repeat 5 --json /tmp/full.json
 python compare.py /tmp/head.json /tmp/full.json        # ratio only, never gated
@@ -126,7 +126,7 @@ python strip_debug.py /tmp/base/lib/python3.14/site-packages/simulatte /tmp/stri
 PYTHONPATH=/tmp/stripped /tmp/base/bin/python -c 'import simulatte; print(simulatte.__file__)'   # must be under /tmp/stripped
 PYTHONPATH=/tmp/stripped /tmp/base/bin/python run.py --mode none --workload $W --warmup 1 --repeat 5 --processes 3 \
     --label "0.12.0 without env.debug calls" --json /tmp/nolog.json
-python compare.py /tmp/nolog.json /tmp/head.json --budget 0.065 --noise 0.02   # PyPy: --budget 0.03 --noise 0.05
+python compare.py /tmp/nolog.json /tmp/head.json --budget 0.065 --noise 0.02   # PyPy: --budget 0.03 --noise 0.07
 ```
 
 ## CI
@@ -140,8 +140,13 @@ and are reported against each baseline without a budget. The budgets are job-lev
 
 | Baseline | Budget | Noise, CPython | Noise, PyPy | Limit, CPython | Limit, PyPy |
 |---|---|---|---|---|---|
-| Released 0.12.0 (the user-facing promise) | 3 % | 2 % | 5 % | 5 % | 8 % |
-| 0.12.0 without `env.debug` calls | 6.5 % on CPython, 3 % on PyPy (after tuning, G3 report §9) | 2 % | 5 % | 8.5 % | 8 % |
+| Released 0.12.0 (the user-facing promise) | 3 % | 2 % | 7 % | 5 % | 10 % |
+| 0.12.0 without `env.debug` calls | 6.5 % on CPython, 3 % on PyPy (after tuning, G3 report §9) | 2 % | 7 % | 8.5 % | 10 % |
+
+These are the runner-calibrated bands already used by CI after #55; this table does not change the gate.
+The [0.13 release-check report](../specs/research/2026-10-10-013-release-checks.md) records the main-run
+margins and the accepted PyPy 8.0.0 recording limitation tracked in
+[issue #59](https://github.com/dmezzogori/simulatte/issues/59).
 
 The job fails when the median mode-`none` overhead exceeds `budget + noise` against either baseline; both
 comparisons always run. The step summary has one row per baseline, workload and interpreter, with the limit and

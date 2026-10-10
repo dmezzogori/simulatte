@@ -204,6 +204,14 @@ many APIs and, because RNG streams are now derived from the seed and entity name
 - `FleetCoordinator.create_order(id=)`, `TrafficManager.place`, `Distribution.__call__`, the `*_time_fn` parameters
   listed above.
 
+### Known limitations
+
+- On the stock PyPy 8.0.0 / Python 3.11.16 Linux x86-64 runtime used by CI, digest, KPI trace and full trace
+  recording exceed the accepted performance targets. This is accepted for 0.13.0 as a documented limitation;
+  the targets remain unchanged. The tested trajectories and digests still match. See
+  [Running on PyPy](docs/running-on-pypy.md#013-recording-limitation-on-pypy-800) and
+  [follow-up #59](https://github.com/dmezzogori/simulatte/issues/59).
+
 ### Migrating from 0.12
 
 **Seeds and randomness.** Pass a seed to the environment; draw from named streams.
