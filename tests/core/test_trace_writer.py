@@ -850,7 +850,7 @@ class CellChange(DomainEvent):
     pass
 
 
-@pytest.mark.parametrize("mutate", ["value", "ops"])
+@pytest.mark.parametrize("mutate", ["value", "ops", "op"])
 def test_recorder_does_not_depend_on_objects_mutated_after_emit(
     tmp_path: Path, make_recorder: Callable[..., TraceRecorder], mutate: str
 ) -> None:
@@ -871,10 +871,12 @@ def test_recorder_does_not_depend_on_objects_mutated_after_emit(
     rec._write_batch = delayed  # ty: ignore[invalid-assignment]
     env.activate()
     values = [1]
-    ops: Any = [("set", "cell", "values", values)]
-    env.emit(CellChange(deltas=Deltas(ops)))
+    op: Any = ["set", "cell", "values", 1]  # a list operation of scalar items (Codex probe_mutable_inner_op)
+    ops: Any = [op] if mutate == "op" else [("set", "cell", "values", values)]
+    env.emit(CellChange(deltas=Deltas(tuple(ops) if mutate == "op" else ops)))
     assert entered.wait(10)
     values[0] = 99
+    op[3] = 99
     if mutate == "ops":
         ops.append(("set", "cell", "values", (7,)))
     env.emit(CellChange())
@@ -882,8 +884,9 @@ def test_recorder_does_not_depend_on_objects_mutated_after_emit(
     rec.close()
 
     trace = Trace.open(path)
-    assert [trace.state_at((e.t, e.seq))["cell"]["values"] for e in trace.events()] == [(1,), (1,)]
-    assert [e.deltas for e in trace.events()] == [(("set", "cell", "values", (1,)),), ()]
+    value = 1 if mutate == "op" else (1,)
+    assert [trace.state_at((e.t, e.seq))["cell"]["values"] for e in trace.events()] == [value, value]
+    assert [e.deltas for e in trace.events()] == [(("set", "cell", "values", value),), ()]
     assert trace.verify() is True
     trace.check()
 

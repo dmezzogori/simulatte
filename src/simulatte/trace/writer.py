@@ -250,7 +250,9 @@ class TraceRecorder:
             ops = deltas.ops
             prepared_ops = tuple(map(prepared_op, ops))
             tail = pack_event((payload, prepared_ops))[1:]
-            if type(ops) is not tuple or any(p is not op for p, op in zip(prepared_ops, ops, strict=True)):
+            if type(ops) is not tuple or any(
+                p is not op or type(op) is not tuple for p, op in zip(prepared_ops, ops, strict=True)
+            ):
                 # Not all immutable already: replay an immutable copy of what was just encoded, never the caller's
                 # objects, which may change before the writer thread applies them (R30).
                 deltas = Deltas(tuple(map(_frozen_op, ops)))

@@ -309,10 +309,12 @@ class SemanticDigest:
         kinds = self._acc.kinds
         ops: list[Any] = []
         event_ops = event.deltas.ops
-        # Shared only when the recorder can keep the operations themselves: a tuple of operations that are already
+        # Shared only when the recorder can keep the operations themselves: a tuple of tuples that are already
         # immutable wire values (prepared_op returns those unchanged), which nobody can change after emit (R30).
         unchanged = type(event_ops) is tuple
         for op in event_ops:
+            if type(op) is not tuple:
+                unchanged = False
             if op[0] in _LIFECYCLE:
                 kept = _project_op(op, kinds, _registered_presentation, strict=True)
                 ready = prepared_op(kept)  # ty: ignore[invalid-argument-type]  # lifecycle ops are always kept
