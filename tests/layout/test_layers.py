@@ -228,3 +228,74 @@ def test_later_explicit_map_can_replace_unset_and_reset_removes_file_override():
     reset = resolve_layers(values.bundle.code_stages, FileLayer(raw))
     assert reset.at(("placements", "a", "visual", "color")).value == "blue"
     assert reset.at(("placements", "a", "visual", "color")).source == LayerSource("code", "next")
+
+
+@pytest.mark.parametrize(
+    "before,after,obsolete",
+    [
+        ({"kind": "explicit", "id": "old"}, {"kind": "lattice", "i": 1, "j": 2}, "id"),
+        ({"kind": "lattice", "i": 1, "j": 2}, {"kind": "explicit", "id": "new"}, "i"),
+        ({"kind": "explicit", "id": "old"}, {"kind": "explicit", "id": "new"}, None),
+    ],
+)
+def test_connector_target_addresses_replace_atomically(before, after, obsolete):
+    from simulatte.layout.refs import Address
+
+    code = patch(
+        placements={"a": {"kind": "server", "ports": {"p": {"connector": {"target": before, "speed_limit": 2}}}}}
+    )
+    file = FileLayer(patch(placements={"a": {"kind": "server", "ports": {"p": {"connector": {"target": after}}}}}))
+    values = resolve_layers((("declare", code),), file)
+    target = ("placements", "a", "ports", "p", "connector", "target")
+    assert Address(values.require(target)).to_dict() == after
+    assert values.at(target).source == LayerSource("file")
+    assert values.at((*target[:-1], "speed_limit")).value == 2
+    if obsolete is not None:
+        assert values.at((*target, obsolete)).state == "absent"
+        assert (*target, obsolete) not in values.leaves
+    assert values.bundle.code_stages[0][1]["placements"]["a"]["ports"]["p"]["connector"]["target"] == before
+
+
+def test_auto_cannot_extend_an_existing_connector_address():
+    from simulatte.layout.refs import Address
+
+    code = patch(
+        placements={
+            "a": {"kind": "server", "ports": {"p": {"connector": {"target": {"kind": "explicit", "id": "old"}}}}}
+        }
+    )
+    auto = patch(
+        placements={
+            "a": {"kind": "server", "ports": {"p": {"connector": {"target": {"kind": "lattice", "i": 1, "j": 2}}}}}
+        }
+    )
+    values = resolve_layers((("declare", code),), FileLayer(patch()), auto)
+    target = ("placements", "a", "ports", "p", "connector", "target")
+    assert Address(values.require(target)).to_dict() == {"kind": "explicit", "id": "old"}
+    assert values.at((*target, "i")).state == "absent"
+
+
+def test_connector_address_unset_and_later_replacement_keep_provenance():
+    from simulatte.layout.refs import Address
+
+    code = patch(
+        placements={
+            "a": {"kind": "server", "ports": {"p": {"connector": {"target": {"kind": "explicit", "id": "old"}}}}}
+        }
+    )
+    unset = patch(placements={"a": {"kind": "server", "ports": {"p": {"connector": {"target": UNSET}}}}})
+    file = FileLayer(
+        patch(
+            placements={
+                "a": {"kind": "server", "ports": {"p": {"connector": {"target": {"kind": "lattice", "i": 1, "j": 2}}}}}
+            }
+        )
+    )
+    target = ("placements", "a", "ports", "p", "connector", "target")
+    removed = resolve_layers((("declare", code),), FileLayer(unset))
+    assert removed.at(target).state == "unset"
+    assert removed.at((*target, "id")).state == "unset"
+    replaced = resolve_layers((("declare", code), ("next", unset)), file)
+    assert Address(replaced.require(target)).to_dict() == {"kind": "lattice", "i": 1, "j": 2}
+    assert replaced.at(target).source == LayerSource("file")
+    assert replaced.at((*target, "id")).state == "absent"

@@ -163,7 +163,14 @@ class _Merge:
                     dest.pop(key, None)
                     self.discard(child)
                     self.record(child, source, False, True)
-            elif isinstance(value, Mapping):
+            # A connector target is a complete nodeAddress, never a partial map.
+            # Replace its identity and provenance together, including nested addresses.
+            elif isinstance(value, Mapping) and not (
+                len(child) == 6
+                and child[0] == "placements"
+                and child[2] == "ports"
+                and child[4:] == ("connector", "target")
+            ):
                 if key not in dest or not isinstance(dest[key], dict):
                     if fill and key in dest:
                         continue
