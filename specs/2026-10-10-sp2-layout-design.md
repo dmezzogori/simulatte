@@ -1,7 +1,7 @@
 # SP2 Layout design
 
-- **Status:** revision 2, after [Fable review 1 and triage](reviews/2026-10-10-sp2-review-1.md);
-  draft for second review, no implementation authorized by this document.
+- **Status:** revision 3, after [Fable review 1](reviews/2026-10-10-sp2-review-1.md) and
+  [Codex review 2](reviews/2026-10-10-sp2-review-2.md); draft awaiting approval, no implementation authorized.
 - **Target:** Simulatte 0.14; based on released 0.13.0, commit `b1467709e88cf640155b83c037f06573fcddd875`.
 - **Branch:** `feature/sp2-layout`.
 - **Parent:** [approved global design](2026-10-08-studio-global-design.md), especially §4, C2 and §11;
@@ -89,8 +89,13 @@ prelude events are absent, not reconstructed. Attachment after activation remain
 
 The approved global design and decision log remain unchanged in this draft. Before implementation, accepted
 amendments get explicit entries there; rejected proposals must be removed or revised here and in the plan.
-No other contract change is intended. Fable review 1 is complete, with its findings triaged in the linked report.
-The second review and Davide's approval remain pending; revision is not approval of A1–A4 or implementation.
+**A5 — layout-bound mutation rules (explicit refinement to C2.7).** Once bound, static bays/station nodes,
+component graph references and graph traffic attributes are read-only. AGV movement accepts only the canonical
+enabled node objects (or None), never an equal copy. No-layout mutation behavior is unchanged (§10).
+
+No other contract change is intended. Two reviews are complete and triaged in the linked reports; revision 3
+addresses the second review's three findings. Targeted verification and Davide's approval remain pending;
+revision is not approval of A1–A5 or implementation.
 
 ## 4. Data model and public surface
 
@@ -295,7 +300,7 @@ test fails or the rounded point equals p, continue doubling. This construction c
 ray before rounding, with a measurable positive gap, not an ill-defined next float outside a curved boundary.
 Reject nonfinite candidates or exhaustion of 2,048 candidate steps with a precision diagnostic. Validate the
 outward direction against the local rectangle boundary before transforming; a corner direction must stay outside
-the rectangle's interior. There is no coincident approach alias, even at zero clearance: the default gap is
+the rectangle's interior. There is no approach-to-port alias, even at zero clearance: the default gap is
 0.01 m and participates in travel. The interior port→approach segment is exempt only from its owner's obstacle;
 every other obstacle is
 checked. The approach→network segment has no exemptions. This also applies when the owner is not an obstacle:
@@ -310,6 +315,15 @@ connector so port iteration order cannot change the result. No valid candidate i
 the port, candidate distances and blockers. Default connector direction is `both`; explicit direction is
 relative to port→network orientation. Port references resolve to the port node, not the approach point.
 
+If the final stored approach coordinates equal the selected base node's coordinates, alias the approach address
+to that base node and omit the zero-length outer edge. The positive-length port→base segment retains connector
+direction, enabled and speed-limit behavior; required-path checks see normal directed adjacency. Do this for
+automatic and explicit targets. There is one NodeBinding and one traffic resource for the shared node, with the
+base node's capacity as default. An override targeting an alias resolves to that same element and participates
+in the ordinary list-order/per-property precedence; it does not create a separate capacity or reservation.
+There is no outer-edge element in this case: an exact override on that absent edge is stale. This alias does not
+extend the owner exemption to unrelated network edges.
+
 Generate node ids using an injective, tagged encoding of canonical addresses that contains neither slash nor
 NUL and never ends in `-<digits>`, regardless of which entity kinds are registered later. Use
 `layout:` followed by lowercase hexadecimal UTF-8 canonical-JSON address bytes (sorted keys, compact separators,
@@ -320,9 +334,16 @@ overrides may address generator elements; generated entity ids are not user-name
 
 ### 6.5 Explicit network and network overrides
 
-`Explicit(graph)` snapshots definitions into layout-owned data at declaration. The caller's graph is never
-mutated. Explicit ids and arc endpoint pairs address its elements. Reject duplicate node ids, edges with foreign
-endpoints, conflicting duplicate directed edges and coincident endpoints connected by a zero-length arc.
+`Explicit(graph)` snapshots the graph's currently observable nodes and effective directed adjacency into
+layout-owned data at declaration. The caller's graph is never mutated. Explicit ids and arc endpoint pairs
+address its elements. Validate observable duplicate ids on distinct nodes, foreign endpoints and zero-length
+arcs. Existing LayoutGraph construction has already deduplicated identical nodes and overwritten duplicate
+directed edges; their discarded input history is unavailable and is not validated or reconstructed by Layout.
+For example, two originally supplied A→B arcs with speed limits 1 then 2 produce one effective edge with limit 2.
+The file schema's raw explicit node/arc lists are checked for duplicate ids and conflicting repeated directed
+edges before compilation, while that information is still available. No new retained-history mechanism or
+change to no-layout construction is required. Bidirectional arcs are expanded into effective directed edges
+when taking the snapshot, preserving each direction's actual attributes even if earlier definitions overlap.
 Nodes carry `(x,y,z=0)` in layout data; the runtime `Node` remains compatible with existing `(id,x,y)` calls.
 Store reverse traversal as directed adjacency; keep `Arc(bidirectional=...)` accepted for existing scripts.
 
@@ -458,11 +479,11 @@ selected its inputs. Equivalent JSON formatting does not change any hash.
 `reresolve_presentation(bundle, file_patch) -> PresentationResult` accepts stored data only. Reapply precedence,
 compare every recorded dependency query (including absence, membership, predicates and provenance eligibility)
 and graph-affecting structural predicates, then compute auto-layout/visual results using the saved static entity
-set and algorithm version. Return `requires_rerun` plus changed dependency paths if anything physical changed;
+set and algorithm version. Return `requires_rerun` plus changed dependency paths if anything physical changed.
 Evaluate stage absence/default queries against their saved frozen explicit-layer view, before auto fills a
 presentation gap; an auto default must neither satisfy an explicit physical read nor turn an unchanged absence
 into a false change. New file values at such paths still change that explicit-layer view and require a rerun.
-never execute stages, binders, routing callbacks or RNG. New unrecognized input fields fail schema validation;
+Never execute stages, binders, routing callbacks or RNG. New unrecognized input fields fail schema validation;
 new physical membership cannot be waved through because the previous set was empty. Pure presentation changes
 retain physical_hash, semantic digest and KPIs. Changed source/parameters are beyond this API and require a run.
 
@@ -585,7 +606,7 @@ Extend existing constructor keywords, retaining keyword-only structure:
 | Consumer | Accepted declaration input | Bound result |
 |---|---|---|
 | `AGV(initial_node=...)` | `Node | NodeRef | PortRef | None` | canonical Node or None |
-| `Warehouse(input_bays=..., output_bays=...)` | homogeneous sequences of Nodes or refs | lists of canonical Nodes |
+| `Warehouse(input_bays=..., output_bays=...)` | homogeneous sequences of Nodes or refs | immutable tuples in layout mode; existing lists without Layout |
 | `ChargingStation(node=...)`, `ParkingArea(node=...)` | Node or node/port ref | canonical Node |
 | `FleetCoordinator(graph=...)` | LayoutGraph or GraphRef | the one graph instance |
 | `ResourceBasedTrafficManager(graph=...)` | LayoutGraph or GraphRef | that same graph and resources |
@@ -595,6 +616,20 @@ pending ref; the prelude snapshot uses node=null until binding. Public `current_
 from intentionally unplaced: an unbound physical query raises, snapshot uses the private nullable field.
 Binding updates concrete state while still in the prelude. Warehouse bay and station getters similarly reject
 unresolved access. All handle references must belong to the component environment.
+
+**After binding, physical mutation has a defined boundary (A5).** In layout mode `AGV.current_node` remains a
+state-changing setter for movement, but accepts only None or the exact enabled Node instance in the bound graph.
+Reject foreign nodes and equal-looking copies before the existing equality fast path or any state/event change.
+Construction-time refs resolve to canonical nodes; callers moving an AGV later can obtain canonical nodes from
+its already-bound graph. Internal fleet travel and built-in relocation paths enforce the same validation.
+
+Layout-mode warehouse input/output bays are immutable tuples. Replacing those attributes, mutating their
+contents, assigning a station/parking node, or replacing a fleet/traffic manager graph after binding raises.
+The resolved graph's nodes, adjacency and attributes expose read-only views. Static bindings and graph metadata
+therefore cannot diverge from saved hashes through supported public operations; deliberate private-field
+tampering is unsupported. Bind-time installation uses internal methods before sealing. No-layout public lists,
+setters and construction behavior are preserved. Runtime AGV locations change through events and are not static
+bay/graph bindings; their movement does not rewrite the layout hash.
 
 Within a layout-backed environment, directly supplied Nodes/graphs to these constructors are errors, including
 an equal-looking copy of the resolved graph. Declare an explicit graph through `layout.set_network(Explicit(g))`
@@ -700,5 +735,5 @@ all closure and geometry work belongs to preparation. Run the existing no-subscr
 before merge; report preparation cost separately for 1k/10k-node synthetic layouts without inventing a new
 accepted release budget.
 
-Implementation starts only after review resolves A1–A4 and the written spec/plan are approved. The plan carries
+Implementation starts only after review resolves A1–A5 and the written spec/plan are approved. The plan carries
 task ownership and verification commands; this document carries behavior and contracts.
