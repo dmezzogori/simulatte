@@ -81,42 +81,79 @@ function readFloat(value: number): number | FloatValue {
 }
 
 /**
- * `@msgpack/msgpack` has no hook that tells a float encoding from an integer one, so the decoder's float readers are
- * wrapped. They are internal methods of the decoder (version 3.x); {@link checkFloatHook} fails loudly at the first
- * decode if they change.
+ * Two checks of the Python reader have no public hook in `@msgpack/msgpack`, so two internal methods of its decoder
+ * (version 3.1.3, pinned exactly; spec §11.4, ruling R33) are wrapped on a subclass:
+ *
+ * - `readF64`/`readF32`, to tell a float encoding from an integer one (ruling R31);
+ * - `decodeUtf8String`, which decodes keys and string values without rejecting invalid UTF-8: the bytes are checked
+ *   with a fatal decoder first, as Python's decoder rejects them.
+ *
+ * {@link checkHooks} fails loudly at the first decode if the methods change.
  */
 class WireDecoder extends Decoder<undefined> {}
-type FloatReaders = { readF32(): number; readF64(): number };
-const baseReaders = Decoder.prototype as unknown as FloatReaders;
-const wireReaders = WireDecoder.prototype as unknown as { readF32(): unknown; readF64(): unknown };
-wireReaders.readF32 = function (this: FloatReaders) {
-  return readFloat(baseReaders.readF32.call(this));
+interface Internals {
+  readF32(): number;
+  readF64(): number;
+  decodeUtf8String(byteLength: number, headerOffset: number): unknown;
+  bytes: Uint8Array;
+  pos: number;
+}
+const baseInternals = Decoder.prototype as unknown as Internals;
+const wireInternals = WireDecoder.prototype as unknown as {
+  readF32(): unknown;
+  readF64(): unknown;
+  decodeUtf8String(byteLength: number, headerOffset: number): unknown;
 };
-wireReaders.readF64 = function (this: FloatReaders) {
-  return readFloat(baseReaders.readF64.call(this));
+wireInternals.readF32 = function (this: Internals) {
+  return readFloat(baseInternals.readF32.call(this));
 };
-let floatHookChecked = false;
+wireInternals.readF64 = function (this: Internals) {
+  return readFloat(baseInternals.readF64.call(this));
+};
+const FATAL_UTF8 = new TextDecoder("utf-8", { fatal: true });
+wireInternals.decodeUtf8String = function (this: Internals, byteLength: number, headerOffset: number) {
+  const start = this.pos + headerOffset;
+  const end = start + byteLength;
+  if (end <= this.bytes.byteLength) {
+    for (let i = start; i < end; i++) {
+      if (this.bytes[i]! >= 0x80) {
+        FATAL_UTF8.decode(this.bytes.subarray(start, end)); // throws a TypeError for invalid UTF-8
+        break;
+      }
+    }
+  }
+  return baseInternals.decodeUtf8String.call(this, byteLength, headerOffset);
+};
+let hooksChecked = false;
 
-function checkFloatHook(): void {
-  if (floatHookChecked) return;
+function checkHooks(): void {
+  if (hooksChecked) return;
   const probe = new WireDecoder().decode(new Uint8Array([0x92, 0xcb, 0x3f, 0xf0, 0, 0, 0, 0, 0, 0, 0xca, 0x40, 0, 0, 0]));
   const [f64, f32] = probe as unknown[];
   if (!(f64 instanceof FloatValue && f64.value === 1 && f32 instanceof FloatValue && f32.value === 2)) {
     throw new Error("@msgpack/msgpack no longer reads floats through readF64/readF32: update wire.ts");
   }
-  floatHookChecked = true;
+  let utf8Checked = false;
+  try {
+    new WireDecoder().decode(new Uint8Array([0xa1, 0xff]));
+  } catch {
+    utf8Checked = true;
+  }
+  if (!utf8Checked) throw new Error("@msgpack/msgpack no longer decodes strings through decodeUtf8String: update wire.ts");
+  hooksChecked = true;
 }
 
 /**
  * Decode one MessagePack value into a wire value.
  *
  * Throws {@link WireError} for malformed or truncated input, trailing data, limit violations, values outside the
- * wire model (binary, extension types, timestamps, integers beyond +/-(2^53 - 1), map keys that are not strings) and
- * maps that repeat a key, as written or after unescaping (for example `"a"` and `"~a"`), like the Python reader.
+ * wire model (binary, extension types, timestamps, integers beyond +/-(2^53 - 1), map keys that are not strings,
+ * strings that are not valid UTF-8) and maps that repeat a key, as written or after unescaping (for example `"a"` and
+ * `"~a"`), like the Python reader.
  * Float-encoded integral numbers are recorded (see {@link isFloatAt}).
  */
 export function decodeWire(data: Uint8Array, limits: WireLimits): Wire {
-  checkFloatHook();
+  checkHooks();
   let keys = 0;
   const decoder = new WireDecoder({
     extensionCodec: new ExtensionCodec<undefined>(), // no extension types, not even the timestamp

@@ -947,6 +947,11 @@ def _cursor(seq: bytes, t: bytes = b"\xcb" + struct.pack(">d", 0.0)) -> bytes:
     return b"\x92" + t + seq
 
 
+def _cell_with(pair: bytes) -> bytes:
+    """A state whose entity ``cell`` has ``$kind`` and one more key-value pair given as raw bytes."""
+    return _raw_map(("cell", None))[:-1] + b"\x82" + _raw_map(("$kind", "cell"))[1:] + pair
+
+
 _HOSTILE_INITIAL = {
     "duplicate_key": _initial(_entity(("$kind", "cell"), ("value", 1), ("value", 999))),
     "integer_key": _initial(_entity(("$kind", "cell"), (1, 999))),
@@ -958,6 +963,8 @@ _HOSTILE_INITIAL = {
     "fractional_seq": _initial(b"\x80", _cursor(b"\xcb" + struct.pack(">d", 0.5))),
     "string_time": _initial(b"\x80", _cursor(b"\xff", t=b"\xa10")),
     "cursor_not_pair": _initial(b"\x80", b"\x91\xff"),
+    "utf8_value": _initial(_cell_with(b"\xa5value\xa1\xff")),  # the value "\xff" is not UTF-8
+    "utf8_key": _initial(_cell_with(b"\xa1\xff\x01")),  # the key "\xff" is not UTF-8
 }
 
 

@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { TraceCorrupted, openTrace } from "../src/index";
 import { WireError, decodeWire } from "../src/wire";
-import { RawMap, buildTrace, f64, pack } from "./build";
+import { Raw, RawMap, buildTrace, f64, pack } from "./build";
 
 const LIMITS = { maxDepth: 64, maxLen: 1000 };
 
@@ -29,12 +29,32 @@ describe("map keys", () => {
   });
 });
 
+describe("strings", () => {
+  const invalid = new Raw(new Uint8Array([0xa1, 0xff])); // a one-byte string that is not UTF-8
+
+  it.each([
+    ["value", new RawMap([["value", invalid]])],
+    ["key", new RawMap([[invalid, 1]])],
+    ["array item", ["ok", invalid]],
+    ["overlong encoding", [new Raw(new Uint8Array([0xa2, 0xc0, 0x80]))]],
+    ["surrogate", [new Raw(new Uint8Array([0xa3, 0xed, 0xa0, 0x80]))]],
+  ])("rejects invalid UTF-8 in a %s, like the Python reader", (_, value) => {
+    expect(() => decodeWire(pack(value), LIMITS)).toThrow(WireError);
+  });
+
+  it("decodes valid UTF-8", () => {
+    expect(decodeWire(pack({ "clé": ["naïve", "𝄞", ""] }), LIMITS)).toEqual({ "clé": ["naïve", "𝄞", ""] });
+  });
+});
+
 describe("hostile records", () => {
   const initial = (state: unknown, cursor: unknown = [0, -1]) => new RawMap([["state", state], ["cursor", cursor], ["manifest", {}]]);
 
   it.each([
     ["duplicate key", initial({ cell: new RawMap([["$kind", "cell"], ["value", 1], ["value", 999]]) })],
     ["integer key", initial({ cell: new RawMap([["$kind", "cell"], [1, 999]]) })],
+    ["string that is not UTF-8", initial({ cell: new RawMap([["$kind", "cell"], ["value", new Raw(new Uint8Array([0xa1, 0xff]))]]) })],
+    ["key that is not UTF-8", initial({ cell: new RawMap([["$kind", "cell"], [new Raw(new Uint8Array([0xa1, 0xff])), 1]]) })],
     ["state that is a list", initial([])],
     ["entity that is not a map", initial({ cell: 5 })],
     ["entity without a kind", initial({ cell: { value: 1 } })],
