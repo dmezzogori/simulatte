@@ -80,7 +80,10 @@ Use LumsCor when the researcher wants to study **WIP-limiting behavior** or
 from simulatte.builders import build_lumscor_system
 
 psp, servers, shopfloor, router, _ = build_lumscor_system(
-    env=env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2,
+    env=env,
+    check_timeout=10.0,
+    wl_norm_level=5.0,
+    allowance_factor=2,
 )
 ```
 
@@ -106,7 +109,8 @@ Key parameter to vary:
 from simulatte.builders import build_slar_system
 
 psp, servers, shopfloor, router, _ = build_slar_system(
-    env=env, allowance_factor=3.0,
+    env=env,
+    allowance_factor=3.0,
 )
 ```
 
@@ -129,7 +133,9 @@ parameters to vary:
 from simulatte.builders import build_draco_system
 
 psp, servers, shopfloor, router, _ = build_draco_system(
-    env=env, wip_target=8, loop_target=4,
+    env=env,
+    wip_target=8,
+    loop_target=4,
 )
 ```
 
@@ -161,7 +167,10 @@ from simulatte.builders import build_lumscor_system
 
 env = Environment(seed=42)  # always seed: streams are derived from it
 psp, servers, shopfloor, router, _ = build_lumscor_system(
-    env=env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2,
+    env=env,
+    check_timeout=10.0,
+    wl_norm_level=5.0,
+    allowance_factor=2,
 )
 env.run(until=10_000)
 ```
@@ -213,13 +222,13 @@ Simulatte ships a full catalog in `simulatte.dispatching_rules`:
 
 ```python
 from simulatte.dispatching_rules import (
-    shortest_processing_time,    # SPT
-    earliest_due_date,           # EDD
-    operational_due_date,        # ODD
+    shortest_processing_time,  # SPT
+    earliest_due_date,  # EDD
+    operational_due_date,  # ODD
     modified_operational_due_date,  # MODD
-    critical_ratio,              # CR
-    first_come_first_served,     # FCFS
-    planned_slack_time,          # PST factory — call with allowance=k
+    critical_ratio,  # CR
+    first_come_first_served,  # FCFS
+    planned_slack_time,  # PST factory — call with allowance=k
     slack_per_remaining_operation,  # S/OPN factory — call with allowance=k
 )
 
@@ -260,6 +269,7 @@ Both styles can coexist in the same hook list and execute in registration order.
 def reorder_queue(job, server, op_index, processing_time):
     server.sort_queue()
 
+
 # Generator hook: consumes simulation time
 def setup_time(job, server, op_index, processing_time):
     delay = 2.0 if job.sku == "COMPLEX" else 0.5
@@ -278,10 +288,10 @@ shopfloor or PSP it is being attached to.
 ### Post-construction hook registration
 
 ```python
-shopfloor.on_before_operation(hook)      # same signature as constructor hooks
-shopfloor.on_after_operation(hook)       # sync or generator, appended in order
-shopfloor.on_job_finished(callback)      # callback(job) -> None
-shopfloor.on_processing_end(callback)    # callback(job, server) -> None
+shopfloor.on_before_operation(hook)  # same signature as constructor hooks
+shopfloor.on_after_operation(hook)  # sync or generator, appended in order
+shopfloor.on_job_finished(callback)  # callback(job) -> None
+shopfloor.on_processing_end(callback)  # callback(job, server) -> None
 ```
 
 `on_processing_end` fires after the server is released (servers_exit_at is
@@ -299,14 +309,14 @@ No `env.process()` priming is needed.
 ### PSP helpers
 
 ```python
-psp.release(job)              # remove(job=job) + shopfloor.add(job) in one call
+psp.release(job)  # remove(job=job) + shopfloor.add(job) in one call
 psp.jobs_starting_at(server)  # jobs whose first routing server matches
 ```
 
 ### Server helpers
 
 ```python
-server.is_idle       # True when no users and no queue
+server.is_idle  # True when no users and no queue
 server.current_jobs  # tuple of jobs occupying active server slots
 ```
 
@@ -326,6 +336,7 @@ class MyDispatcher:
         if job.servers[0].is_idle:
             psp.release(job)
 
+
 d = MyDispatcher()
 shopfloor.attach_dispatcher(d, psp=psp)
 ```
@@ -338,10 +349,15 @@ Use `Runner` for stochastic experiments across multiple random seeds.
 from simulatte.runner import Runner
 from simulatte.builders import build_lumscor_system
 
+
 def builder(*, env):
     return build_lumscor_system(
-        env=env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2,
+        env=env,
+        check_timeout=10.0,
+        wl_norm_level=5.0,
+        allowance_factor=2,
     )
+
 
 def extract(system):
     psp, servers, shopfloor, router, _policy = system
@@ -351,6 +367,7 @@ def extract(system):
         "tardy_pct": sum(1 for j in shopfloor.jobs_done if j.late) / len(shopfloor.jobs_done),
         "avg_util": sum(s.utilization_rate for s in servers) / len(servers),
     }
+
 
 runner = Runner(
     builder=builder,
@@ -382,23 +399,24 @@ from simulatte.experimental.gymnasium import SimulatteEnv
 from gymnasium import spaces
 import numpy as np
 
+
 class MyEnv(SimulatteEnv):
     def __init__(self):
         super().__init__()
         self.observation_space = spaces.Box(low=0, high=np.inf, shape=(4,), dtype=np.float64)
         self.action_space = spaces.Discrete(2)
 
-    def setup(self, *, seed, options):       # build fresh simulation
+    def setup(self, *, seed, options):  # build fresh simulation
         ...
-    def get_observation(self):               # extract state → numpy array
+    def get_observation(self):  # extract state → numpy array
         ...
-    def apply_action(self, action):          # apply action + advance sim
+    def apply_action(self, action):  # apply action + advance sim
         ...
-    def compute_reward(self, action):        # return float reward
+    def compute_reward(self, action):  # return float reward
         ...
-    def is_terminated(self):                 # natural episode end?
+    def is_terminated(self):  # natural episode end?
         ...
-    def is_truncated(self):                  # time budget exceeded?
+    def is_truncated(self):  # time budget exceeded?
         ...
 ```
 
@@ -471,8 +489,12 @@ from simulatte.collectors import ShopFloorTimeSeries, ServerTimeSeries
 ts = ShopFloorTimeSeries(shopfloor).attach(env)
 queue = ServerTimeSeries(servers[0]).attach(env)
 env.run(until=10_000)
-ts.plot_wip(); ts.plot_throughput(); ts.plot_lateness(); ts.plot_job_count()
-queue.plot_qt(); queue.plot_ut()
+ts.plot_wip()
+ts.plot_throughput()
+ts.plot_lateness()
+ts.plot_job_count()
+queue.plot_qt()
+queue.plot_ut()
 ```
 
 ### Window-aware KPIs

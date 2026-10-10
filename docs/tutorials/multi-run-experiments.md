@@ -14,8 +14,10 @@ Goal: run the same stochastic system multiple times (different seeds) and collec
 from simulatte.builders import build_immediate_release_system
 from simulatte.runner import Runner
 
+
 def builder(*, env):
     return build_immediate_release_system(env=env)
+
 
 def extract(system):
     _psp, servers, shopfloor, _router, _policy = system
@@ -25,6 +27,7 @@ def extract(system):
         "avg_utilization": avg_util,
         "avg_time_in_system": shopfloor.average_time_in_system,
     }
+
 
 runner = Runner(
     builder=builder,

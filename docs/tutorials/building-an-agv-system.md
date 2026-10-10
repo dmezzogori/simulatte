@@ -24,16 +24,16 @@ STORE_OUT(0,0) -- C1(10,0) -- C2(20,0) -- LINE_IN(30,0)
 from simulatte.intralogistics import Arc, LayoutGraph, Node
 
 store_out = Node(id="STORE_OUT", x=0.0, y=0.0)
-c1        = Node(id="C1",        x=10.0, y=0.0)
-c2        = Node(id="C2",        x=20.0, y=0.0)
-line_in   = Node(id="LINE_IN",   x=30.0, y=0.0)
-park_node = Node(id="PARK",      x=10.0, y=10.0)
+c1 = Node(id="C1", x=10.0, y=0.0)
+c2 = Node(id="C2", x=20.0, y=0.0)
+line_in = Node(id="LINE_IN", x=30.0, y=0.0)
+park_node = Node(id="PARK", x=10.0, y=10.0)
 
 arcs = [
-    Arc(source=store_out, target=c1,      bidirectional=True),
-    Arc(source=c1,        target=c2,      bidirectional=True),
-    Arc(source=c2,        target=line_in, bidirectional=True),
-    Arc(source=c1,        target=park_node, bidirectional=True),
+    Arc(source=store_out, target=c1, bidirectional=True),
+    Arc(source=c1, target=c2, bidirectional=True),
+    Arc(source=c2, target=line_in, bidirectional=True),
+    Arc(source=c1, target=park_node, bidirectional=True),
 ]
 graph = LayoutGraph([store_out, c1, c2, line_in, park_node], arcs)
 ```

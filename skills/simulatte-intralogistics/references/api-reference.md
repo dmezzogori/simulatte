@@ -32,12 +32,12 @@ class LayoutGraph:
     def __init__(self, nodes: Iterable[Node], arcs: Iterable[Arc]) -> None: ...
 
     @property
-    def nodes(self) -> tuple[Node, ...]: ...   # insertion order
+    def nodes(self) -> tuple[Node, ...]: ...  # insertion order
     def neighbors(self, node: Node) -> list[Node]: ...
     def arc_between(self, source: Node, target: Node) -> Arc | None: ...
     def distance(self, source: Node, target: Node) -> float: ...  # Euclidean, requires arc
     @staticmethod
-    def path_distance(path: list[Node]) -> float: ...              # sum of segments
+    def path_distance(path: list[Node]) -> float: ...  # sum of segments
     def shortest_path(self, source: Node, target: Node) -> list[Node] | None: ...  # Dijkstra
 ```
 
@@ -46,6 +46,7 @@ class LayoutGraph:
 ```python
 class DijkstraPlanner:
     def plan(self, graph, origin, destination, avoid=None) -> list[Node] | None: ...
+
 
 class AStarPlanner:
     def plan(self, graph, origin, destination, avoid=None) -> list[Node] | None: ...
@@ -73,14 +74,19 @@ class SKU:
 ```python
 class Warehouse:
     def __init__(
-        self, *, env, name: str,
-        input_bays: list[Node],    # nodes where AGVs deliver
-        output_bays: list[Node],   # nodes where AGVs pick up
-        n_slots: int,              # concurrent pick/put operations
+        self,
+        *,
+        env,
+        name: str,
+        input_bays: list[Node],  # nodes where AGVs deliver
+        output_bays: list[Node],  # nodes where AGVs pick up
+        n_slots: int,  # concurrent pick/put operations
         products: list[SKU],
         initial_inventory: dict[SKU, int] | None = None,
         pick_time: SamplerDescription | float | Callable[[SKU, int], float],  # streams "<name>/pick", "<name>/put"
-        put_time: SamplerDescription | float | Callable[[SKU, int], float],   # number/description: managed; callable: opaque
+        put_time: SamplerDescription
+        | float
+        | Callable[[SKU, int], float],  # number/description: managed; callable: opaque
     ) -> None: ...
 
     def get_inventory_level(self, sku: SKU) -> float: ...
@@ -93,7 +99,7 @@ class Warehouse:
     total_picks: int
     total_puts: int
     average_pick_time: float  # property
-    average_put_time: float   # property
+    average_put_time: float  # property
 
     # Inventory access (for seeding time-series)
     inventory: dict[SKU, simpy.Container]
@@ -126,10 +132,10 @@ class AGVType:
     volume_capacity: float
     compatibility_fn: Callable[[Any], bool] = lambda sku: True
     depletion_fn: Callable[[float, float, float], float] | None = None  # (distance, load_weight, speed) -> energy
-    recharge_fn: Callable[[float, float], float] | None = None          # (current_level, target_level) -> time
-    low_battery_threshold: float = 0.2       # fraction, triggers charging after mission
-    critical_battery_threshold: float = 0.05 # fraction, triggers mid-trip charging
-    load_time: SamplerDescription | float | Callable[[], float] = 0.0    # bound per AGV: "<agv id>/load"
+    recharge_fn: Callable[[float, float], float] | None = None  # (current_level, target_level) -> time
+    low_battery_threshold: float = 0.2  # fraction, triggers charging after mission
+    critical_battery_threshold: float = 0.05  # fraction, triggers mid-trip charging
+    load_time: SamplerDescription | float | Callable[[], float] = 0.0  # bound per AGV: "<agv id>/load"
     unload_time: SamplerDescription | float | Callable[[], float] = 0.0  # bound per AGV: "<agv id>/unload"
 ```
 
@@ -139,7 +145,9 @@ Default depletion: `distance * 1.0`. Default recharge: `(target - current) * 1.0
 
 ```python
 class AGV:
-    def __init__(self, *, env, agv_type: AGVType, agv_id: str | None = None, initial_node: Node | None = None) -> None: ...
+    def __init__(
+        self, *, env, agv_type: AGVType, agv_id: str | None = None, initial_node: Node | None = None
+    ) -> None: ...
 
     agv_id: str
     agv_type: AGVType
@@ -149,7 +157,7 @@ class AGV:
     state: AGVState  # property
 
     def can_carry(self, sku: SKU, quantity: int) -> bool: ...  # checks weight AND volume AND compatibility
-    def utilization(self) -> float: ...          # fraction of time in utilized states
+    def utilization(self) -> float: ...  # fraction of time in utilized states
     def state_percentage(self, state) -> float: ...
     def time_allocation(self) -> dict[AGVState, float]: ...
 ```
@@ -164,7 +172,7 @@ class TrapezoidalProfile:
         acceleration: float,
         deceleration: float,
         battery_degradation_fn: Callable[[float], float] | None = None,  # battery_pct -> speed_factor
-        load_speed_factor_fn: Callable[[float], float] | None = None,    # load_weight -> speed_factor
+        load_speed_factor_fn: Callable[[float], float] | None = None,  # load_weight -> speed_factor
     ) -> None: ...
 
     def travel_time(self, distance, load_weight=0.0, battery_level=1.0, speed_limit=None) -> float: ...
@@ -176,14 +184,21 @@ Default battery degradation: `lambda level: level` (proportional). Default load 
 
 ```python
 class Battery:
-    def __init__(self, capacity, initial_level=None, depletion_fn=None, recharge_fn=None,
-                 low_threshold=0.2, critical_threshold=0.05) -> None: ...
+    def __init__(
+        self,
+        capacity,
+        initial_level=None,
+        depletion_fn=None,
+        recharge_fn=None,
+        low_threshold=0.2,
+        critical_threshold=0.05,
+    ) -> None: ...
 
     capacity: float
     level: float
-    level_pct: float    # property, 0-1
-    is_low: bool        # property, level_pct <= low_threshold
-    is_critical: bool   # property, level_pct <= critical_threshold
+    level_pct: float  # property, 0-1
+    is_low: bool  # property, level_pct <= low_threshold
+    is_critical: bool  # property, level_pct <= critical_threshold
 
     def estimate_energy(self, distance, load_weight, speed) -> float: ...
     def deplete(self, distance, load_weight, speed) -> None: ...
@@ -197,10 +212,19 @@ class Battery:
 
 ```python
 class ChargingStation:
-    def __init__(self, *, env, name: str, node: Node, n_slots: int,
-                 recharge_time=None,  # number | description | (current_level, target_level) -> time; stream "<name>/recharge"
-                 supports_swap=False, swap_pool_size=0,
-                 swap_time=0.0, swap_recharge_time=0.0) -> None: ...
+    def __init__(
+        self,
+        *,
+        env,
+        name: str,
+        node: Node,
+        n_slots: int,
+        recharge_time=None,  # number | description | (current_level, target_level) -> time; stream "<name>/recharge"
+        supports_swap=False,
+        swap_pool_size=0,
+        swap_time=0.0,
+        swap_recharge_time=0.0,
+    ) -> None: ...
 
     node: Node
     total_recharges: int
@@ -238,7 +262,7 @@ class OrderStatus(Enum):
     COMPLETED = auto()
     FAILED = auto()
     CANCELLED = auto()
-    PENDING_ACTIVATION = auto()   # submitted before the environment activated
+    PENDING_ACTIVATION = auto()  # submitted before the environment activated
 ```
 
 ### TransferOrder
@@ -251,7 +275,7 @@ class TransferOrder:
     origin: Warehouse
     destination: Warehouse
     created_at: float
-    id: str = field(default=None, init=False)   # None until attached; then "order-<n>"
+    id: str = field(default=None, init=False)  # None until attached; then "order-<n>"
     due_date: float | None = None
     priority: float = 0.0
     status: OrderStatus = OrderStatus.PENDING
@@ -269,8 +293,9 @@ class TransferOrder:
 
 ```python
 class ResourceBasedTrafficManager:
-    def __init__(self, *, graph, env, node_capacity: int = 1,
-                 deadlock_timeout: float = 30.0, priority_fn=None) -> None: ...
+    def __init__(
+        self, *, graph, env, node_capacity: int = 1, deadlock_timeout: float = 30.0, priority_fn=None
+    ) -> None: ...
 ```
 
 Creates a `simpy.Resource` per node. `check_path` rejects paths sharing
@@ -290,34 +315,39 @@ No-op. All paths are feasible, no resource acquisition. Default when
 ```python
 class FleetCoordinator:
     def __init__(
-        self, *, env, graph: LayoutGraph, fleet: list[AGV],
+        self,
+        *,
+        env,
+        graph: LayoutGraph,
+        fleet: list[AGV],
         warehouses: list[Warehouse],
         charging_stations: list[ChargingStation],
         parking_areas: list[ParkingArea] | None = None,
-        traffic_manager: TrafficManager | None = None,       # default: FreeTrafficManager
-        path_planner: PathPlanner | None = None,              # default: DijkstraPlanner
-        dispatch_strategy: DispatchStrategy | None = None,    # default: NearestIdleStrategy
+        traffic_manager: TrafficManager | None = None,  # default: FreeTrafficManager
+        path_planner: PathPlanner | None = None,  # default: DijkstraPlanner
+        dispatch_strategy: DispatchStrategy | None = None,  # default: NearestIdleStrategy
         repositioning_policy: RepositioningPolicy | None = None,  # default: StayInPlace
-        load_recovery_strategy: LoadRecoveryStrategy | None = None, # default: ReturnToOrigin
-        default_metrics: bool = True,                         # attach OrderEMACollector as self.metrics
+        load_recovery_strategy: LoadRecoveryStrategy | None = None,  # default: ReturnToOrigin
+        default_metrics: bool = True,  # attach OrderEMACollector as self.metrics
         on_low_battery: Callable[[AGV], ProcessGenerator | None] | None = None,
         max_dispatch_retries: int = 10,
         pending_retry_delay: float = 1.0,
-        name: str | None = None,                              # entity id (default fleet-<n>)
+        name: str | None = None,  # entity id (default fleet-<n>)
         label: str | None = None,
     ) -> None: ...
 
     # Order management
     def create_order(self, *, sku, quantity, origin, destination, **kwargs) -> TransferOrder: ...
     # Attaches the order at once (id "order-<n>"); there is no id= argument.
-    def submit(self, order) -> None: ...   # deferred until activation if called before env.run()/activate()
-    def cancel(self, order) -> None: ...   # likewise; deferred orders report PENDING_ACTIVATION
+    def submit(self, order) -> None: ...  # deferred until activation if called before env.run()/activate()
+    def cancel(self, order) -> None: ...  # likewise; deferred orders report PENDING_ACTIVATION
 
     # Replenishment
     def add_replenishment_policy(self, policy, warehouse, check_interval=None) -> None: ...
 
     # Fleet info
-    fleet_utilization: float                          # property, average across fleet
+    fleet_utilization: float  # property, average across fleet
+
     def fleet_time_allocation(self) -> dict[AGVState, float]: ...
     def agv_report(self) -> list[dict[str, object]]: ...
 
@@ -340,10 +370,13 @@ class FleetCoordinator:
 ```python
 class NearestIdleStrategy:
     def select(self, order, fleet, graph) -> AGV | None: ...
+
     # Closest idle AGV by graph path distance. Tie-breaks by agv_id.
+
 
 class RoundRobinStrategy:
     def select(self, order, fleet, graph) -> AGV | None: ...
+
     # Cycles through idle AGVs via internal cursor.
 ```
 
@@ -352,10 +385,13 @@ class RoundRobinStrategy:
 ```python
 class StayInPlace:
     def reposition(self, agv, context) -> Node | None: ...
+
     # Returns None (AGV stays).
+
 
 class NearestParkingPolicy:
     def reposition(self, agv, context) -> Node | None: ...
+
     # Returns nearest parking area node with available capacity.
 ```
 
@@ -365,6 +401,7 @@ class NearestParkingPolicy:
 class ReorderPointPolicy:
     def __init__(self, thresholds: dict[SKU, int], reorder_quantity: dict[SKU, int]) -> None: ...
     def check(self, warehouse, all_warehouses, in_transit_orders) -> list[TransferOrder]: ...
+
     # Returns orders for SKUs below threshold (adjusted for in-transit).
     # Source: warehouse with highest stock (excluding monitored one).
 ```
@@ -374,10 +411,13 @@ class ReorderPointPolicy:
 ```python
 class ReturnToOrigin:
     def recover(self, order, agv, coordinator) -> ProcessGenerator: ...
+
     # Sets order to PENDING, coordinator returns cargo physically.
+
 
 class ResumeDelivery:
     def recover(self, order, agv, coordinator) -> ProcessGenerator: ...
+
     # Sets order to IN_TRANSIT, coordinator re-attempts delivery.
 ```
 
@@ -394,11 +434,11 @@ lists them.
 class OrderEMACollector(Collector):
     def __init__(self, fleet: FleetCoordinator, alpha: float = 0.01) -> None: ...
 
-    ema_fulfillment_time: float | None   # created_at -> delivered_at
-    ema_dispatch_delay: float | None     # created_at -> dispatched_at
+    ema_fulfillment_time: float | None  # created_at -> delivered_at
+    ema_dispatch_delay: float | None  # created_at -> dispatched_at
     ema_travel_time_empty: float | None  # dispatched_at -> picked_at
-    ema_travel_time_loaded: float | None # picked_at -> delivered_at
-    ema_late_orders: float | None        # fraction (0-1)
+    ema_travel_time_loaded: float | None  # picked_at -> delivered_at
+    ema_late_orders: float | None  # fraction (0-1)
 ```
 
 First observation initializes EMA directly (no bias toward 0). Every coordinator attaches
@@ -414,7 +454,7 @@ class FleetTimeSeries(Collector):
     fleet_utilization_ts: list[tuple[float, float]]
     pending_orders_ts: list[tuple[float, int]]
     throughput_ts: list[tuple[float, int]]
-    inventory_ts: dict[str, list[tuple[float, dict[str, float]]]]   # warehouse id -> (t, {sku id: level})
+    inventory_ts: dict[str, list[tuple[float, dict[str, float]]]]  # warehouse id -> (t, {sku id: level})
 
     def plot_fleet_utilization(self) -> None: ...
     def plot_pending_orders(self) -> None: ...
@@ -447,7 +487,7 @@ def build_simple_system(
     products: list[SKU] | None = None,
     initial_inventory_a: dict[SKU, int] | None = None,
     initial_inventory_b: dict[SKU, int] | None = None,
-    prefix: str = "",                    # entity id prefix, to host several systems in one env
+    prefix: str = "",  # entity id prefix, to host several systems in one env
 ) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, LayoutGraph]: ...
 ```
 

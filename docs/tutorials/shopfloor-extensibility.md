@@ -19,8 +19,10 @@ from simulatte.job import ProductionJob
 from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
 
+
 def dispatch_hook(job, server, op_index, processing_time) -> None:
     server.sort_queue()
+
 
 env = Environment()
 shopfloor = ShopFloor(env=env, on_after_operation=dispatch_hook)
@@ -35,8 +37,10 @@ from simulatte.server import Server
 from simulatte.shopfloor import ShopFloor
 from simulatte.typing import ProcessGenerator
 
+
 def setup_hook(job, server, op_index, processing_time) -> ProcessGenerator:
     yield server.env.timeout(2.0)  # fixed setup time
+
 
 env = Environment()
 shopfloor = ShopFloor(env=env, on_before_operation=setup_hook)
@@ -258,8 +262,10 @@ Use `on_job_finished` to run synchronous callbacks when a job completes its full
 ```python
 finished = []
 
+
 def on_finished(job) -> None:
     finished.append(job)
+
 
 shopfloor = ShopFloor(env=env, on_job_finished=on_finished)
 ```

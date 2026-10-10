@@ -6,19 +6,26 @@ Import everything from a single namespace:
 
 ```python
 from simulatte.intralogistics import (
-    Node, Arc, LayoutGraph,          # spatial layout
-    SKU, Warehouse,                  # products and storage
-    AGV, AGVType, TrapezoidalProfile,# vehicle fleet
-    FleetCoordinator, TransferOrder, # orchestration
-    ChargingStation, ParkingArea,    # facilities
-    NearestIdleStrategy,             # dispatch policies
+    Node,
+    Arc,
+    LayoutGraph,  # spatial layout
+    SKU,
+    Warehouse,  # products and storage
+    AGV,
+    AGVType,
+    TrapezoidalProfile,  # vehicle fleet
+    FleetCoordinator,
+    TransferOrder,  # orchestration
+    ChargingStation,
+    ParkingArea,  # facilities
+    NearestIdleStrategy,  # dispatch policies
     RoundRobinStrategy,
-    NearestParkingPolicy,            # repositioning
-    ReorderPointPolicy,              # replenishment
-    ReturnToOrigin,                  # load recovery
-    OrderEMACollector,               # order-level metrics
-    FleetTimeSeries,                 # time-series + plots
-    FleetKPIs,                       # window-aware KPIs
+    NearestParkingPolicy,  # repositioning
+    ReorderPointPolicy,  # replenishment
+    ReturnToOrigin,  # load recovery
+    OrderEMACollector,  # order-level metrics
+    FleetTimeSeries,  # time-series + plots
+    FleetKPIs,  # window-aware KPIs
 )
 ```
 

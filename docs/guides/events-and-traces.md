@@ -6,7 +6,16 @@ The stable entry points are exported from the top-level package:
 
 ```python
 from simulatte import (
-    Collector, DomainEvent, Environment, Event, KPI, ObserverEvent, Provenance, Runner, Trace, TraceRecorder,
+    Collector,
+    DomainEvent,
+    Environment,
+    Event,
+    KPI,
+    ObserverEvent,
+    Provenance,
+    Runner,
+    Trace,
+    TraceRecorder,
 )
 ```
 
@@ -98,7 +107,7 @@ Names must not contain `/` or a NUL character, and must not look like a generate
 
 ```python
 env = Environment(seed=1)
-print(env.rng("demo").random())   # 0.2604417134493162
+print(env.rng("demo").random())  # 0.2604417134493162
 print(env.rng("demo") is env.rng("demo"))  # True, cached per name
 ```
 
@@ -121,7 +130,7 @@ order = coordinator.create_order(sku=SKU("A", weight=1.0, volume=0.1), quantity=
 coordinator.submit(order)
 print(order.id, order.status)  # order-0 OrderStatus.PENDING_ACTIVATION
 env.activate()
-print(order.status)            # OrderStatus.DISPATCHED
+print(order.status)  # OrderStatus.DISPATCHED
 ```
 
 If you drive the simulation manually with `env.step()` instead of `env.run()`, call `env.activate()` first; `step()` does not activate.
@@ -141,8 +150,8 @@ env.enable_digest()
 build_immediate_release_system(env=env, scenario=Scenario(n_servers=3))
 env.run(until=200)
 
-print(env.fingerprint().digest)   # hex string; equal for equal trajectories
-print(env.manifest().complete)    # True
+print(env.fingerprint().digest)  # hex string; equal for equal trajectories
+print(env.manifest().complete)  # True
 ```
 
 `run(until=<simpy.Event>)` makes the manifest incomplete, because the stop cannot be described by it. CPython and PyPy give the same digest for the same seeded run (float sums are exactly rounded), but the library only guarantees it for the tested workloads; the manifest records the interpreter so a mismatch can be explained.
@@ -178,14 +187,14 @@ Events are grouped into chunks sealed at 10,000 events, 1 MiB, 1 second of wall-
 from simulatte import Trace
 
 trace = Trace.open("run.simtrace")
-print(trace.level, trace.outcome, trace.truncated)   # full completed False
-start, end = trace.cursor_range                      # cursors are (t, seq) pairs
+print(trace.level, trace.outcome, trace.truncated)  # full completed False
+start, end = trace.cursor_range  # cursors are (t, seq) pairs
 print(trace.manifest["seed"], trace.fingerprint.digest[:12])
 
-state = trace.state_at((100.0, 10**9))               # entity states after all events at t <= 100
+state = trace.state_at((100.0, 10**9))  # entity states after all events at t <= 100
 print(state["wc-0"]["queue"])
 
-for event in trace.events(start, (1.0, 10**9)):      # events with start < (t, seq) <= end
+for event in trace.events(start, (1.0, 10**9)):  # events with start < (t, seq) <= end
     print(event.seq, event.type, event.t)
 ```
 

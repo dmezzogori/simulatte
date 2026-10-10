@@ -76,11 +76,22 @@ For custom layouts, follow this sequence:
 ```python
 from simulatte.environment import Environment
 from simulatte.intralogistics import (
-    Node, Arc, LayoutGraph, SKU, Warehouse,
-    AGV, AGVType, TrapezoidalProfile,
-    FleetCoordinator, ParkingArea, ChargingStation,
-    NearestIdleStrategy, NearestParkingPolicy,
-    OrderEMACollector, FleetTimeSeries, FleetKPIs,
+    Node,
+    Arc,
+    LayoutGraph,
+    SKU,
+    Warehouse,
+    AGV,
+    AGVType,
+    TrapezoidalProfile,
+    FleetCoordinator,
+    ParkingArea,
+    ChargingStation,
+    NearestIdleStrategy,
+    NearestParkingPolicy,
+    OrderEMACollector,
+    FleetTimeSeries,
+    FleetKPIs,
 )
 ```
 
@@ -93,9 +104,9 @@ See `references/api-reference.md` for all constructor signatures.
 Nodes have string IDs and (x, y) coordinates. Distances are Euclidean.
 
 ```python
-wh_in  = Node(id="WH_IN",  x=0,  y=0)
+wh_in = Node(id="WH_IN", x=0, y=0)
 wh_out = Node(id="WH_OUT", x=20, y=0)
-c1     = Node(id="C1",     x=40, y=0)
+c1 = Node(id="C1", x=40, y=0)
 
 arcs = [
     Arc(wh_in, wh_out, bidirectional=True),
@@ -142,9 +153,9 @@ Optional functions degrade speed based on battery level and load weight.
 
 ```python
 speed = TrapezoidalProfile(
-    max_speed=2.0,        # m/s
-    acceleration=0.8,     # m/s²
-    deceleration=1.0,     # m/s²
+    max_speed=2.0,  # m/s
+    acceleration=0.8,  # m/s²
+    deceleration=1.0,  # m/s²
     battery_degradation_fn=lambda level: 1.0 if level >= 0.3 else 0.7 + level,
     load_speed_factor_fn=lambda weight: max(0.5, 1.0 - weight / 300),
 )
@@ -164,7 +175,7 @@ agv_type = AGVType(
     depletion_fn=lambda distance, load_weight, speed: distance * 0.02 * (1.0 + load_weight / 200),
     low_battery_threshold=0.2,
     critical_battery_threshold=0.05,
-    load_time=12.0,       # number, distribution (Uniform(8, 16)) or callable; bound to <agv id>/load
+    load_time=12.0,  # number, distribution (Uniform(8, 16)) or callable; bound to <agv id>/load
     unload_time=10.0,
 )
 ```
@@ -283,9 +294,9 @@ data from the event bus and provides:
 
 ```python
 ts.plot_fleet_utilization()  # fleet-wide utilization over time
-ts.plot_throughput()         # cumulative completed orders
-ts.plot_pending_orders()     # queue depth over time
-ts.plot_inventory()          # per-SKU inventory levels per warehouse
+ts.plot_throughput()  # cumulative completed orders
+ts.plot_pending_orders()  # queue depth over time
+ts.plot_inventory()  # per-SKU inventory levels per warehouse
 ```
 
 `inventory_ts` is keyed by warehouse id with SKU-id keys. To include initial inventory in
@@ -303,7 +314,10 @@ forward to `TransferOrder`:
 
 ```python
 order = coordinator.create_order(
-    sku=sku, quantity=3, origin=wh_a, destination=wh_b,
+    sku=sku,
+    quantity=3,
+    origin=wh_a,
+    destination=wh_b,
     due_date=env.now + 1800.0,  # 30 minutes from now
     priority=1.0,
 )
@@ -340,8 +354,9 @@ Orders fail silently — check `order.status` after the run:
 ```python
 failed = [o for o in all_orders if o.status is OrderStatus.FAILED]
 for o in failed:
-    print(f"FAILED: sku={o.sku.id}, qty={o.quantity}, "
-          f"weight={o.sku.weight * o.quantity}, vol={o.sku.volume * o.quantity}")
+    print(
+        f"FAILED: sku={o.sku.id}, qty={o.quantity}, weight={o.sku.weight * o.quantity}, vol={o.sku.volume * o.quantity}"
+    )
 ```
 
 Common causes of silent failure:

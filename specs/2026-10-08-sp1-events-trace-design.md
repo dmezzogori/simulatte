@@ -371,9 +371,19 @@ record = length(u32) type(u8) crc32(u32, of payload) payload
 ### 12.1 Declarations and scope
 
 ```python
-KPI(name="flow_time", unit="time", kind=("series", "scalar"), observation="job",
-    cohort="completed_in_window", aggregation="mean", clip="none",
-    censoring="exclude", ema_reset=False, empty=None, description="...")
+KPI(
+    name="flow_time",
+    unit="time",
+    kind=("series", "scalar"),
+    observation="job",
+    cohort="completed_in_window",
+    aggregation="mean",
+    clip="none",
+    censoring="exclude",
+    ema_reset=False,
+    empty=None,
+    description="...",
+)
 ```
 
 - `Collector` declares its KPIs and subscriptions, keeps its own state, emits `kpi.sample`, and exposes results as attributes. It reads simulation objects only through pure getters (§13).

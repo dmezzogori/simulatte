@@ -50,13 +50,38 @@
 - [ ] **Step 1: Failing tests**
 
 ```python
-def test_freeze_converts_containers(): v = freeze({"b": [1, 2]}); assert v["b"] == (1, 2); pytest.raises(TypeError, v.__setitem__, "c", 1)
-def test_freeze_rejects_non_wire(): [pytest.raises(TypeError, freeze, bad) for bad in (object(), {1: "x"}, {1, 2}, b"x")]
-def test_int_range(): freeze(2**53 - 1); pytest.raises(OverflowError, freeze, 2**53)
-def test_canonical_sorting_and_float64(): assert canonical_pack({"b": 1, "a": 2}) == canonical_pack({"a": 2, "b": 1}); assert canonical_pack(1.0) == b"\xcb" + struct.pack(">d", 1.0)
-def test_nan_normalized_and_inf_roundtrip(): assert canonical_pack(float("nan")) == canonical_pack(-float("nan")); assert unpack(pack(float("-inf"))) == float("-inf")
-def test_hostile_keys_roundtrip(): v = {"__proto__": 1, "constructor": 2, "prototype": 3, "~x": 4, "~__proto__": 5, "n": {"constructor": 6}}; assert unpack(pack(v)) == v
-def test_unpack_limits(): pytest.raises(ValueError, unpack, pack(nested_depth(65)))
+def test_freeze_converts_containers():
+    v = freeze({"b": [1, 2]})
+    assert v["b"] == (1, 2)
+    pytest.raises(TypeError, v.__setitem__, "c", 1)
+
+
+def test_freeze_rejects_non_wire():
+    [pytest.raises(TypeError, freeze, bad) for bad in (object(), {1: "x"}, {1, 2}, b"x")]
+
+
+def test_int_range():
+    freeze(2**53 - 1)
+    pytest.raises(OverflowError, freeze, 2**53)
+
+
+def test_canonical_sorting_and_float64():
+    assert canonical_pack({"b": 1, "a": 2}) == canonical_pack({"a": 2, "b": 1})
+    assert canonical_pack(1.0) == b"\xcb" + struct.pack(">d", 1.0)
+
+
+def test_nan_normalized_and_inf_roundtrip():
+    assert canonical_pack(float("nan")) == canonical_pack(-float("nan"))
+    assert unpack(pack(float("-inf"))) == float("-inf")
+
+
+def test_hostile_keys_roundtrip():
+    v = {"__proto__": 1, "constructor": 2, "prototype": 3, "~x": 4, "~__proto__": 5, "n": {"constructor": 6}}
+    assert unpack(pack(v)) == v
+
+
+def test_unpack_limits():
+    pytest.raises(ValueError, unpack, pack(nested_depth(65)))
 ```
 
 - [ ] **Step 2:** `uv run pytest tests/core/test_wire.py --no-cov -q` → FAIL.
@@ -80,10 +105,10 @@ def test_unpack_limits(): pytest.raises(ValueError, unpack, pack(nested_depth(65
 - [ ] **Step 1: Failing tests**
 
 ```python
-def test_emit_stamps_time_and_seq(env): ...                     # seq 0,1 at t=0; t==5 after timeout(5)
+def test_emit_stamps_time_and_seq(env): ...  # seq 0,1 at t=0; t==5 after timeout(5)
 def test_wants_tracks_subscriptions(env): ...
 def test_star_covers_types_registered_later(env): ...
-def test_nested_observer_emits_fifo(env): ...                   # order ["Ping","Pong"], Pong.seq > Ping.seq
+def test_nested_observer_emits_fifo(env): ...  # order ["Ping","Pong"], Pong.seq > Ping.seq
 def test_subscriber_exception_propagates_and_bus_recovers(env): ...
 def test_domain_event_from_subscriber_rejected(env): ...
 def test_observer_event_with_deltas_rejected(env): ...
@@ -92,7 +117,9 @@ def test_apply_deltas_all_ops(): ...
 def test_duplicate_type_name_different_fields_raises(): ...
 def test_catalog_wire_roundtrip_includes_touches(): ...
 def test_debug_rejects_deltas_outside_touches(env_debug): ...
-def test_debug_lifecycle_ops_for_dynamically_registered_kind(env_debug): ...  # create/retire validated by schema and existence (U4)
+def test_debug_lifecycle_ops_for_dynamically_registered_kind(
+    env_debug,
+): ...  # create/retire validated by schema and existence (U4)
 ```
 
 - [ ] **Steps 2–4:** fail, implement (`wants` is a `dict[type, int]`; `"*"` checked for `DomainEvent` subclasses), pass with `--no-cov`.
@@ -146,14 +173,14 @@ def test_debug_lifecycle_ops_for_dynamically_registered_kind(env_debug): ...  # 
 
 ```python
 @pytest.mark.parametrize("capacity", [1, 2])
-def test_queue_length_includes_newcomer(capacity): ...     # capacity+2 requests at t=0 -> [1]*capacity + [1, 2]
-def test_immediate_grant_inside_constructor_ordering(): ... # types for first request: ["job.queued", "job.granted"]
-def test_direct_server_use_without_shopfloor(): ...         # request/release in a plain process emits queued/granted/released
-def test_replay_equals_live_at_every_event(): ...           # subscriber snapshots live state after each event; apply_deltas from initial equals it
-def test_reorder_emits_minimal_moves(): ...                 # priority change moving one job -> exactly one move
-def test_interrupted_waiting_request_leaves_queue(): ...    # job.queue_left(reason="cancelled"); replay equals live
+def test_queue_length_includes_newcomer(capacity): ...  # capacity+2 requests at t=0 -> [1]*capacity + [1, 2]
+def test_immediate_grant_inside_constructor_ordering(): ...  # types for first request: ["job.queued", "job.granted"]
+def test_direct_server_use_without_shopfloor(): ...  # request/release in a plain process emits queued/granted/released
+def test_replay_equals_live_at_every_event(): ...  # subscriber snapshots live state after each event; apply_deltas from initial equals it
+def test_reorder_emits_minimal_moves(): ...  # priority change moving one job -> exactly one move
+def test_interrupted_waiting_request_leaves_queue(): ...  # job.queue_left(reason="cancelled"); replay equals live
 def test_duplicate_release_emits_nothing(): ...
-def test_counting_priority_policy_unaffected_by_recording(): ... # call count and schedule identical with and without a full subscriber (S9)
+def test_counting_priority_policy_unaffected_by_recording(): ...  # call count and schedule identical with and without a full subscriber (S9)
 ```
 
 - [ ] **Steps 2–4:** fail, implement, pass `tests/core --no-cov`.

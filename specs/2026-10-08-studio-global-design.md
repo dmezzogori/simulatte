@@ -296,8 +296,9 @@ class Params:
     time_unit="min",
     inputs=["data/calibration.csv"],
 )
-def build(env: Environment, layout: Layout, params: Params) -> None:
-    ...  # attach entities to env and declare their layout
+def build(
+    env: Environment, layout: Layout, params: Params
+) -> None: ...  # attach entities to env and declare their layout
 ```
 
 - `@simulatte.model` attaches metadata and returns the function unchanged, so the model stays callable from plain scripts and tests.
