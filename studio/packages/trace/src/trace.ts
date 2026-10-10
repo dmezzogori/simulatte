@@ -154,6 +154,7 @@ export class Trace {
     if (located === null) {
       const scan = await this.scan(PREAMBLE_SIZE, source.size, false, true);
       this.takeHead(scan);
+      checkIndex(scan.index, PREAMBLE_SIZE, scan.stop);
       this.index = scan.index;
       this.#footer = scan.footer;
       // A footer without its trailer: the trailer is missing or cut, an incomplete tail.
@@ -567,7 +568,7 @@ function sameInfos(a: readonly ChunkInfo[], b: readonly ChunkInfo[]): boolean {
   );
 }
 
-/** Footer index entries must fit the file between the head records and the footer, in order. */
+/** Index entries must fit the file between the head records and the footer (or end of scan), in order. */
 function checkIndex(index: readonly ChunkInfo[], start: number, end: number): void {
   if (index.length > Math.floor((end - start) / (2 * FRAME_SIZE))) {
     throw new TraceCorrupted(`the chunk index has ${index.length} entries, more than the file can hold`);

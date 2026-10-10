@@ -442,7 +442,7 @@ def test_slow_writer_applies_backpressure_with_bounded_memory(
     _drain(rec)
     rec._peak_pending = 0  # the header is admitted on its own; measure what follows
     # The writer publishes a chunk only while the simulation is blocked on backpressure (or closing).
-    _gate_writes(monkeypatch, rec, RecordType.CHUNK, lambda: rec._producer_waiting or rec._closing)
+    _gate_writes(monkeypatch, rec, RecordType.CHUNK, lambda: rec._producer_waiting or rec._closed)
     _system(env)
     env.run(until=200)
     rec.close()
@@ -496,7 +496,7 @@ def test_close_during_publication_orders_footer_last(
     path = tmp_path / "t.simtrace"
     env = Environment(seed=1)
     rec = make_recorder(env, path, chunk_limits=ChunkLimits(max_events=2), clock=FakeClock())
-    _gate_writes(monkeypatch, rec, RecordType.CHUNK, lambda: rec._closing)
+    _gate_writes(monkeypatch, rec, RecordType.CHUNK, lambda: rec._closed)
     gauge = Gauge(env, name="g")
     env.activate()
     for i in range(20):
@@ -753,7 +753,7 @@ def test_interrupt_during_backpressure_keeps_trace_consistent(
     monkeypatch.setattr(rec._cond, "wait", wait)
     # Chunks and extensions are written only while the simulation waits unarmed, or at close.
     for rtype in (RecordType.CHUNK, RecordType.CATALOG_EXT):
-        _gate_writes(monkeypatch, rec, rtype, lambda: rec._closing or (rec._producer_waiting and not armed))
+        _gate_writes(monkeypatch, rec, rtype, lambda: rec._closed or (rec._producer_waiting and not armed))
 
     def first() -> Any:
         yield env.timeout(1)

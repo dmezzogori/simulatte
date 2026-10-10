@@ -467,6 +467,16 @@ def test_inconsistent_index_is_corruption(tmp_path: Path) -> None:
     with pytest.raises(TraceCorrupted, match="INDEX"):
         Trace.open(_write(tmp_path, "h", bytes(no_footer)))
 
+    # A footerless trace whose last INDEX commits its chunk but names cursors before those of earlier chunks.
+    full = Trace.open(path)
+    index_offset, _, index_size = _of(data, RecordType.INDEX)[-1]
+    last_entry: Any = unpack(data[index_offset + 9 : index_offset + index_size])
+    out = io.BytesIO()
+    out.write(data[:index_offset])
+    write_record(out, RecordType.INDEX, pack(FrozenMap({**last_entry, "first": full.index[0].first})))
+    with pytest.raises(TraceCorrupted, match="out of order"):
+        Trace.open(_write(tmp_path, "i", out.getvalue()))
+
 
 def test_chunk_without_index_invisible(tmp_path: Path) -> None:
     path, env, log = _record_shop(tmp_path)
@@ -730,6 +740,20 @@ def test_damaged_chunk_contents(tmp_path: Path) -> None:
     malformed = opened("short", _rebuild_last_chunk(data, short_event))
     with pytest.raises(TraceCorrupted, match="malformed chunk"):
         malformed.state_at(malformed.index[-1].last)
+
+    # CRC-valid operations of the wrong shape: verify() reports them as corruption, like check() does.
+    for name, op in (("short_op", ("create",)), ("state_not_map", ("create", "ghost", "server", 5))):
+
+        def bad_op(body: dict[str, Any], op: tuple[Any, ...] = op) -> None:
+            events = list(body["events"])
+            events[-1] = (*events[-1][:5], (op,))
+            body["events"] = tuple(events)
+
+        bad = opened(name, _rebuild_last_chunk(data, bad_op))
+        with pytest.raises(TraceCorrupted, match="malformed event seq"):
+            bad.verify()
+        with pytest.raises(TraceCorrupted):
+            bad.check()
 
     def stale_snapshot(body: dict[str, Any]) -> None:
         snapshot = dict(body["snapshot"])

@@ -229,6 +229,7 @@ class Trace:
             scan = self._scan(file, PREAMBLE.size, file.size, head_only=False, damage_is_tail=True)
             self._take_head(scan)
             self._index = tuple(scan.index)
+            _check_index(self._index, PREAMBLE.size, scan.stop)
             self._exts = scan.exts
             self._kpi_records = scan.kpis
             self._footer = scan.footer
@@ -637,15 +638,18 @@ class Trace:
                     hidden = payload_presentation[event.type] = frozenset(
                         f.name for f in entry.fields if f.presentation
                     )
-                digest.feed_event_parts(
-                    event.ordinal,
-                    event.type,
-                    entry.version,
-                    event.t,
-                    event.payload,
-                    event.deltas,
-                    payload_presentation=hidden,
-                    presentation_of=presentation_of,
+                _decoded(
+                    lambda event=event, entry=entry, hidden=hidden: digest.feed_event_parts(
+                        event.ordinal,
+                        event.type,
+                        entry.version,
+                        event.t,
+                        event.payload,
+                        event.deltas,
+                        payload_presentation=hidden,
+                        presentation_of=presentation_of,
+                    ),
+                    f"event seq {event.seq}",
                 )
         return digest.hexdigest() == stored.digest
 
@@ -687,7 +691,7 @@ def _chunk_info(entry: Any) -> ChunkInfo:
 
 
 def _check_index(index: tuple[ChunkInfo, ...], start: int, end: int) -> None:
-    """Footer index entries must fit the file between the head records and the footer, in order."""
+    """Index entries must fit the file between the head records and the footer (or end of scan), in order."""
     if len(index) > (end - start) // (2 * _FRAME):
         raise TraceCorrupted(f"the chunk index has {len(index)} entries, more than the file can hold")
     previous_end = start

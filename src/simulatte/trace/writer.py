@@ -182,7 +182,6 @@ class TraceRecorder:
         self._pending = 0
         self._peak_pending = 0
         self._producer_waiting = False
-        self._closing = False
         self._stop = False
         self._error: BaseException | None = None
         self._epoch = 0
@@ -230,7 +229,7 @@ class TraceRecorder:
     # -------------------------------------------------------------------------
 
     def _on_event(self, event: DomainEvent) -> None:
-        error = self._error
+        error = self._error  # read without the lock: a writer error set meanwhile is raised by the next event
         if error is not None:
             raise error
         cls = type(event)
@@ -260,6 +259,7 @@ class TraceRecorder:
                 if new_kinds:
                     self._extend_catalog(kinds=new_kinds)
             window = limits.max_sim_window
+            # Read without the lock; benign, since the seal below re-checks the buffer under it.
             if self._entries and (
                 self._buf_bytes + size > limits.max_bytes or (window is not None and t - self._first[0] >= window)
             ):
@@ -292,7 +292,7 @@ class TraceRecorder:
 
     def _on_sample(self, event: KpiSample) -> None:
         """Buffer a KPI sample; publish the buffer once the event-count or byte limit is reached."""
-        error = self._error
+        error = self._error  # read without the lock, as in _on_event
         if error is not None:
             raise error
         entry = pack((event.seq, float(event.t), f"{event.scope}/{event.kpi}", event.value))
@@ -450,7 +450,6 @@ class TraceRecorder:
         cond = self._cond
         try:
             with cond:
-                self._closing = True
                 batch = self._seal_locked() if self._entries else None
                 cond.notify_all()
             if batch is not None:
@@ -531,6 +530,7 @@ class TraceRecorder:
                 if remaining <= 0:
                     # The queue is empty, so admitting the batch respects both backpressure rules.
                     batch = self._seal_locked()
+                    assert self._pending == 0
                     self._pending = batch.size
                     self._peak_pending = max(self._peak_pending, batch.size)
                     return ("batch", batch.size, batch)

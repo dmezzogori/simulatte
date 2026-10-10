@@ -248,6 +248,31 @@ describe("damage and limits", () => {
     expect(damaged.index.length).toBe(trace.index.length - 1);
   });
 
+  it("raises TraceCorrupted for INDEX records with cursors out of order when scanning", async () => {
+    const trace = await opened(bytes);
+    const last = trace.index[trace.index.length - 1]!;
+    const entry = {
+      offset: last.offset,
+      length: last.length,
+      first: trace.index[0]!.first, // commits its chunk, but starts before the chunks that precede it
+      last: last.last,
+      t_start: last.tStart,
+      t_end: last.tEnd,
+      epoch: last.epoch,
+    };
+    const payload = encode(entry);
+    const frame = new DataView(new ArrayBuffer(9));
+    frame.setUint32(0, payload.length);
+    frame.setUint8(4, 6); // INDEX
+    frame.setUint32(5, crc(payload));
+    const edited = new Uint8Array([
+      ...bytes.subarray(0, last.offset + last.length),
+      ...new Uint8Array(frame.buffer),
+      ...payload,
+    ]);
+    await expect(openTrace(copyOf(edited))).rejects.toThrow(TraceCorrupted);
+  });
+
   it("enforces the reader limits", async () => {
     await expect(openTrace(copyOf(bytes), { limits: { maxRecord: 64 } })).rejects.toThrow(TraceCorrupted);
     const trace = await openTrace(copyOf(bytes), { limits: { maxChunk: 64 } });
