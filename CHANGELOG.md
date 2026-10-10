@@ -56,8 +56,9 @@ many APIs and, because RNG streams are now derived from the seed and entity name
 - `Environment(debug=True)` validates events against the catalog and the entity state schemas, rejects subscribers
   that schedule events or draw random numbers, rejects two different values bound to one RNG stream, requires
   wire-valued `extra` in log calls (recorded as an immutable copy), accepts only `float` (not `int`) in float payload
-  and state fields, and rejects lists, dicts, sets and other mutable containers anywhere in event payloads and deltas
-  (use tuples and `FrozenMap`). Independently of debug mode, the trace recorder keeps an immutable copy of delta
+  and state fields, rejects lists, dicts, sets and other mutable containers anywhere in event payloads and deltas
+  (use tuples and `FrozenMap`), and checks the shape of each delta operation (arity, string ids and fields, integral
+  indices, list operations on list fields, map operations on map fields), naming the event. Independently of debug mode, the trace recorder keeps an immutable copy of delta
   values, so changing a list after emitting it no longer changes the recorded trace.
 - Intralogistics: `AGV.sample_load_time()` / `sample_unload_time()`; `SpeedProfile.motion(...)` describes AGV motion
   for traces; `OrderStatus.PENDING_ACTIVATION`.

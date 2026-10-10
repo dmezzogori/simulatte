@@ -53,6 +53,7 @@ __all__ = [
     "Op",
     "Subscription",
     "apply_deltas",
+    "check_op_shape",
     "event_type",
     "matches_wire_type",
     "validate_event",
@@ -204,6 +205,46 @@ def apply_deltas(state: dict[str, dict[str, Any]], deltas: Deltas) -> None:
             updated = dict(_map(fields[field], field))
             del updated[_text(op[3], "key")]
             fields[field] = FrozenMap(updated)
+
+
+_LIST_OPS = frozenset({"insert", "remove", "move"})
+_MAP_OPS = frozenset({"put", "delete"})
+
+
+def check_op_shape(op: Op, collection_of: Callable[[str, str], str | None] | None = None) -> None:
+    """Check the shape of one delta operation with the rules :func:`apply_deltas` applies while replaying.
+
+    The arity, string entity ids, fields, map keys and ``create`` kinds, integral indices and map ``create`` states.
+    `collection_of`, when given, returns ``"list"``, ``"map"`` or ``"scalar"`` for an entity's field (None when it
+    does not know): list operations then need a list field and map operations a map field. Raises `TypeError` or
+    `ValueError` like :func:`apply_deltas`.
+    """
+    name = op[0]
+    arity = _ARITY.get(name) if type(name) is str else None
+    if arity is None:
+        raise ValueError(f"unknown delta operation {name!r}")
+    if len(op) != arity:
+        raise ValueError(f"{name}: an operation of {arity} items, got {len(op)}")
+    entity = _text(op[1], "entity")
+    if name == "create":
+        _text(op[2], "kind")
+        _map(op[3], "create state")
+        return
+    if name == "retire":
+        return
+    field = _text(op[2], "field")
+    if name == "insert":
+        _index(op[3])
+    elif name == "move":
+        _index(op[4])
+    elif name in _MAP_OPS:
+        _text(op[3], "key")
+    collection = None if collection_of is None or name == "set" else collection_of(entity, field)
+    if collection is not None:
+        if name in _LIST_OPS and collection != "list":
+            raise TypeError(f"{name}: field {field!r} is not a list")
+        if name in _MAP_OPS and collection != "map":
+            raise TypeError(f"{name}: field {field!r} is not a map")
 
 
 def _text(value: object, what: str) -> str:
@@ -506,6 +547,7 @@ def validate_event(
     *,
     entity_kind: Callable[[str], str | None],
     check_lifecycle: Callable[[Op], None],
+    collection_of: Callable[[str, str], str | None] | None = None,
 ) -> None:
     """Validate `event` against the catalog (debug mode).
 
@@ -513,9 +555,11 @@ def validate_event(
     nullability, that payload values and delta operations are deep-immutable wire values (tuples and
     :class:`FrozenMap`, never lists, dicts or other mutable containers; global C1.2, ruling R30), that field
     operations target ``(kind, field)`` pairs declared in ``touches`` (skipped when `entity_kind` does not know
-    the addressed entity), and that ``create``/``retire`` are carried only by ``entity.created``/``entity.retired``.
-    `check_lifecycle` is called for each lifecycle operation so that the entity registry can check it against
-    kind schemas and live entities.
+    the addressed entity), that every operation has the shape the trace writer's replay requires
+    (:func:`check_op_shape`, with `collection_of` telling list, map and scalar fields apart), and that
+    ``create``/``retire`` are carried only by ``entity.created``/``entity.retired``. `check_lifecycle` is called for
+    each lifecycle operation so that the entity registry can check it against kind schemas and live entities.
+    Errors name the event type.
     """
     cls = type(event)
     name = cls.__dict__.get("type_name")
@@ -528,18 +572,20 @@ def validate_event(
     ops = event.deltas.ops
     _check_immutable(f"{name}: the delta operations", ops)
     for op in ops:
+        try:
+            check_op_shape(op, collection_of)
+        except (TypeError, ValueError) as exc:
+            raise type(exc)(f"{name}: {exc}") from exc
         op_name = op[0]
         if op_name in FIELD_OPS:
             kind = entity_kind(op[1])
             if kind is not None and op[2] not in touches.get(kind, ()):
                 raise ValueError(f"{name}: {op_name} on {kind}.{op[2]} is outside the declared touches")
-        elif op_name in LIFECYCLE_OWNERS:
+        else:  # create or retire: check_op_shape rejected unknown operations
             owner = LIFECYCLE_OWNERS[op_name]
             if name != owner:
                 raise ValueError(f"{name}: only {owner} may carry {op_name!r} entity operations")
             check_lifecycle(op)
-        else:
-            raise ValueError(f"{name}: unknown delta operation {op_name!r}")
 
 
 def _check_value(event_name: str, info: FieldInfo, value: object) -> None:

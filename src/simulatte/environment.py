@@ -20,7 +20,7 @@ from simpy.core import StopSimulation
 
 from simulatte._wire import FrozenMap, Wire, freeze
 from simulatte.digest import Fingerprint, SemanticDigest
-from simulatte.entities import EntityRegistry
+from simulatte.entities import KINDS, EntityRegistry
 from simulatte.events import DomainEvent, Event, EventBus, LogEvent, Op, validate_event
 from simulatte.logsinks import HistorySink, JsonSink, LogSink, SQLiteSink, TextSink
 from simulatte.provenance import (
@@ -187,7 +187,12 @@ class Environment(simpy.Environment):
         elif event.deltas.ops:
             raise ValueError(f"{type(event).__name__} is not a DomainEvent and cannot carry deltas")
         if self._debug:
-            validate_event(event, entity_kind=self._entity_kind, check_lifecycle=self._check_lifecycle_op)
+            validate_event(
+                event,
+                entity_kind=self._entity_kind,
+                check_lifecycle=self._check_lifecycle_op,
+                collection_of=self._field_collection,
+            )
         object.__setattr__(event, "t", self._now)
         object.__setattr__(event, "seq", self._seq)
         self._seq += 1
@@ -204,6 +209,17 @@ class Environment(simpy.Environment):
     def _entity_kind(self, entity_id: str) -> str | None:
         """Kind of the live entity `entity_id`, or None when unknown (debug validation of touches)."""
         return self.entities.kind_of(entity_id)
+
+    def _field_collection(self, entity_id: str, field: str) -> str | None:
+        """``"list"``, ``"map"`` or ``"scalar"`` for a declared field of a live entity; None otherwise (debug)."""
+        kind = self.entities.kind_of(entity_id)
+        schema = None if kind is None else KINDS.get(kind)
+        if schema is None or field not in schema:
+            return None
+        spec = schema[field]
+        if spec.collection is not None:
+            return spec.collection
+        return None if spec.wire_type in ("array", "map", "any") else "scalar"
 
     def _check_lifecycle_op(self, op: Op) -> None:
         """Validate a ``create``/``retire`` operation (debug mode).

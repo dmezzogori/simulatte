@@ -468,6 +468,34 @@ def test_debug_rejects_deltas_outside_touches(env_debug: Environment, monkeypatc
     assert len(seen) == 2 and outside_field.seq == -1
 
 
+def test_debug_checks_delta_shapes_at_emit_and_names_the_event() -> None:
+    """Fix wave 3: debug mode checks the operation shapes the writer's replay checks (arity, strings, integral
+    indices, list operations on list fields and map operations on map fields), so a malformed operation fails at
+    emit with the event name instead of later in the writer thread."""
+    from simulatte.job import ProductionJob
+    from simulatte.server import Server
+
+    env = Environment(debug=True)
+    server = Server(env=env, capacity=1, name="s")
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=1.0)
+    env.activate()
+    bad: list[Op] = [
+        ("insert", server.id, "queue", 0.5, "j"),  # fractional index
+        ("insert", server.id, "queue", True, "j"),  # boolean index
+        ("set", server.id, "queue"),  # arity
+        ("remove", server.id, "queue", "j", "extra"),  # arity
+        ("set", server.id, 5, 1),  # field not a string
+        ("put", server.id, "queue", "k", 1),  # map operation on a list field
+    ]
+    for op in bad:
+        with pytest.raises((TypeError, ValueError), match="test.ping"):
+            env.emit(Ping(deltas=Deltas((op,))))
+    with pytest.raises(TypeError, match="test.rich"):  # list operation on a scalar field
+        env.emit(Rich(job=job.id, deltas=Deltas((("insert", job.id, "location", 0, "x"),))))
+    env.emit(Ping(deltas=Deltas((("insert", server.id, "queue", 0, "j"), ("remove", server.id, "queue", "j")))))
+    env.close()
+
+
 def test_debug_lifecycle_ops_only_on_lifecycle_events(env_debug: Environment, monkeypatch: pytest.MonkeyPatch) -> None:
     # Stand-ins for the lifecycle types, registered in an isolated catalog so they never clash with the real ones.
     isolated = Catalog()
