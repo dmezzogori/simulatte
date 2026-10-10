@@ -2,7 +2,7 @@
 
 - **Status:** revision 3, after [Fable review 1](reviews/2026-10-10-sp2-review-1.md) and
   [Codex review 2](reviews/2026-10-10-sp2-review-2.md); A1–A5 approved by Davide on 2026-10-10.
-  No product implementation has started.
+  Implementation authorized with subagents on 2026-10-10.
 - **Target:** Simulatte 0.14; based on released 0.13.0, commit `b1467709e88cf640155b83c037f06573fcddd875`.
 - **Branch:** `feature/sp2-layout`.
 - **Parent:** [approved global design](2026-10-08-studio-global-design.md), especially §4, C2 and §11;
@@ -43,16 +43,17 @@ gate and observer-invariance requirements.
 | `provenance.py`: caller hashes and runtime fields, no layout fields | Layout identity must be populated by core preparation, separately from caller source/input hashes |
 | `intralogistics/builders.py`: `build_simple_system` returns a graph as its fifth result | Preserve that no-layout return; provide a handle as the fifth result in layout mode (§10) |
 
-No product code changes accompany this draft. These observations are from the fetched local source, not inferred
+The initial draft contained no product code changes. These observations are from the fetched local source, not inferred
 from the older design. Relevant regression homes include `tests/core/test_activation.py`, `test_entities.py`,
 `test_provenance.py`, `test_trace_writer.py`, `test_trace_reader.py`, and intralogistics activation, graph, traffic,
 motion, builders and invariance tests.
 
-## 3. Decisions proposed for review
+## 3. Design decisions
 
-The defaults below resolve the five choices deferred by global §11. They are proposals until accepted.
+The defaults below resolve the five choices deferred by global §11. Davide authorized implementation of the
+reviewed design on 2026-10-10, after approving A1–A5.
 
-| Choice | Proposed decision | Alternatives and reason |
+| Choice | Decision | Alternatives and reason |
 |---|---|---|
 | Auto-layout | Versioned SCC/layer layout with stable id ordering and a grid fallback (§5) | Force-directed placement adds convergence and reproducibility problems; a grid alone discards flow information |
 | Arc traffic attributes | Keep node-reservation semantics in 0.14; enabled/direction/speed limits on edges, capacities on nodes (§7) | Segment reservations would change fleet traversal, cancellation and deadlock semantics; require a separate design if selected |
@@ -375,7 +376,7 @@ and overrides. At bind, effective capacity is resolved-node capacity when provid
 `node_capacity` (default 1). `FreeTrafficManager` keeps ignoring capacity and reservations, as explicitly selected
 by the model. Capacity is still physical input; switching managers is source/model behavior, not a layout edit.
 
-There are **no per-arc reservation resources, headway, priority, conflict groups or lane locks** in this proposal.
+There are **no per-arc reservation resources, headway, priority, conflict groups or lane locks** in SP2.
 Unknown traffic fields are schema errors. Two vehicles can still pass in opposite directions along an arc when
 the node manager allows it; direction and clearance do not promise collision-free continuous vehicle motion.
 This is a precise limit of the existing traffic abstraction, not a new simulation claim.
@@ -738,4 +739,4 @@ before merge; report preparation cost separately for 1k/10k-node synthetic layou
 accepted release budget.
 
 The two reviews and A1–A5 approval are recorded above. The plan carries task ownership and verification
-commands; this document carries behavior and contracts. Product implementation has not started.
+commands; this document carries behavior and contracts. Implementation is authorized with subagents.
