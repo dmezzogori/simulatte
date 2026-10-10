@@ -76,3 +76,19 @@ PyPy's JIT can improve throughput on long, compute-heavy runs (it pays off after
 short one-shot simulations may see little benefit or a small startup cost). The gain is
 workload-dependent — benchmark your own model. Keep CPython as your default for development,
 plotting, and the experimental RL module.
+
+### 0.13 recording limitation on PyPy 8.0.0
+
+On the stock PyPy 8.0.0 / Python 3.11.16 Linux x86-64 runtime used by CI, the production benchmark's
+semantic digest, KPI trace and full trace took **7.82×, 8.31× and 9.81×**, respectively, the time of the
+same simulation with metrics and recording disabled in the 0.13 release check. These exceed Simulatte's accepted PyPy targets of 4.3×, 4.5× and
+7.0×. The recording measurements are report-only, so passing CI does not imply that these targets are met.
+
+The tested runs retain matching trajectories and semantic digests. A same-machine comparison with an
+older PyPy release and isolated hashing measurements identify runtime-dependent BLAKE2 overhead as part
+of the slowdown; the remaining cost is still under investigation. CPython meets the recording targets
+in the release-check benchmark. If recording cost matters, compare CPython and PyPy on your own model
+and exact interpreter version.
+
+This is a documented performance limitation of 0.13.0, tracked in
+[issue #59](https://github.com/dmezzogori/simulatte/issues/59). The existing targets remain unchanged.
