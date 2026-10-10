@@ -86,3 +86,26 @@ def test_intralogistics_advanced_example_runs(monkeypatch, capsys) -> None:
     assert "Fleet utilization:" in captured.out
     assert "EMA metrics:" in captured.out
     assert "Fulfillment time:" in captured.out
+
+
+def test_layout_intralogistics_example_runs(capsys) -> None:
+    example = Path(__file__).resolve().parents[2] / "examples" / "layout_intralogistics.py"
+    runpy.run_path(str(example), run_name="__main__")
+    output = capsys.readouterr().out
+    assert "Prepared at time: 0" in output
+    assert "Layout nodes: 5" in output
+    assert "AGVs: vehicle-0, vehicle-1" in output
+    assert "Completed orders: 4/4" in output
+    assert "WH-A inventory: 69" in output
+    assert "WH-B inventory: 31" in output
+    assert "Fulfillment time:" in output
+
+
+def test_layout_stages_example_runs(capsys) -> None:
+    example = Path(__file__).resolve().parents[2] / "examples" / "layout_stages.py"
+    runpy.run_path(str(example), run_name="__main__")
+    output = capsys.readouterr().out
+    assert "File width: 12 m; machines: 4; orphan placements: 0" in output
+    assert "File width: 6 m; machines: 2; orphan placements: 2" in output
+    assert "First machine position after machines stage: (1.5, 0.0, 0.0)" in output
+    assert "Preserved orphan ids: machine-02, machine-03" in output
