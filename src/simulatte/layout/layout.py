@@ -7,12 +7,11 @@ from dataclasses import dataclass, fields, is_dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .bundle import ResolvedLayout, finalize_layout
+from .bundle import ResolvedLayout, finalize_layout, validate_file_eligibility
 from .auto import AutoLayer, TargetMetadata, auto_layout
 from .binding import bind_components, check_existing_endpoints
-from .dependencies import MISSING, DependencyClosure, evaluate_query
+from .dependencies import MISSING, DependencyClosure
 from .errors import LayoutDiagnostic, LayoutError
-from .identity import normalized_query
 from .io import load_layout, save_layout
 from .layers import FileLayer, ResolvedValues, _thaw, resolve_layers
 from .lifecycle import PreparationCoordinator, PreparationState
@@ -394,106 +393,17 @@ class Layout:
             *(item for item in coordinator.network.diagnostics if item.code not in layer_codes),
             *self._auto.diagnostics,
         ]
-        definitions = {definition.id for definition in coordinator.network.definitions.nodes.values()}
-        code_placements: dict[str, list[tuple[int, str, Mapping[str, Any]]]] = {}
-        for index, (stage, patch) in enumerate(coordinator.values.bundle.code_stages):
-            for target, placement in patch.get("placements", {}).items():
-                code_placements.setdefault(target, []).append((index, stage, placement))
-        file_paths: dict[str, list[tuple[str, ...]]] = {}
-        for path, leaf in coordinator.values.explicit_leaves.items():
-            if (
-                len(path) >= 2
-                and path[0] == "placements"
-                and leaf.source is not None
-                and leaf.source.kind == "file"
-                and not isinstance(leaf.value, (Mapping, tuple))
-            ):
-                file_paths.setdefault(path[1], []).append(path)
-        empty_file = FileLayer({"schema_version": "1.0"})
-        for entity_id in coordinator.file_layer.data.get("placements", {}):
-            if (
-                entity_id in definitions
-                or entity_id not in coordinator.values.targets
-                or self.env.entities.is_named(entity_id)
-            ):
-                continue
-            prefix = ("placements", entity_id)
-            physical_paths = []
-            predicate_paths = []
-            structural_override = False
-            baseline_views: dict[int, ResolvedValues] = {}
-            for query in coordinator.closure.queries:
-                path = tuple(query.descriptor["path"])
-                kind = query.descriptor["kind"]
-                if kind == "value":
-                    physical_paths.append(path)
-                elif kind == "selection" and path == ("placements",):
-                    flags = query.observed["flags"].get(entity_id)
-                    if flags is not None:
-                        if query.descriptor["predicate"] == "obstacle":
-                            predicate_paths.append((*prefix, "obstacle"))
-                        else:
-                            predicate_paths.append((*prefix, "ports"))
-                            for port in flags["ports"]:
-                                predicate_paths.extend(
-                                    ((*prefix, "ports", port), (*prefix, "ports", port, "connector"))
-                                )
-                    # A selection consumes this target's membership/predicate flags,
-                    # not visual descendants. Replay only its code placement prefix;
-                    # the once-built index avoids remerging the whole model per target.
-                    if query.code_count not in baseline_views:
-                        patches = tuple(
-                            (stage, {"schema_version": "1.0", "placements": {entity_id: placement}})
-                            for index, stage, placement in code_placements.get(entity_id, ())
-                            if index < query.code_count
-                        )
-                        target_kind = query.targets.get(entity_id)
-                        baseline_views[query.code_count] = resolve_layers(
-                            patches,
-                            empty_file,
-                            targets={} if target_kind is None else {entity_id: target_kind},
-                            final=True,
-                        )
-                    baseline = normalized_query(
-                        query.descriptor,
-                        evaluate_query(baseline_views[query.code_count], query.descriptor),
-                        origin=query.origin,
-                        targets=query.targets,
-                    )["observed"]
-                    observed = normalized_query(
-                        query.descriptor, query.observed, origin=query.origin, targets=query.targets
-                    )["observed"]
-                    if baseline["flags"].get(entity_id) != observed["flags"].get(entity_id):
-                        structural_override = True
-                elif path[:2] == prefix:
-                    physical_paths.append(path)
-            # A file-origin predicate leaf (or removal of its ancestor container)
-            # remains physical even when its value equals code. Descendants of a
-            # presence/membership read are not implicitly consumed.
-            predicate_override = any(
-                used[: len(path)] == path for path in file_paths.get(entity_id, ()) for used in predicate_paths
+        diagnostics.extend(
+            validate_file_eligibility(
+                coordinator.values,
+                coordinator.closure,
+                explicitly_named=frozenset(
+                    entity.id for entity in self.env.entities.live() if self.env.entities.is_named(entity.id)
+                ),
+                definitions={definition.id for definition in coordinator.network.definitions.nodes.values()},
+                resolver=resolve_layers,
             )
-            physical = (
-                structural_override
-                or predicate_override
-                or any(
-                    path[: len(used)] == used or used[: len(path)] == path
-                    for path in file_paths.get(entity_id, ())
-                    for used in physical_paths
-                )
-            )
-            if physical:
-                raise LayoutError(f"physical file override requires an explicitly named entity: {entity_id}")
-            diagnostics.append(
-                LayoutDiagnostic(
-                    "generated-id-presentation",
-                    "warning",
-                    prefix,
-                    None,
-                    entity_id,
-                    "presentation override targets an auto-named entity",
-                )
-            )
+        )
         assert self._auto is not None
         return finalize_layout(
             _PreparedLayout(

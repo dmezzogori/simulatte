@@ -234,3 +234,26 @@ def test_malformed_known_network(tmp_path, path, value):
     parent[path[-1]] = value
     with pytest.raises(TraceCorrupted, match="malformed"):
         Trace.open(initial_trace(tmp_path, data))
+
+
+@pytest.mark.parametrize(
+    "predicate,field,value",
+    [
+        ("obstacle", "flags", {"machine": 42}),
+        ("obstacle", "members", [42]),
+        ("obstacle", "flags", {"machine": {"state": "present", "value": 1}}),
+        ("obstacle", "flags", {"machine": {"state": "bad", "value": None}}),
+        ("obstacle", "flags", {"machine": {"state": "absent", "value": False}}),
+        ("connector", "flags", {"machine": {"state": "present", "ports": []}}),
+        ("connector", "flags", {"machine": {"state": "present", "ports": {"p": 42}}}),
+        ("connector", "flags", {"machine": {"state": "bad", "ports": {}}}),
+        ("obstacle", "selected", ["absent-member"]),
+    ],
+)
+def test_known_selection_observation_nested_corruption(tmp_path, predicate, field, value):
+    _, result = prepared()
+    data = result.bundle.to_dict()
+    query = next(q for q in data["dependencies"]["queries"] if q["descriptor"].get("predicate") == predicate)
+    query["observed"][field] = value
+    with pytest.raises(TraceCorrupted):
+        Trace.open(initial_trace(tmp_path, data))

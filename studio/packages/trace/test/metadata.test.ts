@@ -94,3 +94,36 @@ it("rejects missing layout metadata and non-finite saved values", async () => {
   await expect(openTrace(buildTrace({ ...INITIAL, layout }))).rejects.toThrow(TraceCorrupted);
   await expect(openTrace(buildTrace({ ...INITIAL, layout: { ...layoutExpected.layout, bindings: { invalid: Infinity } } }))).rejects.toThrow(TraceCorrupted);
 });
+
+it.each([
+  [["resolved", "placements", "station", "position"], "bad"],
+  [["resolved", "placements", "station", "footprint"], { width: "bad" }],
+  [["resolved", "placements", "station", "ports"], { p: { position: [0, 0, 1] } }],
+  [["resolved", "placements", "station", "visual"], { color: 1 }],
+  [["resolved", "placements", "station", "obstacle"], 1],
+  [["network", "clearance"], "bad"],
+  [["network", "nodes", 0, "address"], { kind: "lattice" }],
+  [["network", "nodes", 0, "address"], { kind: "explicit", id: 1 }],
+  [["network", "nodes", 0, "address"], { kind: "lattice", i: 0, j: 0, extra: 1 }],
+  [["network", "graph", "nodes", 0, "capacity"], -1],
+  [["network", "graph", "arcs", 0, "speed_limit"], "bad"],
+  [["auto", "targets", "station", "graph_position"], [0, 0, 0]],
+  [["auto", "topology", "flows"], [42]],
+])("rejects nested known-layout schema corruption %j", async (path, value) => {
+  const layout = structuredClone(layoutExpected.layout);
+  let parent: any = layout;
+  for (const key of (path as (string | number)[]).slice(0, -1)) parent = parent[key];
+  parent[(path as (string | number)[]).at(-1)!] = value;
+  await expect(openTrace(buildTrace({ ...INITIAL, layout }))).rejects.toThrow(TraceCorrupted);
+});
+
+it.each([
+  ["predicate", "graph"], ["predicate", "value"], ["flags", { station: 42 }], ["members", [42]],
+  ["flags", { station: { state: "present", value: 1 } }],
+])("rejects malformed known selection %s", async (field, value) => {
+  const layout: any = structuredClone(layoutExpected.layout);
+  const query = layout.dependencies.queries.find((q: any) => q.descriptor.predicate === "obstacle");
+  if (field === "predicate") query.descriptor.predicate = value;
+  else query.observed[field as string] = value;
+  await expect(openTrace(buildTrace({ ...INITIAL, layout }))).rejects.toThrow(TraceCorrupted);
+});

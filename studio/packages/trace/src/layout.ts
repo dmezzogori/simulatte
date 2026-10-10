@@ -1,4 +1,5 @@
 /** Data-only layout-v1 metadata. Unknown schema versions remain opaque. No hash verifier or renderer. */
+import { validateLayoutDefinition, validateLayoutPatch } from "./layout-schema";
 import type { Wire } from "./wire";
 
 export type LayoutBundle = Readonly<Record<string, Wire>> & { readonly schema_version: string };
@@ -41,13 +42,7 @@ export function layoutOf(value: unknown): LayoutBundle {
     string(pair[0]);
     if (map(pair[1])["schema_version"] !== "1.0") throw new TypeError("invalid saved code patch");
   }
-  for (const item of Object.values(map(data["targets"]))) {
-    const target = map(item);
-    string(target["kind"]);
-    if (typeof target["explicitly_named"] !== "boolean" || typeof target["explicitly_placed"] !== "boolean") throw new TypeError("invalid target eligibility");
-    if (target["graph_position"] !== undefined && (target["kind"] !== "node" || array(target["graph_position"]).length !== 3)) throw new TypeError("invalid graph position");
-    if (target["node_id"] !== undefined && (target["kind"] !== "agv" || typeof target["node_id"] !== "string")) throw new TypeError("invalid bound node");
-  }
+  Object.values(map(data["targets"])).forEach((value) => target(value, true));
   const closure = map(data["dependencies"]);
   if (closure["sealed"] !== true) throw new TypeError("layout dependency closure must be sealed");
   map(closure["bindings"]);
@@ -83,23 +78,47 @@ function keys(value: Wire | undefined, required: string, optional = ""): Map {
   return result;
 }
 function strings(value: Wire | undefined): void { array(value).forEach(string); }
-function point(value: Wire | undefined): void {
-  const p = array(value);
-  if (p.length !== 3 || p.some((n) => typeof n !== "number") || p[2] !== 0) throw new TypeError("invalid layout point");
-}
-function address(value: Wire | undefined): void {
-  const a = map(value);
-  if (!["explicit", "lattice", "lane_vertex", "lane_segment", "intersection", "lane_child", "edge", "explicit_arc", "port", "approach", "connector", "value", "graph"].includes(string(a["kind"]))) throw new TypeError("invalid layout address");
-}
-function patch(value: Wire | undefined): void {
-  const p = keys(value, "schema_version", "$schema grid network placements overrides");
-  if (p["schema_version"] !== "1.0") throw new TypeError("invalid saved patch version");
-  for (const key of ["grid", "network"]) if (p[key] !== undefined) map(p[key]);
-  if (p["overrides"] !== undefined) array(p["overrides"]);
-  if (p["placements"] !== undefined) for (const item of Object.values(map(p["placements"]))) {
-    const placement = keys(item, "kind", "position rotation footprint ports obstacle visual");
-    string(placement["kind"]);
+function point(value: Wire | undefined): void { validateLayoutDefinition(value, "point"); }
+function address(value: Wire | undefined): void { validateLayoutDefinition(value, "address"); }
+function patch(value: Wire | undefined): void { validateLayoutPatch(value); }
+function target(value: Wire | undefined, named: boolean): void {
+  const t = keys(value, "kind explicitly_placed" + (named ? " explicitly_named" : ""), "graph_position node_id");
+  validateLayoutDefinition(t["kind"], "id");
+  if (typeof t["explicitly_placed"] !== "boolean" || (named && typeof t["explicitly_named"] !== "boolean")) throw new TypeError("invalid target eligibility");
+  if (t["graph_position"] !== undefined) {
+    if (t["kind"] !== "node") throw new TypeError("graph position requires node target");
+    point(t["graph_position"]);
   }
+  if (t["node_id"] !== undefined) {
+    if (t["kind"] !== "agv") throw new TypeError("bound node requires agv target");
+    validateLayoutDefinition(t["node_id"], "id");
+  }
+}
+function topology(value: Wire | undefined): void {
+  for (const group of Object.values(keys(value, "flows shopfloors routings"))) for (const sequence of array(group)) for (const id of array(sequence)) validateLayoutDefinition(id, "id");
+}
+function nullableDefinition(value: Wire | undefined, name: "capacity" | "positive"): void {
+  if (value !== null) validateLayoutDefinition(value, name);
+}
+function selection(d: Map, o: Map): void {
+  const predicate = string(d["predicate"]), members = array(o["members"]), selected: string[] = [], flags = map(o["flags"]);
+  strings(members); strings(o["selected"]);
+  if (new Set(members).size !== members.length || Object.keys(flags).length !== members.length || members.some((id) => !Object.hasOwn(flags, id as string))) throw new TypeError("invalid selection candidate membership");
+  for (const id of members as string[]) {
+    const flag = keys(flags[id], predicate === "obstacle" ? "state value" : "state ports"), state = string(flag["state"]);
+    if (!["present", "absent", "unset"].includes(state)) throw new TypeError("invalid selection flag state");
+    let match: boolean;
+    if (predicate === "obstacle") {
+      if (state === "present" ? typeof flag["value"] !== "boolean" : flag["value"] !== null) throw new TypeError("invalid obstacle predicate value");
+      match = flag["value"] === true;
+    } else {
+      const ports = map(flag["ports"]);
+      if (Object.values(ports).some((v) => !["present", "absent", "unset"].includes(string(v))) || (state !== "present" && Object.keys(ports).length > 0)) throw new TypeError("invalid connector predicate ports");
+      match = Object.values(ports).includes("present");
+    }
+    if (match) selected.push(id);
+  }
+  if (JSON.stringify(selected) !== JSON.stringify(o["selected"]) || (o["state"] !== "present" && members.length > 0)) throw new TypeError("selection result disagrees with flags");
 }
 function details(data: Map): void {
   const layers = keys(data["layers"], "code file");
@@ -113,12 +132,13 @@ function details(data: Map): void {
       const read = keys(value, "kind", "path");
       if (!["value", "graph"].includes(string(read["kind"]))) throw new TypeError("invalid read grant");
       if (read["kind"] === "value") strings(read["path"]);
+      address(read);
     }
   }
-  for (const sequence of Object.values(keys(data["topology"], "flows shopfloors routings"))) array(sequence).forEach(strings);
+  topology(data["topology"]);
   const auto = keys(data["auto"], "algorithm data targets topology derived_positions");
   if (auto["algorithm"] !== "layered-v1") throw new TypeError("unsupported auto algorithm");
-  patch(auto["data"]); map(auto["targets"]); map(auto["topology"]);
+  patch(auto["data"]); Object.values(map(auto["targets"])).forEach((value) => target(value, false)); topology(auto["topology"]);
   Object.values(map(auto["derived_positions"])).forEach(point);
   const closure = keys(data["dependencies"], "queries bindings sealed");
   for (const value of array(closure["queries"])) {
@@ -132,22 +152,31 @@ function details(data: Map): void {
       if (typeof o["eligible"] !== "boolean") throw new TypeError("invalid physical eligibility");
       array(o["unset"]).forEach(strings);
     }
-    if (kind === "membership" || kind === "selection") array(o["members"]);
+    if (kind === "membership") {
+      const members = array(o["members"]);
+      if (!(members.every((v) => typeof v === "string") || members.every((v, index) => v === index)) || new Set(members).size !== members.length) throw new TypeError("invalid dependency membership");
+    }
     if (kind === "selection") {
-      if (!["obstacle", "connector", "value", "graph"].includes(string(d["predicate"]))) throw new TypeError("invalid selection predicate");
-      map(o["flags"]); strings(o["selected"]);
+      if (!["obstacle", "connector"].includes(string(d["predicate"]))) throw new TypeError("invalid selection predicate");
+      selection(d, o);
     }
   }
   for (const item of array(data["diagnostics"])) {
     const d = keys(item, "code severity path stage target message related_paths");
     if (!["error", "warning"].includes(string(d["severity"]))) throw new TypeError("invalid diagnostic severity");
+    string(d["code"]); string(d["message"]);
+    for (const key of ["stage", "target"]) if (d[key] !== null) string(d[key]);
     strings(d["path"]); array(d["related_paths"]).forEach(strings);
   }
   for (const item of array(data["leaves"])) {
     const leaf = keys(item, "path state source schema_default");
     strings(leaf["path"]);
     if (!["present", "absent", "unset"].includes(string(leaf["state"])) || typeof leaf["schema_default"] !== "boolean") throw new TypeError("invalid leaf provenance");
-    if (leaf["source"] !== null && !["auto", "code", "file"].includes(string(keys(leaf["source"], "kind stage")["kind"]))) throw new TypeError("invalid leaf source");
+    if (leaf["source"] !== null) {
+      const source = keys(leaf["source"], "kind stage");
+      if (!["auto", "code", "file"].includes(string(source["kind"]))) throw new TypeError("invalid leaf source");
+      if (source["stage"] !== null) string(source["stage"]);
+    }
   }
   for (const item of array(data["aliases"])) Object.values(keys(item, "address canonical")).forEach(address);
   for (const item of array(data["required_paths"])) {
@@ -156,8 +185,11 @@ function details(data: Map): void {
   }
   if (data["network"] !== null) {
     const network = keys(data["network"], "nodes edges clearance obstacles lineage adjacency weak_components strong_components graph");
+    validateLayoutDefinition(network["clearance"], "nonnegative");
     for (const item of array(network["obstacles"])) {
-      const obstacle = keys(item, "id owner vertices"); string(obstacle["id"]);
+      const obstacle = keys(item, "id owner vertices"); validateLayoutDefinition(obstacle["id"], "id");
+      if (obstacle["owner"] !== null) validateLayoutDefinition(obstacle["owner"], "id");
+      if (array(obstacle["vertices"]).length !== 4) throw new TypeError("obstacle requires four vertices");
       array(obstacle["vertices"]).forEach(point);
     }
     for (const item of array(network["nodes"])) {
@@ -184,10 +216,10 @@ function details(data: Map): void {
     for (const key of ["weak_components", "strong_components"]) for (const group of array(network[key])) array(group).forEach(address);
     const graph = keys(network["graph"], "nodes arcs");
     for (const item of array(graph["nodes"])) {
-      const node = keys(item, "id position capacity"); string(node["id"]); point(node["position"]);
+      const node = keys(item, "id position capacity"); validateLayoutDefinition(node["id"], "id"); point(node["position"]); nullableDefinition(node["capacity"], "capacity");
     }
     for (const item of array(graph["arcs"])) {
-      const arc = keys(item, "source target speed_limit"); string(arc["source"]); string(arc["target"]);
+      const arc = keys(item, "source target speed_limit"); validateLayoutDefinition(arc["source"], "id"); validateLayoutDefinition(arc["target"], "id"); nullableDefinition(arc["speed_limit"], "positive");
     }
   }
 }

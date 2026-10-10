@@ -13,11 +13,11 @@ from typing import Any
 
 from simulatte._wire import freeze
 from .auto import TargetMetadata, auto_layout
-from .dependencies import DependencyClosure
+from .dependencies import DependencyClosure, evaluate_query
 from .errors import LayoutDiagnostic, LayoutError
 from .schema import validate_definition
 from .identity import ALGORITHMS, hashes, normalize, normalized_query
-from .layers import FileLayer, _thaw, resolve_layers
+from .layers import FileLayer, ResolvedValues, _thaw, resolve_layers
 from .topology import StaticTopology
 
 _FIELDS = frozenset(
@@ -121,6 +121,42 @@ def _strings(value: Any) -> None:
         raise LayoutError("layout record requires string paths/ids")
 
 
+def _validate_selection(descriptor: Mapping[str, Any], observed: Mapping[str, Any]) -> None:
+    predicate = descriptor["predicate"]
+    if predicate not in ("obstacle", "connector") or not isinstance(observed["flags"], Mapping):
+        raise LayoutError("invalid selection predicate")
+    _strings(observed["members"])
+    _strings(observed["selected"])
+    members, flags = observed["members"], observed["flags"]
+    if len(set(members)) != len(members) or set(flags) != set(members):
+        raise LayoutError("invalid selection candidate membership")
+    selected = []
+    for member in members:
+        flag = flags[member]
+        _keys(flag, "state value" if predicate == "obstacle" else "state ports")
+        state = flag["state"]
+        if state not in ("present", "absent", "unset"):
+            raise LayoutError("invalid selection flag state")
+        if predicate == "obstacle":
+            value = flag["value"]
+            if (state == "present" and type(value) is not bool) or (state != "present" and value is not None):
+                raise LayoutError("invalid obstacle predicate value")
+            match = value is True
+        else:
+            ports = flag["ports"]
+            if not isinstance(ports, Mapping) or any(
+                not isinstance(k, str) or v not in ("present", "absent", "unset") for k, v in ports.items()
+            ):
+                raise LayoutError("invalid connector predicate ports")
+            if state != "present" and ports:
+                raise LayoutError("absent ports have predicate members")
+            match = "present" in ports.values()
+        if match:
+            selected.append(member)
+    if list(observed["selected"]) != selected or (observed["state"] != "present" and members):
+        raise LayoutError("selection result disagrees with predicate flags")
+
+
 def _validate_details(data: Mapping[str, Any]) -> None:
     _keys(data["layers"], "code file")
     FileLayer(data["resolved"])
@@ -137,6 +173,7 @@ def _validate_details(data: Mapping[str, Any]) -> None:
                     raise LayoutError("invalid saved read grant")
                 if read["kind"] == "value":
                     _strings(read["path"])
+                validate_definition(_thaw(read), "address")
     _keys(data["auto"], "algorithm data targets topology derived_positions")
     if data["auto"]["algorithm"] != "layered-v1":
         raise LayoutError("unsupported auto algorithm")
@@ -171,15 +208,23 @@ def _validate_details(data: Mapping[str, Any]) -> None:
                 raise LayoutError("invalid physical eligibility")
             for path in _array(observed["unset"]):
                 _strings(path)
-        if kind in ("selection", "membership"):
-            _array(observed["members"])
+        if kind == "membership":
+            members = _array(observed["members"])
+            if not (all(isinstance(item, str) for item in members) or all(type(item) is int for item in members)):
+                raise LayoutError("invalid dependency membership")
+            if len(set(members)) != len(members) or (
+                members and type(members[0]) is int and list(members) != list(range(len(members)))
+            ):
+                raise LayoutError("invalid dependency member order")
         if kind == "selection":
-            if descriptor["predicate"] not in ("obstacle", "connector") or not isinstance(observed["flags"], Mapping):
-                raise LayoutError("invalid selection predicate")
-            _strings(observed["selected"])
+            _validate_selection(descriptor, observed)
     for diagnostic in data["diagnostics"]:
         _keys(diagnostic, "code severity path stage target message related_paths")
         LayoutDiagnostic(**diagnostic)
+        if not all(isinstance(diagnostic[k], str) for k in ("code", "message")) or any(
+            diagnostic[k] is not None and not isinstance(diagnostic[k], str) for k in ("stage", "target")
+        ):
+            raise LayoutError("invalid diagnostic text")
         _strings(diagnostic["path"])
         for path in _array(diagnostic["related_paths"]):
             _strings(path)
@@ -190,7 +235,9 @@ def _validate_details(data: Mapping[str, Any]) -> None:
             raise LayoutError("invalid layout leaf provenance")
         if leaf["source"] is not None:
             _keys(leaf["source"], "kind stage")
-            if leaf["source"]["kind"] not in ("auto", "code", "file"):
+            if leaf["source"]["kind"] not in ("auto", "code", "file") or (
+                leaf["source"]["stage"] is not None and not isinstance(leaf["source"]["stage"], str)
+            ):
                 raise LayoutError("invalid layout leaf source")
     for alias in data["aliases"]:
         _keys(alias, "address canonical")
@@ -207,7 +254,12 @@ def _validate_details(data: Mapping[str, Any]) -> None:
     validate_definition(network["clearance"], "nonnegative")
     for obstacle in _array(network["obstacles"]):
         _keys(obstacle, "id owner vertices")
-        for point in _array(obstacle["vertices"]):
+        validate_definition(obstacle["id"], "id")
+        if obstacle["owner"] is not None:
+            validate_definition(obstacle["owner"], "id")
+        if len(_array(obstacle["vertices"])) != 4:
+            raise LayoutError("obstacle requires four vertices")
+        for point in obstacle["vertices"]:
             validate_definition(_thaw(point), "point")
     for node in network["nodes"]:
         _keys(node, "address id position enabled capacity blockers")
@@ -461,6 +513,139 @@ def finalize_layout(prepared: Any) -> ResolvedLayout:
     )
 
 
+def validate_file_eligibility(
+    values: ResolvedValues,
+    closure: DependencyClosure,
+    *,
+    explicitly_named: frozenset[str],
+    definitions: set[str],
+    replay: bool = False,
+    resolver: Any = resolve_layers,
+) -> tuple[LayoutDiagnostic, ...]:
+    """D30 source eligibility shared by fresh preparation and saved-file replacement.
+
+    Values and names are static data. Replay refreshes only target-local selection
+    views; no graph construction, model callback or live entity inspection occurs.
+    """
+    diagnostics = []
+    code_placements: dict[str, list[tuple[int, str, Mapping[str, Any]]]] = {}
+    for index, (stage, patch) in enumerate(values.bundle.code_stages):
+        for target, placement in patch.get("placements", {}).items():
+            code_placements.setdefault(target, []).append((index, stage, placement))
+    file_paths: dict[str, list[tuple[str, ...]]] = {}
+    for path, leaf in values.explicit_leaves.items():
+        if (
+            len(path) >= 2
+            and path[0] == "placements"
+            and leaf.source is not None
+            and leaf.source.kind == "file"
+            and not isinstance(leaf.value, (Mapping, tuple))
+        ):
+            file_paths.setdefault(path[1], []).append(path)
+    empty_file = FileLayer({"schema_version": "1.0"})
+    for entity_id in values.bundle.file_layer.data.get("placements", {}):
+        if entity_id in definitions or entity_id not in values.targets or entity_id in explicitly_named:
+            continue
+        prefix = ("placements", entity_id)
+        physical_paths = []
+        predicate_paths = []
+        structural_override = False
+        baseline_views: dict[int, ResolvedValues] = {}
+        current_views: dict[int, ResolvedValues] = {}
+        for query in closure.queries:
+            path = tuple(query.descriptor["path"])
+            kind = query.descriptor["kind"]
+            if kind == "value":
+                physical_paths.append(path)
+            elif kind == "selection" and path == ("placements",):
+                observation = query.observed
+                if replay:
+                    if query.code_count not in current_views:
+                        patches = tuple(
+                            (stage, {"schema_version": "1.0", "placements": {entity_id: placement}})
+                            for index, stage, placement in code_placements.get(entity_id, ())
+                            if index < query.code_count
+                        )
+                        target_kind = query.targets.get(entity_id)
+                        current_views[query.code_count] = resolver(
+                            patches,
+                            FileLayer(
+                                {
+                                    "schema_version": "1.0",
+                                    "placements": {entity_id: values.bundle.file_layer.data["placements"][entity_id]},
+                                }
+                            ),
+                            targets={} if target_kind is None else {entity_id: target_kind},
+                            final=True,
+                        )
+                    observation = evaluate_query(current_views[query.code_count], query.descriptor)
+                flags = observation["flags"].get(entity_id)
+                if flags is not None:
+                    if query.descriptor["predicate"] == "obstacle":
+                        predicate_paths.append((*prefix, "obstacle"))
+                    else:
+                        predicate_paths.append((*prefix, "ports"))
+                        for port in flags["ports"]:
+                            predicate_paths.extend(((*prefix, "ports", port), (*prefix, "ports", port, "connector")))
+                # A selection consumes this target's membership/predicate flags,
+                # not visual descendants. Replay only its code placement prefix;
+                # the once-built index avoids remerging the whole model per target.
+                if query.code_count not in baseline_views:
+                    patches = tuple(
+                        (stage, {"schema_version": "1.0", "placements": {entity_id: placement}})
+                        for index, stage, placement in code_placements.get(entity_id, ())
+                        if index < query.code_count
+                    )
+                    target_kind = query.targets.get(entity_id)
+                    baseline_views[query.code_count] = resolver(
+                        patches,
+                        empty_file,
+                        targets={} if target_kind is None else {entity_id: target_kind},
+                        final=True,
+                    )
+                baseline = normalized_query(
+                    query.descriptor,
+                    evaluate_query(baseline_views[query.code_count], query.descriptor),
+                    origin=query.origin,
+                    targets=query.targets,
+                )["observed"]
+                observed = normalized_query(query.descriptor, observation, origin=query.origin, targets=query.targets)[
+                    "observed"
+                ]
+                if baseline["flags"].get(entity_id) != observed["flags"].get(entity_id):
+                    structural_override = True
+            elif path[:2] == prefix:
+                physical_paths.append(path)
+        # A file-origin predicate leaf (or removal of its ancestor container)
+        # remains physical even when its value equals code. Descendants of a
+        # presence/membership read are not implicitly consumed.
+        predicate_override = any(
+            used[: len(path)] == path for path in file_paths.get(entity_id, ()) for used in predicate_paths
+        )
+        physical = (
+            structural_override
+            or predicate_override
+            or any(
+                path[: len(used)] == used or used[: len(path)] == path
+                for path in file_paths.get(entity_id, ())
+                for used in physical_paths
+            )
+        )
+        if physical:
+            raise LayoutError(f"physical file override requires an explicitly named entity: {entity_id}")
+        diagnostics.append(
+            LayoutDiagnostic(
+                "generated-id-presentation",
+                "warning",
+                prefix,
+                None,
+                entity_id,
+                "presentation override targets an auto-named entity",
+            )
+        )
+    return tuple(diagnostics)
+
+
 @dataclass(frozen=True)
 class PresentationResult:
     requires_rerun: bool
@@ -476,15 +661,22 @@ def reresolve_presentation(bundle: LayoutBundle, file_patch: Mapping[str, Any]) 
     data = bundle.to_dict()
     stages = data["layers"]["code"]
     closure = DependencyClosure.from_dict(data["dependencies"])
-    changed = closure.reevaluate(stages, file_layer)
-    if changed:
-        return PresentationResult(True, changed, None, bundle.physical_hash)
     targets = {
         key: TargetMetadata.from_dict({k: v for k, v in value.items() if k != "explicitly_named"})
         for key, value in data["targets"].items()
     }
     kinds = {key: target.kind for key, target in targets.items()}
     explicit = resolve_layers(stages, file_layer, targets=kinds, final=True)
+    generated_diagnostics = validate_file_eligibility(
+        explicit,
+        closure,
+        explicitly_named=frozenset(key for key, target in data["targets"].items() if target["explicitly_named"]),
+        definitions=set() if data["network"] is None else {node["id"] for node in data["network"]["nodes"]},
+        replay=True,
+    )
+    changed = closure.reevaluate(stages, file_layer)
+    if changed:
+        return PresentationResult(True, changed, None, bundle.physical_hash)
     auto = auto_layout(targets, StaticTopology.from_dict(data["topology"]), explicit)
     values = resolve_layers(stages, file_layer, targets=kinds, final=True, auto_layer=auto.data)
     data["layers"]["file"] = file_layer.to_dict()
@@ -499,9 +691,11 @@ def reresolve_presentation(bundle: LayoutBundle, file_patch: Mapping[str, Any]) 
         "placement-overlap",
         "unknown-flow-target",
         "node-position-ignored",
+        "generated-id-presentation",
     }
     data["diagnostics"] = [d for d in data["diagnostics"] if d["code"] not in replaced] + [
-        asdict(d) for d in (*values.diagnostics, *auto.diagnostics)
+        asdict(d) for d in (*values.diagnostics, *auto.diagnostics, *generated_diagnostics)
     ]
+    data["diagnostics"].sort(key=lambda d: (d["stage"] or "", tuple(d["path"]), d["code"], d["target"] or ""))
     data.update(hashes(data))
     return PresentationResult(False, (), LayoutBundle.from_dict(data), bundle.physical_hash)

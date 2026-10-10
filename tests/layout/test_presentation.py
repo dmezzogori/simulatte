@@ -130,3 +130,72 @@ def test_node_and_agv_derived_positions_remain_authoritative():
     assert edit.bundle.physical_hash == bundle.physical_hash
     with pytest.raises(LayoutError):
         reresolve_presentation(bundle, {"schema_version": "1.0", "unknown": 1})
+
+
+def test_saved_same_value_physical_override_requires_explicit_name():
+    env = Environment()
+    layout = Layout(env)
+    machine = Server(env=env, capacity=1)
+    layout.place(machine, footprint={"width": 2})
+    ref = layout.ref("placements", machine.id, "footprint", "width")
+    layout.on_bind("width", lambda ctx: ctx.physical(ref), reads=[ref])
+    bundle = layout.prepare().bundle
+    patch = {"schema_version": "1.0", "placements": {machine.id: {"kind": "server", "footprint": {"width": 2.0}}}}
+    with pytest.raises(LayoutError, match="explicitly named"):
+        reresolve_presentation(bundle, patch)
+
+
+def test_saved_generated_id_warning_added_then_removed():
+    env = Environment()
+    layout = Layout(env)
+    machine = Server(env=env, capacity=1)
+    bundle = layout.prepare().bundle
+    edit = reresolve_presentation(
+        bundle, {"schema_version": "1.0", "placements": {machine.id: {"kind": "server", "visual": {"color": "red"}}}}
+    )
+    assert edit.bundle is not None
+    assert [d["target"] for d in edit.bundle["diagnostics"] if d["code"] == "generated-id-presentation"] == [machine.id]
+    reset = reresolve_presentation(edit.bundle, {"schema_version": "1.0"})
+    assert reset.bundle is not None
+    assert not any(d["code"] == "generated-id-presentation" for d in reset.bundle["diagnostics"])
+
+
+@pytest.mark.parametrize(
+    "placement",
+    [
+        {"footprint": {"width": 3}},
+        {"obstacle": False},
+        {"obstacle": True},
+        {"ports": {"visual": {"$unset": True}}},
+    ],
+)
+def test_saved_unnamed_physical_eligibility_precedes_change_result(placement):
+    env = Environment()
+    layout = Layout(env)
+    machine = Server(env=env, capacity=1)
+    layout.place(machine, footprint={"width": 2}, obstacle=False, ports={"visual": {"position": [0, 0, 0]}})
+    ref = layout.ref("placements", machine.id, "footprint", "width")
+    layout.on_bind("width", lambda ctx: ctx.physical(ref), reads=[ref])
+    bundle = layout.prepare().bundle
+    with pytest.raises(LayoutError, match="explicitly named"):
+        reresolve_presentation(
+            bundle, {"schema_version": "1.0", "placements": {machine.id: {"kind": "server", **placement}}}
+        )
+
+
+def test_saved_unnamed_visual_port_coordinate_change_remains_eligible():
+    env = Environment()
+    layout = Layout(env)
+    machine = Server(env=env, capacity=1)
+    layout.place(machine, ports={"visual": {"position": [0, 0, 0]}})
+    bundle = layout.prepare().bundle
+    edit = reresolve_presentation(
+        bundle,
+        {
+            "schema_version": "1.0",
+            "placements": {machine.id: {"kind": "server", "ports": {"visual": {"position": [1, 0, 0]}}}},
+        },
+    )
+    assert not edit.requires_rerun and edit.bundle is not None
+    assert edit.bundle.physical_hash == bundle.physical_hash
+    assert any(d["code"] == "generated-id-presentation" for d in edit.bundle["diagnostics"])
