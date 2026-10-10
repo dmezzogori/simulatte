@@ -413,7 +413,9 @@ finite numbers, id syntax, and semantic constraints. Optional `$schema` is infor
 The example is a patch over code declarations, not a complete standalone network. `grid`, `network` and
 `placements` may be omitted. Placements require an expected kind; grid/network patches inherit their type from
 code or explicitly specify it. Maps merge recursively per leaf; a point is an atomic three-number list and lists
-replace completely. `{"$unset":true}` is a leaf sentinel removing an inherited optional value; it is invalid
+replace completely. A connector target is a complete typed address and replaces atomically, so changing its
+address family cannot retain incompatible fields from the previous target. `{"$unset":true}` is a leaf sentinel
+removing an inherited optional value; it is invalid
 for required fields. Null is not an alternate spelling of unset. Unsetting a required input fails only when the
 resolved model requires it, with its source path. Reset-to-inherited deletes the override from the file.
 
