@@ -203,7 +203,7 @@ class PreparationCoordinator:
         ):
             raise LayoutError(f"undeclared physical read: {ref.path}")
         if len(ref.path) >= 2 and ref.path[0] == "placements":
-            if ("placements", ref.path[1]) not in self._frozen:
+            if ("placements", ref.path[1]) not in self._frozen or ref.path[1] not in self.values.targets:
                 raise LayoutError(f"physical read requires a prior-stage target: {ref.path}")
 
     def read_physical(self, context: StageContext, ref: ValueRef, *, default: Any = MISSING) -> Any:

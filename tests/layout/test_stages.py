@@ -489,3 +489,12 @@ def test_stage_grants_reject_other_reference_types():
     with pytest.raises(LayoutError, match="ValueRef or GraphRef"):
         invalid_reads: Any = (NodeRef(object(), Address({"kind": "explicit", "id": "a"})),)
         StageSpec("bad", lambda ctx: None, invalid_reads)
+
+
+def test_binding_cannot_consume_an_unmatched_code_target_even_with_default():
+    engine = PreparationCoordinator(object())
+    engine.declare(hall())
+    ref = engine.ref("placements", "hall", "rotation")
+    engine.on_bind("orphan", lambda ctx: ctx.physical(ref, default=0), reads=[ref])
+    with pytest.raises(LayoutError, match="prior-stage target"):
+        engine.prepare()
