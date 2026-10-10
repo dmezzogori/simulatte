@@ -16,6 +16,10 @@ Values made by :func:`freeze` are canonical by construction: NaN is normalized a
 builds keeps its keys sorted by the UTF-8 bytes of the escaped key and holds the escaped form ready for the
 packer. Encoding such values skips the per-item preparation; :func:`prepared` and :func:`prepared_op` give the
 hot paths (digest, recorder) packable values and fall back to the full preparation for anything else.
+
+No function here calls user code (spec §6.1): subclasses of ``str``, ``int``, ``float``, ``list``, ``tuple`` and
+``dict`` are read through the built-in methods of their base type, never through their own (possibly overridden)
+methods, and become values of the exact built-in type; other mappings are not wire values.
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ from __future__ import annotations
 from bisect import bisect_left
 from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping
+from types import BuiltinFunctionType, MappingProxyType, MethodDescriptorType, WrapperDescriptorType
 from typing import Any, TypeAlias
 
 import msgpack
@@ -40,6 +45,8 @@ __all__ = [
     "prepared_op",
     "unescape_key",
     "unpack",
+    "wire_float",
+    "wire_float_or_none",
 ]
 
 MAX_SAFE_INT = 2**53 - 1
@@ -92,10 +99,12 @@ class FrozenMap(Mapping[str, "Wire"]):
 def freeze(value: Any) -> Wire:
     """Return `value` as an immutable wire value, canonical by construction.
 
-    Lists and tuples become tuples, mappings become canonical :class:`FrozenMap` (keys sorted by the UTF-8 bytes
-    of the escaped key), NaN becomes the normalized NaN; a canonical map is returned unchanged. Raises
-    `TypeError` for anything that is not a wire value (including non-``str`` keys and ``bytes``) and
-    `OverflowError` for integers outside +/-(2**53 - 1).
+    Lists and tuples become tuples, ``dict`` and :class:`FrozenMap` (and ``MappingProxyType``) become canonical
+    :class:`FrozenMap` (keys sorted by the UTF-8 bytes of the escaped key), NaN becomes the normalized NaN; a
+    canonical map is returned unchanged. Subclasses of the built-in types (enums, for example) become the exact
+    built-in type, read without calling their own methods. Raises `TypeError` for anything that is not a wire value
+    (including non-``str`` keys, ``bytes`` and other mappings) and `OverflowError` for integers outside
+    +/-(2**53 - 1).
     """
     t = type(value)
     if t is str or value is None or t is bool:  # exact types first: the common, cheapest checks
@@ -105,20 +114,90 @@ def freeze(value: Any) -> Wire:
     if t is int:
         _check_int(value)
         return value
-    if isinstance(value, (bool, str)):
+    if t is FrozenMap and value._wire is not None:
         return value
-    if isinstance(value, float):
-        return _NAN if value != value else value
-    if isinstance(value, int):
-        _check_int(value)
-        return value
-    if isinstance(value, FrozenMap) and value._wire is not None:
-        return value
-    if isinstance(value, (list, tuple)):
+    if t is tuple or t is list:
         return tuple(freeze(item) for item in value)
-    if isinstance(value, Mapping):
+    if t is dict:
         return _canonical_map({_check_key(k): freeze(v) for k, v in value.items()})
-    raise TypeError(f"not a wire value: {type(value).__name__}")
+    scalar = _builtin_scalar(value, t)
+    if scalar is not _NOT_SCALAR:
+        return freeze(scalar)
+    items = _builtin_items(value, t)
+    if items is None:
+        raise TypeError(f"not a wire value: {t.__name__}")
+    if isinstance(items, tuple):
+        return tuple(freeze(item) for item in items)
+    return _canonical_map({_check_key(k): freeze(v) for k, v in items})
+
+
+_NOT_SCALAR: Any = object()
+
+
+def _builtin_scalar(value: Any, t: type) -> Any:
+    """The exact built-in value of a ``str``, ``int`` or ``float`` subclass instance, read without its own methods;
+    :data:`_NOT_SCALAR` for any other type. ``bool`` cannot be subclassed."""
+    if issubclass(t, str):
+        return str.__str__(value)
+    if issubclass(t, float):
+        return float.__float__(value)
+    if issubclass(t, int):
+        return int.__int__(value)
+    return _NOT_SCALAR
+
+
+def _builtin_items(value: Any, t: type) -> Any:
+    """The items of a container through the built-in methods: a tuple for a ``list``/``tuple`` (or subclass), an
+    iterable of key-value pairs for a ``dict`` (or subclass), :class:`FrozenMap` or ``MappingProxyType``; None for
+    anything else."""
+    if issubclass(t, tuple):
+        return tuple.__getitem__(value, slice(None))
+    if issubclass(t, list):
+        return tuple(list.__getitem__(value, slice(None)))
+    if issubclass(t, dict):
+        return dict.items(value)
+    if issubclass(t, FrozenMap):
+        return value._data.items()
+    if t is MappingProxyType:
+        return value.items()
+    return None
+
+
+_C_METHODS = (WrapperDescriptorType, MethodDescriptorType, BuiltinFunctionType)
+
+
+def wire_float(value: object) -> float:
+    """`value` as a ``float`` for an event payload or state field, without calling user code (spec §6.1).
+
+    ``float`` and ``int`` values, including instances of their subclasses, convert through the built-in methods
+    (a subclass's own ``__float__`` is user code and is never called); other types only through a ``__float__``
+    implemented in C (NumPy scalars, for example). Anything else is NaN: an int beyond the float range, a value
+    whose only conversion is a Python-level ``__float__`` (``Fraction``, user classes), a non-number. See
+    :func:`wire_float_or_none` for the variant that returns None instead.
+    """
+    if type(value) is float:
+        return value
+    result = wire_float_or_none(value)
+    return _NAN if result is None else result
+
+
+def wire_float_or_none(value: object) -> float | None:
+    """:func:`wire_float`, but None where that returns NaN for want of a conversion."""
+    t = type(value)
+    if t is float:
+        return value  # ty: ignore[invalid-return-type]  # narrowed by the exact type check
+    try:
+        if issubclass(t, float):
+            return float.__float__(value)  # ty: ignore[invalid-argument-type]
+        if issubclass(t, int):
+            return int.__float__(value)  # ty: ignore[invalid-argument-type]
+        for klass in t.__mro__:
+            method = klass.__dict__.get("__float__")
+            if method is not None:
+                return float(value) if isinstance(method, _C_METHODS) else None  # ty: ignore[invalid-argument-type]
+    except (OverflowError, ValueError):
+        return None
+    return None
 
 
 def _canonical_map(data: dict[str, Wire]) -> FrozenMap:
@@ -245,9 +324,12 @@ def _check_int(value: int) -> None:
 
 
 def _check_key(key: object) -> str:
-    if not isinstance(key, str):
-        raise TypeError(f"map keys must be str, got {type(key).__name__}")
-    return key
+    t = type(key)
+    if t is str:
+        return key  # ty: ignore[invalid-return-type]  # narrowed by the exact type check
+    if issubclass(t, str):
+        return str.__str__(key)
+    raise TypeError(f"map keys must be str, got {t.__name__}")
 
 
 def _packb(obj: object) -> bytes:
@@ -264,25 +346,32 @@ def _pack_default(obj: object) -> Any:
 def _prepare(value: object, *, canonical: bool) -> Any:
     """Validate `value` and turn it into plain containers ready for the MessagePack packer.
 
-    Canonical maps are already validated and sorted; they are left for the packer hook.
+    Canonical maps are already validated and sorted; they are left for the packer hook. Subclasses of the built-in
+    types become the exact built-in type, read without calling their own methods (see :func:`freeze`), so neither
+    the C packer nor the pure-Python one (PyPy) calls user code.
     """
-    if value is None or isinstance(value, (bool, str)):
+    t = type(value)
+    if t is str or t is bool or value is None:
         return value
-    if type(value) is FrozenMap and value._wire is not None:
+    if t is FrozenMap and value._wire is not None:  # ty: ignore[unresolved-attribute]
         return value
-    if isinstance(value, float):
+    if t is float:
         return _NAN if canonical and value != value else value
-    if isinstance(value, int):
-        _check_int(value)
+    if t is int:
+        _check_int(value)  # ty: ignore[invalid-argument-type]
         return value
-    if isinstance(value, (list, tuple)):
-        return [_prepare(item, canonical=canonical) for item in value]
-    if isinstance(value, Mapping):
-        items = [(escape_key(_check_key(k)), _prepare(v, canonical=canonical)) for k, v in value.items()]
-        if canonical:
-            items.sort(key=lambda item: item[0].encode("utf-8"))
-        return dict(items)
-    raise TypeError(f"not a wire value: {type(value).__name__}")
+    scalar = _builtin_scalar(value, t)
+    if scalar is not _NOT_SCALAR:
+        return _prepare(scalar, canonical=canonical)
+    items = _builtin_items(value, t)
+    if items is None:
+        raise TypeError(f"not a wire value: {t.__name__}")
+    if isinstance(items, tuple):
+        return [_prepare(item, canonical=canonical) for item in items]
+    pairs = [(escape_key(_check_key(k)), _prepare(v, canonical=canonical)) for k, v in items]
+    if canonical:
+        pairs.sort(key=lambda item: item[0].encode("utf-8"))
+    return dict(pairs)
 
 
 def _decode_map(pairs: Iterable[tuple[object, Wire]]) -> FrozenMap:

@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from simulatte._wire import wire_float
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 
@@ -444,12 +445,12 @@ class ProductionJob(BaseJob, Entity, kind="job"):
         return {
             "sku": self.sku,
             "routing": [server.id for server in self._servers],
-            "processing_times": [float(pt) for pt in self._processing_times],
+            "processing_times": [wire_float(pt) for pt in self._processing_times],
             "op_index": self._op_index,
             "location": self._location,
-            "due_date": float(self.due_date),
-            "created_at": float(self.created_at),
-            "finished_at": None if finished_at is None else float(finished_at),
+            "due_date": wire_float(self.due_date),
+            "created_at": wire_float(self.created_at),
+            "finished_at": None if finished_at is None else wire_float(finished_at),
             "shopfloor": self._shopfloor_id,
             "label": self.label,
         }

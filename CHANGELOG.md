@@ -72,6 +72,11 @@ many APIs and, because RNG streams are now derived from the seed and entity name
   The production components (`Server`, `ShopFloor`, `PreShopPool`, `Router`) and the facilities (`Warehouse`,
   `TrafficManager`, `ChargingStation`, `ParkingArea`) no longer write DEBUG log messages; subscribe to their events
   instead. Fleet warnings and errors stay `log` events.
+- Event construction calls no user code (observers cannot change results through it): priorities, times and
+  levels are read through the built-in conversions of `int` and `float`, so a subclass's own `__float__` is never
+  called; values that only a Python-level `__float__` could convert (`Fraction`, user classes) are recorded as
+  `NaN` (a priority as null). Wire values are made of exact built-in types (an `IntEnum` or `StrEnum` in a delta
+  becomes `int` or `str`), and mappings other than `dict`, `FrozenMap` and `MappingProxyType` are not wire values.
 - **Breaking:** seeding. `Runner` creates `Environment(seed=seed)` and no longer calls `random.seed(seed)`, so model
   code that draws from the global `random` module loses its reproducibility; draw from `env.rng(name)`.
   `Distribution.__call__` is removed: distributions are descriptions with `sampler(rng)`, bound to named streams

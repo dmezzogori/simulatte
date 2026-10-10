@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import struct
-from typing import Any
+from typing import Any, ClassVar
 
 import msgpack
 import pytest
@@ -20,6 +20,8 @@ from simulatte._wire import (
     prepared_op,
     unescape_key,
     unpack,
+    wire_float,
+    wire_float_or_none,
 )
 
 
@@ -337,11 +339,192 @@ def test_freeze_accepts_scalar_subclasses_like_before() -> None:
     class Ratio(float):
         pass
 
-    assert freeze(Color.RED) is Color.RED and freeze(Level.HIGH) is Level.HIGH
-    assert freeze(Ratio(0.5)) == 0.5 and math.isnan(fz(Ratio("nan")))
+    assert freeze(Color.RED) == "red" and type(freeze(Color.RED)) is str
+    assert freeze(Level.HIGH) == 3 and type(freeze(Level.HIGH)) is int
+    assert freeze(Ratio(0.5)) == 0.5 and type(freeze(Ratio(0.5))) is float and math.isnan(fz(Ratio("nan")))
     with pytest.raises(OverflowError):
         freeze(type("Big", (int,), {})(2**60))
     assert cpack(fz({"c": Color.RED, "l": Level.HIGH})) == cpack({"c": "red", "l": 3})
+
+
+class _Spy:
+    """Collects the user-level methods that the wire functions called (they must call none, spec §6.1)."""
+
+    calls: ClassVar[list[str]] = []
+
+
+class _SpyFloat(float):
+    def __float__(self) -> float:
+        _Spy.calls.append("float.__float__")
+        return 7.0
+
+    def __ne__(self, other: object) -> bool:
+        _Spy.calls.append("float.__ne__")
+        return True
+
+    def __eq__(self, other: object) -> bool:
+        _Spy.calls.append("float.__eq__")
+        return False
+
+    __hash__ = float.__hash__
+
+
+class _SpyInt(int):
+    def __int__(self) -> int:
+        _Spy.calls.append("int.__int__")
+        return 7
+
+    def __index__(self) -> int:
+        _Spy.calls.append("int.__index__")
+        return 7
+
+    def __float__(self) -> float:
+        _Spy.calls.append("int.__float__")
+        return 7.0
+
+    def __le__(self, other: object) -> bool:
+        _Spy.calls.append("int.__le__")
+        return True
+
+    def __ge__(self, other: object) -> bool:
+        _Spy.calls.append("int.__ge__")
+        return True
+
+    __hash__ = int.__hash__
+
+
+class _SpyStr(str):
+    def __str__(self) -> str:
+        _Spy.calls.append("str.__str__")
+        return "spy"
+
+    def __lt__(self, other: object) -> bool:
+        _Spy.calls.append("str.__lt__")
+        return False
+
+    def encode(self, *args: Any, **kwargs: Any) -> bytes:
+        _Spy.calls.append("str.encode")
+        return b"spy"
+
+    __hash__ = str.__hash__
+
+
+class _SpyList(list):  # type: ignore[type-arg]
+    def __iter__(self) -> Any:
+        _Spy.calls.append("list.__iter__")
+        return iter([])
+
+
+class _SpyDict(dict):  # type: ignore[type-arg]
+    def items(self) -> Any:
+        _Spy.calls.append("dict.items")
+        return iter([])
+
+    def __iter__(self) -> Any:
+        _Spy.calls.append("dict.__iter__")
+        return iter([])
+
+
+class TestNoUserCode:
+    """Wire conversions read subclasses of built-in types through the built-in methods (spec §6.1)."""
+
+    @pytest.fixture(autouse=True)
+    def _reset(self) -> None:
+        _Spy.calls.clear()
+
+    def _value(self) -> Any:
+        return _SpyDict(
+            {
+                _SpyStr("b"): _SpyList([_SpyFloat(1.5), _SpyInt(2), _SpyStr("s"), _SpyFloat("nan")]),
+                _SpyStr("a"): (_SpyInt(3), _SpyFloat(-0.0)),
+            }
+        )
+
+    def test_freeze_returns_built_in_types_without_calling_user_code(self) -> None:
+        frozen = fz(self._value())
+
+        assert _Spy.calls == []
+        assert list(frozen) == ["a", "b"] and all(type(k) is str for k in frozen)
+        a, b = frozen["a"], frozen["b"]
+        assert [type(x) for x in (*a, *b)] == [int, float, float, int, str, float]
+        assert a[0] == 3 and math.copysign(1.0, a[1]) == -1.0
+        assert b[:3] == (1.5, 2, "s") and math.isnan(b[3])
+
+    def test_freeze_checks_the_integer_range_without_user_code(self) -> None:
+        with pytest.raises(OverflowError):
+            freeze(_SpyInt(2**60))
+        assert _Spy.calls == []
+
+    @pytest.mark.parametrize("encode", [canonical_pack, pack], ids=["canonical_pack", "pack"])
+    def test_encoders_call_no_user_code(self, encode: Any) -> None:
+        data = encode(self._value())
+
+        assert _Spy.calls == []
+        assert cpack(upk(data)) == cpack(fz(self._value()))  # bytes: NaN != NaN as values
+
+    def test_fallback_packer_calls_no_user_code(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from msgpack import fallback
+
+        monkeypatch.setattr(msgpack, "Packer", fallback.Packer)  # the pure-Python packer that PyPy uses
+        data = canonical_pack(self._value())
+
+        assert _Spy.calls == []
+        assert cpack(upk(data)) == cpack(fz(self._value()))  # bytes: NaN != NaN as values
+
+    def test_prepared_values_call_no_user_code(self) -> None:
+        packer = new_packer()
+        packer.pack(prepared(_SpyFloat(2.5)))
+        packer.pack(prepared_op(("set", _SpyStr("e"), "f", _SpyInt(1))))
+        assert _Spy.calls == []
+
+    def test_mappings_other_than_dict_and_frozen_map_are_not_wire_values(self) -> None:
+        from collections.abc import Mapping
+        from types import MappingProxyType
+
+        class Custom(Mapping[str, int]):
+            def __getitem__(self, key: str) -> int:  # pragma: no cover - must never be called
+                raise AssertionError("user code")
+
+            def __iter__(self) -> Any:  # pragma: no cover - must never be called
+                raise AssertionError("user code")
+
+            def __len__(self) -> int:  # pragma: no cover - must never be called
+                raise AssertionError("user code")
+
+        assert fz(MappingProxyType({"k": 1})) == {"k": 1}
+        assert upk(cpack(MappingProxyType({"k": 1}))) == {"k": 1}
+        with pytest.raises(TypeError, match="not a wire value"):
+            freeze(Custom())
+        with pytest.raises(TypeError, match="not a wire value"):
+            canonical_pack(Custom())  # ty: ignore[invalid-argument-type]
+
+
+class TestWireFloat:
+    def test_builtin_numbers_convert(self) -> None:
+        assert wire_float(1.5) == 1.5 and type(wire_float(3)) is float and wire_float(True) == 1.0
+        assert math.isnan(wire_float(10**400)) and wire_float_or_none(10**400) is None  # beyond the float range
+
+    def test_subclasses_convert_through_the_builtin_methods(self) -> None:
+        values = [wire_float(_SpyFloat(2.5)), wire_float(_SpyInt(4)), wire_float_or_none(_SpyFloat(0.5))]
+
+        assert values == [2.5, 4.0, 0.5] and [type(v) for v in values] == [float, float, float]
+        assert _Spy.calls == []
+
+    def test_python_level_conversions_are_never_called(self) -> None:
+        from fractions import Fraction
+
+        class Number:
+            def __float__(self) -> float:  # pragma: no cover - must never be called
+                raise AssertionError("user code")
+
+        for value in (Number(), Fraction(1, 2), "1.5", None):  # Fraction.__float__ is Python code
+            assert wire_float_or_none(value) is None and math.isnan(wire_float(value))
+
+    def test_c_level_conversions_are_used(self) -> None:
+        np = pytest.importorskip("numpy")
+
+        assert wire_float(np.int64(3)) == 3.0 and type(wire_float(np.int64(3))) is float
+        assert wire_float(np.float32(0.5)) == 0.5 and wire_float(np.float64(1.25)) == 1.25
 
 
 class TestPureFallbackDecoder:

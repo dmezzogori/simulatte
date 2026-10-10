@@ -5,6 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from simulatte._wire import wire_float
 from simulatte.entities import Entity, FieldSpec, StateSchema
 
 if TYPE_CHECKING:
@@ -60,8 +61,8 @@ class NodeBinding(Entity, kind="node"):
         """Current entity state: coordinates and the ids of the AGVs located at and reserving the node."""
         node = self.node
         return {
-            "x": float(node.x),
-            "y": float(node.y),
+            "x": wire_float(node.x),
+            "y": wire_float(node.y),
             "agvs": list(self.agvs),
             "reserved_by": list(self.reserved_by),
             "label": self.label,

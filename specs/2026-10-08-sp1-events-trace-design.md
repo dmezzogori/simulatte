@@ -136,7 +136,7 @@ A test runs the reference models in fresh processes under several `PYTHONHASHSEE
   - `env.emit` stamps `t`, `seq` and (while the projection is active) `ordinal` on a fresh instance; an instance whose `seq` is already set is rejected, so a delivered event never changes.
   - Emitting a `DomainEvent` while subscribers are being called raises: observers cannot inject trajectory.
   - `ObserverEvent`s must have empty deltas; a non-empty delta raises.
-- **Payload sources** (S9). Payload and delta values come from data the transition already computed (for example the priority stored on the request), never from calls made only to fill the event. Building an event must not call user policies or callbacks.
+- **Payload sources** (S9). Payload and delta values come from data the transition already computed (for example the priority stored on the request), never from calls made only to fill the event. Building an event must not call user policies or callbacks. Nor may it call methods of user-defined value types: numbers are read through the built-in conversions of `int` and `float` (a subclass's own `__float__` is never called), other types only through a conversion implemented in C (NumPy scalars), else they are recorded as `NaN` (as null for `job.queued.priority`, R14); subclasses of `str`, `list`, `tuple` and `dict` are read through the base type's methods, and other mappings are not wire values.
 - Debug mode validates payloads against the catalog and rejects subscribers that schedule SimPy events or draw from `env.rng`.
 
 ### 6.2 Deltas

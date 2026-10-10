@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 import simpy
 from simpy.resources.resource import PriorityRequest
 
-from simulatte._wire import Wire, freeze
+from simulatte._wire import Wire, freeze, wire_float, wire_float_or_none
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 from simulatte.events import Deltas, DomainEvent, event_type
@@ -251,7 +251,7 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
             "capacity": self.capacity,
             "users": [cast(ServerPriorityRequest, request).job.id for request in self.users],
             "queue": [cast(ServerPriorityRequest, request).job.id for request in self.queue],
-            "worked_time": float(self.worked_time),
+            "worked_time": wire_float(self.worked_time),
             "label": self.label,
         }
 
@@ -508,12 +508,13 @@ def _request_key(request: Any) -> Any:
 
 
 def _wire_priority(priority: object) -> Wire:
-    """`priority` as recorded by ``job.queued`` (see :class:`JobQueued`); never raises."""
-    if isinstance(priority, (int, float)):
-        try:
-            return float(priority)
-        except OverflowError:  # an int beyond float range
-            return None
+    """`priority` as recorded by ``job.queued`` (see :class:`JobQueued`); never raises and calls no user code.
+
+    Numbers (``bool`` and subclasses of ``int`` and ``float`` included) become floats through the built-in
+    conversions, None beyond the float range; other values are frozen, None when they are not wire values (R14).
+    """
+    if issubclass(type(priority), (int, float)):
+        return wire_float_or_none(priority)
     try:
         return freeze(priority)
     except (TypeError, OverflowError):

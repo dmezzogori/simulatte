@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from simpy.events import ProcessGenerator
 from simpy.resources.resource import Request
 
+from simulatte._wire import wire_float
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.events import Deltas
 from simulatte.intralogistics._resources import NotifyingContainer, NotifyingResource
@@ -99,7 +100,7 @@ class ChargingStation(Entity, kind="charging_station"):
         pool = self._swap_pool
         return {
             "slots_in_use": self._slots.count,
-            "swap_pool": None if pool is None else float(pool.level),
+            "swap_pool": None if pool is None else wire_float(pool.level),
             "label": self.label,
         }
 
@@ -175,7 +176,7 @@ class ChargingStation(Entity, kind="charging_station"):
         """Emit ``agv.battery_changed`` after a recharge or a swap changed the AGV's battery level."""
         env = self.env
         if env.wants(AgvBatteryChanged):
-            level = float(agv.battery.level)
+            level = wire_float(agv.battery.level)
             env.emit(
                 AgvBatteryChanged(agv=agv.id, battery=level, deltas=Deltas.build().set(agv.id, "battery", level).done())
             )
@@ -200,7 +201,7 @@ class ChargingStation(Entity, kind="charging_station"):
         """Emit ``charging.pool_changed`` after a swap took a battery or ``_replenish_pool`` returned one."""
         env = self.env
         if env.wants(ChargingPoolChanged):
-            level = float(pool.level)
+            level = wire_float(pool.level)
             env.emit(
                 ChargingPoolChanged(
                     station=self.id, swap_pool=level, deltas=Deltas.build().set(self.id, "swap_pool", level).done()

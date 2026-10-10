@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, TypedDict, cast
 
 import simpy
 
-from simulatte._wire import FrozenMap, freeze
+from simulatte._wire import FrozenMap, freeze, wire_float
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import deferrable
 from simulatte.events import Deltas
@@ -412,7 +412,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             field = _STATUS_TIMESTAMPS.get(status)
             if field is not None:
                 value = getattr(order, field)
-                build.set(order.id, field, None if value is None else float(value))
+                build.set(order.id, field, None if value is None else wire_float(value))
             if with_agv:
                 agv = order.assigned_agv
                 build.set(order.id, "agv", None if agv is None else agv.id)
@@ -469,7 +469,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             wire = None if load is None else cast("FrozenMap", freeze({sku.id: qty for sku, qty in load.items()}))
             build = Deltas.build().set(agv.id, "load", wire)
             if picked is not None:
-                build.set(picked.id, "picked_at", float(env.now))
+                build.set(picked.id, "picked_at", wire_float(env.now))
             env.emit(AgvLoadChanged(agv=agv.id, load=wire, deltas=build.done()))
 
     def _unassign_order(self, order: TransferOrder, agv: AGV) -> None:
@@ -956,7 +956,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         left, entered = agv._relocate(node)
         env = self.env
         if env.wants(AgvMoveEnded):
-            battery = float(agv.battery.level)
+            battery = wire_float(agv.battery.level)
             build = agv._node_deltas(node, left, entered).set(agv.id, "battery", battery).set(agv.id, "motion", None)
             env.emit(AgvMoveEnded(agv=agv.id, node=node.id, battery=battery, deltas=build.done()))
 

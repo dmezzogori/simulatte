@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import simpy
 
+from simulatte._wire import wire_float
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.events import Deltas
 from simulatte.intralogistics._resources import NotifyingContainer, NotifyingResource
@@ -78,7 +79,7 @@ class Warehouse(Entity, kind="warehouse"):
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: inventory level per SKU id and the number of slots in use."""
         return {
-            "inventory": {sku.id: float(container.level) for sku, container in self.inventory.items()},
+            "inventory": {sku.id: wire_float(container.level) for sku, container in self.inventory.items()},
             "slots_in_use": self._slots.count,
             "label": self.label,
         }
@@ -89,13 +90,13 @@ class Warehouse(Entity, kind="warehouse"):
         def changed(container: NotifyingContainer, amount: ContainerAmount) -> None:
             env = self.env
             if env.wants(WarehouseInventoryChanged):
-                level = float(container.level)
+                level = wire_float(container.level)
                 env.emit(
                     WarehouseInventoryChanged(
                         warehouse=self.id,
                         sku=sku.id,
                         level=level,
-                        delta=float(amount),
+                        delta=wire_float(amount),
                         deltas=Deltas.build().put(self.id, "inventory", sku.id, level).done(),
                     )
                 )

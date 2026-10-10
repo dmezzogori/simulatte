@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from simulatte._wire import wire_float
 from simulatte.entities import Entity, FieldSpec, StateSchema
 
 if TYPE_CHECKING:
@@ -84,10 +85,10 @@ class TransferOrder(Entity, kind="order"):
             "origin": self.origin.id,
             "destination": self.destination.id,
             "agv": None if agv is None else agv.id,
-            "created_at": float(self.created_at),
-            "dispatched_at": None if dispatched_at is None else float(dispatched_at),
-            "picked_at": None if picked_at is None else float(picked_at),
-            "delivered_at": None if delivered_at is None else float(delivered_at),
+            "created_at": wire_float(self.created_at),
+            "dispatched_at": None if dispatched_at is None else wire_float(dispatched_at),
+            "picked_at": None if picked_at is None else wire_float(picked_at),
+            "delivered_at": None if delivered_at is None else wire_float(delivered_at),
             "fleet": self.fleet_id,
             "label": self.label,
         }

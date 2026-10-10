@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from simulatte._wire import wire_float
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.events import Deltas
 from simulatte.intralogistics.battery import Battery
@@ -210,7 +211,7 @@ class AGV(Entity, kind="agv"):
         return {
             "node": None if node is None else node.id,
             "state": self._state.name,
-            "battery": float(self.battery.level),
+            "battery": wire_float(self.battery.level),
             "load": None if load is None else {sku.id: quantity for sku, quantity in load.items()},
             "order": None if order is None else order.id,
             "motion": self.motion,

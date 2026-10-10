@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import pytest
@@ -145,6 +146,54 @@ def test_one_operation_phase_sequence() -> None:
     retired = seen[-1]
     assert isinstance(retired, EntityRetired)
     assert (retired.entity, retired.kind) == (job.id, "job")
+
+
+class _CountedTime(float):
+    """A float subclass whose own ``__float__`` counts its calls; event construction must never call it."""
+
+    calls: ClassVar[list[str]] = []
+
+    def __float__(self) -> float:
+        _CountedTime.calls.append("__float__")
+        return float.__float__(self)
+
+
+def _counted_time_run(observe: bool, tmp_path: Path) -> tuple[list[str], float, list[Event]]:
+    from simulatte.trace import TraceRecorder
+
+    _CountedTime.calls.clear()
+    env = Environment(seed=1, debug=True)
+    seen: list[Event] = []
+    if observe:
+        TraceRecorder(env, tmp_path / "counted.simtrace")
+        env.bus.subscribe(seen.append, "**")
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    job = ProductionJob(
+        env=env, sku="A", servers=[server], processing_times=[_CountedTime(2.5)], due_date=_CountedTime(4.0)
+    )
+    sf.add(job)
+    env.run()
+    env.close()
+    return list(_CountedTime.calls), env.now, seen
+
+
+def test_operation_events_read_float_subclasses_without_user_code(tmp_path: Path) -> None:
+    """Payloads, deltas and entity snapshots convert user-provided times through the built-in conversions only
+    (spec §6.1, §13): observing changes neither the calls the model makes nor the recorded values."""
+    plain_calls, plain_end, _ = _counted_time_run(observe=False, tmp_path=tmp_path)
+    observed_calls, observed_end, seen = _counted_time_run(observe=True, tmp_path=tmp_path)
+
+    assert observed_calls == plain_calls
+    assert observed_end == plain_end == 2.5
+    started = next(e for e in seen if isinstance(e, OperationStarted))
+    completed = next(e for e in seen if isinstance(e, OperationCompleted))
+    values = [started.processing_time, started.planned_end, completed.processing_time]
+    assert values == [2.5, 2.5, 2.5] and {type(v) for v in values} == {float}
+    created = next(e for e in seen if e.type_name == "entity.created" and e.deltas.ops[0][2] == "job")
+    state = created.deltas.ops[0][3]
+    assert state["processing_times"] == (2.5,) and type(state["processing_times"][0]) is float
+    assert type(state["due_date"]) is float
 
 
 def test_two_operations_update_op_index_and_location() -> None:

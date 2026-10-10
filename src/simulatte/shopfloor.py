@@ -26,7 +26,7 @@ import inspect
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, cast, runtime_checkable
 
-from simulatte._wire import FrozenMap, freeze
+from simulatte._wire import FrozenMap, freeze, wire_float
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 from simulatte.events import Deltas, DomainEvent, event_type
@@ -468,7 +468,7 @@ class ShopFloor(Entity, kind="shopfloor"):
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: WIP per server id and the number of jobs in the system."""
         return {
-            "wip": {server.id: float(load) for server, load in self.wip.items()},
+            "wip": {server.id: wire_float(load) for server, load in self.wip.items()},
             "jobs_in_system": len(self.jobs),
             "label": self.label,
         }
@@ -643,7 +643,7 @@ class ShopFloor(Entity, kind="shopfloor"):
         changes: dict[str, float] = {}
         for server, load in wip.items():
             if server not in before or before[server] != load:
-                changes[server.id] = value = float(load)
+                changes[server.id] = value = wire_float(load)
                 build.put(shopfloor_id, "wip", server.id, value)
         for server in before:
             if server not in wip:
@@ -661,8 +661,8 @@ class ShopFloor(Entity, kind="shopfloor"):
                     job=job.id,
                     server=server.id,
                     op_index=op_index,
-                    processing_time=float(processing_time),
-                    deltas=Deltas.build().set(server.id, "worked_time", float(server.worked_time)).done(),
+                    processing_time=wire_float(processing_time),
+                    deltas=Deltas.build().set(server.id, "worked_time", wire_float(server.worked_time)).done(),
                 )
             )
 
@@ -761,13 +761,14 @@ class ShopFloor(Entity, kind="shopfloor"):
                 # Process job
                 job._op_index = op_index
                 if env.wants(OperationStarted):
+                    now, duration = wire_float(env.now), wire_float(processing_time)
                     env.emit(
                         OperationStarted(
                             job=job.id,
                             server=server.id,
                             op_index=op_index,
-                            processing_time=float(processing_time),
-                            planned_end=float(env.now + processing_time),
+                            processing_time=duration,
+                            planned_end=now + duration,
                             deltas=Deltas.build().set(job.id, "op_index", op_index).done(),
                         )
                     )
@@ -813,7 +814,7 @@ class ShopFloor(Entity, kind="shopfloor"):
             deltas = Deltas(
                 (
                     ("set", job_id, "location", "done"),
-                    ("set", job_id, "finished_at", float(finished_at)),
+                    ("set", job_id, "finished_at", wire_float(finished_at)),
                     ("set", self.id, "jobs_in_system", len(self.jobs)),
                 )
             )
@@ -821,9 +822,9 @@ class ShopFloor(Entity, kind="shopfloor"):
                 JobFinished(
                     job=job_id,
                     shopfloor=self.id,
-                    makespan=float(job.makespan),
-                    lateness=float(job.lateness),
-                    total_queue_time=float(job.total_queue_time),
+                    makespan=wire_float(job.makespan),
+                    lateness=wire_float(job.lateness),
+                    total_queue_time=wire_float(job.total_queue_time),
                     deltas=deltas,
                 )
             )

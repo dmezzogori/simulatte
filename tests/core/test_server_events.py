@@ -394,6 +394,57 @@ def test_numeric_priorities_stay_float() -> None:
     assert [type(p) for p in priorities[:3]] == [float, float, float]
 
 
+def _float_subclass_priority_run(observe: bool) -> tuple[int, float, list[Any]]:
+    """Codex probe: a priority whose own ``__float__`` draws from the model's RNG stream."""
+    env = Environment(seed=42)
+    rng = env.rng("model")
+    calls: list[float] = []
+
+    class Priority(float):
+        def __float__(self) -> float:
+            calls.append(rng.random())
+            return float.__float__(self)
+
+    class Rank(int):
+        def __float__(self) -> float:
+            calls.append(rng.random())
+            return 0.0
+
+    seen: list[Event] = []
+    if observe:
+        env.bus.subscribe(seen.append, (JobQueued,))
+    policies = [
+        lambda job, server: Priority(0.5),
+        lambda job, server: Rank(2),
+        lambda job, server: (Priority(1.5), "x"),
+    ]
+
+    def process(policy: Any) -> ProcessGenerator:
+        server = Server(env=env, capacity=1)  # one per job: the three priorities are not mutually comparable
+        job = _job(env, server, priority_policy=policy)
+        with server.request(job=job) as request:
+            yield request
+            yield env.timeout(rng.random())
+
+    for policy in policies:
+        env.process(process(policy))
+    env.run()
+    env.close()
+    return len(calls), env.now, [event.priority for event in seen if isinstance(event, JobQueued)]
+
+
+def test_numeric_subclass_priorities_are_read_without_user_code() -> None:
+    """A no-op observer changes nothing: job.queued reads int and float subclasses through the built-in
+    conversions, never through their own ``__float__`` (spec §6.1, §13)."""
+    plain_calls, plain_end, _ = _float_subclass_priority_run(observe=False)
+    observed_calls, observed_end, priorities = _float_subclass_priority_run(observe=True)
+
+    assert plain_calls == observed_calls == 0
+    assert observed_end == plain_end
+    assert priorities == [0.5, 2.0, (1.5, "x")]
+    assert [type(p) for p in priorities[:2]] == [float, float] and type(priorities[2][0]) is float
+
+
 def test_location_strings_are_built_once_per_server() -> None:
     env = Environment(seed=1)
     server = Server(env=env, capacity=1, name="s")
