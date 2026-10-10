@@ -31,12 +31,14 @@ Typed events, state deltas and the event bus (`simulatte.events`). Subscribe wit
 ::: simulatte.events.EventBus
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.events.Subscription
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.events.Deltas
     options:
@@ -65,7 +67,8 @@ Components that appear in events are entities with an id and a declared state sc
 ::: simulatte.entities.EntityRegistry
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.entities.StateSchema
     options:
@@ -113,7 +116,8 @@ The semantic digest, the fingerprint of a run and the run manifest.
 ::: simulatte.provenance.RunManifest
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ## Traces
 
@@ -122,7 +126,8 @@ The semantic digest, the fingerprint of a run and the run manifest.
 ::: simulatte.trace.TraceRecorder
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.trace.ChunkLimits
     options:
@@ -132,7 +137,8 @@ The semantic digest, the fingerprint of a run and the run manifest.
 ::: simulatte.trace.Trace
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.trace.ReaderLimits
     options:
@@ -166,7 +172,8 @@ KPI declarations, the `Collector` base class and observation windows (`simulatte
 ::: simulatte.kpi.Collector
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.kpi.Window
     options:
@@ -176,7 +183,8 @@ KPI declarations, the `Collector` base class and observation windows (`simulatte
 ::: simulatte.kpi.TimeWeighted
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.kpi.observation_window
     options:

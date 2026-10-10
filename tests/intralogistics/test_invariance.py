@@ -40,7 +40,7 @@ import simulatte.environment
 import simulatte.intralogistics as intralogistics
 from simulatte.environment import Environment
 from simulatte.intralogistics import AGV, AGVState, FleetCoordinator, FleetKPIs, OrderEMACollector, TransferOrder
-from simulatte.intralogistics.events import AgvStateChanged, OrderStatusChanged
+from simulatte.events import DomainEvent
 from simulatte.trace import ChunkLimits, Trace, TraceRecorder
 
 EXAMPLE = Path(__file__).resolve().parents[2] / "examples" / "intralogistics_advanced.py"
@@ -73,6 +73,14 @@ class OrderEMAWithFleetKPIs(OrderEMACollector):
         return super().attach(env)
 
 
+class CountingEnvironment(Environment):
+    processed_steps = 0
+
+    def step(self) -> None:
+        self.processed_steps += 1
+        super().step()
+
+
 @dataclass
 class Outcome:
     state: dict[str, Any]
@@ -82,12 +90,13 @@ class Outcome:
     trace_path: Path | None
 
 
-def final_state(env: Environment, orders: list[TransferOrder]) -> dict[str, Any]:
+def final_state(env: CountingEnvironment, orders: list[TransferOrder]) -> dict[str, Any]:
     """The model's final state, read without any observer (see the module docstring); `orders` were submitted."""
     agvs = [entity for entity in env.entities.live() if isinstance(entity, AGV)]
     (fleet,) = (entity for entity in env.entities.live() if isinstance(entity, FleetCoordinator))
     return {
         "now": env.now,
+        "steps": env.processed_steps,
         "entities": env.entities.snapshot(),
         "agvs": {
             agv.id: {
@@ -107,7 +116,7 @@ def final_state(env: Environment, orders: list[TransferOrder]) -> dict[str, Any]
 def run_example(configuration: str, tmp_path: Path) -> Outcome:
     """Run the advanced example under `configuration` and return what the comparisons need."""
     trace_path = tmp_path / f"fleet-{configuration}.simtrace"
-    created: list[Environment] = []
+    created: list[CountingEnvironment] = []
     submitted: list[TransferOrder] = []
     real_submit = FleetCoordinator.submit
 
@@ -117,10 +126,10 @@ def run_example(configuration: str, tmp_path: Path) -> Outcome:
 
     def make_environment(**kwargs: Any) -> Environment:
         if configuration == "everything":
-            env = Environment(**kwargs, log_level="DEBUG", log_file=tmp_path / "fleet.log", debug=True)
+            env = CountingEnvironment(**kwargs, log_level="DEBUG", log_file=tmp_path / "fleet.log", debug=True)
             TraceRecorder(env, trace_path, chunk_limits=ChunkLimits(max_events=500))
         else:
-            env = Environment(**kwargs)
+            env = CountingEnvironment(**kwargs)
             if configuration == "default":
                 env.enable_digest()
             elif configuration == "kpi":
@@ -145,8 +154,11 @@ def run_example(configuration: str, tmp_path: Path) -> Outcome:
 
     (env,) = created
     if configuration == "none":
-        for event_type in (AgvStateChanged, OrderStatusChanged):
-            assert not env.wants(event_type)
+        assert not any(
+            issubclass(cls, DomainEvent) or issubclass(DomainEvent, cls)
+            for subscription in env.bus._subscriptions
+            for cls in subscription._classes
+        )
     fingerprint = env.fingerprint()
     assert (fingerprint.digest is not None) == (configuration != "none")
     recorded = configuration in ("kpi", "full", "everything")

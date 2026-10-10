@@ -125,33 +125,41 @@ def measure_seeks(path: Path, *, count: int, seed: int) -> dict[str, float]:
     (t0, _), (t1, _) = bounds
     rng = random.Random(seed)
     latencies = []
+    warm_latencies = []
     for _ in range(count):
         cursor = (rng.uniform(t0, t1), 0)
         trace._cache.clear()  # cold: the chunk is read, CRC-checked and decoded on every seek
         start = time.perf_counter()
         trace.state_at(cursor)
         latencies.append((time.perf_counter() - start) * 1000)
+        start = time.perf_counter()
+        trace.state_at(cursor)
+        warm_latencies.append((time.perf_counter() - start) * 1000)
     return {
         "open_ms": open_ms,
         "seek_p50_ms": percentile(latencies, 50),
         "seek_p95_ms": percentile(latencies, 95),
         "seek_max_ms": max(latencies),
+        "warm_seek_p50_ms": percentile(warm_latencies, 50),
+        "warm_seek_p95_ms": percentile(warm_latencies, 95),
+        "warm_seek_max_ms": max(warm_latencies),
         "seeks": count,
     }
 
 
-def memory_probe(workload_path: str, mode: str) -> dict[str, float]:
+def memory_probe(workload_path: str, mode: str, log_info: bool = False) -> dict[str, float]:
     """Run the workload once in this (fresh) process and report the peak RSS before and after."""
     workload = feeder.load(workload_path)
     before = _max_rss_mb()
     with tempfile.TemporaryDirectory() as tmp:
-        feeder.run(workload, mode=mode, trace_path=Path(tmp) / "probe.simtrace")
+        feeder.run(workload, mode=mode, trace_path=Path(tmp) / "probe.simtrace", log_info=log_info)
     return {"rss_before_mb": before, "peak_mb": _max_rss_mb()}
 
 
-def _peak_memory(workload_path: str, mode: str) -> dict[str, float]:
+def _peak_memory(workload_path: str, mode: str, log_info: bool = False) -> dict[str, float]:
     completed = subprocess.run(
-        [sys.executable, __file__, "--memory-probe", "--mode", mode, "--workload", workload_path],
+        [sys.executable, __file__, "--memory-probe", "--mode", mode, "--workload", workload_path]
+        + (["--log-info"] if log_info else []),
         capture_output=True,
         text=True,
         check=True,
@@ -169,7 +177,7 @@ def _in_process(args: argparse.Namespace) -> dict[str, Any]:
         for i in range(args.warmup + args.repeat):
             if trace_path.exists():
                 trace_path.unlink()
-            result = feeder.run(workload, mode=args.mode, trace_path=trace_path)
+            result = feeder.run(workload, mode=args.mode, trace_path=trace_path, log_info=args.log_info)
             if i >= args.warmup:
                 samples.append(result.wall_s)
                 results.append(result)
@@ -183,6 +191,7 @@ def _in_process(args: argparse.Namespace) -> dict[str, Any]:
             "simulatte_version": _version(),
             "has_trace": feeder.has_trace(),
             "mode": args.mode,
+            "log_info": args.log_info,
             "python": {
                 "implementation": sys.implementation.name,
                 "version": platform.python_version(),
@@ -249,6 +258,8 @@ def _multi_process(args: argparse.Namespace) -> dict[str, Any]:
             command += ["--warmup", str(args.warmup), "--repeat", str(args.repeat), "--processes", "1"]
             command += ["--no-memory", "--json", str(path), "--seek-seed", str(args.seek_seed)]
             command += ["--seeks", str(args.seeks if i == 0 else 0)]
+            if args.log_info:
+                command += ["--log-info"]
             if args.label:
                 command += ["--label", args.label]
             if args.trace and i == 0:
@@ -275,7 +286,7 @@ def _multi_process(args: argparse.Namespace) -> dict[str, Any]:
 def benchmark(args: argparse.Namespace) -> dict[str, Any]:
     out = _in_process(args) if args.processes == 1 else _multi_process(args)
     if args.memory:
-        out.update(_peak_memory(args.workload, args.mode))
+        out.update(_peak_memory(args.workload, args.mode, args.log_info))
     return out
 
 
@@ -283,6 +294,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--mode", choices=feeder.MODES, default="none")
     parser.add_argument("--workload", required=True)
+    parser.add_argument("--log-info", action="store_true", help="log every job arrival at INFO to a local file")
     parser.add_argument("--warmup", type=int, default=2, help="untimed runs first (JIT warm-up on PyPy)")
     parser.add_argument("--repeat", type=int, default=10, help="timed runs (per process)")
     parser.add_argument(
@@ -299,7 +311,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--memory-probe", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.memory_probe:
-        json.dump(memory_probe(args.workload, args.mode), sys.stdout)
+        json.dump(memory_probe(args.workload, args.mode, args.log_info), sys.stdout)
         return 0
     if args.repeat < 1 or args.warmup < 0 or args.processes < 1:
         parser.error("--repeat and --processes must be positive and --warmup non-negative")

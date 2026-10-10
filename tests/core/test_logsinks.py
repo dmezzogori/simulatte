@@ -5,7 +5,9 @@ from __future__ import annotations
 import dataclasses
 import io
 import json
+import sqlite3
 from pathlib import Path
+from typing import TextIO
 
 import pytest
 
@@ -405,3 +407,54 @@ def test_attach_once() -> None:
         sink.attach(env)
     assert isinstance(sink, LogSink)
     env.close()
+
+
+def test_failed_environment_setup_closes_open_sinks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    opened: list[TextSink] = []
+    streams: list[TextIO] = []
+    original = TextSink._open
+
+    def track(sink: TextSink) -> None:
+        original(sink)
+        opened.append(sink)
+        assert sink._file is not None
+        streams.append(sink._file)
+
+    monkeypatch.setattr(TextSink, "_open", track)
+    with pytest.raises(sqlite3.OperationalError, match="unable to open database"):
+        Environment(log_file=tmp_path / "run.log", log_db_path=tmp_path / "missing" / "run.db")
+    assert len(opened) == 1 and opened[0].closed
+    assert streams[0].closed
+
+
+def test_filtered_logs_do_not_build_events_or_consume_sequence() -> None:
+    with Environment(debug=True, log_level="INFO") as env:
+        seq = env._seq
+        env.debug("filtered", invalid=object())  # freezing this extra would raise
+        assert env._seq == seq
+        subscriber = env.bus.subscribe(lambda event: None, "**")
+        with pytest.raises(TypeError):
+            env.debug("observed", invalid=object())
+        subscriber.cancel()
+        env.debug("filtered again", invalid=object())
+        assert env._seq == seq
+        sink = HistorySink(level="DEBUG").attach(env)
+        env.debug("kept")
+        assert [e.message for e in sink] == ["kept"]
+        sink.close()
+        env.debug("filtered once more", invalid=object())
+        assert env._seq == seq + 1
+
+
+def test_close_stops_delivery_to_collectors_and_other_subscribers() -> None:
+    env = Environment()
+    seen: list[LogEvent] = []
+    env.bus.subscribe(seen.append, (LogEvent,))
+    env.info("before")
+    env.close()
+    seq = env._seq
+    event = LogEvent(level="INFO", message="after")
+    env.emit(event)
+    env.info("also after")
+    assert [e.message for e in seen] == ["before"]
+    assert env._seq == seq and event.seq == -1

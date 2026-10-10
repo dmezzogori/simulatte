@@ -13,4 +13,5 @@ See the [Reinforcement Learning guide](../guides/reinforcement-learning.md) and 
 ::: simulatte.experimental.SimulatteEnv
     options:
       heading_level: 2
-      members: true
+      members: null
+      filters: ["!^_"]

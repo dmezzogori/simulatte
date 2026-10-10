@@ -177,15 +177,19 @@ The encoding is *deferred to SP1*, under these requirements:
 - **Values over playback** (A41). Series are Python-generated samples of a KPI's value as of each time, so the viewer can show the value at the current playback time. Final scalars are shown separately and labelled as end-of-run results. Interpolation and missing-value rules are declared per series.
 - Existing collectors move onto the bus. Their matplotlib `plot_*` helpers stay for scripts.
 
+KPI declarations (unit, description, kind and observation semantics) are recorded under the optional
+`kpi-declarations-v1` feature, keyed by scope and KPI name; old traces expose no declarations. The format-1.0
+extension and late-collector publication rules are specified in the SP1 pre-0.13 hardening amendment.
+
 #### C1.9 Performance budgets
 
 Benchmarks run in CI on CPython and PyPy, on reference workloads defined in SP1 (A32):
 
 | Mode | Budget |
 |---|---|
-| No subscribers | ≤ 3 % + band against released 0.12.0; SP1's own cost ≤ 10 % + 2 % (CPython) / ≤ 3 % + 5 % (PyPy) against 0.12.0 with debug calls stripped, tightened after tuning (D55) |
-| Default shop floor metrics (`default`) | Against released 0.12.0 `default`: ≤ 3 % + band. Against 0.12.0 `default` with debug calls stripped: ≤ 10 % + 2 % (CPython) / ≤ 3 % + 5 % (PyPy). Against the branch's no-subscriber time: ≤ 1.10× CPython / ≤ 1.06× PyPy. Report-only until calibrated on CI runners (D59) |
-| Default logging (`default_logging`) | ≤ 3 % + band over the same shop with the default log sinks closed (`bare`), that is the 5 % target (CPython 5 %, PyPy 8 %); the cross-version limits of no subscribers apply unchanged. Report-only until calibrated (D59) |
+| No subscribers | ≤ 3 % + band against released 0.12.0; SP1's own cost ≤ 10 % + 2 % (CPython) / ≤ 3 % + 7 % (PyPy, runner-calibrated) against 0.12.0 with debug calls stripped, tightened after tuning (D55) |
+| Default shop floor metrics (`default`) | Against released 0.12.0 `default`: ≤ 3 % + band. Against 0.12.0 `default` with debug calls stripped: ≤ 10 % + 2 % (CPython) / ≤ 3 % + 7 % (PyPy, runner-calibrated). Against the branch's no-subscriber time: ≤ 1.10× CPython / ≤ 1.06× PyPy. Report-only until calibrated on CI runners (D59) |
+| Default logging (`default_logging`) | ≤ 3 % + band over the same shop with the default log sinks closed (`bare`), that is the 5 % target (CPython 5 %, PyPy 10 % with the runner-calibrated band); the cross-version limits of no subscribers apply unchanged. Report-only until calibrated (D59) |
 | KPI only, with digest | digest ≤ 3.2× CPython / ≤ 4.3× PyPy of no-subscriber time (D57); `kpi` (digest, default EMA collector and KPI collector) ≤ 3.7× CPython / ≤ 4.5× PyPy of no-subscriber time, report-only until calibrated (D59) |
 | Full trace | ≤ 5.3× CPython (D60) / ≤ 7.0× PyPy; ≤ 1.75 KB/job; seek p95 ≤ 100 ms at 50k jobs; extra peak RSS ≤ 256 MB (D57) |
 

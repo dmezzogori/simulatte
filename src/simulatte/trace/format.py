@@ -47,7 +47,7 @@ TRAILER: Final = struct.Struct(">Q8s")
 
 REQUIRED_FEATURES: Final[tuple[str, ...]] = ("wire-v1", "deltas-v1", "chunks-zlib")
 """Features every reader of this version must understand (stored in the header)."""
-OPTIONAL_FEATURES: Final[tuple[str, ...]] = ()
+OPTIONAL_FEATURES: Final[tuple[str, ...]] = ("kpi-declarations-v1",)
 """Features a reader may ignore."""
 
 

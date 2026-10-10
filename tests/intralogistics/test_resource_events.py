@@ -59,8 +59,8 @@ The AGV's ``battery`` set by ``recharge`` and ``swap`` is carried by ``agv.batte
 ======  ===============================================================================  ===========================
 field   site                                                                             event
 ======  ===============================================================================  ===========================
-parked  ``enter``: ``_agv_requests[agv] = req`` after the grant (no list change when      parking.entered
-        the AGV is already parked)
+parked  ``enter``: ``_agv_requests[agv] = req`` after the grant                         parking.entered
+        (an already parked AGV keeps its slot and emits no event)
 parked  ``leave``: ``_agv_requests.pop(agv)``                                            parking.left
 ======  ===============================================================================  ===========================
 
@@ -332,7 +332,13 @@ def test_path_delay_waits(interrupt: bool) -> None:
 
     seen = [(e.t, e.type_name, e.node, e.reason) for e in replay.of(TrafficWaitStarted, TrafficWaitEnded)]
     if interrupt:
-        assert seen == [(2, "traffic.wait_started", "N", "path_delay"), (3, "traffic.wait_ended", "N", "interrupted")]
+        assert seen == [
+            (2, "traffic.wait_started", "N", "path_delay"),
+            (3, "traffic.wait_ended", "N", "interrupted"),
+            (6, "traffic.wait_started", "M", "path_delay"),
+            (8, "traffic.wait_ended", "M", "elapsed"),
+        ]
+        assert order.status is OrderStatus.COMPLETED
     else:
         # First the alternative's delay, then the delay of the same path checked again (spec §6.4 "reroute delays").
         assert seen == [
@@ -636,9 +642,9 @@ def test_parking_enter_again_keeps_the_place() -> None:
     assert [e.deltas.ops for e in replay.of(ParkingEntered)] == [
         (("insert", "PARK", "parked", 0, "A"),),
         (("insert", "PARK", "parked", 1, "B"),),
-        (),  # A is already parked: its place in the list is kept
     ]
     assert replay.state["PARK"]["parked"] == ("A", "B")
+    assert area.available_capacity == 1
 
 
 # --- replay over full systems ------------------------------------------------------------------------------
@@ -797,3 +803,70 @@ def test_replay_equals_live_full_registry_fleet_example(scenario: Any, monkeypat
     assert expected <= types, expected - types
     assert replay.seeded is not None and replay.seeded == replay.state
     assert len(replay.events) > 1000
+
+
+@pytest.mark.parametrize("mode", ["recharge", "swap"])
+@pytest.mark.parametrize("phase", ["queued", "granted", "active"])
+def test_charging_interruption_replays_resource_cleanup(mode: str, phase: str) -> None:
+    env = Environment(debug=True)
+    nodes, _ = _line_graph()
+    station = ChargingStation(
+        env=env,
+        name="CS",
+        node=nodes[0],
+        n_slots=1,
+        recharge_time=10.0,
+        supports_swap=True,
+        swap_pool_size=1,
+        swap_time=10.0,
+    )
+    holder, waiter = (_drained(env, name, 500.0) for name in ("H", "W"))
+    replay = FullReplay(env, from_snapshot=True)
+    operation = station.recharge if mode == "recharge" else station.swap
+
+    def attempt() -> Any:
+        try:
+            yield from operation(waiter)
+        except simpy.Interrupt:
+            pass
+
+    if phase == "queued":
+        env.process(station.recharge(holder))
+    process = env.process(attempt())
+    env.activate()
+    if phase == "granted":
+        env.step()
+    else:
+        env.run(until=1.0)
+    process.interrupt("breakdown")
+    env.run()
+    started = [event.agv for event in replay.of(ChargingStarted)]
+    ended = [event.agv for event in replay.of(ChargingEnded)]
+    assert started == ended == (["H"] if phase == "queued" else ["W"])
+    assert replay.state["CS"]["slots_in_use"] == 0
+    assert replay.state["CS"]["swap_pool"] == 1.0
+    assert replay.state["W"]["battery"] == 500.0
+
+
+@pytest.mark.parametrize("granted", [False, True])
+def test_traffic_interruption_replays_without_false_reservation(granted: bool) -> None:
+    env = Environment(debug=True)
+    replay = FullReplay(env)
+    nodes, graph = _bound_line(env)
+    traffic = ResourceBasedTrafficManager(graph=graph, env=env, deadlock_timeout=None)
+    holder, waiter = (AGV(env=env, agv_type=_agv_type(), agv_id=name) for name in ("H", "W"))
+    if not granted:
+        traffic.place_now(holder, nodes[1])
+    env.run()
+
+    def attempt() -> Any:
+        with pytest.raises(simpy.Interrupt):
+            yield from traffic.enter_node(waiter, nodes[1])
+
+    process = env.process(attempt())
+    env.step()
+    process.interrupt("cancelled")
+    env.run()
+    assert replay.state["C1"]["reserved_by"] == (() if granted else ("H",))
+    assert all(event.agv != "W" for event in replay.of(TrafficReserved, TrafficReleased))
+    assert [event.reason for event in replay.of(TrafficWaitEnded)] == ([] if granted else ["interrupted"])

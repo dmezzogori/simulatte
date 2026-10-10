@@ -1,11 +1,13 @@
-"""Mode ratios on the advanced intralogistics example, scaled up (spec §14, ruling R28). Branch only, never gated.
+"""Advanced intralogistics across released 0.12.0 and SP1 (spec §14, ruling R28). Report only.
 
 The layout, SKUs, warehouses, AGV type, parking, charging, strategies and the reorder-point replenishment are those of
 ``examples/intralogistics_advanced.py`` (16 nodes, 16 arcs, 5 SKUs, 3 warehouses). The scale-up is in three numbers:
 more AGVs (the example's five starting nodes are reused cyclically), a shorter outbound order interval and a longer
 horizon; defaults are 20 AGVs, orders every 30 to 60 time units and 20 shifts of 28,800 time units. The run is
-deterministic (``Environment(seed=42)``); there is no 0.12.0 comparison because its intralogistics API differs from
-the branch's, so the results are ratios to the branch's own mode ``none``.
+deterministic: the compatibility shim uses the same three named RNG streams in both versions.
+Modes ``none``, ``default`` and ``default_logging`` also run on released 0.12.0. Its mandatory collector
+uses a no-op ``record`` in ``none``/``default_logging``; the method-call overhead remains in that baseline.
+See ``intralogistics-baseline.md`` for comparison commands and compatibility limits.
 
 Modes, as in ``feeder.py`` (the fleet coordinator replaces the shop floor):
 
@@ -32,6 +34,7 @@ import hashlib
 import json
 import os
 import platform
+import random
 import subprocess
 import sys
 import tempfile
@@ -50,7 +53,6 @@ from simulatte.intralogistics import (
     Arc,
     ChargingStation,
     FleetCoordinator,
-    FleetKPIs,
     LayoutGraph,
     NearestParkingPolicy,
     Node,
@@ -66,6 +68,20 @@ from simulatte.intralogistics import (
 MODES = ("none", "default", "default_logging", "bare", "kpi", "digest", "full")
 SHIFT = 28800.0
 SEED = 42
+HAS_TRACE = feeder.has_trace()
+
+
+class _NoOrderMetrics:
+    """0.12.0 always calls ``record``; disable its EMA arithmetic without patching package code."""
+
+    def record(self, order: Any) -> None:
+        pass
+
+
+def _legacy_rng(name: str) -> random.Random:
+    """Match SP1's simulatte-rng-v1 derivation without importing a branch-only module."""
+    encoded = f"simulatte-rng-v1\0{SEED}\0{name}".encode()
+    return random.Random(int.from_bytes(hashlib.blake2b(encoded, digest_size=16).digest(), "big"))
 
 
 def _layout() -> tuple[LayoutGraph, dict[str, Node]]:
@@ -113,9 +129,20 @@ def _layout() -> tuple[LayoutGraph, dict[str, Node]]:
 def _order_stream(
     env: Any, coordinator: Any, source: Any, sink: Any, skus: list[SKU], agv_type: Any, interval: tuple[float, float]
 ):
-    rng = env.rng("outbound-orders")
-    gap = env.bind(Uniform(*interval), kind="scalar", stream="outbound-orders/interval", owner="outbound-orders")
-    due = env.bind(Uniform(1800, 3600), kind="scalar", stream="outbound-orders/due", owner="outbound-orders")
+    if HAS_TRACE:
+        rng = env.rng("outbound-orders")
+        gap = env.bind(Uniform(*interval), kind="scalar", stream="outbound-orders/interval", owner="outbound-orders")
+        due = env.bind(Uniform(1800, 3600), kind="scalar", stream="outbound-orders/due", owner="outbound-orders")
+    else:
+        rng = _legacy_rng("outbound-orders")
+        gap_rng, due_rng = _legacy_rng("outbound-orders/interval"), _legacy_rng("outbound-orders/due")
+
+        def gap():
+            return gap_rng.uniform(*interval)
+
+        def due():
+            return due_rng.uniform(1800, 3600)
+
     while True:
         yield env.timeout(gap())
         sku = rng.choice(skus)
@@ -137,7 +164,7 @@ def run(args: argparse.Namespace, *, mode: str, trace_path: Path | None) -> dict
     gc.collect()
     horizon = args.shifts * SHIFT
     start = time.perf_counter()
-    env = Environment(seed=SEED)
+    env = Environment(seed=SEED) if HAS_TRACE else Environment()
     if mode == "digest":
         env.enable_digest()
     elif mode in ("full", "kpi"):
@@ -171,14 +198,22 @@ def run(args: argparse.Namespace, *, mode: str, trace_path: Path | None) -> dict
             n_slots=slots,
             products=skus,
             initial_inventory={sku: stock for sku in skus},
-            pick_time=pick_time,
-            put_time=put_time,
+            **(
+                {"pick_time": pick_time, "put_time": put_time}
+                if HAS_TRACE
+                else {"pick_time_fn": pick_time, "put_time_fn": put_time}
+            ),
         )
 
     receiving = warehouse("Receiving", ("RCV_IN", "RCV_OUT"), 3, 200, (20.0, 3.0), (10.0, 2.0))
     bulk = warehouse("Bulk Storage", ("BULK_IN", "BULK_OUT"), 4, 30, (25.0, 4.0), (15.0, 3.0))
     dispatch = warehouse("Dispatch", ("DSP_IN", "DSP_OUT"), 3, 0, (15.0, 2.0), (10.0, 2.0))
 
+    load_options: dict[str, Any] = (
+        {"load_time": 12.0, "unload_time": 10.0}
+        if HAS_TRACE
+        else {"load_time_fn": lambda: 12.0, "unload_time_fn": lambda: 10.0}
+    )
     agv_type = AGVType(
         name="heavy-duty",
         speed_profile=TrapezoidalProfile(
@@ -194,14 +229,18 @@ def run(args: argparse.Namespace, *, mode: str, trace_path: Path | None) -> dict
         depletion_fn=lambda distance, load_weight, speed: distance * 0.02 * (1.0 + load_weight / 200),
         low_battery_threshold=0.2,
         critical_battery_threshold=0.05,
-        load_time=12.0,
-        unload_time=10.0,
+        **load_options,
     )
     starting = [nodes[n] for n in ("PARK", "BULK_OUT", "B1", "R1", "B3")]
     agvs = [
         AGV(env=env, agv_type=agv_type, agv_id=f"AGV-{i + 1}", initial_node=starting[i % len(starting)])
         for i in range(args.agvs)
     ]
+    metrics_options: dict[str, Any] = (
+        {"default_metrics": mode in ("default", "kpi")}
+        if HAS_TRACE
+        else {"order_metrics_collector": None if mode == "default" else _NoOrderMetrics()}
+    )
     coordinator = FleetCoordinator(
         env=env,
         graph=graph,
@@ -212,9 +251,11 @@ def run(args: argparse.Namespace, *, mode: str, trace_path: Path | None) -> dict
         dispatch_strategy=RoundRobinStrategy(),
         repositioning_policy=NearestParkingPolicy(),
         load_recovery_strategy=ReturnToOrigin(),
-        default_metrics=mode in ("default", "kpi"),
+        **metrics_options,
     )
     if mode == "kpi":
+        from simulatte.intralogistics import FleetKPIs
+
         FleetKPIs(coordinator).attach(env)
     coordinator.add_replenishment_policy(
         ReorderPointPolicy(
@@ -226,23 +267,42 @@ def run(args: argparse.Namespace, *, mode: str, trace_path: Path | None) -> dict
     orders: list[Any] = []
     coordinator.on_order_submitted(orders.append)
     env.process(_order_stream(env, coordinator, bulk, dispatch, skus, agv_type, (args.interval_min, args.interval_max)))
-    live = [sink for sink in env.sinks if not sink.closed]
-    if bool(live) != (mode != "bare"):
-        raise RuntimeError(f"mode {mode!r}: unexpected log sinks {live}")
-    if mode in ("none", "default_logging", "bare", "digest", "full") and coordinator.metrics is not None:
-        raise RuntimeError(f"mode {mode!r} must run without the default metrics")
+    feeder._check_logging(env, active=mode != "bare")
+    if HAS_TRACE:
+        if mode in ("none", "default_logging", "bare", "digest", "full") and coordinator.metrics is not None:
+            raise RuntimeError(f"mode {mode!r} must run without the default metrics")
+        if mode in ("none", "default_logging", "bare") and feeder._domain_subscribers(env.bus):
+            raise RuntimeError(f"mode {mode!r} must run without domain-event subscribers")
     env.run(until=horizon)
     env.close()
     wall = time.perf_counter() - start
 
     counts = {status.name: sum(1 for o in orders if o.status is status) for status in OrderStatus}
     trajectory = hashlib.sha256()
-    for o in orders:
-        trajectory.update(f"{o.id}|{o.status.name}|{o.created_at!r}|{o.delivered_at!r}\n".encode())
+    inputs = hashlib.sha256()
+    for index, o in enumerate(orders):
+        # 0.12.0 uses random UUID order ids. Submission indices are the equivalent
+        # identity here; every physical input and lifecycle timestamp is retained.
+        request = (index, o.sku.id, o.quantity, o.origin.name, o.destination.name, float(o.created_at), o.due_date)
+        inputs.update((json.dumps(request) + "\n").encode())
+        row = (
+            *request,
+            o.status.name,
+            o.dispatched_at,
+            o.picked_at,
+            o.delivered_at,
+            o.assigned_agv.agv_id if o.assigned_agv is not None else None,
+        )
+        trajectory.update((json.dumps(row) + "\n").encode())
     digest = env.fingerprint().digest if mode in ("digest", "full", "kpi") else None
     return {
         "wall_s": wall,
-        "counts": {"orders": len(orders), "by_status": counts, "trajectory": trajectory.hexdigest()},
+        "counts": {
+            "orders": len(orders),
+            "by_status": {k: v for k, v in counts.items() if v},
+            "inputs": inputs.hexdigest(),
+            "trajectory": trajectory.hexdigest(),
+        },
         "digest": digest,
     }
 
@@ -263,7 +323,7 @@ def _in_process(args: argparse.Namespace) -> dict[str, Any]:
         trace_bytes = os.path.getsize(trace_path) if args.mode in ("kpi", "full") else None
     q1, median, q3 = quartiles(samples)
     interval = f"{args.interval_min}-{args.interval_max}"
-    spec = f"intralogistics-advanced agvs={args.agvs} shifts={args.shifts} interval={interval}"
+    spec = f"intralogistics-advanced-v2 agvs={args.agvs} shifts={args.shifts} interval={interval}"
     return {
         "label": args.label or feeder.default_label(),
         "simulatte_version": _version(),
@@ -365,8 +425,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--memory", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--memory-probe", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
-    if not feeder.has_trace():
-        parser.error("this benchmark needs the branch (SP1 events and traces)")
+    if not HAS_TRACE and args.mode not in ("none", "default", "default_logging"):
+        parser.error(f"mode {args.mode!r} needs SP1; 0.12.0 supports none, default and default_logging")
+    if args.agvs < 1 or args.shifts <= 0 or not 0 < args.interval_min <= args.interval_max:
+        parser.error("use positive AGV count, horizon and ordered positive interval bounds")
+    if args.repeat < 1 or args.warmup < 0 or args.processes < 1:
+        parser.error("repeat/processes must be positive and warmup must be nonnegative")
     if args.memory_probe:
         json.dump(memory_probe(args), sys.stdout)
         return 0

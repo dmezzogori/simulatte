@@ -22,7 +22,7 @@ from simulatte._wire import FrozenMap, Wire, freeze
 from simulatte.digest import Fingerprint, SemanticDigest
 from simulatte.entities import KINDS, EntityRegistry
 from simulatte.events import DomainEvent, Event, EventBus, LogEvent, Op, validate_event
-from simulatte.logsinks import HistorySink, JsonSink, LogSink, SQLiteSink, TextSink
+from simulatte.logsinks import LEVELS, HistorySink, JsonSink, LogSink, SQLiteSink, TextSink
 from simulatte.provenance import (
     Provenance,
     RunManifest,
@@ -128,6 +128,7 @@ class Environment(simpy.Environment):
         """Owners of the opaque samplers bound with :meth:`bind`, in order of first binding."""
         self._bound_streams: dict[str, object] = {}  # stream name -> bound value (debug mode only)
         self._debug = debug
+        self._closed = False
         self._seq = 0
         self._ordinal = 0
         self._projection_active = False
@@ -149,13 +150,17 @@ class Environment(simpy.Environment):
         if log_format not in ("text", "json"):
             raise ValueError(f"log_format must be 'text' or 'json', got {log_format!r}")
         stream_sink = JsonSink if log_format == "json" else TextSink
-        stream_sink(log_file, level=log_level).attach(self)
-        self._log_history = HistorySink(log_history_size, level=log_level)
-        self._log_history.attach(self)
-        self._log_db: SQLiteSink | None = None
-        if log_db_path is not None:
-            self._log_db = SQLiteSink(log_db_path, level=log_level)
-            self._log_db.attach(self)
+        try:
+            stream_sink(log_file, level=log_level).attach(self)
+            self._log_history = HistorySink(log_history_size, level=log_level)
+            self._log_history.attach(self)
+            self._log_db: SQLiteSink | None = None
+            if log_db_path is not None:
+                self._log_db = SQLiteSink(log_db_path, level=log_level)
+                self._log_db.attach(self)
+        except BaseException:
+            self.close()
+            raise
 
     # -------------------------------------------------------------------------
     # Events
@@ -170,6 +175,8 @@ class Environment(simpy.Environment):
         instance of a subclass of a registered event type that is not registered itself (it would be recorded
         under its parent's type with undeclared fields). Exceptions raised by subscribers propagate.
         """
+        if self._closed:
+            return
         if event.seq != -1:
             raise ValueError(f"event already emitted (seq={event.seq}); emit a fresh instance")
         cls = type(event)
@@ -530,8 +537,10 @@ class Environment(simpy.Environment):
         """Close the trace recorders attached to this environment, then its log sinks. Idempotent.
 
         Every recorder and sink is closed even if one raises; the exception propagates afterwards. A closed sink
-        receives no further event; :attr:`log_history` keeps its records.
+        receives no further event; :attr:`log_history` keeps its records. After closing, :meth:`emit`
+        is a no-op, including events emitted by finalizers of unfinished simulation processes.
         """
+        self._closed = True
         recorders, self._recorders = self._recorders, []
         with contextlib.ExitStack() as stack:
             for sink in reversed(self._sinks):
@@ -550,7 +559,7 @@ class Environment(simpy.Environment):
     # -------------------------------------------------------------------------
 
     def _log(self, level: str, message: str, component: str | None, extra: dict[str, Any]) -> None:
-        if self.wants(LogEvent):
+        if not self._closed and self.bus.wants_log(LEVELS[level]):
             # Debug mode records an immutable copy (R30), which also rejects values that are not wire values.
             frozen = cast("FrozenMap", freeze(extra)) if self._debug else FrozenMap(extra)
             self.emit(LogEvent(level=level, message=message, component=component, extra=frozen))

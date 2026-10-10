@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import sys
+from collections import deque
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, ClassVar, TypedDict, cast
 
@@ -33,6 +34,7 @@ from simulatte.intralogistics.policies import (
     NearestIdleStrategy,
     RepositioningContext,
     ReturnToOrigin,
+    RoundRobinStrategy,
     StayInPlace,
 )
 from simulatte.intralogistics.speed import describe_motion
@@ -106,7 +108,8 @@ class FleetCoordinator(Entity, kind="fleet"):
     activation they are queued and run at activation (spec §10).
 
     Unless built with ``default_metrics=False``, it attaches an :class:`~simulatte.intralogistics.OrderEMACollector`
-    as ``metrics``; other collectors (:class:`~simulatte.intralogistics.FleetTimeSeries`,
+    as ``metrics`` (with smoothing factor ``ema_alpha``, default 0.01); other collectors
+    (:class:`~simulatte.intralogistics.FleetTimeSeries`,
     :class:`~simulatte.intralogistics.FleetKPIs`) are attached with ``collector.attach(env)``.
 
     Events (spec §6.4): ``fleet.agv_added`` per AGV at construction, ``fleet.pending_changed`` at every change of
@@ -134,6 +137,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         repositioning_policy: RepositioningPolicy | None = None,
         load_recovery_strategy: LoadRecoveryStrategy | None = None,
         default_metrics: bool = True,
+        ema_alpha: float = 0.01,
         on_low_battery: Callable[[AGV], ProcessGenerator | None] | None = None,
         max_dispatch_retries: int = 10,
         pending_retry_delay: float = 1.0,
@@ -163,8 +167,10 @@ class FleetCoordinator(Entity, kind="fleet"):
 
         # Internal state (keyed by order.id because TransferOrder is unhashable)
         self._active_missions: dict[str, simpy.Process] = {}
+        self._cancelled_missions: set[str] = set()
         self._agv_mission: dict[AGV, TransferOrder] = {}
-        self._pending_queue: list[TransferOrder] = []
+        self._pending_queue: deque[TransferOrder] = deque()
+        self._pending_unserviceable: dict[str, TransferOrder] = {}
         self._low_battery_flags: set[AGV] = set()
         self._dropped_cargo: list[tuple[float, Node, SKU, int]] = []
         self._hooks_on_cargo_dropped: list[Callable[[AGV, Node, SKU, int], None]] = []
@@ -184,7 +190,9 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._hooks_on_agv_idle: list[Callable[[AGV], None]] = []
 
         env.entities.attach(self, name=name, label=label)
-        self.metrics: OrderEMACollector | None = OrderEMACollector(self).attach(env) if default_metrics else None
+        self.metrics: OrderEMACollector | None = (
+            OrderEMACollector(self, alpha=ema_alpha).attach(env) if default_metrics else None
+        )
         """The default :class:`OrderEMACollector` (``ema_*`` averages of delivered orders), or None when built with
         ``default_metrics=False``."""
         for node in sorted(graph.nodes, key=lambda node: node.id):
@@ -267,11 +275,14 @@ class FleetCoordinator(Entity, kind="fleet"):
 
     @deferrable
     def cancel(self, order: TransferOrder) -> None:
-        """Cancel an active or pending order.
+        """Cancel an active or pending order; terminal orders are unchanged.
 
         Deferrable: before activation the cancellation is queued and runs at activation, after the commands
         queued before it.
         """
+        if order.status in TERMINAL_STATUSES:
+            return
+
         # If pending, just remove from queue
         if order in self._pending_queue:
             self._pending_remove(order)
@@ -282,6 +293,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         # If active, interrupt the mission process
         process = self._active_missions.get(order.id)
         if process is not None and process.is_alive:
+            self._cancelled_missions.add(order.id)
             process.interrupt("cancelled")
         self._set_status(order, OrderStatus.CANCELLED, "cancelled")
         if process is None:
@@ -425,6 +437,11 @@ class FleetCoordinator(Entity, kind="fleet"):
     def _pending_add(self, order: TransferOrder) -> None:
         """Append `order` to the pending queue and emit ``fleet.pending_changed``."""
         queue = self._pending_queue
+        # Compatibility predicates are user code: call them before changing the
+        # queue so any events they emit still see the last published state.
+        if type(self._dispatch_strategy) in (NearestIdleStrategy, RoundRobinStrategy):
+            if not any(agv.can_carry(order.sku, order.quantity) for agv in self.fleet):
+                self._pending_unserviceable[order.id] = order
         queue.append(order)
         env = self.env
         if env.wants(FleetPendingChanged):
@@ -444,6 +461,8 @@ class FleetCoordinator(Entity, kind="fleet"):
         queue = self._pending_queue
         index = queue.index(order)
         del queue[index]
+        self._pending_unserviceable.pop(order.id, None)
+        self._dispatch_retries.pop(order.id, None)
         env = self.env
         if env.wants(FleetPendingChanged):
             env.emit(
@@ -550,6 +569,8 @@ class FleetCoordinator(Entity, kind="fleet"):
 
     def _run_mission(self, order: TransferOrder, agv: AGV) -> ProcessGenerator:
         """Full mission lifecycle as a SimPy process."""
+        mission = self.env.active_process
+        notify_idle = False
         try:
             # 1. Travel empty to origin output bay
             # (order.status, dispatched_at, and AGV state are set eagerly in _dispatch)
@@ -651,84 +672,32 @@ class FleetCoordinator(Entity, kind="fleet"):
 
             # Go IDLE
             self._transition_agv(agv, AGVState.IDLE)
-            for cb in self._hooks_on_agv_idle:
-                cb(agv)
+            notify_idle = True
 
         except simpy.Interrupt:
-            # H5: Roll back committed but unloaded pick (inventory deducted
-            # inside warehouse.pick() but not yet assigned to agv.current_load).
-            committed = self._committed_picks.pop(order.id, None)
-            if committed is not None:
-                wh, sku, qty = committed
-                yield from wh.put(sku, qty)
-
-            if order.status != OrderStatus.CANCELLED:
-                # Not an explicit cancellation — handle gracefully
-                if agv.current_load is not None:
-                    # Has cargo — delegate to load recovery strategy for intent
-                    status_before, assigned_before = order.status, order.assigned_agv
-                    yield from self._load_recovery_strategy.recover(order, agv, self)
-                    self._after_load_recovery(order, agv, status_before, assigned_before)
-
-                    if order.status == OrderStatus.IN_TRANSIT and agv.current_load is not None:
-                        # S6: ResumeDelivery — re-travel to destination from current position
-                        dest_input_bay = order.destination.nearest_input_bay(
-                            self._require_current_node(agv), self.graph
-                        )
-                        self._transition_agv(agv, AGVState.TRAVELING_LOADED)
-                        while True:
-                            outcome = yield from self._travel(
-                                agv, self._require_current_node(agv), dest_input_bay, loaded=True
-                            )
-                            if outcome is _TravelOutcome.ARRIVED:
-                                break
-                            if outcome in (_TravelOutcome.BATTERY_STRANDED, _TravelOutcome.MISSION_FAILED):
-                                # H1 fix: fall back to return-to-origin, then drop
-                                yield from self._return_cargo_to_origin(order, agv)
-                                stranded = outcome is _TravelOutcome.BATTERY_STRANDED
-                                reason = "battery_stranded" if stranded else "travel_failed"
-                                self._set_status(order, OrderStatus.FAILED, reason)
-                                break
-                            if agv.battery.is_critical and self.charging_stations:
-                                yield from self._charge_agv(agv)
-                            self._transition_agv(agv, AGVState.TRAVELING_LOADED)
-
-                        if order.status == OrderStatus.IN_TRANSIT:
-                            # Successfully re-traveled — complete delivery
-                            self._set_status(order, OrderStatus.DELIVERING, "arrived_at_destination")
-                            self._transition_agv(agv, AGVState.WAITING_UNLOAD)
-                            yield from order.destination.put(order.sku, order.quantity)
-                            self._set_load(agv, None)
-                            yield self.env.timeout(agv.sample_unload_time())
-                            order.delivered_at = self.env.now
-                            self._set_status(order, OrderStatus.COMPLETED, "delivered")
-
-                            for cb in self._hooks_on_delivery_complete:
-                                cb(order, agv)
-                    elif agv.current_load is not None:
-                        # ReturnToOrigin (or similar) — physically return cargo
-                        yield from self._return_cargo_to_origin(order, agv)
-                else:
-                    # Before pickup — re-queue
-                    self._set_status(order, OrderStatus.PENDING, "interrupted")
-                    self._unassign_order(order, agv)
-                    self._pending_add(order)
-                    self._ensure_pending_retry_loop()
-            else:
-                # Explicit cancellation — physically return cargo to origin
-                if agv.current_load is not None:
-                    yield from self._return_cargo_to_origin(order, agv)
-                # Ensure status stays CANCELLED (may have been changed by _return_cargo_to_origin)
+            # Recovery owns cargo/inventory until it finishes. Further interrupts
+            # are merged here rather than injected into a half-finished rollback.
+            recovery = self.env.process(self._recover_mission(order, agv))
+            while True:
+                try:
+                    yield recovery
+                    break
+                except simpy.Interrupt:
+                    if recovery.triggered and not recovery.ok:
+                        raise  # a failure inside recovery is not a new interrupt of this mission
+                    continue
+            if order.id in self._cancelled_missions and order.status != OrderStatus.CANCELLED:
                 self._set_status(order, OrderStatus.CANCELLED, "cancelled")
-
             self._transition_agv(agv, AGVState.IDLE)
-            for cb in self._hooks_on_agv_idle:
-                cb(agv)
+            notify_idle = True
 
         finally:
             # Cleanup mission tracking
-            self._active_missions.pop(order.id, None)
-            self._agv_mission.pop(agv, None)
+            self._cancelled_missions.discard(order.id)
+            if self._active_missions.get(order.id) is mission:
+                self._active_missions.pop(order.id)
+            if self._agv_mission.get(agv) is order:
+                self._agv_mission.pop(agv)
             if agv.order is order:
                 agv.order = None
                 env = self.env
@@ -742,8 +711,90 @@ class FleetCoordinator(Entity, kind="fleet"):
             if not isinstance(sys.exc_info()[1], GeneratorExit):
                 self._retire_if_terminal(order)
 
-            # Check pending queue
+            # Hooks may dispatch immediately, so all old mission ownership must
+            # be gone before the AGV is offered to user code.
+            if notify_idle:
+                for cb in self._hooks_on_agv_idle:
+                    cb(agv)
             self._check_pending_queue()
+
+    def _recover_mission(self, order: TransferOrder, agv: AGV) -> ProcessGenerator:
+        """Finish an interrupted mission without exposing rollback to more interrupts."""
+        # H5: Roll back committed but unloaded pick (inventory deducted
+        # inside warehouse.pick() but not yet assigned to agv.current_load).
+        committed = self._committed_picks.pop(order.id, None)
+        if committed is not None:
+            wh, sku, qty = committed
+            yield from wh.put(sku, qty)
+
+        if order.status in TERMINAL_STATUSES and order.status != OrderStatus.CANCELLED:
+            return
+
+        if order.status != OrderStatus.CANCELLED:
+            # Not an explicit cancellation — handle gracefully
+            if agv.current_load is not None:
+                # Has cargo — delegate to load recovery strategy for intent
+                status_before, assigned_before = order.status, order.assigned_agv
+                yield from self._load_recovery_strategy.recover(order, agv, self)
+                self._after_load_recovery(order, agv, status_before, assigned_before)
+                if order.id in self._cancelled_missions and order.status != OrderStatus.CANCELLED:
+                    self._set_status(order, OrderStatus.CANCELLED, "cancelled")
+
+                if order.status == OrderStatus.IN_TRANSIT and agv.current_load is not None:
+                    # S6: ResumeDelivery — re-travel to destination from current position
+                    dest_input_bay = order.destination.nearest_input_bay(self._require_current_node(agv), self.graph)
+                    self._transition_agv(agv, AGVState.TRAVELING_LOADED)
+                    while True:
+                        outcome = yield from self._travel(
+                            agv, self._require_current_node(agv), dest_input_bay, loaded=True
+                        )
+                        if outcome is _TravelOutcome.ARRIVED:
+                            break
+                        if outcome in (_TravelOutcome.BATTERY_STRANDED, _TravelOutcome.MISSION_FAILED):
+                            # H1 fix: fall back to return-to-origin, then drop
+                            yield from self._return_cargo_to_origin(order, agv)
+                            stranded = outcome is _TravelOutcome.BATTERY_STRANDED
+                            reason = "battery_stranded" if stranded else "travel_failed"
+                            self._set_status(order, OrderStatus.FAILED, reason)
+                            break
+                        if agv.battery.is_critical and self.charging_stations:
+                            yield from self._charge_agv(agv)
+                        self._transition_agv(agv, AGVState.TRAVELING_LOADED)
+
+                    if order.status == OrderStatus.CANCELLED:
+                        yield from self._return_cargo_to_origin(order, agv)
+                    elif order.status == OrderStatus.IN_TRANSIT:
+                        # Successfully re-traveled — complete delivery
+                        self._set_status(order, OrderStatus.DELIVERING, "arrived_at_destination")
+                        self._transition_agv(agv, AGVState.WAITING_UNLOAD)
+                        yield from order.destination.put(order.sku, order.quantity)
+                        self._set_load(agv, None)
+                        yield self.env.timeout(agv.sample_unload_time())
+                        if order.id in self._cancelled_missions:
+                            return
+                        order.delivered_at = self.env.now
+                        self._set_status(order, OrderStatus.COMPLETED, "delivered")
+
+                        for cb in self._hooks_on_delivery_complete:
+                            cb(order, agv)
+                elif agv.current_load is not None:
+                    # ReturnToOrigin (or similar) — physically return cargo
+                    yield from self._return_cargo_to_origin(order, agv)
+                    if order.status == OrderStatus.PENDING:
+                        self._pending_add(order)
+                        self._ensure_pending_retry_loop()
+            else:
+                # Before pickup — re-queue
+                self._set_status(order, OrderStatus.PENDING, "interrupted")
+                self._unassign_order(order, agv)
+                self._pending_add(order)
+                self._ensure_pending_retry_loop()
+        else:
+            # Explicit cancellation — physically return cargo to origin
+            if agv.current_load is not None:
+                yield from self._return_cargo_to_origin(order, agv)
+            # Ensure status stays CANCELLED (may have been changed by _return_cargo_to_origin)
+            self._set_status(order, OrderStatus.CANCELLED, "cancelled")
 
     def _travel(
         self,
@@ -999,7 +1050,25 @@ class FleetCoordinator(Entity, kind="fleet"):
         for attempt in range(_max_retries):
             enter_proc = self.env.process(self._traffic_manager.enter_node(agv, node))
             timer = self.env.timeout(timeout)
-            yield enter_proc | timer
+            entry = enter_proc | timer
+            try:
+                yield entry
+            except simpy.Interrupt as interruption:
+                # The entry child must finish withdrawing its request before
+                # mission recovery can move/reuse this AGV. In particular, a
+                # granted request must not resume later and create a ghost
+                # reservation after the parent has released the target node.
+                entry.defused = True
+                if enter_proc.is_alive:
+                    enter_proc.interrupt("deadlock_timeout")
+                while not enter_proc.processed:
+                    try:
+                        yield enter_proc
+                    except simpy.Interrupt:
+                        if enter_proc.triggered and not enter_proc.ok:
+                            break  # custom managers may propagate the child's interruption
+                        # Merge further interrupts while the child cleans up.
+                raise interruption
 
             if enter_proc.triggered:
                 return _EnterOutcome.ENTERED
@@ -1163,25 +1232,51 @@ class FleetCoordinator(Entity, kind="fleet"):
         return min(reachable, key=lambda x: x[0])[1]
 
     def _check_pending_queue(self) -> None:
-        """Try to dispatch pending orders when AGVs become available."""
+        """Try pending orders; a saturated fleet need not rescan its compatible backlog.
+
+        Built-in strategies only select idle AGVs. Custom strategies (including
+        subclasses) keep receiving the full fleet on every retry tick.
+        """
         if not self._pending_queue:
             return
 
-        # Try to dispatch each pending order
+        builtin = type(self._dispatch_strategy) in (NearestIdleStrategy, RoundRobinStrategy)
+        idle = [agv for agv in self.fleet if agv.state == AGVState.IDLE] if builtin else []
+        if builtin and not idle:
+            # Impossible orders must still exhaust their retries while all AGVs
+            # are busy. Compatible orders wait for availability without spending
+            # the retry budget or walking the backlog on every timer tick.
+            orders: list[TransferOrder] | deque[TransferOrder] = list(self._pending_unserviceable.values())
+        elif not builtin or self._hooks_on_order_dispatched:
+            # User dispatch hooks may submit/cancel orders while this scan runs.
+            orders = list(self._pending_queue)
+        else:
+            # No user dispatch hooks can mutate the deque during iteration.
+            # Remove dispatched/failed orders only after the scan.
+            orders = self._pending_queue
+
         dispatched: list[TransferOrder] = []
         failed: list[TransferOrder] = []
-        for order in list(self._pending_queue):
-            agv = self._dispatch_strategy.select(order, self.fleet, self.graph)
+        for order in orders:
+            if builtin and not idle and order.id not in self._pending_unserviceable:
+                break
+            candidates = idle if builtin else self.fleet
+            agv = self._dispatch_strategy.select(order, candidates, self.graph)
             if agv is not None:
                 dispatched.append(order)
                 self._dispatch_retries.pop(order.id, None)
                 self._dispatch(order, agv)
+                if builtin:
+                    idle = [a for a in idle if a.state == AGVState.IDLE]
             else:
                 capable_agvs = [a for a in self.fleet if a.can_carry(order.sku, order.quantity)]
-                idle_capable_agvs = [a for a in capable_agvs if a.state == AGVState.IDLE]
+                if capable_agvs:
+                    self._pending_unserviceable.pop(order.id, None)
+                    if not any(a.state == AGVState.IDLE for a in capable_agvs):
+                        continue
+                elif builtin:
+                    self._pending_unserviceable[order.id] = order
                 self._dispatch_retries[order.id] = self._dispatch_retries.get(order.id, 0) + 1
-                if capable_agvs and not idle_capable_agvs:
-                    continue
                 if self._dispatch_retries[order.id] >= self._max_dispatch_retries:
                     failed.append(order)
 
@@ -1190,7 +1285,6 @@ class FleetCoordinator(Entity, kind="fleet"):
 
         for order in failed:
             self._pending_remove(order)
-            self._dispatch_retries.pop(order.id, None)
             self._set_status(order, OrderStatus.FAILED, "retries_exhausted")
             self._retire_if_terminal(order)
 

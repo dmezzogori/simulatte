@@ -149,3 +149,35 @@ its two parts. Modes `default` and `default_logging` (against each baseline's ow
 modes `kpi`, `digest` and `full` (against the branch's `none`), the sampling benchmark, the intralogistics modes
 (against the branch's `none`, at half the local size: `--shifts 10`) and a details table are written to the step
 summary without gating, and every result JSON is uploaded as an artifact.
+
+## Pre-0.13 follow-up measurements
+
+`run.py --log-info` adds one INFO log per job arrival, written to a temporary local file. Use the same option
+for both `default_logging` and `bare`; the latter closes its sinks but still makes every log call. These pairs
+are reported by CI and guarded against comparison with a workload without logging. File output is inside the
+measured build/run/close interval. Normal workloads retain their original behavior.
+
+`run.py --mode full` reports both cold seeks and immediate repetitions of the same cursor with a warm chunk
+cache (`warm_seek_p50_ms`, `warm_seek_p95_ms`, `warm_seek_max_ms`). Cold still means empty reader cache,
+not cold OS cache. The TypeScript equivalent, including isolated wire decoding, is documented in
+[`studio/packages/trace/README.md`](../studio/packages/trace/README.md).
+
+```sh
+uv run python benchmarks/bench_replications.py --replications 8 --horizon 1000 --workers 2 --repeat 3
+uv run python benchmarks/calibrate_noise.py /tmp/artifacts/bench-3.14 /tmp/artifacts/bench-pypy-3.11
+```
+
+The replication measurement includes Runner setup, model construction, simulation, result extraction, environment
+close, and spawned-pool startup/teardown. It checks identical results for every seed across repeated sequential
+and parallel runs. Short runs can be slower in parallel because startup is included.
+
+The calibration tool resamples independent process medians, not individual repetitions, and reports uncertainty
+in the head/baseline ratio. Its upper bound estimates false-failure noise; a slow baseline can widen the lower
+bound without increasing false failures. Three processes give limited evidence: retain artifacts and revisit
+calibration across multiple runner batches. The pre-0.13 results and limitations are recorded in
+[`specs/research/2026-10-10-pre-013-hardening.md`](../specs/research/2026-10-10-pre-013-hardening.md).
+
+`intralogistics.py` now also runs the common `none`, `default`, and `default_logging` modes on 0.12.0 through
+an API/RNG compatibility shim. It verifies both the input request hash and a lifecycle trajectory hash with
+UUIDs normalized to submission order. Use `compare.py --report-only` for these comparisons; they have no
+accepted overhead budget. The legacy version's required no-op collector callback remains part of its timing.

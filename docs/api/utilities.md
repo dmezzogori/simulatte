@@ -59,7 +59,8 @@ SQLite rows or an in-memory history.
 ::: simulatte.scenario.Scenario
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.scenario.ShopType
     options:
@@ -149,7 +150,8 @@ environment stream, and components bind them with `env.bind` (see `simulatte.rng
 ::: simulatte.distributions.RunningStats
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ## Logging
 
@@ -166,17 +168,20 @@ environment stream, and components bind them with `env.bind` (see `simulatte.rng
 ::: simulatte.logsinks.SQLiteSink
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.logsinks.HistorySink
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.logsinks.LogSink
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.events.LogEvent
     options:

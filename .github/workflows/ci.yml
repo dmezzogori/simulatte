@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13", "3.14", "3.15"]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
 
     steps:
       - uses: actions/checkout@v7
@@ -159,12 +159,15 @@ jobs:
       # Overhead budgets and noise bands, the only place they are set (D55). Each baseline has its own pair: the
       # gate fails above BUDGET_RELEASED + NOISE_RELEASED against the released 0.12.0, or above
       # BUDGET_STRIPPED + NOISE_STRIPPED against the stripped copy.
-      # Noise bands are calibrated at G3 (specs/research/sp1-g3-report.md §3). The stripped baseline's budget is
+      # Noise bands were checked against PR #43 and the first successful main runner artifacts
+      # (specs/research/2026-10-10-pre-013-hardening.md). Keep 2% CPython; use 7% PyPy (upward bootstrap bound 6.22pp);
+      # calibration uses upward ratio uncertainty (false failures), not the full timing range.
+      # Original G3 calibration: specs/research/sp1-g3-report.md §3. The stripped baseline's budget is
       # tightened after the tuning of D56 (G3 report §9): 6.5 % on CPython (was 10 %), 3 % on PyPy (the floor).
       BUDGET_RELEASED: "0.03"
-      NOISE_RELEASED: ${{ matrix.pypy && '0.05' || '0.02' }}
+      NOISE_RELEASED: ${{ matrix.pypy && '0.07' || '0.02' }}
       BUDGET_STRIPPED: ${{ matrix.pypy && '0.03' || '0.065' }}
-      NOISE_STRIPPED: ${{ matrix.pypy && '0.05' || '0.02' }}
+      NOISE_STRIPPED: ${{ matrix.pypy && '0.07' || '0.02' }}
       RUN: --warmup ${{ matrix.warmup }} --repeat 5 --processes 3
       MPLBACKEND: Agg
 
@@ -253,6 +256,13 @@ jobs:
             /tmp/head/bin/python compare.py /tmp/out/head-none-$w.json /tmp/out/head-$mode-$w.json \
               --summary "$GITHUB_STEP_SUMMARY" --no-header
           done
+          # A real INFO logging workload: one file-backed log per job, with a matched sinks-off run.
+          for mode in bare default_logging; do
+            /tmp/head/bin/python run.py --mode $mode --workload workloads/$w.json --log-info $RUN \
+              --no-memory --json /tmp/out/head-info-$mode-$w.json
+          done
+          /tmp/head/bin/python compare.py /tmp/out/head-info-bare-$w.json /tmp/out/head-info-default_logging-$w.json \
+            --summary "$GITHUB_STEP_SUMMARY" --no-header
           /tmp/base/bin/python bench_sampling.py --jobs 20000 --warmup ${{ matrix.warmup }} --repeat 5 --json /tmp/out/base-sampling.json
           /tmp/head/bin/python bench_sampling.py --jobs 20000 --warmup ${{ matrix.warmup }} --repeat 5 --json /tmp/out/head-sampling.json
           /tmp/head/bin/python compare.py /tmp/out/base-sampling.json /tmp/out/head-sampling.json \
@@ -265,6 +275,12 @@ jobs:
           for mode in default default_logging bare kpi digest full; do
             /tmp/head/bin/python compare.py /tmp/out/il-none.json /tmp/out/il-$mode.json \
               --summary "$GITHUB_STEP_SUMMARY" --no-header
+          done
+          # The compatibility shim reproduces the same named random streams on 0.12.0.
+          for mode in none default default_logging; do
+            /tmp/base/bin/python intralogistics.py --mode $mode $IL --json /tmp/out/il-base-$mode.json
+            /tmp/head/bin/python compare.py /tmp/out/il-base-$mode.json /tmp/out/il-$mode.json \
+              --report-only --summary "$GITHUB_STEP_SUMMARY" --no-header
           done
           /tmp/head/bin/python summarize.py /tmp/out/*.json >> "$GITHUB_STEP_SUMMARY"
 

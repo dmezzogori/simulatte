@@ -168,6 +168,8 @@ Using the environment as a context manager (`with Environment(...) as env:`) clo
 | `"full"` (default) | header, initial state, every domain event in compressed chunks, KPI records, footer | replay, seeking, verification |
 | `"kpi"` | header, initial state, KPI records, footer | cheap summaries; the trace cannot be verified |
 
+KPI sample buffers publish within the same wall-clock latency limit, even when no more simulation events arrive. Samples emitted before activation wait until the initial-state record.
+
 Events are grouped into chunks sealed at 10,000 events, 1 MiB, 1 second of wall-clock time or an optional simulated-time window (`ChunkLimits`). A writer thread compresses and writes them; if it falls behind, the simulation waits (the pending bytes are bounded), so memory stays flat. The first such wait logs a warning, and that log event takes a sequence number, so two runs with the same seed can have different `(t, seq)` cursors when only one of them waited: compare traces by digest, not by cursor. The recorder never changes the trajectory: the digest is identical with or without it. Several `env.run()` calls continue the same trace. The footer records how the run ended (`completed`, `cancelled` for a keyboard interrupt, `failed` if `run` raised).
 
 ## 7) Reading and verifying a trace
@@ -189,6 +191,7 @@ for event in trace.events(start, (1.0, 10**9)):      # events with start < (t, s
 
 - `state_at(cursor)` returns `{entity id: state}` and seeks directly to the right chunk, so jumping around a long run is cheap. The activation cursor `(t, -1)` is the initial state.
 - `events(start, end)` yields the recorded events between two cursors.
+- `kpi_declarations` maps `scope/name` to immutable metadata: unit, kind, description and observation settings. Older traces return an empty map.
 - `kpis()` returns the scalars and `kpi_series()` the samples of the KPI records.
 - `check()` validates the container (checksums, index, limits) and raises `TraceCorrupted` on damage.
 - `verify()` recomputes the digest from the initial state and the events and compares it with the footer: `True`, `False`, or `"not_verifiable"` for `kpi` traces and traces without a footer.
@@ -201,7 +204,7 @@ The format is a documented container (MessagePack records with CRC32 checksums a
 
 A **collector** subscribes to the bus, keeps its own state and exposes results as attributes. Each is bound to an owner entity (a shop floor, a server or a fleet coordinator) and sees only that owner's events, so two systems in one environment never mix results. Scalars and samples are keyed `"<scope id>/<kpi name>"`.
 
-The built-in collectors are `EMACollector` (attached by default to every `ShopFloor` as `shopfloor.metrics`), `ShopFloorTimeSeries`, `CurrentWorkloadCollector`, `ServerTimeSeries` and `ShopFloorKPIs` in `simulatte.collectors`, and `OrderEMACollector` (default on a `FleetCoordinator`), `FleetTimeSeries` and `FleetKPIs` in `simulatte.intralogistics`. `env.collectors` lists the attached ones.
+The built-in collectors are `EMACollector` (attached by default to every `ShopFloor` as `shopfloor.metrics`), `ShopFloorTimeSeries`, `CurrentWorkloadCollector`, `ServerTimeSeries` and `ShopFloorKPIs` in `simulatte.collectors`, and `OrderEMACollector` (default on a `FleetCoordinator`), `FleetTimeSeries` and `FleetKPIs` in `simulatte.intralogistics`. `env.collectors` lists the attached ones. Every production `build_*_system` accepts `default_metrics=False`; `FleetCoordinator(ema_alpha=0.05)` changes its default order EMA smoothing factor.
 
 Window-aware KPIs honour the warm-up: set it before activation with `env.configure_kpis(warmup=...)`. Job KPIs average the jobs completed after the warm-up; time-weighted KPIs (utilization, jobs in the system) integrate from the start of the window and are clipped at its end.
 
@@ -248,6 +251,10 @@ Note that "tardy" is not the same thing in every collector. `EMACollector.ema_ta
 ## 9) Logging sinks
 
 `env.info(...)`, `env.warning(...)` and friends emit `log` events; **sinks** write them out. The default sinks (stderr or `log_file`, an in-memory history, and an optional SQLite database) are configured through the `log_*` arguments of `Environment`, and `simulatte.logsinks` provides `TextSink`, `JsonSink`, `SQLiteSink` and `HistorySink` to attach more. At `DEBUG` the sinks also render domain events, which makes every emitting site build its event, so a debug run is slower. `Environment(debug=True)` requires the `extra` values of log calls to be wire values (numbers, strings, booleans, `None`, lists and string-keyed maps) and records an immutable copy of them (lists become tuples). See the [Logging tutorial](../tutorials/logging.md) for the details.
+
+Log calls below every attached sink's level are skipped without constructing an event or consuming a sequence number. An explicit bus subscription to log events (or `"**"`) still receives every level. Python evaluates arguments before the call, so guard expensive message construction with `env.bus.wants_log(10)` for DEBUG.
+
+`env.close()` ends observation: subsequent emissions, including cancellation events from generator finalizers, are ignored. Close individual sinks when you only want to stop logging during a run. If environment setup fails, any sinks already opened are closed.
 
 ## 10) Debug mode
 

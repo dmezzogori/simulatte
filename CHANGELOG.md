@@ -71,6 +71,15 @@ many APIs and, because RNG streams are now derived from the seed and entity name
 
 ### Changed
 
+- Production builders accept `default_metrics=False`; `FleetCoordinator` accepts `ema_alpha`.
+- `Runner` is imported lazily from the top-level package. API reference pages filter private members.
+- Traces record KPI declarations (the optional `kpi-declarations-v1` feature); Python exposes `kpi_declarations`
+  and TypeScript `kpiDeclarations`. Older traces remain readable. The TypeScript reader uses its own strict
+  MessagePack subset decoder and exposes metadata through read-only getters.
+- CI covers CPython 3.11. Benchmarks cover INFO logging, warm seeks, TypeScript decoding/replay, Runner throughput
+  and intralogistics comparisons with 0.12.0; observer-invariance tests also compare SimPy step counts.
+
+
 - **Breaking:** logging is rebuilt on the bus and `loguru` is no longer a dependency; `msgpack` is a new
   dependency. `simulatte.logger` is removed (see Removed). `Environment(log_level=...)` is per environment.
   `log_format` accepts only `"text"` and `"json"`. History records are `simulatte.events.LogEvent` (`.timestamp` is
@@ -153,6 +162,17 @@ many APIs and, because RNG streams are now derived from the seed and entity name
   (stateless, focus), release (WIP, workload, triggers) and release-policy comparison pages.
 
 ### Fixed
+
+- Fleet recovery now tolerates repeated interrupts, requeues orders after `ReturnToOrigin`, preserves terminal
+  order status on cancellation, and completes mission cleanup before idle hooks can dispatch another mission.
+- Saturated fleets skip unnecessary pending-order scans; built-in dispatch strategies reuse the idle fleet view.
+- Interrupted charging, battery swaps and node waits release or cancel resources; duplicate parking entries retain
+  their original slot.
+- Environment setup closes already-open sinks on failure; `close()` suppresses later emissions from finalizers.
+  Filtered log levels no longer construct events or consume sequence numbers unless a bus subscriber wants them.
+- Empty deltas report `ValueError`; KPI samples flush on the trace latency limit as well as size/count and close.
+- Digest framing tests no longer infer entity kinds from unrelated globally registered test types.
+
 
 - `job.queued`'s queue length (previously the logged `queue_length` of `Server.request`) was one too high: SimPy appends
   a request to the queue before the logging call ran. It now counts the waiting requests including the newcomer.

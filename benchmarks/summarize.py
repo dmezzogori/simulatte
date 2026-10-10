@@ -17,8 +17,8 @@ from typing import Any
 
 COLUMNS = (
     "| Interpreter | Workload | Version | Mode | Median (IQR) | Peak RSS | Trace | Chunks | Seek p50 / p95 "
-    "| Jobs/s | Draws/s |\n"
-    "|---|---|---|---|---|---|---|---|---|---|---|\n"
+    "| Warm seek p50 / p95 | Jobs/s | Draws/s |\n"
+    "|---|---|---|---|---|---|---|---|---|---|---|---|\n"
 )
 
 
@@ -33,11 +33,14 @@ def row(result: dict[str, Any]) -> str:
     seek = "–"
     if result.get("seek_p50_ms") is not None:
         seek = f"{result['seek_p50_ms']:.1f} / {result['seek_p95_ms']:.1f} ms"
+    warm = "–"
+    if result.get("warm_seek_p50_ms") is not None:
+        warm = f"{result['warm_seek_p50_ms']:.1f} / {result['warm_seek_p95_ms']:.1f} ms"
     return (
         f"| {python['implementation']} {python['version']} | {workload} | {result['label']} | {result['mode']} "
         f"| {result['median_s']:.3f} s ({result['iqr_s']:.3f}) | {_fmt(result.get('peak_mb'), '.0f', ' MB')} "
         f"| {_fmt(None if trace is None else trace / 1e6, '.2f', ' MB')} | {_fmt(result.get('chunks'), 'd')} "
-        f"| {seek} | {_fmt(result.get('jobs_per_s'), ',.0f')} | {_fmt(result.get('draws_per_s'), ',.0f')} |\n"
+        f"| {seek} | {warm} | {_fmt(result.get('jobs_per_s'), ',.0f')} | {_fmt(result.get('draws_per_s'), ',.0f')} |\n"
     )
 
 

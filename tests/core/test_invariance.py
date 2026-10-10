@@ -25,7 +25,6 @@ that building events never calls user code (spec §6.1, S9).
 
 from __future__ import annotations
 
-import functools
 import json
 import os
 import subprocess
@@ -41,8 +40,7 @@ from simulatte.builders import build_immediate_release_system, build_lumscor_sys
 from simulatte.collectors import CurrentWorkloadCollector, ServerTimeSeries, ShopFloorKPIs, ShopFloorTimeSeries
 from simulatte.environment import Environment
 from simulatte.scenario import Scenario
-from simulatte.server import JobGranted, JobQueued, JobReleased
-from simulatte.shopfloor import JobFinished, OperationCompleted, ShopFloor, ShopFloorEntered
+from simulatte.events import DomainEvent
 from simulatte.trace import ChunkLimits, Trace, TraceRecorder
 from simulatte.typing import BuiltSystem
 
@@ -79,6 +77,14 @@ BUILDERS: dict[str, Callable[..., BuiltSystem[Any]]] = {
 }
 
 
+class CountingEnvironment(Environment):
+    processed_steps = 0
+
+    def step(self) -> None:
+        self.processed_steps += 1
+        super().step()
+
+
 @dataclass
 class Outcome:
     state: dict[str, Any]
@@ -88,11 +94,12 @@ class Outcome:
     trace_path: Path | None
 
 
-def final_state(env: Environment, system: BuiltSystem[Any]) -> dict[str, Any]:
+def final_state(env: CountingEnvironment, system: BuiltSystem[Any]) -> dict[str, Any]:
     """The model's final state, read without any observer (see the module docstring)."""
     shop_floor = system.shop_floor
     return {
         "now": env.now,
+        "steps": env.processed_steps,
         "entities": env.entities.snapshot(),
         "worked_time": {server.id: server.worked_time for server in system.servers},
         "jobs_done": [(job.id, job.finished_at) for job in shop_floor.jobs_done],
@@ -108,29 +115,28 @@ def run_configuration(
     build = BUILDERS[builder]
     trace_path = tmp_path / f"{builder}-{configuration}.simtrace"
     recorded = configuration in ("kpi", "full", "everything")
-    if configuration == "none":
-        # The builders attach the default EMA metrics; build the shop floor without them.
-        monkeypatch.setattr("simulatte.scenario.ShopFloor", functools.partial(ShopFloor, default_metrics=False))
     if configuration == "everything":
-        env = Environment(
+        env = CountingEnvironment(
             seed=SEED, log_level="DEBUG", log_file=tmp_path / f"{builder}.log", debug=True, log_history_size=10
         )
         TraceRecorder(env, trace_path, chunk_limits=ChunkLimits(max_events=200))
     else:
-        env = Environment(seed=SEED)
+        env = CountingEnvironment(seed=SEED)
         if configuration == "kpi":
             TraceRecorder(env, trace_path, level="kpi")
         elif configuration == "full":
             TraceRecorder(env, trace_path)
         elif configuration == "default":
             env.enable_digest()
-    system = build(env)
+    system = build(env, default_metrics=configuration != "none")
     shop_floor = system.shop_floor
     if configuration == "none":
-        monkeypatch.undo()
         assert shop_floor.metrics is None
-        for event_type in (ShopFloorEntered, OperationCompleted, JobFinished, JobQueued, JobGranted, JobReleased):
-            assert not env.wants(event_type)
+        assert not any(
+            issubclass(cls, DomainEvent) or issubclass(DomainEvent, cls)
+            for subscription in env.bus._subscriptions
+            for cls in subscription._classes
+        )
     if configuration in ("kpi", "full", "everything"):
         ShopFloorKPIs(shop_floor).attach(env)
     if configuration == "everything":
@@ -313,7 +319,7 @@ def run_with_policy(
     tmp_path: Path, observation: str, *, opaque: bool, offset: int = 0
 ) -> tuple[Tally, list[tuple[str, float | None]], str | None]:
     tally = Tally()
-    env = Environment(seed=SEED)
+    env = CountingEnvironment(seed=SEED)
     if observation == "digest":
         env.enable_digest()
     elif observation == "full":

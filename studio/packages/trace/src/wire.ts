@@ -9,8 +9,6 @@
  * is plain data. Decoded arrays and maps are frozen, so values can be shared between states.
  */
 
-import { Decoder, ExtensionCodec } from "@msgpack/msgpack";
-
 export type Wire = null | boolean | number | string | readonly Wire[] | { readonly [key: string]: Wire };
 
 export interface WireLimits {
@@ -80,163 +78,116 @@ function readFloat(value: number): number | FloatValue {
   return Number.isSafeInteger(value) && !Object.is(value, -0) ? new FloatValue(value) : value;
 }
 
-/**
- * Two checks of the Python reader have no public hook in `@msgpack/msgpack`, so two internal methods of its decoder
- * (version 3.1.3, pinned exactly; spec §11.4, ruling R33) are wrapped on a subclass:
- *
- * - `readF64`/`readF32`, to tell a float encoding from an integer one (ruling R31);
- * - `decodeUtf8String`, which decodes keys and string values without rejecting invalid UTF-8 and, above 200 bytes,
- *   with a decoder that drops a leading U+FEFF: a string with any non-ASCII byte is decoded here instead, with a fatal
- *   decoder that keeps U+FEFF (`ignoreBOM`), as Python decodes it; ASCII strings are left to the library.
- *
- * {@link checkHooks} fails loudly at the first decode if the methods change.
- */
-class WireDecoder extends Decoder<undefined> {}
-interface Internals {
-  readF32(): number;
-  readF64(): number;
-  decodeUtf8String(byteLength: number, headerOffset: number): unknown;
-  bytes: Uint8Array;
-  pos: number;
-}
-const baseInternals = Decoder.prototype as unknown as Internals;
-const wireInternals = WireDecoder.prototype as unknown as {
-  readF32(): unknown;
-  readF64(): unknown;
-  decodeUtf8String(byteLength: number, headerOffset: number): unknown;
-};
-wireInternals.readF32 = function (this: Internals) {
-  return readFloat(baseInternals.readF32.call(this));
-};
-wireInternals.readF64 = function (this: Internals) {
-  return readFloat(baseInternals.readF64.call(this));
-};
-const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }); // throws for invalid UTF-8, keeps U+FEFF
-wireInternals.decodeUtf8String = function (this: Internals, byteLength: number, headerOffset: number) {
-  const start = this.pos + headerOffset;
-  const end = start + byteLength;
-  if (end <= this.bytes.byteLength) {
-    // (A string that does not fit is truncated input, and maxStrLength is the input length: the library reports both.)
-    for (let i = start; i < end; i++) {
-      if (this.bytes[i]! >= 0x80) {
-        const text = UTF8.decode(this.bytes.subarray(start, end));
-        this.pos += headerOffset + byteLength;
-        return text;
-      }
-    }
-  }
-  return baseInternals.decodeUtf8String.call(this, byteLength, headerOffset);
-};
-let hooksChecked = false;
-
-function checkHooks(): void {
-  if (hooksChecked) return;
-  const probe = new WireDecoder().decode(new Uint8Array([0x92, 0xcb, 0x3f, 0xf0, 0, 0, 0, 0, 0, 0, 0xca, 0x40, 0, 0, 0]));
-  const [f64, f32] = probe as unknown[];
-  if (!(f64 instanceof FloatValue && f64.value === 1 && f32 instanceof FloatValue && f32.value === 2)) {
-    throw new Error("@msgpack/msgpack no longer reads floats through readF64/readF32: update wire.ts");
-  }
-  let utf8Checked = false;
-  try {
-    new WireDecoder().decode(new Uint8Array([0xa1, 0xff]));
-  } catch {
-    utf8Checked = true;
-  }
-  const long = new Uint8Array([0xd9, 203, 0xef, 0xbb, 0xbf, ...new Uint8Array(200).fill(0x78)]); // U+FEFF + 200 "x"
-  const text = new WireDecoder().decode(long);
-  if (!utf8Checked || typeof text !== "string" || text.length !== 201 || text.codePointAt(0) !== 0xfeff) {
-    throw new Error("@msgpack/msgpack no longer decodes strings through decodeUtf8String: update wire.ts");
-  }
-  hooksChecked = true;
-}
+const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
 /**
- * Decode one MessagePack value into a wire value.
- *
- * Throws {@link WireError} for malformed or truncated input, trailing data, limit violations, values outside the
- * wire model (binary, extension types, timestamps, integers beyond +/-(2^53 - 1), map keys that are not strings,
- * strings that are not valid UTF-8) and maps that repeat a key, as written or after unescaping (for example `"a"` and
- * `"~a"`), like the Python reader.
- * Float-encoded integral numbers are recorded (see {@link isFloatAt}).
+ * Decode exactly one MessagePack wire value. Binary, extensions (including timestamps), unsafe integers,
+ * duplicate/unescaped key collisions, invalid UTF-8, trailing bytes and excessive nesting/length are rejected.
+ * Float-encoded integral values keep their encoding in the enclosing container (see {@link isFloatAt}).
  */
 export function decodeWire(data: Uint8Array, limits: WireLimits): Wire {
-  checkHooks();
-  let keys = 0;
-  const decoder = new WireDecoder({
-    extensionCodec: new ExtensionCodec<undefined>(), // no extension types, not even the timestamp
-    useBigInt64: true, // 64-bit integers arrive as bigint, so the safe range can be checked
-    maxStrLength: data.length,
-    maxBinLength: data.length,
-    maxExtLength: 0,
-    maxArrayLength: limits.maxLen,
-    maxMapLength: limits.maxLen,
-    mapKeyConverter: (key: unknown) => {
-      // The decoder would turn integer keys into strings and keep the last of two equal keys: reject the first and
-      // make every key unique (a counter prefix that convert() strips), so convert() sees each written key.
-      if (typeof key !== "string") throw new WireError(`map keys must be str, got ${keyType(key)}`);
-      return `${(keys++).toString(36)}\u0000${key}`;
-    },
-  });
-  let raw: unknown;
   try {
-    raw = decoder.decode(data);
+    const decoder = new WireDecoder(data, limits);
+    const value = decoder.read(0);
+    if (decoder.position !== data.byteLength) throw new WireError("trailing bytes after wire value");
+    return value instanceof FloatValue ? value.value : value;
   } catch (error) {
+    if (error instanceof WireError) throw error;
     throw new WireError(error instanceof Error ? error.message : String(error));
   }
-  return raw instanceof FloatValue ? raw.value : convert(raw, 0, limits);
 }
 
-function convert(value: unknown, depth: number, limits: WireLimits): Wire {
-  switch (typeof value) {
-    case "string":
-    case "boolean":
-    case "number":
-      return value;
-    case "bigint":
-      if (value < -MAX_SAFE || value > MAX_SAFE) throw new WireError(`integer out of range: ${value}`);
-      return Number(value);
-    case "object":
-      break;
-    default:
-      throw new WireError(`unsupported wire type: ${typeof value}`);
-  }
-  if (value === null) return null;
-  if (depth + 1 > limits.maxDepth) throw new WireError(`nesting depth exceeds ${limits.maxDepth}`);
-  if (Array.isArray(value)) {
-    const items: Wire[] = [];
-    const floats: boolean[] = [];
-    for (const item of value) {
-      const float = item instanceof FloatValue;
-      floats.push(float);
-      items.push(float ? item.value : convert(item, depth + 1, limits));
-    }
-    markFloats(items, floats);
-    return Object.freeze(items);
-  }
-  if (Object.getPrototypeOf(value) !== Object.prototype) {
-    throw new WireError("unsupported wire type: binary or extension value");
-  }
-  const source = value as Record<string, unknown>;
-  const map = newMap();
-  const slots = new Set<string>();
-  for (const rawKey of Object.keys(source)) {
-    const key = unescapeKey(rawKey.slice(rawKey.indexOf("\u0000") + 1)); // strip the prefix of mapKeyConverter
-    if (Object.hasOwn(map, key)) throw new WireError(`duplicate map key after unescaping: ${JSON.stringify(key)}`);
-    const item = source[rawKey];
-    if (item instanceof FloatValue) {
-      slots.add(key);
-      defineKey(map, key, item.value);
-    } else {
-      defineKey(map, key, convert(item, depth + 1, limits));
-    }
-  }
-  if (slots.size > 0) FLOAT_SLOTS.set(map, slots);
-  return Object.freeze(map) as Wire;
-}
+/** The trace's small MessagePack subset; checks bounds before reading or allocating container contents. */
+class WireDecoder {
+  position = 0;
+  private readonly view: DataView;
 
-function keyType(key: unknown): string {
-  if (key instanceof FloatValue || typeof key === "number") return "number";
-  return key === null ? "null" : typeof key;
+  constructor(private readonly data: Uint8Array, private readonly limits: WireLimits) {
+    this.view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  }
+
+  private take(length: number): number {
+    const start = this.position;
+    if (length > this.data.byteLength - start) throw new WireError("truncated wire value");
+    this.position += length;
+    return start;
+  }
+
+  private uint(width: 1 | 2 | 4): number {
+    const start = this.take(width);
+    return width === 1 ? this.view.getUint8(start) : width === 2 ? this.view.getUint16(start) : this.view.getUint32(start);
+  }
+
+  private text(length: number): string {
+    const start = this.take(length);
+    return UTF8.decode(this.data.subarray(start, start + length));
+  }
+
+  private integer64(signed: boolean): number {
+    const start = this.take(8);
+    const value = signed ? this.view.getBigInt64(start) : this.view.getBigUint64(start);
+    if (value < -MAX_SAFE || value > MAX_SAFE) throw new WireError(`integer out of range: ${value}`);
+    return Number(value);
+  }
+
+  private container(length: number, depth: number, map: boolean): Wire {
+    if (depth >= this.limits.maxDepth) throw new WireError(`nesting depth exceeds ${this.limits.maxDepth}`);
+    if (length > this.limits.maxLen) throw new WireError(`container length exceeds ${this.limits.maxLen}`);
+    // Every array item needs at least one byte; every map entry needs at least a key and a value.
+    if (length > Math.floor((this.data.byteLength - this.position) / (map ? 2 : 1))) {
+      throw new WireError("truncated wire container");
+    }
+    const result = map ? newMap() : [] as Wire[];
+    const floats = new Set<number | string>();
+    for (let i = 0; i < length; i++) {
+      let key: number | string = i;
+      if (map) {
+        const raw = this.read(depth + 1);
+        if (typeof raw !== "string") throw new WireError("map keys must be str");
+        key = unescapeKey(raw);
+        if (Object.hasOwn(result, key)) throw new WireError(`duplicate map key after unescaping: ${JSON.stringify(key)}`);
+      }
+      const value = this.read(depth + 1);
+      if (value instanceof FloatValue) floats.add(key);
+      const item = value instanceof FloatValue ? value.value : value;
+      if (Array.isArray(result)) result.push(item);
+      else defineKey(result, key as string, item);
+    }
+    if (floats.size > 0) FLOAT_SLOTS.set(result, floats);
+    return Object.freeze(result) as Wire;
+  }
+
+  read(depth: number): Wire | FloatValue {
+    const code = this.uint(1);
+    if (code < 0x80) return code;
+    if (code >= 0xe0) return code - 0x100;
+    if (code >= 0xa0 && code < 0xc0) return this.text(code & 0x1f);
+    if (code >= 0x90 && code < 0xa0) return this.container(code & 0x0f, depth, false);
+    if (code >= 0x80 && code < 0x90) return this.container(code & 0x0f, depth, true);
+    switch (code) {
+      case 0xc0: return null;
+      case 0xc2: return false;
+      case 0xc3: return true;
+      case 0xca: return readFloat(this.view.getFloat32(this.take(4)));
+      case 0xcb: return readFloat(this.view.getFloat64(this.take(8)));
+      case 0xcc: return this.uint(1);
+      case 0xcd: return this.uint(2);
+      case 0xce: return this.uint(4);
+      case 0xcf: return this.integer64(false);
+      case 0xd0: return this.view.getInt8(this.take(1));
+      case 0xd1: return this.view.getInt16(this.take(2));
+      case 0xd2: return this.view.getInt32(this.take(4));
+      case 0xd3: return this.integer64(true);
+      case 0xd9: return this.text(this.uint(1));
+      case 0xda: return this.text(this.uint(2));
+      case 0xdb: return this.text(this.uint(4));
+      case 0xdc: return this.container(this.uint(2), depth, false);
+      case 0xdd: return this.container(this.uint(4), depth, false);
+      case 0xde: return this.container(this.uint(2), depth, true);
+      case 0xdf: return this.container(this.uint(4), depth, true);
+      default: throw new WireError(`unsupported MessagePack wire tag: 0x${code.toString(16)}`);
+    }
+  }
 }
 
 /**

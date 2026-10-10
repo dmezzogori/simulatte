@@ -451,8 +451,8 @@ def test_agv_order_kept_when_an_idle_hook_dispatches_the_next_mission() -> None:
     env.bus.subscribe(lambda event: at_first_retirement.append(agv.order), (EntityRetired,))
     coordinator.submit(first)
     env.run()
-    # The hook dispatched the second mission before the first one's cleanup, which keeps the AGV's order.
-    assert at_first_retirement == [second, None]
+    # Cleanup and retirement finish before idle hooks can dispatch a new mission.
+    assert at_first_retirement == [None, None]
     assert first.status is second.status is OrderStatus.COMPLETED
 
 

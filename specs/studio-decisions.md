@@ -147,3 +147,16 @@ All 10 findings were accepted; see `reviews/2026-10-08-global-spec-review-3.md`.
 **D59. Budgets for `default`, `default_logging` and `kpi` accepted as proposed** (reported in CI, not gated until calibrated on runners, like D57): `default` against released 0.12.0 ≤ 3 % + band, against 0.12.0 without debug calls ≤ 10 % + 2 % on CPython and ≤ 3 % + 5 % on PyPy, and against the branch's no-subscriber time ≤ 1.10× CPython / ≤ 1.06× PyPy; `default_logging` ≤ 3 % + band over the same shop with the default sinks closed (`bare`), with the no-subscriber limits unchanged against 0.12.0; `kpi` ≤ 3.7× CPython / ≤ 4.5× PyPy of no-subscriber time. D57's `full` ≤ 4.9× on CPython is **kept** although u90-50k measured 4.83 to 4.99×: the ratio is borderline because the unobserved path got about 10 % faster after Task 12b while the `full` time did not change, and the CI-size workloads give 4.45 to 4.71×. The scaled-up intralogistics workload stays a reported-only measurement with no budget.
 
 **D60. CPython `full` budget raised to ≤ 5.3×** (2026-10-10, Davide; reported in CI, not gated until calibrated on runners, like D57). Supersedes the CPython `full` part of D57 and the "kept at 4.9×" sentence of D59. The fixes after the adversarial review add a `server.work_credited` event per operation (direct `Server` use must replay correctly), which makes `full` recording about 5 % slower; with the 4.83 to 4.99× already measured on u90-50k, the expected ratio is about 5.1 to 5.2×. The PyPy `full` budget (≤ 7.0×) and the other D57 limits are unchanged.
+
+
+## Pre-0.13 implementation notes, 2026-10-10 (issues #54–#55)
+
+Davide authorized addressing the post-SP1 enhancements before release. The wire format of D53 stays
+MessagePack/zlib; the TypeScript reader now decodes the strict wire subset directly, removing its dependency
+on `@msgpack/msgpack` internal methods. KPI declarations are an optional format-1.0 extension before the
+first release (see the SP1 hardening amendment).
+
+Runner artifact calibration keeps the CPython noise band at 2% and changes the PyPy noise band from 5%
+to 7%: the largest measured upward bootstrap uncertainty was 6.22 percentage points. D55/D59 overhead
+budgets are unchanged; only the empirical noise allowance changes. Methods, inputs and limitations are in
+[`research/2026-10-10-pre-013-hardening.md`](research/2026-10-10-pre-013-hardening.md).

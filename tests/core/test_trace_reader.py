@@ -1111,3 +1111,46 @@ def test_malformed_records_are_corruption_in_both_readers(tmp_path: Path, name: 
     an empty array as state, which the TypeScript reader rejects (``studio/packages/trace/test/records.test.ts``)."""
     with pytest.raises(TraceCorrupted):
         _read_everything(_records_trace(tmp_path, name, **_MALFORMED_RECORDS[name]))
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"name": "wrong"},
+        {"unit": 4},
+        {"kind": ()},
+        {"kind": {"scalar": None}},
+        {"kind": ("series", "series")},
+        {"cohort": "unknown"},
+        {"clip": "unknown"},
+        {"censoring": "unknown"},
+        {"ema_reset": 1},
+        {"empty": "zero"},
+        {"extra": "unknown"},
+    ],
+)
+def test_malformed_kpi_declarations(tmp_path: Path, changes: dict[str, Any]) -> None:
+    from dataclasses import asdict
+    from simulatte.kpi import KPI
+
+    declaration = asdict(KPI("x", unit="time")) | changes
+    path = _records_trace(tmp_path, "bad-declaration", kpis=({"declarations": {"scope/x": declaration}},))
+    with pytest.raises(TraceCorrupted):
+        Trace.open(path)
+
+
+@pytest.mark.parametrize("value", [(), {"scope/x": ()}, {"scope/x": {}}])
+def test_invalid_kpi_declaration_container(tmp_path: Path, value: Any) -> None:
+    path = _records_trace(tmp_path, "bad-declarations", kpis=({"declarations": value},))
+    with pytest.raises(TraceCorrupted):
+        Trace.open(path)
+
+
+def test_duplicate_kpi_declarations(tmp_path: Path) -> None:
+    from dataclasses import asdict
+    from simulatte.kpi import KPI
+
+    record = {"declarations": {"scope/x": asdict(KPI("x", unit="time", empty=0.0))}}
+    path = _records_trace(tmp_path, "duplicate", kpis=(record, record))
+    with pytest.raises(TraceCorrupted, match="duplicate KPI"):
+        Trace.open(path)

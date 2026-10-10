@@ -599,12 +599,13 @@ def test_kpi_records_follow_the_initial_record(tmp_path: Path) -> None:
     assert [rtype for rtype, _ in records] == [
         RecordType.HEADER,
         RecordType.INITIAL,
+        RecordType.KPI,  # declarations
         RecordType.KPI,
         RecordType.KPI,
         RecordType.FOOTER,  # no scalar has a value: no scalars record
     ]
-    assert records[2][1] == {"samples": tuple((seq, 0.0, "d/level", float(seq)) for seq in range(1, 5))}
-    assert records[3][1] == {"samples": ((5, 0.0, "d/level", 5.0),)}
+    assert records[3][1] == {"samples": tuple((seq, 0.0, "d/level", float(seq)) for seq in range(1, 5))}
+    assert records[4][1] == {"samples": ((5, 0.0, "d/level", 5.0),)}
     assert Trace.open(path).kpi_series() == {"d/level": [((0.0, seq), float(seq)) for seq in range(1, 6)]}
 
 
@@ -617,7 +618,7 @@ def test_kpi_samples_flush_on_the_byte_limit(tmp_path: Path) -> None:
     for value in (1.0, 2.0, 3.0):
         collector.sample("level", value)  # each entry encodes to 21 bytes: two fill a record
     env.close()
-    kpis = [body for rtype, body in _records(path) if rtype == RecordType.KPI]
+    kpis = [body for rtype, body in _records(path) if rtype == RecordType.KPI and "samples" in body]
     assert [len(body["samples"]) for body in kpis] == [2, 1]
 
 
@@ -741,3 +742,23 @@ def test_writer_failure_propagates_on_samples(tmp_path: Path, monkeypatch: pytes
         rec.close()
     assert not rec._thread.is_alive()
     assert RecordType.FOOTER not in [rtype for rtype, _ in _records(path)]
+
+
+def test_trace_keeps_kpi_declarations_and_late_collectors(tmp_path: Path) -> None:
+    from dataclasses import asdict
+
+    path = tmp_path / "declarations.simtrace"
+    with Environment(seed=1) as env:
+        rec = TraceRecorder(env, path, level="kpi")
+        early = Plain(Desk(env, name="early")).attach(env)
+        env.activate()
+        late = Plain(Desk(env, name="late")).attach(env)
+        late.sample("level", 3.0)
+        final = Plain(Desk(env, name="final")).attach(env)
+    expected = {f"{c.scope.id}/{kpi.name}": asdict(kpi) for c in (early, late, final) for kpi in c.kpis}
+    declarations = Trace.open(path).kpi_declarations
+    from simulatte._wire import freeze
+
+    assert declarations == freeze(expected)
+    assert "kpi-declarations-v1" in Trace.open(path)._header["features"]["optional"]
+    assert rec._known_collectors == 3

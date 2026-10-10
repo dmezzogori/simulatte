@@ -269,7 +269,7 @@ def _return_to_origin(env: Environment) -> TransferOrder:
     coordinator.submit(order)
     _interrupt_at(env, coordinator, order, 6.0, "breakdown")
     env.run()
-    return order  # left PENDING and never re-queued (pre-existing, ruling R20)
+    return order  # cargo returned, order re-queued and delivered
 
 
 def _resume_delivery(env: Environment) -> TransferOrder:
@@ -444,7 +444,8 @@ def test_return_to_origin_status_event_carries_the_cleared_agv() -> None:
     order = _return_to_origin(env)
     recovery = next(e for e in changes if isinstance(e, OrderStatusChanged) and e.reason == "load_recovery")
     assert recovery.deltas.ops == (("set", order.id, "status", "PENDING"), ("set", order.id, "agv", None))
-    assert order.assigned_agv is None and order.status is OrderStatus.PENDING
+    assert order.status is OrderStatus.COMPLETED
+    assert not env.entities.is_live(order)
 
 
 def _recovery_changing_only_the_agv(env: Environment, reassign: bool) -> tuple[TransferOrder, AGV, AGV]:
@@ -685,3 +686,54 @@ def test_replay_equals_live_at_every_event_fleet() -> None:
     assert replay.view(replay.state) == replay.view(env.entities.snapshot())
     charged = [e for e in replay.types if e == AgvBatteryChanged.type_name]
     assert charged and replay.events > 300
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+def test_repeated_recovery_interruptions_keep_replay_consistent(cancel: bool) -> None:
+    env = Environment(debug=True)
+    replay = FleetReplay(env)
+    coordinator, agv, origin, destination = _fleet(env)
+    order = _order(coordinator, origin, destination)
+    coordinator.submit(order)
+
+    def interrupt_recovery():
+        yield env.timeout(6)
+        mission = coordinator._active_missions[order.id]
+        mission.interrupt("breakdown")
+        yield env.timeout(0.1)
+        if cancel:
+            coordinator.cancel(order)
+        else:
+            mission.interrupt("second_breakdown")
+        yield env.timeout(0.1)
+        mission.interrupt("third_breakdown")
+
+    env.process(interrupt_recovery())
+    env.run()
+    assert order.status is (OrderStatus.CANCELLED if cancel else OrderStatus.COMPLETED)
+    assert agv.current_load is None
+    assert not env.entities.is_live(order)
+    assert replay.view(replay.state) == replay.view(env.entities.snapshot())
+
+
+def test_pending_classification_callbacks_see_published_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    env = Environment(debug=True)
+    replay = FleetReplay(env)
+    coordinator, agv, origin, destination = _fleet(env)
+    env.activate()
+    agv.transition_to(AGVState.TRAVELING_EMPTY)
+    original = agv.can_carry
+
+    def compatible(sku: SKU, quantity: int) -> bool:
+        # A user predicate can emit an event. Replay must not see a pending
+        # mutation whose FleetPendingChanged event has not been published yet.
+        agv.transition_to(agv.state)
+        return original(sku, quantity)
+
+    monkeypatch.setattr(agv, "can_carry", compatible)
+    order = _order(coordinator, origin, destination)
+    coordinator.submit(order)
+    assert coordinator.pending_count == 1
+    assert replay.view(replay.state) == replay.view(env.entities.snapshot())
+    coordinator.cancel(order)
+    env.run()

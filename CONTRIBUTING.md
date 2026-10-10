@@ -15,7 +15,7 @@
 ## Pull Requests
 
 - Open a PR against `main` with a clear description of what changed and why
-- All CI checks must pass (tests across Python 3.12–3.14, linting, type checking, docs build)
+- All CI checks must pass (tests across Python 3.11–3.14, linting, type checking, docs build)
 - At least one approving review is required
 - If your change adds or modifies functionality, update the documentation in `docs/` accordingly
 

@@ -144,6 +144,8 @@ def _project_ops(
 def _project_op(
     op: Op, kinds: MutableMapping[str, str], presentation_of: Callable[[str], frozenset[str]], *, strict: bool
 ) -> Op | None:
+    if not op:
+        raise ValueError("an empty delta operation")
     name = op[0]
     if name == "create":
         kinds[op[1]] = op[2]
@@ -313,6 +315,8 @@ class SemanticDigest:
         # immutable wire values (prepared_op returns those unchanged), which nobody can change after emit (R30).
         unchanged = type(event_ops) is tuple
         for op in event_ops:
+            if not op:
+                raise ValueError(f"{cls.type_name}: an empty delta operation")
             if type(op) is not tuple:
                 unchanged = False
             if op[0] in _LIFECYCLE:

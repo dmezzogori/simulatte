@@ -329,7 +329,7 @@ record = length(u32) type(u8) crc32(u32, of payload) payload
 | `CATALOG_EXT` | types or kinds first used after the header, with their epoch |
 | `CHUNK` | `{first, last, t_start, t_end, epoch, snapshot, events}`; each event `[seq, ordinal, type, t, payload, deltas]` |
 | `INDEX` | the committing entry for the preceding chunk: offset, length, cursors, times, epoch |
-| `KPI` | KPI series samples and, at the end, scalars |
+| `KPI` | KPI declarations, series samples and, at the end, scalars |
 | `FOOTER` (last when complete) | outcome (`completed`, `cancelled`, `failed`), final cursor, final manifest, fingerprint, full chunk index, catalog epoch offsets |
 
 `trailer` = footer offset (u64) + `SIMTEND\0`.
@@ -337,7 +337,7 @@ record = length(u32) type(u8) crc32(u32, of payload) payload
 - **Cursors.** A cursor is `(t, seq)`. The activation cursor is `(t_activation, -1)` and denotes the initial state, so a trace with no domain events is still seekable.
 - **Commit rule.** A chunk is visible only once its `INDEX` record follows it (S17).
 - **Damage** (S17). A short or CRC-failing record that is the last record is an incomplete tail: the reader reports `truncated` and ignores it. A failing record followed by further valid records is corruption: the reader raises `TraceCorrupted`.
-- **Malformed values** are corruption in both readers: a map that repeats a key (as written or after unescaping) or has a key that is not a string, a key or string that is not valid UTF-8, an integer beyond ±(2⁵³−1), binary and extension values. The TypeScript reader checks the first three on top of `@msgpack/msgpack` itself (§11.4). **Malformed structure** is corruption too, raised as `TraceCorrupted` and never as another exception: the initial state and each chunk snapshot must be a map from entity id to a map holding a string `"$kind"`, a cursor read from the file a `[number, integer]` pair whose time is not NaN (ruling R35: initial, footer, index and chunk cursors, event times, index `t_start`/`t_end`, KPI sample times), offsets, lengths and epochs integers (an integral float counts as an integer, since JavaScript cannot tell them apart), a chunk event `[seq, ordinal, type, t, payload, deltas]` an integer seq, a null or integer ordinal, a string type, a time and an array of operation arrays, and a `KPI` record a map with optional `scalars` (a map) and `samples` (`[seq, t, key, value]`: integer, time, string, number); the TypeScript reader checks every `KPI` record although it does not expose KPIs.
+- **Malformed values** are corruption in both readers: a map that repeats a key (as written or after unescaping) or has a key that is not a string, a key or string that is not valid UTF-8, an integer beyond ±(2⁵³−1), binary and extension values. The TypeScript reader decodes the wire subset itself, without relying on decoder internals (§11.4). **Malformed structure** is corruption too, raised as `TraceCorrupted` and never as another exception: the initial state and each chunk snapshot must be a map from entity id to a map holding a string `"$kind"`, a cursor read from the file a `[number, integer]` pair whose time is not NaN (ruling R35: initial, footer, index and chunk cursors, event times, index `t_start`/`t_end`, KPI sample times), offsets, lengths and epochs integers (an integral float counts as an integer, since JavaScript cannot tell them apart), a chunk event `[seq, ordinal, type, t, payload, deltas]` an integer seq, a null or integer ordinal, a string type, a time and an array of operation arrays, and a `KPI` record a map with optional `scalars` (a map) and `samples` (`[seq, t, key, value]`: integer, time, string, number); the TypeScript reader checks every `KPI` record and exposes declarations (scalars and samples remain validation-only in the minimal reader).
 - **Limits** (S17), enforced by readers in both languages: record size 64 MiB, decompressed chunk 256 MiB, nesting depth 64, collection length 10⁷, index and footer entry counts consistent with the file size. All configurable for trusted local files.
 - Compression is zlib (`deflate`), available in Python's standard library and in browsers through `DecompressionStream("deflate")`.
 
@@ -453,3 +453,17 @@ Beyond per-feature tests:
 ## 19. Open questions
 
 None blocking.
+
+## Pre-0.13 hardening amendment (2026-10-10, issues #52–#55)
+
+The optional feature `kpi-declarations-v1` extends KPI records with a `declarations` map keyed by `scope/name`.
+Each value contains every field of the `KPI` dataclass: `name`, `unit`, `kind`, `observation`, `cohort`,
+`aggregation`, `clip`, `censoring`, `ema_reset`, `empty`, and `description`. Keys must match a nonempty scope
+and their declaration's name and occur once per file. Readers reject malformed declarations; older traces
+expose an empty map. Writers publish setup declarations after INITIAL and new collectors' declarations before
+their next sample or at close for scalar-only collectors. This is an optional format-1.0 extension before the
+first release; existing readers may ignore it. KPI sample buffers also use the wall-clock latency seal.
+
+The TypeScript reader implements the MessagePack wire subset directly, retaining the integer/float distinction,
+and exposes metadata through getter-only, deeply frozen values. Backpressure warnings remain observer log events
+and can change `(t, seq)` cursors between runs with identical semantic digests; cursors are local to a recording.

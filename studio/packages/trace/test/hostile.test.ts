@@ -42,8 +42,7 @@ describe("strings", () => {
     expect(() => decodeWire(pack(value), LIMITS)).toThrow(WireError);
   });
 
-  // @msgpack/msgpack decodes strings above 200 UTF-8 bytes with a TextDecoder that drops a leading U+FEFF; Python
-  // keeps it (Codex probe_bom). 197 + 3 bytes of BOM = 200 bytes is the last short string.
+  // Keep the leading U+FEFF at every string size, matching Python's UTF-8 decoding.
   it.each([197, 198, 200, 1000])("keeps a leading U+FEFF in a value of %i + 3 bytes", (n) => {
     const text = "\ufeff" + "x".repeat(n);
     const decoded = decodeWire(pack([text, "x".repeat(n)]), LIMITS) as string[];
