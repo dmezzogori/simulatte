@@ -6,12 +6,13 @@ import dataclasses
 import math
 from collections.abc import Generator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
 from simulatte import events
 from simulatte._wire import FrozenMap, canonical_pack, freeze, pack, unpack
+from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
 from simulatte.events import (
     Op,
@@ -468,6 +469,20 @@ def test_debug_rejects_deltas_outside_touches(env_debug: Environment, monkeypatc
     assert len(seen) == 2 and outside_field.seq == -1
 
 
+class _ShapeCell(Entity, kind="test_shape_cell"):
+    state_schema: ClassVar[StateSchema] = StateSchema({"array": FieldSpec("array"), "map": FieldSpec("map")})
+
+    def __init__(self, env: Environment) -> None:
+        self.array: tuple[int, ...] = ()
+        self.map = FrozenMap({})
+        env.entities.attach(self, name="shape")
+
+
+@event_type("test.shape_change", touches={"test_shape_cell": ("array", "map")})
+class _ShapeChange(DomainEvent):
+    pass
+
+
 def test_debug_checks_delta_shapes_at_emit_and_names_the_event() -> None:
     """Fix wave 3: debug mode checks the operation shapes the writer's replay checks (arity, strings, integral
     indices, list operations on list fields and map operations on map fields), so a malformed operation fails at
@@ -492,6 +507,13 @@ def test_debug_checks_delta_shapes_at_emit_and_names_the_event() -> None:
             env.emit(Ping(deltas=Deltas((op,))))
     with pytest.raises(TypeError, match="test.rich"):  # list operation on a scalar field
         env.emit(Rich(job=job.id, deltas=Deltas((("insert", job.id, "location", 0, "x"),))))
+    with pytest.raises(ValueError, match="test.ping"):  # an empty operation (Codex wave 3b: a bare IndexError)
+        env.emit(Ping(deltas=Deltas(((),))))
+    _ShapeCell(env)
+    for op in (("put", "shape", "array", "k", 1), ("insert", "shape", "map", 0, 1)):  # untyped array and map fields
+        with pytest.raises(TypeError, match="test.shape_change"):
+            env.emit(_ShapeChange(deltas=Deltas((op,))))
+    env.emit(_ShapeChange(deltas=Deltas((("insert", "shape", "array", 0, 1), ("put", "shape", "map", "k", 1)))))
     env.emit(Ping(deltas=Deltas((("insert", server.id, "queue", 0, "j"), ("remove", server.id, "queue", "j")))))
     env.close()
 

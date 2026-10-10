@@ -219,6 +219,8 @@ def check_op_shape(op: Op, collection_of: Callable[[str, str], str | None] | Non
     does not know): list operations then need a list field and map operations a map field. Raises `TypeError` or
     `ValueError` like :func:`apply_deltas`.
     """
+    if not op:
+        raise ValueError("an empty delta operation")
     name = op[0]
     arity = _ARITY.get(name) if type(name) is str else None
     if arity is None:

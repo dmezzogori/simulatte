@@ -219,7 +219,11 @@ class Environment(simpy.Environment):
         spec = schema[field]
         if spec.collection is not None:
             return spec.collection
-        return None if spec.wire_type in ("array", "map", "any") else "scalar"
+        if spec.wire_type == "array":  # a whole array or map value: the list or map operations replay on it
+            return "list"
+        if spec.wire_type == "map":
+            return "map"
+        return None if spec.wire_type == "any" else "scalar"
 
     def _check_lifecycle_op(self, op: Op) -> None:
         """Validate a ``create``/``retire`` operation (debug mode).
