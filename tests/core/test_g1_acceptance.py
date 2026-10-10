@@ -212,10 +212,11 @@ def test_g1_acceptance(tmp_path: Path) -> None:
 # the same values. They stay keyed per interpreter: the derived methods of random.Random are not part of Python's
 # cross-implementation guarantee (spec §8.1). Pinned on macOS arm64; RNG samples go through the platform's libm
 # (log, exp), whose last-bit results may differ elsewhere, so other platforms only check that the values are
-# stable in-process.
+# stable in-process. Re-pinned for ruling R29 (server.work_credited): the decoded records differ from the previous pin
+# only by that event before each operation.completed, which lost the same delta.
 _GOLDEN_REFERENCE_VALUES = (
-    "815b439078239991112919e8562ca659a213aa9cd27f93cd5f470670635e95ab",
-    "be43e318100725dcd51fa551889943985a95321b6615abd502fb1a52b73e1acf",
+    "e8a442d2268b3b64fb6f590bb635e89c165ffb61d16621c0b778041bba9e2aa5",
+    "11ceebd389c369f7000004af71a71e3bd3f2f2dfc999722db1e69fdd3c7147c6",
 )
 GOLDEN_REFERENCE = {"cpython": _GOLDEN_REFERENCE_VALUES, "pypy": _GOLDEN_REFERENCE_VALUES}
 _GOLDEN_PLATFORM = sys.platform == "darwin" and platform.machine() == "arm64"
