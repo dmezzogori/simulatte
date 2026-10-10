@@ -336,6 +336,7 @@ record = length(u32) type(u8) crc32(u32, of payload) payload
 - **Cursors.** A cursor is `(t, seq)`. The activation cursor is `(t_activation, -1)` and denotes the initial state, so a trace with no domain events is still seekable.
 - **Commit rule.** A chunk is visible only once its `INDEX` record follows it (S17).
 - **Damage** (S17). A short or CRC-failing record that is the last record is an incomplete tail: the reader reports `truncated` and ignores it. A failing record followed by further valid records is corruption: the reader raises `TraceCorrupted`.
+- **Malformed values** are corruption in both readers: a map that repeats a key (as written or after unescaping) or has a key that is not a string, an integer beyond ±(2⁵³−1), binary and extension values. The TypeScript reader checks the first two on top of `@msgpack/msgpack` itself.
 - **Limits** (S17), enforced by readers in both languages: record size 64 MiB, decompressed chunk 256 MiB, nesting depth 64, collection length 10⁷, index and footer entry counts consistent with the file size. All configurable for trusted local files.
 - Compression is zlib (`deflate`), available in Python's standard library and in browsers through `DecompressionStream("deflate")`.
 

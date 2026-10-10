@@ -111,14 +111,13 @@ function checkFloatHook(): void {
  * Decode one MessagePack value into a wire value.
  *
  * Throws {@link WireError} for malformed or truncated input, trailing data, limit violations, values outside the
- * wire model (binary, extension types, timestamps, integers beyond +/-(2^53 - 1)) and maps whose keys repeat after
- * unescaping (for example `"a"` and `"~a"`). Float-encoded integral numbers are recorded (see {@link isFloatAt}).
- *
- * Two checks of the Python reader cannot be made on top of `@msgpack/msgpack`: a map with the same raw key twice
- * keeps the last value, and a map keyed by integers is read as if the keys were their decimal strings.
+ * wire model (binary, extension types, timestamps, integers beyond +/-(2^53 - 1), map keys that are not strings) and
+ * maps that repeat a key, as written or after unescaping (for example `"a"` and `"~a"`), like the Python reader.
+ * Float-encoded integral numbers are recorded (see {@link isFloatAt}).
  */
 export function decodeWire(data: Uint8Array, limits: WireLimits): Wire {
   checkFloatHook();
+  let keys = 0;
   const decoder = new WireDecoder({
     extensionCodec: new ExtensionCodec<undefined>(), // no extension types, not even the timestamp
     useBigInt64: true, // 64-bit integers arrive as bigint, so the safe range can be checked
@@ -127,6 +126,12 @@ export function decodeWire(data: Uint8Array, limits: WireLimits): Wire {
     maxExtLength: 0,
     maxArrayLength: limits.maxLen,
     maxMapLength: limits.maxLen,
+    mapKeyConverter: (key: unknown) => {
+      // The decoder would turn integer keys into strings and keep the last of two equal keys: reject the first and
+      // make every key unique (a counter prefix that convert() strips), so convert() sees each written key.
+      if (typeof key !== "string") throw new WireError(`map keys must be str, got ${keyType(key)}`);
+      return `${(keys++).toString(36)}\u0000${key}`;
+    },
   });
   let raw: unknown;
   try {
@@ -171,7 +176,7 @@ function convert(value: unknown, depth: number, limits: WireLimits): Wire {
   const map = newMap();
   const slots = new Set<string>();
   for (const rawKey of Object.keys(source)) {
-    const key = unescapeKey(rawKey);
+    const key = unescapeKey(rawKey.slice(rawKey.indexOf("\u0000") + 1)); // strip the prefix of mapKeyConverter
     if (Object.hasOwn(map, key)) throw new WireError(`duplicate map key after unescaping: ${JSON.stringify(key)}`);
     const item = source[rawKey];
     if (item instanceof FloatValue) {
@@ -183,6 +188,11 @@ function convert(value: unknown, depth: number, limits: WireLimits): Wire {
   }
   if (slots.size > 0) FLOAT_SLOTS.set(map, slots);
   return Object.freeze(map) as Wire;
+}
+
+function keyType(key: unknown): string {
+  if (key instanceof FloatValue || typeof key === "number") return "number";
+  return key === null ? "null" : typeof key;
 }
 
 /**
