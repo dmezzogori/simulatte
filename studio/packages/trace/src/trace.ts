@@ -514,11 +514,20 @@ function traceEvent(entry: unknown): TraceEvent {
   };
 }
 
-/** A replay state from a decoded map of entity maps (a shallow copy: the field values are frozen and shared). */
+/**
+ * A replay state from a decoded map of entity maps, each holding a string `"$kind"` (as the Python reader requires); a
+ * shallow copy: the field values are frozen and shared.
+ */
 function stateOf(value: unknown): State {
   const source = mapOf(value, "state");
   const state = newMap();
-  for (const id of Object.keys(source)) defineKey(state, id, copyMap(mapOf(Object.getOwnPropertyDescriptor(source, id)?.value, "entity")));
+  for (const id of Object.keys(source)) {
+    const fields = mapOf(Object.getOwnPropertyDescriptor(source, id)?.value, "entity");
+    if (typeof Object.getOwnPropertyDescriptor(fields, "$kind")?.value !== "string") {
+      throw new TypeError(`entity ${JSON.stringify(id)} is not a map with a string "$kind"`);
+    }
+    defineKey(state, id, copyMap(fields));
+  }
   return state as State;
 }
 

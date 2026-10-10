@@ -35,6 +35,14 @@ describe("hostile records", () => {
   it.each([
     ["duplicate key", initial({ cell: new RawMap([["$kind", "cell"], ["value", 1], ["value", 999]]) })],
     ["integer key", initial({ cell: new RawMap([["$kind", "cell"], [1, 999]]) })],
+    ["state that is a list", initial([])],
+    ["entity that is not a map", initial({ cell: 5 })],
+    ["entity without a kind", initial({ cell: { value: 1 } })],
+    ["entity with a kind that is not a string", initial({ cell: { $kind: 1 } })],
+    ["infinite seq", initial({}, [0, Infinity])],
+    ["fractional seq", initial({}, [0, 0.5])],
+    ["time that is a string", initial({}, ["0", -1])],
+    ["cursor that is not a pair", initial({}, [-1])],
   ])("rejects an INITIAL record with a %s", async (_, record) => {
     await expect(openTrace(buildTrace(record))).rejects.toThrow(TraceCorrupted);
   });
@@ -42,5 +50,8 @@ describe("hostile records", () => {
   it("accepts the same INITIAL record when well formed", async () => {
     const trace = await openTrace(buildTrace(initial({ cell: { $kind: "cell", value: 1 } })));
     expect(trace.stateAt([0, -1])).toEqual({ cell: { $kind: "cell", value: 1 } });
+    // An integral float seq is an integer for both readers (JavaScript cannot tell -1.0 from -1).
+    const floatSeq = await openTrace(buildTrace(initial({}, [f64(0), f64(-1)])));
+    expect(floatSeq.cursorRange).toEqual([[0, -1], [0, -1]]);
   });
 });

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import math
 import random
 import struct
 import zlib
@@ -893,3 +894,94 @@ def test_replay_compares_values_by_canonical_encoding(
     assert canonical_pack(end["cell"]["values"]) == canonical_pack(expected)
     assert trace.verify() is True
     trace.check()
+
+
+def _hostile_trace(tmp_path: Path, name: str, initial: bytes) -> Path:
+    """A complete trace (footer and trailer, no chunks) whose INITIAL record is the checksummed `initial` bytes."""
+    header: Any = {
+        "features": {"required": ["wire-v1", "deltas-v1", "chunks-zlib"], "optional": []},
+        "level": "full",
+        "manifest": {},
+        "catalog": {},
+        "kinds": {},
+    }
+    footer: Any = {
+        "index": [],
+        "epochs": [12],
+        "outcome": "completed",
+        "cursor": [0.0, -1],
+        "manifest": None,
+        "fingerprint": {"digest": None, "kpis": {}},
+    }
+    out = io.BytesIO()
+    write_preamble(out)
+    write_record(out, RecordType.HEADER, pack(header))
+    write_record(out, RecordType.INITIAL, initial)
+    offset = out.tell()
+    write_record(out, RecordType.FOOTER, pack(footer))
+    out.write(TRAILER.pack(offset, b"SIMTEND\0"))
+    return _write(tmp_path, name, out.getvalue())
+
+
+def _initial(state: bytes, cursor: bytes = b"\x92\xcb" + struct.pack(">d", 0.0) + b"\xff") -> bytes:
+    """An INITIAL payload from the raw encodings of its state and cursor."""
+    import msgpack
+
+    packer = msgpack.Packer()
+    return b"\x83" + packer.pack("state") + state + packer.pack("cursor") + cursor + packer.pack("manifest") + b"\x80"
+
+
+def _raw_map(*pairs: tuple[Any, Any]) -> bytes:
+    import msgpack
+
+    packer = msgpack.Packer()
+    return packer.pack_map_header(len(pairs)) + b"".join(packer.pack(k) + packer.pack(v) for k, v in pairs)
+
+
+def _entity(*pairs: tuple[Any, Any]) -> bytes:
+    """A state with the single entity ``cell`` whose map is written from `pairs` as given."""
+    return _raw_map(("cell", None))[:-1] + _raw_map(*pairs)
+
+
+def _cursor(seq: bytes, t: bytes = b"\xcb" + struct.pack(">d", 0.0)) -> bytes:
+    return b"\x92" + t + seq
+
+
+_HOSTILE_INITIAL = {
+    "duplicate_key": _initial(_entity(("$kind", "cell"), ("value", 1), ("value", 999))),
+    "integer_key": _initial(_entity(("$kind", "cell"), (1, 999))),
+    "state_list": _initial(b"\x90"),
+    "entity_not_map": _initial(_raw_map(("cell", 5))),
+    "entity_without_kind": _initial(_entity(("value", 1))),
+    "kind_not_string": _initial(_entity(("$kind", 1))),
+    "infinite_seq": _initial(b"\x80", _cursor(b"\xcb" + struct.pack(">d", math.inf))),
+    "fractional_seq": _initial(b"\x80", _cursor(b"\xcb" + struct.pack(">d", 0.5))),
+    "string_time": _initial(b"\x80", _cursor(b"\xff", t=b"\xa10")),
+    "cursor_not_pair": _initial(b"\x80", b"\x91\xff"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(_HOSTILE_INITIAL))
+def test_hostile_records_are_corruption(tmp_path: Path, name: str) -> None:
+    """Checksummed but malformed INITIAL records raise TraceCorrupted at open, never another exception, as in the
+    TypeScript reader (``studio/packages/trace/test/hostile.test.ts``). Codex probe_hostile: a list state opened and
+    then raised AttributeError on seek; an infinite seq raised OverflowError."""
+    with pytest.raises(TraceCorrupted):
+        Trace.open(_hostile_trace(tmp_path, name, _HOSTILE_INITIAL[name]))
+
+
+def test_well_formed_hand_made_initial_record_opens(tmp_path: Path) -> None:
+    import msgpack
+
+    trace = Trace.open(_hostile_trace(tmp_path, "fine", _initial(_entity(("$kind", "cell"), ("value", 1)))))
+    assert trace.state_at((0.0, -1)) == {"cell": {"$kind": "cell", "value": 1}}
+    # An integral float seq is an integer for both readers (JavaScript cannot tell -1.0 from -1).
+    float_seq = _initial(b"\x80", _cursor(b"\xcb" + struct.pack(">d", -1.0)))
+    assert Trace.open(_hostile_trace(tmp_path, "float_seq", float_seq)).cursor_range == ((0.0, -1), (0.0, -1))
+    assert msgpack.unpackb(_raw_map(("a", 1))) == {"a": 1}
+
+
+def test_user_cursors_beyond_the_integer_range_are_value_errors(tmp_path: Path) -> None:
+    trace = Trace.open(_hostile_trace(tmp_path, "fine", _initial(b"\x80")))
+    with pytest.raises(ValueError, match="cursor"):
+        trace.state_at((0.0, math.inf))  # ty: ignore[invalid-argument-type]

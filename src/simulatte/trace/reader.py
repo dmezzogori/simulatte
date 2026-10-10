@@ -25,7 +25,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, BinaryIO, Literal, NamedTuple, TypeAlias, TypeVar
 
-from simulatte._wire import FrozenMap, Wire, unpack, wire_equal
+from simulatte._wire import MAX_SAFE_INT, FrozenMap, Wire, unpack, wire_equal
 from simulatte.digest import DigestAccumulator, Fingerprint
 from simulatte.entities import StateSchema
 from simulatte.events import CatalogEntry, Deltas, Op, apply_deltas
@@ -53,7 +53,7 @@ State: TypeAlias = dict[str, dict[str, Wire]]
 
 _FRAME = RECORD_HEADER.size
 _CACHED_CHUNKS = 4
-_MALFORMED = (KeyError, TypeError, ValueError, IndexError, AttributeError)
+_MALFORMED = (KeyError, TypeError, ValueError, IndexError, AttributeError, OverflowError)
 _T = TypeVar("_T")
 
 
@@ -241,7 +241,7 @@ class Trace:
             self._take_head(head)
             try:
                 index = tuple(_chunk_info(entry) for entry in self._footer["index"])
-                epochs = [int(offset) for offset in self._footer["epochs"]]
+                epochs = [_wire_int(offset) for offset in self._footer["epochs"]]
             except _MALFORMED as exc:
                 raise TraceCorrupted(f"malformed footer: {exc!r}") from exc
             _check_index(index, head.stop, footer_offset)
@@ -263,7 +263,7 @@ class Trace:
             _decoded(
                 lambda: (
                     str(footer["outcome"]),
-                    _as_cursor(footer["cursor"]),
+                    _wire_cursor(footer["cursor"]),
                     footer["manifest"] is None or FrozenMap(footer["manifest"]),
                     dict(footer["fingerprint"]["kpis"]),
                     footer["fingerprint"]["digest"],
@@ -357,8 +357,8 @@ class Trace:
             self._activation: Cursor | None = None
             self._initial_manifest = FrozenMap({})
             if initial is not None:
-                self._initial = initial["state"]
-                self._activation = _as_cursor(initial["cursor"])
+                self._initial = _state(initial["state"])
+                self._activation = _wire_cursor(initial["cursor"])
                 self._initial_manifest = FrozenMap(initial["manifest"])
         except _MALFORMED as exc:
             raise TraceCorrupted(f"malformed header or initial record: {exc!r}") from exc
@@ -477,7 +477,7 @@ class Trace:
         if start is None:
             return None
         if self._footer is not None and self._level == "full":
-            end = _as_cursor(self._footer["cursor"])
+            end = _wire_cursor(self._footer["cursor"])
         else:
             end = self._index[-1].last if self._index else start
         return start, max(start, end)
@@ -575,16 +575,16 @@ class Trace:
 
         def build() -> _Chunk:
             events = tuple(TraceEvent(*event) for event in body["events"])
-            cursors = [(float(event.t), int(event.seq)) for event in events]
+            cursors = [_wire_cursor((event.t, event.seq)) for event in events]
             consistent = (
                 bool(cursors)
-                and cursors[0] == info.first == _as_cursor(body["first"])
-                and cursors[-1] == info.last == _as_cursor(body["last"])
+                and cursors[0] == info.first == _wire_cursor(body["first"])
+                and cursors[-1] == info.last == _wire_cursor(body["last"])
                 and all(a < b for a, b in pairwise(cursors))
             )
             if not consistent:
                 raise TraceCorrupted(f"the events of the chunk at offset {offset} disagree with its index entry")
-            return _Chunk(snapshot=body["snapshot"], events=events, cursors=cursors)
+            return _Chunk(snapshot=_state(body["snapshot"]), events=events, cursors=cursors)
 
         return _decoded(build, f"chunk at offset {offset}")
 
@@ -672,22 +672,59 @@ def _decoded(build: Callable[[], _T], what: str) -> _T:
 
 
 def _as_cursor(value: Any) -> Cursor:
+    """A cursor given by the caller: any ``(t, seq)`` pair that converts to ``(float, int)``; `ValueError` otherwise."""
     try:
         t, seq = value
         return float(t), int(seq)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise ValueError(f"a cursor is a (t, seq) pair, got {value!r}") from exc
+
+
+def _wire_cursor(value: Any) -> Cursor:
+    """A cursor read from the file: a ``[t, seq]`` array of a number and an integer, as the TypeScript reader
+    requires; `TypeError` otherwise (reported as corruption)."""
+    if type(value) is not tuple or len(value) != 2:
+        raise TypeError(f"a cursor is a [t, seq] pair of numbers, got {value!r}")
+    return _wire_real(value[0]), _wire_int(value[1])
+
+
+def _wire_real(value: Any) -> float:
+    """A number read from the file (not a boolean); `TypeError` otherwise."""
+    if type(value) is float or type(value) is int:
+        return float(value)
+    raise TypeError(f"not a number: {value!r}")
+
+
+def _wire_int(value: Any) -> int:
+    """An integer read from the file: an integer, or a float with a safe integral value (JavaScript cannot tell
+    them apart); `TypeError` otherwise."""
+    if type(value) is int:
+        return value
+    if type(value) is float and value.is_integer() and abs(value) <= MAX_SAFE_INT:
+        return int(value)
+    raise TypeError(f"not an integer: {value!r}")
+
+
+def _state(value: Any) -> Mapping[str, Mapping[str, Wire]]:
+    """A replay state read from the file: a map from entity id to a map holding a string ``"$kind"``; `TypeError`
+    otherwise."""
+    if type(value) is not FrozenMap:
+        raise TypeError("a state is a map of entity maps")
+    for entity, fields in value.items():
+        if type(fields) is not FrozenMap or type(fields.get("$kind")) is not str:
+            raise TypeError(f"entity {entity!r} is not a map with a string '$kind'")
+    return value
 
 
 def _chunk_info(entry: Any) -> ChunkInfo:
     return ChunkInfo(
-        offset=int(entry["offset"]),
-        length=int(entry["length"]),
-        first=_as_cursor(entry["first"]),
-        last=_as_cursor(entry["last"]),
-        t_start=float(entry["t_start"]),
-        t_end=float(entry["t_end"]),
-        epoch=int(entry["epoch"]),
+        offset=_wire_int(entry["offset"]),
+        length=_wire_int(entry["length"]),
+        first=_wire_cursor(entry["first"]),
+        last=_wire_cursor(entry["last"]),
+        t_start=_wire_real(entry["t_start"]),
+        t_end=_wire_real(entry["t_end"]),
+        epoch=_wire_int(entry["epoch"]),
     )
 
 
