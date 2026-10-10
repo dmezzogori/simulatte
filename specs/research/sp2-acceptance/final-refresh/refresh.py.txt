@@ -1,0 +1,15 @@
+from run import ROOT, OUT, run
+import subprocess
+import sys
+
+def check(name,args,**kwargs):
+    status=run(name,args,**kwargs)
+    if status:
+        raise RuntimeError(f"{name}: exit {status}")
+check('pypy-layout', ['/tmp/sp2-task10-acceptance/pypy-env/bin/python','-m','pytest','tests/layout','-o','addopts=-q -p no:cacheprovider'],env={'MPLBACKEND':'Agg'})
+subprocess.run([sys.executable,str(OUT/'runtimes.py')],check=True)
+subprocess.run([sys.executable,str(OUT/'packages.py')],check=True)
+check('docs-wheel',['./scripts/build_docs_wheel.sh'])
+check('docs-pyodide',['node','smoke-runnable.mjs'],cwd=ROOT/'scripts/docs')
+check('docs-build',['uv','run','--all-extras','zensical','build','--clean'])
+check('docs-links',['uv','run','--all-extras','python','scripts/check_docs_links.py'])

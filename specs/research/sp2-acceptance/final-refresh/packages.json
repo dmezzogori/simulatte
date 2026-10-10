@@ -1,0 +1,37 @@
+{
+  "product_sha": "addf0fa1729077fa618305efcde496c116ae55f8",
+  "packages": {
+    "wheel": {
+      "artifact": "simulatte-0.13.0-py3-none-any.whl",
+      "sha256": "31a6fa9e60400706b9eb4438c79e591cb2a6d13995c7e1741dded3a99e4b1516",
+      "schema_member": "simulatte/layout/schema/layout-v1.schema.json",
+      "schema_sha256": "4f251e76a5a3dccb2ec8dd666745cae5368f32bc3c22c087480de232deda18c7",
+      "package": "/var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g/wheel-env/lib/python3.14/site-packages/simulatte/__init__.py",
+      "prefix": "/var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g/wheel-env",
+      "snippets": 8,
+      "optional_absence": [
+        "matplotlib",
+        "numpy",
+        "gymnasium",
+        "jsonschema"
+      ],
+      "freeze": "Using Python 3.14.1 environment at: /var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g/wheel-env\nmsgpack==1.2.3\nsimpy==4.1.2\nsimulatte @ file:///var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g/dist/simulatte-0.13.0-py3-none-any.whl\ntabulate==0.10.0\ntqdm==4.70.1\n"
+    },
+    "sdist": {
+      "artifact": "simulatte-0.13.0.tar.gz",
+      "sha256": "4364990abed71db1c77a4726a8e86477ff31c25130304f1f7c52c7149a651735",
+      "schema_member": "simulatte-0.13.0/src/simulatte/layout/schema/layout-v1.schema.json",
+      "schema_sha256": "4f251e76a5a3dccb2ec8dd666745cae5368f32bc3c22c087480de232deda18c7",
+      "package": "/var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g/sdist-env/lib/python3.14/site-packages/simulatte/__init__.py",
+      "prefix": "/var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g/sdist-env",
+      "snippets": 8,
+      "optional_absence": [
+        "matplotlib",
+        "numpy",
+        "gymnasium",
+        "jsonschema"
+      ],
+      "freeze": "Using Python 3.14.1 environment at: /var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g/sdist-env\nmsgpack==1.2.3\nsimpy==4.1.2\nsimulatte @ file:///var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g/dist/simulatte-0.13.0.tar.gz\ntabulate==0.10.0\ntqdm==4.70.1\n"
+    }
+  }
+}

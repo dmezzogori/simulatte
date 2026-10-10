@@ -1,0 +1,11 @@
+Using Python 3.14.1 environment at: /var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g/sdist-env
+Resolved 5 packages in 27ms
+   Building simulatte @ file:///var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g/dist/simulatte-0.13.0.tar.gz
+      Built simulatte @ file:///var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g/dist/simulatte-0.13.0.tar.gz
+Prepared 1 package in 266ms
+Installed 5 packages in 4ms
+ + msgpack==1.2.3
+ + simpy==4.1.2
+ + simulatte==0.13.0 (from file:///var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g/dist/simulatte-0.13.0.tar.gz)
+ + tabulate==0.10.0
+ + tqdm==4.70.1

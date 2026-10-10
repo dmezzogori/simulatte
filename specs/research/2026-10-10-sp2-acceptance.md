@@ -1,14 +1,70 @@
 # SP2 layout acceptance
 
-Date: 2026-10-10. Measured product code: `6a3f131d8eec99d6552ed4c5ddf5807a3beea104`,
+Date: 2026-10-10. Initial measured product code: `6a3f131d8eec99d6552ed4c5ddf5807a3beea104`,
 on `feature/sp2-layout`. Package metadata still says **0.13.0**; these measurements include the unreleased
 SP2 implementation and are not measurements of the published 0.13.0 release. Task 10 adds documentation,
 acceptance tests and measurement helpers; it changes no library implementation or performance budget.
 
-Final task review, broad branch review and the final evidence/handoff update belong to the root agent.
+Independent task and broad branch reviews are complete. The four broad-review findings were corrected in
+`addf0fa` and the scoped re-review approved all four with no remaining findings. See the
+[implementation review](../reviews/2026-10-10-sp2-implementation-review.md).
 No merge, push, release tag or package version bump is claimed here.
 
-## Environment and command evidence
+## Post-review acceptance refresh
+
+The following fresh checks measured **`addf0fa1729077fa618305efcde496c116ae55f8`**, the reviewed fix for
+canonical model-visible physical values, large geometry integers, unplaced AGV metadata and diagnostic
+stage order. The same eva host, CPython 3.14.1 and PyPy 7.3.18 / Python 3.11.11 were used.
+Package metadata remains 0.13.0. Original evidence below and its raw files remain intact;
+the no-layout benchmark matrix still measures `6a3f131`. The fix changes preparation/metadata, with no
+simulation runtime hot-path change, so that matrix was not rerun or relabeled as a post-fix measurement.
+
+| Check on fixed source | Result |
+|---|---|
+| Signed fix commit's unchanged full Python gate | **Passed**, 99.36691052% combined coverage |
+| Isolated core-only PyPy `tests/layout` | **586 passed**, no skips; 10.87 s inner |
+| Fresh-process CPython/PyPy × seven angles × three hash seeds | **42/42 passed** |
+| Wheel from sdist, then independent wheel and sdist core-only installs | **Passed**; each runs all 8 guide snippets, schema and layout/trace checks |
+| Fresh docs wheel and Pyodide execution | **26/26 blocks passed**, including all 7 layout blocks |
+| Clean Zensical build and internal link check | **Passed**, 53 pages |
+
+The signed fix hook output is [preserved](sp2-acceptance/final-refresh/logs/fix-signed-commit.txt).
+Its fresh coverage XML reports **10,557/10,590 statements and 3,569/3,626 branches**; 99.36691052% is
+combined coverage, not branch-only coverage. Signature status was verified as `G`.
+[Full-gate metadata](sp2-acceptance/final-refresh/full-gate.json). Successful hooks suppress detailed pytest
+counts, so none is inferred. No manual full CPython rerun was made. Earlier core/intralogistics PyPy and
+TypeScript results retain their stated revisions; the refreshed PyPy command specifically covers layout.
+
+All exported fixture data again agree within each runtime across hash seeds, and across both local runtimes
+for all seven angles. The arbitrary-angle agreement is a local observation, not a universal portability
+promise. Actual exports and comparisons are [retained](sp2-acceptance/final-refresh/runtime-fixtures.json).
+Fresh installed artifacts assert the same four optional packages absent, load the packaged schema and run
+outside the checkout with isolated imports. [Artifact hashes and installed environments](sp2-acceptance/final-refresh/packages.json).
+
+Preparation uses the same inputs and method described below: three fresh-process pure preparation timings
+and one separate traced-allocation probe per size. Agent-launched CPU-heavy work did not overlap these
+probes; ordinary desktop activity remains uncontrolled. No new preparation budget is adopted.
+
+| Nodes | Prepare seconds (3 runs) | Median | Prepare peak traced allocation | Encoded layout bundle | Raw INITIAL payload |
+|---:|---|---:|---:|---:|---:|
+| 1,000 | 2.094500, 2.077133, 2.086558 | **2.086558 s** | **63,127,807 B** | 4,288,615 B | **4,491,360 B** |
+| 10,000 | 22.125034, 22.152321, 22.172140 | **22.152321 s** | **629,689,698 B** | 43,406,217 B | **45,448,562 B** |
+
+The 1,000-node memory probe took 13.98 seconds under instrumentation; whole-process
+maximum RSS was 174,260,224 bytes, including subsequent encoding. The 10,000-node memory probe took
+143.52 seconds under instrumentation; whole-process maximum RSS was 1,317,486,592 bytes, including
+subsequent encoding. Use the pure samples for timing comparisons. Peak traced allocation is about 24%
+higher than the original measurements below; encoded sizes are unchanged.
+[All refreshed preparation samples, hashes and metadata](sp2-acceptance/final-refresh/preparation.json).
+Both INITIAL payloads remain below the unchanged 64 MiB limit. Each size's hashes and payload length agree
+across its four processes.
+
+Every refresh subprocess exited zero; [the command manifest](sp2-acceptance/final-refresh/commands.json)
+retains exact interpreter paths, environment overrides, durations and outputs. The original benchmark
+matrix, accepted #59 limitation and unexecuted-runtime bounds remain unchanged. This refresh introduces
+no library, helper, test, dependency or budget changes.
+
+## Initial environment and command evidence
 
 Local host: **eva**, MacBookPro18,1, Apple M1 Pro, 10 logical CPUs, 16 GiB RAM, macOS 27.0.1 (26A434), arm64.
 CPython is **3.14.1**, Clang 21.1.4. PyPy is **7.3.18 / Python 3.11.11**
@@ -38,11 +94,11 @@ seconds; individual tools also report their own inner durations in the logs.
 | `pnpm --dir studio test` | **261 passed**, 8 files | 1.49 s |
 | `pnpm --dir studio typecheck` | Passed | 1.35 s |
 | Isolated core-only PyPy CI paths, now including `tests/layout` | **2133 passed, 5 skipped** (74.35 s inner) | 75.56 s |
-| Full CPython pytest with existing 99% combined coverage gate (branch measurement enabled) | **Pending the unchanged signed-commit hook** | Pending |
+| Original full CPython pytest with existing 99% combined coverage gate (branch measurement enabled) | **Passed**, 99.36615% combined | 45.67 s for signed commit |
 
-The full Python suite is deliberately reserved for the signed implementation commit's unchanged hook.
-Its actual result and coverage will be recorded in the final documentation-only evidence update after review;
-there is no duplicate manual full-suite run just to put a result into the commit that first produces it.
+The original unchanged hook passed in signed commit `6af9de8`: 10,546/10,579 statements and
+3,563/3,620 branches, 99.36615% combined. [Original signed-hook output](sp2-acceptance/final-refresh/logs/task10-signed-commit.txt).
+The post-fix full gate is recorded above. Neither gate was duplicated with a manual full-suite run.
 
 The five existing PyPy skips were confirmed with a targeted `-rs` run, without excluding anything from the
 full PyPy command: `test_retire_is_atomic_for_kinds_without_weak_references` (PyPy objects support weakrefs),

@@ -1,0 +1,4 @@
+Building wheel...
+Successfully built /var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/tmp.j6dyuLMpdU/simulatte-0.13.0-py3-none-any.whl
+Wrote docs/assets/wheels/simulatte-0.13.0-py3-none-any.whl and latest.json
+Wrote overrides/partials/version.html (v0.13.0)

@@ -1,0 +1,23 @@
+"""Task-owned command logger; execute with the system Python, independent of uv envs."""
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+ROOT = Path('/Users/davide/Developer/simulatte')
+OUT = Path('/var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g')
+
+def run(name, args, *, cwd=ROOT, env=None):
+    started = time.time()
+    print('START', name, flush=True)
+    with (OUT / (name + '.txt')).open('w') as log:
+        result = subprocess.run(args, cwd=cwd, env=os.environ | (env or {}), stdout=log, stderr=subprocess.STDOUT)
+    item = dict(name=name, command=args, cwd=str(cwd), env=env, exit=result.returncode, seconds=time.time()-started, log=str(OUT / (name + '.txt')))
+    with (OUT / 'commands.jsonl').open('a') as out:
+        out.write(json.dumps(item) + '\n')
+    print('END', name, result.returncode, round(item['seconds'],2), flush=True)
+    return result.returncode
+
+if __name__ == '__main__':
+    sys.exit(run(sys.argv[1], sys.argv[2:]))

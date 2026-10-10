@@ -1,0 +1,24 @@
+import json
+from pathlib import Path
+import tarfile
+import zipfile
+from run import ROOT, OUT, run
+
+run('package-build', ['uv','build','--out-dir',str(OUT/'dist')])
+wheel = next((OUT/'dist').glob('*.whl'))
+sdist = next((OUT/'dist').glob('*.tar.gz'))
+with zipfile.ZipFile(wheel) as archive:
+    assert 'simulatte/layout/schema/layout-v1.schema.json' in archive.namelist()
+with tarfile.open(sdist) as archive:
+    assert any(p.endswith('/src/simulatte/layout/schema/layout-v1.schema.json') for p in archive.getnames())
+smoke = OUT/'outside-checkout'
+smoke.mkdir(exist_ok=True)
+for kind, artifact in [('wheel',wheel),('sdist',sdist)]:
+    env = OUT/(kind+'-env')
+    run('package-'+kind+'-venv',['uv','venv',str(env),'--python','3.14'])
+    run('package-'+kind+'-install',['uv','pip','install','--python',str(env),str(artifact)])
+    run('package-'+kind+'-freeze',['uv','pip','freeze','--python',str(env)])
+    status = run('package-'+kind+'-smoke',[str(env/'bin/python'),'-I',str(ROOT/'benchmarks/layout_acceptance.py'),'package','--guide',str(ROOT/'docs/guides/layout.md')],cwd=smoke,env={'PYTHONPATH':''})
+    if status:
+        raise RuntimeError(kind+' smoke failed')
+print('Schema present in both archives; both independent core-only installs and all 8 snippets passed')
