@@ -819,14 +819,17 @@ from simulatte.distributions import (
 **Distribution built-ins** (callable variates with a `.mean` property satisfying the `Distribution` protocol):
 - `TruncatedErlang(rate, shape=2, max_value=inf)` — Erlang truncated by rejection resampling; `shape=2` reproduces the classic benchmark service process. Also `Exponential(rate)`, `Erlang(rate, shape=2)`, `LogNormal(mu, sigma)`, `Uniform(low, high)`, `Deterministic(value)`.
 
-**Routing factories:**
-- `pure_job_shop_routing(servers) -> Callable[[], Sequence[Server]]` — Pure Job
+**Routing factories** (each returns a frozen routing *description*, not a sampler; pass it
+to `Router(sku_routings=...)`, which binds it to the `<router>/routing/<sku>` stream, or
+bind it yourself with `env.bind(description, kind="routing", stream=..., owner=...)` to get
+a `Callable[[], Sequence[Server]]`):
+- `pure_job_shop_routing(servers) -> PureJobShopRouting` — Pure Job
   Shop (PJS) routing: random length `U[1, len]`, random order, without
   replacement (no re-entry).
-- `general_flow_shop_routing(servers) -> Callable[[], Sequence[Server]]` —
+- `general_flow_shop_routing(servers) -> GeneralFlowShopRouting` —
   General Flow Shop (GFS) routing: random length `U[1, len]`, subset sorted into
   a directed flow (ascending server index).
-- `pure_flow_shop_routing(servers) -> Callable[[], Sequence[Server]]` — Pure
+- `pure_flow_shop_routing(servers) -> FlowShopRouting` — Pure
   Flow Shop (PFS) routing: every job visits all servers in the same fixed
   (directed) sequence.
 

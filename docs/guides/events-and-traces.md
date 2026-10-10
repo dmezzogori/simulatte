@@ -110,7 +110,7 @@ Distributions (`Exponential`, `Erlang`, `Uniform`, ...) and routings are *descri
 
 An environment is **prepared** until it is activated. Activation runs the registered initializers, captures the initial state and starts the semantic projection. `env.run()` activates on first use; call `env.activate()` yourself to inspect the activated system first, and use `env.on_activate(fn)` to register an initializer (a plain function that must not schedule events or advance time).
 
-Components can defer commands until activation. `FleetCoordinator.submit` and `cancel` called before activation are queued, and the order reports `OrderStatus.PENDING_ACTIVATION` until the queue drains at time 0, in call order, before any scheduled event runs. `create_order` is not deferred: the order has its id at once.
+Components can defer commands until activation. `FleetCoordinator.submit` and `cancel` called before activation are queued, and the order reports `OrderStatus.PENDING_ACTIVATION` until the queue drains at time 0, in call order, before any scheduled event runs. `create_order` is not deferred: the order has its id at once. A `submit` followed by a `cancel` before activation therefore dispatches the order at time 0 and then cancels it, with the full event trail of both steps; this is by design.
 
 ```python
 from simulatte.intralogistics import SKU, build_simple_system
@@ -168,7 +168,7 @@ Using the environment as a context manager (`with Environment(...) as env:`) clo
 | `"full"` (default) | header, initial state, every domain event in compressed chunks, KPI records, footer | replay, seeking, verification |
 | `"kpi"` | header, initial state, KPI records, footer | cheap summaries; the trace cannot be verified |
 
-Events are grouped into chunks sealed at 10,000 events, 1 MiB, 1 second of wall-clock time or an optional simulated-time window (`ChunkLimits`). A writer thread compresses and writes them; if it falls behind, the simulation waits (the pending bytes are bounded), so memory stays flat. The recorder never changes the trajectory: the digest is identical with or without it. Several `env.run()` calls continue the same trace. The footer records how the run ended (`completed`, `cancelled` for a keyboard interrupt, `failed` if `run` raised).
+Events are grouped into chunks sealed at 10,000 events, 1 MiB, 1 second of wall-clock time or an optional simulated-time window (`ChunkLimits`). A writer thread compresses and writes them; if it falls behind, the simulation waits (the pending bytes are bounded), so memory stays flat. The first such wait logs a warning, and that log event takes a sequence number, so two runs with the same seed can have different `(t, seq)` cursors when only one of them waited: compare traces by digest, not by cursor. The recorder never changes the trajectory: the digest is identical with or without it. Several `env.run()` calls continue the same trace. The footer records how the run ended (`completed`, `cancelled` for a keyboard interrupt, `failed` if `run` raised).
 
 ## 7) Reading and verifying a trace
 
@@ -193,7 +193,7 @@ for event in trace.events(start, (1.0, 10**9)):      # events with start < (t, s
 - `check()` validates the container (checksums, index, limits) and raises `TraceCorrupted` on damage.
 - `verify()` recomputes the digest from the initial state and the events and compares it with the footer: `True`, `False`, or `"not_verifiable"` for `kpi` traces and traces without a footer.
 
-A trace cut short by a crash still opens: the reader ignores the incomplete tail (`trace.truncated` is `True`, `trace.outcome` is `None`). Damage in the middle of the file raises `TraceCorrupted`. `ReaderLimits` bounds record, chunk, nesting and collection sizes, so a hostile file cannot exhaust memory.
+A trace cut short by a crash still opens: the reader ignores the incomplete tail and shows every committed chunk. `trace.outcome` is `None` because no footer was written, which is how to recognise an unfinished run. `trace.truncated` may be `True`: it is only set when the last record was cut mid-write, so a run that died between records, or that never called `close()`, opens with `truncated` False. Damage in the middle of the file raises `TraceCorrupted`. `ReaderLimits` bounds record, chunk, nesting and collection sizes, so a hostile file cannot exhaust memory.
 
 The format is a documented container (MessagePack records with CRC32 checksums and zlib-compressed chunks), and the repository ships a TypeScript reader, `@simulatte/trace` in `studio/`, that replays the same states in the browser.
 

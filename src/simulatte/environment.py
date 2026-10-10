@@ -38,8 +38,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.trace.writer import TraceRecorder
 
 SEED_LIMIT = 2**63
-_UNBOUND = object()  # sentinel: a stream not bound yet
 """Seeds are integers in ``[0, SEED_LIMIT)``."""
+_UNBOUND = object()  # sentinel: a stream not bound yet
 
 _EMITTABLE: set[type] = set()
 """Event classes :meth:`Environment.emit` has checked (registered, or not inheriting a registered type)."""

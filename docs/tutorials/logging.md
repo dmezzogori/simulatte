@@ -132,9 +132,9 @@ Classes in `simulatte.psp`:
 
 #### Release policies
 
-Class in `simulatte.policies`. `ConWIP`, `ContinuousRelease`, `Draco`, `LumsCor`, `Slar` and `SlarLimit` emit one
-decision event per job they act on; it carries no state change (the `psp.exited` and `shopfloor.entered` events that
-follow do):
+Class in `simulatte.policies`. `ConWIP`, `ContinuousRelease`, `Draco`, `LumsCor`, `Slar` and `SlarLimit` emit a
+decision event for each action they take on a job (Draco can emit two for one job, see below); it carries no state
+change (the `psp.exited` and `shopfloor.entered` events that follow do):
 
 | Event type | Class | Payload |
 | --- | --- | --- |
