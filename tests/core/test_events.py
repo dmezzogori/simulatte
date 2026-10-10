@@ -619,6 +619,45 @@ def test_apply_deltas_set_creates_absent_fields_and_keeps_signed_zero() -> None:
     assert canonical_pack(freeze({"z": -0.0})) == b"\x81\xa1z\xcb\x80" + b"\x00" * 7
 
 
+_NAN = float("nan")
+
+
+@pytest.mark.parametrize(
+    ("items", "value", "expected"),
+    [
+        ((True, 1), 1, (True,)),
+        ((1, True), True, (1,)),
+        ((1, 1.0), 1.0, (1,)),
+        ((1.0, 1), 1, (1.0,)),
+        ((0.0, -0.0), -0.0, (0.0,)),
+        ((-0.0, 0.0), 0.0, (-0.0,)),
+        (("a", _NAN), _NAN, ("a",)),
+        (((1, _NAN), 2), (1, float("nan")), (2,)),
+        ((FrozenMap({"x": _NAN}), 1), FrozenMap({"x": float("nan")}), (1,)),
+    ],
+)
+def test_remove_and_move_find_values_by_canonical_encoding(items: Any, value: Any, expected: Any) -> None:
+    """Ruling R31 (spec §6.2, §9.1): ``remove``/``move`` find the first item whose canonical encoding equals the
+    value's: bool is not int, 1 is not 1.0, -0.0 is not 0.0, NaN is NaN (Codex: [True, 1] minus 1 and NaN)."""
+    state: dict[str, dict[str, Any]] = {"e": {"$kind": "k", "list": items}}
+    apply_deltas(state, Deltas((("remove", "e", "list", value),)))
+    assert canonical_pack(state["e"]["list"]) == canonical_pack(expected)
+
+    state["e"]["list"] = items
+    apply_deltas(state, Deltas((("move", "e", "list", value, len(items) - 1),)))
+    assert canonical_pack(state["e"]["list"]) == canonical_pack((*expected, value))
+
+
+@pytest.mark.parametrize(
+    ("items", "value"),
+    [((1.0,), 1), ((1,), 1.0), ((True,), 1), ((0,), False), ((0.0,), -0.0), ((1, 2), _NAN), (((1,),), (1.0,))],
+)
+def test_remove_of_a_value_with_another_encoding_fails(items: Any, value: Any) -> None:
+    state: dict[str, dict[str, Any]] = {"e": {"$kind": "k", "list": items}}
+    with pytest.raises(ValueError):
+        apply_deltas(state, Deltas((("remove", "e", "list", value),)))
+
+
 def test_emit_rejects_undecorated_subclass_of_registered_event(env: Environment) -> None:
     """Without @event_type a subclass would be recorded under its parent's type with undeclared fields."""
 

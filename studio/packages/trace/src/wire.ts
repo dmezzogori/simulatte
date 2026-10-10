@@ -49,17 +49,77 @@ export function newMap(): Record<string, unknown> {
 }
 
 /**
+ * Float encodings (ruling R31). Canonical encoding tells an integer from a float (`1` from `1.0`), but both decode to
+ * the same JavaScript number. The decoder therefore records, for each decoded array and map, the slots (indices or
+ * keys) that hold a float-encoded number with an integral value in the safe integer range; every other number's
+ * encoding follows from its value (a non-integral, non-finite, unsafe or `-0` number can only be a float). The
+ * records are kept beside the values, which stay plain numbers.
+ */
+const FLOAT_SLOTS = new WeakMap<object, ReadonlySet<number | string>>();
+
+/** Whether `container[slot]` was decoded from a float encoding (or set from one by the delta operations). */
+export function isFloatAt(container: object, slot: number | string): boolean {
+  return FLOAT_SLOTS.get(container)?.has(slot) ?? false;
+}
+
+/** Record which items of `items` (a new array) hold float-encoded integral numbers. */
+export function markFloats(items: readonly unknown[], floats: readonly boolean[]): void {
+  const slots = new Set<number>();
+  floats.forEach((float, i) => {
+    if (float) slots.add(i);
+  });
+  if (slots.size > 0) FLOAT_SLOTS.set(items, slots);
+}
+
+/** A float-encoded number whose value alone would read as an integer; the decoder unwraps it into a plain number. */
+class FloatValue {
+  constructor(readonly value: number) {}
+}
+
+function readFloat(value: number): number | FloatValue {
+  return Number.isSafeInteger(value) && !Object.is(value, -0) ? new FloatValue(value) : value;
+}
+
+/**
+ * `@msgpack/msgpack` has no hook that tells a float encoding from an integer one, so the decoder's float readers are
+ * wrapped. They are internal methods of the decoder (version 3.x); {@link checkFloatHook} fails loudly at the first
+ * decode if they change.
+ */
+class WireDecoder extends Decoder<undefined> {}
+type FloatReaders = { readF32(): number; readF64(): number };
+const baseReaders = Decoder.prototype as unknown as FloatReaders;
+const wireReaders = WireDecoder.prototype as unknown as { readF32(): unknown; readF64(): unknown };
+wireReaders.readF32 = function (this: FloatReaders) {
+  return readFloat(baseReaders.readF32.call(this));
+};
+wireReaders.readF64 = function (this: FloatReaders) {
+  return readFloat(baseReaders.readF64.call(this));
+};
+let floatHookChecked = false;
+
+function checkFloatHook(): void {
+  if (floatHookChecked) return;
+  const probe = new WireDecoder().decode(new Uint8Array([0x92, 0xcb, 0x3f, 0xf0, 0, 0, 0, 0, 0, 0, 0xca, 0x40, 0, 0, 0]));
+  const [f64, f32] = probe as unknown[];
+  if (!(f64 instanceof FloatValue && f64.value === 1 && f32 instanceof FloatValue && f32.value === 2)) {
+    throw new Error("@msgpack/msgpack no longer reads floats through readF64/readF32: update wire.ts");
+  }
+  floatHookChecked = true;
+}
+
+/**
  * Decode one MessagePack value into a wire value.
  *
  * Throws {@link WireError} for malformed or truncated input, trailing data, limit violations, values outside the
  * wire model (binary, extension types, timestamps, integers beyond +/-(2^53 - 1)) and maps whose keys repeat after
- * unescaping (for example `"a"` and `"~a"`).
+ * unescaping (for example `"a"` and `"~a"`). Float-encoded integral numbers are recorded (see {@link isFloatAt}).
  *
  * Two checks of the Python reader cannot be made on top of `@msgpack/msgpack`: a map with the same raw key twice
  * keeps the last value, and a map keyed by integers is read as if the keys were their decimal strings.
  */
 export function decodeWire(data: Uint8Array, limits: WireLimits): Wire {
-  const decoder = new Decoder({
+  checkFloatHook();
+  const decoder = new WireDecoder({
     extensionCodec: new ExtensionCodec<undefined>(), // no extension types, not even the timestamp
     useBigInt64: true, // 64-bit integers arrive as bigint, so the safe range can be checked
     maxStrLength: data.length,
@@ -74,7 +134,7 @@ export function decodeWire(data: Uint8Array, limits: WireLimits): Wire {
   } catch (error) {
     throw new WireError(error instanceof Error ? error.message : String(error));
   }
-  return convert(raw, 0, limits);
+  return raw instanceof FloatValue ? raw.value : convert(raw, 0, limits);
 }
 
 function convert(value: unknown, depth: number, limits: WireLimits): Wire {
@@ -94,33 +154,76 @@ function convert(value: unknown, depth: number, limits: WireLimits): Wire {
   if (value === null) return null;
   if (depth + 1 > limits.maxDepth) throw new WireError(`nesting depth exceeds ${limits.maxDepth}`);
   if (Array.isArray(value)) {
-    return Object.freeze(value.map((item) => convert(item, depth + 1, limits)));
+    const items: Wire[] = [];
+    const floats: boolean[] = [];
+    for (const item of value) {
+      const float = item instanceof FloatValue;
+      floats.push(float);
+      items.push(float ? item.value : convert(item, depth + 1, limits));
+    }
+    markFloats(items, floats);
+    return Object.freeze(items);
   }
   if (Object.getPrototypeOf(value) !== Object.prototype) {
     throw new WireError("unsupported wire type: binary or extension value");
   }
   const source = value as Record<string, unknown>;
   const map = newMap();
+  const slots = new Set<string>();
   for (const rawKey of Object.keys(source)) {
     const key = unescapeKey(rawKey);
     if (Object.hasOwn(map, key)) throw new WireError(`duplicate map key after unescaping: ${JSON.stringify(key)}`);
-    defineKey(map, key, convert(source[rawKey], depth + 1, limits));
+    const item = source[rawKey];
+    if (item instanceof FloatValue) {
+      slots.add(key);
+      defineKey(map, key, item.value);
+    } else {
+      defineKey(map, key, convert(item, depth + 1, limits));
+    }
   }
+  if (slots.size > 0) FLOAT_SLOTS.set(map, slots);
   return Object.freeze(map) as Wire;
 }
 
-/** Whether two wire values are equal; numbers compare by value (so `0` equals `-0`, as in the Python reader). */
-export function wireEquals(a: unknown, b: unknown): boolean {
+/**
+ * Whether two wire values have the same canonical encoding (ruling R31, spec §6.2, §9.1), the value equality of
+ * replay: booleans differ from numbers, an integer from a float (`1` from `1.0`), `-0` from `0`, and NaN equals NaN.
+ * `aFloat` and `bFloat` say whether `a` and `b`, when they are integral numbers, were float-encoded (see
+ * {@link isFloatAt}); items of decoded arrays and maps carry their own records.
+ */
+export function wireEquals(a: unknown, b: unknown, aFloat = false, bFloat = false): boolean {
+  if (typeof a === "number" || typeof b === "number") {
+    return (
+      typeof a === "number" &&
+      typeof b === "number" &&
+      Object.is(a, b) &&
+      isFloatNumber(a, aFloat) === isFloatNumber(b, bFloat)
+    );
+  }
   if (a === b) return true;
   if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
   if (Array.isArray(a) || Array.isArray(b)) {
-    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((item, i) => wireEquals(item, b[i]));
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((item, i) => wireEquals(item, b[i], isFloatAt(a, i), isFloatAt(b, i)))
+    );
   }
   const keys = Object.keys(a);
   return (
     keys.length === Object.keys(b).length &&
-    keys.every((key) => Object.hasOwn(b, key) && wireEquals(descriptorValue(a, key), descriptorValue(b, key)))
+    keys.every(
+      (key) =>
+        Object.hasOwn(b, key) &&
+        wireEquals(descriptorValue(a, key), descriptorValue(b, key), isFloatAt(a, key), isFloatAt(b, key)),
+    )
   );
+}
+
+/** Whether number `value` has a float encoding: recorded as one, or a value no integer encoding can hold. */
+function isFloatNumber(value: number, recorded: boolean): boolean {
+  return recorded || !Number.isSafeInteger(value) || Object.is(value, -0);
 }
 
 function descriptorValue(target: object, key: string): unknown {

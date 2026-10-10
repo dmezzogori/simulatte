@@ -39,7 +39,9 @@ many APIs and, because RNG streams are now derived from the seed and entity name
   `run(until=<simpy.Event>)` makes the manifest incomplete, because the stop cannot be reproduced from it.
 - Traces: `TraceRecorder(env, path, level="full" | "kpi", chunk_limits=...)` writes a seekable, checksummed trace
   file; `Trace.open(path)` reads it (`state_at`, `events`, `kpis`, `kpi_series`, `manifest`, `fingerprint`,
-  `check`, `verify`) and tolerates incomplete tails. Format 1.0, MessagePack with zlib-compressed chunks.
+  `check`, `verify`) and tolerates incomplete tails. Format 1.0, MessagePack with zlib-compressed chunks. Replay
+  compares values by their canonical encoding in both readers: `True` is not `1`, `1` is not `1.0`, `-0.0` is not
+  `0.0`, and NaN equals NaN, so a NaN in a state or a delta round-trips.
 - `studio/`: a pnpm workspace with `@simulatte/trace`, a TypeScript reader that replays the same states as the Python
   reader (new `trace-ts` CI job). It is not part of the Python package.
 - KPI framework (`simulatte.kpi`): `KPI` declarations, the `Collector` base class bound to an owner entity,

@@ -144,6 +144,8 @@ A test runs the reference models in fresh processes under several `PYTHONHASHSEE
 
 Operations address `(entity_id, field)`: `set`, `insert(index, value)`, `remove(value)`, `move(value, index)`, `put(key, value)`, `delete(key)`, `create(kind, state)`, `retire`. Collections are never re-sent whole (B19). A `set` on a field the entity's state does not yet hold creates it; readers in both languages behave the same way (ruling R12). The Python and TypeScript readers apply the same operations; the G2 conformance suite is the arbiter.
 
+**Replay value equality** (ruling R31). Wherever replay compares wire values (the item a `remove` or `move` looks up, the chunk snapshot `check()` compares with the replay), two values are equal iff their canonical encodings (§9.1) are byte-identical: `true` differs from `1`, the integer `1` from the float `1.0`, `-0.0` from `0.0`; every NaN equals every NaN; arrays compare item by item, maps by key set and values. `remove`/`move` take the first equal item and fail when there is none. Both languages implement it once (`simulatte._wire.wire_equal`, TypeScript `wireEquals`). JavaScript decodes `1` and `1.0` to the same number, so the TypeScript reader records which decoded array and map slots held a float-encoded integral number, keeps the record through list operations, and compares encodings, not only values; the numbers it returns stay plain numbers.
+
 An event whose encoded size exceeds `ChunkLimits.max_event_bytes` (default 256 KiB) raises in debug mode and is recorded with a warning otherwise (global B19).
 
 ### 6.3 Server resource events (S1, T1, T2)
@@ -280,7 +282,7 @@ Three binding kinds cover the callback shapes that exist today:
 ### 9.1 Wire values and canonical encoding
 
 - MessagePack. Map keys are strings and are **escaped** reversibly (S16, T8): a key that is one of `__proto__`, `constructor`, `prototype` (the keys the JavaScript decoder rejects) or starts with `~` is prefixed with `~`; readers strip one `~`. The TypeScript reader rebuilds maps as objects without a prototype and defines an own `__proto__` property safely. Tests cover nested occurrences and collisions (`~__proto__` as an original key).
-- Canonical form: map keys sorted by escaped UTF-8 bytes; floats always float64 with `NaN` normalized and `-0.0` kept distinct from `0.0` (float64-faithful, ruling R12); integers in the smallest form within ±(2⁵³−1); tuples as arrays.
+- Canonical form: map keys sorted by escaped UTF-8 bytes; floats always float64 with `NaN` normalized and `-0.0` kept distinct from `0.0` (float64-faithful, ruling R12); integers in the smallest form within ±(2⁵³−1); tuples as arrays. Replay compares values by this encoding (§6.2, ruling R31).
 - A domain event's projection is `[ordinal, type, version, t, payload, deltas]`, with `t` always encoded as float64 (ruling R9) with presentation payload fields removed and delta operations on presentation state fields removed (S7). `seq` and observer events are excluded.
 - The initial-state projection is the canonical encoding of the activation snapshot with presentation fields removed, entities sorted by id.
 

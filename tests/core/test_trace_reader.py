@@ -842,3 +842,54 @@ def test_kind_schemas_are_read_with_state_schema_from_wire(tmp_path: Path) -> No
     hostile = FrozenMap({**header, "kinds": FrozenMap({**header["kinds"], "test_reader_lamp": loose})})
     with pytest.raises(TraceCorrupted, match="malformed catalog"):
         Trace.open(_write(tmp_path, "loose", _header_only(hostile)))
+
+
+class ReviewCell(Entity, kind="test_reader_review_cell"):
+    state_schema: ClassVar[StateSchema] = StateSchema({"values": FieldSpec("any", collection="list")})
+
+    def __init__(self, env: Environment, values: tuple[Any, ...]) -> None:
+        self.values = values
+        env.entities.attach(self, name="cell")
+
+
+@event_type("test.reader_review_tick", touches={"test_reader_review_cell": ("values",)})
+class ReviewTick(DomainEvent):
+    pass
+
+
+def _cell_trace(tmp_path: Path, name: str, values: tuple[Any, ...], deltas: Deltas) -> Trace:
+    env = Environment(seed=1)
+    ReviewCell(env, values)
+    path = tmp_path / f"{name}.simtrace"
+    recorder = TraceRecorder(env, path, chunk_limits=ChunkLimits(max_events=1))
+    env.activate()
+    env.emit(ReviewTick(deltas=deltas))
+    env.emit(ReviewTick())  # a second chunk, whose snapshot check() compares with the replay
+    recorder.close()
+    env.close()
+    return Trace.open(path)
+
+
+@pytest.mark.parametrize(
+    ("name", "values", "op", "expected"),
+    [
+        ("bool_remove", (True, 1), ("remove", "cell", "values", 1), (True,)),
+        ("int_float_remove", (1, 1.0), ("remove", "cell", "values", 1.0), (1,)),
+        ("nan_state", (float("nan"),), None, (float("nan"),)),
+        ("nan_remove", (float("nan"), 2), ("remove", "cell", "values", float("nan")), (2,)),
+        ("nan_move", (1, float("nan")), ("move", "cell", "values", float("nan"), 0), (float("nan"), 1)),
+        ("signed_zero_remove", (0.0, -0.0), ("remove", "cell", "values", -0.0), (0.0,)),
+    ],
+)
+def test_replay_compares_values_by_canonical_encoding(
+    tmp_path: Path, name: str, values: tuple[Any, ...], op: Any, expected: tuple[Any, ...]
+) -> None:
+    """Ruling R31: NaN round-trips (check() passed snapshots through ==, and removing NaN failed after decoding),
+    and bool/int, int/float and signed zeros stay distinct when replay looks up a value (Codex probe_replay)."""
+    from simulatte._wire import canonical_pack
+
+    trace = _cell_trace(tmp_path, name, values, Deltas.EMPTY if op is None else Deltas((op,)))
+    end = trace.state_at(cast(Cursor, trace.cursor_range[1]))  # ty: ignore[not-subscriptable]
+    assert canonical_pack(end["cell"]["values"]) == canonical_pack(expected)
+    assert trace.verify() is True
+    trace.check()

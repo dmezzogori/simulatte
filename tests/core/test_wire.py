@@ -21,6 +21,7 @@ from simulatte._wire import (
     unescape_key,
     unpack,
     wire_float,
+    wire_equal,
     wire_float_or_none,
 )
 
@@ -525,6 +526,47 @@ class TestWireFloat:
 
         assert wire_float(np.int64(3)) == 3.0 and type(wire_float(np.int64(3))) is float
         assert wire_float(np.float32(0.5)) == 0.5 and wire_float(np.float64(1.25)) == 1.25
+
+
+class TestWireEqual:
+    """Replay value equality is canonical-encoding equality (ruling R31, spec §6.2, §9.1)."""
+
+    NAN = float("nan")
+    VALUES: ClassVar[list[Any]] = [
+        None, True, False, 0, 1, -1, 0.0, -0.0, 1.0, 1.5, NAN, -NAN, float("inf"), "", "1", "a",
+        (), (1,), (1.0,), (True,), (NAN,), (1, (NAN, -0.0)), [1, 2], (1, 2),
+        FrozenMap({}), FrozenMap({"x": 1}), FrozenMap({"x": 1.0}), FrozenMap({"x": NAN}), {"x": 1}, {"y": 1},
+        FrozenMap({"x": 1, "y": (NAN,)}),
+    ]  # fmt: skip
+
+    def test_matches_canonical_encoding_equality(self) -> None:
+        for a in self.VALUES:
+            for b in self.VALUES:
+                assert wire_equal(a, b) is (canonical_pack(a) == canonical_pack(b)), (a, b)
+
+    def test_cases_of_the_ruling(self) -> None:
+        assert not wire_equal(True, 1) and not wire_equal(1, True) and not wire_equal(False, 0)
+        assert not wire_equal(1, 1.0) and not wire_equal(1.0, 1)
+        assert wire_equal(float("nan"), float("nan")) and wire_equal((1, float("nan")), (1, float("nan")))
+        assert not wire_equal(-0.0, 0.0) and wire_equal(-0.0, -0.0)
+        assert wire_equal((1, 2), [1, 2]) and wire_equal({"k": (1,)}, FrozenMap({"k": [1]}))  # ty: ignore[invalid-argument-type]
+
+    def test_subclasses_compare_like_their_built_in_values(self) -> None:
+        import enum
+
+        class Level(enum.IntEnum):
+            HIGH = 3
+
+        class Color(enum.StrEnum):
+            RED = "red"
+
+        assert wire_equal(Level.HIGH, 3) and wire_equal("red", Color.RED) and not wire_equal(Level.HIGH, 3.0)
+        assert wire_equal(_SpyFloat(1.5), 1.5) and _Spy.calls == []
+
+    def test_rejects_values_outside_the_wire_model(self) -> None:
+        for a, b in (((1,), {1, 2}), (object(), (1,))):
+            with pytest.raises(TypeError, match="not a wire value"):
+                wire_equal(a, b)
 
 
 class TestPureFallbackDecoder:

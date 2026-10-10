@@ -25,7 +25,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, BinaryIO, Literal, NamedTuple, TypeAlias, TypeVar
 
-from simulatte._wire import FrozenMap, Wire, unpack
+from simulatte._wire import FrozenMap, Wire, unpack, wire_equal
 from simulatte.digest import DigestAccumulator, Fingerprint
 from simulatte.entities import StateSchema
 from simulatte.events import CatalogEntry, Deltas, Op, apply_deltas
@@ -597,8 +597,9 @@ class Trace:
 
         Every record's CRC is checked and every visible chunk is decompressed and decoded within the limits;
         the INDEX records must agree with the footer index, and each chunk's start snapshot must equal the
-        initial state with the deltas of all earlier chunks applied. An incomplete tail is not a problem: it
-        is reported by :attr:`truncated`.
+        initial state with the deltas of all earlier chunks applied, value for value by canonical encoding (ruling
+        R31: NaN equals NaN, -0.0 differs from 0.0). An incomplete tail is not a problem: it is reported by
+        :attr:`truncated`.
         """
         with open(self._path, "rb") as f:
             file = _File(f, self._size, self._limits)
@@ -609,7 +610,7 @@ class Trace:
             state = None if self._initial is None else _copy(self._initial)
             for info in self._index:
                 chunk = self._read_chunk(file, info)
-                if state is not None and chunk.snapshot != state:
+                if state is not None and not wire_equal(chunk.snapshot, state):
                     raise TraceCorrupted(f"the snapshot of the chunk at offset {info.offset} disagrees with the replay")
                 state = _copy(chunk.snapshot)
                 _apply(state, chunk.events)

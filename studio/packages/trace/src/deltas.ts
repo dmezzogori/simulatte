@@ -3,10 +3,12 @@
  *
  * A state maps an entity id to its fields; `create` stores the entity kind under `"$kind"` next to the initial
  * fields. A `set` on a field the entity does not hold yet creates it (ruling R12). Collections are replaced by
- * updated copies, never changed in place, so values can be shared between states.
+ * updated copies, never changed in place, so values can be shared between states. `remove` and `move` find the first
+ * item whose canonical encoding equals the value's ({@link wireEquals}, ruling R31); list copies keep the record of
+ * which items were float-encoded.
  */
 
-import { defineKey, newMap, wireEquals } from "./wire";
+import { defineKey, isFloatAt, markFloats, newMap, wireEquals } from "./wire";
 
 /** A delta operation: its name followed by its arguments. */
 export type Op = readonly unknown[];
@@ -47,15 +49,12 @@ export function applyDeltas(state: State, deltas: Iterable<Op>): void {
     if (!Object.hasOwn(fields, field)) throw new DeltaError(`${String(name)}: missing field ${JSON.stringify(field)}`);
     const current = Object.getOwnPropertyDescriptor(fields, field)?.value;
     if (name === "insert") {
-      const items = listOf(current, field);
-      const index = integer(op[3]);
-      defineKey(fields, field, [...items.slice(0, index), op[4], ...items.slice(index)]);
+      defineKey(fields, field, inserted(entries(listOf(current, field)), integer(op[3]), [op[4], isFloatAt(op, 4)]));
     } else if (name === "remove") {
-      defineKey(fields, field, without(listOf(current, field), op[3]));
+      defineKey(fields, field, list(without(listOf(current, field), op[3], isFloatAt(op, 3))));
     } else if (name === "move") {
-      const rest = without(listOf(current, field), op[3]);
-      const index = integer(op[4]);
-      defineKey(fields, field, [...rest.slice(0, index), op[3], ...rest.slice(index)]);
+      const rest = without(listOf(current, field), op[3], isFloatAt(op, 3));
+      defineKey(fields, field, inserted(rest, integer(op[4]), [op[3], isFloatAt(op, 3)]));
     } else if (name === "put") {
       const updated = copyOf(mapOf(current, field));
       defineKey(updated, text(op[3], "key"), op[4]);
@@ -109,8 +108,32 @@ function copyOf(source: Record<string, unknown>): Record<string, unknown> {
   return copy;
 }
 
-function without(items: readonly unknown[], value: unknown): unknown[] {
-  const index = items.findIndex((item) => wireEquals(item, value));
+/** An item of a list with whether it was float-encoded (see `isFloatAt`). */
+type Entry = readonly [unknown, boolean];
+
+function entries(items: readonly unknown[]): Entry[] {
+  return items.map((item, i) => [item, isFloatAt(items, i)]);
+}
+
+/** A new list of `items`, with their float encodings recorded. */
+function list(items: readonly Entry[]): unknown[] {
+  const result = items.map(([item]) => item);
+  markFloats(
+    result,
+    items.map(([, float]) => float),
+  );
+  return result;
+}
+
+function inserted(items: readonly Entry[], index: number, entry: Entry): unknown[] {
+  return list([...items.slice(0, index), entry, ...items.slice(index)]);
+}
+
+/** `items` without the first one whose canonical encoding equals `value`'s (ruling R31). */
+function without(items: readonly unknown[], value: unknown, valueFloat: boolean): Entry[] {
+  const index = items.findIndex((item, i) => wireEquals(item, value, isFloatAt(items, i), valueFloat));
   if (index < 0) throw new DeltaError("remove or move of a value the list does not hold");
-  return [...items.slice(0, index), ...items.slice(index + 1)];
+  const rest = entries(items);
+  rest.splice(index, 1);
+  return rest;
 }

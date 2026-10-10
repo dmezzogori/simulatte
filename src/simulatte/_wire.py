@@ -24,6 +24,7 @@ methods, and become values of the exact built-in type; other mappings are not wi
 
 from __future__ import annotations
 
+import math
 from bisect import bisect_left
 from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping
@@ -45,6 +46,7 @@ __all__ = [
     "prepared_op",
     "unescape_key",
     "unpack",
+    "wire_equal",
     "wire_float",
     "wire_float_or_none",
 ]
@@ -198,6 +200,62 @@ def wire_float_or_none(value: object) -> float | None:
     except (OverflowError, ValueError):
         return None
     return None
+
+
+def wire_equal(a: object, b: object) -> bool:
+    """Whether wire values `a` and `b` have the same canonical encoding (ruling R31, spec §6.2, §9.1).
+
+    This is the value equality of replay (``remove``/``move`` lookups, snapshot comparison), computed without
+    encoding: ``bool`` is not ``int`` (``True`` differs from ``1``), ``int`` is not ``float`` (``1`` differs from
+    ``1.0``), ``-0.0`` differs from ``0.0``, every NaN equals every NaN (NaN is normalized), arrays (tuples and
+    lists) compare item by item and maps by key set and values. Subclasses of the built-in types compare as their
+    built-in values, read without calling user code. Raises `TypeError` for values outside the wire model.
+    """
+    if a is b:
+        return True
+    ta = type(a)
+    if ta is type(b):
+        if ta is str or ta is int or ta is bool:
+            return a == b
+        if ta is float:
+            return _float_equal(a, b)  # ty: ignore[invalid-argument-type]
+    return _wire_equal_general(a, b)
+
+
+def _float_equal(x: float, y: float) -> bool:
+    if x == y:
+        return x != 0.0 or math.copysign(1.0, x) == math.copysign(1.0, y)
+    return x != x and y != y
+
+
+_SCALAR_TYPES = frozenset({str, int, float, bool, type(None)})
+
+
+def _wire_equal_general(a: object, b: object) -> bool:
+    ta, tb = type(a), type(b)
+    if ta not in _SCALAR_TYPES:
+        scalar = _builtin_scalar(a, ta)
+        if scalar is not _NOT_SCALAR:
+            a, ta = scalar, type(scalar)
+    if tb not in _SCALAR_TYPES:
+        scalar = _builtin_scalar(b, tb)
+        if scalar is not _NOT_SCALAR:
+            b, tb = scalar, type(scalar)
+    if ta in _SCALAR_TYPES or tb in _SCALAR_TYPES:
+        if ta is not tb:
+            return False
+        return _float_equal(a, b) if ta is float else a == b  # ty: ignore[invalid-argument-type]
+    items_a, items_b = _builtin_items(a, ta), _builtin_items(b, tb)
+    if items_a is None or items_b is None:
+        raise TypeError(f"not a wire value: {(ta if items_a is None else tb).__name__}")
+    array = isinstance(items_a, tuple)
+    if array != isinstance(items_b, tuple):
+        return False
+    if array:
+        return len(items_a) == len(items_b) and all(map(wire_equal, items_a, items_b))
+    map_a = {_check_key(k): v for k, v in items_a}
+    map_b = {_check_key(k): v for k, v in items_b}
+    return map_a.keys() == map_b.keys() and all(wire_equal(v, map_b[k]) for k, v in map_a.items())
 
 
 def _canonical_map(data: dict[str, Wire]) -> FrozenMap:

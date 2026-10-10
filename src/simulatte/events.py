@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, ClassVar, Literal, TypeAlias, TypeVar, dataclass_transform
 
-from simulatte._wire import FrozenMap, Wire, escape_key, freeze
+from simulatte._wire import FrozenMap, Wire, escape_key, freeze, wire_equal
 
 __all__ = [
     "CATALOG",
@@ -150,7 +150,8 @@ def apply_deltas(state: dict[str, dict[str, Any]], deltas: Deltas) -> None:
     ``"$kind"`` next to the initial fields. A ``set`` on a field the entity does not hold yet creates it (spec
     §6.2, ruling R12; the TypeScript reader does the same). Raises `KeyError` for unknown entities, for the
     other field operations on a missing field and for unknown map keys, and `ValueError` for a duplicate
-    ``create``, a ``remove``/``move`` of a missing value or an unknown operation.
+    ``create``, a ``remove``/``move`` of a missing value or an unknown operation. ``remove`` and ``move`` find the
+    first item whose canonical encoding equals the value's (:func:`~simulatte._wire.wire_equal`, ruling R31).
     """
     for op in deltas.ops:
         name = op[0]
@@ -190,8 +191,30 @@ def apply_deltas(state: dict[str, dict[str, Any]], deltas: Deltas) -> None:
 
 
 def _without(items: tuple[Any, ...], value: object) -> tuple[Any, ...]:
-    index = items.index(value)  # ValueError when missing
+    index = _index_of(items, value)
     return items[:index] + items[index + 1 :]
+
+
+def _index_of(items: tuple[Any, ...], value: object) -> int:
+    """Index of the first item with the canonical encoding of `value` (ruling R31); `ValueError` when none has.
+
+    ``True == 1``, ``1 == 1.0`` and ``0.0 == -0.0`` in Python, and NaN equals nothing, so ``tuple.index`` alone
+    would find the wrong item or none. For a string, an integer, a boolean or a non-NaN float, canonical equality
+    implies ``==``, so ``tuple.index`` finds every candidate in order and :func:`wire_equal` confirms it; other
+    values are compared item by item.
+    """
+    t = type(value)
+    if t is str or t is int or t is bool or (t is float and value == value):
+        start = 0
+        while True:
+            index = items.index(value, start)  # ValueError when missing
+            if wire_equal(items[index], value):
+                return index
+            start = index + 1
+    for index, item in enumerate(items):
+        if wire_equal(item, value):
+            return index
+    raise ValueError("remove or move of a value the list does not hold")
 
 
 # ---------------------------------------------------------------------------------------------------------
