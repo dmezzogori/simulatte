@@ -497,7 +497,7 @@ The studio executes user code and accepts requests only from the local machine w
 ## 11. Open questions for sub-project specs
 
 - SP1: trace encoding and compression; event catalog and delta schema per kind; snapshot and chunk limits; stream naming and per-job substreams; history and SQLite query APIs; loguru; benchmark workloads.
-- SP2: auto-layout algorithm; traffic attributes on arcs; lane intersection rules; handle API for intralogistics components; layout stage API.
+- SP2: resolved by the [dedicated layout specification](2026-10-10-sp2-layout-design.md#3-design-decisions), approved for implementation on 2026-10-10: deterministic SCC/layer packing; node-capacity traffic (D61); connected lane crossings with overlaps rejected; owned node/port/graph handles; named ordered stages with declared reads.
 - SP3: chart library (uPlot default candidate); docking library (dockview default candidate); MP4 muxing library; HTML export size limits; visual style and icon set; Firefox video support.
 - SP4: frame encoding; module names; file watcher library; import tracking for watching; spool bounds; warm spare policy; source snapshot mechanism.
 - SP5: worker host config; bundle manifest details; warm-up aids; experiment file format; store retention.
