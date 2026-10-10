@@ -559,6 +559,9 @@ layout raises and points to `env.activate()`; no-layout manual stepping retains 
    pointing at an existing node, but not introduce a port connector/obstacle/arc or alter capacities/attributes.
    Track negative dependencies so `obstacle=False` becoming true is also blocked. Non-network presentation
    declarations and entities remain possible after the barrier.
+   Network-owned selection queries extend their candidate/negative-predicate snapshots to those later
+   nonmatching targets before finalization, without changing existing selected values or regenerating the graph.
+   User-stage or binder collection/selection reads remain frozen and are never refreshed this way.
 4. **Auto-layout and validate:** after all stages, resolve presentation for the complete static set; match pending
    placements against entities and graph definitions, check kinds, handles, geometry and required paths. Orphans
    and stale overrides are warnings and excluded, but a missing required handle is an error.
