@@ -1,7 +1,8 @@
 # SP2 Layout design
 
 - **Status:** revision 3, after [Fable review 1](reviews/2026-10-10-sp2-review-1.md) and
-  [Codex review 2](reviews/2026-10-10-sp2-review-2.md); draft awaiting approval, no implementation authorized.
+  [Codex review 2](reviews/2026-10-10-sp2-review-2.md); A1–A5 approved by Davide on 2026-10-10.
+  No product implementation has started.
 - **Target:** Simulatte 0.14; based on released 0.13.0, commit `b1467709e88cf640155b83c037f06573fcddd875`.
 - **Branch:** `feature/sp2-layout`.
 - **Parent:** [approved global design](2026-10-08-studio-global-design.md), especially §4, C2 and §11;
@@ -59,13 +60,15 @@ The defaults below resolve the five choices deferred by global §11. They are pr
 | Handle API | Immutable, layout-owned `NodeRef`, `PortRef`, `GraphRef`; existing constructor keywords accept either definitions or handles (§10) | String duck typing loses ownership checks; proxy Nodes expose misleading coordinates before resolution |
 | Stage API | Named decorator, path-reference reads, explicit predecessors, frozen prior-stage view (§9) | Implicit callback discovery hides dependencies; a general reactive graph is unnecessary for ordered preparation |
 
-### 3.1 Explicit amendments and clarifications requiring approval
+### 3.1 Approved amendments and clarifications
 
-**A1 — traffic scope (proposed amendment to C2.3/D6).** Replace “and traffic attributes (deferred to SP2)”
+Davide approved A1–A5 on 2026-10-10 (“All approved”). Recorded as D61–D65 in the
+[decision log](studio-decisions.md), with the corresponding global/SP1 contracts updated.
+
+**A1 — traffic scope (D61, amendment to C2.3/D6).** Replace “and traffic attributes (deferred to SP2)”
 with “node capacity configures the existing resource-based traffic manager; SP2 introduces no segment
-reservation attributes.” Disabled/directed/speed-limited arcs still ship. An asynchronous focused question was
-sent to Davide; this draft uses the recommended node-capacity option pending his answer. If segment reservations
-are requested, revise §7 and its plan task before implementation. Do not silently accept unenforced arc attributes.
+reservation attributes.” Disabled/directed/speed-limited arcs still ship. The existing head-on passing
+limitation remains. Do not silently accept unenforced arc attributes.
 
 **A2 — segment addresses (clarification to C2.3).** Inserting vertex V between A and B preserves the ids of
 A, B and every unaffected segment; it replaces segment `(A,B)` with `(A,V)` and `(V,B)`. An override for the
@@ -75,7 +78,7 @@ must not be read as preserving an element that no longer exists.
 **A3 — shipped trace extension (amendment to SP1 trace schema).** Use trace container **1.1** for all 0.14 traces,
 with optional feature `layout-v1`, an optional `layout` member in INITIAL, and `layout` added to the manifest's
 activation-time fields (§12). No-layout manifests store null. The major remains 1; old readers can replay state
-while ignoring layout. Update the global/SP1 trace contract and conformance fixtures after approval.
+while ignoring layout. Conformance fixtures are updated during implementation.
 
 **A4 — layout-mode lifecycle guards (explicit refinement to C1.10/C2.7).** Manual `env.step()` requires completed
 activation when a Layout is attached. No-layout stepping remains unchanged. Multiple resource-based fleets over
@@ -87,16 +90,14 @@ attachment, as in SP1. Attach it before construction/preparation to capture the 
 `prepare()` but before activation remains valid: INITIAL contains the complete bound state and layout; earlier
 prelude events are absent, not reconstructed. Attachment after activation remains prohibited.
 
-The approved global design and decision log remain unchanged in this draft. Before implementation, accepted
-amendments get explicit entries there; rejected proposals must be removed or revised here and in the plan.
 **A5 — layout-bound mutation rules (explicit refinement to C2.7).** Once bound, static bays/station nodes,
 component graph references and graph traffic attributes are read-only. AGV movement accepts only the canonical
 enabled node objects (or None), never an equal copy. No-layout mutation behavior is unchanged (§10).
 
 No other contract change is intended. Two reviews are complete and triaged in the linked reports; revision 3
 addresses the second review's three findings. Targeted verification confirmed those corrections, and its two
-minor documentation findings are corrected. Davide's approval remains pending; technical review is not approval
-of A1–A5 or implementation.
+minor documentation findings are corrected. Davide subsequently approved all five amendments; technical review
+and amendment approval do not claim implemented behavior.
 
 ## 4. Data model and public surface
 
@@ -363,7 +364,7 @@ weak/strong components and unreachable required handles; disconnected optional r
 referenced node must be enabled. `layout.require_path(a, b)` declares a directed reachability requirement,
 validated after overrides; do not assume all warehouses must reach all other warehouses.
 
-## 7. Traffic semantics (pending A1)
+## 7. Traffic semantics (approved A1 / D61)
 
 Layout generation controls traversable adjacency. `enabled=False` removes an edge from routing; `direction`
 compiles to one or two directed traversals; positive `speed_limit` constrains the existing speed-profile call.
@@ -736,5 +737,5 @@ all closure and geometry work belongs to preparation. Run the existing no-subscr
 before merge; report preparation cost separately for 1k/10k-node synthetic layouts without inventing a new
 accepted release budget.
 
-Implementation starts only after review resolves A1–A5 and the written spec/plan are approved. The plan carries
-task ownership and verification commands; this document carries behavior and contracts.
+The two reviews and A1–A5 approval are recorded above. The plan carries task ownership and verification
+commands; this document carries behavior and contracts. Product implementation has not started.

@@ -1,6 +1,6 @@
 # Simulatte Studio: global design
 
-- **Status:** final (revision 4 plus the verification fix), approved by Davide on 2026-10-08 after adversarial reviews 1–3 and a verification pass ([`reviews/`](reviews/)); finding ids such as (A5), (B3) or (C2) mark the changes each review caused
+- **Status:** final (revision 4 plus the verification fix), approved by Davide on 2026-10-08 after adversarial reviews 1–3 and a verification pass ([`reviews/`](reviews/)); amended on 2026-10-10 by approved SP2 decisions D61–D65. Finding ids such as (A5), (B3) or (C2) mark the changes each original review caused; SP2 amendments use decision numbers to avoid ambiguity.
 - **Date:** 2026-10-08
 - **Scope:** architecture of the visualization, layout, studio and experiments work that leads to Simulatte 1.0
 - **Decision log:** [`studio-decisions.md`](studio-decisions.md) (numbered decisions with rationale and rejected alternatives)
@@ -158,7 +158,8 @@ These are the interfaces between sub-projects. Changing any of them after its su
 
 The encoding is *deferred to SP1*, under these requirements:
 
-- One file with a **header** (format version, required and optional features, catalog, entity registry at the start, the **resolved layout** from SP2 on, the run manifest, volatile metadata kept apart), a body of **chunks**, an **index**, and a **footer**.
+- One file with a **header** (format version, required and optional features, catalog, attachment-time manifest fields, volatile metadata kept apart), activation-time **INITIAL** (initial entity state and remaining manifest fields), a body of **chunks**, an **index**, and a **footer**. The resolved layout belongs in INITIAL, after preparation, not in the attachment-time header (D63).
+- **SP2 trace extension (D63).** All 0.14 traces use container version 1.1. Optional feature `layout-v1` adds optional `INITIAL.layout`; the activation-time manifest gains `layout: {schema_version, full_hash, physical_hash, layers_hash}`, or null without a Layout. Major version remains 1; older readers may ignore layout while replaying unchanged state. Existing 1.0 traces remain supported.
 - **Chunks** (A25) are closed when any limit is reached: a simulation-time window, a maximum number of events, a maximum size in bytes, or a maximum wall-clock age of the oldest completed but unpublished event (B12). The latency bound covers completed events only; it cannot force progress inside long-running model code. Chunk boundaries are cursor positions `(t, seq)`, not times. Each chunk starts with a **snapshot** of live entities and bounded summary state, and is decodable on its own.
 - **Safe points** (B12). Snapshots are built only between events, from the recorder's replay state (snapshot plus applied deltas), never by reading live simulation objects in the middle of a transition. Publishing a closed chunk never waits for the simulation.
 - **Commit protocol.** A chunk is written completely before its index record is appended. Readers of a growing file see only chunks with index records. The footer records the outcome: `completed`, `cancelled` or `failed`. A missing footer means the run is in progress or the file is truncated; an incomplete trailing chunk is skipped.
@@ -207,6 +208,11 @@ Activation is a core contract, defined in SP1 and used by the layout lifecycle f
 4. **Queued commands.** Before activation, every public command on a component that supports deferral (submit, cancel, update and similar) is appended to one queue in call order, whether or not it needs physical data, so dependent commands keep their order (for example `submit` then `cancel`). Reads made before activation return state as of before the queued commands, and objects affected by queued commands report a `pending activation` status. At activation the queued commands execute in order, at time zero, as ordinary recorded transitions. An uncaught exception in a queued command stops activation and fails the attempt; later commands are not executed, and nothing is rolled back.
 5. **Simulation.** Ordinary events, including other time-zero events, follow.
 
+With a Layout attached, manual `env.step()` requires completed activation (D64). No-layout stepping is unchanged.
+A recorder attached after layout preparation but before activation remains valid: INITIAL contains the complete
+bound state and layout, while prelude events before attachment are absent. Full prelude capture requires
+attachment before construction/preparation; attachment after activation remains prohibited.
+
 ### C2. Layout (SP2)
 
 #### C2.1 World model
@@ -229,8 +235,8 @@ Activation is a core contract, defined in SP1 and used by the layout lifecycle f
 - **Obstacles** (B4). A footprint is drawn for every placed entity, but only entities explicitly marked `obstacle=True` (and blocked areas) shape the network. Obstacles must have an explicit position from code or file; an auto-positioned obstacle is a resolution error. Moving entities (AGVs) are never obstacles.
 - **Vehicle geometry** (A35). Vehicles are points. A layout-wide `clearance` radius inflates obstacles and blocked areas before generation, which is how aisle width is modeled in 1.0. Diagonal arcs are not generated when they would cut the corner of an obstacle.
 - **Ports** connect to the network through connectors. Each port has an **approach point** outside its owner's inflated envelope, along the port's approach direction; the segment from the port to its approach point is exempt from the owner's clearance but checked against every other obstacle (B24). A port with no valid connector is a resolution error with a diagnostic.
-- Arcs carry `enabled`, direction (`both`, `forward`, `backward`), an optional `speed_limit`, and traffic attributes (*deferred to SP2*).
-- **Stable addressing** (A20, B13). Lattice nodes are addressed by grid indices `(i, j)`; lane vertices have persistent ids assigned when created and kept across edits, and lane segments are addressed by their vertex-id pair, so inserting a vertex changes no existing address; explicit nodes are addressed by their id, and arcs by their endpoint pair. Bulk overrides are stored as geometric selectors (row, column, rectangle, lane) rather than element lists. An override whose target no longer exists after regeneration is **stale**: reported and not applied, like an orphan.
+- Arcs carry `enabled`, direction (`both`, `forward`, `backward`), and an optional `speed_limit`. Node capacity configures the existing resource-based traffic manager; SP2 adds no segment reservation attributes and retains the existing head-on passing limitation (D61).
+- **Stable addressing** (A20, B13, clarified by D62). Lattice nodes are addressed by grid indices `(i, j)`; lane vertices have persistent ids assigned when created and kept across edits, and lane segments are addressed by their vertex-id pair. Inserting V between A and B preserves existing vertex and unaffected segment addresses, but replaces `(A,B)` with `(A,V)` and `(V,B)`; overrides on the removed segment become stale and are not copied to the children. Explicit nodes are addressed by their id, and arcs by their endpoint pair. Bulk overrides are stored as geometric selectors (row, column, rectangle, lane) rather than element lists. An override whose target no longer exists after regeneration is **stale**: reported and not applied, like an orphan.
 
 #### C2.4 Layout sources and precedence
 
@@ -268,6 +274,11 @@ Precedence is resolved **per property**. The result is the **resolved layout**, 
 4. **Bind.** Components resolve their handles against the one frozen graph. Fleet routing, traffic resources, warehouse bays, AGV initial nodes and distance computations all use **this one graph** instance. Binding may read further layout values through the accessor; those reads join the physical dependency set (B2).
 5. **Finalize.** The physical dependency closure and the physical and full hashes are computed, and the layout is frozen completely. A later read of a property outside the closure raises.
 6. **Activate.** The core activation sequence of §C1.10 runs: initializers, initial-state capture, queued commands, then the simulation.
+
+**Shared traffic and sealed bindings (D64–D65).** Resource-based fleets sharing the layout graph share one
+traffic-manager instance. After binding, static warehouse bays, station/parking nodes, component graph references
+and graph traffic attributes are read-only. AGV movement accepts only canonical enabled nodes from the resolved
+graph (or None); an equal copy is rejected. No-layout manager ownership and public mutation behavior are unchanged.
 
 **Stored layers** (B6). Each run stores its layout **layers**: the code declarations of every stage, the static topology used by auto-layout, the file overrides and the physical dependency closure. A later edit that touches nothing in the closure is re-resolved from the stored layers as pure data, without running model code. Any other edit requires a re-run.
 

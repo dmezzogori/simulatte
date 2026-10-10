@@ -325,7 +325,7 @@ record = length(u32) type(u8) crc32(u32, of payload) payload
 |---|---|
 | `HEADER` (one, first, written when the recorder attaches) | features (required, optional), catalog, kinds and state schemas, the requested-manifest fields known at attachment (versions, platform, dependencies, RNG derivation, seed, provenance), recording level, chunk limits, volatile metadata (separate map) |
 | `PRELUDE` (zero or more, before `INITIAL`) | prelude events, in bounded records sealed like chunks (U1) |
-| `INITIAL` (one, at activation) | initial state, the activation cursor (S26), and the requested-manifest fields fixed only at activation (parameters, time unit, warm-up) (U1) |
+| `INITIAL` (one, at activation) | initial state, the activation cursor (S26), and the requested-manifest fields fixed only at activation (parameters, time unit, warm-up; from 0.14, layout) (U1, D63); optional layout bundle from SP2 |
 | `CATALOG_EXT` | types or kinds first used after the header, with their epoch |
 | `CHUNK` | `{first, last, t_start, t_end, epoch, snapshot, events}`; each event `[seq, ordinal, type, t, payload, deltas]` |
 | `INDEX` | the committing entry for the preceding chunk: offset, length, cursors, times, epoch |
@@ -477,3 +477,21 @@ first release; existing readers may ignore it. KPI sample buffers also use the w
 The TypeScript reader implements the MessagePack wire subset directly, retaining the integer/float distinction,
 and exposes metadata through getter-only, deeply frozen values. Backpressure warnings remain observer log events
 and can change `(t, seq)` cursors between runs with identical semantic digests; cursors are local to a recording.
+
+## SP2 trace amendment (2026-10-10, approved D63)
+
+Starting with Simulatte 0.14, every trace uses container version 1.1. Optional feature `layout-v1` adds an
+optional `layout` member to INITIAL with the resolved layout, saved layers and dependency closure. The
+activation-time manifest gains `layout: {schema_version, full_hash, physical_hash, layers_hash}`, or null for
+no-layout runs. HEADER must not capture provisional layout hashes. This amends the SP1 activation-time field
+list without changing CHUNK, deltas, cursor semantics or the semantic digest algorithm.
+
+Major version remains 1: older readers may ignore the optional layout extension while replaying state; new
+readers retain 1.0 support. Both recording levels retain layout. Known layout-v1 metadata is shape-validated;
+Python `Trace.check()` also recomputes its hashes. INITIAL defaults to a 64 MiB encoded payload limit, configurable
+in the writer to match explicitly raised reader limits. Full details and conformance requirements are in the
+[SP2 specification §12](2026-10-10-sp2-layout-design.md#12-trace-and-manifest-integration).
+
+Recorder attachment after layout preparation but before activation is valid. INITIAL contains complete bound
+state and layout; prelude events emitted before attachment are absent, as in SP1. Capturing the entire prelude
+requires attachment before construction/preparation. Attachment after activation remains prohibited.
