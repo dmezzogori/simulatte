@@ -28,17 +28,28 @@ def schema() -> dict[str, Any]:
     return json.loads(json.dumps(_schema()))
 
 
+def _utf8(value: str, path: str) -> None:
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise LayoutError(f"{path}: strings must be valid UTF-8") from exc
+
+
 def _copy(value: Any, path: str, depth: int, max_nesting: int) -> Any:
     if depth > max_nesting:
         raise LayoutError(f"{path}: max_nesting exceeded ({max_nesting})")
     if isinstance(value, Mapping):
         if any(not isinstance(key, str) for key in value):
             raise LayoutError(f"{path}: object keys must be strings")
+        for key in value:
+            _utf8(key, path)
         return {key: _copy(item, f"{path}/{key}", depth + 1, max_nesting) for key, item in value.items()}
     if isinstance(value, (tuple, list)):
         return [_copy(item, f"{path}/{i}", depth + 1, max_nesting) for i, item in enumerate(value)]
     if isinstance(value, float) and not math.isfinite(value):
         raise LayoutError(f"{path}: numbers must be finite")
+    if isinstance(value, str):
+        _utf8(value, path)
     if value is None or isinstance(value, (str, bool, int, float)):
         return value
     raise LayoutError(f"{path}: expected JSON data")

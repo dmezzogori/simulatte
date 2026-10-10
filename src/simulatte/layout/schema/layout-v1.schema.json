@@ -5,7 +5,8 @@
   "type": "object",
   "properties": {
     "$schema": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^[^\\uD800-\\uDFFF]*$"
     },
     "schema_version": {
       "const": "1.0"
@@ -40,7 +41,7 @@
     "id": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^[^\\u0000]+$"
+      "pattern": "^[^\\u0000\\uD800-\\uDFFF]+$"
     },
     "number": {
       "type": "number",
@@ -144,7 +145,8 @@
         "shape": {
           "anyOf": [
             {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[^\\uD800-\\uDFFF]*$"
             },
             {
               "$ref": "#/$defs/unset"
@@ -154,7 +156,8 @@
         "icon": {
           "anyOf": [
             {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[^\\uD800-\\uDFFF]*$"
             },
             {
               "$ref": "#/$defs/unset"
@@ -164,7 +167,8 @@
         "color": {
           "anyOf": [
             {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[^\\uD800-\\uDFFF]*$"
             },
             {
               "$ref": "#/$defs/unset"
@@ -174,7 +178,8 @@
         "label": {
           "anyOf": [
             {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[^\\uD800-\\uDFFF]*$"
             },
             {
               "$ref": "#/$defs/unset"
