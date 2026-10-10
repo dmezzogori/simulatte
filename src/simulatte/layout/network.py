@@ -124,6 +124,7 @@ class _Builder:
         id: str | None = None,
         enabled: bool = True,
         capacity: int | None = None,
+        inherit_capacity: bool = True,
     ) -> None:
         _limit(len(self.nodes) + 1, self.limits.max_nodes, "max_nodes")
         self.nodes[address] = NodeDefinition(
@@ -131,7 +132,7 @@ class _Builder:
             id or address.encoded_id,
             point,
             enabled,
-            capacity if capacity is not None else self.network.get("capacity"),
+            capacity if capacity is not None or not inherit_capacity else self.network.get("capacity"),
             self.point_blockers(point),
         )
         self.aliases[address] = address
@@ -350,14 +351,21 @@ def _explicit(values: ResolvedValues, builder: _Builder) -> None:
         "max_directed_arcs",
     )
     ids = {}
-    for node in nodes:
+    for i, node in enumerate(nodes):
         id = node["id"]
         if id in ids:
             raise LayoutError(f"explicit graph contains duplicate node id {id!r}")
         address = Address({"kind": "explicit", "id": id})
         ids[id] = address
         builder.node(
-            address, _point(node["position"]), id=id, enabled=node.get("enabled", True), capacity=node.get("capacity")
+            address,
+            _point(node["position"]),
+            id=id,
+            enabled=node.get("enabled", True),
+            capacity=node.get("capacity"),
+            # Unset removes the node's capacity instead of restoring the network
+            # default; ordinary absence still inherits that declared default.
+            inherit_capacity=values.at(("network", "nodes", str(i), "capacity"), explicit=True).state != "unset",
         )
     directed = {}
     for arc in arcs:

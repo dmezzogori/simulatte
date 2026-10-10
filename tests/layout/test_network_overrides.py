@@ -379,3 +379,15 @@ def test_unset_explicit_candidate_state_and_raw_direction_fail_at_input():
         resolve(patch)
     patch["overrides"] = [override({"kind": "explicit_arc", "source": "A", "target": "B"}, enabled=True)]
     assert resolve(patch).graph.arc_between(*resolve(patch).graph.nodes) is not None
+
+
+def test_explicit_node_capacity_unset_suppresses_network_default_but_absence_inherits():
+    patch = line()
+    patch["network"]["capacity"] = 7
+    patch["network"]["nodes"][0]["capacity"] = {"$unset": True}
+    result = resolve(patch)
+    unset, absent = (Address({"kind": "explicit", "id": id}) for id in ("A", "B"))
+    assert result.definitions.nodes[unset].capacity is None
+    assert result.capacities[result.node(unset)] is None
+    assert result.definitions.nodes[absent].capacity == 7
+    assert result.capacities[result.node(absent)] == 7
