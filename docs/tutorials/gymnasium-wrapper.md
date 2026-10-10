@@ -6,6 +6,12 @@ Goal: wrap a simulatte simulation as a [Gymnasium](https://gymnasium.farama.org/
 
 `SimulatteEnv` is a thin abstract base class that handles the Gymnasium lifecycle (`reset`, `step`, `close`) while you define the simulation setup, observation extraction, action application, reward, and termination logic.
 
+Install the RL extra first (it includes Gymnasium and NumPy):
+
+```bash
+pip install "simulatte[rl]"
+```
+
 ## Define your environment
 
 Subclass `SimulatteEnv` and implement six abstract methods:

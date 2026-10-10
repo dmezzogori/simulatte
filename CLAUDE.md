@@ -10,15 +10,15 @@ Simulatte is under active development. All APIs — including those outside `sim
 
 ```bash
 # Setup
-uv sync --dev
-uv run pre-commit install
+uv sync --dev --all-extras
+uv run --all-extras pre-commit install
 
 # Tests
-uv run pytest
+uv run --all-extras pytest
 
 # Docs
-uv run zensical build
-uv run zensical serve
+uv run --all-extras zensical build
+uv run --all-extras zensical serve
 ```
 
 ## Repository Structure
@@ -135,7 +135,7 @@ Unstable APIs, subject to change:
 
 GitHub Actions workflows live in `.github/workflows/`:
 
-- **ci.yml**: CPython 3.11/3.12/3.13/3.14, an allowed-to-fail CPython 3.15 pre-release lane, plus a PyPy 3.11 core/intralogistics compatibility lane; lint and type checks run on CPython 3.14. A `trace-ts` job tests the TypeScript trace reader and a `bench` job gates the no-subscriber overhead against `simulatte==0.12.0`.
+- **ci.yml**: CPython 3.11/3.12/3.13/3.14/3.15, plus a PyPy 3.11 core/intralogistics compatibility lane; lint and type checks run on CPython 3.14. A `trace-ts` job tests the TypeScript trace reader and a `bench` job gates the no-subscriber overhead against `simulatte==0.12.0`.
 - **docs.yml**: Builds and deploys documentation to GitHub Pages on push to `main`.
 - **publish.yml**: Publishes to PyPI via trusted publishing when a `v*` tag is pushed.
 

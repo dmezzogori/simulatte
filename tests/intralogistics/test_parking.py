@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import pytest
+import simpy
 from simpy.events import ProcessGenerator
 
 from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVType
+from simulatte.intralogistics.events import ParkingEntered, ParkingLeft
 from simulatte.intralogistics.graph import Node
 from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.speed import TrapezoidalProfile
+
+from tests.intralogistics.test_resource_events import FullReplay
 
 
 @pytest.fixture
@@ -195,16 +199,110 @@ def test_enter_already_parked_is_noop(env: Environment, parking_node: Node, agv_
     assert not area._resource.queue
 
 
-def test_simultaneous_entries_do_not_replace_occupied_slot(
-    env: Environment, parking_node: Node, agv_type: AGVType
+@pytest.mark.parametrize("capacity", [1, 2])
+@pytest.mark.parametrize("leave_immediately", [False, True])
+def test_simultaneous_entries_share_one_admission(
+    env: Environment, parking_node: Node, agv_type: AGVType, capacity: int, leave_immediately: bool
 ) -> None:
-    area = ParkingArea(env=env, name="P", node=parking_node, capacity=2)
+    replay = FullReplay(env)
+    area = ParkingArea(env=env, name="P", node=parking_node, capacity=capacity)
     agv = _make_agv(env, agv_type)
-    first = env.process(area.enter(agv))
+
+    def first_entry() -> ProcessGenerator:
+        yield from area.enter(agv)
+        if leave_immediately:
+            area.leave(agv)
+
+    first = env.process(first_entry())
     second = env.process(area.enter(agv))
     env.run()
     assert first.triggered and second.triggered
-    assert area.available_capacity == 1
-    area.leave(agv)
+    assert area.available_capacity == (capacity if leave_immediately else capacity - 1)
+    assert len(replay.of(ParkingEntered)) == 1
+    if not leave_immediately:
+        area.leave(agv)
     env.run()
-    assert area.available_capacity == 2
+    assert area.available_capacity == capacity
+    assert len(replay.of(ParkingLeft)) == 1
+    assert not area._resource.queue
+    assert not area._agv_requests
+
+
+@pytest.mark.parametrize("phase", ["queued", "immediate_grant", "delayed_grant"])
+def test_interrupted_entry_releases_its_reservation(
+    env: Environment, parking_node: Node, agv_type: AGVType, phase: str
+) -> None:
+    replay = FullReplay(env)
+    area = ParkingArea(env=env, name="P", node=parking_node, capacity=1)
+    agv = _make_agv(env, agv_type)
+    blocker = _make_agv(env, agv_type)
+    interrupted: list[object] = []
+
+    def enter() -> ProcessGenerator:
+        try:
+            yield from area.enter(agv)
+        except simpy.Interrupt as exc:
+            interrupted.append(exc.cause)
+
+    if phase != "immediate_grant":
+        env.process(area.enter(blocker))
+        env.run()
+    waiting = env.process(enter())
+    env.activate()
+    env.step()  # Start the request, before a granted request resumes its caller.
+    if phase == "delayed_grant":
+        request = area._resource.queue[0]
+        area.leave(blocker)
+        while not request.triggered:
+            env.step()
+    waiting.interrupt("cancel parking")
+    env.run()
+    if phase == "queued":
+        area.leave(blocker)
+        env.run()
+    assert interrupted == ["cancel parking"]
+    assert area.available_capacity == 1
+    assert not area._resource.queue
+    assert not area._agv_requests
+    assert not [event for event in replay.of(ParkingEntered, ParkingLeft) if event.agv == agv.id]
+    # Cancellation must allow a fresh admission for the same AGV.
+    retry = env.process(area.enter(agv))
+    env.run()
+    assert retry.triggered
+    assert area.available_capacity == 0
+    assert len([event for event in replay.of(ParkingEntered) if event.agv == agv.id]) == 1
+
+
+@pytest.mark.parametrize("interrupted_index", [0, 1])
+@pytest.mark.parametrize("cancel_both", [False, True])
+def test_duplicate_waiters_cancel_independently(
+    env: Environment, parking_node: Node, agv_type: AGVType, interrupted_index: int, cancel_both: bool
+) -> None:
+    replay = FullReplay(env)
+    area = ParkingArea(env=env, name="P", node=parking_node, capacity=1)
+    agv = _make_agv(env, agv_type)
+    blocker = _make_agv(env, agv_type)
+    env.process(area.enter(blocker))
+    env.run()
+
+    def enter() -> ProcessGenerator:
+        try:
+            yield from area.enter(agv)
+        except simpy.Interrupt:
+            pass
+
+    waiters = [env.process(enter()), env.process(enter())]
+    env.run()
+    waiters[interrupted_index].interrupt()
+    env.run()
+    assert len(area._resource.queue) == 1
+    assert not waiters[1 - interrupted_index].triggered
+    if cancel_both:
+        waiters[1 - interrupted_index].interrupt()
+        env.run()
+    area.leave(blocker)
+    env.run()
+    assert all(waiter.triggered for waiter in waiters)
+    assert area.available_capacity == int(cancel_both)
+    assert not area._resource.queue
+    assert len([event for event in replay.of(ParkingEntered) if event.agv == agv.id]) == int(not cancel_both)

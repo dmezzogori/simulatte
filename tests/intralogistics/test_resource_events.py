@@ -73,6 +73,7 @@ from __future__ import annotations
 
 import random
 import runpy
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
@@ -652,7 +653,9 @@ def test_parking_enter_again_keeps_the_place() -> None:
 
 def _run_advanced_example(monkeypatch: pytest.MonkeyPatch) -> FullReplay:
     """Run ``examples/intralogistics_advanced.py`` unchanged, with its environment in debug mode and replayed."""
-    import matplotlib.pyplot
+    plotting = find_spec("matplotlib") is not None
+    if plotting:
+        import matplotlib.pyplot
 
     import simulatte.environment
 
@@ -663,9 +666,14 @@ def _run_advanced_example(monkeypatch: pytest.MonkeyPatch) -> FullReplay:
             super().__init__(*args, debug=True, **kwargs)
             replays.append(FullReplay(self))
 
-    monkeypatch.setattr(matplotlib.pyplot, "show", lambda: None)
+    if plotting:
+        monkeypatch.setattr(matplotlib.pyplot, "show", lambda: None)
     monkeypatch.setattr(simulatte.environment, "Environment", Checked)
-    runpy.run_path(str(EXAMPLES / "intralogistics_advanced.py"), run_name="__main__")
+    example_globals = runpy.run_path(
+        str(EXAMPLES / "intralogistics_advanced.py"), run_name="__main__" if plotting else "__headless__"
+    )
+    if not plotting:
+        example_globals["main"](plot=False)
     (replay,) = replays
     return replay
 

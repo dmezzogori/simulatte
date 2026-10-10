@@ -97,6 +97,19 @@ or with [uv](https://docs.astral.sh/uv/):
 uv add simulatte
 ```
 
+The base install includes production and intralogistics simulation, collectors, traces, and `Runner`.
+Plotting and reinforcement learning are optional:
+
+```bash
+pip install "simulatte[plot]"  # Collector plot_* methods and plotting examples
+pip install "simulatte[rl]"    # Experimental SimulatteEnv Gymnasium wrapper
+pip install "simulatte[all]"   # Both integrations
+```
+
+With uv, use `uv add "simulatte[plot]"`, `uv add "simulatte[rl]"`, or `uv add "simulatte[all]"`.
+Starting in 0.13, existing applications that plot or use `SimulatteEnv` must select the corresponding extra.
+Collecting time series and KPIs does not require plotting dependencies.
+
 ---
 
 ## Quick Start
@@ -161,7 +174,7 @@ If you use Simulatte in your research, please cite it via its [Zenodo record](ht
   author  = {Mezzogori, Davide and Mercogliano, Nicola},
   title   = {{Simulatte}: A discrete-event simulation framework for production planning and control and intralogistics},
   year    = {2026},
-  version = {0.12.0},
+  version = {0.13.0},
   doi     = {10.5281/zenodo.21027366},
   url     = {https://doi.org/10.5281/zenodo.21027366}
 }

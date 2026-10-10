@@ -69,7 +69,7 @@ If you use Simulatte in your research, please cite it via its [Zenodo record](ht
   author  = {Mezzogori, Davide and Mercogliano, Nicola},
   title   = {{Simulatte}: A discrete-event simulation framework for production planning and control and intralogistics},
   year    = {2026},
-  version = {0.12.0},
+  version = {0.13.0},
   doi     = {10.5281/zenodo.21027366},
   url     = {https://doi.org/10.5281/zenodo.21027366}
 }

@@ -543,7 +543,7 @@ class TestWireFloat:
     def test_numpy_scalars_convert_and_nothing_else_from_numpy(self) -> None:
         """Ruling R34: NumPy scalar numbers (numpy.number, numpy.bool_) convert; object arrays and other arrays, and
         subclasses that define their own ``__float__``, are not numbers for events. numpy is installed with
-        gymnasium, so this runs on CPython and PyPy alike."""
+        gymnasium or matplotlib; minimal installations skip only these NumPy-specific assertions."""
         np = pytest.importorskip("numpy")
 
         class Number:

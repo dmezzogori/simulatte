@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import runpy
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
@@ -130,7 +131,9 @@ def test_recovery_regression_simple_system(seed: int) -> None:
 
 @pytest.mark.parametrize("name", ["intermediate", "advanced"])
 def test_parity_examples(name: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    import matplotlib.pyplot
+    plotting = find_spec("matplotlib") is not None
+    if plotting:
+        import matplotlib.pyplot
 
     attached: list[FleetTimeSeries] = []
 
@@ -139,9 +142,15 @@ def test_parity_examples(name: str, monkeypatch: pytest.MonkeyPatch) -> None:
             super().__init__(fleet)
             attached.append(self)
 
-    monkeypatch.setattr(matplotlib.pyplot, "show", lambda *args, **kwargs: None)
+    if plotting:
+        monkeypatch.setattr(matplotlib.pyplot, "show", lambda *args, **kwargs: None)
     monkeypatch.setattr(intralogistics, "FleetTimeSeries", RecordingSeries)
-    runpy.run_path(str(ROOT / "examples" / f"intralogistics_{name}.py"), run_name="__main__")
+    example_globals = runpy.run_path(
+        str(ROOT / "examples" / f"intralogistics_{name}.py"),
+        run_name="__main__" if plotting else "__headless__",
+    )
+    if not plotting:
+        example_globals["main"](plot=False)
 
     [series] = attached
     [metrics] = [c for c in series.env.collectors if isinstance(c, OrderEMACollector)]

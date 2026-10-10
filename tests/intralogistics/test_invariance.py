@@ -30,10 +30,10 @@ import runpy
 import subprocess
 import sys
 from dataclasses import dataclass
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
-import matplotlib.pyplot
 import pytest
 
 import simulatte.environment
@@ -141,7 +141,11 @@ def run_example(configuration: str, tmp_path: Path) -> Outcome:
 
     printed = io.StringIO()
     with pytest.MonkeyPatch.context() as monkeypatch, contextlib.redirect_stdout(printed):
-        monkeypatch.setattr(matplotlib.pyplot, "show", lambda *args, **kwargs: None)
+        plotting = find_spec("matplotlib") is not None
+        if plotting:
+            import matplotlib.pyplot
+
+            monkeypatch.setattr(matplotlib.pyplot, "show", lambda *args, **kwargs: None)
         monkeypatch.setattr(simulatte.environment, "Environment", make_environment)
         monkeypatch.setattr(FleetCoordinator, "submit", submit)
         if configuration == "none":
@@ -149,7 +153,9 @@ def run_example(configuration: str, tmp_path: Path) -> Outcome:
             monkeypatch.setattr(intralogistics, "FleetTimeSeries", Inert)
         elif configuration in ("kpi", "full", "everything"):
             monkeypatch.setattr(intralogistics, "OrderEMACollector", OrderEMAWithFleetKPIs)
-        runpy.run_path(str(EXAMPLE), run_name="__main__")  # closes the environment on leaving its ``with``
+        example_globals = runpy.run_path(str(EXAMPLE), run_name="__main__" if plotting else "__headless__")
+        if not plotting:
+            example_globals["main"](plot=False)  # still executes the complete simulation and collectors
     report = printed.getvalue()
 
     (env,) = created
@@ -234,15 +240,17 @@ def test_recorded_traces_verify(outcomes: dict[str, Outcome]) -> None:
 _HASH_SEED_SCRIPT = """
 import runpy
 import sys
+from importlib.util import find_spec
 
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot
+plotting = find_spec("matplotlib") is not None
+if plotting:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot
+    matplotlib.pyplot.show = lambda *args, **kwargs: None
 
 import simulatte.environment
 
-matplotlib.pyplot.show = lambda *args, **kwargs: None
 real_environment = simulatte.environment.Environment
 created = []
 
@@ -255,7 +263,9 @@ def make_environment(**kwargs):
 
 
 simulatte.environment.Environment = make_environment
-runpy.run_path(sys.argv[1], run_name="__main__")
+example_globals = runpy.run_path(sys.argv[1], run_name="__main__" if plotting else "__headless__")
+if not plotting:
+    example_globals["main"](plot=False)
 (env,) = created
 print("DIGEST", env.fingerprint().digest)
 """

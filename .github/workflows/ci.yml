@@ -13,9 +13,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # 3.15 is a pre-release lane (#36): it reports but cannot fail the workflow
-    # until 3.15.0 final ships and the lane becomes a required check.
-    continue-on-error: ${{ matrix.python-version == '3.15' }}
     strategy:
       fail-fast: false
       matrix:
@@ -38,7 +35,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libjpeg-dev zlib1g-dev
 
       - name: Install dependencies
-        run: uv sync --dev --python ${{ matrix.python-version }} --frozen
+        run: uv sync --dev --all-extras --python ${{ matrix.python-version }} --frozen
 
       - name: Check lockfile is up-to-date
         if: matrix.python-version == '3.14'
@@ -46,14 +43,14 @@ jobs:
 
       - name: Run linting
         if: matrix.python-version == '3.14'
-        run: uv run ruff check src tests
+        run: uv run --all-extras ruff check src tests
 
       - name: Run type checking
         if: matrix.python-version == '3.14'
-        run: uv run ty check src
+        run: uv run --all-extras ty check src
 
       - name: Run tests with coverage
-        run: uv run pytest
+        run: uv run --all-extras pytest
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.14'
@@ -66,8 +63,9 @@ jobs:
 
   # PyPy compatibility lane. PyPy's latest is 3.11, so this guards the Python 3.11
   # language floor and verifies simulatte runs on PyPy. Coverage is disabled here
-  # (PyPy lacks coverage's C tracer; the CPython 3.14 lane enforces the gate), and
-  # tests/experimental is excluded (it needs numpy/gymnasium, RL-only best-effort).
+  # (PyPy lacks coverage's C tracer; the CPython 3.14 lane enforces the gate).
+  # No optional extras: plotting and numpy-specific tests skip, and tests/experimental
+  # is excluded (it needs the rl extra). CPython tests all extras and enforces coverage.
   test-pypy:
     name: test (pypy-3.11)
     runs-on: ubuntu-latest
@@ -86,11 +84,8 @@ jobs:
       - name: Install PyPy 3.11
         run: uv python install pypy-3.11
 
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libjpeg-dev zlib1g-dev
-
       - name: Install dependencies (PyPy)
-        run: uv sync --dev --python pypy-3.11
+        run: uv sync --dev --python pypy-3.11 --frozen
 
       - name: Run tests on PyPy (core + intralogistics, coverage disabled)
         env:
@@ -138,9 +133,8 @@ jobs:
   # BUDGET_STRIPPED + NOISE_STRIPPED; modes default (each version's default shop-floor metrics), default_logging
   # and kpi, the digest/full ratios, trace size, seeks, memory, sampling and the scaled-up intralogistics example
   # are reported in the step summary (budgets for default, default_logging and kpi accepted as D59, report-only
-  # until calibrated on runners; specs/research/sp1-final-report.md). Expected duration: about 15 minutes on CPython
-  # and 20 on PyPy, setup included. This is an estimate from local timings and has not been observed on a runner;
-  # the timeout is 45 minutes to leave room for slower runners.
+  # until calibrated on runners; specs/research/sp1-final-report.md). PR #57 took about 18 minutes on CPython
+  # and 25 on PyPy, setup included; the timeout is 45 minutes to leave room for slower runners.
   bench:
     name: bench (${{ matrix.python }})
     runs-on: ubuntu-latest
@@ -190,7 +184,7 @@ jobs:
       - name: Create the environments (branch, released 0.12.0 with the same dependency versions, stripped 0.12.0)
         run: |
           uv venv /tmp/head --python ${{ matrix.python }}
-          uv pip install --python /tmp/head .
+          uv pip install --python /tmp/head ".[all]"
           uv pip freeze --python /tmp/head | grep -v '^simulatte' > /tmp/constraints.txt
           uv venv /tmp/base --python ${{ matrix.python }}
           uv pip install --python /tmp/base simulatte==0.12.0 --constraint /tmp/constraints.txt

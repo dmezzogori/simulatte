@@ -106,6 +106,8 @@ if __name__ == "__main__":
 
 ---
 
+The examples that plot require `pip install "simulatte[plot]"`; call `main(plot=False)` for a headless run.
+
 ## Intermediate
 
 **File:** [`examples/intralogistics_intermediate.py`](https://github.com/dmezzogori/simulatte/blob/main/examples/intralogistics_intermediate.py)
@@ -168,7 +170,7 @@ Avg fulfillment time: 151.2s
 **Run it:**
 
 ```bash
-uv run python examples/intralogistics_intermediate.py
+uv run --extra plot python examples/intralogistics_intermediate.py
 ```
 
 ### Run it in the browser
@@ -176,6 +178,11 @@ uv run python examples/intralogistics_intermediate.py
 Click ▶ Run --- the time-series plots render below the text output.
 
 ```python { .run }
+"""Intralogistics simulation with plots; install ``simulatte[plot]`` to run directly.
+
+Call ``main(plot=False)`` to run without plotting dependencies.
+"""
+
 from __future__ import annotations
 
 from simpy.events import ProcessGenerator
@@ -231,7 +238,7 @@ def order_batches(
             coordinator.submit(order)
 
 
-def main() -> None:
+def main(*, plot: bool = True) -> None:
     with Environment() as env:
         # --- Nodes ---
         rm_in = Node(id="RM_IN", x=0, y=0)
@@ -397,8 +404,9 @@ def main() -> None:
             )
 
         # --- Plots ---
-        ts_collector.plot_fleet_utilization()
-        ts_collector.plot_pending_orders()
+        if plot:
+            ts_collector.plot_fleet_utilization()
+            ts_collector.plot_pending_orders()
 
 
 if __name__ == "__main__":
@@ -480,7 +488,7 @@ Shift summary:
 **Run it:**
 
 ```bash
-uv run python examples/intralogistics_advanced.py
+uv run --extra plot python examples/intralogistics_advanced.py
 ```
 
 ### Run it in the browser
@@ -488,6 +496,11 @@ uv run python examples/intralogistics_advanced.py
 Click ▶ Run --- the time-series plots render below the text output. The full 8-hour shift still completes in a few seconds (showing at least one charging event and the late-shift replenishment).
 
 ```python { .run }
+"""Intralogistics simulation with plots; install ``simulatte[plot]`` to run directly.
+
+Call ``main(plot=False)`` to run without plotting dependencies.
+"""
+
 from __future__ import annotations
 
 from simpy.events import ProcessGenerator
@@ -553,7 +566,7 @@ def outbound_order_stream(
         coordinator.submit(order)
 
 
-def main() -> None:
+def main(*, plot: bool = True) -> None:
     with Environment(seed=42) as env:
         # --- Nodes (16) ---
         rcv_in = Node(id="RCV_IN", x=0, y=30)
@@ -843,10 +856,11 @@ def main() -> None:
         print(f"  Late order rate:  {fmt_ema(order_metrics.ema_late_orders)}")
 
         # --- Plots ---
-        ts_collector.plot_fleet_utilization()
-        ts_collector.plot_throughput()
-        ts_collector.plot_pending_orders()
-        ts_collector.plot_inventory()
+        if plot:
+            ts_collector.plot_fleet_utilization()
+            ts_collector.plot_throughput()
+            ts_collector.plot_pending_orders()
+            ts_collector.plot_inventory()
 
 
 if __name__ == "__main__":

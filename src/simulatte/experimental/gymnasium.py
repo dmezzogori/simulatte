@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import gymnasium
+from simulatte._optional import import_optional
+
+if TYPE_CHECKING:
+    import gymnasium
+else:
+    gymnasium = import_optional("gymnasium", "rl")
 
 
 class SimulatteEnv(gymnasium.Env, ABC):

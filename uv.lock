@@ -1535,15 +1535,25 @@ wheels = [
 
 [[package]]
 name = "simulatte"
-version = "0.12.0"
+version = "0.13.0"
 source = { editable = "." }
 dependencies = [
-    { name = "gymnasium" },
-    { name = "matplotlib" },
     { name = "msgpack" },
     { name = "simpy" },
     { name = "tabulate" },
     { name = "tqdm" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "gymnasium" },
+    { name = "matplotlib" },
+]
+plot = [
+    { name = "matplotlib" },
+]
+rl = [
+    { name = "gymnasium" },
 ]
 
 [package.dev-dependencies]
@@ -1561,13 +1571,15 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "gymnasium", specifier = ">=1.0.0" },
-    { name = "matplotlib", specifier = ">=3.7.2" },
+    { name = "gymnasium", marker = "extra == 'rl'", specifier = ">=1.0.0" },
+    { name = "matplotlib", marker = "extra == 'plot'", specifier = ">=3.7.2" },
     { name = "msgpack", specifier = ">=1.0.8" },
     { name = "simpy", specifier = ">=4.0.1" },
+    { name = "simulatte", extras = ["plot", "rl"], marker = "extra == 'all'" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]
+provides-extras = ["plot", "rl", "all"]
 
 [package.metadata.requires-dev]
 dev = [

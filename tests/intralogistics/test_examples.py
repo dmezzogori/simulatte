@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import runpy
+from importlib.util import find_spec
 from pathlib import Path
 
 
@@ -20,12 +21,17 @@ def test_intralogistics_simple_example_runs(capsys) -> None:
 
 
 def test_intralogistics_intermediate_example_runs(monkeypatch, capsys) -> None:
-    import matplotlib.pyplot
+    plotting = find_spec("matplotlib") is not None
+    if plotting:
+        import matplotlib.pyplot
 
-    monkeypatch.setattr(matplotlib.pyplot, "show", lambda: None)
+    if plotting:
+        monkeypatch.setattr(matplotlib.pyplot, "show", lambda: None)
 
     example = Path(__file__).resolve().parents[2] / "examples" / "intralogistics_intermediate.py"
-    runpy.run_path(str(example), run_name="__main__")
+    example_globals = runpy.run_path(str(example), run_name="__main__" if plotting else "__headless__")
+    if not plotting:
+        example_globals["main"](plot=False)
 
     captured = capsys.readouterr()
     assert "Manufacturing Plant Floor" in captured.out
@@ -42,12 +48,17 @@ def test_intralogistics_intermediate_example_runs(monkeypatch, capsys) -> None:
 
 
 def test_intralogistics_advanced_example_runs(monkeypatch, capsys) -> None:
-    import matplotlib.pyplot
+    plotting = find_spec("matplotlib") is not None
+    if plotting:
+        import matplotlib.pyplot
 
-    monkeypatch.setattr(matplotlib.pyplot, "show", lambda: None)
+    if plotting:
+        monkeypatch.setattr(matplotlib.pyplot, "show", lambda: None)
 
     example = Path(__file__).resolve().parents[2] / "examples" / "intralogistics_advanced.py"
-    runpy.run_path(str(example), run_name="__main__")
+    example_globals = runpy.run_path(str(example), run_name="__main__" if plotting else "__headless__")
+    if not plotting:
+        example_globals["main"](plot=False)
 
     captured = capsys.readouterr()
     assert "Multi-Warehouse Distribution Hub" in captured.out

@@ -37,7 +37,8 @@ console.log(`Found ${blocks.length} runnable block(s).`);
 if (blocks.length === 0) process.exit(0);
 
 const pyodide = await loadPyodide();
-await pyodide.loadPackage(["sqlite3", "micropip"]);
+// The runnable examples include plots; matplotlib is an optional simulatte dependency.
+await pyodide.loadPackage(["sqlite3", "micropip", "matplotlib"]);
 const micropip = pyodide.pyimport("micropip");
 // Load the locally built wheel into the Pyodide FS and install from there.
 // (emfs install of a correctly-named wheel is verified to work on 0.28.3.)

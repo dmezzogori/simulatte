@@ -31,16 +31,16 @@ jobs:
         run: uv lock --check
 
       - name: Install dependencies
-        run: uv sync --all-groups --frozen
+        run: uv sync --all-groups --all-extras --frozen
 
       - name: Run tests
-        run: uv run pytest
+        run: uv run --all-extras pytest
 
       - name: Run linting
-        run: uv run ruff check
+        run: uv run --all-extras ruff check
 
       - name: Run formatting check
-        run: uv run ruff format --check
+        run: uv run --all-extras ruff format --check
 
       - name: Build package
         run: uv build
