@@ -498,3 +498,121 @@ def test_binding_cannot_consume_an_unmatched_code_target_even_with_default():
     engine.on_bind("orphan", lambda ctx: ctx.physical(ref, default=0), reads=[ref])
     with pytest.raises(LayoutError, match="prior-stage target"):
         engine.prepare()
+
+
+def test_network_barrier_excludes_unattached_code_obstacle_and_warns():
+    seen = []
+
+    def build(values, closure):
+        seen.append(values)
+        assert closure.select(values, ("placements",), "obstacle") == ()
+        return object()
+
+    engine = PreparationCoordinator(object(), network_builder=build)
+    engine.declare({"placements": {"ghost": {"kind": "server", "obstacle": True}}})
+    result = engine.prepare()
+    assert dict(seen[0].targets) == {}
+    assert dict(seen[0].data["placements"]) == {}
+    assert [(d.code, d.target) for d in result.diagnostics] == [("orphan-placement", "ghost")]
+    assert all("ghost" not in query.targets for query in engine.closure.queries)
+    assert not engine.closure.reevaluate(result.bundle.code_stages, engine.file_layer)
+
+
+def test_filtered_network_view_preserves_pending_presentation_target_and_replay():
+    seen = []
+    file = FileLayer(
+        {"schema_version": "1.0", "placements": {"late": {"kind": "warehouse", "visual": {"label": "file label"}}}}
+    )
+
+    def build(values, closure):
+        assert set(values.targets) == {"real"}
+        assert closure.select(values, ("placements",), "obstacle") == ("real",)
+        assert closure.select(values, ("placements",), "connector") == ()
+        seen.append(values)
+        return object()
+
+    engine = PreparationCoordinator(object(), file_layer=file, network_builder=build)
+    engine.declare(
+        {
+            "placements": {
+                "ghost": {"kind": "server", "obstacle": True},
+                "late": {"kind": "warehouse", "visual": {"label": "code label"}},
+            }
+        }
+    )
+
+    @engine.stage("earlier", reads=[])
+    def earlier(ctx):
+        engine.attach_target("real", "server")
+        engine.declare({"placements": {"real": {"kind": "server", "obstacle": True}}})
+
+    label = engine.ref("placements", "late", "visual", "label")
+
+    @engine.stage("later", reads=[engine.graph(), label], after=["earlier"])
+    def later(ctx):
+        # Its code declaration is a prior-stage output, but did not make it a compiler candidate.
+        assert ctx.physical(label) == "file label"
+        engine.attach_target("late", "warehouse")
+        engine.attach_target("new", "warehouse")
+        engine.declare({"placements": {"new": {"kind": "warehouse", "visual": {"label": "new"}}}})
+
+    result = engine.prepare()
+    assert len(seen) == 1
+    assert set(result.data["placements"]) == {"real", "late", "new"}
+    assert [(d.code, d.target) for d in result.diagnostics] == [("orphan-placement", "ghost")]
+    assert not engine.closure.changed(result)
+    assert not engine.closure.reevaluate(result.bundle.code_stages, file)
+    network_queries = [query for query in engine.closure.queries if query.origin == "network"]
+    assert all(
+        set(query.targets) == {"real", "late", "new"}
+        for query in network_queries
+        if query.descriptor["kind"] == "selection"
+    )
+    patch = FileLayer(
+        {
+            "schema_version": "1.0",
+            "placements": {"late": {"kind": "warehouse", "visual": {"label": "file label"}, "obstacle": True}},
+        }
+    )
+    assert ("placements",) in engine.closure.reevaluate(result.bundle.code_stages, patch)
+
+
+def test_pending_obstacle_attached_after_authoritative_barrier_is_late_edit():
+    seen = []
+
+    def build(values, closure):
+        seen.append(closure.select(values, ("placements",), "obstacle"))
+        return object()
+
+    engine = PreparationCoordinator(object(), network_builder=build)
+    engine.declare({"placements": {"pending": {"kind": "server", "obstacle": True}}})
+
+    @engine.stage("attach", reads=[engine.graph()])
+    def attach(ctx):
+        engine.attach_target("pending", "server")
+
+    with pytest.raises(LayoutError, match="late-network-edit"):
+        engine.prepare()
+    assert seen == [()]
+
+
+def test_network_barrier_includes_authoritatively_recognized_definitions():
+    seen = []
+
+    def build(values, closure):
+        seen.append(dict(values.targets))
+        assert closure.select(values, ("placements",), "obstacle") == ("recognized",)
+        return object()
+
+    engine = PreparationCoordinator(object(), network_builder=build, target_provider=lambda: {"recognized": "server"})
+    engine.declare(
+        {
+            "placements": {
+                "recognized": {"kind": "server", "obstacle": True},
+                "ghost": {"kind": "server", "obstacle": True},
+            }
+        }
+    )
+    result = engine.prepare()
+    assert seen == [{"recognized": "server"}]
+    assert set(result.data["placements"]) == {"recognized"}

@@ -218,17 +218,21 @@ class DependencyClosure:
             for q in self._queries
         ]
 
-    def changed(self, values: ResolvedValues, *, allow_network_extensions: bool = False) -> tuple[Path, ...]:
-        return tuple(
-            sorted(
-                {
-                    tuple(q.descriptor["path"])
-                    for q in self._queries
-                    if evaluate_query(values, q.descriptor) != _thaw(q.observed)
-                    and not (allow_network_extensions and self._extension(q, evaluate_query(values, q.descriptor)))
-                }
-            )
-        )
+    def changed(
+        self,
+        values: ResolvedValues,
+        *,
+        network_values: ResolvedValues | None = None,
+        allow_network_extensions: bool = False,
+    ) -> tuple[Path, ...]:
+        """Use a separately authoritative compiler view during staged preparation."""
+        changed = set()
+        for query in self._queries:
+            view = network_values if query.origin == "network" and network_values is not None else values
+            current = evaluate_query(view, query.descriptor)
+            if current != _thaw(query.observed) and not (allow_network_extensions and self._extension(query, current)):
+                changed.add(tuple(query.descriptor["path"]))
+        return tuple(sorted(changed))
 
     def reevaluate(self, code_stages: Any, file_layer: FileLayer) -> tuple[Path, ...]:
         """Compare each dependency in its saved stage view, before presentation fill."""
@@ -240,7 +244,7 @@ class DependencyClosure:
         return tuple(sorted(changed))
 
     def physical_data(self) -> dict[str, Any]:
-        """Hash payload before Task 6 numeric normalization; omit replay/source metadata.
+        """Hash payload before Task 9 numeric normalization; omit replay/source metadata.
 
         Identical queries from different saved stage views have identical effective
         identity, while their separate snapshots remain available in ``to_dict``.

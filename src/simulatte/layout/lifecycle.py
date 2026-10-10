@@ -79,6 +79,7 @@ class PreparationCoordinator:
         self.network: Any = None
         self._result: Any = None
         self.values = self._resolve()
+        self._network_values = self.values
 
     def stage_records(self) -> dict[str, Any]:
         """Copy registration-ordered author records for the saved layer bundle."""
@@ -177,17 +178,25 @@ class PreparationCoordinator:
             self._owners.setdefault(path, self._stage)
         self.values = candidate
 
+    def _network_view(self, values: ResolvedValues) -> ResolvedValues:
+        """Compiler candidates are actual attachments/definitions, never pending code ids."""
+        targets = self._target_provider() if self._target_provider else self._targets
+        return resolve_layers(values.bundle.code_stages, values.bundle.file_layer, targets=targets, final=True)
+
     def _check_changes(self, candidate: ResolvedValues) -> None:
-        if self._barrier:
+        network_values = self._network_view(candidate) if self._barrier else None
+        if network_values is not None:
             for predicate in ("obstacle", "connector"):
                 descriptor = {"kind": "selection", "path": ["placements"], "predicate": predicate}
-                before = evaluate_query(self.values, descriptor)
-                after = evaluate_query(candidate, descriptor)
+                before = evaluate_query(self._network_values, descriptor)
+                after = evaluate_query(network_values, descriptor)
                 if after["selected"] != before["selected"]:
                     raise LayoutError("late-network-edit: new obstacle or connector")
-        changed = self.closure.changed(candidate, allow_network_extensions=True)
+        changed = self.closure.changed(candidate, network_values=network_values, allow_network_extensions=True)
         if changed:
             raise LayoutError(f"physical dependency is frozen: {changed}")
+        if network_values is not None:
+            self._network_values = network_values
 
     def _freeze_stage(self) -> None:
         self._frozen.update(path for path, owner in self._owners.items() if owner == self._stage)
@@ -265,12 +274,13 @@ class PreparationCoordinator:
 
     def _build_network(self) -> None:
         self._barrier = True
-        self.closure.record(self.values, ("network",), kind="variant")
-        self.closure.record(self.values, ("grid",), kind="presence")
-        if self._network_builder is not None:
-            with self.closure.network_queries():
-                self.network = self._network_builder(self.values, self.closure)
-            self._check_failure()
+        self._network_values = self._network_view(self.values)
+        with self.closure.network_queries():
+            self.closure.record(self._network_values, ("network",), kind="variant")
+            self.closure.record(self._network_values, ("grid",), kind="presence")
+            if self._network_builder is not None:
+                self.network = self._network_builder(self._network_values, self.closure)
+                self._check_failure()
 
     def prepare(self) -> Any:
         if self.state is PreparationState.FINALIZED:
