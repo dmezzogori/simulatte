@@ -1098,6 +1098,10 @@ _MALFORMED_RECORDS: dict[str, dict[str, Any]] = {
     "kpi_samples_not_an_array": {"kpis": ({"samples": {"a": 1}},)},
     "kpi_key_not_a_string": {"kpis": ({"samples": ((0, 1.0, 5, 1.0),)},)},
     "kpi_value_not_a_number": {"kpis": ({"samples": ((0, 1.0, "cell/kpi", "1"),)},)},
+    "event_type_not_a_string": {"event": (0, 0, None, 1.0, {}, ())},
+    "event_ordinal_not_an_integer": {"event": (0, "0", "test.record", 1.0, {}, ())},
+    "event_deltas_not_an_array": {"event": (0, 0, "test.record", 1.0, {}, {"a": 1})},
+    "event_operation_not_an_array": {"event": (0, 0, "test.record", 1.0, {}, ("set",))},
 }
 
 

@@ -584,7 +584,7 @@ class Trace:
         body = file.decode(raw, f"the chunk at offset {offset}")
 
         def build() -> _Chunk:
-            events = tuple(TraceEvent(*event) for event in body["events"])
+            events = tuple(map(_trace_event, body["events"]))
             cursors = [_wire_cursor((event.t, event.seq)) for event in events]
             consistent = (
                 bool(cursors)
@@ -688,6 +688,19 @@ def _as_cursor(value: Any) -> Cursor:
         return float(t), int(seq)
     except (TypeError, ValueError, OverflowError) as exc:
         raise ValueError(f"a cursor is a (t, seq) pair, got {value!r}") from exc
+
+
+def _trace_event(entry: Any) -> TraceEvent:
+    """A chunk event checked as the TypeScript reader checks it: an integer seq, a null or integer ordinal, a string
+    type, a time, any payload and an array of operation arrays; `TypeError` otherwise."""
+    event = TraceEvent(*entry)
+    if type(event.type) is not str:
+        raise TypeError(f"an event type is not a string: {event.type!r}")
+    if event.ordinal is not None:
+        _wire_int(event.ordinal)
+    if type(event.deltas) is not tuple or not all(type(op) is tuple for op in event.deltas):
+        raise TypeError("event deltas are an array of operation arrays")
+    return event
 
 
 def _wire_cursor(value: Any) -> Cursor:

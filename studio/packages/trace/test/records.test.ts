@@ -77,6 +77,15 @@ describe("malformed operations are rejected like the Python reader rejects them"
   });
 
   it.each([
+    ["event_type_not_a_string", [0, 0, null, 1, {}, []]],
+    ["event_ordinal_not_an_integer", [0, "0", "test.record", 1, {}, []]],
+    ["event_deltas_not_an_array", [0, 0, "test.record", 1, {}, { a: 1 }]],
+    ["event_operation_not_an_array", [0, 0, "test.record", 1, {}, ["set"]]],
+  ])("chunk event: %s", async (_, event) => {
+    await expect(readEverything(initial(), event as unknown[])).rejects.toThrow(TraceCorrupted);
+  });
+
+  it.each([
     ["kpi_not_a_map", [1, 2]],
     ["kpi_scalars_not_a_map", { scalars: [1] }],
     ["kpi_samples_not_an_array", { samples: { a: 1 } }],
