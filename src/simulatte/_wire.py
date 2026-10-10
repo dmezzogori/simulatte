@@ -28,7 +28,7 @@ import math
 from bisect import bisect_left
 from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping
-from types import BuiltinFunctionType, MappingProxyType, MethodDescriptorType, WrapperDescriptorType
+from types import MappingProxyType
 from typing import Any, TypeAlias
 
 import msgpack
@@ -39,6 +39,7 @@ __all__ = [
     "Wire",
     "canonical_pack",
     "escape_key",
+    "exact_int",
     "freeze",
     "new_packer",
     "pack",
@@ -144,8 +145,14 @@ def _builtin_scalar(value: Any, t: type) -> Any:
     if issubclass(t, float):
         return float.__float__(value)
     if issubclass(t, int):
-        return int.__int__(value)
+        return exact_int(value)
     return _NOT_SCALAR
+
+
+def exact_int(value: int) -> int:
+    """The exact ``int`` of an ``int`` subclass instance without its own methods (``int.__int__`` would call an
+    overridden ``__int__`` on PyPy; the built-in addition does not, on either interpreter)."""
+    return int.__add__(value, 0)
 
 
 def _builtin_items(value: Any, t: type) -> Any:
@@ -165,17 +172,15 @@ def _builtin_items(value: Any, t: type) -> Any:
     return None
 
 
-_C_METHODS = (WrapperDescriptorType, MethodDescriptorType, BuiltinFunctionType)
-
-
 def wire_float(value: object) -> float:
     """`value` as a ``float`` for an event payload or state field, without calling user code (spec §6.1).
 
     ``float`` and ``int`` values, including instances of their subclasses, convert through the built-in methods
-    (a subclass's own ``__float__`` is user code and is never called); other types only through a ``__float__``
-    implemented in C (NumPy scalars, for example). Anything else is NaN: an int beyond the float range, a value
-    whose only conversion is a Python-level ``__float__`` (``Fraction``, user classes), a non-number. See
-    :func:`wire_float_or_none` for the variant that returns None instead.
+    (a subclass's own ``__float__`` is user code and is never called); other types only when NumPy defines their
+    ``__float__`` (NumPy scalars such as ``int64`` or ``float32``). Anything else is NaN: an int beyond the float
+    range, a value whose conversion is defined elsewhere (``Fraction``, ``Decimal``, user classes), a non-number.
+    The rule is the same on CPython and PyPy. See :func:`wire_float_or_none` for the variant that returns None
+    instead.
     """
     if type(value) is float:
         return value
@@ -192,11 +197,12 @@ def wire_float_or_none(value: object) -> float | None:
         if issubclass(t, float):
             return float.__float__(value)  # ty: ignore[invalid-argument-type]
         if issubclass(t, int):
-            return int.__float__(value)  # ty: ignore[invalid-argument-type]
+            return float(exact_int(value))  # ty: ignore[invalid-argument-type]
         for klass in t.__mro__:
-            method = klass.__dict__.get("__float__")
-            if method is not None:
-                return float(value) if isinstance(method, _C_METHODS) else None  # ty: ignore[invalid-argument-type]
+            if "__float__" in klass.__dict__:
+                module = klass.__dict__.get("__module__", klass.__module__)
+                numpy = type(module) is str and (module == "numpy" or module.startswith("numpy."))
+                return float(value) if numpy else None  # ty: ignore[invalid-argument-type]
     except (OverflowError, ValueError):
         return None
     return None

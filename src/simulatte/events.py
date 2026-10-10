@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, ClassVar, Literal, TypeAlias, TypeVar, dataclass_transform
 
-from simulatte._wire import FrozenMap, Wire, escape_key, freeze, wire_equal
+from simulatte._wire import FrozenMap, Wire, escape_key, exact_int, freeze, wire_equal
 
 __all__ = [
     "CATALOG",
@@ -524,7 +524,7 @@ def _check_immutable(where: str, value: object) -> None:
         if item is None or t is str or t is bool or t is float:
             continue
         if issubclass(t, int):
-            freeze(int.__int__(item))  # ty: ignore[invalid-argument-type]  # OverflowError outside the safe range
+            freeze(exact_int(item))  # ty: ignore[invalid-argument-type]  # OverflowError outside the safe range
         elif issubclass(t, (str, float)):
             continue
         elif issubclass(t, tuple):

@@ -511,17 +511,18 @@ class TestWireFloat:
         assert values == [2.5, 4.0, 0.5] and [type(v) for v in values] == [float, float, float]
         assert _Spy.calls == []
 
-    def test_python_level_conversions_are_never_called(self) -> None:
+    def test_other_conversions_are_never_called(self) -> None:
+        from decimal import Decimal
         from fractions import Fraction
 
         class Number:
             def __float__(self) -> float:  # pragma: no cover - must never be called
                 raise AssertionError("user code")
 
-        for value in (Number(), Fraction(1, 2), "1.5", None):  # Fraction.__float__ is Python code
+        for value in (Number(), Fraction(1, 2), Decimal("0.5"), "1.5", None):
             assert wire_float_or_none(value) is None and math.isnan(wire_float(value))
 
-    def test_c_level_conversions_are_used(self) -> None:
+    def test_numpy_conversions_are_used(self) -> None:
         np = pytest.importorskip("numpy")
 
         assert wire_float(np.int64(3)) == 3.0 and type(wire_float(np.int64(3))) is float
