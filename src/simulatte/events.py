@@ -142,52 +142,91 @@ class DeltaBuilder:
         return Deltas(tuple(self._ops)) if self._ops else Deltas.EMPTY
 
 
+_ARITY: Mapping[str, int] = MappingProxyType(
+    {"set": 4, "insert": 5, "remove": 4, "move": 5, "put": 5, "delete": 4, "create": 4, "retire": 2}
+)
+
+
 def apply_deltas(state: dict[str, dict[str, Any]], deltas: Deltas) -> None:
     """Apply `deltas` in order to `state`, a map from entity id to its field values.
 
     Field values stay wire values: list operations replace the tuple with an updated copy and map
     operations replace the :class:`FrozenMap`. ``create`` stores the entity kind under the reserved key
     ``"$kind"`` next to the initial fields. A ``set`` on a field the entity does not hold yet creates it (spec
-    §6.2, ruling R12; the TypeScript reader does the same). Raises `KeyError` for unknown entities, for the
-    other field operations on a missing field and for unknown map keys, and `ValueError` for a duplicate
-    ``create``, a ``remove``/``move`` of a missing value or an unknown operation. ``remove`` and ``move`` find the
-    first item whose canonical encoding equals the value's (:func:`~simulatte._wire.wire_equal`, ruling R31).
+    §6.2, ruling R12; the TypeScript reader does the same). ``remove`` and ``move`` find the first item whose
+    canonical encoding equals the value's (:func:`~simulatte._wire.wire_equal`, ruling R31).
+
+    Operation shapes are checked as the TypeScript reader checks them: each operation has its arity, entity ids,
+    fields, keys and kinds are strings, indices integral numbers, ``create`` states maps, list operations need a
+    list field and map operations a map field. Raises `KeyError` for unknown entities, for the other field
+    operations on a missing field and for unknown map keys, `TypeError` for a wrong shape and `ValueError` for a
+    duplicate ``create``, a ``remove``/``move`` of a missing value, a wrong arity or an unknown operation.
     """
     for op in deltas.ops:
         name = op[0]
+        arity = _ARITY.get(name) if type(name) is str else None
+        if arity is None:
+            raise ValueError(f"unknown delta operation {name!r}")
+        if len(op) != arity:
+            raise ValueError(f"{name}: an operation of {arity} items, got {len(op)}")
+        entity = _text(op[1], "entity")
         if name == "create":
-            entity = op[1]
             if entity in state:
                 raise ValueError(f"create: entity {entity!r} already exists")
-            fields = dict(op[3])
-            fields["$kind"] = op[2]
+            fields = dict(_map(op[3], "create state"))
+            fields["$kind"] = _text(op[2], "kind")
             state[entity] = fields
             continue
         if name == "retire":
-            del state[op[1]]
+            del state[entity]
             continue
-        fields = state[op[1]]
-        field = op[2]
+        fields = state[entity]
+        field = _text(op[2], "field")
         if name == "set":
             fields[field] = op[3]
         elif name == "insert":
-            current = fields[field]
-            index = op[3]
+            current = _list(fields[field], field)
+            index = _index(op[3])
             fields[field] = (*current[:index], op[4], *current[index:])
         elif name == "remove":
-            fields[field] = _without(fields[field], op[3])
+            fields[field] = _without(_list(fields[field], field), op[3])
         elif name == "move":
-            rest = _without(fields[field], op[3])
-            index = op[4]
+            rest = _without(_list(fields[field], field), op[3])
+            index = _index(op[4])
             fields[field] = (*rest[:index], op[3], *rest[index:])
         elif name == "put":
-            fields[field] = FrozenMap({**fields[field], op[3]: op[4]})
-        elif name == "delete":
-            updated = dict(fields[field])
-            del updated[op[3]]
+            fields[field] = FrozenMap({**_map(fields[field], field), _text(op[3], "key"): op[4]})
+        else:  # delete
+            updated = dict(_map(fields[field], field))
+            del updated[_text(op[3], "key")]
             fields[field] = FrozenMap(updated)
-        else:
-            raise ValueError(f"unknown delta operation {name!r}")
+
+
+def _text(value: object, what: str) -> str:
+    if type(value) is not str:
+        raise TypeError(f"{what} must be a string, got {type(value).__name__}")
+    return value
+
+
+def _list(value: object, field: str) -> tuple[Any, ...]:
+    if type(value) is tuple or type(value) is list:
+        return tuple(value)
+    raise TypeError(f"field {field!r} is not a list")
+
+
+def _map(value: object, what: str) -> Mapping[str, Any]:
+    if type(value) is FrozenMap or type(value) is dict:
+        return value  # ty: ignore[invalid-return-type]
+    raise TypeError(f"{what} is not a map")
+
+
+def _index(value: object) -> int:
+    """An index: an integer or a float with an integral value (JavaScript cannot tell them apart)."""
+    if type(value) is int:
+        return value
+    if type(value) is float and value.is_integer():
+        return int(value)
+    raise TypeError(f"an index must be an integer, got {value!r}")
 
 
 def _without(items: tuple[Any, ...], value: object) -> tuple[Any, ...]:

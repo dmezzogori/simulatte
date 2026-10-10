@@ -22,15 +22,23 @@ export class DeltaError extends Error {
 }
 
 /** Apply `deltas` in order to `state`. Throws {@link DeltaError} for an operation that does not fit the state. */
+/** The number of items of each operation, its name included. */
+const ARITY: Readonly<Record<string, number>> = Object.freeze(
+  Object.assign(Object.create(null), { set: 4, insert: 5, remove: 4, move: 5, put: 5, delete: 4, create: 4, retire: 2 }),
+);
+
 export function applyDeltas(state: State, deltas: Iterable<Op>): void {
   for (const op of deltas) {
     const name = op[0];
+    const arity = typeof name === "string" ? ARITY[name] : undefined;
+    if (arity === undefined) throw new DeltaError(`unknown delta operation ${JSON.stringify(name)}`);
+    if (op.length !== arity) throw new DeltaError(`${name}: an operation of ${arity} items, got ${op.length}`);
     if (name === "create") {
       const entity = text(op[1], "entity");
       if (Object.hasOwn(state, entity)) throw new DeltaError(`create: entity ${JSON.stringify(entity)} already exists`);
       const fields = newMap();
       for (const [key, value] of Object.entries(mapOf(op[3], "create state"))) defineKey(fields, key, value);
-      defineKey(fields, "$kind", op[2]);
+      defineKey(fields, "$kind", text(op[2], "kind"));
       defineKey(state, entity, fields);
       continue;
     }

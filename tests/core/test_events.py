@@ -14,6 +14,7 @@ from simulatte import events
 from simulatte._wire import FrozenMap, canonical_pack, freeze, pack, unpack
 from simulatte.environment import Environment
 from simulatte.events import (
+    Op,
     CATALOG,
     Catalog,
     CatalogEntry,
@@ -656,6 +657,43 @@ def test_remove_of_a_value_with_another_encoding_fails(items: Any, value: Any) -
     state: dict[str, dict[str, Any]] = {"e": {"$kind": "k", "list": items}}
     with pytest.raises(ValueError):
         apply_deltas(state, Deltas((("remove", "e", "list", value),)))
+
+
+_MALFORMED_OPS: dict[str, Op] = {
+    "remove_on_string": ("remove", "e", "text", "a"),
+    "move_on_string": ("move", "e", "text", "a", 0),
+    "insert_on_map": ("insert", "e", "map", 0, 1),
+    "put_on_list": ("put", "e", "list", "k", 1),
+    "delete_on_list": ("delete", "e", "list", "k"),
+    "create_with_array_state": ("create", "new", "k", ()),
+    "create_with_number_kind": ("create", "new", 42, FrozenMap({})),
+    "set_without_value": ("set", "e", "fresh"),
+    "insert_without_value": ("insert", "e", "list", 0),
+    "remove_with_extra_item": ("remove", "e", "list", 1, 2),
+    "fractional_index": ("insert", "e", "list", 0.5, 9),
+    "boolean_index": ("insert", "e", "list", True, 9),
+    "number_entity": ("set", 5, "fresh", 1),
+    "number_field": ("set", "e", 5, 1),
+    "number_key": ("put", "e", "map", 5, 1),
+    "number_name": (5, "e"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(_MALFORMED_OPS))
+def test_apply_deltas_rejects_malformed_operations_like_the_ts_reader(name: str) -> None:
+    """Replay checks operation shapes exactly as the TypeScript reader does (Codex probe_records): list operations
+    need a list field, map operations a map field, ``create`` a map state and a string kind, every operation its
+    arity, string entities, fields and keys, and integral indices."""
+    state: dict[str, dict[str, Any]] = {"e": {"$kind": "k", "text": "ab", "list": (1, 2), "map": FrozenMap({"k": 1})}}
+    with pytest.raises((TypeError, ValueError, KeyError)):
+        apply_deltas(state, Deltas((_MALFORMED_OPS[name],)))
+
+
+def test_apply_deltas_accepts_integral_float_indices() -> None:
+    """JavaScript cannot tell 1.0 from 1, so both readers take an integral float as an index."""
+    state: dict[str, dict[str, Any]] = {"e": {"$kind": "k", "list": (1, 2)}}
+    apply_deltas(state, Deltas((("insert", "e", "list", 1.0, 9), ("move", "e", "list", 9, 0.0))))
+    assert state["e"]["list"] == (9, 1, 2)
 
 
 def test_emit_rejects_undecorated_subclass_of_registered_event(env: Environment) -> None:

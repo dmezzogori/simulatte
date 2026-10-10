@@ -1077,3 +1077,26 @@ def test_hand_made_record_trace_reads(tmp_path: Path) -> None:
     assert Trace.open(path).state_at((1.0, 0))["cell"]["value"] == 7
     with_kpis = Trace.open(_records_trace(tmp_path, "kpis", kpis=(kpi,)))
     assert with_kpis.kpis() == {"cell/x": 1.0} and list(with_kpis.kpi_series()) == ["cell/kpi"]
+
+
+_MALFORMED_RECORDS: dict[str, dict[str, Any]] = {
+    "remove_on_string": {
+        "initial": {"state": {"cell": {"$kind": "cell", "values": "ab"}}, "cursor": (0.0, -1), "manifest": {}},
+        "event": (0, 0, "test.record", 1.0, {}, (("remove", "cell", "values", "a"),)),
+    },
+    "create_with_array_state": {"event": (0, 0, "test.record", 1.0, {}, (("create", "new", "cell", ()),))},
+    "create_with_number_kind": {"event": (0, 0, "test.record", 1.0, {}, (("create", "new", 42, {}),))},
+    "kpi_not_a_map": {"kpis": ((1, 2),)},
+    "kpi_scalars_not_a_map": {"kpis": ({"scalars": (1,)},)},
+    "kpi_samples_not_an_array": {"kpis": ({"samples": {"a": 1}},)},
+    "kpi_key_not_a_string": {"kpis": ({"samples": ((0, 1.0, 5, 1.0),)},)},
+    "kpi_value_not_a_number": {"kpis": ({"samples": ((0, 1.0, "cell/kpi", "1"),)},)},
+}
+
+
+@pytest.mark.parametrize("name", sorted(_MALFORMED_RECORDS))
+def test_malformed_records_are_corruption_in_both_readers(tmp_path: Path, name: str) -> None:
+    """Codex probe_records: the Python reader applied ``remove`` to a string field ("ab" -> "b") and ``create`` with
+    an empty array as state, which the TypeScript reader rejects (``studio/packages/trace/test/records.test.ts``)."""
+    with pytest.raises(TraceCorrupted):
+        _read_everything(_records_trace(tmp_path, name, **_MALFORMED_RECORDS[name]))
