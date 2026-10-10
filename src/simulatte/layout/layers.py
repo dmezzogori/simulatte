@@ -290,15 +290,20 @@ def resolve_layers(
     auto_layer: Mapping[str, Any] | None = None,
     *,
     targets: Mapping[str, str] | None = None,
+    final: bool = False,
 ) -> ResolvedValues:
     """Resolve code in call order, then file; optionally fill presentation gaps.
 
     Code declarations define unbound targets. ``targets`` adds attached definitions
     or supplies authoritative kinds. Unknown file targets remain pending in the bundle.
-    Stage ownership/freezing and physical eligibility are enforced by the stage engine.
+    ``final=True`` requires authoritative targets and excludes unmatched code as well
+    as file placements. Stage ownership/freezing and physical eligibility are enforced
+    by the stage engine.
     """
+    if final and targets is None:
+        raise LayoutError("final layer resolution requires authoritative targets")
     bundle = LayerBundle(tuple(code_stages), file_layer, auto_layer)
-    known = _known(bundle, targets or {})
+    known = dict(targets or {}) if final else _known(bundle, targets or {})
     merged = _Merge()
     for stage, data in bundle.code_stages:
         merged.merge(merged.data, _applicable(data, known), (), LayerSource("code", stage))
@@ -314,16 +319,16 @@ def resolve_layers(
         explicit_leaves,
         bundle,
         known,
-        _diagnostics(bundle, known, final=False),
+        _diagnostics(bundle, known, final=final),
     )
 
 
 def validate_targets(values: ResolvedValues, targets: Mapping[str, str]) -> tuple[LayoutDiagnostic, ...]:
-    """Final target diagnostics, including unbound code definitions and pending files.
+    """Validate against final attached entities and caller-recognized definitions.
 
-    This does not mutate/re-resolve values. Pass the same authoritative target kinds
-    into ``resolve_layers`` whenever the caller's target set changes.
-    Graph-address stale overrides are validated by the graph compiler.
+    ``targets`` is authoritative: a code placement alone does not establish a final
+    target. This does not mutate values; use ``resolve_layers(..., final=True,
+    targets=targets)`` to exclude orphans from effective data as well. Graph-address
+    stale overrides are validated by the graph compiler.
     """
-    known = _known(values.bundle, {**values.targets, **targets})
-    return _diagnostics(values.bundle, known, final=True)
+    return _diagnostics(values.bundle, targets, final=True)

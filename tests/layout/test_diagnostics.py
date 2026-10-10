@@ -24,10 +24,10 @@ def test_wrong_kind_is_quarantined_and_unknown_remains_pending_until_final():
     assert values.data["placements"]["a"]["position"] == (0, 0, 0)
     assert "later" not in values.data["placements"]
     assert all(d.code != "orphan-placement" for d in values.diagnostics)
-    assert [d.code for d in validate_targets(values, {})] == ["kind-mismatch", "orphan-placement"]
+    assert [d.code for d in validate_targets(values, {"a": "server"})] == ["kind-mismatch", "orphan-placement"]
     final = resolve_layers((("declare", code),), file, targets={"later": "server"})
     assert final.data["placements"]["later"]["position"] == (1, 2, 0)
-    assert [d.code for d in validate_targets(final, {"later": "server"})] == ["kind-mismatch"]
+    assert [d.code for d in validate_targets(final, {"a": "server", "later": "server"})] == ["kind-mismatch"]
     assert file.to_dict()["placements"]["a"]["position"] == [9, 9, 0]
 
 
@@ -79,3 +79,34 @@ def test_code_diagnostic_order_is_stage_order_before_paths():
     )
     values = resolve_layers(stages, FileLayer({"schema_version": "1.0", "placements": {"0": {"kind": "server"}}}))
     assert [(d.stage, d.target) for d in validate_targets(values, {})] == [("first", "z"), ("second", "a"), (None, "0")]
+
+
+def test_final_targets_are_authoritative_for_unmatched_code_and_removed_targets():
+    code = {"schema_version": "1.0", "placements": {"unattached": {"kind": "server"}}}
+    file = FileLayer({"schema_version": "1.0", "placements": {"removed": {"kind": "warehouse"}}})
+    values = resolve_layers((("declare", code),), file, targets={"removed": "warehouse"})
+    assert not values.diagnostics
+    assert [(item.stage, item.target, item.code) for item in validate_targets(values, {})] == [
+        ("declare", "unattached", "orphan-placement"),
+        (None, "removed", "orphan-placement"),
+    ]
+    assert validate_targets(values, {"unattached": "server", "removed": "warehouse"}) == ()
+
+
+def test_caller_supplied_unbound_graph_definition_is_valid_final_target():
+    file = FileLayer({"schema_version": "1.0", "placements": {"node-a": {"kind": "node", "visual": {"label": "A"}}}})
+    values = resolve_layers((), file, targets={"node-a": "node"}, final=True)
+    assert validate_targets(values, {"node-a": "node"}) == ()
+    assert values.at(("placements", "node-a", "visual", "label")).value == "A"
+
+
+def test_final_resolution_excludes_orphans_without_losing_author_data():
+    code = {"schema_version": "1.0", "placements": {"unattached": {"kind": "server", "position": [1, 2, 0]}}}
+    file = FileLayer({"schema_version": "1.0"})
+    values = resolve_layers((("declare", code),), file, targets={}, final=True)
+    assert "unattached" not in values.data["placements"]
+    assert values.at(("placements", "unattached", "position")).state == "absent"
+    assert values.bundle.code_stages[0][1]["placements"]["unattached"]["position"] == (1, 2, 0)
+    assert [item.code for item in values.diagnostics] == ["orphan-placement"]
+    with pytest.raises(LayoutError, match="final.*targets"):
+        resolve_layers((("declare", code),), file, final=True)
