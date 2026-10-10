@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -33,3 +34,16 @@ class LayoutError(ValueError):
 
 class LayoutNotReady(LayoutError):
     """A handle or layout-dependent value was read before binding."""
+
+
+def sort_diagnostics(
+    diagnostics: Sequence[LayoutDiagnostic], stage_order: Sequence[str]
+) -> tuple[LayoutDiagnostic, ...]:
+    """Use first declaration in execution order; file/unstaged diagnostics follow."""
+    order = {stage: index for index, stage in enumerate(dict.fromkeys(stage_order))}
+    return tuple(
+        sorted(
+            set(diagnostics),
+            key=lambda item: (order.get(item.stage, len(order)), item.path, item.code, item.target or ""),
+        )
+    )

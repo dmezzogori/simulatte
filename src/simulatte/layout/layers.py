@@ -11,7 +11,8 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Literal
 
-from .errors import LayoutDiagnostic, LayoutError
+from .errors import LayoutDiagnostic, LayoutError, sort_diagnostics
+from .identity import normalize
 from .schema import parse_patch, schema
 from .types import _freeze, placement_defaults
 
@@ -33,7 +34,9 @@ class FileLayer:
     data: Mapping[str, Any]
 
     def __init__(self, data: Mapping[str, Any], *, max_nesting: int = 64) -> None:
-        object.__setattr__(self, "data", _freeze(parse_patch(data, max_nesting=max_nesting)))
+        object.__setattr__(
+            self, "data", _freeze(normalize(parse_patch(data, max_nesting=max_nesting), canonical=False))
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return _thaw(self.data)
@@ -64,12 +67,14 @@ class LayerBundle:
 
     def __post_init__(self) -> None:
         object.__setattr__(
-            self, "code_stages", tuple((stage, _freeze(parse_patch(data))) for stage, data in self.code_stages)
+            self,
+            "code_stages",
+            tuple((stage, _freeze(normalize(parse_patch(data), canonical=False))) for stage, data in self.code_stages),
         )
         if self.auto_layer is not None:
             if set(self.auto_layer) - {"schema_version", "placements"}:
                 raise LayoutError("auto layer may only fill presentation placements")
-            object.__setattr__(self, "auto_layer", _freeze(parse_patch(self.auto_layer)))
+            object.__setattr__(self, "auto_layer", _freeze(normalize(parse_patch(self.auto_layer), canonical=False)))
 
 
 @dataclass(frozen=True)
@@ -283,12 +288,7 @@ def _diagnostics(bundle: LayerBundle, targets: Mapping[str, str], *, final: bool
             else:
                 continue
             diagnostics.append(LayoutDiagnostic(code, "warning", ("placements", target), stage, target, message))
-    order = {stage: index for index, (stage, _) in enumerate(bundle.code_stages)}
-    return tuple(
-        sorted(
-            diagnostics, key=lambda item: (order.get(item.stage, len(order)), item.path, item.code, item.target or "")
-        )
-    )
+    return sort_diagnostics(diagnostics, [stage for stage, _ in bundle.code_stages])
 
 
 def resolve_layers(

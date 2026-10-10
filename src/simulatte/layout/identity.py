@@ -7,7 +7,7 @@ import hashlib
 import math
 from typing import Any
 
-from simulatte._wire import canonical_pack, freeze
+from simulatte._wire import canonical_pack, escape_key, freeze
 from .errors import LayoutError
 
 ALGORITHMS = {"auto": "layered-v1", "network": "network-v1", "hash": "layout-hash-v1"}
@@ -36,12 +36,17 @@ _GEOMETRY = frozenset(
 )
 
 
-def normalize(value: Any, path: tuple[str, ...] = ()) -> Any:
-    """Normalize schema geometry only; integer counts and logical indices stay integers."""
+def normalize(value: Any, path: tuple[str, ...] = (), *, canonical: bool = True) -> Any:
+    """Materialize float64 geometry; canonical reads also normalize angles/zero/maps.
+
+    Author layers use ``canonical=False`` to retain angles, signed zero and map
+    insertion order. Tombstones and significant list order survive both modes.
+    """
     if isinstance(value, Mapping):
-        return {key: normalize(item, (*path, key)) for key, item in value.items()}
+        keys = sorted(value, key=escape_key) if canonical else value
+        return {key: normalize(value[key], (*path, key), canonical=canonical) for key in keys}
     if isinstance(value, (tuple, list)):
-        return [normalize(item, path) for item in value]
+        return [normalize(item, path, canonical=canonical) for item in value]
     if type(value) in (int, float):
         if not math.isfinite(value):
             raise LayoutError("layout numbers must be finite")
@@ -51,9 +56,9 @@ def normalize(value: Any, path: tuple[str, ...] = ()) -> Any:
             return int(value)
         if any(key in _GEOMETRY for key in path):
             value = float(value)
-            if path and path[-1] == "rotation":
+            if canonical and path and path[-1] == "rotation":
                 value %= 360
-        return 0.0 if type(value) is float and value == 0 else value
+        return 0.0 if canonical and type(value) is float and value == 0 else value
     return value
 
 

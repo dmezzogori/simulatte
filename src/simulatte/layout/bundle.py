@@ -14,7 +14,7 @@ from typing import Any
 from simulatte._wire import freeze
 from .auto import TargetMetadata, auto_layout
 from .dependencies import DependencyClosure, evaluate_query
-from .errors import LayoutDiagnostic, LayoutError
+from .errors import LayoutDiagnostic, LayoutError, sort_diagnostics
 from .schema import validate_definition
 from .identity import ALGORITHMS, hashes, normalize, normalized_query
 from .layers import FileLayer, ResolvedValues, _thaw, resolve_layers
@@ -312,6 +312,9 @@ class LayoutBundle(Mapping[str, Any]):
             raise LayoutError("layout bundle requires a schema_version string")
         if data["schema_version"] == "1.0":
             _validate(data)
+            data = normalize(data, canonical=False)
+            for query in data["dependencies"]["queries"]:
+                query.update(normalized_query(query["descriptor"], query["observed"]))
         object.__setattr__(self, "_data", freeze(data))
 
     @classmethod
@@ -448,6 +451,9 @@ def _network(network: Any) -> dict[str, Any]:
 
 def _effective(values: Any, auto: Any) -> dict[str, Any]:
     result = {key: _thaw(value) for key, value in values.data.items() if key not in ("network", "overrides")}
+    for target, metadata in auto.targets.items():
+        if metadata.kind == "agv":
+            result["placements"][target].pop("position", None)
     for target, point in auto.derived_positions.items():
         result["placements"][target]["position"] = [point.x, point.y, point.z]
     return result
@@ -696,6 +702,9 @@ def reresolve_presentation(bundle: LayoutBundle, file_patch: Mapping[str, Any]) 
     data["diagnostics"] = [d for d in data["diagnostics"] if d["code"] not in replaced] + [
         asdict(d) for d in (*values.diagnostics, *auto.diagnostics, *generated_diagnostics)
     ]
-    data["diagnostics"].sort(key=lambda d: (d["stage"] or "", tuple(d["path"]), d["code"], d["target"] or ""))
+    data["diagnostics"] = [
+        asdict(d)
+        for d in sort_diagnostics([LayoutDiagnostic(**d) for d in data["diagnostics"]], [stage for stage, _ in stages])
+    ]
     data.update(hashes(data))
     return PresentationResult(False, (), LayoutBundle.from_dict(data), bundle.physical_hash)

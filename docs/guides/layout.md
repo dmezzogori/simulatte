@@ -238,6 +238,13 @@ negative obstacle/connector predicates are tracked too. After preparation, `layo
 already covered explicit dependencies. Preparation failure is latched and runs no simulation event; create a
 new environment to retry.
 
+Physical reads return immutable canonical values: geometry uses float64, rotations are modulo 360, and
+signed zero becomes positive zero. Maps iterate in the wire codec's canonical escaped-key order, recursively;
+list order is preserved. The same rules apply to leaves, parent containers and explicit defaults in stages,
+binders and later covered reads, so equivalent saved inputs produce the same model-visible values. Author
+layers retain source, unset and list-order intent and the original angle; geometry numbers are stored as
+float64 even when supplied as large JSON integers. Counts and logical indices remain wire-safe integers.
+
 ## Migration: explicit graphs with a Layout
 
 Wrapping an existing graph copies its node/arc definitions. All consumers in the environment then receive
@@ -305,7 +312,9 @@ defines author format `1.0`. Load it offline with
 `importlib.resources.files("simulatte.layout.schema").joinpath("layout-v1.schema.json")`.
 A `LayoutError` is a `ValueError` with optional structured `diagnostics`; each diagnostic provides `code`,
 `severity`, `path`, `stage`, `target`, `message` and `related_paths`. Successful results expose warnings through
-`result.diagnostics`. Check these for orphans, kind mismatches and stale overrides before trusting an edit.
+`result.diagnostics`. Diagnostics follow actual stage execution order, then path, code and target; file and
+unstaged diagnostics follow the stages. Saved replay retains that order. Check these for orphans, kind
+mismatches and stale overrides before trusting an edit.
 Required missing bindings, blocked connectors, unreachable paths, unknown fields and late edits fail preparation.
 
 Trace container 1.1 stores the immutable bundle at `INITIAL.layout` in both full and KPI traces. The activation

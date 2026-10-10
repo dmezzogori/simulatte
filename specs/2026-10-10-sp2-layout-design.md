@@ -149,6 +149,9 @@ entity is attached, but must be matched during validation. References create no 
 Positions are in meters, right-handed x east/y north, z=0 in SP2. Nonzero z is rejected, not discarded. Rotation
 is counterclockwise degrees about the footprint center, normalized modulo 360. Width/depth must be positive;
 height nonnegative. Coordinates, dimensions, angles, clearance and speeds must be finite; bool is not a number.
+Geometry is materialized as float64 in author layers and resolved/wire data, including JSON integer input
+beyond the wire integer range. Stored author layers retain angles before modulo normalization, signed zero,
+unsets, source distinctions and list order; integer counts and logical indices still obey the wire safe range.
 An entity's position is its rectangle center at floor level. A local point transforms by rotation then translation.
 Visuals are optional `shape`, `icon`, `color`, `label` strings; no executable values or HTML interpretation.
 The following table fixes static placement eligibility and presentation footprint defaults (width, depth,
@@ -453,7 +456,11 @@ Adding an obstacle or connector must invalidate reuse even if none existed in th
 
 `ValueRef` is a tuple path, not a string parsed by dots, so ids may contain punctuation. `physical(ref)` records
 the path, value and source eligibility. A mapping/list read records membership, order where relevant and all
-returned descendants. A missing optional read with a declared default records an absence dependency, so a later
+returned descendants. Model-facing physical values use the same schema numeric normalization as identity
+(§8.3): float64 geometry, modulo-360 rotations and positive zero. Maps iterate recursively in the canonical
+codec's escaped-key order; list order remains significant. This applies to leaf, parent/container and explicit
+default-container reads in stages, binders and finalized covered reads. Author map insertion order is not a
+physical input. A missing optional read with a declared default records an absence dependency, so a later
 file addition invalidates reuse. Selection APIs use named schema predicates, not arbitrary callbacks; record
 both the candidate collection membership and predicate leaves. There is no untracked mutable resolved view.
 
@@ -676,7 +683,9 @@ obstructing warehouse. This is the layout-mode composition recipe, not a change 
 ## 11. Diagnostics and preservation of user input
 
 Diagnostics are immutable records `{code, severity, path, stage, target, message, related_paths}`. Sort them by
-stage order, path, code and target for deterministic reports. Codes distinguish schema errors, kind mismatches,
+actual stage execution order (stage zero first), then path, code and target for deterministic reports. File
+and unstaged diagnostics follow all stages. Saved replay uses the execution order retained in code-layer
+declarations, rather than lexical stage names or registration order. Codes distinguish schema errors, kind mismatches,
 orphan placements, stale overrides, generated-id warnings, missing handles, blocked connectors, unreachable
 required paths, physical-auto reads, late graph edits and lifecycle failures.
 
@@ -685,7 +694,8 @@ quarantines the entire placement and reports it as stale/wrong-kind; do not appl
 Neither is attached to a nearby entity or a new entity with a guessed identity. Missing required bindings still
 fail even if their cause is an ignored override. Schema-invalid data fails rather than masquerading as an orphan.
 
-Orphan/stale entries are preserved verbatim as data in the file layer and layer bundle, alongside diagnostics.
+Orphan/stale entries are preserved as author data in the file layer and layer bundle, alongside diagnostics,
+with the float64 geometry representation described in §4.
 Their ineffective properties are absent from resolved hashes. No automatic deletion, reassignment or save occurs
 during preparation. Stage-created ids are judged only after the final stage; graph definitions are valid targets
 before NodeBinding entities exist. Transient jobs/orders cannot be static placement targets.

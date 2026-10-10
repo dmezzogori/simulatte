@@ -11,7 +11,7 @@ from .bundle import ResolvedLayout, finalize_layout, validate_file_eligibility
 from .auto import AutoLayer, TargetMetadata, auto_layout
 from .binding import bind_components, check_existing_endpoints
 from .dependencies import MISSING, DependencyClosure
-from .errors import LayoutDiagnostic, LayoutError
+from .errors import LayoutDiagnostic, LayoutError, sort_diagnostics
 from .io import load_layout, save_layout
 from .layers import FileLayer, ResolvedValues, _thaw, resolve_layers
 from .lifecycle import PreparationCoordinator, PreparationState
@@ -413,7 +413,7 @@ class Layout:
                 coordinator.closure,
                 _freeze(coordinator.stage_records()),
                 self._required_paths,
-                tuple(sorted(set(diagnostics), key=lambda d: (d.stage or "", d.path, d.code, d.target or ""))),
+                sort_diagnostics(diagnostics, [stage for stage, _ in coordinator.values.bundle.code_stages]),
                 frozenset(entity.id for entity in self.env.entities.live() if self.env.entities.is_named(entity.id)),
             )
         )

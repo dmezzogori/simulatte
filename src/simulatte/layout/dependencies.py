@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 import json
 from typing import Any
 
-from .identity import normalized_query
+from .identity import normalize, normalized_query
 from .errors import LayoutError
 from .layers import FileLayer, ResolvedValues, _thaw, resolve_layers
 from .types import _freeze
@@ -95,7 +95,7 @@ def evaluate_query(values: ResolvedValues, descriptor: Mapping[str, Any]) -> dic
         for candidate, item in sorted(values.explicit_leaves.items())
         if candidate[: len(path)] == path and item.state == "unset"
     ]
-    return {"state": leaf.state, "value": _thaw(leaf.value), "eligible": eligible, "unset": unset}
+    return {"state": leaf.state, "value": normalize(leaf.value, path), "eligible": eligible, "unset": unset}
 
 
 @dataclass(frozen=True)
@@ -156,7 +156,7 @@ class DependencyClosure:
         path = tuple(path)
         leaf = values.at(path, explicit=True)
         if default is not MISSING:
-            default = _freeze(_data(default))
+            default = _freeze(normalize(_data(default), path))
         if self._sealed:
             if not self.covers(path):
                 raise LayoutError(f"physical path is not covered: {path}")
@@ -167,7 +167,7 @@ class DependencyClosure:
                 return values.require(path, explicit=True)
             self.record(values, path, **({"default": _data(default)} if default is not MISSING else {}))
         if leaf.state == "present":
-            return leaf.value
+            return _freeze(normalize(leaf.value, path))
         if default is MISSING:
             return values.require(path, explicit=True)
         return _freeze(default)
