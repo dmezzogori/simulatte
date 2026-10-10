@@ -24,7 +24,7 @@ def test_fixtures_agree(path):
             parse_patch(value)
 
 
-@pytest.mark.parametrize("number", [True, float("nan"), float("inf"), 2**53])
+@pytest.mark.parametrize("number", [True, float("nan"), float("inf"), 10**309])
 def test_runtime_numeric_constraints(number):
     with pytest.raises(LayoutError):
         parse_patch({"schema_version": "1.0", "grid": {"dx": number}})
@@ -139,3 +139,58 @@ def test_patch_geometry_unset_waits_for_resolved_requirements(patch):
     value = {"schema_version": "1.0", **patch}
     assert Draft202012Validator(schema()).is_valid(value)
     assert parse_patch(value) == value
+
+
+@pytest.mark.parametrize("value", [2**53, 2**53 + 1, 10**308, float(2**53)])
+def test_large_geometry_matches_schema_and_preserves_authored_number_type(value):
+    patch = {
+        "schema_version": "1.0",
+        "grid": {"dx": value},
+        "placements": {"a": {"kind": "server", "position": [value, -value, 0]}},
+    }
+    assert Draft202012Validator(schema()).is_valid(patch)
+    copied = parse_patch(patch)
+    assert copied == patch
+    assert type(copied["grid"]["dx"]) is type(value)
+    assert type(copied["placements"]["a"]["position"][0]) is type(value)
+
+
+@pytest.mark.parametrize("value", [2**53, float(2**53)])
+def test_safe_integer_limits_still_apply_to_counts_and_indices(value):
+    patches = [
+        {"schema_version": "1.0", "network": {"capacity": value}},
+        {
+            "schema_version": "1.0",
+            "overrides": [{"id": "o", "target": {"kind": "lattice", "i": value, "j": 0}, "properties": {}}],
+        },
+    ]
+    for patch in patches:
+        assert not Draft202012Validator(schema()).is_valid(patch)
+        with pytest.raises(LayoutError):
+            parse_patch(patch)
+
+
+@pytest.mark.parametrize(
+    ("value", "valid"),
+    [
+        ([1, 1.0], False),
+        ([0, -0.0], False),
+        ([True, 1], True),
+        ([False, 0], True),
+        ([{"i": 1, "j": 0}, {"j": -0.0, "i": 1.0}], False),
+        ([{"x": [True, {"y": 0}]}, {"x": [1, {"y": -0.0}]}], True),
+        ([{"x": [1, {"y": 0}]}, {"x": [1.0, {"y": -0.0}]}], False),
+        ([1, "1", None], True),
+        ([None, None], False),
+    ],
+)
+def test_unique_items_uses_json_equality(value, valid):
+    from simulatte.layout.schema import _validate
+
+    rule = {"type": "array", "uniqueItems": True}
+    assert Draft202012Validator(rule).is_valid(value) == valid
+    if valid:
+        _validate(value, rule, "$")
+    else:
+        with pytest.raises(LayoutError, match="duplicate array item"):
+            _validate(value, rule, "$")

@@ -103,7 +103,7 @@ def test_connector_margin_cannot_be_none():
 @pytest.mark.parametrize(
     "factory",
     [
-        lambda: Point(2**53, 0),
+        lambda: Point(10**309, 0),
         lambda: Grid(1, 1, origin=(0, 0)),  # ty: ignore[invalid-argument-type]  # Exercise invalid runtime inputs.
         lambda: Connector(target="a"),  # ty: ignore[invalid-argument-type]  # Invalid runtime input.
         lambda: Connector(enabled=1),  # ty: ignore[invalid-argument-type]  # Invalid runtime input.
@@ -210,3 +210,20 @@ def test_code_overrides_remain_patches_and_copy_unset_leaves():
     assert override.properties["speed_limit"]["$unset"] is True
     with pytest.raises(TypeError):
         override.properties["speed_limit"]["$unset"] = False
+
+
+@pytest.mark.parametrize("value", [2**53, 2**53 + 1, 10**308])
+def test_geometry_accepts_large_finite_integer_notation(value):
+    expected = float(value)
+    assert Point(value, -value) == Point(expected, -expected)
+    assert Grid(value, 1).dx == expected
+    assert Footprint(value, value, value) == Footprint(expected, expected, expected)
+    assert Connector(approach_margin=value, max_distance=value, speed_limit=value) == Connector(
+        approach_margin=expected, max_distance=expected, speed_limit=expected
+    )
+
+
+@pytest.mark.parametrize("factory", [lambda: LayoutLimits(max_nodes=2**53), lambda: Lanes({}, capacity=2**53)])
+def test_counts_keep_safe_integer_bounds(factory):
+    with pytest.raises(ValueError, match="safe integer"):
+        factory()

@@ -22,9 +22,10 @@ Direction = Literal["both", "forward", "backward"]
 def number(value: Any, name: str, *, positive: bool = False, nonnegative: bool = False) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise LayoutError(f"{name} must be a number (not bool)")
-    if isinstance(value, int) and abs(value) > MAX_SAFE_INT:
-        raise LayoutError(f"{name} exceeds safe integer range")
-    result = float(value)
+    try:
+        result = float(value)
+    except OverflowError as exc:
+        raise LayoutError(f"{name} exceeds finite float64 range") from exc
     if not math.isfinite(result) or (positive and result <= 0) or (nonnegative and result < 0):
         raise LayoutError(
             f"{name} must be finite" + (" and positive" if positive else " and nonnegative" if nonnegative else "")

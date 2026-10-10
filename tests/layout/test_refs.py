@@ -88,3 +88,22 @@ def test_diagnostics_copy_paths_and_validate_severity():
     assert error.diagnostics == (diagnostic,)
     with pytest.raises(ValueError):
         LayoutDiagnostic("schema", "invalid", (), None, None, "bad severity")  # ty: ignore[invalid-argument-type]  # Runtime accepts/copies caller sequences; invalid severity tested.
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_equivalent_integer_address_spellings_have_one_identity(nested):
+    integer: dict[str, Any] = {"kind": "lattice", "i": 1, "j": 0}
+    decimal: dict[str, Any] = {"kind": "lattice", "i": 1.0, "j": -0.0}
+    original = decimal
+    if nested:
+        other = {"kind": "lattice", "i": -2, "j": 3}
+        integer = {"kind": "edge", "source": {"kind": "intersection", "incidents": [integer, other]}, "target": other}
+        decimal = {"kind": "edge", "source": {"kind": "intersection", "incidents": [other, decimal]}, "target": other}
+    expected, actual = Address(integer), Address(decimal)
+    assert actual == expected
+    assert hash(actual) == hash(expected)
+    assert actual.encoded_id == expected.encoded_id
+    assert json.dumps(actual.to_dict(), sort_keys=True) == json.dumps(expected.to_dict(), sort_keys=True)
+    # Address construction must not rewrite the caller's authored spelling.
+    assert type(original["i"]) is float
+    assert json.dumps(original["j"]) == "-0.0"

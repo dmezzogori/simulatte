@@ -25,6 +25,8 @@ class Address:
             if isinstance(value, dict):
                 for child in value.values():
                     canonicalize(child)
+                if value.get("kind") == "lattice":
+                    value["i"], value["j"] = int(value["i"]), int(value["j"])
                 if value.get("kind") == "intersection":
                     value["incidents"].sort(
                         key=lambda item: json.dumps(item, sort_keys=True, separators=(",", ":"), ensure_ascii=False)

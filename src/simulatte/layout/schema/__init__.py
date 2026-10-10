@@ -39,8 +39,6 @@ def _copy(value: Any, path: str, depth: int, max_nesting: int) -> Any:
         return [_copy(item, f"{path}/{i}", depth + 1, max_nesting) for i, item in enumerate(value)]
     if isinstance(value, float) and not math.isfinite(value):
         raise LayoutError(f"{path}: numbers must be finite")
-    if type(value) is int and abs(value) > 2**53 - 1:
-        raise LayoutError(f"{path}: integer exceeds safe range")
     if value is None or isinstance(value, (str, bool, int, float)):
         return value
     raise LayoutError(f"{path}: expected JSON data")
@@ -52,6 +50,17 @@ def _matches(value: Any, rule: dict[str, Any], path: str) -> bool:
     except LayoutError:
         return False
     return True
+
+
+def _json_key(value: Any) -> tuple[Any, ...]:
+    """Hashable JSON equality key: numbers compare by value; bool stays distinct."""
+    if isinstance(value, dict):
+        return ("object", frozenset((key, _json_key(item)) for key, item in value.items()))
+    if isinstance(value, list):
+        return ("array", tuple(_json_key(item) for item in value))
+    if isinstance(value, bool):
+        return ("boolean", value)
+    return ("scalar", value)
 
 
 def _validate(value: Any, rule: dict[str, Any], path: str) -> None:
@@ -96,7 +105,7 @@ def _validate(value: Any, rule: dict[str, Any], path: str) -> None:
     if isinstance(value, list):
         if len(value) < rule.get("minItems", 0) or len(value) > rule.get("maxItems", math.inf):
             fail("invalid array length")
-        if rule.get("uniqueItems") and len({json.dumps(item, sort_keys=True) for item in value}) != len(value):
+        if rule.get("uniqueItems") and len({_json_key(item) for item in value}) != len(value):
             fail("duplicate array item")
         for i, item in enumerate(value):
             prefix = rule.get("prefixItems", [])
