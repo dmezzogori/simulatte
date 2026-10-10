@@ -85,8 +85,9 @@ function readFloat(value: number): number | FloatValue {
  * (version 3.1.3, pinned exactly; spec §11.4, ruling R33) are wrapped on a subclass:
  *
  * - `readF64`/`readF32`, to tell a float encoding from an integer one (ruling R31);
- * - `decodeUtf8String`, which decodes keys and string values without rejecting invalid UTF-8: the bytes are checked
- *   with a fatal decoder first, as Python's decoder rejects them.
+ * - `decodeUtf8String`, which decodes keys and string values without rejecting invalid UTF-8 and, above 200 bytes,
+ *   with a decoder that drops a leading U+FEFF: a string with any non-ASCII byte is decoded here instead, with a fatal
+ *   decoder that keeps U+FEFF (`ignoreBOM`), as Python decodes it; ASCII strings are left to the library.
  *
  * {@link checkHooks} fails loudly at the first decode if the methods change.
  */
@@ -110,15 +111,17 @@ wireInternals.readF32 = function (this: Internals) {
 wireInternals.readF64 = function (this: Internals) {
   return readFloat(baseInternals.readF64.call(this));
 };
-const FATAL_UTF8 = new TextDecoder("utf-8", { fatal: true });
+const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }); // throws for invalid UTF-8, keeps U+FEFF
 wireInternals.decodeUtf8String = function (this: Internals, byteLength: number, headerOffset: number) {
   const start = this.pos + headerOffset;
   const end = start + byteLength;
   if (end <= this.bytes.byteLength) {
+    // (A string that does not fit is truncated input, and maxStrLength is the input length: the library reports both.)
     for (let i = start; i < end; i++) {
       if (this.bytes[i]! >= 0x80) {
-        FATAL_UTF8.decode(this.bytes.subarray(start, end)); // throws a TypeError for invalid UTF-8
-        break;
+        const text = UTF8.decode(this.bytes.subarray(start, end));
+        this.pos += headerOffset + byteLength;
+        return text;
       }
     }
   }
@@ -139,7 +142,11 @@ function checkHooks(): void {
   } catch {
     utf8Checked = true;
   }
-  if (!utf8Checked) throw new Error("@msgpack/msgpack no longer decodes strings through decodeUtf8String: update wire.ts");
+  const long = new Uint8Array([0xd9, 203, 0xef, 0xbb, 0xbf, ...new Uint8Array(200).fill(0x78)]); // U+FEFF + 200 "x"
+  const text = new WireDecoder().decode(long);
+  if (!utf8Checked || typeof text !== "string" || text.length !== 201 || text.codePointAt(0) !== 0xfeff) {
+    throw new Error("@msgpack/msgpack no longer decodes strings through decodeUtf8String: update wire.ts");
+  }
   hooksChecked = true;
 }
 

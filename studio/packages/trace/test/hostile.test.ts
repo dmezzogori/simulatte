@@ -42,6 +42,29 @@ describe("strings", () => {
     expect(() => decodeWire(pack(value), LIMITS)).toThrow(WireError);
   });
 
+  // @msgpack/msgpack decodes strings above 200 UTF-8 bytes with a TextDecoder that drops a leading U+FEFF; Python
+  // keeps it (Codex probe_bom). 197 + 3 bytes of BOM = 200 bytes is the last short string.
+  it.each([197, 198, 200, 1000])("keeps a leading U+FEFF in a value of %i + 3 bytes", (n) => {
+    const text = "\ufeff" + "x".repeat(n);
+    const decoded = decodeWire(pack([text, "x".repeat(n)]), LIMITS) as string[];
+    expect(decoded[0]!.length).toBe(n + 1);
+    expect(decoded[0]!.codePointAt(0)).toBe(0xfeff);
+  });
+
+  it.each([197, 198, 200, 1000])("keeps a leading U+FEFF in a key of %i + 3 bytes", (n) => {
+    const decoded = decodeWire(pack({ ["\ufeff" + "k".repeat(n)]: 1, ["k".repeat(n)]: 2 }), LIMITS) as object;
+    expect(Object.keys(decoded).length).toBe(2);
+  });
+
+  it("replays a remove next to a value that starts with U+FEFF", async () => {
+    const bom = "\ufeff" + "x".repeat(300);
+    const state = { cell: { $kind: "cell", values: [bom, "x".repeat(300)] } };
+    const event = [0, 0, "tick", 1, {}, [["remove", "cell", "values", "x".repeat(300)]]];
+    const trace = await openTrace(buildTrace({ state, cursor: [0, -1], manifest: {} }, [{ events: [event], snapshot: state }]));
+    await trace.prepare([1, 0]);
+    expect(trace.stateAt([1, 0])["cell"]!["values"]).toEqual([bom]);
+  });
+
   it("decodes valid UTF-8", () => {
     expect(decodeWire(pack({ "clé": ["naïve", "𝄞", ""] }), LIMITS)).toEqual({ "clé": ["naïve", "𝄞", ""] });
   });

@@ -628,6 +628,15 @@ class TestWireEqual:
                 wire_equal(a, b)
 
 
+@pytest.mark.parametrize("n", [197, 198, 200, 1000])
+def test_leading_byte_order_mark_is_kept_at_every_length(n: int) -> None:
+    """Strings keep a leading U+FEFF, short or long, as keys or values (mirrored in
+    ``studio/packages/trace/test/hostile.test.ts``: the TS library used to drop it above 200 bytes)."""
+    text = "\ufeff" + "x" * n
+    assert upk(wpack([text, "x" * n]))[0] == text
+    assert len(upk(wpack({text: 1, "x" * n: 2}))) == 2
+
+
 class TestPureFallbackDecoder:
     """msgpack's pure-Python fallback (the one PyPy uses) hands ``object_pairs_hook`` a generator, not a list."""
 
