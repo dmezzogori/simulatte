@@ -118,6 +118,43 @@ def test_direct_server_use_without_shopfloor() -> None:
     assert job.current_server is server
 
 
+def test_direct_process_job_replays_worked_time(tmp_path: Any) -> None:
+    """Every change of replayed server state carries a delta at the server level (ruling R29, spec §17): a server
+    used without a ShopFloor, through ``process_job``, replays its ``worked_time`` (Codex probe: live 5.0, replay
+    0.0, with verify() and check() passing)."""
+    from simulatte.trace import ChunkLimits, Trace, TraceRecorder
+
+    env = Environment(seed=1, debug=True)
+    server = Server(env=env, capacity=1, name="lathe")
+    job = _job(env, server)
+    path = tmp_path / "direct.simtrace"
+    recorder = TraceRecorder(env, path, chunk_limits=ChunkLimits(max_events=1))
+    replay = ReplayChecker(env)
+    replay.state = env.entities.snapshot()
+
+    def work() -> ProcessGenerator:
+        with server.request(job=job) as request:
+            yield request
+            yield from server.process_job(job, 5.0)
+            yield from server.process_job(job, 2.5)
+
+    env.process(work())
+    env.run()
+    recorder.close()
+
+    assert server.worked_time == 7.5
+    assert replay.state["lathe"]["worked_time"] == 7.5
+    trace = Trace.open(path)
+    assert trace.state_at(trace.cursor_range[1])["lathe"]["worked_time"] == 7.5  # ty: ignore[not-subscriptable]
+    credited = [event for event in trace.events() if event.type == "server.work_credited"]
+    assert [(e.t, dict(e.payload), e.deltas) for e in credited] == [
+        (5.0, {"server": "lathe", "job": job.id, "processing_time": 5.0}, (("set", "lathe", "worked_time", 5.0),)),
+        (7.5, {"server": "lathe", "job": job.id, "processing_time": 2.5}, (("set", "lathe", "worked_time", 7.5),)),
+    ]
+    assert trace.verify() is True
+    trace.check()
+
+
 def test_replay_equals_live_at_every_event() -> None:
     """Capacity 2, dynamic priorities, simultaneous releases, an interrupt and a duplicate release."""
     env = Environment(debug=True)

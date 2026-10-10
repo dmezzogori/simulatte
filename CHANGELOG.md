@@ -15,7 +15,9 @@ many APIs and, because RNG streams are now derived from the seed and entity name
   `env.emit`, `env.wants`. Typed `DomainEvent`s with state deltas and `ObserverEvent`s (`log`, `kpi.sample`),
   registered with `@event_type` in a catalog, in `simulatte.events`. Every component now publishes its transitions:
   servers, pre-shop pool, shop floor, release policies (`policy.decision`), fleet, orders, AGVs, traffic,
-  warehouses, charging stations and parking areas.
+  warehouses, charging stations and parking areas. A server credits its own `worked_time` with
+  `server.work_credited` (from `Server.process_job`), so a server used without a `ShopFloor` replays like one inside
+  it.
 - Entities (`simulatte.entities`): every component has a stable id (`job-<n>`, `server-<n>` or `name=`, `agv-<n>`,
   `order-<n>`, ...) and a declared state schema. `env.entities` is the registry; `name=` and `label=` arguments on
   `Server`, `ShopFloor`, `PreShopPool`, `Router`, `FleetCoordinator`, `Warehouse`, `ChargingStation` and

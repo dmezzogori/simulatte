@@ -104,6 +104,7 @@ Classes in `simulatte.server`:
 | `job.queue_left` | `JobQueueLeft` | `job`, `server`, `reason` (`cancelled`) |
 | `job.released` | `JobReleased` | `job`, `server` |
 | `server.queue_reordered` | `ServerQueueReordered` | `server` |
+| `server.work_credited` | `ServerWorkCredited` | `server`, `job`, `processing_time` (emitted by `Server.process_job` after it adds the processing time to `worked_time`) |
 
 #### ShopFloor
 

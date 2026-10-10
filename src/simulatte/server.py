@@ -38,6 +38,7 @@ __all__ = [
     "Server",
     "ServerPriorityRequest",
     "ServerQueueReordered",
+    "ServerWorkCredited",
 ]
 
 
@@ -97,6 +98,19 @@ class ServerQueueReordered(DomainEvent):
     """Refreshed priorities changed the queue order; the deltas are the minimal set of ``move`` operations."""
 
     server: str
+
+
+@event_type("server.work_credited", touches={"server": ("worked_time",)})
+class ServerWorkCredited(DomainEvent):
+    """:meth:`Server.process_job` credited `processing_time` to the server's ``worked_time`` (``set``).
+
+    Emitted by the server itself, so the credit replays for a ``ShopFloor`` and for direct ``Server`` users alike
+    (ruling R29); a ``ShopFloor`` operation emits ``operation.completed`` right after it.
+    """
+
+    server: str
+    job: str
+    processing_time: float
 
 
 class ServerPriorityRequest(PriorityRequest):
@@ -366,7 +380,8 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         """Simulate processing a job for a given duration.
 
         This generator yields a timeout event for the processing duration and
-        updates worked_time. Should be called within a request context.
+        updates worked_time, then emits ``server.work_credited``. Should be called
+        within a request context.
 
         Args:
             job: The job being processed.
@@ -378,8 +393,18 @@ class Server(simpy.PriorityResource, Entity, kind="server"):
         if self._jobs is not None:
             self._jobs.append(job)
 
-        yield self.env.timeout(processing_time)
+        env = self.env
+        yield env.timeout(processing_time)
         self.worked_time += processing_time
+        if env.wants(ServerWorkCredited):
+            env.emit(
+                ServerWorkCredited(
+                    server=self.id,
+                    job=job.id,
+                    processing_time=wire_float(processing_time),
+                    deltas=Deltas.build().set(self.id, "worked_time", wire_float(self.worked_time)).done(),
+                )
+            )
 
     def sort_queue(self) -> None:
         """Refresh queued requests' priority keys and resort.

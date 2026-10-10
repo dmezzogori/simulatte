@@ -249,7 +249,7 @@ class TardyTracker(Collector):
 tracker = TardyTracker(shopfloor).attach(env)
 ```
 
-The events of a job's life on the shop floor are `ShopFloorEntered`, `OperationStarted`, `OperationCompleted`, `ShopFloorWipUpdated` and `JobFinished` (in `simulatte.shopfloor`); the server events are `JobQueued`, `JobGranted`, `JobQueueLeft` and `JobReleased` (in `simulatte.server`).
+The events of a job's life on the shop floor are `ShopFloorEntered`, `OperationStarted`, `OperationCompleted`, `ShopFloorWipUpdated` and `JobFinished` (in `simulatte.shopfloor`); the server events are `JobQueued`, `JobGranted`, `JobQueueLeft`, `JobReleased`, `ServerQueueReordered` and `ServerWorkCredited` (in `simulatte.server`).
 
 ## 5) Job-finished callbacks
 

@@ -25,7 +25,7 @@ from simulatte.job import ProductionJob
 from simulatte.kpi import Collector
 from simulatte.psp import PreShopPool, PspEntered, PspExited
 from simulatte.scenario import Scenario
-from simulatte.server import Server
+from simulatte.server import Server, ServerWorkCredited
 from simulatte.shopfloor import (
     JobFinished,
     OperationCompleted,
@@ -90,6 +90,7 @@ def test_one_operation_phase_sequence() -> None:
         "job.queued",
         "job.granted",
         "operation.started",
+        "server.work_credited",
         "operation.completed",
         "shopfloor.wip_updated",
         "job.released",
@@ -125,7 +126,11 @@ def test_one_operation_phase_sequence() -> None:
         5.0,
     )
     assert completed.t == 5
-    assert completed.deltas.ops == (("set", server.id, "worked_time", 5.0),)
+    assert completed.deltas.ops == ()  # the server credits worked_time itself (ruling R29)
+    credited = by_type["server.work_credited"]
+    assert isinstance(credited, ServerWorkCredited)
+    assert (credited.server, credited.job, credited.processing_time, credited.t) == (server.id, job.id, 5.0, 5)
+    assert credited.deltas.ops == (("set", server.id, "worked_time", 5.0),)
 
     wip = by_type["shopfloor.wip_updated"]
     assert isinstance(wip, ShopFloorWipUpdated)

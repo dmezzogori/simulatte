@@ -295,9 +295,11 @@ class OperationStarted(DomainEvent):
     planned_end: float
 
 
-@event_type("operation.completed", touches={"server": ("worked_time",)})
+@event_type("operation.completed")
 class OperationCompleted(DomainEvent):
-    """An operation finished processing; the server's ``worked_time`` includes it."""
+    """An operation finished processing; the server's ``worked_time`` includes it (credited by the
+    ``server.work_credited`` event that :meth:`Server.process_job <simulatte.server.Server.process_job>` emitted just
+    before)."""
 
     job: str
     server: str
@@ -651,8 +653,8 @@ class ShopFloor(Entity, kind="shopfloor"):
         return changes
 
     def _operate(self, job: ProductionJob, server: Server, op_index: int, processing_time: float) -> ProcessGenerator:
-        """Process the operation on `server`, then emit ``operation.completed`` in the same step as the
-        ``worked_time`` credit."""
+        """Process the operation on `server` (which credits its ``worked_time`` with ``server.work_credited``), then
+        emit ``operation.completed`` in the same step."""
         yield from server.process_job(job, processing_time)
         env = self.env
         if env.wants(OperationCompleted):
@@ -662,7 +664,6 @@ class ShopFloor(Entity, kind="shopfloor"):
                     server=server.id,
                     op_index=op_index,
                     processing_time=wire_float(processing_time),
-                    deltas=Deltas.build().set(server.id, "worked_time", wire_float(server.worked_time)).done(),
                 )
             )
 

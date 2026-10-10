@@ -156,6 +156,7 @@ Server events are emitted from the resource itself, each after SimPy has complet
 | Requests are granted | `Server._trigger_put`, after `super()._trigger_put` returns, for each request that is now in `users` and was not before; SimPy pops granted requests from the queue only after `_do_put` returns, so this is the first point where both changes are complete | `job.granted`: queue `remove`, users `insert` |
 | A waiting request is cancelled | `ServerPriorityRequest.cancel`, only when it actually removed the request from the queue (an interrupted waiting process leaving its `with` block) | `job.queue_left` (`reason`: `cancelled`): queue `remove` |
 | A request is released | `Server.release`, only when SimPy's release actually removed it from `users` (releasing an ungranted or already released request changes nothing and emits nothing) | `job.released`: users `remove` |
+| Processing time is credited (ruling R29) | `Server.process_job`, after the processing timeout and `worked_time += processing_time` | `server.work_credited` (`server`, `job`, `processing_time`): `worked_time` `set` |
 
 With this boundary, `queue_length` counts the requests waiting when the job joins, itself included: a job that finds a free slot has `queue_length = 1` and is granted in the next event. The old log value (`len(queue) + 1` measured after the grant) double-counted every waiting job; that is the off-by-one D49 fixes.
 
@@ -174,7 +175,7 @@ The plan verifies with replay-equals-live checks after every event, including a 
 | `shopfloor.entered` | `ShopFloor.add` | `job`, `shopfloor` | shopfloor `jobs_in_system`, `wip` puts; job `shopfloor`, `location` = `transit` |
 | `job.queued`, `job.granted`, `job.queue_left`, `job.released`, `server.queue_reordered` | §6.3 | | |
 | `operation.started` | after before-hooks and material ensure, before the processing timeout | `job`, `server`, `op_index`, `processing_time`, `planned_end` | job `op_index` |
-| `operation.completed` | after the timeout and the `worked_time` credit | `job`, `server`, `op_index`, `processing_time` | server `worked_time` |
+| `operation.completed` | after the timeout and the `worked_time` credit | `job`, `server`, `op_index`, `processing_time` | none (the credit is the server's own `server.work_credited`, emitted just before; R29) |
 | `shopfloor.wip_updated` | after `wip_strategy.complete_operation` | `shopfloor`, `changes` | shopfloor `wip` puts |
 | `job.finished` | completion block | `job`, `shopfloor`, `makespan`, `lateness`, `total_queue_time` | job `location` = `done`, `finished_at`; shopfloor `jobs_in_system` |
 | `policy.decision` | release policies and Draco | `policy`, `job`, `action` (`release`, `force_pin`, `postpone`) | none |
@@ -219,6 +220,8 @@ The plan verifies with replay-equals-live checks after every event, including a 
 - Wait reasons: `traffic.wait_started.reason` ∈ {`node_occupied`, `path_delay`, `deadlock_backoff`}; `traffic.wait_ended.reason` ∈ {`granted`, `cancelled`, `interrupted`, `elapsed`}; `node` is the next node to enter; the fleet's path-delay and deadlock-backoff waits are emitted from the fleet.
 - Re-entering a parking area emits `parking.entered` with no delta.
 - Payload types: `level`, `delta`, `swap_pool` are floats; `in_use` is an integer.
+
+**Amendment (ruling R29, Codex review fix wave):** every mutation of replayed server state carries a delta at the server level, so a server used without a `ShopFloor` replays like one inside it (§17). `Server.process_job` emits `server.work_credited` (§6.3) with the `worked_time` `set` that `operation.completed` used to carry; `operation.completed` keeps its payload and emission point and has no deltas (no `touches`). A direct user write to `Server.worked_time` emits nothing, like the direct writes of R21.
 
 **Observer events:** `log` (`level`, `message`, `component`, `extra`), `kpi.sample` (`kpi`, `scope`, `value`).
 

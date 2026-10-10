@@ -79,7 +79,7 @@ trace.verify()     # True / False / "not_verifiable"
 
 **Catalog** (`entity.created/retired`, `psp.entered/exited`, `shopfloor.entered`,
 `operation.started/completed`, `shopfloor.wip_updated`, `job.finished`, `job.queued/granted/queue_left/released`,
-`server.queue_reordered`, `policy.decision`, and the intralogistics events): classes live in
+`server.queue_reordered`, `server.work_credited`, `policy.decision`, and the intralogistics events): classes live in
 `simulatte.shopfloor`, `simulatte.server`, `simulatte.psp`, `simulatte.policies`,
 `simulatte.intralogistics.events`. Observer events: `log`, `kpi.sample`.
 

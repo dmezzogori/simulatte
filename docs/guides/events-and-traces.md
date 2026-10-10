@@ -69,7 +69,7 @@ Every `@event_type` is registered in a global catalog with its payload fields, t
 | Lifecycle | `entity.created`, `entity.retired` | `simulatte.entities` |
 | Pre-shop pool | `psp.entered`, `psp.exited` | `simulatte.psp` |
 | Shop floor | `shopfloor.entered`, `operation.started`, `operation.completed`, `shopfloor.wip_updated`, `job.finished` | `simulatte.shopfloor` |
-| Server | `job.queued`, `job.granted`, `job.queue_left`, `job.released`, `server.queue_reordered` | `simulatte.server` |
+| Server | `job.queued`, `job.granted`, `job.queue_left`, `job.released`, `server.queue_reordered`, `server.work_credited` | `simulatte.server` |
 | Release policies | `policy.decision` | `simulatte.policies` |
 | Fleet and orders | `fleet.agv_added`, `fleet.pending_changed`, `order.status_changed`, `order.assigned`, `order.unassigned` | `simulatte.intralogistics.events` |
 | AGVs | `agv.state_changed`, `agv.placed`, `agv.move_started`, `agv.move_ended`, `agv.move_interrupted`, `agv.load_changed`, `agv.battery_changed`, `agv.stranded` | `simulatte.intralogistics.events` |

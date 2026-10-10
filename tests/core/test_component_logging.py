@@ -230,6 +230,7 @@ class TestIntegrationEvents:
                 "job.queued",
                 "job.granted",
                 "operation.started",
+                "server.work_credited",
                 "operation.completed",
                 "shopfloor.wip_updated",
                 "job.released",
@@ -289,4 +290,4 @@ def test_job_events_carry_full_job_ids() -> None:
 
     job_ids = {getattr(e, "job", None) or getattr(e, "entity", None) for e in seen}
     assert job_ids == {"job-10000", None}  # None: shopfloor.wip_updated has no job
-    assert len(seen) == 9
+    assert len(seen) == 10
