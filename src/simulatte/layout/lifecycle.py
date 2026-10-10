@@ -279,6 +279,7 @@ class PreparationCoordinator:
             raise LayoutError("preparation failed; use a fresh environment")
         if self.state is not PreparationState.DECLARING:
             self.state = PreparationState.FAILED
+            self.active_context = None
             raise LayoutError("reentrant preparation")
         self.state = PreparationState.RESOLVING
         try:

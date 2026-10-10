@@ -130,6 +130,8 @@ def test_stage_access_and_lifecycle_failures_latch(action):
             # Catching reentry does not turn a failed attempt into successful preparation.
             with pytest.raises(LayoutError, match="reentrant"):
                 engine.prepare()
+            with pytest.raises(LayoutError, match="no longer active"):
+                ctx.physical(width)
         elif action in ("self", "parent_self"):
             engine.attach_target("new", "server")
             ctx.physical(own, default=0)

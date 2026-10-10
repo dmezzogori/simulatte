@@ -124,7 +124,7 @@ def test_unset_parent_absence_and_present_parent_membership():
         DependencyClosure().read(first, ("placements", "a", "rotation"))
 
 
-@pytest.mark.parametrize("value", [object(), float("nan"), "\ud800"])
+@pytest.mark.parametrize("value", [object(), float("nan"), "\ud800", {1: "integer key"}])
 def test_dependencies_must_remain_serializable(value):
     closure = DependencyClosure()
     with pytest.raises(LayoutError, match="serializable"):

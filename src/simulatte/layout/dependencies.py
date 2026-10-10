@@ -20,7 +20,9 @@ def _data(value: Any) -> Any:
     """Copy only finite JSON data; executable/default object identities never escape."""
     try:
         copied = _thaw(_freeze(value))
-        json.dumps(copied, allow_nan=False, ensure_ascii=False).encode("utf-8")
+        encoded = json.dumps(copied, allow_nan=False, ensure_ascii=False).encode("utf-8")
+        if json.loads(encoded) != copied:
+            raise ValueError("JSON mapping keys must be strings")
     except (TypeError, ValueError, UnicodeError) as error:
         raise LayoutError("dependency values must be finite serializable data") from error
     return copied
