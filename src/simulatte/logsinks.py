@@ -31,7 +31,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Self, TextIO
 
-from simulatte._wire import FrozenMap
+from simulatte._wire import FrozenMap, wire_float
 from simulatte.events import DomainEvent, LogEvent, Subscription
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -248,10 +248,12 @@ class TextSink(_StreamSink):
 
     def _write_log(self, event: LogEvent) -> None:
         component = event.component or "-"
-        self._write(f"{_format_sim_time(float(event.t))} | {event.level:<8} | {component:<12} | {event.message}")
+        self._write(f"{_format_sim_time(wire_float(event.t))} | {event.level:<8} | {component:<12} | {event.message}")
 
     def _write_domain(self, event: DomainEvent) -> None:
-        self._write(f"{_format_sim_time(float(event.t))} | {'DEBUG':<8} | {_namespace(event):<12} | {_render(event)}")
+        self._write(
+            f"{_format_sim_time(wire_float(event.t))} | {'DEBUG':<8} | {_namespace(event):<12} | {_render(event)}"
+        )
 
 
 class JsonSink(_StreamSink):
@@ -280,7 +282,7 @@ class JsonSink(_StreamSink):
     ) -> dict[str, Any]:
         return {
             "sim_time": event.t,
-            "sim_time_formatted": _format_sim_time(float(event.t)),
+            "sim_time_formatted": _format_sim_time(wire_float(event.t)),
             "wall_time": datetime.now(UTC).isoformat(),
             "seq": event.seq,
             "kind": kind,

@@ -85,8 +85,9 @@ many APIs and, because RNG streams are now derived from the seed and entity name
   scalar numbers. Anything else (user classes, NumPy arrays, `MappingProxyType`, user mappings) is not a wire value:
   a priority is recorded as null, another number as `NaN`, and debug mode rejects it. Values derived only for an
   event (`job.finished`'s `makespan`, `lateness`, `total_queue_time`) are computed from converted floats, not
-  through model properties. Wire values are made of exact built-in types (an `IntEnum` or `StrEnum` in a delta
-  becomes `int` or `str`).
+  through model properties. Digests and traces read the simulation time the same way and never record a NaN time: a
+  time of another type raises `TypeError`, a NaN time `ValueError`, at the first recorded event. Wire values are
+  made of exact built-in types (an `IntEnum` or `StrEnum` in a delta becomes `int` or `str`).
 - **Breaking:** seeding. `Runner` creates `Environment(seed=seed)` and no longer calls `random.seed(seed)`, so model
   code that draws from the global `random` module loses its reproducibility; draw from `env.rng(name)`.
   `Distribution.__call__` is removed: distributions are descriptions with `sampler(rng)`, bound to named streams

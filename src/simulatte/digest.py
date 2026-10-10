@@ -16,7 +16,7 @@ from collections.abc import Callable, Mapping, MutableMapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from simulatte._wire import FrozenMap, Wire, canonical_pack, new_packer, prepared, prepared_op
+from simulatte._wire import FrozenMap, Wire, canonical_pack, new_packer, prepared, prepared_op, wire_time
 from simulatte.entities import KINDS
 from simulatte.entities import presentation_of as _registered_presentation
 from simulatte.events import DomainEvent, Op
@@ -118,7 +118,7 @@ def project_event_parts(
         _registered_presentation if presentation_of is None else presentation_of,
         strict=kinds is not None,
     )
-    item: Any = (ordinal, type_name, version, float(t), kept_payload, tuple(projected))
+    item: Any = (ordinal, type_name, version, wire_time(t), kept_payload, tuple(projected))
     return canonical_pack(item)
 
 
@@ -328,9 +328,7 @@ class SemanticDigest:
             if ready is not op:
                 unchanged = False
             ops.append(ready)
-        item = self._packer.pack(
-            (event.ordinal, cls.type_name, cls.type_version, prepared(float(event.t)), payload, ops)
-        )
+        item = self._packer.pack((event.ordinal, cls.type_name, cls.type_version, wire_time(event.t), payload, ops))
         update = self._acc._hash.update
         update(_U64.pack(len(item)))
         update(item)

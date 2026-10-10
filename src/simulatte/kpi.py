@@ -23,7 +23,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import KW_ONLY, dataclass
 from typing import TYPE_CHECKING, ClassVar, Literal, Self
 
-from simulatte._wire import FrozenMap
+from simulatte._wire import FrozenMap, wire_float
 from simulatte.entities import Entity
 from simulatte.events import Event, KpiSample, Subscription
 
@@ -131,7 +131,7 @@ def observation_window(env: Environment) -> Window:
     is ``[warmup, now]``. A run shorter than the warm-up gives the empty window ``[warmup, warmup)``.
     """
     start = env.warmup
-    now = float(env.now)
+    now = wire_float(env.now)
     policy = env._stopping_policy
     horizon = policy.get("horizon") if isinstance(policy, FrozenMap) else None  # only horizon policies have one
     at_horizon = isinstance(horizon, float) and now >= horizon

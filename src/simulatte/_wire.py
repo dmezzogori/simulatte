@@ -52,6 +52,7 @@ __all__ = [
     "wire_equal",
     "wire_float",
     "wire_float_or_none",
+    "wire_time",
 ]
 
 MAX_SAFE_INT = 2**53 - 1
@@ -206,6 +207,26 @@ def wire_float_or_none(value: object) -> float | None:
     except (OverflowError, ValueError):
         return None
     return None
+
+
+def wire_time(t: object) -> float:
+    """Simulation time `t` as the ``float`` digests and traces record (ruling R35), without calling user code.
+
+    It converts the number types of :func:`wire_float` the same way; the result is finite or infinite, never NaN.
+    Raises `TypeError` for a time of any other type (digests and traces require numeric simulation time) and
+    `ValueError` for a NaN time.
+    """
+    if type(t) is float and t == t:
+        return t
+    value = wire_float_or_none(t)
+    if value is None:
+        raise TypeError(
+            f"traces and digests require numeric simulation time (int, float, Fraction, Decimal or a NumPy scalar), "
+            f"got {type(t).__name__}"
+        )
+    if value != value:
+        raise ValueError("the simulation time is NaN; traces and digests require a number or an infinity")
+    return value
 
 
 def _is_numpy_scalar(t: type) -> bool:

@@ -886,3 +886,107 @@ def test_recorder_does_not_depend_on_objects_mutated_after_emit(
     assert [e.deltas for e in trace.events()] == [(("set", "cell", "values", (1,)),), ()]
     assert trace.verify() is True
     trace.check()
+
+
+def _clock_run(observe: str, tmp_path: Path) -> tuple[int, float, list[tuple[float, int, str]]]:
+    """Codex probe_time_conversion: simulation time becomes a float subclass whose ``__float__`` draws from the RNG
+    (and would return NaN)."""
+    from simulatte.job import ProductionJob
+    from simulatte.server import Server
+
+    env = Environment(seed=42)
+    rng = env.rng("model")
+    calls: list[float] = []
+
+    class Clock(float):
+        def __radd__(self, other: Any) -> Clock:
+            return Clock(other + float.__float__(self))
+
+        def __add__(self, other: Any) -> Clock:
+            return Clock(float.__float__(self) + other)
+
+        def __float__(self) -> float:
+            calls.append(rng.random())
+            return float("nan")
+
+    server = Server(env=env, capacity=1)
+    job = ProductionJob(env=env, sku="x", servers=[server], processing_times=[1.0], due_date=10.0)
+    path = tmp_path / f"clock-{observe}.simtrace"
+    if observe == "digest":
+        env.enable_digest()
+    elif observe == "trace":
+        TraceRecorder(env, path, chunk_limits=ChunkLimits(max_events=1))
+
+    def work() -> Any:
+        with server.request(job=job) as request:
+            yield request
+            yield from server.process_job(job, Clock(1))
+        yield env.timeout(rng.random())
+
+    env.process(work())
+    env.run()
+    env.close()
+    events = [(e.t, e.seq, e.type) for e in Trace.open(path).events()] if observe == "trace" else []
+    now: Any = env.now
+    return len(calls), float.__float__(now), events
+
+
+def test_event_times_are_read_without_user_code(tmp_path: Path) -> None:
+    """Ruling R35: digests and traces read a float-subclass time through float.__float__, so observing draws nothing
+    from the RNG and no NaN time is recorded."""
+    plain = _clock_run("none", tmp_path)
+    digested = _clock_run("digest", tmp_path)
+    recorded = _clock_run("trace", tmp_path)
+
+    assert plain[:2] == digested[:2] == recorded[:2] and plain[0] == 0
+    assert [(t, seq) for t, seq, _ in recorded[2]] == [(0.0, 0), (0.0, 1), (1.0, 2), (1.0, 3)]
+    assert Trace.open(tmp_path / "clock-trace.simtrace").verify() is True
+
+
+class _Ticks:
+    """A time type SimPy accepts (it adds and compares) but that is not a number for events."""
+
+    def __init__(self, value: float) -> None:
+        self.value = value
+
+    def __radd__(self, other: Any) -> _Ticks:
+        return _Ticks(float(other) + self.value)
+
+    def __add__(self, other: Any) -> _Ticks:
+        return _Ticks(self.value + float(other))
+
+    def __lt__(self, other: Any) -> bool:
+        return self.value < (other.value if isinstance(other, _Ticks) else other)
+
+    def __gt__(self, other: Any) -> bool:
+        return self.value > (other.value if isinstance(other, _Ticks) else other)
+
+
+@pytest.mark.parametrize(
+    ("delay", "error", "match"),
+    [(_Ticks(1.0), TypeError, "numeric simulation time"), (float("nan"), ValueError, "NaN")],
+    ids=["non_numeric", "nan"],
+)
+@pytest.mark.parametrize("observe", ["digest", "trace"])
+def test_unsupported_or_nan_time_raises_at_the_first_recorded_event(
+    tmp_path: Path, delay: Any, error: type[Exception], match: str, observe: str
+) -> None:
+    """Ruling R35: event times in digests and traces are never NaN; a time type that is not a number raises."""
+    env = Environment(seed=1)
+    gauge = Gauge(env, name="g")
+    if observe == "digest":
+        env.enable_digest()
+    else:
+        TraceRecorder(env, tmp_path / "t.simtrace")
+
+    def later() -> Any:
+        yield env.timeout(delay)
+        _emit_set(env, gauge, 1.0)
+
+    env.process(later())
+    with pytest.raises(error, match=match):
+        env.run()
+    env.close()  # the trace still closes: its footer ends at the last recorded event
+    if observe == "trace":
+        trace = Trace.open(tmp_path / "t.simtrace")
+        assert trace.outcome == "failed" and trace.cursor_range == ((0.0, -1), (0.0, -1))

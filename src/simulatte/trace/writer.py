@@ -39,7 +39,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 import msgpack
 
-from simulatte._wire import FrozenMap, freeze, new_packer, pack, prepared, prepared_op
+from simulatte._wire import FrozenMap, freeze, new_packer, pack, prepared, prepared_op, wire_time
 from simulatte.entities import KINDS
 from simulatte.events import CATALOG, Deltas, DomainEvent, KpiSample, Op, Subscription, apply_deltas
 from simulatte.trace.format import (
@@ -202,6 +202,7 @@ class TraceRecorder:
         # Simulation thread only.
         self._closed = False
         self._last_seq = -1
+        self._last_t = 0.0  # time of the last recorded chunk event (or of activation)
         self._subscription: Subscription | None = None
         self._samples: list[bytes] = []  # encoded kpi.sample entries not yet published
         self._sample_bytes = 0
@@ -240,7 +241,7 @@ class TraceRecorder:
         cls = type(event)
         name = cls.type_name
         deltas = event.deltas
-        t = float(event.t)
+        t = wire_time(event.t)
         seq = event.seq
         pack_event = self._event_packer.pack
         tail = self._digest.shared_tail(event)
@@ -296,6 +297,7 @@ class TraceRecorder:
                 sealed = self._seal_locked()
         if self._buf_type is RecordType.CHUNK:
             self._last_seq = seq
+            self._last_t = t
         if sealed is not None:
             self._enqueue("batch", sealed.size, sealed)
         if interrupted is not None:
@@ -306,7 +308,7 @@ class TraceRecorder:
         error = self._error  # read without the lock, as in _on_event
         if error is not None:
             raise error
-        entry = pack((event.seq, float(event.t), f"{event.scope}/{event.kpi}", event.value))
+        entry = pack((event.seq, wire_time(event.t), f"{event.scope}/{event.kpi}", event.value))
         self._samples.append(entry)
         self._sample_bytes += len(entry)
         limits = self._limits
@@ -365,8 +367,9 @@ class TraceRecorder:
         env = self._env
         requested = env.manifest().requested
         replay = {entity: dict(fields) for entity, fields in state.items()}  # plain dicts of the frozen snapshot
+        self._last_t = activation = wire_time(env.now)
         initial: Any = {
-            "cursor": (float(env.now), -1),
+            "cursor": (activation, -1),
             "state": replay,
             "manifest": {k: v for k, v in requested.items() if k in ACTIVATION_MANIFEST_FIELDS},
         }
@@ -474,9 +477,13 @@ class TraceRecorder:
                 self._enqueue("record", len(payload), (RecordType.KPI, payload))
             if outcome is None:
                 outcome = "failed" if env._run_failed else "cancelled" if env._interrupted else "completed"
+            try:
+                end = wire_time(env.now)
+            except (TypeError, ValueError):  # the run failed on its time (R35): end at the last recorded event
+                end = self._last_t
             footer = {
                 "outcome": outcome,
-                "cursor": (float(env.now), self._last_seq),
+                "cursor": (end, self._last_seq),
                 "manifest": env.manifest().final,
                 "fingerprint": {"digest": fingerprint.digest, "kpis": kpis},
                 "volatile": dataclasses.asdict(env.volatile_metadata()),
