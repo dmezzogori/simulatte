@@ -359,8 +359,9 @@ The file's override list replaces the inherited code list when present, in accor
 code effects are then absent, not applied invisibly. `properties` uses the same unset rules as placements.
 
 The order is base geometry → split lanes → connector targets/geometry → override application → enabled-graph
-validation. Node `enabled=False` removes incident traversals; overrides cannot make geometry-invalid candidates
-valid. Node capacity lives here; edge properties are enabled, direction and speed_limit. Connectivity reports
+validation. The runtime graph contains enabled nodes and traversals only; disabled node/edge definitions remain
+in resolved metadata for diagnostics and override replay. Node `enabled=False` removes incident traversals;
+overrides cannot make geometry-invalid candidates valid. Node capacity lives here; edge properties are enabled, direction and speed_limit. Connectivity reports
 weak/strong components and unreachable required handles; disconnected optional regions are warnings. Every
 referenced node must be enabled. `layout.require_path(a, b)` declares a directed reachability requirement,
 validated after overrides; do not assume all warehouses must reach all other warehouses.
