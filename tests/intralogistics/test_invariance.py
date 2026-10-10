@@ -12,11 +12,13 @@ the environment and those two classes for configured versions:
 - ``everything``: a full trace in small chunks, ``FleetKPIs``, ``DEBUG`` logging to a file and ``debug=True``.
 
 The canonical final state compared across all five is :func:`final_state`: ``env.now``, the snapshot of every live
-entity (AGVs, warehouses and their inventories, orders, the fleet), every AGV's time allocation and utilization,
-the fleet utilization, the order statuses and the state of every RNG stream. It reads only the model. Among the
-four instrumented configurations the digests, the printed report, the EMA metrics and every KPI scalar present in
-more than one of them are identical (exact equality), full traces verify, and fresh processes with different
-``PYTHONHASHSEED`` values reproduce the digest.
+entity (AGVs, warehouses and their inventories, the orders still open, the fleet), every AGV's time allocation and
+utilization, the fleet utilization, the pending count, the state of every RNG stream and the final state of every
+submitted order. Orders retire from the entity registry at a terminal status (completed, failed or cancelled), so
+the test collects them as they are submitted and compares each one's snapshot (status, AGV, timestamps). It reads
+only the model. Among the four instrumented configurations the digests, the printed report, the EMA metrics and
+every KPI scalar present in more than one of them are identical (exact equality), full traces verify, and fresh
+processes with different ``PYTHONHASHSEED`` values reproduce the digest.
 """
 
 from __future__ import annotations
@@ -37,7 +39,7 @@ import pytest
 import simulatte.environment
 import simulatte.intralogistics as intralogistics
 from simulatte.environment import Environment
-from simulatte.intralogistics import AGV, AGVState, FleetCoordinator, FleetKPIs, OrderEMACollector
+from simulatte.intralogistics import AGV, AGVState, FleetCoordinator, FleetKPIs, OrderEMACollector, TransferOrder
 from simulatte.intralogistics.events import AgvStateChanged, OrderStatusChanged
 from simulatte.trace import ChunkLimits, Trace, TraceRecorder
 
@@ -80,8 +82,8 @@ class Outcome:
     trace_path: Path | None
 
 
-def final_state(env: Environment) -> dict[str, Any]:
-    """The model's final state, read without any observer (see the module docstring)."""
+def final_state(env: Environment, orders: list[TransferOrder]) -> dict[str, Any]:
+    """The model's final state, read without any observer (see the module docstring); `orders` were submitted."""
     agvs = [entity for entity in env.entities.live() if isinstance(entity, AGV)]
     (fleet,) = (entity for entity in env.entities.live() if isinstance(entity, FleetCoordinator))
     return {
@@ -98,6 +100,7 @@ def final_state(env: Environment) -> dict[str, Any]:
         "fleet_utilization": fleet.fleet_utilization,
         "pending": fleet.pending_count,
         "rng": {name: stream.getstate() for name, stream in sorted(env._streams.items())},
+        "orders": {order.id: order.snapshot() for order in orders},
     }
 
 
@@ -105,6 +108,12 @@ def run_example(configuration: str, tmp_path: Path) -> Outcome:
     """Run the advanced example under `configuration` and return what the comparisons need."""
     trace_path = tmp_path / f"fleet-{configuration}.simtrace"
     created: list[Environment] = []
+    submitted: list[TransferOrder] = []
+    real_submit = FleetCoordinator.submit
+
+    def submit(coordinator: FleetCoordinator, order: TransferOrder) -> None:
+        submitted.append(order)  # retired orders leave the entity registry; keep them for final_state
+        real_submit(coordinator, order)
 
     def make_environment(**kwargs: Any) -> Environment:
         if configuration == "everything":
@@ -125,6 +134,7 @@ def run_example(configuration: str, tmp_path: Path) -> Outcome:
     with pytest.MonkeyPatch.context() as monkeypatch, contextlib.redirect_stdout(printed):
         monkeypatch.setattr(matplotlib.pyplot, "show", lambda *args, **kwargs: None)
         monkeypatch.setattr(simulatte.environment, "Environment", make_environment)
+        monkeypatch.setattr(FleetCoordinator, "submit", submit)
         if configuration == "none":
             monkeypatch.setattr(intralogistics, "OrderEMACollector", Inert)
             monkeypatch.setattr(intralogistics, "FleetTimeSeries", Inert)
@@ -140,7 +150,9 @@ def run_example(configuration: str, tmp_path: Path) -> Outcome:
     fingerprint = env.fingerprint()
     assert (fingerprint.digest is not None) == (configuration != "none")
     recorded = configuration in ("kpi", "full", "everything")
-    return Outcome(final_state(env), fingerprint.digest, fingerprint.kpis, report, trace_path if recorded else None)
+    return Outcome(
+        final_state(env, submitted), fingerprint.digest, fingerprint.kpis, report, trace_path if recorded else None
+    )
 
 
 @pytest.fixture(scope="module")
@@ -157,11 +169,13 @@ def test_final_state_is_independent_of_observers(outcomes: dict[str, Outcome]) -
     assert reference["now"] == 28800.0
     assert any(agv["allocation"]["CHARGING"] > 0 for agv in reference["agvs"].values())
     assert any(agv["utilization"] > 0.1 for agv in reference["agvs"].values())
+    assert any(order["status"] == "COMPLETED" for order in reference["orders"].values())  # retired orders included
     for configuration in INSTRUMENTED:
         assert outcomes[configuration].state == reference, configuration
 
-    # Orders are not entities; their outcome is in the example's report up to the EMA section (counts,
-    # fulfillment time, inventories, fleet report), which every configuration prints.
+    # Orders retire at a terminal status, so the entity snapshot holds only the open ones; the final state compares
+    # every submitted order (above), and the example's report up to the EMA section (counts, fulfillment time,
+    # inventories, fleet report), which every configuration prints, must match too.
     orders = outcomes["none"].report.split("EMA metrics:")[0]
     assert "Completed: " in orders and "Failed: " in orders
     for configuration in INSTRUMENTED:
