@@ -2,7 +2,7 @@
 
 Branch `feature/sp1-events-trace`, Task 25. Library code at 486630e; benchmark code at 96d4f9a (the benchmark scripts were uncommitted when the measurements were taken, so the `commit` field of the result files reads 486630e). Spec: `specs/2026-10-08-sp1-events-trace-design.md` (rev 4); budgets from the global design §C1.9. Measured on eva, 2026-10-09.
 
-**Verdict.** All final checks pass: the full suite with the 99 % branch-coverage gate, the PyPy lane, ruff, ty, the TypeScript conformance tests and the docs build. The unobserved path of the branch is 26 to 29 % faster than `simulatte==0.12.0` on CPython 3.14 and 33 to 38 % faster on PyPy 3.11, and 4.4 to 5.0 % slower than 0.12.0 without its debug calls on CPython (limit 8.5 %). The new modes cost, against the branch's `none` on the same workload: `default` (the default EMA collector) +6 to +8 % on CPython and +3 % on PyPy; `default_logging` nothing measurable; `kpi` 3.0 to 3.4× on CPython and 3.7 to 4.1× on PyPy. Of the D57 regression metrics, all hold except one: the CPython `full` ratio on the 50,000-job workload at utilization 0.90 is 4.83 to 4.99× against a budget of 4.9× (§5.4). Budgets for `default`, `default_logging` and `kpi` are proposed in §6 and are **proposed, pending acceptance**: no gate was added and the global spec C1.9 table is unchanged.
+**Verdict.** All final checks pass: the full suite with the 99 % branch-coverage gate, the PyPy lane, ruff, ty, the TypeScript conformance tests and the docs build. The unobserved path of the branch is 26 to 29 % faster than `simulatte==0.12.0` on CPython 3.14 and 33 to 38 % faster on PyPy 3.11, and 4.4 to 5.0 % slower than 0.12.0 without its debug calls on CPython (limit 8.5 %). The new modes cost, against the branch's `none` on the same workload: `default` (the default EMA collector) +6 to +8 % on CPython and +3 % on PyPy; `default_logging` nothing measurable; `kpi` 3.0 to 3.4× on CPython and 3.7 to 4.1× on PyPy. Of the D57 regression metrics, all hold except one: the CPython `full` ratio on the 50,000-job workload at utilization 0.90 is 4.83 to 4.99× against a budget of 4.9× (§7.1). Budgets for `default`, `default_logging` and `kpi` were proposed in §6 and **accepted by Davide on 2026-10-10 (D59)**, report-only until calibrated on CI runners like D57; the global spec C1.9 table now lists them. D57's CPython `full` budget stays at 4.9× by decision.
 
 ## 1. What SP1 delivered
 
@@ -140,25 +140,25 @@ Extra RSS is relative to the branch's `none` on the same workload. The `kpi` tra
 
 The two processes of each cell agree within 2 %. The `full` trace is 33.1 MB (1.5 KB per order) and peaks at +13 MB (CPython) or +32 MB (PyPy) of RSS over `none`; `kpi` is 18.7 KB. The recording ratios are lower than on the job shop, probably because the fleet spends more simulation time per emitted event (path search, traffic checks); I did not profile it.
 
-## 6. Proposed budgets (proposed, pending acceptance)
+## 6. Budgets for `default`, `default_logging` and `kpi` (accepted, D59)
 
-These follow the rule of the G3 report §7: the worst measured value plus about 10 % headroom, with the CI noise bands (2 % on CPython, 5 % on PyPy) added for the cross-version comparisons. They go into the global spec C1.9 table and into `ci.yml` only after Davide accepts them (S21).
+These follow the rule of the G3 report §7: the worst measured value plus about 10 % headroom, with the CI noise bands (2 % on CPython, 5 % on PyPy) added for the cross-version comparisons. Davide accepted them as proposed on 2026-10-10 (D59). They are in the global spec C1.9 table; CI reports them without gating until the bands are calibrated on runners, as for D57.
 
-| Mode | Measure | Proposed budget | Measured (worst of the CI-size and 50k workloads) |
+| Mode | Measure | Accepted budget | Measured (worst of the CI-size and 50k workloads) |
 |---|---|---|---|
 | `default` | median / released 0.12.0 `default` | ≤ 3 % + band (CPython 5 %, PyPy 8 %), as for `none` | −23.9 % CPython, −34.0 % PyPy |
 | `default` | median / 0.12.0 `default` without debug calls | CPython ≤ 10 % + 2 % band; PyPy ≤ 3 % + 5 % band | +8.6 % CPython, −20.9 % PyPy |
 | `default` | median / branch `none` (the default collector's own cost) | ≤ 1.10 CPython, ≤ 1.06 PyPy | 1.076 CPython, 1.046 PyPy (50k) |
-| `default_logging` | median / branch `bare` | ≤ 3 % + band (CPython 5 %, PyPy 8 %); this is the 5 % target of C1.9 | 0.988 to 1.012 (noise) |
+| `default_logging` | median / branch `bare` | ≤ 3 % + band (CPython 5 %, PyPy 8 %); this is the 5 % target of C1.9; nothing on this shop logs at INFO, so it only guards the bus-subscription bookkeeping | 0.988 to 1.012 (noise) |
 | `default_logging` | median / 0.12.0, released and stripped | the `none` gate's limits, unchanged (same configuration) | −25.9 % / +5.1 % CPython, −33.9 % / −18.5 % PyPy |
 | `kpi` | median / branch `none` | ≤ 3.7× CPython, ≤ 4.5× PyPy | 3.39× CPython, 4.06× PyPy |
 
 Reasoning.
 
 - **`default`.** The cross-version budgets keep the form of the `none` gate. The stripped CPython budget is 10 % because the measured worst case is +8.6 % (`u95-5k`, pooled over two rounds, spread 1.6 %), and 6.5 % would fail it; the extra 3.5 points over the `none` budget are the default `EMACollector`'s event construction. If Davide prefers a tighter number, the ratio against the branch's `none` isolates the collector alone and does not depend on 0.12.0; 1.10 is 2.4 points above the worst CI-size ratio (1.076), and PyPy's 1.06 is 1.4 points above the worst 50k ratio (1.046; the CI-size PyPy ratios are 1.028 to 1.029).
-- **`default_logging`.** The measured cost is zero within noise, so the budget is set by the 5 % target of C1.9, spelled as 3 % plus the noise band as in the other gates (5 % on CPython, 8 % on PyPy). It is judged against `bare`, not `none`, because the two latter configurations are the same. A budget against 0.12.0 adds nothing to the `none` gate. A caveat: this measures the cost of default logging when nothing is logged at INFO, which is the case for the library's own shop path. It says nothing about scripts that log heavily, nor about DEBUG logging.
+- **`default_logging`.** The measured cost is zero within noise, so the budget is set by the 5 % target of C1.9, spelled as 3 % plus the noise band as in the other gates (5 % on CPython, 8 % on PyPy). It is judged against `bare`, not `none`, because the two latter configurations are the same. A budget against 0.12.0 adds nothing to the `none` gate. A caveat: on this workload nothing logs at INFO, so the budget only guards the bookkeeping of the bus subscriptions. It says nothing about scripts that log heavily, nor about DEBUG logging; measuring logging cost needs a workload that logs at INFO (follow-up, §8).
 - **`kpi`.** Worst ratios are 3.38 and 3.39 on CPython and 3.98 and 4.06 on PyPy; +10 % gives 3.7 and 4.5. It is a ratio budget in the style of D57's `digest` and `full`, and like them it moves when the denominator moves: the 12b tuning made `none` about 10 % faster since G3 without changing the recording cost. The KPI collectors' share (C1.9: "fixed at the end of SP1") is `kpi` minus `digest`: at most 0.36 × CPython and 0.31 × PyPy of `none` with the default EMA included. The share is bounded by the `kpi` and `digest` budgets together, so I do not propose a separate budget for it.
-- **Intralogistics ratios: no budgets proposed yet.** The numbers come from a single round of two processes, and there is no cross-version anchor, so a threshold would rest on little. Provisional figures for a reported-only table, if wanted: `default` ≤ 1.15 CPython (1.087 measured); `kpi` ≤ 2.5× / 2.9×; `digest` ≤ 2.3× / 2.7×; `full` ≤ 3.0× / 4.8× (CPython / PyPy; measured 2.23 / 2.57, 2.08 / 2.41, 2.73 / 4.38). They should be re-measured on the CI runners before use.
+- **Intralogistics ratios: no budget (decision D59: the workload stays report-only).** The numbers come from a single round of two processes, and there is no cross-version anchor, so a threshold would rest on little. Provisional figures, not adopted: `default` ≤ 1.15 CPython (1.087 measured); `kpi` ≤ 2.5× / 2.9×; `digest` ≤ 2.3× / 2.7×; `full` ≤ 3.0× / 4.8× (CPython / PyPy; measured 2.23 / 2.57, 2.08 / 2.41, 2.73 / 4.38). They should be re-measured on the CI runners before use.
 
 The existing D57 budgets, checked against this run:
 
@@ -166,7 +166,7 @@ The existing D57 budgets, checked against this run:
 |---|---|---|---|---|
 | `digest` / `none`, CPython | ≤ 3.2× | 3.02 | 3.04 | holds |
 | `digest` / `none`, PyPy | ≤ 4.3× | 3.67 | 3.78 | holds |
-| `full` / `none`, CPython | ≤ 4.9× | 4.71 | **4.99** (u90-50k) | **exceeded once, see §7.1** |
+| `full` / `none`, CPython | ≤ 4.9× | 4.71 | **4.99** (u90-50k) | borderline, see §7.1; **kept at 4.9× by decision (D59)** |
 | `full` / `none`, PyPy | ≤ 7.0× | 6.47 | 6.72 | holds |
 | trace per job | ≤ 1.75 KB | – | 1.515 to 1.584 KB | holds |
 | cold seek p95 at 50k jobs | ≤ 100 ms | – | 51.9 to 53.4 ms | holds |
@@ -176,11 +176,11 @@ The existing D57 budgets, checked against this run:
 
 ### 7.1 CPython `full` at 50,000 jobs is at the D57 limit
 
-The first run gave 4.99× (30.284 s over 6.064 s) for `u90-50k`. I repeated the pair twice, alternating `none` and `full` in one process each: 29.606 s over 6.132 s (4.83×) and 29.798 s over 6.037 s (4.94×). The `full` time itself matches the G3 report (29.4 s); the ratio grew because the Task 12b tuning made `none` about 10 % faster (6.70 s then, about 6.1 s now). CI does not see it: CI runs `u90-5k` (4.71×) and gates nothing in this mode. The options are to accept a looser CPython `full` ratio (about 5.4× keeps the 10 % rule), to speed up the writer (G3 §5.3 measured the 64 MiB backpressure holding the simulation for 11 % of a 50k run), or to express the budget in absolute time. This is D57, so I left it for Davide.
+The first run gave 4.99× (30.284 s over 6.064 s) for `u90-50k`. I repeated the pair twice, alternating `none` and `full` in one process each: 29.606 s over 6.132 s (4.83×) and 29.798 s over 6.037 s (4.94×). The `full` time itself matches the G3 report (29.4 s); the ratio grew because the Task 12b tuning made `none` about 10 % faster (6.70 s then, about 6.1 s now). CI does not see it: CI runs `u90-5k` (4.71×) and gates nothing in this mode. The options considered were to accept a looser CPython `full` ratio (about 5.4× keeps the 10 % rule), to speed up the writer (G3 §5.3 measured the 64 MiB backpressure holding the simulation for 11 % of a 50k run), or to express the budget in absolute time. Davide decided on 2026-10-10 to keep D57's 4.9× (D59): the 4.83 to 4.99× on `u90-50k` stays a known, documented borderline case.
 
 ### 7.2 A saturated fleet is orders of magnitude slower
 
-While choosing the scale of the intralogistics workload, a run with 20 AGVs and an outbound order every 15 to 30 time units for 10 shifts (`--agvs 20 --shifts 10 --interval-min 15 --interval-max 30`) did not finish `none` mode in more than nine minutes of CPU, while 30 to 60 time units finished 22,000 orders in 6.9 s (and a half-size run, 11,000 orders, in 3.4 s). The cause is probably the pending-order queue growing without bound once the fleet is saturated, but I did not profile it and did not change any source. This is not a regression claim: I have no 0.12.0 number. It is worth a look before anyone benchmarks an overloaded fleet. The scaled-up workload in `benchmarks/intralogistics.py` stays on the stable side of that threshold (the fleet completes all but 5 orders, which are in flight at the horizon).
+While choosing the scale of the intralogistics workload, a run with 20 AGVs and an outbound order every 15 to 30 time units for 10 shifts (`--agvs 20 --shifts 10 --interval-min 15 --interval-max 30`) did not finish `none` mode in more than nine minutes of CPU, while 30 to 60 time units finished 22,000 orders in 6.9 s (and a half-size run, 11,000 orders, in 3.4 s). The cause is the pending-order scan described in §8 (identified in the review of this task, with the timings listed there); no source was changed. This is not a regression claim: I have no 0.12.0 number. It is worth a look before anyone benchmarks an overloaded fleet. The scaled-up workload in `benchmarks/intralogistics.py` stays on the stable side of that threshold (the fleet completes all but 5 orders, which are in flight at the horizon).
 
 ### 7.3 Smaller notes
 
@@ -203,14 +203,16 @@ From the ledger, grouped; none blocks the release.
 - Submit-then-cancel before activation means "dispatched at t=0, then cancelled" (R19).
 - Benchmark `none` runs without the default metrics (R26); `digest` and `full` share that shop (R27); the intralogistics workload has no 0.12.0 side (R28).
 
-**Items the final review should triage** (from the ledger's deferred minors): late `job.queue_left` events emitted when an environment is dropped (consider making `emit` a no-op after `Environment.close()`); `Environment.__init__` leaks earlier sink file handles if a later sink fails to attach; KPI samples are not flushed on a latency seal, so a crash loses the last interval's; KPI declarations are not stored in the trace (an SP3 item); `Trace` public fields should become getters before SP3; the writer's backpressure warning is timing-dependent, so same-seed traces can differ in `(t, seq)` cursors under backpressure; an order-dependent test (`test_digest.py::test_projection_layout_and_framing` fails when run with only two other test files); filtered-out DEBUG messages still build a `LogEvent` and consume a `seq`; API pages render private members; `import simulatte` now imports the runner (multiprocessing, tqdm; about 15 ms; the Pyodide smoke check was not run); the observer-invariance suite does not check that observers schedule no extra SimPy events and its `none` configuration asserts six event types only; CPython 3.11 is not covered by CI although `requires-python` allows it, and its `sum()` differs from 3.12+ (moot after D58).
+**Items the final review should triage** (a selection from the run's deferred minors, not the full list): late `job.queue_left` events emitted when an environment is dropped (consider making `emit` a no-op after `Environment.close()`); `Environment.__init__` leaks earlier sink file handles if a later sink fails to attach; KPI samples are not flushed on a latency seal, so a crash loses the last interval's; KPI declarations are not stored in the trace (an SP3 item); `Trace` public fields should become getters before SP3; the writer's backpressure warning is timing-dependent, so same-seed traces can differ in `(t, seq)` cursors under backpressure; an order-dependent test (`test_digest.py::test_projection_layout_and_framing` fails when run with only two other test files); filtered-out DEBUG messages still build a `LogEvent` and consume a `seq`; API pages render private members; `import simulatte` now imports the runner (multiprocessing, tqdm; about 15 ms; the Pyodide smoke check was not run); the observer-invariance suite does not check that observers schedule no extra SimPy events and its `none` configuration asserts six event types only; CPython 3.11 is not covered by CI although `requires-python` allows it, and its `sum()` differs from 3.12+ (moot after D58).
 
 **Benchmark follow-ups:**
 - Calibrate the noise bands on the first CI runs (they come from eva); the new rows give a first look at `default`, `default_logging`, `kpi` and the intralogistics ratios on the runners.
-- Decide the CPython `full` ratio (§7.1).
-- Profile the saturated-fleet slowdown (§7.2).
+- The CPython `full` ratio stays at 4.9× by decision (§7.1); revisit if it fails on the runners.
+- Fix the saturated-fleet slowdown (§7.2 and the next item).
+- Add a workload that logs at INFO, so that `default_logging` measures logging cost and not only subscription bookkeeping.
 - The seek benchmark clears the reader cache before each seek and so measures the cold path only; warm seeks, the TypeScript reader's speed and end-to-end replication throughput (B20) are not covered here.
 - A cross-version intralogistics comparison needs a shim over the 0.12.0 API (R28).
+- **Saturated-fleet slowdown (pre-existing, not fixed in SP1).** `FleetCoordinator._check_pending_queue` (`src/simulatte/intralogistics/fleet.py`, lines 1165 to 1198) scans the whole pending backlog and the fleet three times per order, on every mission end and on every `pending_retry_delay` (1.0) tick of `_pending_retry_loop` (lines 1205 to 1209): O(backlog × fleet) per call. Measured with 20 AGVs and an order every 15 to 30 time units: half a shift 3.5 s (backlog 198), one shift 24.5 s (backlog 666), two shifts more than 2 minutes. Candidate fixes: return at once when no AGV is idle, compute the idle-capable AGVs once per call, or make the retry event-driven.
 
 ## 9. Reproducing
 
@@ -229,4 +231,10 @@ for m in none default default_logging bare kpi digest full; do
 done
 ```
 
-On PyPy use `--warmup 8` for the job-shop workloads and `--warmup 2` for the intralogistics one. Pooling over rounds, as in §3, was done with a scratch script that concatenates the `samples_s` of the result files of each configuration; it is not committed.
+The 50,000-job runs used the regenerated files (§3) with one process and a single configuration per call, for example:
+
+```bash
+/tmp/head/bin/python run.py --mode full --workload /tmp/jobshop10-u90-50k.json --warmup 1 --repeat 3 --processes 1 --seeks 500 --json /tmp/head-full-50k.json   # warm-up 2 on PyPy
+```
+
+On PyPy use `--warmup 8` for the CI-size job-shop workloads and `--warmup 2` for the 50k and intralogistics ones. Pooling over rounds, as in §3, was done with a scratch script that concatenates the `samples_s` of the result files of each configuration; it is not committed.

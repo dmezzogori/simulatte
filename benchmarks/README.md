@@ -77,8 +77,8 @@ settle at speeds up to about 10 % apart, which is why the gate pools three proce
   | Mode | Shop floor metrics | Domain-event subscribers on the branch | Gated |
   |---|---|---|---|
   | `none` | disabled in both versions (`metrics_collector=None` in 0.12.0, which skips the per-job `record` call; `default_metrics=False` on the branch) | none; the feeder fails a run that finds one | yes |
-  | `default` | each version's default: `EMAMetricsCollector` called at each completion in 0.12.0, `EMACollector` on the branch, a bus subscriber of `job.finished` (so that event is built) | the default `EMACollector` only | no; budget proposed in the final report |
-  | `default_logging` | disabled, as in `none` | none | no; budget proposed in the final report |
+  | `default` | each version's default: `EMAMetricsCollector` called at each completion in 0.12.0, `EMACollector` on the branch, a bus subscriber of `job.finished` (so that event is built) | the default `EMACollector` only | no; budget accepted (D59), report-only until calibrated |
+  | `default_logging` | disabled, as in `none` | none | no; budget accepted (D59), report-only until calibrated. Nothing on this shop logs at INFO, so the budget only guards the bus-subscription bookkeeping; measuring logging cost needs a workload that logs at INFO (follow-up) |
   | `bare` (branch only) | disabled | none, and the default log sinks closed, so the bus has no subscription at all | no (diagnostic floor of the logging cost) |
   | `kpi` (branch only) | the default `EMACollector` | `TraceRecorder(level="kpi")` (which enables the digest), the `EMACollector` and a `ShopFloorKPIs` collector | no (ratio against `none`) |
   | `digest`, `full` (branch only) | disabled, as in `none` | the digest or the trace recorder | no (ratio against `none`) |
