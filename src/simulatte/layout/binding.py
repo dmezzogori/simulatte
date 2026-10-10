@@ -56,6 +56,22 @@ def readonly(env: Environment, field: str) -> None:
         raise LayoutError(f"{field} is read-only in layout mode")
 
 
+def check_existing_endpoints(env: Environment) -> None:
+    """Reject concrete consumers, including mutable no-layout inputs changed later."""
+    from simulatte.intralogistics.agv import AGV
+    from simulatte.intralogistics.warehouse import Warehouse
+
+    for entity in env.entities.live():
+        concrete = isinstance(entity, AGV) and entity._current_node is not None
+        if isinstance(entity, Warehouse):
+            concrete = any(
+                getattr(entity, "_pending_" + field) is None and bool(getattr(entity, "_" + field))
+                for field in ("input_bays", "output_bays")
+            )
+        if concrete:
+            raise LayoutError("Layout cannot adopt existing explicit graph consumers")
+
+
 def bind_components(layout: Layout) -> None:
     """Nodes, endpoints in attachment order, resources, then fleet graphs."""
     from simulatte.intralogistics.agv import AGV
@@ -85,6 +101,8 @@ def bind_components(layout: Layout) -> None:
                     nodes = tuple(layout._bind_node(ref, entity.id, f"{field}/{i}") for i, ref in enumerate(refs))
                     setattr(entity, "_" + field, nodes)
                     setattr(entity, "_pending_" + field, None)
+                else:
+                    setattr(entity, "_" + field, tuple(getattr(entity, "_" + field)))
         elif isinstance(entity, (ChargingStation, ParkingArea)) and entity._pending_node is not None:
             entity._node = layout._bind_node(entity._pending_node, entity.id, "node")
             entity._pending_node = None

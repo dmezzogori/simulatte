@@ -407,3 +407,57 @@ def test_disabled_or_unreachable_required_nodes_fail_before_any_node_publication
         with pytest.raises(LayoutError, match="disabled|unreachable"):
             layout.prepare()
         assert not any(entity.kind == "node" for entity in env.entities.live())
+
+
+@pytest.mark.parametrize("consumer", ["agv", "input_bays", "output_bays"])
+def test_preexisting_public_mutation_to_concrete_nodes_blocks_layout_attachment(consumer):
+    env = Environment()
+    concrete = Node("A", 0, 0)
+    if consumer == "agv":
+        cart = vehicle(env, None)
+        cart.current_node = concrete
+    else:
+        wh = Warehouse(
+            env=env, name="empty", input_bays=[], output_bays=[], n_slots=1, products=[], pick_time=0, put_time=0
+        )
+        getattr(wh, consumer).append(concrete)
+    before = env.entities.snapshot()
+    with pytest.raises(LayoutError, match="explicit graph consumers"):
+        Layout(env)
+    assert env.layout is None and env.entities.snapshot() == before
+
+
+def test_preexisting_empty_bays_seal_and_unplaced_agv_remains_supported():
+    env = Environment()
+    cart = vehicle(env, None)
+    wh = Warehouse(
+        env=env, name="empty", input_bays=[], output_bays=[], n_slots=1, products=[], pick_time=0, put_time=0
+    )
+    layout = Layout(env)
+    layout.prepare()
+    assert cart.current_node is None
+    assert wh.input_bays == wh.output_bays == ()
+    for field in ("input_bays", "output_bays"):
+        with pytest.raises(AttributeError):
+            getattr(wh, field).append(Node("outside", 0, 0))
+    plain = Environment()
+    unchanged = Warehouse(
+        env=plain, name="empty", input_bays=[], output_bays=[], n_slots=1, products=[], pick_time=0, put_time=0
+    )
+    assert isinstance(unchanged.input_bays, list)
+    unchanged.input_bays.append(Node("outside", 0, 0))
+    assert isinstance(unchanged.input_bays, list)
+
+
+def test_preexisting_bay_alias_cannot_introduce_concrete_nodes_during_preparation():
+    env = Environment()
+    wh = Warehouse(
+        env=env, name="empty", input_bays=[], output_bays=[], n_slots=1, products=[], pick_time=0, put_time=0
+    )
+    old_bays = wh.input_bays
+    layout = line(env)
+    assert isinstance(old_bays, list)
+    old_bays.append(Node("outside", 0, 0))
+    with pytest.raises(LayoutError, match="explicit graph consumers"):
+        layout.prepare()
+    assert not any(entity.kind == "node" for entity in env.entities.live())

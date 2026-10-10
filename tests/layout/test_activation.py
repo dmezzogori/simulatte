@@ -468,3 +468,80 @@ def test_all_node_names_preflight_before_first_node_binding(name):
     with pytest.raises(LayoutError, match="reserved|already used"):
         layout.prepare()
     assert not any(entity.kind == "node" for entity in env.entities.live())
+
+
+@pytest.mark.parametrize("edit", ["position", "new_port", "connector"])
+def test_d30_visual_port_edits_follow_selection_dependencies(edit):
+    from simulatte.layout import Port
+
+    patch = {"position": [2, 0, 0]} if edit != "connector" else {"connector": {}}
+    port_name = "new" if edit == "new_port" else "visual"
+    env = Environment()
+    layout = Layout.from_dict(
+        env,
+        {
+            "schema_version": "1.0",
+            "placements": {"layout_test_area-0": {"kind": "layout_test_area", "ports": {port_name: patch}}},
+        },
+    )
+    area = Area(env)
+    layout.place(
+        area,
+        position=Point(0, 0),
+        rotation=0,
+        footprint=Footprint(2, 2),
+        ports={"visual": Port(Point(1, 0), Point(1, 0))},
+    )
+    if edit == "connector":
+        layout.set_grid(Grid(1, 1))
+        layout.set_network(Lattice((3, 0, 4, 0)))
+    if edit == "position":
+        result = layout.prepare()
+        assert result.values.data["placements"][area.id]["ports"]["visual"]["position"] == (2, 0, 0)
+        assert any(item.code == "generated-id-presentation" for item in result.diagnostics)
+    else:
+        with pytest.raises(LayoutError, match="explicitly named"):
+            layout.prepare()
+
+
+def test_d30_visual_port_coordinates_become_physical_when_binder_reads_them():
+    from simulatte.layout import Port
+
+    env = Environment()
+    layout = Layout.from_dict(
+        env,
+        {
+            "schema_version": "1.0",
+            "placements": {
+                "layout_test_area-0": {"kind": "layout_test_area", "ports": {"visual": {"position": [2, 0, 0]}}}
+            },
+        },
+    )
+    area = Area(env)
+    layout.place(area, ports={"visual": Port(Point(1, 0), Point(1, 0))})
+    read = layout.ref("placements", area.id, "ports", "visual", "position")
+    layout.on_bind("physical-port", lambda ctx: ctx.physical(read), reads=(read,))
+    with pytest.raises(LayoutError, match="explicitly named"):
+        layout.prepare()
+
+
+def test_d30_selection_comparison_only_resolves_the_affected_target(monkeypatch):
+    import simulatte.layout.layout as facade
+
+    env = Environment()
+    patches = {f"layout_test_area-{i}": {"kind": "layout_test_area", "visual": {"color": "blue"}} for i in range(20)}
+    layout = Layout.from_dict(env, {"schema_version": "1.0", "placements": patches})
+    for _ in patches:
+        layout.place(Area(env), footprint=Footprint(1, 1))
+    resolve = facade.resolve_layers
+    finalizer_sizes = []
+
+    def measured(code, file, *args, **kwargs):
+        if layout._coordinator.closure.sealed:
+            finalizer_sizes.append((len(kwargs["targets"]), sum(len(patch.get("placements", {})) for _, patch in code)))
+        return resolve(code, file, *args, **kwargs)
+
+    monkeypatch.setattr(facade, "resolve_layers", measured)
+    result = layout.prepare()
+    assert len(result.values.targets) == 20
+    assert finalizer_sizes == [(1, 1)] * 20

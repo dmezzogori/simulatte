@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .auto import AutoLayer, TargetMetadata, auto_layout
-from .binding import bind_components
-from .dependencies import MISSING, DependencyClosure
+from .binding import bind_components, check_existing_endpoints
+from .dependencies import MISSING, DependencyClosure, evaluate_query
 from .errors import LayoutDiagnostic, LayoutError
 from .io import load_layout, save_layout
 from .layers import FileLayer, ResolvedValues, _thaw, resolve_layers
@@ -80,6 +80,7 @@ class Layout:
     ) -> None:
         if env.layout is not None or env._activation_started or env._explicit_graph_use or env.now != 0:
             raise LayoutError("Layout requires an unactivated environment without explicit graph consumers")
+        check_existing_endpoints(env)
         self.env, self.limits = env, limits
         layer = FileLayer({"schema_version": "1.0"}) if file is None else load_layout(file, limits=limits)
         self._placed: set[str] = set()
@@ -325,6 +326,7 @@ class Layout:
             raise LayoutError("custom manager requires explicit resource owner and binder registration")
 
     def _validate(self, coordinator: PreparationCoordinator) -> ResolvedValues:
+        check_existing_endpoints(self.env)
         if (
             self._resource_managers
             or self._custom_managers
@@ -391,6 +393,21 @@ class Layout:
             *self._auto.diagnostics,
         ]
         definitions = {definition.id for definition in coordinator.network.definitions.nodes.values()}
+        code_placements: dict[str, list[tuple[int, str, Mapping[str, Any]]]] = {}
+        for index, (stage, patch) in enumerate(coordinator.values.bundle.code_stages):
+            for target, placement in patch.get("placements", {}).items():
+                code_placements.setdefault(target, []).append((index, stage, placement))
+        file_paths: dict[str, list[tuple[str, ...]]] = {}
+        for path, leaf in coordinator.values.explicit_leaves.items():
+            if (
+                len(path) >= 2
+                and path[0] == "placements"
+                and leaf.source is not None
+                and leaf.source.kind == "file"
+                and not isinstance(leaf.value, (Mapping, tuple))
+            ):
+                file_paths.setdefault(path[1], []).append(path)
+        empty_file = FileLayer({"schema_version": "1.0"})
         for entity_id in coordinator.file_layer.data.get("placements", {}):
             if (
                 entity_id in definitions
@@ -400,28 +417,39 @@ class Layout:
                 continue
             prefix = ("placements", entity_id)
             physical_paths = []
+            structural_override = False
+            baseline_views: dict[int, ResolvedValues] = {}
             for query in coordinator.closure.queries:
                 path = tuple(query.descriptor["path"])
                 kind = query.descriptor["kind"]
                 if kind == "value":
                     physical_paths.append(path)
                 elif kind == "selection" and path == ("placements",):
-                    if query.descriptor["predicate"] == "obstacle":
-                        physical_paths.append((*prefix, "obstacle"))
-                    else:
-                        physical_paths.append((*prefix, "ports"))
+                    # A selection consumes this target's membership/predicate flags,
+                    # not visual descendants. Replay only its code placement prefix;
+                    # the once-built index avoids remerging the whole model per target.
+                    if query.code_count not in baseline_views:
+                        patches = tuple(
+                            (stage, {"schema_version": "1.0", "placements": {entity_id: placement}})
+                            for index, stage, placement in code_placements.get(entity_id, ())
+                            if index < query.code_count
+                        )
+                        target_kind = query.targets.get(entity_id)
+                        baseline_views[query.code_count] = resolve_layers(
+                            patches,
+                            empty_file,
+                            targets={} if target_kind is None else {entity_id: target_kind},
+                            final=True,
+                        )
+                    baseline = evaluate_query(baseline_views[query.code_count], query.descriptor)
+                    if baseline["flags"].get(entity_id) != _thaw(query.observed["flags"].get(entity_id)):
+                        structural_override = True
                 elif path[:2] == prefix:
                     physical_paths.append(path)
-            file_paths = [
-                path
-                for path, leaf in coordinator.values.explicit_leaves.items()
-                if path[:2] == prefix
-                and leaf.source is not None
-                and leaf.source.kind == "file"
-                and not isinstance(leaf.value, (Mapping, tuple))
-            ]
-            physical = any(
-                path[: len(used)] == used or used[: len(path)] == path for path in file_paths for used in physical_paths
+            physical = structural_override or any(
+                path[: len(used)] == used or used[: len(path)] == path
+                for path in file_paths.get(entity_id, ())
+                for used in physical_paths
             )
             if physical:
                 raise LayoutError(f"physical file override requires an explicitly named entity: {entity_id}")
