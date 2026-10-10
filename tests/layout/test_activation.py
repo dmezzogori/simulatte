@@ -545,3 +545,25 @@ def test_d30_selection_comparison_only_resolves_the_affected_target(monkeypatch)
     result = layout.prepare()
     assert len(result.values.targets) == 20
     assert finalizer_sizes == [(1, 1)] * 20
+
+
+@pytest.mark.parametrize("named", [False, True])
+@pytest.mark.parametrize("predicate", ["obstacle", "port_unset", "connector_unset"])
+def test_d30_identical_file_predicate_restatements_still_require_names(named, predicate):
+    patch: dict[str, Any] = {"obstacle": False}
+    if predicate == "port_unset":
+        patch = {"ports": {"visual": {"$unset": True}}}
+    elif predicate == "connector_unset":
+        patch = {"ports": {"visual": {"connector": {"$unset": True}}}}
+    env = Environment()
+    target = "hall" if named else "layout_test_area-0"
+    layout = Layout.from_dict(
+        env, {"schema_version": "1.0", "placements": {target: {"kind": "layout_test_area", **patch}}}
+    )
+    area = Area(env, "hall" if named else None)
+    layout.place(area, **patch)
+    if named:
+        assert layout.prepare().values.targets[target] == "layout_test_area"
+    else:
+        with pytest.raises(LayoutError, match="explicitly named"):
+            layout.prepare()

@@ -417,6 +417,7 @@ class Layout:
                 continue
             prefix = ("placements", entity_id)
             physical_paths = []
+            predicate_paths = []
             structural_override = False
             baseline_views: dict[int, ResolvedValues] = {}
             for query in coordinator.closure.queries:
@@ -425,6 +426,16 @@ class Layout:
                 if kind == "value":
                     physical_paths.append(path)
                 elif kind == "selection" and path == ("placements",):
+                    flags = query.observed["flags"].get(entity_id)
+                    if flags is not None:
+                        if query.descriptor["predicate"] == "obstacle":
+                            predicate_paths.append((*prefix, "obstacle"))
+                        else:
+                            predicate_paths.append((*prefix, "ports"))
+                            for port in flags["ports"]:
+                                predicate_paths.extend(
+                                    ((*prefix, "ports", port), (*prefix, "ports", port, "connector"))
+                                )
                     # A selection consumes this target's membership/predicate flags,
                     # not visual descendants. Replay only its code placement prefix;
                     # the once-built index avoids remerging the whole model per target.
@@ -446,10 +457,20 @@ class Layout:
                         structural_override = True
                 elif path[:2] == prefix:
                     physical_paths.append(path)
-            physical = structural_override or any(
-                path[: len(used)] == used or used[: len(path)] == path
-                for path in file_paths.get(entity_id, ())
-                for used in physical_paths
+            # A file-origin predicate leaf (or removal of its ancestor container)
+            # remains physical even when its value equals code. Descendants of a
+            # presence/membership read are not implicitly consumed.
+            predicate_override = any(
+                used[: len(path)] == path for path in file_paths.get(entity_id, ()) for used in predicate_paths
+            )
+            physical = (
+                structural_override
+                or predicate_override
+                or any(
+                    path[: len(used)] == used or used[: len(path)] == path
+                    for path in file_paths.get(entity_id, ())
+                    for used in physical_paths
+                )
             )
             if physical:
                 raise LayoutError(f"physical file override requires an explicitly named entity: {entity_id}")
