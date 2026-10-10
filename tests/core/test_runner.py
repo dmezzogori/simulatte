@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
 from simulatte.environment import Environment
 from simulatte.runner import Runner
 from simulatte.server import Server
@@ -34,9 +36,7 @@ def extract_time(system: SimpleSystem) -> float:
 
 
 def random_value_builder(env: Environment) -> tuple[Environment, float]:
-    import random
-
-    return (env, random.random())
+    return (env, env.rng("test").random())
 
 
 def extract_random_value(system: tuple[Environment, float]) -> float:
@@ -93,11 +93,9 @@ def test_runner_extract_fn_called() -> None:
 
 
 def test_runner_seed_affects_random_state() -> None:
-    import random
-
     def random_builder(env: Environment) -> tuple[Environment, float]:
-        # Capture a random value right after seed is set
-        return (env, random.random())
+        # Capture a value from a stream of the run's environment
+        return (env, env.rng("test").random())
 
     def extract_random(system: tuple[Environment, float]) -> float:
         return system[1]
@@ -116,10 +114,8 @@ def test_runner_seed_affects_random_state() -> None:
 
 
 def test_runner_different_seeds_different_results() -> None:
-    import random
-
     def random_builder(env: Environment) -> tuple[Environment, float]:
-        return (env, random.random())
+        return (env, env.rng("test").random())
 
     def extract_random(system: tuple[Environment, float]) -> float:
         return system[1]
@@ -156,6 +152,8 @@ def test_runner_parallel_smoke_test() -> None:
 def test_runner_parallel_preserves_seed_order() -> None:
     import random
 
+    from simulatte.rng import derive_seed
+
     seeds = [1, 2, 3, 4]
     runner = Runner(
         builder=random_value_builder,
@@ -167,7 +165,8 @@ def test_runner_parallel_preserves_seed_order() -> None:
 
     results = runner.run(until=1.0)
 
-    assert results == [random.Random(seed).random() for seed in seeds]
+    # Each run's environment is seeded with its own seed: stream "test" is reproducible outside the Runner.
+    assert results == [random.Random(derive_seed(seed, "test")).random() for seed in seeds]
 
 
 def test_runner_parallel_with_n_jobs_none() -> None:
@@ -207,79 +206,66 @@ def test_runner_empty_seeds() -> None:
 def test_runner_log_dir_creates_files(tmp_path: Path) -> None:
     """Runner should create per-simulation log files when log_dir is specified."""
 
-    from simulatte.logger import SimLogger
+    def logging_builder(env: Environment) -> SimpleSystem:
+        system = SimpleSystem(env=env)
+        env.info("Simulation started")
+        return system
 
-    original_level = SimLogger.get_level()
-    try:
-        SimLogger.set_level("DEBUG")
+    runner = Runner(
+        builder=logging_builder,
+        seeds=[1, 2, 3],
+        parallel=False,
+        extract_fn=extract_time,
+        log_dir=tmp_path,
+    )
 
-        def logging_builder(env: Environment) -> SimpleSystem:
-            system = SimpleSystem(env=env)
-            env.info("Simulation started")
-            return system
+    runner.run(until=10.0)
 
-        runner = Runner(
-            builder=logging_builder,
-            seeds=[1, 2, 3],
-            parallel=False,
-            extract_fn=extract_time,
-            log_dir=tmp_path,
-        )
+    # Check that 3 log files were created
+    log_files = list(tmp_path.glob("sim_*.log"))
+    assert len(log_files) == 3
 
-        runner.run(until=10.0)
-
-        # Check that 3 log files were created
-        log_files = list(tmp_path.glob("sim_*.log"))
-        assert len(log_files) == 3
-
-        # Check naming convention
-        expected_files = [
-            tmp_path / "sim_0000_seed_1.log",
-            tmp_path / "sim_0001_seed_2.log",
-            tmp_path / "sim_0002_seed_3.log",
-        ]
-        for expected in expected_files:
-            assert expected.exists()
-    finally:
-        SimLogger.set_level(original_level)
+    # Check naming convention and that each run wrote to its own file
+    expected_files = [
+        tmp_path / "sim_0000_seed_1.log",
+        tmp_path / "sim_0001_seed_2.log",
+        tmp_path / "sim_0002_seed_3.log",
+    ]
+    for expected in expected_files:
+        assert expected.read_text().splitlines() == ["0.0d 00:00:0.00 | INFO     | -            | Simulation started"]
 
 
-def test_runner_log_format_json(tmp_path: Path) -> None:
-    """Runner should support JSON log format."""
+def test_runner_log_dir_json(tmp_path: Path) -> None:
+    """One JSON-lines file per simulation, at the runner's log level."""
     import json
 
-    from simulatte.logger import SimLogger
+    def logging_builder(env: Environment) -> SimpleSystem:
+        system = SimpleSystem(env=env)
+        env.debug("Building", component="Builder")
+        env.info("Simulation started", component="Builder", seed=env.seed)
+        return system
 
-    original_level = SimLogger.get_level()
-    try:
-        SimLogger.set_level("DEBUG")
+    runner = Runner(
+        builder=logging_builder,
+        seeds=[42, 7],
+        parallel=False,
+        extract_fn=extract_time,
+        log_dir=tmp_path,
+        log_format="json",
+        log_level="DEBUG",
+    )
 
-        def logging_builder(env: Environment) -> SimpleSystem:
-            system = SimpleSystem(env=env)
-            env.info("Simulation started", component="Builder")
-            return system
+    runner.run(until=10.0)
 
-        runner = Runner(
-            builder=logging_builder,
-            seeds=[42],
-            parallel=False,
-            extract_fn=extract_time,
-            log_dir=tmp_path,
-            log_format="json",
-        )
-
-        runner.run(until=10.0)
-
-        log_file = tmp_path / "sim_0000_seed_42.log"
-        assert log_file.exists()
-
-        content = log_file.read_text().strip()
-        data = json.loads(content)
-        assert data["level"] == "INFO"
-        assert data["message"] == "Simulation started"
-        assert data["component"] == "Builder"
-    finally:
-        SimLogger.set_level(original_level)
+    for name, seed in (("sim_0000_seed_42.log", 42), ("sim_0001_seed_7.log", 7)):
+        records = [json.loads(line) for line in (tmp_path / name).read_text().splitlines()]
+        logs = [r for r in records if r["kind"] == "log"]
+        assert [(r["level"], r["message"], r["component"]) for r in logs] == [
+            ("DEBUG", "Building", "Builder"),
+            ("INFO", "Simulation started", "Builder"),
+        ]
+        assert logs[1]["extra"] == {"seed": seed}
+        assert all(r["kind"] in ("log", "domain") for r in records)
 
 
 def test_runner_without_log_dir() -> None:
@@ -300,31 +286,29 @@ def test_runner_without_log_dir() -> None:
 def test_runner_log_dir_creates_directory(tmp_path: Path) -> None:
     """Runner should create log_dir if it doesn't exist."""
 
-    from simulatte.logger import SimLogger
+    def logging_builder(env: Environment) -> SimpleSystem:
+        system = SimpleSystem(env=env)
+        env.info("Simulation started")
+        return system
 
-    original_level = SimLogger.get_level()
-    try:
-        SimLogger.set_level("DEBUG")
+    nested_dir = tmp_path / "nested" / "logs"
+    assert not nested_dir.exists()
 
-        def logging_builder(env: Environment) -> SimpleSystem:
-            system = SimpleSystem(env=env)
-            env.info("Simulation started")
-            return system
+    runner = Runner(
+        builder=logging_builder,
+        seeds=[1],
+        parallel=False,
+        extract_fn=extract_time,
+        log_dir=nested_dir,
+    )
 
-        nested_dir = tmp_path / "nested" / "logs"
-        assert not nested_dir.exists()
+    runner.run(until=10.0)
 
-        runner = Runner(
-            builder=logging_builder,
-            seeds=[1],
-            parallel=False,
-            extract_fn=extract_time,
-            log_dir=nested_dir,
-        )
+    assert nested_dir.exists()
+    assert (nested_dir / "sim_0000_seed_1.log").exists()
 
-        runner.run(until=10.0)
 
-        assert nested_dir.exists()
-        assert (nested_dir / "sim_0000_seed_1.log").exists()
-    finally:
-        SimLogger.set_level(original_level)
+def test_runner_rejects_out_of_range_seed() -> None:
+    runner = Runner(builder=simple_builder, seeds=[2**63], extract_fn=extract_time, progress=False)
+    with pytest.raises(ValueError, match="seed"):
+        runner.run(until=1.0)

@@ -22,7 +22,7 @@ Simulatte ships three of the ready-made builder functions that encapsulate the f
 
 ## Scenario setup
 
-Six servers, exponential inter-arrivals (λ ≈ 1.56/time-unit), truncated 2-Erlang service times (µ = 2.0), uniform due dates at 30–45 time units after arrival. Target utilisation ≈ 87–88 %. Simulation duration: 2 000 time units. Fixed seed: 42.
+Six servers, exponential inter-arrivals (λ ≈ 1.56/time-unit), truncated 2-Erlang service times (µ = 2.0), uniform due dates at 30–45 time units after arrival. Utilisation ≈ 88 %. Simulation duration: 2 000 time units. Fixed seed: 42.
 
 ---
 
@@ -44,8 +44,6 @@ streams to all three policies (common-random-numbers design).
 
 from __future__ import annotations
 
-import random
-
 from simulatte.builders import (
     build_immediate_release_system,
     build_lumscor_system,
@@ -59,8 +57,7 @@ SIM_TIME = 2000.0
 
 def run_policy(builder_fn, seed: int = SEED, until: float = SIM_TIME) -> dict:
     """Run a single simulation with the given builder and seed."""
-    random.seed(seed)
-    with Environment() as env:
+    with Environment(seed=seed) as env:
         psp, servers, shopfloor, _router, _policy = builder_fn(env)
         env.run(until=until)
 
@@ -152,9 +149,9 @@ Release policy comparison  (seed=42, sim_time=2000)
 
 Policy      Done    PSP left  Late %   Mean tardy  Mean span   End WIP    Util % 
 ---------------------------------------------------------------------------------
-Immediate   3026    0         11.8%    1.04        19.93       90.6       87.7%  
-LumsCor     3018    23        11.6%    1.76        20.67       26.2       87.6%  
-SLAR        3025    17        1.0%     0.07        19.79       45.5       87.8%  
+Immediate   2963    0         10.5%    1.10        19.40       243.2      87.6%
+LumsCor     2969    49        8.9%     0.97        18.77       52.7       87.4%
+SLAR        2974    49        2.5%     0.20        18.53       49.7       87.6%
 
 Columns:
   Done       = jobs completed by sim_time
@@ -170,11 +167,11 @@ Columns:
 
 ## Interpretation
 
-**Immediate Release** pushes all 3 026 jobs straight onto the shop floor. There is no PSP, so End WIP is high (90.6 units of remaining work) and 11.8 % of jobs finish late.
+**Immediate Release** pushes every arrival straight onto the shop floor and completes 2 963 jobs. There is no PSP, so all the queueing happens on the floor: the run ends during a congested spell, End WIP is high (243.2 units of remaining work) and 10.5 % of jobs finish late.
 
-**LumsCor** holds 23 jobs in the PSP at end of simulation. Its workload norm keeps queues short (End WIP = 26.2, the lowest in the table), but because it checks periodically (`check_timeout=10`), the PSP waiting time it introduces means jobs held in the pool may already be at or past their due date when released — adding tardiness (1.76 vs 1.04 for Immediate) without a corresponding WIP benefit. (LumsCor gate-checks each candidate individually against the workload norm; it is not a true batch burst.)
+**LumsCor** holds 49 jobs in the PSP at the end of the simulation. Its workload norm keeps the floor light (End WIP = 52.7 against 243.2 for Immediate) and trims tardiness slightly (8.9 % late, mean tardiness 0.97 vs 1.10). Because it checks periodically (`check_timeout=10`), a job held in the pool may already be close to or past its due date when it is released, which limits that gain. (LumsCor gate-checks each candidate individually against the workload norm; it is not a true batch burst.)
 
-**SLAR** keeps late-ness dramatically lower (1.0 %) with a mean tardiness of just 0.07. It is reactive rather than periodic: it only releases when a server risks starvation or an urgent job needs insertion. That responsiveness gives SLAR the lowest tardiness in the table, while its End WIP (45.5) sits between Immediate (90.6) and LumsCor (26.2) — SLAR trades tighter WIP control for better due-date performance.
+**SLAR** keeps lateness much lower (2.5 %) with a mean tardiness of 0.20. It is reactive rather than periodic: it only releases when a server risks starvation or an urgent job needs insertion. That responsiveness gives SLAR the lowest tardiness in the table and, in this run, also the lowest End WIP (49.7, close to LumsCor's 52.7).
 
 ### When to choose which policy
 

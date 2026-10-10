@@ -10,7 +10,7 @@ A `ProductionJob` is the fundamental unit of work. Each job carries a server seq
 
 ### Servers & queues
 
-A `Server` extends SimPy's `PriorityResource`. It can process one or more jobs concurrently (set by `capacity`) and tracks queue length and utilization rate. Queue sorting is dynamic: before every dispatch, `Server.sort_queue` re-evaluates the priority policy for every waiting job and re-orders the queue accordingly. You can visualise queue and utilisation history with `plot_qt()` and `plot_ut()` if `collect_time_series=True` is set at construction.
+A `Server` extends SimPy's `PriorityResource`. It can process one or more jobs concurrently (set by `capacity`) and tracks queue length and utilization rate. Queue sorting is dynamic: before every dispatch, `Server.sort_queue` re-evaluates the priority policy for every waiting job and re-orders the queue accordingly. You can record and visualise queue and utilisation history by attaching a `ServerTimeSeries` collector (`plot_qt()` and `plot_ut()`).
 
 ### Pre-shop pool & release control
 
@@ -22,7 +22,7 @@ Once a job is on the shopfloor and waiting at a server, a dispatching rule deter
 
 ### WIP & metrics
 
-The ShopFloor uses a pluggable WIPStrategy and its EMA collector exposes ema_makespan, ema_tardy_jobs, ema_early_jobs, ema_in_window_jobs, ema_time_in_psp, ema_time_in_shopfloor, and ema_total_queue_time. Time-series collectors provide throughput and WIP histories.
+The ShopFloor uses a pluggable WIPStrategy. Its default EMA collector (`shopfloor.metrics`) exposes ema_makespan, ema_tardy_jobs, ema_early_jobs, ema_in_window_jobs, ema_time_in_psp, ema_time_in_shopfloor, and ema_total_queue_time. Other collectors in `simulatte.collectors` listen to the simulation's events: time-series collectors provide throughput, WIP and remaining-work histories, and `ShopFloorKPIs` computes window-aware KPIs after a warm-up.
 
 ## Where to go next
 

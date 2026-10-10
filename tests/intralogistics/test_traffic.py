@@ -41,17 +41,14 @@ class TestFreeTrafficManager:
         result = tm.check_path(agv, [])
         assert result.feasible is True
 
-    def test_place_is_noop(self) -> None:
+    def test_place_now_is_noop(self) -> None:
         env = Environment()
         tm = FreeTrafficManager()
         node = Node(id="A", x=0.0, y=0.0)
         agv = _make_agv(env, node)
-
-        def run():
-            yield from tm.place(agv, node)
-
-        env.process(run())
-        env.run()
+        tm.place_now(agv, node)
+        tm.place_now(agv, node)
+        assert env.peek() == float("inf")
 
     def test_enter_leave_are_noops(self) -> None:
         env = Environment()
@@ -83,19 +80,27 @@ class TestFreeTrafficManager:
 
 
 class TestResourceBasedTrafficManager:
-    def test_place_acquires_node(self) -> None:
+    def test_place_now_acquires_node(self) -> None:
         env = Environment()
         n1 = Node(id="N1", x=0.0, y=0.0)
         graph = LayoutGraph([n1], [])
         tm = ResourceBasedTrafficManager(graph=graph, env=env)
         agv = _make_agv(env, n1)
 
-        def run():
-            yield from tm.place(agv, n1)
-
-        env.process(run())
-        env.run()
+        tm.place_now(agv, n1)
         assert tm._node_resources[n1].count == 1
+
+    def test_place_now_raises_when_node_is_full(self) -> None:
+        env = Environment()
+        n1 = Node(id="N1", x=0.0, y=0.0)
+        tm = ResourceBasedTrafficManager(graph=LayoutGraph([n1], []), env=env, node_capacity=1)
+        first, second = _make_agv(env, n1), _make_agv(env, n1)
+        tm.place_now(first, n1)
+        with pytest.raises(RuntimeError, match="fully reserved"):
+            tm.place_now(second, n1)
+        resource = tm._node_resources[n1]
+        assert resource.count == 1 and not resource.queue  # the refused request was withdrawn
+        assert (second, n1) not in tm._node_requests
 
     def test_enter_blocks_when_full(self) -> None:
         env = Environment()
@@ -109,7 +114,7 @@ class TestResourceBasedTrafficManager:
         entered = []
 
         def occupy():
-            yield from tm.place(agv1, n2)
+            tm.place_now(agv1, n2)
             yield env.timeout(10.0)
             tm.leave_node(agv1, n2)
 
@@ -202,7 +207,7 @@ class TestResourceBasedTrafficManager:
         entered_after_cancel = []
 
         def block_then_release():
-            yield from tm.place(agv_blocker, n2)
+            tm.place_now(agv_blocker, n2)
             yield env.timeout(20.0)
             tm.leave_node(agv_blocker, n2)
 
@@ -253,7 +258,7 @@ class TestResourceBasedTrafficManager:
         assert tm._intents[agv] == [n1, n2, n3]
 
         def move():
-            yield from tm.place(agv, n1)
+            tm.place_now(agv, n1)
             yield from tm.enter_node(agv, n2)
             tm.leave_node(agv, n1)
 
@@ -319,7 +324,7 @@ class TestResourceBasedTrafficManager:
         agv_waiter = _make_agv(env, n1)
 
         def block_forever():
-            yield from tm.place(agv_blocker, n2)
+            tm.place_now(agv_blocker, n2)
             yield env.timeout(100.0)
 
         def enter_then_get_interrupted():
@@ -355,11 +360,8 @@ class TestResourceBasedTrafficManager:
         agv_blocker = _make_agv(env, n2)
         agv_stale = _make_agv(env, n1)
 
-        def setup():
-            # Blocker occupies n2
-            yield from tm.place(agv_blocker, n2)
-
-        env.process(setup())
+        # Blocker occupies n2
+        tm.place_now(agv_blocker, n2)
         env.run()
 
         # Manually insert a stale request for agv_stale on n2 (pending, not processed)
@@ -388,16 +390,13 @@ class TestResourceBasedTrafficManager:
 
         agv = _make_agv(env, n1)
 
-        def setup():
-            # Place AGV: request triggers immediately (capacity=2, no contention)
-            yield from tm.place(agv, n1)
-            # After placement, the request is triggered
-            # Manually add it to _pending_requests to simulate the state
-            req = tm._node_requests[(agv, n1)]
-            tm._pending_requests[agv] = req
-            assert req.triggered  # it's already triggered/acquired
-
-        env.process(setup())
+        # Place AGV: request triggers immediately (capacity=2, no contention)
+        tm.place_now(agv, n1)
+        # After placement, the request is triggered
+        # Manually add it to _pending_requests to simulate the state
+        req = tm._node_requests[(agv, n1)]
+        tm._pending_requests[agv] = req
+        assert req.triggered  # it's already triggered/acquired
         env.run()
 
         # cancel() should handle the triggered pending request
@@ -416,7 +415,7 @@ class TestResourceBasedTrafficManager:
 
         def setup():
             # Place AGV at n1 (triggered, acquired)
-            yield from tm.place(agv, n1)
+            tm.place_now(agv, n1)
             # Also enter n2 (triggered, acquired since capacity=2)
             yield from tm.enter_node(agv, n2)
 
@@ -454,7 +453,7 @@ class TestResourceBasedTrafficManager:
         agv = _make_agv(env, n1)
 
         def setup():
-            yield from tm.place(agv, n1)
+            tm.place_now(agv, n1)
             yield from tm.enter_node(agv, n2)
 
         env.process(setup())
@@ -503,7 +502,7 @@ class TestResourceBasedTrafficManager:
         agv_waiter = _make_agv(env, n1)
 
         def block_forever():
-            yield from tm.place(agv_blocker, n2)
+            tm.place_now(agv_blocker, n2)
             yield env.timeout(100.0)
 
         def try_enter_then_leave():
@@ -532,9 +531,8 @@ class TestMinimalTrafficManager:
         from simulatte.intralogistics.traffic import TrafficManager
 
         class MinimalTM:
-            def place(self, agv, node):
-                return
-                yield
+            def place_now(self, agv, node):
+                pass
 
             def check_path(self, agv, path):
                 return PathCheckResult(feasible=True)

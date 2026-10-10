@@ -22,8 +22,8 @@ class TestWarehouse:
             n_slots=2,
             products=[steel, bolts],
             initial_inventory={steel: 100, bolts: 500},
-            pick_time_fn=lambda sku, qty: 2.0,
-            put_time_fn=lambda sku, qty: 1.0,
+            pick_time=2.0,
+            put_time=1.0,
         )
         return wh, [in_bay, out_bay]
 
@@ -93,8 +93,8 @@ class TestWarehouse:
             n_slots=1,
             products=[steel],
             initial_inventory={steel: 0},
-            pick_time_fn=lambda sku, qty: 1.0,
-            put_time_fn=lambda sku, qty: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         completed: list[str] = []
 
@@ -134,8 +134,8 @@ class TestWarehouse:
             output_bays=[out1, out2],
             n_slots=1,
             products=[steel],
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         nearest = wh.nearest_output_bay(agv_pos, graph)
         assert nearest == out1  # graph distance: AGV→OUT1 = 8.0, AGV→D→OUT2 ≈ 5+5.1 = 10.1

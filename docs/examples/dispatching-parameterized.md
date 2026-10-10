@@ -25,8 +25,6 @@ Run: uv run python examples/gallery_dispatching_parameterized.py
 
 from __future__ import annotations
 
-import random
-
 from simulatte.builders import build_immediate_release_system
 from simulatte.dispatching_rules import (
     apparent_tardiness_cost,
@@ -52,8 +50,7 @@ RULES = {
 
 
 def run_rule(rule) -> tuple[int, float, float, float]:
-    random.seed(SEED)
-    with Environment() as env:
+    with Environment(seed=SEED) as env:
         _, _servers, shop_floor, _, _ = build_immediate_release_system(
             env=env, scenario=Scenario(due_date_offset=Uniform(10.0, 18.0)), priority_policies=rule
         )
@@ -90,13 +87,13 @@ uv run python examples/gallery_dispatching_parameterized.py
 ```text
 Parameterized dispatching rules (immediate release, seed=42)
 Rule      Done   AvgTIS  MeanTard  %Tardy
-PST       1172    15.12      3.31   59.6%
-S/RO      1167    16.29      4.26   63.3%
-ATC       1173    13.66      2.63   45.2%
-COVERT    1172    13.31      1.76   46.2%
-Raghu     1174    11.81      2.45   31.7%
+PST       1162    16.77      4.79   69.4%
+S/RO      1160    17.49      5.29   73.4%
+ATC       1162    14.09      2.86   50.3%
+COVERT    1164    13.76      2.13   49.8%
+Raghu     1164    12.24      2.67   34.5%
 ```
 
 ## Interpretation
 
-ATC and COVERT take a `lookahead` parameter that sets how far ahead the rule discounts a job's expected tardiness cost; PST and S/RO take an `allowance` that sizes the slack buffer. These knobs are the whole point: they trade average flow time against tardiness. The shop's due dates are set to **bind** (the uniform offset is tightened to `(10.0, 18.0)`, the same range used across the dispatching galleries), so the slack/cost rules are genuinely exercised rather than reading zero tardiness everywhere. The cost-based rules now separate clearly from the pure-slack rules: **COVERT** and **ATC**, which weight expected tardiness cost per unit of processing time, fold in a short-job preference and so cut both AvgTIS (13.31 and 13.66) and tardiness (46.2% and 45.2%) below the slack-buffer rules **PST** and **S/RO** (~15.1–16.3 AvgTIS, ~60–63% tardy). The composite Raghu-Rajendran rule, which mixes a processing-time term, achieves the lowest AvgTIS (11.81) and the fewest tardy jobs (31.7%) here. Tune the parameters to push each rule toward whichever objective matters for your shop.
+ATC and COVERT take a `lookahead` parameter that sets how far ahead the rule discounts a job's expected tardiness cost; PST and S/RO take an `allowance` that sizes the slack buffer. These knobs are the whole point: they trade average flow time against tardiness. The shop's due dates are set to **bind** (the uniform offset is tightened to `(10.0, 18.0)`, the same range used across the dispatching galleries), so the slack/cost rules are genuinely exercised rather than reading zero tardiness everywhere. The cost-based rules now separate clearly from the pure-slack rules: **COVERT** and **ATC**, which weight expected tardiness cost per unit of processing time, fold in a short-job preference and so cut both AvgTIS (13.76 and 14.09) and tardiness (49.8% and 50.3%) below the slack-buffer rules **PST** and **S/RO** (~16.8–17.5 AvgTIS, ~69–73% tardy). The composite Raghu-Rajendran rule, which mixes a processing-time term, achieves the lowest AvgTIS (12.24) and the fewest tardy jobs (34.5%) here. Tune the parameters to push each rule toward whichever objective matters for your shop.

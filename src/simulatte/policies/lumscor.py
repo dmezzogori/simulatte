@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from simulatte.dispatching_rules import planned_slack_time
+from simulatte.policies.events import PolicyDecision
 from simulatte.policies.norms import expand_norms, fits_norms
 from simulatte.policies.starvation_avoidance import starvation_avoidance
 from simulatte.policies.triggers import periodic_trigger
@@ -110,7 +111,10 @@ class LumsCor:
         shopfloor = psp.shopfloor
         for job in sorted(psp.jobs, key=lambda j: j.planned_release_date(self.allowance_factor)):
             if fits_norms(job, wip=shopfloor.wip, norms=self.wl_norm):
-                psp.remove(job=job)
+                env = psp.env
+                if env.wants(PolicyDecision):
+                    env.emit(PolicyDecision(policy=type(self).__name__, job=job.id, action="release"))
+                psp.remove(job=job, reason="released")
                 shopfloor.add(job)
 
     def starvation_release(self, triggering_job: ProductionJob, psp: PreShopPool) -> None:
@@ -140,7 +144,10 @@ class LumsCor:
                 key=lambda j: j.planned_release_date(self.allowance_factor),
             )
             if candidate_job:
-                psp.remove(job=candidate_job)
+                env = psp.env
+                if env.wants(PolicyDecision):
+                    env.emit(PolicyDecision(policy=type(self).__name__, job=candidate_job.id, action="release"))
+                psp.remove(job=candidate_job, reason="released")
                 psp.shopfloor.add(candidate_job)
         elif has_one:
             candidate_job = min(
@@ -149,7 +156,10 @@ class LumsCor:
                 key=lambda j: j.planned_release_date(self.allowance_factor),
             )
             if candidate_job:
-                psp.remove(job=candidate_job)
+                env = psp.env
+                if env.wants(PolicyDecision):
+                    env.emit(PolicyDecision(policy=type(self).__name__, job=candidate_job.id, action="postpone"))
+                psp.remove(job=candidate_job, reason="postponed")
                 psp.env.process(self._postponed_release(candidate_job, psp))
 
     def _postponed_release(self, job: ProductionJob, psp: PreShopPool) -> ProcessGenerator:

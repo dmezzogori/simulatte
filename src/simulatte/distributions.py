@@ -7,11 +7,11 @@ as well as online statistics computation for simulation metrics.
 from __future__ import annotations
 
 import math
-import random
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover
+    import random
     from collections.abc import Callable, Sequence
 
     from simulatte.server import Server
@@ -19,15 +19,16 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @runtime_checkable
 class Distribution(Protocol):
-    """A callable random variate that also reports its analytical mean.
+    """A description of a random variate that also reports its analytical mean.
 
-    Any object that is callable with no arguments returning a ``float`` and
-    exposes a ``mean`` property satisfies this protocol. The ``Router`` only
-    needs the callable side (the ``Sampler`` contract); ``Scenario`` reads
-    ``.mean`` to derive the arrival rate for a target utilization.
+    Any object with a ``sampler(rng)`` method returning a zero-argument
+    ``float`` sampler that draws from ``rng``, and a ``mean`` property,
+    satisfies this protocol. The ``Router`` binds descriptions to its RNG
+    streams (``env.bind``); ``Scenario`` reads ``.mean`` to derive the arrival
+    rate for a target utilization.
     """
 
-    def __call__(self) -> float: ...
+    def sampler(self, rng: random.Random) -> Callable[[], float]: ...
 
     @property
     def mean(self) -> float: ...
@@ -60,8 +61,11 @@ class Exponential:
             msg = f"rate must be positive, got {self.rate}"
             raise ValueError(msg)
 
-    def __call__(self) -> float:
-        return random.expovariate(self.rate)
+    def sampler(self, rng: random.Random) -> Callable[[], float]:
+        """A sampler drawing from `rng`."""
+        rate = self.rate
+        expovariate = rng.expovariate
+        return lambda: expovariate(rate)
 
     @property
     def mean(self) -> float:
@@ -83,8 +87,11 @@ class Erlang:
             msg = f"shape must be >= 1, got {self.shape}"
             raise ValueError(msg)
 
-    def __call__(self) -> float:
-        return random.gammavariate(self.shape, 1.0 / self.rate)
+    def sampler(self, rng: random.Random) -> Callable[[], float]:
+        """A sampler drawing from `rng`."""
+        shape, scale = self.shape, 1.0 / self.rate
+        gammavariate = rng.gammavariate
+        return lambda: gammavariate(shape, scale)
 
     @property
     def mean(self) -> float:
@@ -115,11 +122,18 @@ class TruncatedErlang:
             msg = f"max_value must be positive, got {self.max_value}"
             raise ValueError(msg)
 
-    def __call__(self) -> float:
-        while True:
-            sample = sum(random.expovariate(self.rate) for _ in range(self.shape))
-            if sample <= self.max_value:
-                return sample
+    def sampler(self, rng: random.Random) -> Callable[[], float]:
+        """A sampler drawing from `rng` (a variable number of draws per sample)."""
+        rate, shape, max_value = self.rate, self.shape, self.max_value
+        expovariate = rng.expovariate
+
+        def sample() -> float:
+            while True:
+                value = math.fsum(expovariate(rate) for _ in range(shape))
+                if value <= max_value:
+                    return value
+
+        return sample
 
     @property
     def mean(self) -> float:
@@ -142,8 +156,11 @@ class LogNormal:
             msg = f"sigma must be positive, got {self.sigma}"
             raise ValueError(msg)
 
-    def __call__(self) -> float:
-        return random.lognormvariate(self.mu, self.sigma)
+    def sampler(self, rng: random.Random) -> Callable[[], float]:
+        """A sampler drawing from `rng`."""
+        mu, sigma = self.mu, self.sigma
+        lognormvariate = rng.lognormvariate
+        return lambda: lognormvariate(mu, sigma)
 
     @property
     def mean(self) -> float:
@@ -162,8 +179,11 @@ class Uniform:
             msg = f"low must be <= high, got low={self.low}, high={self.high}"
             raise ValueError(msg)
 
-    def __call__(self) -> float:
-        return random.uniform(self.low, self.high)
+    def sampler(self, rng: random.Random) -> Callable[[], float]:
+        """A sampler drawing from `rng`."""
+        low, high = self.low, self.high
+        uniform = rng.uniform
+        return lambda: uniform(low, high)
 
     @property
     def mean(self) -> float:
@@ -176,40 +196,51 @@ class Deterministic:
 
     value: float
 
-    def __call__(self) -> float:
-        return self.value
+    def sampler(self, rng: random.Random) -> Callable[[], float]:
+        """A sampler that always returns `value` (`rng` is not used)."""
+        value = self.value
+        return lambda: value
 
     @property
     def mean(self) -> float:
         return self.value
 
 
-def pure_job_shop_routing(servers: Sequence[Server]) -> Callable[[], Sequence[Server]]:
-    """Create a Pure Job Shop (PJS) routing factory.
+@dataclass(frozen=True)
+class _Routing:
+    """Base of the routing descriptions: a frozen, non-empty pool of servers."""
+
+    servers: Sequence[Server]  # frozen to a tuple
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "servers", tuple(self.servers))  # freeze to prevent mutation issues
+        if not self.servers:
+            msg = "a routing needs at least one server"
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
+class PureJobShopRouting(_Routing):
+    """Pure Job Shop (PJS) routing description.
 
     The Pure Job Shop — also called a *randomly routed job shop* (Conway et al.,
     1967) — is the least directed of the standard workload-control benchmark
     shops: each order has a **random routing length** and a **random routing
     direction** (Oosterman, Land & Gaalman, 2000; Kasper, Land & Teunter, 2023).
-    The factory draws a routing length ``k`` uniformly from ``[1, len(servers)]``
+    A sampler draws a routing length ``k`` uniformly from ``[1, len(servers)]``
     and returns ``k`` distinct servers in random order (sampling *without*
     replacement, so re-entrant flow is prohibited).
 
-    See ``general_flow_shop_routing`` (same length rule, but the subset is sorted
-    into a directed flow) and ``pure_flow_shop_routing`` (fixed length, fully
+    See ``GeneralFlowShopRouting`` (same length rule, but the subset is sorted
+    into a directed flow) and ``FlowShopRouting`` (fixed length, fully
     directed) for the directed counterparts on the directedness spectrum.
 
-    Args:
+    Attributes:
         servers: The pool of servers to sample from. Its order defines the
-            canonical machine index used by the directed sibling factories.
-
-    Returns:
-        A callable that, when invoked, returns a random subset of servers
-        (between 1 and len(servers) inclusive) in random order, without
-        replacement.
+            canonical machine index used by the directed descriptions.
 
     Example:
-        >>> routing = pure_job_shop_routing(servers)
+        >>> routing = env.bind(PureJobShopRouting(servers), kind="routing", stream="r/routing/A", owner="r")
         >>> routing()  # Returns e.g., [server_2, server_5, server_1]
 
     References:
@@ -218,17 +249,22 @@ def pure_job_shop_routing(servers: Sequence[Server]) -> Callable[[], Sequence[Se
         Production Economics*, 68(1), 107-119.
         https://doi.org/10.1016/S0925-5273(99)00141-3
     """
-    servers = tuple(servers)  # Freeze to prevent mutation issues
 
-    def sample_servers() -> Sequence[Server]:
-        k = random.randint(1, len(servers))
-        return random.sample(servers, k=k)
+    def sampler(self, rng: random.Random) -> Callable[[], Sequence[Server]]:
+        """A sampler drawing routings from `rng`."""
+        servers = self.servers
+        randint, sample = rng.randint, rng.sample
+        n = len(servers)
 
-    return sample_servers
+        def sample_servers() -> Sequence[Server]:
+            return sample(servers, k=randint(1, n))
+
+        return sample_servers
 
 
-def general_flow_shop_routing(servers: Sequence[Server]) -> Callable[[], Sequence[Server]]:
-    """Create a General Flow Shop (GFS) routing factory.
+@dataclass(frozen=True)
+class GeneralFlowShopRouting(_Routing):
+    """General Flow Shop (GFS) routing description.
 
     The General Flow Shop is the *directed* counterpart of the Pure Job Shop:
     each order has the same random routing length ``k ~ U[1, len(servers)]`` and
@@ -238,17 +274,12 @@ def general_flow_shop_routing(servers: Sequence[Server]) -> Callable[[], Sequenc
     Gaalman, 2000; Kasper, Land & Teunter, 2023). Machines are drawn *without*
     replacement, so re-entrant flow is prohibited.
 
-    Args:
+    Attributes:
         servers: The pool of servers to sample from. Their order defines the
             canonical machine index along which routings are directed.
 
-    Returns:
-        A callable that, when invoked, returns a random subset of servers
-        (between 1 and len(servers) inclusive), distinct and ordered by
-        ascending canonical index.
-
     Example:
-        >>> routing = general_flow_shop_routing(servers)
+        >>> routing = env.bind(GeneralFlowShopRouting(servers), kind="routing", stream="r/routing/A", owner="r")
         >>> routing()  # Returns e.g., [server_1, server_4, server_5]
 
     References:
@@ -257,25 +288,29 @@ def general_flow_shop_routing(servers: Sequence[Server]) -> Callable[[], Sequenc
         Production Economics*, 68(1), 107-119.
         https://doi.org/10.1016/S0925-5273(99)00141-3
     """
-    servers = tuple(servers)  # Freeze to prevent mutation issues
-    position = {server: index for index, server in enumerate(servers)}
 
-    def directed_routing() -> Sequence[Server]:
-        k = random.randint(1, len(servers))
-        chosen = random.sample(servers, k=k)
-        return sorted(chosen, key=position.__getitem__)
+    def sampler(self, rng: random.Random) -> Callable[[], Sequence[Server]]:
+        """A sampler drawing directed routings from `rng`."""
+        servers = self.servers
+        position = {server: index for index, server in enumerate(servers)}
+        randint, sample = rng.randint, rng.sample
+        n = len(servers)
 
-    return directed_routing
+        def directed_routing() -> Sequence[Server]:
+            return sorted(sample(servers, k=randint(1, n)), key=position.__getitem__)
+
+        return directed_routing
 
 
-def pure_flow_shop_routing(servers: Sequence[Server]) -> Callable[[], Sequence[Server]]:
-    """Create a Pure Flow Shop (PFS) routing factory.
+@dataclass(frozen=True)
+class FlowShopRouting(_Routing):
+    """Pure Flow Shop (PFS) routing description.
 
     The Pure Flow Shop is the most directed benchmark shop: every order has a
     **fixed routing length equal to the number of machines** and visits *all*
     servers in the **same fixed (directed) sequence** (Oosterman, Land &
     Gaalman, 2000; Kasper, Land & Teunter, 2023). The routing is deterministic —
-    every job shares the identical routing — so the factory ignores the RNG.
+    every job shares the identical routing — so the sampler ignores the RNG.
 
     Note:
         Because every order visits every machine, the mean routing length is
@@ -283,15 +318,8 @@ def pure_flow_shop_routing(servers: Sequence[Server]) -> Callable[[], Sequence[S
         job shop / general flow shop. Calibrate the arrival rate accordingly to
         hit a target utilization (see ``arrival_rate_for_utilization``).
 
-    Args:
+    Attributes:
         servers: The servers visited, in the fixed order they are visited.
-
-    Returns:
-        A callable that, when invoked, returns all servers in their given order.
-
-    Example:
-        >>> routing = pure_flow_shop_routing(servers)
-        >>> routing()  # Always returns every server, in order
 
     References:
         Oosterman, B., Land, M., & Gaalman, G. (2000). The influence of shop
@@ -299,12 +327,26 @@ def pure_flow_shop_routing(servers: Sequence[Server]) -> Callable[[], Sequence[S
         Production Economics*, 68(1), 107-119.
         https://doi.org/10.1016/S0925-5273(99)00141-3
     """
-    routing = tuple(servers)  # Freeze: identical directed routing for every job
 
-    def fixed_routing() -> Sequence[Server]:
-        return routing
+    def sampler(self, rng: random.Random) -> Callable[[], Sequence[Server]]:
+        """A sampler that always returns every server, in order (`rng` is not used)."""
+        routing = self.servers
+        return lambda: routing
 
-    return fixed_routing
+
+def pure_job_shop_routing(servers: Sequence[Server]) -> PureJobShopRouting:
+    """Pure Job Shop routing description over `servers` (see ``PureJobShopRouting``)."""
+    return PureJobShopRouting(tuple(servers))
+
+
+def general_flow_shop_routing(servers: Sequence[Server]) -> GeneralFlowShopRouting:
+    """General Flow Shop routing description over `servers` (see ``GeneralFlowShopRouting``)."""
+    return GeneralFlowShopRouting(tuple(servers))
+
+
+def pure_flow_shop_routing(servers: Sequence[Server]) -> FlowShopRouting:
+    """Pure Flow Shop routing description over `servers` (see ``FlowShopRouting``)."""
+    return FlowShopRouting(tuple(servers))
 
 
 def arrival_rate_for_utilization(
@@ -383,7 +425,7 @@ def twk_due_date(allowance_factor: float) -> Callable[[Sequence[float]], float]:
     """
 
     def rule(processing_times: Sequence[float]) -> float:
-        return allowance_factor * sum(processing_times)
+        return allowance_factor * math.fsum(processing_times)
 
     return rule
 

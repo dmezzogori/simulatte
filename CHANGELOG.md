@@ -2,6 +2,275 @@
 
 All notable changes to Simulatte are documented here.
 
+## 0.13.0 — Unreleased
+
+Simulatte now records everything that happens in a run as typed events on a per-environment bus. Logging, KPI
+collectors, the semantic digest and the new trace recorder are all subscribers of that bus. This release changes
+many APIs and, because RNG streams are now derived from the seed and entity names, **seeded results differ from
+0.12**. Read [Migrating from 0.12](#migrating-from-012) before upgrading.
+
+### Added
+
+- Event bus: `env.bus.subscribe(handler, types)` (event classes, `"*"` for domain events, `"**"` for everything),
+  `env.emit`, `env.wants`. Typed `DomainEvent`s with state deltas and `ObserverEvent`s (`log`, `kpi.sample`),
+  registered with `@event_type` in a catalog, in `simulatte.events`. Every component now publishes its transitions:
+  servers, pre-shop pool, shop floor, release policies (`policy.decision`), fleet, orders, AGVs, traffic,
+  warehouses, charging stations and parking areas. A server credits its own `worked_time` with
+  `server.work_credited` (from `Server.process_job`), so a server used without a `ShopFloor` replays like one inside
+  it.
+- Entities (`simulatte.entities`): every component has a stable id (`job-<n>`, `server-<n>` or `name=`, `agv-<n>`,
+  `order-<n>`, ...) and a declared state schema. `env.entities` is the registry; `name=` and `label=` arguments on
+  `Server`, `ShopFloor`, `PreShopPool`, `Router`, `FleetCoordinator`, `Warehouse`, `ChargingStation` and
+  `ParkingArea`; `NodeBinding` entities for graph nodes. Jobs and orders retire from the live registry when they
+  finish.
+- Builder `prefix`: every `build_*_system`, `build_simple_system`, `Scenario.build_floor` and
+  `Scenario.build_router` take `prefix: str = ""`, so several systems can share one environment.
+- Seeds and RNG streams: `Environment(seed=...)` (an integer in `[0, 2**63)`, or drawn from `os.urandom` and
+  readable as `env.seed`), `env.rng(name)` and `env.bind(value, kind=..., stream=..., owner=...)` with three binding
+  kinds: `scalar` (`() -> float`), `routing` (`() -> Sequence[Server]`) and `contextual` (`(*context) -> float`, for
+  example `(sku, qty)` for warehouse picks). Distributions and routings are descriptions with `sampler(rng)`;
+  `env.opaque_sampler_owners` lists callables the library cannot reproduce.
+- Activation (`env.activate()`, `env.on_activate(fn)`, `env.activated`, `env.initial_state`):
+  `env.run()` activates on first use. `FleetCoordinator.submit` and `cancel` called before activation are
+  deferred and the order reports `OrderStatus.PENDING_ACTIVATION`.
+- Semantic digest and manifest: `env.enable_digest()`, `env.fingerprint()` (digest plus KPI scalars),
+  `env.manifest()`, `Provenance` and `RunManifest` (`simulatte.provenance`). The digest is identical across observer
+  configurations, `PYTHONHASHSEED` values and, for the tested workloads, CPython and PyPy. A run stopped with
+  `run(until=<simpy.Event>)` makes the manifest incomplete, because the stop cannot be reproduced from it.
+- Traces: `TraceRecorder(env, path, level="full" | "kpi", chunk_limits=...)` writes a seekable, checksummed trace
+  file; `Trace.open(path)` reads it (`state_at`, `events`, `kpis`, `kpi_series`, `manifest`, `fingerprint`,
+  `check`, `verify`) and tolerates incomplete tails. Format 1.0, MessagePack with zlib-compressed chunks. Replay
+  compares values by their canonical encoding in both readers: `True` is not `1`, `1` is not `1.0`, `-0.0` is not
+  `0.0`, and NaN equals NaN, so a NaN in a state or a delta round-trips.
+- `studio/`: a pnpm workspace with `@simulatte/trace`, a TypeScript reader that replays the same states as the Python
+  reader (new `trace-ts` CI job). It is not part of the Python package.
+- KPI framework (`simulatte.kpi`): `KPI` declarations, the `Collector` base class bound to an owner entity,
+  `env.configure_kpis(warmup=...)`, window-aware aggregation, `env.collectors`.
+- Built-in collectors: `simulatte.collectors` (`EMACollector`, `ShopFloorTimeSeries`, `CurrentWorkloadCollector`,
+  `ServerTimeSeries`, `ShopFloorKPIs`) and, in `simulatte.intralogistics`, `OrderEMACollector`, `FleetTimeSeries`
+  and `FleetKPIs`. `ShopFloor(default_metrics=True)` and `FleetCoordinator(default_metrics=True)` attach the EMA
+  collector as `.metrics`.
+- Log sinks (`simulatte.logsinks`): `TextSink`, `JsonSink`, `SQLiteSink`, `HistorySink`, `LogSink`.
+  `Environment(log_level=...)`, `env.sinks`, `env.log_db` and `Runner(log_level=...)`. At `DEBUG` the sinks also
+  render domain events.
+- `Environment(debug=True)` validates events against the catalog and the entity state schemas, rejects subscribers
+  that schedule events or draw random numbers, rejects two different values bound to one RNG stream, requires
+  wire-valued `extra` in log calls (recorded as an immutable copy), accepts only `float` (not `int`) in float payload
+  and state fields, rejects lists, dicts, sets and other mutable containers anywhere in event payloads and deltas
+  (use tuples and `FrozenMap`), and checks the shape of each delta operation (arity, string ids and fields, integral
+  indices, list operations on list fields, map operations on map fields), naming the event. Independently of debug mode, the trace recorder keeps an immutable copy of delta
+  values, so changing a list after emitting it no longer changes the recorded trace.
+- Intralogistics: `AGV.sample_load_time()` / `sample_unload_time()`; `SpeedProfile.motion(...)` describes AGV motion
+  for traces; `OrderStatus.PENDING_ACTIVATION`.
+- Top-level exports: `from simulatte import Environment, Runner, Provenance, TraceRecorder, Trace, KPI, Collector,
+  Event, DomainEvent, ObserverEvent`. Component classes stay importable from their modules.
+- Benchmarks (`benchmarks/`) and a `bench` CI job that gates the no-subscriber overhead against
+  `simulatte==0.12.0`. Modes: `none` (no subscribers, gated), `default` (the default EMA collector), `digest` and
+  `full` (ratios against `none`).
+- Docs: the [Events, Traces & KPIs guide](docs/guides/events-and-traces.md) and an Events & Traces API page.
+
+### Changed
+
+- **Breaking:** logging is rebuilt on the bus and `loguru` is no longer a dependency; `msgpack` is a new
+  dependency. `simulatte.logger` is removed (see Removed). `Environment(log_level=...)` is per environment.
+  `log_format` accepts only `"text"` and `"json"`. History records are `simulatte.events.LogEvent` (`.timestamp` is
+  now `.t`, plus `.seq`; `.extra` is a read-only map). JSON lines gain `seq`, `kind` and `type`. The SQLite table
+  `log_events(id, env_id, timestamp, level, message, component, extra, wall_time)` is now
+  `events(env_id, seq, t, kind, type, level, component, message, data_json)`; use `rowid` for insertion order.
+  The production components (`Server`, `ShopFloor`, `PreShopPool`, `Router`) and the facilities (`Warehouse`,
+  `TrafficManager`, `ChargingStation`, `ParkingArea`) no longer write DEBUG log messages; subscribe to their events
+  instead. Fleet warnings and errors stay `log` events.
+- Event construction calls no user code (observers cannot change results through it) for the value types it
+  supports: `bool`, `int`, `float`, `str`, `None`, tuples and maps of them, subclasses of `int`, `float` and `str`
+  (read through the base type, so a subclass's own `__float__` is never called), and, as numbers, `Fraction`,
+  `Decimal` and NumPy scalar numbers other than `timedelta64` and complex scalars. Anything else (user classes, NumPy
+  arrays, `MappingProxyType`, user mappings) is not convertible: a priority is recorded as null, another number as
+  `NaN`, and debug mode rejects it. Overrides of `Entity.snapshot()` must be pure: it runs only when observed. Values derived only for an
+  event (`job.finished`'s `makespan`, `lateness`, `total_queue_time`) are computed from converted floats, not
+  through model properties. Digests and traces read the simulation time the same way and never record a NaN time: a
+  time of another type raises `TypeError`, a NaN time `ValueError`, at the first recorded event. Wire values are
+  made of exact built-in types (an `IntEnum` or `StrEnum` in a delta becomes `int` or `str`).
+- **Breaking:** seeding. `Runner` creates `Environment(seed=seed)` and no longer calls `random.seed(seed)`, so model
+  code that draws from the global `random` module loses its reproducibility; draw from `env.rng(name)`.
+  `Distribution.__call__` is removed: distributions are descriptions with `sampler(rng)`, bound to named streams
+  (`<router>/interarrival`, `<router>/service/<sku>/<server>`, `<agv id>/load`, `<warehouse>/pick`, ...). Plain
+  callables are still accepted where a distribution was, but are opaque (they make the manifest incomplete).
+  `Environment(seed=...)` raises `ValueError` outside `[0, 2**63)` and `TypeError` for a `bool`. Because stream names
+  derive from entity names, every seeded result changes: the numbers in the docs and the gallery were regenerated.
+- **Breaking:** identity. Job ids are `job-<n>` (a per-environment counter) instead of UUIDs; AGV ids default to
+  `agv-<n>` and `agv-<n>` is reserved (`AGV(agv_id="agv-0")` raises); order ids are `order-<n>` and `TransferOrder.id`
+  is `None` until the order is attached. Entity names share one namespace per environment (graph node ids,
+  warehouse, charging station and parking area names, and component names included), must not contain `/` or NUL,
+  must not match `^<kind>-\d+$` for a registered kind, and duplicates raise. An entity is attached once.
+- **Breaking:** builders and `Scenario.build_floor` / `Scenario.build_router` now name their entities (`wc-<i>`,
+  `shopfloor`, `router`, `psp`), so building a second system in the same environment without `prefix=` raises a
+  duplicate-id error. The `scenario` default of the builders is `None` (a fresh `Scenario()`) instead of a shared
+  instance.
+- **Breaking:** collectors. `ShopFloor(metrics_collector=...)`, `collect_time_series`, `time_series_collector`,
+  `Server(collect_time_series=...)` and `FleetCoordinator(order_metrics_collector=..., time_series_collector=...)` are
+  replaced by `default_metrics=` and bus collectors attached with `collector.attach(env)`; see the table below.
+  Builder flags are kept and attach the new collectors: every `build_*_system` and `Scenario.build_floor` take `collect_workload`; `collect_time_series` exists only on `build_immediate_release_system` and `Scenario.build_floor`. `inventory_ts`
+  is keyed by warehouse id with SKU-id keys instead of `Warehouse` and `SKU` objects.
+- `Router` binds its distributions, routings and service times at construction: changing the arguments afterwards has
+  no effect.
+- **Breaking:** `TrafficManager.place` is renamed `place_now` (a runtime-checkable protocol). It reserves the node
+  during activation, requires an immediate grant and raises on conflict instead of waiting, so two AGVs on one node of
+  capacity 1 now raise.
+- **Breaking:** `FleetCoordinator.create_order` attaches the order at once and no longer accepts `id=`. `submit` and
+  `cancel` before activation are deferred until activation (queued in call order, run at time 0).
+- **Breaking:** `LayoutGraph.nodes` returns a tuple in insertion order instead of a `frozenset`.
+  `ShopFloor.jobs` is an insertion-ordered `dict[ProductionJob, None]` instead of a set (`shopfloor.jobs[job] = None`
+  and `del shopfloor.jobs[job]` replace `.add` and `.remove`). `Server._idx` is removed.
+- **Breaking:** intralogistics time parameters are managed bindings: `AGVType.load_time_fn` / `unload_time_fn`
+  become `load_time` / `unload_time`, `Warehouse(pick_time_fn=, put_time_fn=)` become `pick_time=` / `put_time=`,
+  `ChargingStation(recharge_fn=)` becomes `recharge_time=`. Each takes a number, a distribution or a callable (opaque).
+  `warehouse.pick_time_fn` and `put_time_fn` attributes are gone. (`AGVType.recharge_fn` and `Battery(recharge_fn=)`
+  are unchanged.)
+- **Breaking:** `ProductionJob.planned_release_date` (and the values derived from it) is always a `float`; before, an
+  integer routing time and allowance gave an `int`.
+- Numeric changes (D58): sums of floating-point values that feed events, dispatching priorities, arrival rates, due
+  dates, planned release dates, samplers, fleet paths and loads, or KPIs use `math.fsum`. Results can differ from 0.12
+  in the last bit; CPython (all versions) and PyPy now agree for the tested workloads.
+- `psp.remove(job=..., reason=...)`: release policies pass `released` or `postponed`; the job's location and the
+  `psp.exited` event record it.
+- `job.queued` carries `queue_length`, counted when the job joins and including the job itself (see Fixed).
+- Log and KPI events consume the global event sequence number, so the `seq` values of domain events in a trace can have
+  gaps. The digest excludes `seq`, and readers must not assume contiguity.
+- Driving the simulation manually with `env.step()` requires `env.activate()` first; `env.run()` activates by itself.
+- Three behaviors of the fleet collectors differ from the old ones: the destination inventory snapshot of
+  `FleetTimeSeries` is taken when the order reaches `COMPLETED`, before the user delivery hooks run; orders are counted
+  by the fleet that created them (an order created on fleet A and submitted to fleet B counts for A); and a direct
+  `AGV.transition_to` call now adds a utilization point.
+- `ShopFloorTimeSeries`, `ServerTimeSeries` and `CurrentWorkloadCollector` behave as the old collectors except:
+  `CurrentWorkloadCollector` subtracts work when an operation completes, so a yielding after-operation hook that holds
+  the server does not count finished work as remaining (this corrects the old series); `ServerTimeSeries.qt` has one
+  point per time and records cancelled requests; `ut` starts at the collector's creation time. The EMAs are not part of
+  `env.fingerprint()`; `ShopFloorKPIs` and `FleetKPIs` scalars are. `EMACollector.ema_tardy_jobs` counts late jobs outside
+  the due-date window, while the `tardy_fraction` KPI counts every job with positive lateness.
+- The advanced intralogistics example draws from `Environment(seed=42)` streams instead of a private
+  `random.Random(42)`; its printed output changed (65 orders, average outbound fulfillment 219.6 s).
+- Docs prose that claimed more than the regenerated numbers support was reworded in the benchmark shops, dispatching
+  (stateless, focus), release (WIP, workload, triggers) and release-policy comparison pages.
+
+### Fixed
+
+- `job.queued`'s queue length (previously the logged `queue_length` of `Server.request`) was one too high: SimPy appends
+  a request to the queue before the logging call ran. It now counts the waiting requests including the newcomer.
+- Observer purity: `AGV.utilization()`, `state_percentage()` and `time_allocation()` no longer write to the AGV, and
+  `TrafficManager.check_path` no longer logs, so reading them cannot change a run.
+- Iteration order: `LayoutGraph` nodes, `check_path` conflict nodes and `ShopFloor.jobs` have a defined order, so runs
+  are identical across `PYTHONHASHSEED` values.
+
+### Removed
+
+- `simulatte.logger` and loguru: `SimLogger`, the old `LogEvent`, `EventHistoryBuffer`, `SQLiteEventStore`,
+  `env.logger`, `SimLogger.set_level` / `get_level`. Use `Environment(log_level=)`, the sinks (`env.sinks`,
+  `env.log_history`, `env.log_db`) and `sink.enable_component` / `disable_component`.
+- From `simulatte.shopfloor`: `MetricsCollector`, `EMAMetricsCollector`, `TimeSeriesCollector`,
+  `DefaultTimeSeriesCollector`, `CurrentWorkLoadCollector`, `ShopFloor.metrics_collector`, `set_metrics_collector`,
+  `time_series_collector`, `set_time_series_collector`. `Server(collect_time_series=)`; `Server.plot_qt` / `plot_ut` moved to `ServerTimeSeries`.
+- From `simulatte.intralogistics`: `OrderMetricsCollector`, `EMAOrderMetrics`, `IntralogisticsTimeSeriesCollector`,
+  `DefaultIntralogisticsCollector`, `FleetCoordinator(order_metrics_collector=, time_series_collector=)`.
+- `FleetCoordinator.create_order(id=)`, `TrafficManager.place`, `Distribution.__call__`, the `*_time_fn` parameters
+  listed above.
+
+### Migrating from 0.12
+
+**Seeds and randomness.** Pass a seed to the environment; draw from named streams.
+
+```python
+# 0.12
+random.seed(42)
+env = Environment()
+service = lambda: random.expovariate(0.5)
+
+# 0.13
+env = Environment(seed=42)
+service = Exponential(rate=0.5)       # managed: reproducible, recorded in the manifest
+rng = env.rng("my-stream")            # for your own draws
+```
+
+**Logging.**
+
+```python
+# 0.12
+env.logger.disable_component("Server")
+rows = env.logger.query_sql(level="ERROR", component="Server")
+raw = env.logger.execute_sql("SELECT ...")
+if env.logger.db_enabled: ...
+db_env_id = env.logger.env_id
+SimLogger.set_level("DEBUG")
+
+# 0.13
+for sink in env.sinks:
+    sink.disable_component("Server")
+rows = env.log_db.query(level="ERROR", component="Server")  # Environment(log_db_path=...); returns LogEvents
+raw = env.log_db.execute_sql("SELECT ...")
+try:                                       # db_enabled: env.log_db raises RuntimeError without log_db_path
+    env.log_db
+except RuntimeError:
+    ...
+db_env_id = env.log_db.env_id
+env = Environment(log_level="DEBUG")       # per environment
+```
+
+For built-in components, replace message-substring checks by subscribing to event classes (`JobQueued`,
+`JobFinished`, ...) with `env.bus.subscribe`.
+
+**Collectors.**
+
+| 0.12 | 0.13 |
+|---|---|
+| `ShopFloor(metrics_collector=None)` | `ShopFloor(default_metrics=False)` |
+| `shopfloor.metrics_collector.ema_makespan` | `shopfloor.metrics.ema_makespan` |
+| `ShopFloor(collect_time_series=True)`, `shopfloor.time_series_collector.plot_wip()` | `ts = ShopFloorTimeSeries(shopfloor).attach(env)`, `ts.plot_wip()` |
+| `Server(collect_time_series=True)`, `server.plot_qt()` | `ServerTimeSeries(server).attach(env).plot_qt()` |
+| custom `MetricsCollector.record(job)` / `TimeSeriesCollector` | subclass `simulatte.kpi.Collector`, subscribe to `JobFinished`, `OperationCompleted`, ... |
+| `FleetCoordinator(order_metrics_collector=EMAOrderMetrics(alpha=0.05))` | `default_metrics=False` and `OrderEMACollector(coordinator, alpha=0.05).attach(env)` |
+| `FleetCoordinator(time_series_collector=DefaultIntralogisticsCollector())` | `FleetTimeSeries(coordinator).attach(env)` |
+
+**Two systems in one environment.**
+
+```python
+# 0.12: ids were generated, two builders could share an environment
+build_lumscor_system(env=env, ...)
+build_slar_system(env=env, ...)
+
+# 0.13: entity ids are unique; give each system a prefix
+build_lumscor_system(env=env, prefix="a.", ...)
+build_slar_system(env=env, prefix="b.", ...)
+```
+
+**Intralogistics.**
+
+```python
+# 0.12
+AGVType(..., load_time_fn=lambda: 5.0)
+Warehouse(..., pick_time_fn=lambda sku, qty: 2.0, put_time_fn=lambda sku, qty: 2.0)
+ChargingStation(..., recharge_fn=fast)
+order = coordinator.create_order(id="o-1", ...)
+traffic.place(agv, node)
+graph.nodes            # frozenset
+
+# 0.13
+AGVType(..., load_time=5.0)             # number, Uniform(...), or a callable (opaque)
+Warehouse(..., pick_time=2.0, put_time=2.0)
+ChargingStation(..., recharge_time=fast)
+order = coordinator.create_order(...)   # order.id == "order-0", assigned at once
+traffic.place_now(agv, node)
+graph.nodes            # tuple, insertion order
+```
+
+Orders submitted before the first `env.run()` report `OrderStatus.PENDING_ACTIVATION` until activation. Name AGVs
+without `agv-<n>` ids (or let the library generate them), and avoid node ids that equal another entity's name.
+
+**Job and shop-floor details.** Replace `shopfloor.jobs.add(job)` / `.remove(job)` by item assignment and `del`;
+read job ids as `job-<n>` strings; expect `planned_release_date` to be a `float`.
+
+**New tooling you may want.** Record a run with `TraceRecorder(env, "run.simtrace")` before the first `env.run()` and
+`env.close()` (or `with Environment(...) as env:`), then `Trace.open("run.simtrace")`. Compare runs with
+`env.enable_digest()` and `env.fingerprint()`. See the [guide](docs/guides/events-and-traces.md).
+
 ## 0.12.0 — 2026-06-11
 
 ### Added

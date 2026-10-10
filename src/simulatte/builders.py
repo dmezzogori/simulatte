@@ -27,7 +27,8 @@ if TYPE_CHECKING:  # pragma: no cover
 def build_immediate_release_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,
+    prefix: str = "",
     priority_policies: Callable[..., float] | None = None,
     collect_workload: bool = False,
     collect_time_series: bool = False,
@@ -41,11 +42,16 @@ def build_immediate_release_system(
     Args:
         env: The simulation environment.
         scenario: Environment description (shop type, machine count, arrival
-            process, service-time, due-date rule). Defaults to a 6-machine
-            pure job shop at rho=0.90.
+            process, service-time, due-date rule). Defaults to a fresh
+            ``Scenario()``: a 6-machine pure job shop at rho=0.90.
+        prefix: Prefix of every entity id the builder creates: servers
+            ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
+            ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
+            several systems in one environment.
         priority_policies: Optional callable used to assign job priorities at servers.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
-        collect_time_series: If True, servers collect queue length time series.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
+        collect_time_series: If True, attach a ``ServerTimeSeries`` (queue length and utilization) to each
+            server (listed in ``env.collectors``).
         retain_job_history: If True, servers retain completed job references.
 
     Returns:
@@ -59,20 +65,23 @@ def build_immediate_release_system(
         >>> env.run(until=1000)
         >>> print(f"Jobs completed: {len(shop_floor.jobs_done)}")
     """
+    scenario = Scenario() if scenario is None else scenario
     sf, servers = scenario.build_floor(
         env,
+        prefix=prefix,
         collect_workload=collect_workload,
         collect_time_series=collect_time_series,
         retain_job_history=retain_job_history,
     )
-    router = scenario.build_router(env, sf, servers, psp=None, priority_policies=priority_policies)
+    router = scenario.build_router(env, sf, servers, psp=None, priority_policies=priority_policies, prefix=prefix)
     return BuiltSystem(psp=None, servers=servers, shop_floor=sf, router=router, policy=None)
 
 
 def build_focus_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,
+    prefix: str = "",
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     collect_workload: bool = False,
 ) -> BuiltSystem[None]:
@@ -86,12 +95,16 @@ def build_focus_system(
     Args:
         env: The simulation environment.
         scenario: Environment description (shop type, machine count, arrival
-            process, service-time, due-date rule). Defaults to a 6-machine
-            pure job shop at rho=0.90.
+            process, service-time, due-date rule). Defaults to a fresh
+            ``Scenario()``: a 6-machine pure job shop at rho=0.90.
+        prefix: Prefix of every entity id the builder creates: servers
+            ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
+            ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
+            several systems in one environment.
         focus_weights: FOCUS mechanism weights ``(w1, w2, w3, w4, w5)`` for
             (pi, omega, psi, gamma, beta); must each be in ``[0, 1]`` and sum
             to 1. Defaults to beta-dormant ``(0.25, 0.25, 0.25, 0.25, 0.0)``.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
         ``BuiltSystem[None]`` with ``psp=None`` (push system; no PSP) and
@@ -109,16 +122,18 @@ def build_focus_system(
         dispatching in high-variety manufacturing. *Omega*, 114, 102726.
         https://doi.org/10.1016/j.omega.2022.102726
     """
-    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
+    scenario = Scenario() if scenario is None else scenario
+    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
     priority = FocusPriorityRule(Focus(weights=focus_weights), sf)
-    router = scenario.build_router(env, sf, servers, psp=None, priority_policies=priority)
+    router = scenario.build_router(env, sf, servers, psp=None, priority_policies=priority, prefix=prefix)
     return BuiltSystem(psp=None, servers=servers, shop_floor=sf, router=router, policy=None)
 
 
 def build_lumscor_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,
+    prefix: str = "",
     check_timeout: float,
     wl_norm_level: float,
     allowance_factor: int,
@@ -136,14 +151,18 @@ def build_lumscor_system(
     Args:
         env: The simulation environment.
         scenario: Environment description (shop type, machine count, arrival
-            process, service-time, due-date rule). Defaults to a 6-machine
-            pure job shop at rho=0.90.
+            process, service-time, due-date rule). Defaults to a fresh
+            ``Scenario()``: a 6-machine pure job shop at rho=0.90.
+        prefix: Prefix of every entity id the builder creates: servers
+            ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
+            ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
+            several systems in one environment.
         check_timeout: Time between pool release checks.
         wl_norm_level: Workload norm threshold for each server. Jobs are
             released only if adding them keeps corrected WIP at or below this level.
         allowance_factor: Buffer time per server for due date calculation.
             Higher values result in earlier (more conservative) releases.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
         ``BuiltSystem[LumsCor]`` whose ``policy`` is the wired ``LumsCor``
@@ -162,9 +181,10 @@ def build_lumscor_system(
         International Journal of Production Economics, 104(2), 625-638.
         https://doi.org/10.1016/j.ijpe.2005.03.001
     """
-    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
-    psp = PreShopPool(env=env, shopfloor=sf)
-    router = scenario.build_router(env, sf, servers, psp=psp)
+    scenario = Scenario() if scenario is None else scenario
+    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    psp = PreShopPool(env=env, shopfloor=sf, name=f"{prefix}psp")
+    router = scenario.build_router(env, sf, servers, psp=psp, prefix=prefix)
     # LumsCor self-wires CorrectedWIPStrategy, router.priority_policies (PST),
     # the periodic release trigger, shop_floor.on_processing_end, and
     # psp.on_arrival(starvation_avoidance).
@@ -182,7 +202,8 @@ def build_lumscor_system(
 def build_slar_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,
+    prefix: str = "",
     allowance_factor: float,
     collect_workload: bool = False,
 ) -> BuiltSystem[Slar]:
@@ -203,9 +224,13 @@ def build_slar_system(
         allowance_factor: Slack allowance per operation (parameter 'k' in paper).
             Higher values provide more buffer time per server.
         scenario: Environment description (shop type, machine count, arrival
-            process, service-time, due-date rule). Defaults to a 6-machine
-            pure job shop at rho=0.90.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+            process, service-time, due-date rule). Defaults to a fresh
+            ``Scenario()``: a 6-machine pure job shop at rho=0.90.
+        prefix: Prefix of every entity id the builder creates: servers
+            ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
+            ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
+            several systems in one environment.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
         ``BuiltSystem[Slar]`` whose ``policy`` is the wired ``Slar`` instance.
@@ -224,9 +249,10 @@ def build_slar_system(
         International Journal of Production Economics, 56-57, 347-364.
         https://doi.org/10.1016/S0925-5273(98)00052-8
     """
-    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
-    psp = PreShopPool(env=env, shopfloor=sf)
-    router = scenario.build_router(env, sf, servers, psp=psp)
+    scenario = Scenario() if scenario is None else scenario
+    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    psp = PreShopPool(env=env, shopfloor=sf, name=f"{prefix}psp")
+    router = scenario.build_router(env, sf, servers, psp=psp, prefix=prefix)
     policy = Slar(shopfloor=sf, psp=psp, router=router, allowance_factor=allowance_factor)
     return BuiltSystem(psp=psp, servers=servers, shop_floor=sf, router=router, policy=policy)
 
@@ -234,7 +260,8 @@ def build_slar_system(
 def build_slar_limit_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,
+    prefix: str = "",
     allowance_factor: float,
     wl_norm_level: float,
     collect_workload: bool = False,
@@ -259,9 +286,13 @@ def build_slar_limit_system(
             corrected contribution keeps every server in its routing at or
             below this level.
         scenario: Environment description (shop type, machine count, arrival
-            process, service-time, due-date rule). Defaults to a 6-machine
-            pure job shop at rho=0.90.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector`` to
+            process, service-time, due-date rule). Defaults to a fresh
+            ``Scenario()``: a 6-machine pure job shop at rho=0.90.
+        prefix: Prefix of every entity id the builder creates: servers
+            ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
+            ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
+            several systems in one environment.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``) to
             the shopfloor for workload time-series.
 
     Returns:
@@ -282,9 +313,10 @@ def build_slar_limit_system(
         International Journal of Production Economics, 231, 107881.
         https://doi.org/10.1016/j.ijpe.2020.107881
     """
-    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
-    psp = PreShopPool(env=env, shopfloor=sf)
-    router = scenario.build_router(env, sf, servers, psp=psp)
+    scenario = Scenario() if scenario is None else scenario
+    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    psp = PreShopPool(env=env, shopfloor=sf, name=f"{prefix}psp")
+    router = scenario.build_router(env, sf, servers, psp=psp, prefix=prefix)
     # SlarLimit self-wires CorrectedWIPStrategy, router.priority_policies (PST),
     # shop_floor.on_processing_end, and psp.on_arrival(starvation_avoidance).
     policy = SlarLimit(shopfloor=sf, psp=psp, router=router, wl_norm=wl_norm_level, allowance_factor=allowance_factor)
@@ -294,7 +326,8 @@ def build_slar_limit_system(
 def build_draco_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,
+    prefix: str = "",
     wip_target: int,
     loop_target: int,
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
@@ -329,9 +362,13 @@ def build_draco_system(
             impact; must sum to 1. Defaults to ``(0.25, 0.25, 0.5)`` — the
             paper's full DRACO configuration (Table 2).
         scenario: Environment description (shop type, machine count, arrival
-            process, service-time, due-date rule). Defaults to a 6-machine
-            pure job shop at rho=0.90.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+            process, service-time, due-date rule). Defaults to a fresh
+            ``Scenario()``: a 6-machine pure job shop at rho=0.90.
+        prefix: Prefix of every entity id the builder creates: servers
+            ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
+            ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
+            several systems in one environment.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
         ``BuiltSystem[Draco]`` whose ``policy`` is the wired ``Draco`` instance.
@@ -350,9 +387,10 @@ def build_draco_system(
         Journal of Production Economics*, 257, 108768.
         https://doi.org/10.1016/j.ijpe.2022.108768
     """
-    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
-    psp = PreShopPool(env=env, shopfloor=sf)
-    router = scenario.build_router(env, sf, servers, psp=psp)
+    scenario = Scenario() if scenario is None else scenario
+    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    psp = PreShopPool(env=env, shopfloor=sf, name=f"{prefix}psp")
+    router = scenario.build_router(env, sf, servers, psp=psp, prefix=prefix)
     # Draco self-wires router.priority_policies, shop_floor.on_processing_end,
     # and psp.on_arrival(starvation_avoidance).
     policy = Draco(
@@ -370,7 +408,8 @@ def build_draco_system(
 def build_conwip_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,
+    prefix: str = "",
     wip_cap: int,
     collect_workload: bool = False,
 ) -> BuiltSystem[ConWIP]:
@@ -384,9 +423,13 @@ def build_conwip_system(
         env: The simulation environment.
         wip_cap: Maximum number of jobs allowed on the shop floor at once.
         scenario: Environment description (shop type, machine count, arrival
-            process, service-time, due-date rule). Defaults to a 6-machine
-            pure job shop at rho=0.90.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+            process, service-time, due-date rule). Defaults to a fresh
+            ``Scenario()``: a 6-machine pure job shop at rho=0.90.
+        prefix: Prefix of every entity id the builder creates: servers
+            ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
+            ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
+            several systems in one environment.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
         ``BuiltSystem[ConWIP]`` whose ``policy`` is the wired ``ConWIP`` instance
@@ -404,9 +447,10 @@ def build_conwip_system(
         28(5), 879-894.
         https://doi.org/10.1080/00207549008942761
     """
-    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
-    psp = PreShopPool(env=env, shopfloor=sf)
-    router = scenario.build_router(env, sf, servers, psp=psp)
+    scenario = Scenario() if scenario is None else scenario
+    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    psp = PreShopPool(env=env, shopfloor=sf, name=f"{prefix}psp")
+    router = scenario.build_router(env, sf, servers, psp=psp, prefix=prefix)
     policy = ConWIP(shopfloor=sf, psp=psp, wip_cap=wip_cap)
     return BuiltSystem(psp=psp, servers=servers, shop_floor=sf, router=router, policy=policy)
 
@@ -414,7 +458,8 @@ def build_conwip_system(
 def build_continuous_release_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,
+    prefix: str = "",
     wl_norm_level: float,
     allowance_factor: int = 2,
     collect_workload: bool = False,
@@ -431,9 +476,13 @@ def build_continuous_release_system(
         wl_norm_level: Corrected workload norm applied uniformly to every server.
         allowance_factor: Buffer time per server for due-date planning.
         scenario: Environment description (shop type, machine count, arrival
-            process, service-time, due-date rule). Defaults to a 6-machine
-            pure job shop at rho=0.90.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+            process, service-time, due-date rule). Defaults to a fresh
+            ``Scenario()``: a 6-machine pure job shop at rho=0.90.
+        prefix: Prefix of every entity id the builder creates: servers
+            ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
+            ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
+            several systems in one environment.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
         ``BuiltSystem[ContinuousRelease]`` whose ``policy`` is the wired
@@ -453,9 +502,10 @@ def build_continuous_release_system(
         Economics, 131(1), 257-262.
         https://doi.org/10.1016/j.ijpe.2010.09.026
     """
-    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
-    psp = PreShopPool(env=env, shopfloor=sf)
-    router = scenario.build_router(env, sf, servers, psp=psp)
+    scenario = Scenario() if scenario is None else scenario
+    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    psp = PreShopPool(env=env, shopfloor=sf, name=f"{prefix}psp")
+    router = scenario.build_router(env, sf, servers, psp=psp, prefix=prefix)
     # ContinuousRelease self-wires CorrectedWIPStrategy, the completion-triggered
     # release, and psp.on_arrival.
     policy = ContinuousRelease(shopfloor=sf, psp=psp, wl_norm=wl_norm_level, allowance_factor=allowance_factor)
@@ -465,7 +515,8 @@ def build_continuous_release_system(
 def build_starvation_avoidance_system(
     *,
     env: Environment,
-    scenario: Scenario = Scenario(),
+    scenario: Scenario | None = None,
+    prefix: str = "",
     collect_workload: bool = False,
 ) -> BuiltSystem[None]:
     """Build a starvation-avoidance-only pull system.
@@ -478,9 +529,13 @@ def build_starvation_avoidance_system(
     Args:
         env: The simulation environment.
         scenario: Environment description (shop type, machine count, arrival
-            process, service-time, due-date rule). Defaults to a 6-machine
-            pure job shop at rho=0.90.
-        collect_workload: If True, attach a ``CurrentWorkLoadCollector``.
+            process, service-time, due-date rule). Defaults to a fresh
+            ``Scenario()``: a 6-machine pure job shop at rho=0.90.
+        prefix: Prefix of every entity id the builder creates: servers
+            ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
+            ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
+            several systems in one environment.
+        collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
         ``BuiltSystem[None]`` with ``policy=None``: this builder wires plain
@@ -492,9 +547,10 @@ def build_starvation_avoidance_system(
         >>> psp, servers, shop_floor, router, _ = build_starvation_avoidance_system(env=env)
         >>> env.run(until=1000)
     """
-    sf, servers = scenario.build_floor(env, collect_workload=collect_workload)
-    psp = PreShopPool(env=env, shopfloor=sf)
-    router = scenario.build_router(env, sf, servers, psp=psp)
+    scenario = Scenario() if scenario is None else scenario
+    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    psp = PreShopPool(env=env, shopfloor=sf, name=f"{prefix}psp")
+    router = scenario.build_router(env, sf, servers, psp=psp, prefix=prefix)
 
     def _release_idle_first_server(_triggering_job: ProductionJob, _server: Server) -> None:
         for job in list(psp.jobs):

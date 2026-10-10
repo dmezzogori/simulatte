@@ -1,213 +1,216 @@
-"""Tests for component-level logging integration."""
+"""Component logging and the events that replace the built-in component log messages."""
 
 from __future__ import annotations
 
+from simulatte.entities import EntityCreated
 from simulatte.environment import Environment
+from simulatte.events import Event
 from simulatte.job import ProductionJob
-from simulatte.logger import SimLogger
-from simulatte.server import Server
-from simulatte.shopfloor import ShopFloor
+from simulatte.psp import PreShopPool, PspEntered, PspExited
+from simulatte.router import Router
+from simulatte.server import JobGranted, JobQueued, JobReleased, Server
+from simulatte.shopfloor import JobFinished, OperationCompleted, OperationStarted, ShopFloor, ShopFloorEntered
 
 
-class TestServerLogging:
-    """Tests for Server component logging."""
+class TestServerEvents:
+    """Server resource events (they replace the Server debug log messages)."""
 
-    def test_server_logs_queue_entry(self) -> None:
-        original_level = SimLogger.get_level()
-        try:
-            SimLogger.set_level("DEBUG")
-            env = Environment()
-            sf = ShopFloor(env=env)
-            server = Server(env=env, capacity=1, shopfloor=sf)
-            job = ProductionJob(
-                env=env,
-                sku="A",
-                servers=[server],
-                processing_times=[5.0],
-                due_date=100.0,
-            )
+    @staticmethod
+    def _run(until: float) -> tuple[Server, ProductionJob, list[Event]]:
+        env = Environment(debug=True)
+        seen: list[Event] = []
+        env.bus.subscribe(seen.append, (JobQueued, JobGranted, JobReleased))
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(
+            env=env,
+            sku="A",
+            servers=[server],
+            processing_times=[5.0],
+            due_date=100.0,
+        )
 
-            sf.add(job)
-            env.run(until=1)
+        sf.add(job)
+        env.run(until=until)
+        return server, job, seen
 
-            events = env.log_history.query(component="Server")
-            queue_events = [e for e in events if "entered queue" in e.message]
+    def test_server_emits_queue_entry(self) -> None:
+        server, job, seen = self._run(until=1)
 
-            assert len(queue_events) >= 1
-            event = queue_events[0]
-            assert event.extra["job_id"] == job.id
-            assert event.extra["server_id"] == server._idx
-            assert "queue_length" in event.extra
-            assert "priority" in event.extra
-        finally:
-            SimLogger.set_level(original_level)
-            env.close()
+        queued = [e for e in seen if isinstance(e, JobQueued)]
+        assert len(queued) == 1
+        event = queued[0]
+        assert event.job == job.id
+        assert event.server == server.id
+        assert event.queue_length == 1
+        assert event.priority == 0.0
 
-    def test_server_logs_processing_started(self) -> None:
-        original_level = SimLogger.get_level()
-        try:
-            SimLogger.set_level("DEBUG")
-            env = Environment()
-            sf = ShopFloor(env=env)
-            server = Server(env=env, capacity=1, shopfloor=sf)
-            job = ProductionJob(
-                env=env,
-                sku="A",
-                servers=[server],
-                processing_times=[5.0],
-                due_date=100.0,
-            )
+    def test_server_grants_and_processes(self) -> None:
+        server, job, seen = self._run(until=3)
 
-            sf.add(job)
-            env.run(until=3)
+        granted = [e for e in seen if isinstance(e, JobGranted)]
+        assert [(e.job, e.server, e.t) for e in granted] == [(job.id, server.id, 0)]
+        assert server.current_jobs == (job,)
 
-            events = env.log_history.query(component="Server")
-            processing_events = [e for e in events if "processing started" in e.message]
+        server.env.run(until=10)
+        assert server.worked_time == 5.0
 
-            assert len(processing_events) >= 1
-            event = processing_events[0]
-            assert event.extra["job_id"] == job.id
-            assert event.extra["processing_time"] == 5.0
-        finally:
-            SimLogger.set_level(original_level)
-            env.close()
+    def test_server_emits_job_released(self) -> None:
+        server, job, seen = self._run(until=10)
 
-    def test_server_logs_job_released(self) -> None:
-        original_level = SimLogger.get_level()
-        try:
-            SimLogger.set_level("DEBUG")
-            env = Environment()
-            sf = ShopFloor(env=env)
-            server = Server(env=env, capacity=1, shopfloor=sf)
-            job = ProductionJob(
-                env=env,
-                sku="A",
-                servers=[server],
-                processing_times=[5.0],
-                due_date=100.0,
-            )
-
-            sf.add(job)
-            env.run(until=10)
-
-            events = env.log_history.query(component="Server")
-            release_events = [e for e in events if "released" in e.message]
-
-            assert len(release_events) >= 1
-            event = release_events[0]
-            assert event.extra["job_id"] == job.id
-            assert "time_at_server" in event.extra
-        finally:
-            SimLogger.set_level(original_level)
-            env.close()
+        released = [e for e in seen if isinstance(e, JobReleased)]
+        assert len(released) == 1
+        event = released[0]
+        assert event.job == job.id
+        assert event.server == server.id
+        granted = next(e for e in seen if isinstance(e, JobGranted))
+        assert event.t - granted.t == 5.0  # time at server
 
 
-class TestShopFloorLogging:
-    """Tests for ShopFloor component logging."""
+class TestShopFloorEvents:
+    """ShopFloor flow events (they replace the ShopFloor debug log messages)."""
 
-    def test_shopfloor_logs_job_entry(self) -> None:
-        original_level = SimLogger.get_level()
-        try:
-            SimLogger.set_level("DEBUG")
-            env = Environment()
-            sf = ShopFloor(env=env)
-            server = Server(env=env, capacity=1, shopfloor=sf)
-            job = ProductionJob(
-                env=env,
-                sku="A",
-                servers=[server],
-                processing_times=[5.0],
-                due_date=100.0,
-            )
+    @staticmethod
+    def _env() -> tuple[Environment, ShopFloor, list[Event]]:
+        env = Environment(debug=True)
+        seen: list[Event] = []
+        env.bus.subscribe(seen.append, "*")
+        return env, ShopFloor(env=env), seen
 
-            sf.add(job)
+    def test_shopfloor_emits_job_entry(self) -> None:
+        env, sf, seen = self._env()
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=100.0)
 
-            events = env.log_history.query(component="ShopFloor")
-            entry_events = [e for e in events if "entered shopfloor" in e.message]
+        sf.add(job)
 
-            assert len(entry_events) == 1
-            event = entry_events[0]
-            assert event.extra["job_id"] == job.id
-            assert event.extra["sku"] == "A"
-            assert "wip_total" in event.extra
-            assert "jobs_count" in event.extra
-        finally:
-            SimLogger.set_level(original_level)
-            env.close()
+        entries = [e for e in seen if isinstance(e, ShopFloorEntered)]
+        assert len(entries) == 1
+        event = entries[0]
+        assert (event.job, event.shopfloor) == (job.id, sf.id)
+        state = env.entities.snapshot()[sf.id]
+        assert (state["wip"], state["jobs_in_system"]) == ({server.id: 5.0}, 1)  # the old wip_total, jobs_count
 
-    def test_shopfloor_logs_job_finished(self) -> None:
-        original_level = SimLogger.get_level()
-        try:
-            SimLogger.set_level("DEBUG")
-            env = Environment()
-            sf = ShopFloor(env=env)
-            server = Server(env=env, capacity=1, shopfloor=sf)
-            job = ProductionJob(
-                env=env,
-                sku="A",
-                servers=[server],
-                processing_times=[5.0],
-                due_date=100.0,
-            )
+    def test_shopfloor_emits_job_finished(self) -> None:
+        env, sf, seen = self._env()
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[5.0], due_date=100.0)
 
-            sf.add(job)
-            env.run(until=10)
+        sf.add(job)
+        env.run(until=10)
 
-            events = env.log_history.query(component="ShopFloor")
-            finished_events = [e for e in events if "finished" in e.message]
+        finished = [e for e in seen if isinstance(e, JobFinished)]
+        assert len(finished) == 1
+        event = finished[0]
+        assert (event.job, event.shopfloor, event.t) == (job.id, sf.id, 5)
+        assert (event.makespan, event.lateness, event.total_queue_time) == (5.0, -95.0, 0.0)
 
-            assert len(finished_events) == 1
-            event = finished_events[0]
-            assert event.extra["job_id"] == job.id
-            assert "makespan" in event.extra
-            assert "lateness" in event.extra
-            assert "total_queue_time" in event.extra
-        finally:
-            SimLogger.set_level(original_level)
-            env.close()
+    def test_shopfloor_emits_operations(self) -> None:
+        env, sf, seen = self._env()
+        server1 = Server(env=env, capacity=1, shopfloor=sf)
+        server2 = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(env=env, sku="A", servers=[server1, server2], processing_times=[3.0, 2.0], due_date=100.0)
 
-    def test_shopfloor_logs_operations(self) -> None:
-        original_level = SimLogger.get_level()
-        try:
-            SimLogger.set_level("DEBUG")
-            env = Environment()
-            sf = ShopFloor(env=env)
-            server1 = Server(env=env, capacity=1, shopfloor=sf)
-            server2 = Server(env=env, capacity=1, shopfloor=sf)
-            job = ProductionJob(
-                env=env,
-                sku="A",
-                servers=[server1, server2],
-                processing_times=[3.0, 2.0],
-                due_date=100.0,
-            )
+        sf.add(job)
+        env.run(until=10)
 
-            sf.add(job)
-            env.run(until=10)
+        queued = [e for e in seen if isinstance(e, JobQueued)]
+        started = [e for e in seen if isinstance(e, OperationStarted)]
+        completed = [e for e in seen if isinstance(e, OperationCompleted)]
+        assert [(e.server, e.t) for e in queued] == [(server1.id, 0), (server2.id, 3)]
+        assert [(e.server, e.op_index, e.t) for e in started] == [(server1.id, 0, 0), (server2.id, 1, 3)]
+        assert [(e.server, e.op_index, e.processing_time, e.t) for e in completed] == [
+            (server1.id, 0, 3.0, 3),
+            (server2.id, 1, 2.0, 5),
+        ]
 
-            events = env.log_history.query(component="ShopFloor")
-            queued_events = [e for e in events if "queued at server" in e.message]
-            completed_events = [e for e in events if "completed op" in e.message]
 
-            assert len(queued_events) == 2
-            assert len(completed_events) == 2
+class TestRouterAndPoolEvents:
+    """Router and PreShopPool report through flow events (they replace their debug log messages)."""
 
-            # Check op_index is logged
-            assert queued_events[0].extra["op_index"] == 0
-            assert queued_events[1].extra["op_index"] == 1
-        finally:
-            SimLogger.set_level(original_level)
-            env.close()
+    @staticmethod
+    def _router(env: Environment, sf: ShopFloor, server: Server, psp: PreShopPool | None) -> Router:
+        return Router(
+            env=env,
+            shopfloor=sf,
+            servers=[server],
+            psp=psp,
+            inter_arrival_distribution=1.0,
+            sku_distributions={"A": 1.0},
+            sku_routings={"A": [server]},
+            sku_service_times={"A": {server: 0.5}},
+            due_date_offset_distribution={"A": 10.0},
+        )
+
+    def test_router_routes_to_shopfloor(self) -> None:
+        env = Environment(debug=True)
+        seen: list[Event] = []
+        env.bus.subscribe(seen.append, (EntityCreated, PspEntered, ShopFloorEntered))
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        self._router(env, sf, server, psp=None)
+        env.run(until=2.5)
+
+        jobs = [e for e in seen if isinstance(e, EntityCreated) and e.kind == "job"]
+        assert [e.t for e in jobs] == [1, 2]
+        assert [(e.type_name, e.t) for e in seen if not isinstance(e, EntityCreated)] == [
+            ("shopfloor.entered", 1),
+            ("shopfloor.entered", 2),
+        ]
+
+    def test_router_routes_to_psp_and_pool_releases(self) -> None:
+        env = Environment(debug=True)
+        seen: list[Event] = []
+        env.bus.subscribe(seen.append, (PspEntered, PspExited, ShopFloorEntered))
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        psp = PreShopPool(env=env, shopfloor=sf)
+        self._router(env, sf, server, psp=psp)
+        env.run(until=1.5)
+        assert [(e.type_name, e.t) for e in seen] == [("psp.entered", 1)]
+
+        job = psp[0]
+        env.run(until=2.0)
+        psp.release(job)
+        assert [e.type_name for e in seen] == ["psp.entered", "psp.exited", "shopfloor.entered"]
+        exited = seen[1]
+        assert isinstance(exited, PspExited)
+        assert (exited.job, exited.psp, exited.reason, exited.t) == (job.id, psp.id, "released", 2.0)
+        assert job.time_in_psp == 1.0  # the old time_in_psp extra
+        assert len(psp) == 0  # the old psp_size_after extra
 
 
 class TestLoggingFiltering:
     """Tests for logging level filtering."""
 
     def test_debug_logs_filtered_at_info_level(self) -> None:
-        original_level = SimLogger.get_level()
+        env = Environment(log_level="INFO")
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
+        job = ProductionJob(
+            env=env,
+            sku="A",
+            servers=[server],
+            processing_times=[5.0],
+            due_date=100.0,
+        )
+
+        sf.add(job)
+        env.run(until=10)
+
+        events = list(env.log_history)
+        assert len(events) == 0
+        env.close()
+
+
+class TestIntegrationEvents:
+    """The job lifecycle across components, through events; core components write no log messages."""
+
+    def test_job_lifecycle_events(self) -> None:
+        env = Environment(debug=True, log_level="DEBUG")
         try:
-            SimLogger.set_level("INFO")
-            env = Environment()
+            seen: list[Event] = []
+            env.bus.subscribe(seen.append, "*")
             sf = ShopFloor(env=env)
             server = Server(env=env, capacity=1, shopfloor=sf)
             job = ProductionJob(
@@ -217,84 +220,74 @@ class TestLoggingFiltering:
                 processing_times=[5.0],
                 due_date=100.0,
             )
+            seen.clear()
 
             sf.add(job)
             env.run(until=10)
 
-            # All component logs are at DEBUG level, so should be filtered
-            events = list(env.log_history)
-            assert len(events) == 0
-        finally:
-            SimLogger.set_level(original_level)
-            env.close()
-
-
-class TestIntegrationLogging:
-    """Integration tests for logging across multiple components."""
-
-    def test_job_lifecycle_logging(self) -> None:
-        original_level = SimLogger.get_level()
-        try:
-            SimLogger.set_level("DEBUG")
-            env = Environment()
-            sf = ShopFloor(env=env)
-            server = Server(env=env, capacity=1, shopfloor=sf)
-            job = ProductionJob(
-                env=env,
-                sku="A",
-                servers=[server],
-                processing_times=[5.0],
-                due_date=100.0,
-            )
-
-            sf.add(job)
-            env.run(until=10)
-
-            # Verify we have events from both components
-            shopfloor_events = env.log_history.query(component="ShopFloor")
-            server_events = env.log_history.query(component="Server")
-
-            assert len(shopfloor_events) >= 3  # entry, queued, completed, finished
-            assert len(server_events) >= 3  # queue entry, processing, release
-
-            # Verify events are in chronological order
-            all_events = list(env.log_history)
-            timestamps = [e.timestamp for e in all_events]
+            assert [e.type_name for e in seen] == [
+                "shopfloor.entered",
+                "job.queued",
+                "job.granted",
+                "operation.started",
+                "server.work_credited",
+                "operation.completed",
+                "shopfloor.wip_updated",
+                "job.released",
+                "job.finished",
+                "entity.retired",
+            ]
+            timestamps = [e.t for e in seen]
             assert timestamps == sorted(timestamps)
+            assert [e.seq for e in seen] == sorted(e.seq for e in seen)
+            assert list(env.log_history) == []  # ShopFloor, Server, PreShopPool and Router no longer log
         finally:
-            SimLogger.set_level(original_level)
             env.close()
 
-    def test_multiple_jobs_logging(self) -> None:
-        original_level = SimLogger.get_level()
-        try:
-            SimLogger.set_level("DEBUG")
-            env = Environment()
-            sf = ShopFloor(env=env)
-            server = Server(env=env, capacity=1, shopfloor=sf)
+    def test_multiple_jobs_events(self) -> None:
+        env = Environment(debug=True)
+        seen: list[Event] = []
+        env.bus.subscribe(seen.append, "*")
+        sf = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=sf)
 
-            jobs = []
-            for i in range(3):
-                job = ProductionJob(
-                    env=env,
-                    sku=f"SKU{i}",
-                    servers=[server],
-                    processing_times=[2.0],
-                    due_date=100.0,
-                )
-                jobs.append(job)
-                sf.add(job)
+        jobs = []
+        for i in range(3):
+            job = ProductionJob(
+                env=env,
+                sku=f"SKU{i}",
+                servers=[server],
+                processing_times=[2.0],
+                due_date=100.0,
+            )
+            jobs.append(job)
+            sf.add(job)
 
-            env.run(until=20)
+        env.run(until=20)
 
-            # Verify all jobs have finished events
-            finished_events = [e for e in env.log_history.query(component="ShopFloor") if "finished" in e.message]
-            assert len(finished_events) == 3
+        finished = [e for e in seen if isinstance(e, JobFinished)]
+        assert [(e.job, e.t) for e in finished] == [(job.id, 2.0 * (i + 1)) for i, job in enumerate(jobs)]
+        for job in jobs:
+            job_events = [e.type_name for e in seen if getattr(e, "job", None) == job.id]
+            assert job_events[0] == "shopfloor.entered"
+            assert job_events[-1] == "job.finished"
 
-            # Verify each job has its own events
-            for job in jobs:
-                job_events = [e for e in env.log_history if e.extra.get("job_id") == job.id]
-                assert len(job_events) >= 2  # At minimum: entry and finish
-        finally:
-            SimLogger.set_level(original_level)
-            env.close()
+
+def test_job_events_carry_full_job_ids() -> None:
+    """Events carry the whole job id, so job-10000 never reads as job-1000."""
+    env = Environment()
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    for _ in range(10_000):
+        ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
+    job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
+    assert job.id == "job-10000"
+    seen: list[Event] = []
+    env.bus.subscribe(seen.append, "*")
+
+    sf.add(job)
+    env.run()
+
+    job_ids = {getattr(e, "job", None) or getattr(e, "entity", None) for e in seen}
+    assert job_ids == {"job-10000", None}  # None: shopfloor.wip_updated has no job
+    assert len(seen) == 10

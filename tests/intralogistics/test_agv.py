@@ -44,8 +44,8 @@ class TestAGVType:
         )
         sku = SKU(id="any", weight=1.0, volume=0.1)
         assert agv_type.compatibility_fn(sku) is True
-        assert agv_type.load_time_fn() == 0.0
-        assert agv_type.unload_time_fn() == 0.0
+        assert agv_type.load_time == 0.0
+        assert agv_type.unload_time == 0.0
 
 
 class TestAGV:
@@ -174,5 +174,5 @@ class TestAGV:
             weight_capacity=500.0,
             volume_capacity=2.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="agv-42")
-        assert repr(agv) == "AGV(id='agv-42', state=IDLE)"
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-42")
+        assert repr(agv) == "AGV(id='AGV-42', state=IDLE)"

@@ -51,12 +51,12 @@ The library provides ready-to-use components for common manufacturing scenarios 
 - **Event callbacks**: `on_processing_end`, `on_job_finished`, `on_arrival` for reactive logic
 - **Dispatcher protocol**: one-call wiring of multi-event controllers via `attach_dispatcher()`
 - **WIP strategies**: Standard and Corrected workload estimation
-- **Custom metrics collectors**: plug in your own real-time or time-series collectors
+- **Custom collectors**: subclass `Collector` to compute your own metrics from events on the event bus
 
 ### Time-Series Analysis
 - Built-in collectors for WIP, throughput, job count, lateness
 - Matplotlib integration: `plot_wip()`, `plot_throughput()`, `plot_lateness()`
-- Custom time-series collectors via simple protocol
+- Window-aware KPIs (`ShopFloorKPIs`, `FleetKPIs`) with a configurable warm-up
 
 ### Reinforcement Learning Integration *(experimental)*
 - **Gymnasium wrapper** ([`SimulatteEnv`](https://simulatte.dev/tutorials/gymnasium-wrapper/)): subclass a single ABC to turn any simulation into a Gymnasium environment (`from simulatte.experimental.gymnasium import SimulatteEnv`)
@@ -71,10 +71,11 @@ The library provides ready-to-use components for common manufacturing scenarios 
 - Time-series metrics with `plot_fleet_utilization()`, `plot_throughput()`, `plot_pending_orders()`, `plot_inventory()`
 - Three progressive [examples](https://github.com/dmezzogori/simulatte/tree/main/examples): simple setup, manufacturing plant floor, multi-warehouse distribution hub
 
-### Logging
-- Per-component event logging (Server, ShopFloor, Router, Warehouse, AGV)
-- JSON or text format output
-- Queryable in-memory history with filtering by component, level, time range
+### Events, Traces and Logging
+- Typed events with state deltas for every component (Server, ShopFloor, Router, Warehouse, AGV, traffic, charging), delivered on a per-environment event bus
+- Per-environment RNG streams derived from the seed, a semantic digest and a run manifest for reproducibility
+- `TraceRecorder` writes a run to a seekable trace file; `Trace` replays, seeks and verifies it
+- Log sinks: text or JSON output, SQLite, and a queryable in-memory history with filtering by component, level, time range
 
 ### Multi-Run Experiments
 - **Runner** class for stochastic experiments across multiple seeds

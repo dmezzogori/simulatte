@@ -127,3 +127,23 @@ All 10 findings were accepted; see `reviews/2026-10-08-global-spec-review-3.md`.
 **D52. Old collector protocols are replaced by bus collectors.** `MetricsCollector`, `TimeSeriesCollector`, the intralogistics collector hooks and the `collect_time_series`/`collect_workload` wiring go; the default collectors keep their result attributes and plot helpers (`ema_*`, `wip_ts`, `plot_wip()`, …). Rejected: adapters for the old hook protocols until 1.0.
 
 **D53. Trace encoding: MessagePack chunks compressed with deflate in a small custom container.** Python uses `msgpack` (pure-Python fallback on PyPy); the browser uses `@msgpack/msgpack` and the built-in `DecompressionStream`. Rejected: Arrow IPC (pyarrow is heavy), SQLite (needs a WebAssembly build in the browser).
+
+**D54. When the trace writer saturates, recording applies bounded backpressure** (the simulation blocks until the writer drains) rather than failing the run. Proposed by Astra and Claude in SP1 review 2; confirmed by Davide on 2026-10-08.
+
+## SP1 gate G3, 2026-10-09 (Davide, on Claude's recommendations from the G3 report and its review)
+
+**D55. The CI overhead gate compares against two baselines with separate budgets.** Released `simulatte==0.12.0`: ≤ 3 % + calibrated band (the user-facing promise). 0.12.0 with its `env.debug` calls stripped (`benchmarks/strip_debug.py`): ≤ 10 % + 2 % on CPython and ≤ 3 % + 5 % on PyPy, tightened after tuning. Rejected: released baseline only (≈22 % slack hides SP1 regressions); stripped baseline only (synthetic; fails today).
+
+**D56. A small hot-path tuning task precedes G4**, targeting the `env.wants` guard cost (≈46 checks per job), so SP1's own unobserved-path cost moves toward 3 % + band before G4 multiplies the emitting sites.
+
+**D57. Regression budgets accepted** (reported in CI, not gated until calibrated on runners): digest ≤ 3.2× CPython / ≤ 4.3× PyPy; full ≤ 4.9× / ≤ 7.0×; ≤ 1.75 KB trace per job (10-server shop); cold seek p95 ≤ 100 ms at 50k jobs; extra peak RSS ≤ 256 MB; sampling ≤ 1.03 + band vs 0.12.0. The `digest` budget is the starting point for the `kpi` mode.
+
+**D58. Float sums that reach events, KPIs or the digest use `math.fsum`** (exactly rounded, identical on CPython 3.11, 3.12+ and PyPy), starting with `BaseJob.total_queue_time`. This changes the pinned reference digests once.
+
+*D58 implementation note (ruling R17, 2026-10-09):* applied to every float `sum()` in `src/simulatte`, including sums that decide behaviour (dispatching priorities, samplers, arrival rate, planned release dates, fleet path and load computations), since those reach the digest through the trajectory. On CPython the reference digests and every documented example output stayed identical; only the PyPy golden moved, and it now equals CPython's. Sequential `+=` accumulations were left as they are (already runtime-independent).
+
+## SP1 final verification, 2026-10-10 (Davide, on Claude's recommendations from the SP1 final report)
+
+**D59. Budgets for `default`, `default_logging` and `kpi` accepted as proposed** (reported in CI, not gated until calibrated on runners, like D57): `default` against released 0.12.0 ≤ 3 % + band, against 0.12.0 without debug calls ≤ 10 % + 2 % on CPython and ≤ 3 % + 5 % on PyPy, and against the branch's no-subscriber time ≤ 1.10× CPython / ≤ 1.06× PyPy; `default_logging` ≤ 3 % + band over the same shop with the default sinks closed (`bare`), with the no-subscriber limits unchanged against 0.12.0; `kpi` ≤ 3.7× CPython / ≤ 4.5× PyPy of no-subscriber time. D57's `full` ≤ 4.9× on CPython is **kept** although u90-50k measured 4.83 to 4.99×: the ratio is borderline because the unobserved path got about 10 % faster after Task 12b while the `full` time did not change, and the CI-size workloads give 4.45 to 4.71×. The scaled-up intralogistics workload stays a reported-only measurement with no budget.
+
+**D60. CPython `full` budget raised to ≤ 5.3×** (2026-10-10, Davide; reported in CI, not gated until calibrated on runners, like D57). Supersedes the CPython `full` part of D57 and the "kept at 4.9×" sentence of D59. The fixes after the adversarial review add a `server.work_credited` event per operation (direct `Server` use must replay correctly), which makes `full` recording about 5 % slower; with the 4.83 to 4.99× already measured on u90-50k, the expected ratio is about 5.1 to 5.2×. The PyPy `full` budget (≤ 7.0×) and the other D57 limits are unchanged.

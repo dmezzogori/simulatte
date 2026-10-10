@@ -173,6 +173,28 @@ class TestJobProperties:
         with pytest.raises(ValueError, match="missing timing information"):
             _ = job.total_queue_time
 
+    @pytest.mark.parametrize(
+        ("queue_times", "expected"),
+        [
+            ([0.1] * 10, 1.0),
+            # Compensated ``sum()`` (CPython 3.12+) still rounds this one up; only ``fsum`` is exact.
+            ([1e16, 1.0, 0.1, 0.1, -1e16], 1.2),
+        ],
+    )
+    def test_total_queue_time_is_exactly_rounded(
+        self, monkeypatch: pytest.MonkeyPatch, queue_times: list[float], expected: float
+    ) -> None:
+        """total_queue_time is the exactly rounded sum, identical on every runtime (D58)."""
+        env = Environment()
+        sf = ShopFloor(env=env)
+        servers = [Server(env=env, capacity=1, shopfloor=sf) for _ in queue_times]
+        job = ProductionJob(env=env, sku="A", servers=servers, processing_times=[1] * len(servers), due_date=100)
+        job.done = True
+        per_server = dict(zip(servers, queue_times, strict=True))
+        monkeypatch.setattr(ProductionJob, "server_queue_times", property(lambda self: per_server))
+
+        assert job.total_queue_time == expected
+
     def test_time_in_system_not_done_raises(self) -> None:
         """time_in_system should raise when job not done."""
         env = Environment()

@@ -96,3 +96,181 @@ jobs:
         env:
           MPLBACKEND: Agg
         run: uv run --python pypy-3.11 pytest tests/core tests/intralogistics -o addopts="-q -p no:cacheprovider"
+
+  # TypeScript conformance reader (gate G2): the studio trace package reads the committed trace fixtures
+  # and must reproduce the states the Python reader wrote into their expected JSON.
+  trace-ts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 24
+
+      # Corepack reads the pnpm version from the packageManager field of the package.json in the working
+      # directory, so the pnpm steps run inside studio/ (from the repository root it would fall back to its default pnpm).
+      - name: Enable corepack (pnpm version comes from studio/package.json)
+        run: corepack enable
+
+      - name: Install dependencies
+        working-directory: studio
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        working-directory: studio
+        run: pnpm typecheck
+
+      - name: Run tests
+        working-directory: studio
+        run: pnpm test
+
+  # Overhead gate (spec §14, gate G3, decision D55): the branch's mode `none` against two baselines built from
+  # simulatte==0.12.0, on the same pre-generated workloads (benchmarks/README.md): the released package (the
+  # user-facing promise) and a copy of it without its env.debug calls (benchmarks/strip_debug.py), which isolates
+  # what SP1 itself added on the unobserved path. Only mode `none` can fail the job: when the median overhead
+  # against the released baseline exceeds BUDGET_RELEASED + NOISE_RELEASED, or against the stripped one
+  # BUDGET_STRIPPED + NOISE_STRIPPED; modes default (each version's default shop-floor metrics), default_logging
+  # and kpi, the digest/full ratios, trace size, seeks, memory, sampling and the scaled-up intralogistics example
+  # are reported in the step summary (budgets for default, default_logging and kpi accepted as D59, report-only
+  # until calibrated on runners; specs/research/sp1-final-report.md). Expected duration: about 15 minutes on CPython
+  # and 20 on PyPy, setup included. This is an estimate from local timings and has not been observed on a runner;
+  # the timeout is 45 minutes to leave room for slower runners.
+  bench:
+    name: bench (${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python: "3.14"
+            warmup: 1
+            pypy: false
+          - python: pypy-3.11
+            warmup: 8  # the JIT settles after about 7 runs of the CI workload
+            pypy: true
+    env:
+      # Overhead budgets and noise bands, the only place they are set (D55). Each baseline has its own pair: the
+      # gate fails above BUDGET_RELEASED + NOISE_RELEASED against the released 0.12.0, or above
+      # BUDGET_STRIPPED + NOISE_STRIPPED against the stripped copy.
+      # Noise bands are calibrated at G3 (specs/research/sp1-g3-report.md §3). The stripped baseline's budget is
+      # tightened after the tuning of D56 (G3 report §9): 6.5 % on CPython (was 10 %), 3 % on PyPy (the floor).
+      BUDGET_RELEASED: "0.03"
+      NOISE_RELEASED: ${{ matrix.pypy && '0.05' || '0.02' }}
+      BUDGET_STRIPPED: ${{ matrix.pypy && '0.03' || '0.065' }}
+      NOISE_STRIPPED: ${{ matrix.pypy && '0.05' || '0.02' }}
+      RUN: --warmup ${{ matrix.warmup }} --repeat 5 --processes 3
+      MPLBACKEND: Agg
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install ${{ matrix.python }}
+        run: uv python install ${{ matrix.python }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libjpeg-dev zlib1g-dev
+
+      - name: Create the environments (branch, released 0.12.0 with the same dependency versions, stripped 0.12.0)
+        run: |
+          uv venv /tmp/head --python ${{ matrix.python }}
+          uv pip install --python /tmp/head .
+          uv pip freeze --python /tmp/head | grep -v '^simulatte' > /tmp/constraints.txt
+          uv venv /tmp/base --python ${{ matrix.python }}
+          uv pip install --python /tmp/base simulatte==0.12.0 --constraint /tmp/constraints.txt
+          mkdir -p /tmp/out
+          # The stripped baseline runs in the released environment with a copy of the package, without its
+          # env.debug calls, first on PYTHONPATH (D55).
+          pkg=$(/tmp/base/bin/python -c 'import os, simulatte; print(os.path.dirname(simulatte.__file__))')
+          /tmp/base/bin/python benchmarks/strip_debug.py "$pkg" /tmp/stripped
+          # Fail the job unless the stripped copy is the one imported (and the released one otherwise).
+          PYTHONPATH=/tmp/stripped /tmp/base/bin/python -c 'import simulatte; print("stripped:", simulatte.__file__); assert simulatte.__file__.startswith("/tmp/stripped/")'
+          /tmp/base/bin/python -c 'import simulatte; print("released:", simulatte.__file__); assert not simulatte.__file__.startswith("/tmp/stripped/")'
+
+      - name: Mode none against released and stripped 0.12.0 (gate)
+        working-directory: benchmarks
+        run: |
+          {
+            echo "### Overhead gate, ${{ matrix.python }}"
+            echo "- released 0.12.0: budget ${BUDGET_RELEASED}, noise band ${NOISE_RELEASED}"
+            echo "- 0.12.0 without env.debug calls: budget ${BUDGET_STRIPPED}, noise band ${NOISE_STRIPPED}"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          status=0
+          header=""
+          for w in jobshop10-u90-5k jobshop10-u95-5k; do
+            /tmp/base/bin/python run.py --mode none --workload workloads/$w.json $RUN --json /tmp/out/base-none-$w.json
+            PYTHONPATH=/tmp/stripped /tmp/base/bin/python run.py --mode none --workload workloads/$w.json $RUN \
+              --label "0.12.0 without env.debug calls" --json /tmp/out/stripped-none-$w.json
+            /tmp/head/bin/python run.py --mode none --workload workloads/$w.json $RUN --json /tmp/out/head-none-$w.json
+            /tmp/head/bin/python compare.py /tmp/out/base-none-$w.json /tmp/out/head-none-$w.json \
+              --budget "$BUDGET_RELEASED" --noise "$NOISE_RELEASED" --summary "$GITHUB_STEP_SUMMARY" $header || status=1
+            header=--no-header
+            /tmp/head/bin/python compare.py /tmp/out/stripped-none-$w.json /tmp/out/head-none-$w.json \
+              --budget "$BUDGET_STRIPPED" --noise "$NOISE_STRIPPED" --summary "$GITHUB_STEP_SUMMARY" $header || status=1
+          done
+          exit $status
+
+      - name: Other modes, sampling and intralogistics (reported only)
+        if: success() || failure()
+        working-directory: benchmarks
+        run: |
+          w=jobshop10-u90-5k
+          echo "### Other modes, sampling and intralogistics, ${{ matrix.python }} (not gated)" >> "$GITHUB_STEP_SUMMARY"
+          # Modes default and default_logging: each version's defaults, against each baseline (budgets accepted as D59, not gated).
+          header=""
+          for mode in default default_logging; do
+            /tmp/base/bin/python run.py --mode $mode --workload workloads/$w.json $RUN --json /tmp/out/base-$mode-$w.json
+            PYTHONPATH=/tmp/stripped /tmp/base/bin/python run.py --mode $mode --workload workloads/$w.json $RUN \
+              --label "0.12.0 without env.debug calls" --json /tmp/out/stripped-$mode-$w.json
+            /tmp/head/bin/python run.py --mode $mode --workload workloads/$w.json $RUN --json /tmp/out/head-$mode-$w.json
+            /tmp/head/bin/python compare.py /tmp/out/base-$mode-$w.json /tmp/out/head-$mode-$w.json \
+              --summary "$GITHUB_STEP_SUMMARY" $header
+            header=--no-header
+            /tmp/head/bin/python compare.py /tmp/out/stripped-$mode-$w.json /tmp/out/head-$mode-$w.json \
+              --summary "$GITHUB_STEP_SUMMARY" --no-header
+          done
+          # Logging cost: the default logging against the same shop with the default log sinks closed (branch only).
+          /tmp/head/bin/python run.py --mode bare --workload workloads/$w.json $RUN --json /tmp/out/head-bare-$w.json
+          /tmp/head/bin/python compare.py /tmp/out/head-bare-$w.json /tmp/out/head-default_logging-$w.json \
+            --summary "$GITHUB_STEP_SUMMARY" --no-header
+          # Recording modes, against the branch's none.
+          for mode in kpi digest full; do
+            /tmp/head/bin/python run.py --mode $mode --workload workloads/$w.json $RUN --json /tmp/out/head-$mode-$w.json
+            /tmp/head/bin/python compare.py /tmp/out/head-none-$w.json /tmp/out/head-$mode-$w.json \
+              --summary "$GITHUB_STEP_SUMMARY" --no-header
+          done
+          /tmp/base/bin/python bench_sampling.py --jobs 20000 --warmup ${{ matrix.warmup }} --repeat 5 --json /tmp/out/base-sampling.json
+          /tmp/head/bin/python bench_sampling.py --jobs 20000 --warmup ${{ matrix.warmup }} --repeat 5 --json /tmp/out/head-sampling.json
+          /tmp/head/bin/python compare.py /tmp/out/base-sampling.json /tmp/out/head-sampling.json \
+            --summary "$GITHUB_STEP_SUMMARY" --no-header
+          # Scaled-up advanced intralogistics example (half-size here), every mode against the branch's own none.
+          IL="--shifts 10 --warmup ${{ matrix.pypy && 2 || 1 }} --repeat 3 --no-memory"
+          for mode in none default default_logging bare kpi digest full; do
+            /tmp/head/bin/python intralogistics.py --mode $mode $IL --json /tmp/out/il-$mode.json
+          done
+          for mode in default default_logging bare kpi digest full; do
+            /tmp/head/bin/python compare.py /tmp/out/il-none.json /tmp/out/il-$mode.json \
+              --summary "$GITHUB_STEP_SUMMARY" --no-header
+          done
+          /tmp/head/bin/python summarize.py /tmp/out/*.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the benchmark results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bench-${{ matrix.python }}
+          path: /tmp/out/*.json

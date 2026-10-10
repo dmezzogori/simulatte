@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from simulatte.policies.events import PolicyDecision
 from simulatte.policies.norms import expand_norms, fits_norms
 from simulatte.policies.triggers import on_completion_trigger
 from simulatte.shopfloor import CorrectedWIPStrategy
@@ -101,6 +102,9 @@ class ContinuousRelease:
         shopfloor = psp.shopfloor
         for job in sorted(list(psp.jobs), key=lambda j: j.planned_release_date(self.allowance_factor)):
             if fits_norms(job, wip=shopfloor.wip, norms=self.wl_norm):
+                env = psp.env
+                if env.wants(PolicyDecision):
+                    env.emit(PolicyDecision(policy=type(self).__name__, job=job.id, action="release"))
                 psp.release(job)
 
     def on_arrival_release(self, job: ProductionJob, psp: PreShopPool) -> None:
@@ -123,4 +127,7 @@ class ContinuousRelease:
         shopfloor = psp.shopfloor
         if not fits_norms(job, wip=shopfloor.wip, norms=self.wl_norm):
             return
+        env = psp.env
+        if env.wants(PolicyDecision):
+            env.emit(PolicyDecision(policy=type(self).__name__, job=job.id, action="release"))
         psp.release(job)

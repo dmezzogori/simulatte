@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from simulatte.dispatching_rules import planned_slack_time
+from simulatte.policies.events import PolicyDecision
 from simulatte.policies.starvation_avoidance import starvation_avoidance
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -130,6 +131,9 @@ class Slar:
         if not server.empty:
             return False
         candidate = min(candidates, key=lambda j: self._pst(j, server))
+        env = self.psp.env
+        if env.wants(PolicyDecision):
+            env.emit(PolicyDecision(policy=type(self).__name__, job=candidate.id, action="release"))
         self.psp.release(job=candidate)
         return True
 
@@ -153,6 +157,9 @@ class Slar:
         if not urgent:
             return False
         candidate = min(urgent, key=lambda j: j.processing_times[0])
+        env = self.psp.env
+        if env.wants(PolicyDecision):
+            env.emit(PolicyDecision(policy=type(self).__name__, job=candidate.id, action="release"))
         self.psp.release(job=candidate)
         return True
 
@@ -170,7 +177,10 @@ class Slar:
         if len(server.queue) != 1:
             return
         candidate = min(candidates, key=lambda j: self._pst(j, server))
-        self.psp.env.process(self._postponed_release(candidate))
+        env = self.psp.env
+        if env.wants(PolicyDecision):
+            env.emit(PolicyDecision(policy=type(self).__name__, job=candidate.id, action="postpone"))
+        env.process(self._postponed_release(candidate))
 
     def _postponed_release(self, job: ProductionJob) -> ProcessGenerator:
         """Release *job* from PSP after a tiny delay.
@@ -180,6 +190,6 @@ class Slar:
         single queued job at the triggering server starts processing first,
         then adds *job* to the shopfloor.
         """
-        self.psp.remove(job=job)
+        self.psp.remove(job=job, reason="postponed")
         yield self.psp.env.timeout(self._POSTPONED_DELAY)
         self.psp.shopfloor.add(job)

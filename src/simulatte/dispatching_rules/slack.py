@@ -9,6 +9,7 @@ served first.
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -36,7 +37,7 @@ def critical_ratio(job: BaseJob, server: Server) -> float:
     https://doi.org/10.1287/mnsc.22.2.192
     """
     now = server.env.now
-    remaining_pt = sum(job.routing[s] for s in job.unfinished_routing)
+    remaining_pt = math.fsum(job.routing[s] for s in job.unfinished_routing)
     if remaining_pt <= 0:
         return float("inf")
     return (job.due_date - now) / remaining_pt

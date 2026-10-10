@@ -1,30 +1,33 @@
 from __future__ import annotations
 
-import pytest
+from typing import Any
 
 from simulatte.environment import Environment
+from simulatte.events import DomainEvent
+from simulatte.intralogistics.agv import AGV
 from simulatte.intralogistics.builders import build_simple_system
-from simulatte.logger import SimLogger
+from simulatte.intralogistics.events import (
+    AgvMoveStarted,
+    AgvStateChanged,
+    OrderStatusChanged,
+    WarehouseInventoryChanged,
+    WarehouseSlotChanged,
+)
+from simulatte.intralogistics.graph import Node
 
 
-@pytest.fixture
-def _debug_level():
-    """Temporarily set the global log level to DEBUG so env.debug() calls
-    are recorded in the history buffer."""
-    original = SimLogger.get_level()
-    SimLogger.set_level("DEBUG")
-    yield
-    SimLogger.set_level(original)
+class _Unreachable:
+    """Repositions every AGV to a node outside the graph, so the fleet logs an error and a warning."""
+
+    def reposition(self, agv: AGV, context: Any) -> Node:
+        return Node(id="NOWHERE", x=99.0, y=99.0)
 
 
-@pytest.mark.usefixtures("_debug_level")
-def test_logging_components_present() -> None:
-    """Run a simple simulation and verify that FleetCoordinator, Warehouse,
-    and AGV all emit at least one log event."""
-    env = Environment(log_history_size=5000)
+def _run_one_order(env: Environment, *, unreachable_parking: bool = False) -> None:
     coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env, n_agvs=1)
+    if unreachable_parking:
+        coordinator._repositioning_policy = _Unreachable()
     sku = list(wh_a.inventory.keys())[0]
-
     order = coordinator.create_order(
         sku=sku,
         quantity=1,
@@ -34,38 +37,40 @@ def test_logging_components_present() -> None:
     coordinator.submit(order)
     env.run()
 
-    fleet_events = env.log_history.query(component="FleetCoordinator")
-    warehouse_events = env.log_history.query(component="Warehouse")
-    agv_events = env.log_history.query(component="AGV")
 
-    assert len(fleet_events) > 0, "Expected at least one FleetCoordinator event"
-    assert len(warehouse_events) > 0, "Expected at least one Warehouse event"
-    assert len(agv_events) > 0, "Expected at least one AGV event"
-
-
-@pytest.mark.usefixtures("_debug_level")
-def test_disable_component_suppresses_agv_logs() -> None:
-    """Verify that ``env.logger.disable_component("AGV")`` suppresses AGV
-    log events while other component events are still recorded."""
-    env = Environment(log_history_size=5000)
-    env.logger.disable_component("AGV")
-
-    coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env, n_agvs=1)
-    sku = list(wh_a.inventory.keys())[0]
-
-    order = coordinator.create_order(
-        sku=sku,
-        quantity=1,
-        origin=wh_a,
-        destination=wh_b,
+def test_intralogistics_transitions_are_events() -> None:
+    """Fleet, AGV and warehouse transitions are domain events, not debug logs (spec §7.2): even at DEBUG, a run
+    without errors records no intralogistics log message."""
+    env = Environment(log_level="DEBUG", log_history_size=5000)
+    seen: list[DomainEvent] = []
+    env.bus.subscribe(
+        seen.append,
+        (OrderStatusChanged, AgvStateChanged, AgvMoveStarted, WarehouseInventoryChanged, WarehouseSlotChanged),
     )
-    coordinator.submit(order)
-    env.run()
+    _run_one_order(env)
 
-    agv_events = env.log_history.query(component="AGV")
+    assert {event.type_name for event in seen} == {
+        "order.status_changed",
+        "agv.state_changed",
+        "agv.move_started",
+        "warehouse.inventory_changed",
+        "warehouse.slot_changed",
+    }
+    assert [e.status for e in seen if isinstance(e, OrderStatusChanged)][-1] == "COMPLETED"
+    for component in ("FleetCoordinator", "AGV", "Warehouse", "TrafficManager", "ChargingStation", "ParkingArea"):
+        assert env.log_history.query(component=component) == [], component
+
+
+def test_disable_component_suppresses_its_logs() -> None:
+    """``env.log_history.disable_component("FleetCoordinator")`` suppresses the fleet's errors and warnings, which
+    are recorded otherwise."""
+    muted = Environment(log_history_size=5000)
+    muted.log_history.disable_component("FleetCoordinator")
+    _run_one_order(muted, unreachable_parking=True)
+    assert muted.log_history.query(component="FleetCoordinator") == []
+
+    env = Environment(log_history_size=5000)
+    _run_one_order(env, unreachable_parking=True)
     fleet_events = env.log_history.query(component="FleetCoordinator")
-    warehouse_events = env.log_history.query(component="Warehouse")
-
-    assert len(agv_events) == 0, "AGV events should be suppressed"
-    assert len(fleet_events) > 0, "FleetCoordinator events should still appear"
-    assert len(warehouse_events) > 0, "Warehouse events should still appear"
+    assert [event.level for event in fleet_events] == ["ERROR", "WARNING"]
+    assert "No path from" in fleet_events[0].message and "Repositioning failed" in fleet_events[1].message

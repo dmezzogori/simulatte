@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar
 
+from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
+from simulatte.events import Deltas, DomainEvent, event_type
 from simulatte.shopfloor import ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -14,8 +16,33 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.job import ProductionJob
     from simulatte.server import Server
 
+__all__ = ["PreShopPool", "PspEntered", "PspExited"]
 
-class PreShopPool:
+
+@event_type("psp.entered", touches={"psp": ("jobs",), "job": ("location", "shopfloor")})
+class PspEntered(DomainEvent):
+    """A job entered the pool at `position` (``insert``); the job's location becomes ``psp:<psp id>`` and its owner
+    the pool's shop floor."""
+
+    job: str
+    psp: str
+    position: int
+
+
+@event_type("psp.exited", touches={"psp": ("jobs",), "job": ("location",)})
+class PspExited(DomainEvent):
+    """A job left the pool (``remove``).
+
+    `reason` is ``"released"`` (to the shop floor), ``"postponed"`` (released after a delay) or ``"removed"``. The
+    job's location becomes ``"transit"`` for a release (immediate or postponed) and null for a removal.
+    """
+
+    job: str
+    psp: str
+    reason: str
+
+
+class PreShopPool(Entity, kind="psp"):
     """Buffer queue for jobs awaiting shopfloor release.
 
     A pure container with no built-in release logic. Release policies are
@@ -32,18 +59,36 @@ class PreShopPool:
         >>> env.process(on_arrival_trigger(psp, my_on_arrival_fn))
     """
 
-    def __init__(self, *, env: Environment, shopfloor: ShopFloor) -> None:
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {"jobs": FieldSpec("str", collection="list"), "shopfloor": FieldSpec("str", nullable=True)}
+    )
+
+    def __init__(
+        self,
+        *,
+        env: Environment,
+        shopfloor: ShopFloor,
+        name: str | None = None,
+        label: str | None = None,
+    ) -> None:
         """Initialize the pre-shop pool.
 
         Args:
             env: The simulation environment.
             shopfloor: The shopfloor that will receive released jobs.
+            name: Optional id of the pool; defaults to ``psp-<n>``.
+            label: Optional display label; defaults to the id.
         """
         self.env = env
         self.shopfloor = shopfloor
         self._psp: deque[ProductionJob] = deque()
         self.new_job = self.env.event()
         self._arrival_callbacks: list[Callable[[ProductionJob, PreShopPool], None]] = []
+        env.entities.attach(self, name=name, label=label)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Current entity state: job ids in FIFO order and the owning shop floor's id."""
+        return {"jobs": [job.id for job in self._psp], "shopfloor": self.shopfloor.id, "label": self.label}
 
     def __len__(self) -> int:
         """Return the number of jobs currently in the pool."""
@@ -78,26 +123,38 @@ class PreShopPool:
             job: The production job to add to the pool.
         """
         self._psp.append(job)
-
-        self.env.debug(
-            f"Job {job.id[:8]} entered PSP",
-            component="PreShopPool",
-            job_id=job.id,
-            sku=job.sku,
-            psp_size=len(self._psp),
-            due_date=job.due_date,
-        )
+        job._location = location = f"psp:{self.id}"
+        job._shopfloor_id = shopfloor_id = self.shopfloor.id
+        env = self.env
+        if env.wants(PspEntered):
+            job_id = job.id
+            position = len(self._psp) - 1
+            env.emit(
+                PspEntered(
+                    job=job_id,
+                    psp=self.id,
+                    position=position,
+                    deltas=Deltas.build()
+                    .insert(self.id, "jobs", position, job_id)
+                    .set(job_id, "location", location)
+                    .set(job_id, "shopfloor", shopfloor_id)
+                    .done(),
+                )
+            )
 
         self._signal_new_job(job)
 
-    def remove(self, *, job: ProductionJob | None = None) -> ProductionJob:
+    def remove(self, *, job: ProductionJob | None = None, reason: str = "removed") -> ProductionJob:
         """Remove a job from the pool and record its exit timestamp.
 
         Supports two modes: FIFO removal (default) or specific job removal.
-        Sets `job.psp_exit_at` to the current simulation time before returning.
+        Sets `job.psp_exit_at` to the current simulation time before returning and emits ``psp.exited``.
 
         Args:
             job: The specific job to remove. If None, removes the oldest job (FIFO).
+            reason: Why the job leaves: ``"released"``, ``"postponed"`` (released after a delay) or
+                ``"removed"`` (the default). The job's location becomes ``"transit"`` for the first two and
+                null for a removal.
 
         Returns:
             The removed job with its `psp_exit_at` timestamp updated.
@@ -112,16 +169,19 @@ class PreShopPool:
         else:
             job = self._psp.popleft()
 
-        time_in_psp = self.env.now - job.created_at
         job.psp_exit_at = self.env.now
-
-        self.env.debug(
-            f"Job {job.id[:8]} released from PSP",
-            component="PreShopPool",
-            job_id=job.id,
-            time_in_psp=time_in_psp,
-            psp_size_after=len(self._psp),
-        )
+        job._location = location = None if reason == "removed" else "transit"
+        env = self.env
+        if env.wants(PspExited):
+            job_id = job.id
+            env.emit(
+                PspExited(
+                    job=job_id,
+                    psp=self.id,
+                    reason=reason,
+                    deltas=Deltas.build().remove(self.id, "jobs", job_id).set(job_id, "location", location).done(),
+                )
+            )
 
         return job
 
@@ -137,7 +197,7 @@ class PreShopPool:
         Raises:
             ValueError: If the job is not found in the pool.
         """
-        self.remove(job=job)
+        self.remove(job=job, reason="released")
         self.shopfloor.add(job)
 
     def jobs_starting_at(self, server: Server) -> list[ProductionJob]:

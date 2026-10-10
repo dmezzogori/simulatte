@@ -41,6 +41,7 @@ Before writing code, figure out which stage the researcher is at:
 | Run stochastic experiments             | `Runner` with multiple seeds        |
 | Train an RL agent on a simulation      | Gymnasium wrapper section           |
 | Analyze or plot results                | Result inspection section           |
+| Reproduce, record or compare runs      | Events, traces and KPIs section     |
 
 ## Choosing a release policy
 
@@ -158,15 +159,19 @@ focus, starvation-avoidance) return `policy=None`.
 from simulatte.environment import Environment
 from simulatte.builders import build_lumscor_system
 
-env = Environment()
+env = Environment(seed=42)  # always seed: streams are derived from it
 psp, servers, shopfloor, router, _ = build_lumscor_system(
     env=env, check_timeout=10.0, wl_norm_level=5.0, allowance_factor=2,
 )
 env.run(until=10_000)
 ```
 
-Every builder takes a `scenario: Scenario = Scenario()` that owns the shop
-environment. The default `Scenario()` is a 6-server pure job shop held at
+Builders name their entities `wc-<i>`, `shopfloor`, `router` and `psp`; to build
+two systems in one environment pass distinct `prefix=` values (a second system
+without a prefix raises a duplicate-id error).
+
+Every builder takes a `scenario: Scenario | None = None` (a fresh `Scenario()`
+when omitted) that owns the shop environment. The default `Scenario()` is a 6-server pure job shop held at
 `target_utilization=0.90`, a single product family ("F1") with
 `TruncatedErlang(rate=2.0, shape=2, max_value=4.0)` service times and random
 routing through a subset of servers. The exponential arrival rate is **derived**
@@ -184,9 +189,10 @@ product case, or a preset (`Scenario.pure_job_shop()` / `.general_flow_shop()`
 When the researcher needs custom SKUs, multi-product routing, or non-standard
 distributions, build the system by hand. The canonical sequence:
 
-1. Create `Environment`
-2. Create `ShopFloor` (optionally with hooks, strategies, collectors)
-3. Create `Server` instances (pass `shopfloor=` to auto-register)
+1. Create `Environment(seed=...)`
+2. Create `ShopFloor` (optionally with hooks, strategies; it attaches an
+   `EMACollector` as `shopfloor.metrics` unless `default_metrics=False`)
+3. Create `Server` instances (pass `shopfloor=` to auto-register; `name=` sets the id)
 4. Create `PreShopPool` if using pull system
 5. Create `Router` with distribution configuration
 6. If pull system, use callback APIs (`on_arrival`, `on_processing_end`) for
@@ -357,7 +363,9 @@ results = runner.run(until=10_000)
 
 The `builder` callable must accept `*, env` (keyword-only). The `extract_fn`
 receives the full system tuple and returns whatever metrics the researcher
-needs. Results are a list, one entry per seed, in seed order.
+needs. Results are a list, one entry per seed, in seed order. Each run gets
+`Environment(seed=seed)`; the runner does not seed Python's global `random`
+module. `log_dir=` writes per-run log files and `log_level=` sets their level.
 
 ## Gymnasium wrapper (RL integration)
 
@@ -442,24 +450,69 @@ Gymnasium-compatible RL library.
 | `shopfloor.wip`                    | Current WIP dict `{server: float}`   |
 | `shopfloor.maximum_wip_value`      | Peak total WIP observed              |
 
-### EMA metrics (via default `metrics_collector`)
+### EMA metrics (default `EMACollector`)
 
-The default `EMAMetricsCollector` tracks smoothed metrics. Access via
-`shopfloor.metrics_collector`:
+Every `ShopFloor` attaches an `EMACollector` (`simulatte.collectors`) as
+`shopfloor.metrics` (`None` with `default_metrics=False`). It tracks smoothed
+metrics, counting a job as tardy only outside the +-7 due-date window:
 
 - `ema_makespan`, `ema_tardy_jobs`, `ema_early_jobs`, `ema_in_window_jobs`
 - `ema_time_in_psp`, `ema_time_in_shopfloor`, `ema_total_queue_time`
 
 ### Time-series plots
 
-Enable with `ShopFloor(collect_time_series=True)`, then:
+Collectors attach to their owner with `attach(env)` before the run;
+`env.collectors` lists them. The builders' `collect_time_series=True` and
+`collect_workload=True` attach them for you.
 
 ```python
-shopfloor.time_series_collector.plot_wip()
-shopfloor.time_series_collector.plot_throughput()
-shopfloor.time_series_collector.plot_lateness()
-shopfloor.time_series_collector.plot_job_count()
+from simulatte.collectors import ShopFloorTimeSeries, ServerTimeSeries
+
+ts = ShopFloorTimeSeries(shopfloor).attach(env)
+queue = ServerTimeSeries(servers[0]).attach(env)
+env.run(until=10_000)
+ts.plot_wip(); ts.plot_throughput(); ts.plot_lateness(); ts.plot_job_count()
+queue.plot_qt(); queue.plot_ut()
 ```
+
+### Window-aware KPIs
+
+`env.configure_kpis(warmup=...)` (before the run) sets the warm-up.
+`ShopFloorKPIs(shopfloor).attach(env)` then computes job means over the jobs
+completed after the warm-up and time-weighted utilization; read
+`kpis.scalars()` (keys `"<shop floor id>/<kpi>"`) or `env.fingerprint().kpis`.
+Here "tardy" is any positive lateness, unlike the EMA's `ema_tardy_jobs`.
+
+## Events, traces and KPIs
+
+Every state change is a typed event on `env.bus`. Observers never change results.
+
+```python
+from simulatte.shopfloor import JobFinished
+
+env.bus.subscribe(lambda e: print(e.t, e.job, e.lateness), (JobFinished,))
+```
+
+- Subscribe to event classes, `"*"` (domain events) or `"**"` (all). Guard custom
+  emission with `if env.wants(MyEvent): env.emit(MyEvent(...))`.
+- Entity ids: jobs `job-<n>`, servers `server-<n>` or `name=`; names must not
+  contain `/` and must not look like `<kind>-<n>`.
+- Randomness: `env.rng("name")` gives a named stream derived from `env.seed`.
+  Never use the global `random` module in a model; draw from `env.rng(...)`.
+- Reproducibility: `env.enable_digest()` (before the run), then
+  `env.fingerprint().digest` and `env.manifest()`. `Provenance(model=, source=,
+  inputs=, dependencies=)` makes the manifest complete; plain callables as
+  samplers make it incomplete.
+- Traces: `TraceRecorder(env, "run.simtrace", level="full")` before the run,
+  `env.close()` after (or `with Environment() as env:`); read with
+  `Trace.open(path)` (`state_at`, `events`, `kpis`, `check`, `verify`).
+- Custom metrics: subclass `simulatte.kpi.Collector` (`kpis`, `subscribes`,
+  `scope_field`, `on_event`), see the ShopFloor extensibility tutorial.
+- `env.run()` activates the environment; when driving manually with
+  `env.step()`, call `env.activate()` first.
+- Logging: `env.info(...)` etc. emit `log` events written by sinks
+  (`Environment(log_level=, log_file=, log_format=, log_db_path=)`,
+  `env.log_history`, `env.log_db`). There is no `env.logger`.
 
 ## Common pitfalls
 
@@ -482,7 +535,7 @@ corresponding processing time.
 **Arrival rate is a rate (lambda), not a mean.**
 `Scenario(arrival_rate=1.5)` means 1.5 arrivals per time unit (mean
 inter-arrival = 0.667). The `Scenario` passes it to
-`random.expovariate(arrival_rate)`. If the researcher specifies a mean
+`Exponential(arrival_rate)`. If the researcher specifies a mean
 inter-arrival time, convert: `arrival_rate = 1 / mean`. With `arrival_rate`
 left as `None` (the default), the rate is derived from `target_utilization`,
 `n_servers`, and the mean routing length.
@@ -493,20 +546,28 @@ policy, and registers its release triggers. Manual composition therefore does
 not require a separate set_wip_strategy call; use the builder or construct
 LumsCor with the required shopfloor, PSP, and router references.
 
-**Lambda closure trap in Router config.**
-When building `sku_service_times` in a loop, lambdas capture the loop variable
-by reference. If the lambda body references that variable, all lambdas end up
-using the last value. Use default arguments to capture by value:
+**Use distributions, not lambdas, for random service times and routings.**
+`Router` accepts distribution descriptions (`Exponential`, `Uniform`,
+`TruncatedErlang`, the routing factories), numbers, or plain callables. The
+first two are *managed*: they draw from a named stream of `env.seed`, so the
+run is reproducible. A callable is *opaque*: it is accepted but its draws are
+not reproducible by the library and the run manifest becomes incomplete. If you
+must use one, draw from `env.rng("my-stream")`, never from the global `random`
+module, and beware the closure trap when building them in a loop (lambdas
+capture the loop variable by reference; use a default argument,
+`lambda s=server: env.rng("svc").expovariate(rates[s])`).
 
-```python
-rates = {s: idx * 0.5 for idx, s in enumerate(servers)}
+**Do not seed or draw from the global `random` module.**
+`Runner` no longer calls `random.seed`; model code that uses the global
+generator is not reproducible. Use `env.rng(name)`.
 
-# WRONG: every lambda reads rates[server] with the LAST server value
-times = {server: lambda: random.expovariate(rates[server]) for server in servers}
+**Two systems in one environment need distinct prefixes.**
+Entity ids are unique per environment; builders and `Scenario.build_floor` /
+`build_router` use fixed names unless `prefix=` is given.
 
-# Correct: default argument captures current value
-times = {server: lambda s=server: random.expovariate(rates[s]) for server in servers}
-```
+**`ShopFloor.jobs` is a dict, not a set.**
+Use `shopfloor.jobs[job] = None` and `del shopfloor.jobs[job]` (insertion
+ordered).
 
 **Runner `builder` must accept keyword-only `env`.**
 The signature must be `def builder(*, env):` — the Runner calls it as

@@ -4,7 +4,7 @@ Simulatte models two complementary domains — production planning (job-shop) an
 
 ## Production planning
 
-The `Router` is the stochastic arrival process: it creates `ProductionJob`s — each carrying its server routing, processing times, and absolute due date — and feeds them into the `PreShopPool` (in a pull system) or directly to the `ShopFloor` (in a push system). A release policy (LumsCor, SLAR, SlarLimit, DRACO, ConWIP, or ContinuousRelease) monitors the pool and admits jobs to the `ShopFloor`, the central orchestrator that tracks WIP, fires lifecycle hooks, and maintains EMA performance metrics. The `ShopFloor` then routes each job through its sequence of `Server`s. Each `Server` is a SimPy priority resource that re-orders its queue before every dispatch — calling `sort_queue` to re-evaluate the job's priority policy — and that priority policy is the dispatching rule (SPT, EDD, ATC, Focus, and others). `Runner` repeats the whole simulation across multiple seeds; `SimLogger` records events throughout.
+The `Router` is the stochastic arrival process: it creates `ProductionJob`s — each carrying its server routing, processing times, and absolute due date — and feeds them into the `PreShopPool` (in a pull system) or directly to the `ShopFloor` (in a push system). A release policy (LumsCor, SLAR, SlarLimit, DRACO, ConWIP, or ContinuousRelease) monitors the pool and admits jobs to the `ShopFloor`, the central orchestrator that tracks WIP, fires lifecycle hooks, and maintains EMA performance metrics. The `ShopFloor` then routes each job through its sequence of `Server`s. Each `Server` is a SimPy priority resource that re-orders its queue before every dispatch — calling `sort_queue` to re-evaluate the job's priority policy — and that priority policy is the dispatching rule (SPT, EDD, ATC, Focus, and others). `Runner` repeats the whole simulation across multiple seeds. Every state change is published as a typed event on the environment's event bus, where log sinks, KPI collectors and trace recorders pick it up (see [Observability](#observability-events-traces-and-kpis)).
 
 ```mermaid
 graph TD
@@ -17,7 +17,7 @@ graph TD
     S["Server<br/>priority queue"]
     DR["Dispatching Rule<br/>SPT / EDD / ATC / Focus"]
     Runner["Runner<br/>multi-seed runs"]
-    Log["SimLogger"]
+    Log["Event bus<br/>sinks · collectors · trace"]
 
     Router -->|creates| Job
     Router -->|pull system| PSP
@@ -36,7 +36,7 @@ graph TD
 
 ## Intralogistics
 
-A `TransferOrder` is queued in the `FleetCoordinator`, the central orchestrator for all AGV missions. The coordinator assigns an `AGV` via pluggable dispatch and repositioning policies, plans its path across the `LayoutGraph` (a directed graph of nodes and arcs), and enforces node-capacity constraints via a `TrafficManager`. The AGV picks inventory from a source `Warehouse`, transits to the destination, puts it down, and then either recharges at a `ChargingStation` or parks at a `ParkingArea`. All order and time-series metrics are collected throughout.
+A `TransferOrder` is queued in the `FleetCoordinator`, the central orchestrator for all AGV missions. The coordinator assigns an `AGV` via pluggable dispatch and repositioning policies, plans its path across the `LayoutGraph` (a directed graph of nodes and arcs), and enforces node-capacity constraints via a `TrafficManager`. The AGV picks inventory from a source `Warehouse`, transits to the destination, puts it down, and then either recharges at a `ChargingStation` or parks at a `ParkingArea`. Every state change is published as an event on the environment's bus, and the order and time-series metrics are collectors subscribed to it.
 
 ```mermaid
 graph TD
@@ -50,7 +50,7 @@ graph TD
     AGV["AGV<br/>AGVType + SpeedProfile + Battery"]
     CH["ChargingStation"]
     PK["ParkingArea"]
-    M["Order + time-series metrics"]
+    M["Event bus<br/>collectors · trace"]
 
     TO -->|queued in| FC
     FC -->|assigns via| DP
@@ -64,6 +64,10 @@ graph TD
     Env2 -.drives.-> AGV
     FC -.records.-> M
 ```
+
+## Observability: events, traces and KPIs
+
+The `Environment` carries an event bus. Components such as `Server`, `ShopFloor`, `PreShopPool`, `FleetCoordinator` and `AGV` register as *entities* with stable ids (`job-0`, `wc-1`, `agv-0`) and publish typed *events* with state deltas when they change. Subscribers sit on the bus and never alter the simulation: log sinks write `log` events, collectors (`EMACollector`, `ShopFloorKPIs`, `FleetTimeSeries`, ...) compute metrics, the semantic digest fingerprints the trajectory and a `TraceRecorder` writes the whole run to a file that `Trace` can replay and verify. Randomness comes from named streams derived from the environment seed, so a seeded run is reproducible and its manifest says how. The [Events, traces and KPIs guide](../guides/events-and-traces.md) covers each piece.
 
 ## How the two domains connect
 

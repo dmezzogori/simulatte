@@ -300,3 +300,31 @@ def test_psp_on_arrival_multiple_callbacks() -> None:
 
     assert calls_a == [job]
     assert calls_b == [job]
+
+
+def test_psp_remove_emits_exit_reason_and_location() -> None:
+    from simulatte.events import Event
+    from simulatte.psp import PspExited
+
+    env = Environment(debug=True)
+    sf = ShopFloor(env=env)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    psp = PreShopPool(env=env, shopfloor=sf)
+    jobs = [ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=5.0) for _ in range(3)]
+    seen: list[Event] = []
+    env.bus.subscribe(seen.append, (PspExited,))
+    for job in jobs:
+        psp.add(job)
+
+    psp.remove()
+    psp.remove(job=jobs[2], reason="postponed")
+    psp.release(jobs[1])
+
+    assert [(e.job, e.reason) for e in seen if isinstance(e, PspExited)] == [
+        (jobs[0].id, "removed"),
+        (jobs[2].id, "postponed"),
+        (jobs[1].id, "released"),
+    ]
+    locations = {job.id: env.entities.snapshot()[job.id]["location"] for job in jobs}
+    # released and postponed jobs are in transit; a removed job is nowhere
+    assert locations == {jobs[0].id: None, jobs[1].id: "transit", jobs[2].id: "transit"}

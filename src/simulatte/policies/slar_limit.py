@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from simulatte.policies.events import PolicyDecision
 from simulatte.policies.norms import expand_norms, fits_norms
 from simulatte.shopfloor import CorrectedWIPStrategy
 
@@ -114,6 +115,9 @@ class SlarLimit(Slar):
         )
         for job in urgent_by_spt:
             if fits_norms(job, wip=self.shopfloor.wip, norms=self.wl_norm):
+                env = self.psp.env
+                if env.wants(PolicyDecision):
+                    env.emit(PolicyDecision(policy=type(self).__name__, job=job.id, action="release"))
                 self.psp.release(job=job)
                 return True
         return False

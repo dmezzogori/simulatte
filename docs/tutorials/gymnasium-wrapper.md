@@ -113,8 +113,7 @@ env.close()
 ```python
 def setup(self, *, seed, options):
     processing_time = self.np_random.uniform(1.0, 5.0)
-    # For non-numpy randomness, use the raw seed:
-    if seed is not None:
-        import random
-        random.seed(seed)
+    # Simulatte's own randomness (routers, distributions) draws from the environment's
+    # streams, so pass the raw seed to the Environment:
+    self.sim_env = Environment(seed=seed)
 ```

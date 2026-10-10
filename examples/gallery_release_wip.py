@@ -9,8 +9,6 @@ Run: uv run python examples/gallery_release_wip.py
 
 from __future__ import annotations
 
-import random
-
 from simulatte.builders import build_conwip_system, build_draco_system
 from simulatte.environment import Environment
 
@@ -24,8 +22,7 @@ SYSTEMS = {
 
 
 def run_system(builder) -> tuple[int, float, float, float]:
-    random.seed(SEED)
-    with Environment() as env:
+    with Environment(seed=SEED) as env:
         _psp, _servers, shop_floor, _router, _policy = builder(env)
         env.run(until=HORIZON)
         done = shop_floor.jobs_done

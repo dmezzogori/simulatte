@@ -11,8 +11,6 @@ streams to all three policies (common-random-numbers design).
 
 from __future__ import annotations
 
-import random
-
 from simulatte.builders import (
     build_immediate_release_system,
     build_lumscor_system,
@@ -26,8 +24,7 @@ SIM_TIME = 2000.0
 
 def run_policy(builder_fn, seed: int = SEED, until: float = SIM_TIME) -> dict:
     """Run a single simulation with the given builder and seed."""
-    random.seed(seed)
-    with Environment() as env:
+    with Environment(seed=seed) as env:
         psp, servers, shopfloor, _router, _policy = builder_fn(env)
         env.run(until=until)
 

@@ -9,8 +9,6 @@ Run: uv run python examples/gallery_dispatching_focus.py
 
 from __future__ import annotations
 
-import random
-
 from simulatte.builders import build_focus_system, build_immediate_release_system
 from simulatte.dispatching_rules import first_come_first_served
 from simulatte.distributions import Uniform
@@ -40,8 +38,7 @@ def metrics(shop_floor) -> tuple[int, float, float, float]:
 
 
 def run_config(weights) -> tuple[int, float, float, float]:
-    random.seed(SEED)
-    with Environment() as env:
+    with Environment(seed=SEED) as env:
         scenario = Scenario(due_date_offset=Uniform(10.0, 18.0))
         if weights is None:
             _, _s, shop_floor, _, _ = build_immediate_release_system(

@@ -132,7 +132,7 @@ The default `Scenario` (a 6-machine pure job shop at ρ=0.90) reflects a standar
 Optional parameters:
 
 - `priority_policies`: A callable `(job, server) -> float` used to assign queue priorities (dispatching rules). Lower values are served first. Pass `None` (default) for FIFO ordering.
-- `collect_workload`: If `True`, attaches a `CurrentWorkLoadCollector` that records total remaining processing work over time (see [ShopFloor extensibility](shopfloor-extensibility.md#currentworkloadcollector)).
+- `collect_workload`: If `True`, attaches a `CurrentWorkloadCollector` that records total remaining processing work over time (see [ShopFloor extensibility](shopfloor-extensibility.md#currentworkloadcollector)).
 
 A ready-made immediate release with SPT (Shortest Processing Time) dispatching rule is available:
 
@@ -174,7 +174,7 @@ Key parameters:
 - `check_timeout`: Time between periodic release checks
 - `wl_norm_level`: Maximum corrected WIP allowed per server
 - `allowance_factor`: Multiplier for due date slack (higher = more conservative)
-- `collect_workload`: If `True`, attaches a `CurrentWorkLoadCollector` (see [ShopFloor extensibility](shopfloor-extensibility.md#currentworkloadcollector))
+- `collect_workload`: If `True`, attaches a `CurrentWorkloadCollector` (see [ShopFloor extensibility](shopfloor-extensibility.md#currentworkloadcollector))
 
 Release triggers wired by the builder:
 
@@ -209,7 +209,7 @@ print(f"Jobs completed: {len(shopfloor.jobs_done)}")
 Key parameters:
 
 - `allowance_factor`: Slack allowance per operation (higher = more buffer time)
-- `collect_workload`: If `True`, attaches a `CurrentWorkLoadCollector` (see [ShopFloor extensibility](shopfloor-extensibility.md#currentworkloadcollector))
+- `collect_workload`: If `True`, attaches a `CurrentWorkloadCollector` (see [ShopFloor extensibility](shopfloor-extensibility.md#currentworkloadcollector))
 
 On every job completion at a server, SLAR evaluates three branches in order:
 
@@ -246,7 +246,7 @@ Key parameters:
 
 - `allowance_factor`: Slack allowance per operation (higher = more buffer time)
 - `wl_norm_level`: Workload norm applied uniformly to every server. An urgent PSP candidate is released only if adding its corrected contribution keeps every server in its routing at or below this level.
-- `collect_workload`: If `True`, attaches a `CurrentWorkLoadCollector` (see [ShopFloor extensibility](shopfloor-extensibility.md#currentworkloadcollector))
+- `collect_workload`: If `True`, attaches a `CurrentWorkloadCollector` (see [ShopFloor extensibility](shopfloor-extensibility.md#currentworkloadcollector))
 
 **How it differs from SLAR:** when the urgent-insertion branch fires, SLAR releases the urgent PSP candidate with the shortest processing time unconditionally. SLAR-Limit iterates urgent candidates in ascending SPT order and releases the *first* that fits within all server workload norms. If no urgent candidate fits, the branch returns without releasing — the drain-safety-net may still fire on the same event.
 

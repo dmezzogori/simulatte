@@ -130,7 +130,7 @@ All corridor arcs are bidirectional. `PROD_A → PROD_B` is one-way, providing a
 - **Dispatch strategy** --- `NearestIdleStrategy` selects the closest idle AGV for each order
 - **Parking and repositioning** --- `ParkingArea` at node P with `NearestParkingPolicy` sending idle AGVs back to parking
 - **Staggered order batches** --- three batches at t=0, t=30 min, and t=60 min to show queuing dynamics
-- **Time-series plots** --- `DefaultIntralogisticsCollector` with `plot_fleet_utilization()` and `plot_pending_orders()`
+- **Time-series plots** --- `FleetTimeSeries` with `plot_fleet_utilization()` and `plot_pending_orders()`
 
 **Key configuration:**
 
@@ -185,8 +185,8 @@ from simulatte.intralogistics import (
     AGV,
     AGVType,
     Arc,
-    DefaultIntralogisticsCollector,
     FleetCoordinator,
+    FleetTimeSeries,
     LayoutGraph,
     NearestIdleStrategy,
     NearestParkingPolicy,
@@ -270,10 +270,10 @@ def main() -> None:
         skus = [steel, plastic, electronics]
 
         # --- Warehouses ---
-        def pick_time_fn(sku: SKU, qty: int) -> float:
+        def pick_time(sku: SKU, qty: int) -> float:
             return 15.0 + qty * 5.0
 
-        def put_time_fn(sku: SKU, qty: int) -> float:
+        def put_time(sku: SKU, qty: int) -> float:
             return 10.0 + qty * 3.0
 
         raw_materials = Warehouse(
@@ -284,8 +284,8 @@ def main() -> None:
             n_slots=2,
             products=skus,
             initial_inventory={sku: 20 for sku in skus},
-            pick_time_fn=pick_time_fn,
-            put_time_fn=put_time_fn,
+            pick_time=pick_time,
+            put_time=put_time,
         )
 
         finished_goods = Warehouse(
@@ -296,8 +296,8 @@ def main() -> None:
             n_slots=2,
             products=skus,
             initial_inventory={sku: 0 for sku in skus},
-            pick_time_fn=pick_time_fn,
-            put_time_fn=put_time_fn,
+            pick_time=pick_time,
+            put_time=put_time,
         )
 
         # --- Fleet ---
@@ -313,8 +313,8 @@ def main() -> None:
             weight_capacity=100.0,
             volume_capacity=3.0,
             depletion_fn=lambda distance, load_weight, speed: distance * 0.01,
-            load_time_fn=lambda: 10.0,
-            unload_time_fn=lambda: 8.0,
+            load_time=10.0,
+            unload_time=8.0,
         )
         starting_nodes = [rm_out, c2, p]
         agvs = [
@@ -324,9 +324,6 @@ def main() -> None:
 
         # --- Parking ---
         parking = ParkingArea(env=env, name="Parking", node=p, capacity=3)
-
-        # --- Metrics ---
-        ts_collector = DefaultIntralogisticsCollector()
 
         # --- Coordinator ---
         coordinator = FleetCoordinator(
@@ -338,8 +335,10 @@ def main() -> None:
             parking_areas=[parking],
             dispatch_strategy=NearestIdleStrategy(),
             repositioning_policy=NearestParkingPolicy(),
-            time_series_collector=ts_collector,
         )
+
+        # --- Metrics ---
+        ts_collector = FleetTimeSeries(coordinator).attach(env)
 
         # Record initial inventory
         initial_rm = {sku: raw_materials.get_inventory_level(sku) for sku in skus}
@@ -433,7 +432,7 @@ Main corridors are bidirectional. The `B2 → B4 → B5 → B6 → B3` alternate
 - **Automatic replenishment** --- `ReorderPointPolicy` monitors Bulk Storage inventory and triggers transfers from Receiving when stock drops below thresholds
 - **Round-robin dispatch** --- `RoundRobinStrategy` cycles through idle AGVs for balanced fleet utilization
 - **Load recovery** --- `ReturnToOrigin` returns cargo to the origin warehouse if an AGV is interrupted
-- **EMA metrics** --- `EMAOrderMetrics` tracks fulfillment time, dispatch delay, travel times (empty/loaded), and late order rate
+- **EMA metrics** --- `OrderEMACollector` (with `alpha=0.05`, in place of the coordinator's default) tracks fulfillment time, dispatch delay, travel times (empty/loaded), and late order rate
 - **4 time-series plots** --- fleet utilization, throughput, pending orders, and inventory levels over time
 
 **Key configuration:**
@@ -455,8 +454,9 @@ coordinator.add_replenishment_policy(replenishment, bulk_storage)
 
 # Continuous outbound orders at random intervals (5-10 min)
 def outbound_order_stream(env, coordinator, ...):
+    interval = env.bind(Uniform(300, 600), kind="scalar", stream="outbound-orders/interval", owner="outbound-orders")
     while True:
-        yield env.timeout(rng.uniform(300, 600))
+        yield env.timeout(interval())
         ...
         coordinator.submit(order)
 ```
@@ -470,11 +470,11 @@ Fleet: 5 AGVs
 Simulation time: 28800s (480 min)
 
 Shift summary:
-  Total orders: 62 (61 outbound, 1 replenishment)
-  Completed: 62, Failed: 0
-  Outbound:      61 completed, 0 failed
-  Replenishment: 1 completed, 0 failed
-  Avg outbound fulfillment time: 220.7s (3.7 min)
+  Total orders: 65 (63 outbound, 2 replenishment)
+  Completed: 65, Failed: 0
+  Outbound:      63 completed, 0 failed
+  Replenishment: 2 completed, 0 failed
+  Avg outbound fulfillment time: 219.6s (3.7 min)
 ```
 
 **Run it:**
@@ -490,10 +490,9 @@ Click ▶ Run --- the time-series plots render below the text output. The full 8
 ```python { .run }
 from __future__ import annotations
 
-import random
-
 from simpy.events import ProcessGenerator
 
+from simulatte.distributions import Uniform
 from simulatte.environment import Environment
 from simulatte.intralogistics import (
     AGV,
@@ -501,13 +500,13 @@ from simulatte.intralogistics import (
     AGVType,
     Arc,
     ChargingStation,
-    DefaultIntralogisticsCollector,
-    EMAOrderMetrics,
     FleetCoordinator,
+    FleetTimeSeries,
     LayoutGraph,
     NearestParkingPolicy,
     RoundRobinStrategy,
     Node,
+    OrderEMACollector,
     OrderStatus,
     ParkingArea,
     ReorderPointPolicy,
@@ -529,18 +528,20 @@ def outbound_order_stream(
     dispatch: Warehouse,
     skus: list[SKU],
     orders: list,
-    rng: random.Random,
     weight_capacity: float,
     volume_capacity: float,
 ) -> ProcessGenerator:
+    rng = env.rng("outbound-orders")
+    interval = env.bind(Uniform(300, 600), kind="scalar", stream="outbound-orders/interval", owner="outbound-orders")
+    due_offset = env.bind(Uniform(1800, 3600), kind="scalar", stream="outbound-orders/due", owner="outbound-orders")
     while True:
-        yield env.timeout(rng.uniform(300, 600))
+        yield env.timeout(interval())
         sku = rng.choice(skus)
         max_by_weight = max(1, int(weight_capacity // sku.weight))
         max_by_volume = max(1, int(volume_capacity // sku.volume))
         max_qty = min(max_by_weight, max_by_volume)
         quantity = rng.randint(1, min(3, max_qty))
-        due_date = env.now + rng.uniform(1800, 3600)
+        due_date = env.now + due_offset()
         order = coordinator.create_order(
             sku=sku,
             quantity=quantity,
@@ -553,9 +554,7 @@ def outbound_order_stream(
 
 
 def main() -> None:
-    rng = random.Random(42)
-
-    with Environment() as env:
+    with Environment(seed=42) as env:
         # --- Nodes (16) ---
         rcv_in = Node(id="RCV_IN", x=0, y=30)
         rcv_out = Node(id="RCV_OUT", x=20, y=30)
@@ -656,8 +655,8 @@ def main() -> None:
             n_slots=3,
             products=skus,
             initial_inventory={sku: 200 for sku in skus},
-            pick_time_fn=rcv_pick_time,
-            put_time_fn=rcv_put_time,
+            pick_time=rcv_pick_time,
+            put_time=rcv_put_time,
         )
 
         bulk_storage = Warehouse(
@@ -668,8 +667,8 @@ def main() -> None:
             n_slots=4,
             products=skus,
             initial_inventory={sku: 30 for sku in skus},
-            pick_time_fn=bulk_pick_time,
-            put_time_fn=bulk_put_time,
+            pick_time=bulk_pick_time,
+            put_time=bulk_put_time,
         )
 
         dispatch = Warehouse(
@@ -680,8 +679,8 @@ def main() -> None:
             n_slots=3,
             products=skus,
             initial_inventory={sku: 0 for sku in skus},
-            pick_time_fn=dsp_pick_time,
-            put_time_fn=dsp_put_time,
+            pick_time=dsp_pick_time,
+            put_time=dsp_put_time,
         )
 
         # --- Fleet (5 AGVs) ---
@@ -701,8 +700,8 @@ def main() -> None:
             depletion_fn=lambda distance, load_weight, speed: distance * 0.02 * (1.0 + load_weight / 200),
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
-            load_time_fn=lambda: 12.0,
-            unload_time_fn=lambda: 10.0,
+            load_time=12.0,
+            unload_time=10.0,
         )
         starting_nodes = [park, bulk_out, b1, r1, b3]
         agvs = [
@@ -713,10 +712,6 @@ def main() -> None:
         # --- Parking & Charging ---
         parking_area = ParkingArea(env=env, name="Parking", node=park, capacity=3)
         charging_station = ChargingStation(env=env, name="Charger", node=chrg, n_slots=2)
-
-        # --- Metrics ---
-        order_metrics = EMAOrderMetrics(alpha=0.05)
-        ts_collector = DefaultIntralogisticsCollector()
 
         # --- Coordinator ---
         coordinator = FleetCoordinator(
@@ -729,9 +724,12 @@ def main() -> None:
             dispatch_strategy=RoundRobinStrategy(),
             repositioning_policy=NearestParkingPolicy(),
             load_recovery_strategy=ReturnToOrigin(),
-            order_metrics_collector=order_metrics,
-            time_series_collector=ts_collector,
+            default_metrics=False,
         )
+
+        # --- Metrics ---
+        order_metrics = OrderEMACollector(coordinator, alpha=0.05).attach(env)
+        ts_collector = FleetTimeSeries(coordinator).attach(env)
 
         # --- Replenishment policy ---
         thresholds = {
@@ -759,7 +757,7 @@ def main() -> None:
             wh: {sku: wh.get_inventory_level(sku) for sku in skus} for wh in [receiving, bulk_storage, dispatch]
         }
         for wh in [receiving, bulk_storage, dispatch]:
-            ts_collector.inventory_ts[wh] = [(0.0, {sku: float(c.level) for sku, c in wh.inventory.items()})]
+            ts_collector.inventory_ts[wh.id] = [(0.0, {sku.id: float(c.level) for sku, c in wh.inventory.items()})]
 
         # Track all orders (outbound + replenishment) via hook
         all_orders: list = []
@@ -775,7 +773,6 @@ def main() -> None:
                 dispatch,
                 skus,
                 outbound_orders,
-                rng,
                 agv_type.weight_capacity,
                 agv_type.volume_capacity,
             )
@@ -872,7 +869,7 @@ if __name__ == "__main__":
 | Speed profile | Default | Basic `TrapezoidalProfile` | With battery/load degradation |
 | Replenishment | None | None | `ReorderPointPolicy` (event-driven) |
 | Load recovery | Default | Default | `ReturnToOrigin` |
-| Order metrics | None | None | `EMAOrderMetrics` |
+| Order metrics | Default | Default | `OrderEMACollector(alpha=0.05)` |
 | Time-series | None | 2 plots | 4 plots |
 | Order flow | All at once | Staggered batches | Continuous random arrivals |
 | Due dates | None | None | Random due dates |

@@ -15,10 +15,12 @@ several product types arriving on one shared stream.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, TypedDict
 
+from simulatte.collectors import CurrentWorkloadCollector, ServerTimeSeries
 from simulatte.distributions import (
     Distribution,
     Exponential,
@@ -32,7 +34,7 @@ from simulatte.distributions import (
 )
 from simulatte.router import Router
 from simulatte.server import Server
-from simulatte.shopfloor import CurrentWorkLoadCollector, ShopFloor
+from simulatte.shopfloor import ShopFloor
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable, Sequence
@@ -40,6 +42,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from simulatte.environment import Environment
     from simulatte.psp import PreShopPool
+    from simulatte.router import RoutingSource, ScalarSource
 
 
 class ShopType(Enum):
@@ -64,7 +67,7 @@ class _ShopKwargs(TypedDict, total=False):
 
     n_servers: int
     target_utilization: float
-    arrival_process: Callable[[float], Callable[[], float]]
+    arrival_process: Callable[[float], ScalarSource]
     arrival_rate: float | None
 
 
@@ -95,7 +98,7 @@ class SkuFamily:
     name: str = "F1"
     weight: float = 1.0
     service_time: Distribution = _DEFAULT_SERVICE_TIME
-    routing_factory: Callable[[Sequence[Server]], Callable[[], Sequence[Server]]] | None = None
+    routing_factory: Callable[[Sequence[Server]], RoutingSource] | None = None
     expected_routing_length: float | None = None
     due_date_offset: Distribution | None = None
     twk_allowance_factor: float | None = None
@@ -111,8 +114,13 @@ class SkuFamily:
             msg = f"expected_routing_length must be positive, got {self.expected_routing_length}"
             raise ValueError(msg)
 
-    def routing_for(self, shop_type: ShopType) -> Callable[[Sequence[Server]], Callable[[], Sequence[Server]]]:
-        """This family's routing factory (custom override or the shop-type default)."""
+    def routing_for(self, shop_type: ShopType) -> Callable[[Sequence[Server]], RoutingSource]:
+        """This family's routing factory (custom override or the shop-type default).
+
+        A factory maps the server pool to a routing description (managed: it draws from the
+        router's ``<router>/routing/<sku>`` stream) or to a ``() -> Sequence[Server]`` callable
+        (opaque: recorded in ``env.opaque_sampler_owners``).
+        """
         return self.routing_factory or _ROUTING[shop_type]
 
     def mean_routing_length(self, shop_type: ShopType, n_servers: int) -> float:
@@ -129,15 +137,16 @@ class Scenario:
     """Immutable description of a shop environment and its order stream.
 
     Attributes:
-        arrival_process: Factory producing the inter-arrival sampler. It is called
-            with the resolved arrival **rate** (orders per time unit, from
-            ``resolved_arrival_rate``) and must return a zero-argument sampler of
-            **inter-arrival times** whose mean is ``1 / rate``. The default
-            ``Exponential`` satisfies this (Poisson arrivals: ``Exponential(rate)``
-            has mean ``1 / rate``). Passing a factory whose sampler mean is not
-            ``1 / rate`` — e.g. ``Erlang``, whose ``Erlang(rate)`` has mean
-            ``shape / rate`` — silently breaks the ``target_utilization``
-            calibration even though it satisfies the declared type.
+        arrival_process: Factory producing the inter-arrival distribution. It is
+            called with the resolved arrival **rate** (orders per time unit, from
+            ``resolved_arrival_rate``) and must return a distribution description
+            (or a zero-argument sampler) of **inter-arrival times** whose mean is
+            ``1 / rate``. The default ``Exponential`` satisfies this (Poisson
+            arrivals: ``Exponential(rate)`` has mean ``1 / rate``). Passing a
+            factory whose mean is not ``1 / rate`` — e.g. ``Erlang``, whose
+            ``Erlang(rate)`` has mean ``shape / rate`` — silently breaks the
+            ``target_utilization`` calibration even though it satisfies the
+            declared type.
         arrival_rate: Explicit arrival rate (orders per time unit) that overrides
             the mix-weighted derivation when not ``None``; ``resolved_arrival_rate``
             returns it verbatim, skipping the ρ→λ derivation.
@@ -155,7 +164,7 @@ class Scenario:
     target_utilization: float = 0.90
     families: tuple[SkuFamily, ...] = (SkuFamily(),)
     due_date_offset: Distribution = Uniform(low=30.0, high=45.0)
-    arrival_process: Callable[[float], Callable[[], float]] = Exponential
+    arrival_process: Callable[[float], ScalarSource] = Exponential
     arrival_rate: float | None = None
 
     def __post_init__(self) -> None:
@@ -224,8 +233,8 @@ class Scenario:
         """
         if self.arrival_rate is not None:
             return self.arrival_rate
-        total_weight = sum(f.weight for f in self.families)
-        expected_work = sum(
+        total_weight = math.fsum(f.weight for f in self.families)
+        expected_work = math.fsum(
             (f.weight / total_weight) * f.mean_routing_length(self.shop_type, self.n_servers) * f.service_time.mean
             for f in self.families
         )
@@ -242,25 +251,34 @@ class Scenario:
         self,
         env: Environment,
         *,
+        prefix: str = "",
         collect_workload: bool = False,
         collect_time_series: bool = False,
         retain_job_history: bool = False,
     ) -> tuple[ShopFloor, tuple[Server, ...]]:
-        """Create the ShopFloor and ``n_servers`` single-capacity servers."""
-        shop_floor = ShopFloor(
-            env=env,
-            time_series_collector=CurrentWorkLoadCollector() if collect_workload else None,
-        )
+        """Create the ShopFloor and ``n_servers`` single-capacity servers.
+
+        The entities are named ``f"{prefix}shopfloor"`` and ``f"{prefix}wc-{i}"`` (``i`` from 0), so systems built
+        with different prefixes can share an environment. `collect_workload` attaches a
+        :class:`~simulatte.collectors.CurrentWorkloadCollector` to the shop floor and `collect_time_series` a
+        :class:`~simulatte.collectors.ServerTimeSeries` to each server; ``env.collectors`` lists them.
+        """
+        shop_floor = ShopFloor(env=env, name=f"{prefix}shopfloor")
         servers = tuple(
             Server(
                 env=env,
                 capacity=1,
                 shopfloor=shop_floor,
-                collect_time_series=collect_time_series,
                 retain_job_history=retain_job_history,
+                name=f"{prefix}wc-{i}",
             )
-            for _ in range(self.n_servers)
+            for i in range(self.n_servers)
         )
+        if collect_workload:
+            CurrentWorkloadCollector(shop_floor).attach(env)
+        if collect_time_series:
+            for server in servers:
+                ServerTimeSeries(server).attach(env)
         return shop_floor, servers
 
     def build_router(
@@ -271,6 +289,7 @@ class Scenario:
         *,
         psp: PreShopPool | None,
         priority_policies: Callable[..., float] | None = None,
+        prefix: str = "",
     ) -> Router:
         """Assemble the Router from the family mix: arrival process, per-family routing,
         service-time distributions, and due-date offsets/rules.
@@ -285,6 +304,7 @@ class Scenario:
                 count M), so a mismatch would silently miscalibrate utilization.
             psp: The pre-shop pool, or ``None`` for immediate release.
             priority_policies: Optional priority policy callable for the router.
+            prefix: Prefix of the router's id, ``f"{prefix}router"``.
 
         Raises:
             ValueError: If ``len(servers) != self.n_servers``.
@@ -313,4 +333,5 @@ class Scenario:
             due_date_offset_distribution={f.name: (f.due_date_offset or self.due_date_offset) for f in self.families},
             due_date_rule=due_date_rule,
             priority_policies=priority_policies,
+            name=f"{prefix}router",
         )

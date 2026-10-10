@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import random
-
 from simulatte.builders import build_focus_system
 from simulatte.environment import Environment
 
 
 def main() -> None:
-    random.seed(42)  # Fixed seed for reproducible output; remove for non-deterministic runs.
-    with Environment() as env:
+    with Environment(seed=42) as env:  # Fixed seed for reproducible output; omit it for non-deterministic runs.
         _, servers, shopfloor, _, _ = build_focus_system(
             env=env,
             focus_weights=(0.25, 0.25, 0.25, 0.25, 0.0),

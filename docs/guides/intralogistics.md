@@ -16,8 +16,9 @@ from simulatte.intralogistics import (
     NearestParkingPolicy,            # repositioning
     ReorderPointPolicy,              # replenishment
     ReturnToOrigin,                  # load recovery
-    EMAOrderMetrics,                 # order-level metrics
-    DefaultIntralogisticsCollector,  # time-series + plots
+    OrderEMACollector,               # order-level metrics
+    FleetTimeSeries,                 # time-series + plots
+    FleetKPIs,                       # window-aware KPIs
 )
 ```
 
@@ -33,7 +34,7 @@ from simulatte.intralogistics import (
 
 **Policies** --- Dispatch (`NearestIdleStrategy`, `RoundRobinStrategy`), repositioning (`NearestParkingPolicy`, `StayInPlace`), replenishment (`ReorderPointPolicy`), and load recovery (`ReturnToOrigin`, `ResumeDelivery`).
 
-**Metrics** --- `EMAOrderMetrics` tracks exponential moving averages of fulfillment time, dispatch delay, and travel times. `DefaultIntralogisticsCollector` records time-series data and provides plot methods: `plot_fleet_utilization()`, `plot_throughput()`, `plot_pending_orders()`, `plot_inventory()`.
+**Metrics** --- Collectors on the event bus, bound to a fleet coordinator and attached with `collector.attach(env)`. `OrderEMACollector` tracks exponential moving averages of fulfillment time, dispatch delay, travel times and late orders; every `FleetCoordinator` attaches one as `coordinator.metrics` unless built with `default_metrics=False`. `FleetTimeSeries(coordinator)` records time-series data (inventory keyed by warehouse id and SKU id) and provides plot methods: `plot_fleet_utilization()`, `plot_throughput()`, `plot_pending_orders()`, `plot_inventory()`. `FleetKPIs(coordinator)` computes window-aware KPIs, keyed `"<fleet id>/<kpi>"`.
 
 ## Examples
 

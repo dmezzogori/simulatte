@@ -23,8 +23,6 @@ Run: uv run python examples/gallery_release_wip.py
 
 from __future__ import annotations
 
-import random
-
 from simulatte.builders import build_conwip_system, build_draco_system
 from simulatte.environment import Environment
 
@@ -38,8 +36,7 @@ SYSTEMS = {
 
 
 def run_system(builder) -> tuple[int, float, float, float]:
-    random.seed(SEED)
-    with Environment() as env:
+    with Environment(seed=SEED) as env:
         _psp, _servers, shop_floor, _router, _policy = builder(env)
         env.run(until=HORIZON)
         done = shop_floor.jobs_done
@@ -74,10 +71,10 @@ uv run python examples/gallery_release_wip.py
 ```text
 WIP-cap release policies (seed=42)
 Policy    Done   AvgTIS  MeanTard  %Tardy
-ConWIP    1125    12.15      1.15   22.2%
-DRACO     1177     7.76      0.17    1.8%
+ConWIP    1105    12.60      6.71   62.0%
+DRACO     1164     7.84      0.21    1.3%
 ```
 
 ## Interpretation
 
-With its count cap sized to the load (`wip_cap=18`), ConWIP roughly keeps pace with arrivals — completing 1125 jobs at 22.2% tardy — but still visibly trails DRACO (1177 jobs, 1.8% tardy) and carries a longer floor time (12.15 vs 7.76). DRACO reaches a comparable shop WIP but, by merging release, authorisation, and dispatching into one per-server score rather than enforcing a single global count, it keeps the right jobs moving and finishes essentially every arrival with near-zero tardiness. A ConWIP cap must be sized to the load: too tight a cap (for example `wip_cap=8`) throttles throughput below the arrival rate, so the PSP backs up without bound and almost every job turns tardy. The contrast shows that even when the cap is well chosen, *how* WIP is allocated and dispatched matters as much as the cap itself.
+With `wip_cap=18`, ConWIP holds the floor at its cap for most of this run and a backlog of about 50 jobs builds in the pool: it completes 1105 jobs, 62.0% of them tardy, with a floor time of 12.60. DRACO completes 1164 jobs at 1.3% tardy with a shorter floor time (7.84) while keeping fewer jobs on the floor: by merging release, authorisation, and dispatching into one per-server score rather than enforcing a single global count, it keeps the right jobs moving and finishes essentially every arrival with near-zero tardiness. A ConWIP cap must be sized to the load: too tight a cap throttles throughput below the arrival rate, so the PSP backs up and most jobs turn tardy. In this run 18 is already on the tight side, and `wip_cap=8` is far worse. The contrast shows that *how* WIP is allocated and dispatched matters as much as the cap itself.

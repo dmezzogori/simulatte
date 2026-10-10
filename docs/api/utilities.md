@@ -3,8 +3,9 @@
 The builder functions are convenience wrappers that wire together an `Environment`, a
 `ShopFloor`, a `Router`, and a release policy into a ready-to-run system, so you can spin up
 a complete simulation in a single call. The distribution helpers sample processing times, with
-`RunningStats` providing an online (Welford) accumulator for mean and variance. `SimLogger`
-records simulation events and can emit them as JSON, plain text, or to a SQLite store.
+`RunningStats` providing an online (Welford) accumulator for mean and variance. The log sinks
+write the environment's `log` events (and, at `DEBUG`, its domain events) as plain text, JSON lines,
+SQLite rows or an in-memory history.
 
 ## Builders
 
@@ -66,6 +67,24 @@ records simulation events and can emit them as JSON, plain text, or to a SQLite 
       members: false
 
 ## Distributions
+
+Distributions and routings are *descriptions*: `sampler(rng)` builds a sampler that draws from an
+environment stream, and components bind them with `env.bind` (see `simulatte.rng`).
+
+::: simulatte.distributions.PureJobShopRouting
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.distributions.GeneralFlowShopRouting
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.distributions.FlowShopRouting
+    options:
+      heading_level: 3
+      members: false
 
 ::: simulatte.distributions.pure_job_shop_routing
     options:
@@ -134,22 +153,32 @@ records simulation events and can emit them as JSON, plain text, or to a SQLite 
 
 ## Logging
 
-::: simulatte.logger.SimLogger
+::: simulatte.logsinks.TextSink
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.logsinks.JsonSink
+    options:
+      heading_level: 3
+      members: false
+
+::: simulatte.logsinks.SQLiteSink
     options:
       heading_level: 3
       members: true
 
-::: simulatte.logger.LogEvent
+::: simulatte.logsinks.HistorySink
     options:
       heading_level: 3
       members: true
 
-::: simulatte.logger.EventHistoryBuffer
+::: simulatte.logsinks.LogSink
     options:
       heading_level: 3
       members: true
 
-::: simulatte.logger.SQLiteEventStore
+::: simulatte.events.LogEvent
     options:
       heading_level: 3
-      members: true
+      members: false

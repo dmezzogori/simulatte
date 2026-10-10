@@ -2,19 +2,22 @@
 
 Goal: trace simulation events, debug behavior, and analyze what happened during a run.
 
-Each `Environment` has a built-in logger that:
+`env.debug()`, `env.info()`, `env.warning()` and `env.error()` emit `log` events (class `LogEvent` in
+`simulatte.events`) on the environment's event bus, stamped with the simulation time. Log sinks
+(`simulatte.logsinks`) subscribe to them and write them out. Every `Environment` attaches default sinks:
 
-- Automatically includes simulation time in output
-- Supports JSON or text format
-- Maintains an in-memory history buffer for post-run analysis
-- Allows per-component filtering
+- a text sink writing to stderr, or to `log_file`, in text or JSON format
+- an in-memory history for post-run analysis (`env.log_history`)
+- an SQLite database when `log_db_path` is given (`env.log_db`)
+
+Each sink has its own level and component filters.
 
 ## 1) Basic usage
 
 ```python
 from simulatte.environment import Environment
 
-env = Environment()
+env = Environment(log_level="DEBUG")
 env.run(until=100)
 
 env.info("Simulation checkpoint", component="Main")
@@ -26,101 +29,170 @@ env.error("Timeout exceeded", component="AGV")
 Output (to stderr by default):
 
 ```
-00d 00:01:40.00 | INFO     | Main         | Simulation checkpoint
-00d 00:01:40.00 | DEBUG    | Server       | Detailed info
-00d 00:01:40.00 | WARNING  | Router       | Queue getting long
-00d 00:01:40.00 | ERROR    | AGV          | Timeout exceeded
+0.0d 00:01:40.00 | INFO     | Main         | Simulation checkpoint
+0.0d 00:01:40.00 | DEBUG    | Server       | Detailed info
+0.0d 00:01:40.00 | WARNING  | Router       | Queue getting long
+0.0d 00:01:40.00 | ERROR    | AGV          | Timeout exceeded
 ```
 
 ## 2) Log levels
 
-Set the global log level to control verbosity:
+Each environment has its own level, applied to its default sinks; the default is `INFO`:
 
 ```python
-from simulatte.logger import SimLogger
-
-SimLogger.set_level("WARNING")  # Only WARNING and ERROR
-SimLogger.set_level("DEBUG")    # Everything
-SimLogger.set_level("INFO")     # Default
+quiet = Environment(log_level="WARNING")  # Only WARNING and ERROR
+verbose = Environment(log_level="DEBUG")  # Everything, including every domain event
 ```
 
-## 3) Built-in component logs (best-effort)
+At `DEBUG` the text, JSON and SQLite sinks also write every domain event (see section 3) as a `DEBUG` record, with
+the namespace of its type as component:
 
-Simulatte’s built-in components emit structured **DEBUG** events for tracing and post-run analysis. These are
-**best-effort** (not a stable API): message text and `extra` keys may change between releases.
+```
+0.0d 00:00:0.00 | DEBUG    | job          | job.queued job='job-0' server='wc-0' priority=0.0 queue_length=1
+```
 
-Important: the in-memory `env.log_history` only records events that pass the current global log level, so to
-collect built-in component events you must enable DEBUG:
+This makes every emitting site build its event, so a `DEBUG` run is slower. At any other level, and for the
+history, sinks listen to `log` events only and domain events are not built for them.
+
+## 3) Built-in events and component logs
+
+The production components (`Server`, `ShopFloor`, `PreShopPool`, `Router`) write no log messages. They emit typed
+events on `env.bus`; subscribe before the run to collect them:
 
 ```python
-from simulatte.logger import SimLogger
+from simulatte.environment import Environment
+from simulatte.server import JobQueued
+from simulatte.shopfloor import JobFinished
 
-SimLogger.set_level("DEBUG")
+env = Environment()
+seen = []
+env.bus.subscribe(seen.append, (JobQueued, JobFinished))  # or "*" for every domain event
+
+# ... build the system and run ...
+
+for event in seen:
+    print(event.t, event.type_name, event.job)
 ```
 
-After a run, query by component:
+Each event has `t` (simulation time), `seq` (emission order) and `type_name`, plus the payload fields listed below.
+Ids in payloads are entity ids: `job-0`, `job-1`, ... for jobs, and the `name=` given to a component or its generated
+id. The builders name their entities `wc-0`, `wc-1`, ..., `shopfloor`, `router` and `psp`, each with the optional
+`prefix=`.
+
+The intralogistics components (`FleetCoordinator`, AGVs, traffic managers, warehouses, charging stations and
+parking areas) emit typed events as well. The fleet coordinator keeps its warnings and errors as log messages
+(`component="FleetCoordinator"`); query them from the in-memory history after the run:
 
 ```python
-server_events = env.log_history.query(component="Server")
-for e in server_events:
-    print(e.timestamp, e.message, e.extra)
+# ... run ...
+
+fleet_problems = env.log_history.query(component="FleetCoordinator")
+for e in fleet_problems:
+    print(e.t, e.level, e.message)
 ```
 
-### Per-component event catalog
+### Catalog
 
-Notes:
+#### Server
 
-- Most job-related messages include `job.id[:8]` for readability; the full id is in `extra["job_id"]`.
-- `server_id` / `warehouse_id` refer to the component’s internal `_idx` (usually set when registered on a `ShopFloor`).
-- Some “started” events may be emitted before a blocking wait (e.g., waiting for inventory/AGV capacity); use timestamps
-  and follow-up events to infer actual durations.
+Classes in `simulatte.server`:
 
-#### Server (`component="Server"`)
-
-| Event | Message (example) | `extra` keys |
+| Event type | Class | Payload |
 | --- | --- | --- |
-| Queue entry | `Job ab12cd34 entered queue` | `job_id`, `server_id`, `priority`, `queue_length`, `sku` |
-| Processing start | `Job ab12cd34 processing started` | `job_id`, `server_id`, `processing_time` |
-| Release | `Job ab12cd34 released` | `job_id`, `server_id`, `time_at_server` |
+| `job.queued` | `JobQueued` | `job`, `server`, `priority`, `queue_length` (waiting requests when the job joins, itself included) |
+| `job.granted` | `JobGranted` | `job`, `server` |
+| `job.queue_left` | `JobQueueLeft` | `job`, `server`, `reason` (`cancelled`) |
+| `job.released` | `JobReleased` | `job`, `server` |
+| `server.queue_reordered` | `ServerQueueReordered` | `server` |
+| `server.work_credited` | `ServerWorkCredited` | `server`, `job`, `processing_time` (emitted by `Server.process_job` after it adds the processing time to `worked_time`) |
 
-#### ShopFloor (`component="ShopFloor"`)
+#### ShopFloor
 
-| Event | Message (example) | `extra` keys |
+Classes in `simulatte.shopfloor`, in the order they occur for each job:
+
+| Event type | Class | Payload |
 | --- | --- | --- |
-| Job entry | `Job ab12cd34 entered shopfloor` | `job_id`, `sku`, `wip_total`, `jobs_count` |
-| Operation queued | `Job ab12cd34 queued at server 0` | `job_id`, `server_id`, `op_index` |
-| Operation completed | `Job ab12cd34 completed op at server 0` | `job_id`, `server_id`, `op_index`, `processing_time` |
-| Job finished | `Job ab12cd34 finished` | `job_id`, `sku`, `makespan`, `lateness`, `total_queue_time` |
+| `shopfloor.entered` | `ShopFloorEntered` | `job`, `shopfloor` |
+| `operation.started` | `OperationStarted` | `job`, `server`, `op_index`, `processing_time`, `planned_end` (after the before-operation hooks and material delivery) |
+| `operation.completed` | `OperationCompleted` | `job`, `server`, `op_index`, `processing_time` |
+| `shopfloor.wip_updated` | `ShopFloorWipUpdated` | `shopfloor`, `changes` (server id to its new WIP) |
+| `job.finished` | `JobFinished` | `job`, `shopfloor`, `makespan`, `lateness`, `total_queue_time` |
 
-#### Router (`component="Router"`)
+After `job.finished`, the metrics collector and the `on_job_finished` callbacks, the job is retired:
+`entity.retired` (class `EntityRetired` in `simulatte.entities`) removes it from `env.entities.live()`.
+`shop_floor.jobs_done` still holds it.
 
-| Event | Message (example) | `extra` keys |
+#### PreShopPool
+
+Classes in `simulatte.psp`:
+
+| Event type | Class | Payload |
 | --- | --- | --- |
-| Job created | `Job ab12cd34 created` | `job_id`, `sku`, `routing_length`, `due_date`, `total_processing_time` |
-| Routed to PSP | `Job ab12cd34 routed to PSP` | `job_id`, `destination` |
-| Routed to ShopFloor | `Job ab12cd34 routed to ShopFloor` | `job_id`, `destination` |
+| `psp.entered` | `PspEntered` | `job`, `psp`, `position` |
+| `psp.exited` | `PspExited` | `job`, `psp`, `reason` (`released`, `postponed` or `removed`) |
 
-#### PreShopPool (`component="PreShopPool"`)
+#### Release policies
 
-| Event | Message (example) | `extra` keys |
+Class in `simulatte.policies`. `ConWIP`, `ContinuousRelease`, `Draco`, `LumsCor`, `Slar` and `SlarLimit` emit a
+decision event for each action they take on a job (Draco can emit two for one job, see below); it carries no state
+change (the `psp.exited` and `shopfloor.entered` events that follow do):
+
+| Event type | Class | Payload |
 | --- | --- | --- |
-| PSP entry | `Job ab12cd34 entered PSP` | `job_id`, `sku`, `psp_size`, `due_date` |
-| PSP release | `Job ab12cd34 released from PSP` | `job_id`, `time_in_psp`, `psp_size_after` |
+| `policy.decision` | `PolicyDecision` | `policy` (the policy's class name), `job`, `action` (`release`, `postpone` or `force_pin`) |
 
-#### Warehouse (`component="Warehouse"`)
+A `postpone` is a release after a short delay: the job leaves the pool at once (`psp.exited` with reason `postponed`,
+location `transit`) and enters the shop floor 0.001 time units later. Draco emits `force_pin` when it pins the winner
+at the server's queue head, followed by `release` when the winner came from the pool.
 
-| Event | Message (example) | `extra` keys |
+#### Router
+
+The router has no events of its own. A new job appears as `entity.created` (class `EntityCreated` in
+`simulatte.entities`, with `kind == "job"`), followed in the same instant by `psp.entered` or `shopfloor.entered`.
+
+#### FleetCoordinator, AGVs and transfer orders
+
+Classes in `simulatte.intralogistics.events`. The coordinator keeps its warnings and errors as log messages
+(`component="FleetCoordinator"`, for example "No path from ..."); everything else is an event:
+
+| Event type | Class | Payload |
 | --- | --- | --- |
-| Pick start | `[{name}] Pick started (sku={sku.id}, qty={quantity})` | none beyond component |
-| Pick completed | `[{name}] Pick completed (sku={sku.id}, qty={quantity})` | none beyond component |
-| Put start | `[{name}] Put started (sku={sku.id}, qty={quantity})` | none beyond component |
-| Put completed | `[{name}] Put completed (sku={sku.id}, qty={quantity})` | none beyond component |
+| `fleet.agv_added` | `FleetAgvAdded` | `fleet`, `agv` (at coordinator construction, per AGV) |
+| `fleet.pending_changed` | `FleetPendingChanged` | `fleet`, `order`, `op` (`added` or `removed`), `index` |
+| `order.status_changed` | `OrderStatusChanged` | `order`, `status`, `previous`, `reason` (for example `dispatched`, `picked`, `delivered`, `cancelled`, `travel_failed`) |
+| `order.assigned` | `OrderAssigned` | `order`, `agv` |
+| `order.unassigned` | `OrderUnassigned` | `order`, `agv` (re-queue after an interruption, mission cleanup) |
+| `agv.state_changed` | `AgvStateChanged` | `agv`, `state`, `previous` (every `AGV.transition_to`) |
+| `agv.placed` | `AgvPlaced` | `agv`, `node`, `previous` (created at a bound node, or `current_node` assigned directly) |
+| `agv.move_started` | `AgvMoveStarted` | `agv`, `from_node`, `to_node`, `t_end`, `motion` (the speed profile's motion description), `loaded` |
+| `agv.move_ended` | `AgvMoveEnded` | `agv`, `node`, `battery` |
+| `agv.move_interrupted` | `AgvMoveInterrupted` | `agv`, `node` (the node the AGV stays at), `reason` |
+| `agv.load_changed` | `AgvLoadChanged` | `agv`, `load` (SKU id to quantity, or null) |
+| `agv.battery_changed` | `AgvBatteryChanged` | `agv`, `battery` (recharge or battery swap) |
+| `agv.stranded` | `AgvStranded` | `agv`, `node`, `reason` (`no_reachable_charger` or `insufficient_after_charging`) |
 
-#### AGV (`component="AGV"`)
+An order retires (`entity.retired`) when it reaches `COMPLETED`, `CANCELLED` or `FAILED`, after its mission cleanup.
 
-| Event | Message (example) | `extra` keys |
+#### Traffic, warehouses, charging stations and parking areas
+
+Classes in `simulatte.intralogistics.events`:
+
+| Event type | Class | Payload |
 | --- | --- | --- |
-| State transition | `{agv_id} OLD_STATE -> NEW_STATE` | none beyond component |
+| `traffic.reserved` | `TrafficReserved` | `agv`, `node` (initial placement, or `enter_node` granted) |
+| `traffic.released` | `TrafficReleased` | `agv`, `node` (`leave_node`) |
+| `traffic.wait_started` | `TrafficWaitStarted` | `agv`, `node` (the next node the AGV means to enter), `reason` (`node_occupied`, `path_delay` or `deadlock_backoff`) |
+| `traffic.wait_ended` | `TrafficWaitEnded` | `agv`, `node`, `reason` (`granted`, `cancelled`, `interrupted` or `elapsed`) |
+| `warehouse.inventory_changed` | `WarehouseInventoryChanged` | `warehouse`, `sku`, `level`, `delta` (positive for a put, negative for a pick) |
+| `warehouse.slot_changed` | `WarehouseSlotChanged` | `warehouse`, `in_use` (a pick or put slot acquired or released) |
+| `charging.started` | `ChargingStarted` | `station`, `agv`, `mode` (`recharge` or `swap`; the AGV was granted a slot) |
+| `charging.ended` | `ChargingEnded` | `station`, `agv`, `mode` (the slot was released) |
+| `charging.pool_changed` | `ChargingPoolChanged` | `station`, `swap_pool` (a swap took a charged battery, or one was returned) |
+| `parking.entered` | `ParkingEntered` | `area`, `agv` (`ParkingArea.enter`) |
+| `parking.left` | `ParkingLeft` | `area`, `agv` (`ParkingArea.leave`) |
+
+Only the `ResourceBasedTrafficManager` reserves nodes; with the default free traffic, several AGVs share a node and
+no reservation events occur. `FleetCoordinator` never calls `ParkingArea.enter` or `leave` itself.
 
 #### MaterialCoordinator
 
@@ -131,7 +203,10 @@ Notes:
 ```python
 env = Environment(log_file="simulation.log")
 env.info("This goes to the file")
+env.close()
 ```
+
+The file is opened once, in append mode, when the environment is created, and closed by `env.close()`.
 
 ## 5) JSON format
 
@@ -145,12 +220,16 @@ env.info("Job completed", component="Server", job_id="J1", duration=5.2)
 Output:
 
 ```json
-{"sim_time": 0.0, "sim_time_formatted": "00d 00:00:0.00", "wall_time": "2025-12-25T12:00:00+00:00", "level": "INFO", "message": "Job completed", "component": "Server", "extra": {"job_id": "J1", "duration": 5.2}}
+{"sim_time": 0, "sim_time_formatted": "0.0d 00:00:0.00", "wall_time": "2025-12-25T12:00:00+00:00", "seq": 0, "kind": "log", "type": "log", "level": "INFO", "message": "Job completed", "component": "Server", "extra": {"job_id": "J1", "duration": 5.2}}
 ```
+
+A domain event written at `DEBUG` has `"kind": "domain"`, its event type as `type`, the namespace of the type as
+`component`, and its payload as `data`.
 
 ## 6) Query log history
 
-The environment keeps a ring buffer of recent log events (default: 1000 entries):
+`env.log_history` keeps the most recent log events (default: 1000 entries). Each one is a `LogEvent` with `t`
+(simulation time), `seq`, `level`, `message`, `component` and `extra`:
 
 ```python
 env = Environment(log_history_size=500)
@@ -169,19 +248,52 @@ server_events = env.log_history.query(
 
 # Iterate all events
 for event in env.log_history:
-    print(f"{event.timestamp}: {event.message}")
+    print(f"{event.t}: {event.message}")
 ```
 
-## 7) Component filtering
+## 7) Query the SQLite log
 
-Disable noisy components:
+With `log_db_path`, log events are also stored in an SQLite database, in the `events` table with the columns
+`env_id, seq, t, kind, type, level, component, message, data_json`. `env.log_db` is the SQLite sink:
 
 ```python
-env.logger.disable_component("Router")  # Silence Router logs
-env.logger.enable_component("Router")   # Re-enable
+env = Environment(log_db_path="runs.db")
+
+# ... run simulation ...
+
+errors = env.log_db.query(level="ERROR", since=100.0, limit=50)  # LogEvent objects of this environment
+rows = env.log_db.execute_sql(
+    "SELECT component, COUNT(*) AS n FROM events WHERE env_id = ? GROUP BY component",
+    (env.log_db.env_id,),
+)
+env.close()
 ```
 
-## 8) Per-simulation logs with Runner
+Several environments can share one database file; `env_id` tells their rows apart. `query()` returns the `log`
+records only; at `DEBUG` the domain events are stored as rows with `kind = 'domain'` and their payload in
+`data_json`. Query before `env.close()`: closing the environment closes the connection.
+
+## 8) Component filtering and custom sinks
+
+Component filters belong to each sink. `env.sinks` lists the sinks attached to the environment:
+
+```python
+for sink in env.sinks:
+    sink.disable_component("FleetCoordinator")  # Silence the fleet's warnings and errors
+env.log_history.enable_component("FleetCoordinator")  # Re-enable it in the history only
+```
+
+More sinks attach with `attach(env)`; `env.close()` closes them too:
+
+```python
+from simulatte.logsinks import HistorySink, JsonSink, TextSink
+
+errors = HistorySink(10_000, level="ERROR").attach(env)
+TextSink("fleet.log", components=["FleetCoordinator"]).attach(env)
+JsonSink("trace.jsonl", level="DEBUG", exclude=["agv"]).attach(env)  # log events and domain events, without AGVs
+```
+
+## 9) Per-simulation logs with Runner
 
 When running parallel experiments, each simulation can write to its own log file:
 
@@ -208,6 +320,7 @@ if __name__ == "__main__":
         extract_fn=extract,
         log_dir=Path("logs"),  # Each run gets its own file
         log_format="json",  # Optional: use JSON format
+        log_level="INFO",  # Optional: the level of every run's environment
         # progress=None (default) auto-enables tqdm on TTY; set False to disable
     )
 
@@ -216,7 +329,7 @@ if __name__ == "__main__":
     # Creates: logs/sim_0000_seed_0.log, logs/sim_0001_seed_1.log, ...
 ```
 
-## 9) Context manager
+## 10) Context manager
 
 For explicit resource cleanup:
 
@@ -224,10 +337,10 @@ For explicit resource cleanup:
 with Environment(log_file="run.log") as env:
     # ... run simulation ...
     pass
-# Log file handler is automatically closed
+# The log file and the other sinks are closed
 ```
 
-## 10) Logging inside components
+## 11) Logging inside components
 
 Add logging to your custom components:
 
@@ -251,6 +364,11 @@ class MyServer(Server):
         )
 ```
 
+The keyword arguments become the `extra` of the record. With `Environment(debug=True)` they must be wire values
+(numbers, strings, booleans, `None`, lists and string-keyed maps); anything else raises, so a log call cannot put
+an arbitrary object into a trace or a digest.
+
 ## Next
 
+- [Events, traces and KPIs](../guides/events-and-traces.md)
 - [Troubleshooting](../guides/troubleshooting.md)

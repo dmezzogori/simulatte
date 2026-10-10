@@ -1,20 +1,42 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import simpy
+
+from simulatte._wire import wire_float
+from simulatte.entities import Entity, FieldSpec, StateSchema
+from simulatte.events import Deltas
+from simulatte.intralogistics._resources import NotifyingContainer, NotifyingResource
+from simulatte.intralogistics.events import WarehouseInventoryChanged, WarehouseSlotChanged
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from simpy.events import ProcessGenerator
+    from simpy.resources.container import ContainerAmount
+    from simpy.resources.resource import Request
 
     from simulatte.environment import Environment
     from simulatte.intralogistics.graph import LayoutGraph, Node
     from simulatte.intralogistics.sku import SKU
+    from simulatte.rng import SamplerDescription
 
 
-class Warehouse:
+class Warehouse(Entity, kind="warehouse"):
+    """A storage facility with per-SKU inventory and finite pick/put slots; its id is ``name``.
+
+    Events (spec §6.4): ``warehouse.inventory_changed`` whenever an inventory container completes a put or a get,
+    and ``warehouse.slot_changed`` whenever a pick or put slot is acquired or released.
+
+    ``pick_time`` and ``put_time`` are a distribution description or a number (managed) or a callable
+    ``(sku, quantity) -> float`` (opaque); they are bound to the streams ``<name>/pick`` and ``<name>/put``.
+    """
+
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {"inventory": FieldSpec("float", collection="map"), "slots_in_use": FieldSpec("int")}
+    )
+
     def __init__(
         self,
         *,
@@ -25,26 +47,74 @@ class Warehouse:
         n_slots: int,
         products: list[SKU],
         initial_inventory: dict[SKU, int] | None = None,
-        pick_time_fn: Callable[[SKU, int], float],
-        put_time_fn: Callable[[SKU, int], float],
+        pick_time: SamplerDescription[float] | float | Callable[[SKU, int], float],
+        put_time: SamplerDescription[float] | float | Callable[[SKU, int], float],
+        label: str | None = None,
     ) -> None:
         self.env = env
         self.name = name
         self.input_bays = list(input_bays)
         self.output_bays = list(output_bays)
-        self.pick_time_fn = pick_time_fn
-        self.put_time_fn = put_time_fn
-        self._slots = simpy.Resource(env, capacity=n_slots)
+        self._slots = NotifyingResource(env, capacity=n_slots, on_change=self._slot_changed)
 
         initial = initial_inventory or {}
         self.inventory: dict[SKU, simpy.Container] = {
-            product: simpy.Container(env, capacity=float("inf"), init=initial.get(product, 0)) for product in products
+            product: NotifyingContainer(
+                env,
+                capacity=float("inf"),
+                init=initial.get(product, 0),
+                on_change=self._inventory_reporter(product),
+            )
+            for product in products
         }
 
         self.total_picks: int = 0
         self.total_puts: int = 0
         self._total_pick_time: float = 0.0
         self._total_put_time: float = 0.0
+        env.entities.attach(self, name=name, label=label)
+        self._pick_time = env.bind(pick_time, kind="contextual", stream=f"{self.id}/pick", owner=self.id)
+        self._put_time = env.bind(put_time, kind="contextual", stream=f"{self.id}/put", owner=self.id)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Current entity state: inventory level per SKU id and the number of slots in use."""
+        return {
+            "inventory": {sku.id: wire_float(container.level) for sku, container in self.inventory.items()},
+            "slots_in_use": self._slots.count,
+            "label": self.label,
+        }
+
+    def _inventory_reporter(self, sku: SKU) -> Callable[[NotifyingContainer, ContainerAmount], None]:
+        """The change callback of the container of `sku`: emits ``warehouse.inventory_changed``."""
+
+        def changed(container: NotifyingContainer, amount: ContainerAmount) -> None:
+            env = self.env
+            if env.wants(WarehouseInventoryChanged):
+                level = wire_float(container.level)
+                env.emit(
+                    WarehouseInventoryChanged(
+                        warehouse=self.id,
+                        sku=sku.id,
+                        level=level,
+                        delta=wire_float(amount),
+                        deltas=Deltas.build().put(self.id, "inventory", sku.id, level).done(),
+                    )
+                )
+
+        return changed
+
+    def _slot_changed(self, request: Request, granted: bool) -> None:
+        """Emit ``warehouse.slot_changed`` after a slot was acquired or released."""
+        env = self.env
+        if env.wants(WarehouseSlotChanged):
+            in_use = self._slots.count
+            env.emit(
+                WarehouseSlotChanged(
+                    warehouse=self.id,
+                    in_use=in_use,
+                    deltas=Deltas.build().set(self.id, "slots_in_use", in_use).done(),
+                )
+            )
 
     def get_inventory_level(self, sku: SKU) -> float:
         if sku not in self.inventory:
@@ -54,10 +124,6 @@ class Warehouse:
     def pick(self, sku: SKU, quantity: int, *, on_committed: Callable[[], None] | None = None) -> ProcessGenerator:
         if sku not in self.inventory:
             raise KeyError(f"Unknown product: {sku.id}")
-        self.env.debug(
-            f"[{self.name}] Pick started (sku={sku.id}, qty={quantity})",
-            component="Warehouse",
-        )
         # Wait for inventory FIRST (no slot held — prevents deadlock with put)
         get_event = self.inventory[sku].get(quantity)
         try:
@@ -71,33 +137,21 @@ class Warehouse:
         # Then acquire a slot for the physical pick operation
         with self._slots.request() as req:
             yield req
-            pick_time = self.pick_time_fn(sku, quantity)
+            pick_time = self._pick_time(sku, quantity)
             yield self.env.timeout(pick_time)
             self.total_picks += 1
             self._total_pick_time += pick_time
-            self.env.debug(
-                f"[{self.name}] Pick completed (sku={sku.id}, qty={quantity})",
-                component="Warehouse",
-            )
 
     def put(self, sku: SKU, quantity: int) -> ProcessGenerator:
         if sku not in self.inventory:
             raise KeyError(f"Unknown product: {sku.id}")
-        self.env.debug(
-            f"[{self.name}] Put started (sku={sku.id}, qty={quantity})",
-            component="Warehouse",
-        )
         with self._slots.request() as req:
             yield req
-            put_time = self.put_time_fn(sku, quantity)
+            put_time = self._put_time(sku, quantity)
             yield self.env.timeout(put_time)
             yield self.inventory[sku].put(quantity)
             self.total_puts += 1
             self._total_put_time += put_time
-            self.env.debug(
-                f"[{self.name}] Put completed (sku={sku.id}, qty={quantity})",
-                component="Warehouse",
-            )
 
     def nearest_input_bay(self, from_node: Node, graph: LayoutGraph) -> Node:
         return self._nearest_bay(from_node, self.input_bays, graph)

@@ -28,8 +28,6 @@ Run: uv run python examples/gallery_dispatching_focus.py
 
 from __future__ import annotations
 
-import random
-
 from simulatte.builders import build_focus_system, build_immediate_release_system
 from simulatte.dispatching_rules import first_come_first_served
 from simulatte.distributions import Uniform
@@ -59,8 +57,7 @@ def metrics(shop_floor) -> tuple[int, float, float, float]:
 
 
 def run_config(weights) -> tuple[int, float, float, float]:
-    random.seed(SEED)
-    with Environment() as env:
+    with Environment(seed=SEED) as env:
         scenario = Scenario(due_date_offset=Uniform(10.0, 18.0))
         if weights is None:
             _, _s, shop_floor, _, _ = build_immediate_release_system(
@@ -95,12 +92,12 @@ uv run python examples/gallery_dispatching_focus.py
 ```text
 FOCUS system-state dispatching (immediate release, seed=42)
 Config                Done   AvgTIS  MeanTard  %Tardy
-FCFS baseline         1172    16.07      5.26   53.8%
-FOCUS beta-dormant    1174    11.99      1.60   28.2%
-FOCUS SPT-heavy       1179    10.37      1.93   18.0%
-FOCUS balanced        1177    12.73      2.19   37.5%
+FCFS baseline         1162    18.69      7.45   59.6%
+FOCUS beta-dormant    1164    12.28      1.64   33.9%
+FOCUS SPT-heavy       1164    10.69      2.09   21.5%
+FOCUS balanced        1164    13.58      2.88   41.4%
 ```
 
 ## Interpretation
 
-The shop's due dates are set to **bind** here — the uniform offset is tightened to `(10.0, 18.0)`, the same range used across the dispatching galleries — so the due-date-blind FCFS baseline runs about half its jobs late (53.8% tardy, mean tardiness 5.26). Every FOCUS configuration beats that baseline on **both** average time in system **and** tardiness, because FOCUS folds shop state into each priority decision rather than serving in arrival order. The weight vector shifts the balance between the five mechanisms: the **SPT-heavy** vector `(0.6, 0.1, 0.1, 0.1, 0.1)` puts most weight on the `pi` (SPT) term, so it clears short jobs fastest (lowest AvgTIS, 10.37, and fewest tardy, 18.0%). The **beta-dormant** vector `(0.25, 0.25, 0.25, 0.25, 0.0)` switches off the WIP-balancing `beta` mechanism (its default state) and spreads weight evenly across the SPT, starvation, slack-timing, and pacing terms, landing at 11.99 AvgTIS and 28.2% tardy. The **balanced** vector `(0.2, 0.2, 0.2, 0.2, 0.2)` activates all five mechanisms and is the weakest of the three FOCUS configs on both flow time (12.73) and tardiness (37.5%) — spreading weight onto the WIP-balancing `beta` term dilutes the SPT pull that the other two exploit — yet it still comfortably beats the FCFS baseline. Tuning these five weights lets you trade flow time against tardiness without changing the shop itself. The FCFS baseline row is identical to the FCFS row in the [stateless gallery](dispatching-stateless.md): both use the same seeded shop and the same binding due dates.
+The shop's due dates are set to **bind** here — the uniform offset is tightened to `(10.0, 18.0)`, the same range used across the dispatching galleries — so the due-date-blind FCFS baseline runs more than half its jobs late (59.6% tardy, mean tardiness 7.45). Every FOCUS configuration beats that baseline on **both** average time in system **and** tardiness, because FOCUS folds shop state into each priority decision rather than serving in arrival order. The weight vector shifts the balance between the five mechanisms: the **SPT-heavy** vector `(0.6, 0.1, 0.1, 0.1, 0.1)` puts most weight on the `pi` (SPT) term, so it clears short jobs fastest (lowest AvgTIS, 10.69, and fewest tardy, 21.5%). The **beta-dormant** vector `(0.25, 0.25, 0.25, 0.25, 0.0)` switches off the WIP-balancing `beta` mechanism (its default state) and spreads weight evenly across the SPT, starvation, slack-timing, and pacing terms, landing at 12.28 AvgTIS and 33.9% tardy. The **balanced** vector `(0.2, 0.2, 0.2, 0.2, 0.2)` activates all five mechanisms and is the weakest of the three FOCUS configs on both flow time (13.58) and tardiness (41.4%) — spreading weight onto the WIP-balancing `beta` term dilutes the SPT pull that the other two exploit — yet it still comfortably beats the FCFS baseline. Tuning these five weights lets you trade flow time against tardiness without changing the shop itself. The FCFS baseline row is identical to the FCFS row in the [stateless gallery](dispatching-stateless.md): both use the same seeded shop and the same binding due dates.

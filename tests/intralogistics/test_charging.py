@@ -48,7 +48,7 @@ class TestChargingStationRecharge:
         )
         agv = _make_agv(env, agv_type, battery_level=50.0)
 
-        # Default recharge_fn: (target - current) * 1.0 = (100 - 50) * 1.0 = 50.0
+        # Default recharge: (target - current) * 1.0 = (100 - 50) * 1.0 = 50.0
         expected_time = 50.0
 
         def process() -> ProcessGenerator:
@@ -92,10 +92,10 @@ class TestChargingStationRecharge:
         assert agv1.battery.level == pytest.approx(100.0)
         assert agv2.battery.level == pytest.approx(100.0)
 
-    def test_station_recharge_fn_overrides_battery(
+    def test_station_recharge_time_overrides_battery(
         self, env: Environment, charging_node: Node, agv_type: AGVType
     ) -> None:
-        """Station with custom recharge_fn produces different timing than AGV default."""
+        """Station with custom recharge_time produces different timing than AGV default."""
 
         # Custom recharge: twice as fast
         def fast_recharge(current_level: float, target_level: float) -> float:
@@ -106,7 +106,7 @@ class TestChargingStationRecharge:
             name="CS-fast",
             node=charging_node,
             n_slots=1,
-            recharge_fn=fast_recharge,
+            recharge_time=fast_recharge,
         )
         agv = _make_agv(env, agv_type, battery_level=50.0)
 
@@ -272,16 +272,16 @@ class TestChargingStationRechargeEdgeCases:
         assert agv.battery.level == pytest.approx(100.0)
         assert station.total_recharges == 1
 
-    def test_recharge_without_station_recharge_fn(
+    def test_recharge_without_station_recharge_time(
         self, env: Environment, charging_node: Node, agv_type: AGVType
     ) -> None:
-        """Station with no recharge_fn falls back to battery.recharge_time()."""
+        """Station with no recharge_time falls back to battery.recharge_time()."""
         station = ChargingStation(
             env=env,
             name="CS-default",
             node=charging_node,
             n_slots=1,
-            recharge_fn=None,
+            recharge_time=None,
         )
         agv = _make_agv(env, agv_type, battery_level=50.0)
 
@@ -291,7 +291,7 @@ class TestChargingStationRechargeEdgeCases:
         env.process(process())
         env.run()
 
-        # Default battery recharge_fn: (target - current) * 1.0 = 50.0
+        # Default battery recharge: (target - current) * 1.0 = 50.0
         assert env.now == pytest.approx(50.0)
         assert agv.battery.level == pytest.approx(100.0)
 

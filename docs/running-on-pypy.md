@@ -1,6 +1,6 @@
 # Running on PyPy
 
-The supported built-in simulation engine, release/dispatching policies, intralogistics modules, and text/JSON/SQLite logging have been exercised on PyPy 3.11 with seeded outputs matching CPython for the tested workloads.
+The supported built-in simulation engine, release/dispatching policies, intralogistics modules, text/JSON/SQLite logging and trace recording have been exercised on PyPy 3.11 with seeded outputs matching CPython for the tested workloads.
 
 You can use PyPy when it helps your workload — typically long, compute-heavy simulations and
 large multi-run studies — without changing any of your code.
@@ -38,29 +38,33 @@ Your simulation scripts are unchanged — only the interpreter differs.
 | Simulation engine + all release/dispatching policies | ✅ fully supported |
 | Intralogistics (AGV fleet, warehouse, graph/pathfinding) | ✅ fully supported |
 | Text / JSON logging | ✅ supported |
+| Trace recording and reading (`TraceRecorder`, `Trace`) | ✅ supported |
 | SQLite logging (`Environment(log_db_path=…)`) | ✅ supported |
-| Plotting (`Server.plot_qt`, collector `plot_*`, …) | ⚠️ works, but matplotlib/numpy run through PyPy's slower `cpyext` C-extension bridge |
+| Plotting (collector `plot_*`, …) | ⚠️ works, but matplotlib/numpy run through PyPy's slower `cpyext` C-extension bridge |
 | `simulatte.experimental` (Gymnasium RL wrapper) | ⚠️ best-effort — depends on numpy/gymnasium via `cpyext`; the module is unstable regardless |
 
 Notes:
 
-- The pure-Python dependencies (`simpy`, `loguru`, `tqdm`, `tabulate`) are first-class on PyPy.
+- The pure-Python dependencies (`simpy`, `tqdm`, `tabulate`) are first-class on PyPy.
 - `matplotlib` and `numpy` are only needed for **plotting** and the experimental RL module —
   they are never on the simulation hot path. If you run headless (no plots), you don't need
   them at all.
 
 ## Determinism across interpreters
 
-Within one interpreter, runs are fully deterministic under a fixed `random.seed`. Across
-CPython and PyPy, the standard-library random streams are **byte-identical**, so seeded
+Within one interpreter, runs are fully deterministic under a fixed `Environment(seed=...)`. Across
+CPython and PyPy, the standard-library `random.Random` streams are **byte-identical**, so seeded
 simulations evolve the same way.
 
-One subtlety: CPython 3.12+ uses compensated (Neumaier) floating-point summation while PyPy
-3.11 uses naive summation, so `sum()` over floats *can* differ in the last bit under
-catastrophic cancellation. simulatte's decision-path sums are well-conditioned
-(similar-magnitude positives), so this does not change results in practice — but a custom model
-that sums signed terms of very different magnitudes on the decision path could diverge. If you
-need cross-interpreter bit-reproducibility, validate your own model.
+Simulatte sums floating-point values that feed events, dispatching priorities, due dates or KPIs with
+`math.fsum`, which is exactly rounded on every interpreter. (The builtin `sum()` is compensated on
+CPython 3.12+ and plain on CPython 3.11 and PyPy, so it can differ in the last bit under cancellation.) The
+reference workloads therefore give the same semantic digest on CPython and PyPy. The guarantee covers the
+library's own sums and the tested workloads: a custom model that sums signed terms of very different
+magnitudes with `sum()` on the decision path can still diverge, and results that go through the platform's
+`libm` (`log`, `exp`) may differ in the last bit between platforms. The run manifest records the interpreter,
+so a digest mismatch can be explained. If you need cross-interpreter bit-reproducibility, validate your own
+model.
 
 ## Performance
 

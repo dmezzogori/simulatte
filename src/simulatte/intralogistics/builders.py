@@ -29,6 +29,7 @@ def build_simple_system(
     products: list[SKU] | None = None,
     initial_inventory_a: dict[SKU, int] | None = None,
     initial_inventory_b: dict[SKU, int] | None = None,
+    prefix: str = "",
 ) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, LayoutGraph]:
     """Create a complete intralogistics system with sensible defaults.
 
@@ -39,6 +40,11 @@ def build_simple_system(
     with bidirectional arcs, two warehouses (A at the left end, B at the right
     end), a charging station at N2, and *n_agvs* AGVs starting at N1.
 
+    Entities are named ``f"{prefix}{default}"``: nodes as above, warehouses ``WH-A`` and ``WH-B``, charging
+    station ``CS-CENTER``, parking area ``PA-N1`` and coordinator ``fleet``. AGVs are named ``f"{prefix}agv-{i}"``
+    when a prefix is given; without one their ids are generated (``agv-<n>``). A prefix keeps several systems
+    apart in one environment.
+
     Returns:
         ``(coordinator, agvs, warehouse_a, warehouse_b, graph)``
     """
@@ -47,11 +53,11 @@ def build_simple_system(
         products = [SKU("A", 1.0, 0.1), SKU("B", 2.0, 0.2)]
 
     # -- Graph --
-    wh_a_out = Node(id="WH_A_OUT", x=0.0, y=0.0)
-    n1 = Node(id="N1", x=5.0, y=0.0)
-    n2 = Node(id="N2", x=10.0, y=0.0)
-    n3 = Node(id="N3", x=15.0, y=0.0)
-    wh_b_in = Node(id="WH_B_IN", x=20.0, y=0.0)
+    wh_a_out = Node(id=f"{prefix}WH_A_OUT", x=0.0, y=0.0)
+    n1 = Node(id=f"{prefix}N1", x=5.0, y=0.0)
+    n2 = Node(id=f"{prefix}N2", x=10.0, y=0.0)
+    n3 = Node(id=f"{prefix}N3", x=15.0, y=0.0)
+    wh_b_in = Node(id=f"{prefix}WH_B_IN", x=20.0, y=0.0)
 
     arcs = [
         Arc(source=wh_a_out, target=n1, bidirectional=True),
@@ -70,32 +76,32 @@ def build_simple_system(
     # -- Warehouses --
     warehouse_a = Warehouse(
         env=env,
-        name="WH-A",
+        name=f"{prefix}WH-A",
         input_bays=[wh_a_out],
         output_bays=[wh_a_out],
         n_slots=max(2, n_agvs),
         products=products,
         initial_inventory=initial_inventory_a,
-        pick_time_fn=lambda s, q: 1.0,
-        put_time_fn=lambda s, q: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
 
     warehouse_b = Warehouse(
         env=env,
-        name="WH-B",
+        name=f"{prefix}WH-B",
         input_bays=[wh_b_in],
         output_bays=[wh_b_in],
         n_slots=max(2, n_agvs),
         products=products,
         initial_inventory=initial_inventory_b,
-        pick_time_fn=lambda s, q: 1.0,
-        put_time_fn=lambda s, q: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
 
     # -- Charging station at N2 (center) --
     charging_station = ChargingStation(
         env=env,
-        name="CS-CENTER",
+        name=f"{prefix}CS-CENTER",
         node=n2,
         n_slots=max(1, n_agvs),
     )
@@ -113,17 +119,20 @@ def build_simple_system(
         battery_capacity=agv_battery_capacity,
         weight_capacity=agv_weight_capacity,
         volume_capacity=agv_volume_capacity,
-        load_time_fn=lambda: 1.0,
-        unload_time_fn=lambda: 1.0,
+        load_time=1.0,
+        unload_time=1.0,
     )
 
     # -- Fleet --
-    agvs: list[AGV] = [AGV(env=env, agv_type=agv_type, agv_id=f"agv-{i}", initial_node=n1) for i in range(n_agvs)]
+    agvs: list[AGV] = [
+        AGV(env=env, agv_type=agv_type, agv_id=f"{prefix}agv-{i}" if prefix else None, initial_node=n1)
+        for i in range(n_agvs)
+    ]
 
     # -- Parking area at N1 --
     parking_area = ParkingArea(
         env=env,
-        name="PA-N1",
+        name=f"{prefix}PA-N1",
         node=n1,
         capacity=n_agvs,
     )
@@ -138,6 +147,7 @@ def build_simple_system(
         parking_areas=[parking_area],
         traffic_manager=FreeTrafficManager(),
         path_planner=DijkstraPlanner(),
+        name=f"{prefix}fleet",
     )
 
     return coordinator, agvs, warehouse_a, warehouse_b, graph

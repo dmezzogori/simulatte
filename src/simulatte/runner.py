@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import multiprocessing
-import random
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Generic, Literal, TypeVar
@@ -25,7 +24,9 @@ T = TypeVar("T")
 class Runner(Generic[S, T]):
     """Manage repeated simulations with configurable builder and seeds.
 
-    The builder callable should accept an `env: Environment` parameter.
+    The builder callable should accept an `env: Environment` parameter. Each run gets a fresh
+    ``Environment(seed=seed)``, so its random streams depend only on its seed: sequential and
+    parallel execution give the same results.
 
     Supports per-simulation log files when running in parallel, enabling
     separate log output for each simulation instance.
@@ -44,12 +45,13 @@ class Runner(Generic[S, T]):
         n_jobs: int | None = None,
         log_dir: Path | None = None,
         log_format: Literal["text", "json"] = "text",
+        log_level: str = "INFO",
     ) -> None:
         """Initialize the runner.
 
         Args:
             builder: Callable that accepts env: Environment and returns a system
-            seeds: Sequence of random seeds for each simulation run
+            seeds: Sequence of seeds, one per simulation run, each in ``[0, 2**63)``
             parallel: Whether to run simulations in parallel using multiprocessing
             progress: Whether to show a progress bar (None = auto, based on stderr TTY)
             extract_fn: Function to extract results from the system after simulation
@@ -57,6 +59,7 @@ class Runner(Generic[S, T]):
             log_dir: Optional directory for per-simulation log files.
                      Each simulation will create a file named sim_XXXX_seed_YYYY.log
             log_format: Log output format ("text" or "json")
+            log_level: Log level of every run's environment (``Environment(log_level=...)``)
         """
         self.builder = builder
         self.seeds = seeds
@@ -66,6 +69,7 @@ class Runner(Generic[S, T]):
         self.n_jobs = n_jobs
         self.log_dir = log_dir
         self.log_format = log_format
+        self.log_level = log_level
 
     def _run_single(self, args: tuple[int, int, float]) -> tuple[int, T]:
         """Run a single simulation.
@@ -77,7 +81,6 @@ class Runner(Generic[S, T]):
             Tuple of (run_id, extracted result)
         """
         run_id, seed, until = args
-        random.seed(seed)
 
         # Determine log file path
         log_file = None
@@ -86,8 +89,10 @@ class Runner(Generic[S, T]):
             log_file = self.log_dir / f"sim_{run_id:04d}_seed_{seed}.log"
 
         with Environment(
+            seed=seed,
             log_file=log_file,
             log_format=self.log_format,
+            log_level=self.log_level,
         ) as env:
             system = self.builder(env=env)
             env.run(until=until)

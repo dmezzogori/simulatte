@@ -82,8 +82,8 @@ def _make_warehouse(
         n_slots=5,
         products=products,
         initial_inventory=initial_inventory,
-        pick_time_fn=lambda _sku, _qty: 1.0,
-        put_time_fn=lambda _sku, _qty: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
 
 
@@ -231,7 +231,7 @@ class TestNearestIdleStrategy:
         graph = LayoutGraph([island, mainland], [])  # disconnected
 
         wh = _make_warehouse(env, "WH", [mainland], [mainland], [sku_a])
-        agv = _make_agv(env, speed_profile, "agv-1", island)
+        agv = _make_agv(env, speed_profile, "AGV-1", island)
 
         order = TransferOrder(
             sku=sku_a,
@@ -255,9 +255,9 @@ class TestRoundRobinStrategy:
         wh = _make_warehouse(env, "WH", [nodes[0]], [nodes[0]], [sku_a])
         wh_dest = _make_warehouse(env, "WH_DEST", [nodes[3]], [nodes[3]], [sku_a])
 
-        agv1 = _make_agv(env, speed_profile, "agv-1", nodes[0])
-        agv2 = _make_agv(env, speed_profile, "agv-2", nodes[1])
-        agv3 = _make_agv(env, speed_profile, "agv-3", nodes[2])
+        agv1 = _make_agv(env, speed_profile, "AGV-1", nodes[0])
+        agv2 = _make_agv(env, speed_profile, "AGV-2", nodes[1])
+        agv3 = _make_agv(env, speed_profile, "AGV-3", nodes[2])
 
         order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
         fleet = [agv1, agv2, agv3]
@@ -311,7 +311,7 @@ class TestRoundRobinStrategy:
 class TestStayInPlace:
     def test_returns_none(self, env: Environment, speed_profile: TrapezoidalProfile) -> None:
         nodes, graph = _make_linear_graph()
-        agv = _make_agv(env, speed_profile, "agv-1", nodes[0])
+        agv = _make_agv(env, speed_profile, "AGV-1", nodes[0])
         context = RepositioningContext(
             graph=graph,
             parking_areas=[],
@@ -331,7 +331,7 @@ class TestNearestParkingPolicy:
     ) -> None:
         nodes, graph = _make_linear_graph()
         # AGV at N0, parking at N1 (10 units) and N3 (30 units)
-        agv = _make_agv(env, speed_profile, "agv-1", nodes[0])
+        agv = _make_agv(env, speed_profile, "AGV-1", nodes[0])
         park_near = ParkingArea(env=env, name="P1", node=nodes[1], capacity=2)
         park_far = ParkingArea(env=env, name="P2", node=nodes[3], capacity=2)
 
@@ -347,7 +347,7 @@ class TestNearestParkingPolicy:
 
     def test_returns_none_when_all_full(self, env: Environment, speed_profile: TrapezoidalProfile) -> None:
         nodes, graph = _make_linear_graph()
-        agv = _make_agv(env, speed_profile, "agv-1", nodes[0])
+        agv = _make_agv(env, speed_profile, "AGV-1", nodes[0])
         park = ParkingArea(env=env, name="P1", node=nodes[1], capacity=1)
 
         # Fill the parking area by requesting the resource (auto-triggered
@@ -366,7 +366,7 @@ class TestNearestParkingPolicy:
 
     def test_returns_none_when_no_parking_areas(self, env: Environment, speed_profile: TrapezoidalProfile) -> None:
         nodes, graph = _make_linear_graph()
-        agv = _make_agv(env, speed_profile, "agv-1", nodes[0])
+        agv = _make_agv(env, speed_profile, "AGV-1", nodes[0])
 
         context = RepositioningContext(
             graph=graph,
@@ -399,7 +399,7 @@ class TestNearestParkingPolicy:
         """Test that distance is computed along graph path and nearest is chosen."""
         nodes, graph = _make_linear_graph()
         # AGV at N2 (20,0); parking at N1 (10,0) distance=10, N3 (30,0) distance=10
-        agv = _make_agv(env, speed_profile, "agv-1", nodes[2])
+        agv = _make_agv(env, speed_profile, "AGV-1", nodes[2])
         park_1 = ParkingArea(env=env, name="P1", node=nodes[1], capacity=2)
         park_3 = ParkingArea(env=env, name="P3", node=nodes[3], capacity=2)
 
@@ -421,7 +421,7 @@ class TestNearestParkingPolicy:
         n_island = Node(id="ISLAND", x=100.0, y=100.0)
         graph = LayoutGraph([n0, n_island], [])  # No arcs
 
-        agv = _make_agv(env, speed_profile, "agv-1", n0)
+        agv = _make_agv(env, speed_profile, "AGV-1", n0)
         park = ParkingArea(env=env, name="P-ISLAND", node=n_island, capacity=2)
 
         context = RepositioningContext(
@@ -639,7 +639,7 @@ class TestReturnToOrigin:
         nodes, _ = _make_linear_graph()
         wh_orig = _make_warehouse(env, "WH_O", [nodes[0]], [nodes[0]], [sku_a])
         wh_dest = _make_warehouse(env, "WH_D", [nodes[3]], [nodes[3]], [sku_a])
-        agv = _make_agv(env, speed_profile, "agv-1", nodes[1])
+        agv = _make_agv(env, speed_profile, "AGV-1", nodes[1])
         agv.current_load = None
 
         order = TransferOrder(
@@ -663,7 +663,7 @@ class TestReturnToOrigin:
         nodes, _ = _make_linear_graph()
         wh_orig = _make_warehouse(env, "WH_O", [nodes[0]], [nodes[0]], [sku_a])
         wh_dest = _make_warehouse(env, "WH_D", [nodes[3]], [nodes[3]], [sku_a])
-        agv = _make_agv(env, speed_profile, "agv-1", nodes[1])
+        agv = _make_agv(env, speed_profile, "AGV-1", nodes[1])
 
         order = TransferOrder(
             sku=sku_a,
@@ -688,7 +688,7 @@ class TestReturnToOrigin:
         nodes, _ = _make_linear_graph()
         wh_orig = _make_warehouse(env, "WH_O", [nodes[0]], [nodes[0]], [sku_a], {sku_a: 100})
         wh_dest = _make_warehouse(env, "WH_D", [nodes[3]], [nodes[3]], [sku_a])
-        agv = _make_agv(env, speed_profile, "agv-1", nodes[1])
+        agv = _make_agv(env, speed_profile, "AGV-1", nodes[1])
         agv.current_load = {sku_a: 10}
 
         order = TransferOrder(
@@ -719,7 +719,7 @@ class TestResumeDelivery:
         nodes, _ = _make_linear_graph()
         wh_orig = _make_warehouse(env, "WH_O", [nodes[0]], [nodes[0]], [sku_a])
         wh_dest = _make_warehouse(env, "WH_D", [nodes[3]], [nodes[3]], [sku_a])
-        agv = _make_agv(env, speed_profile, "agv-1", nodes[1])
+        agv = _make_agv(env, speed_profile, "AGV-1", nodes[1])
 
         order = TransferOrder(
             sku=sku_a,

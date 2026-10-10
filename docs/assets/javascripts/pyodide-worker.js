@@ -44,7 +44,7 @@ async function bootPyodide(id) {
   status("Downloading Python runtime…");
   const pyodide = await loadPyodide({ indexURL: PYODIDE_CDN });
   // sqlite3 is unvendored in Pyodide and is imported at module load by
-  // simulatte/logger.py (which environment.py imports). Without it nothing imports.
+  // simulatte/logsinks.py (which environment.py imports). Without it nothing imports.
   status("Loading numpy / matplotlib…");
   await pyodide.loadPackage(["sqlite3", "micropip"]);
   status("Installing simulatte…");

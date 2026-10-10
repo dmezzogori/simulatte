@@ -54,7 +54,7 @@ def periodic_trigger(
     Example:
         >>> def release_all(psp):
         ...     while not psp.empty:
-        ...         job = psp.remove()
+        ...         job = psp.remove(reason="released")
         ...         psp.shopfloor.add(job)
         >>> env.process(periodic_trigger(psp, 1.0, release_all))
     """
@@ -85,7 +85,7 @@ def on_arrival_trigger(
     Example:
         >>> def release_if_server_empty(job, psp):
         ...     if job.servers[0].empty:
-        ...         psp.remove(job=job)
+        ...         psp.remove(job=job, reason="released")
         ...         psp.shopfloor.add(job)
         >>> env.process(on_arrival_trigger(psp, release_if_server_empty))
     """
@@ -121,7 +121,7 @@ def on_completion_trigger(
         ...     if server and server.empty:
         ...         candidate = next((j for j in psp.jobs if j.starts_at(server)), None)
         ...         if candidate:
-        ...             psp.remove(job=candidate)
+        ...             psp.remove(job=candidate, reason="released")
         ...             psp.shopfloor.add(candidate)
         >>> env.process(on_completion_trigger(shop_floor, psp, release_on_starvation))
     """

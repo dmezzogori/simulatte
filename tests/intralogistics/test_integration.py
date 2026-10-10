@@ -69,8 +69,8 @@ def _build_test_system(
         n_slots=max(2, n_agvs),
         products=[sku],
         initial_inventory={sku: initial_inventory_a},
-        pick_time_fn=lambda s, q: 1.0,
-        put_time_fn=lambda s, q: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
 
     wh_b = Warehouse(
@@ -81,8 +81,8 @@ def _build_test_system(
         n_slots=max(2, n_agvs),
         products=[sku],
         initial_inventory={sku: initial_inventory_b},
-        pick_time_fn=lambda s, q: 1.0,
-        put_time_fn=lambda s, q: 1.0,
+        pick_time=1.0,
+        put_time=1.0,
     )
 
     charging_station = ChargingStation(
@@ -104,11 +104,11 @@ def _build_test_system(
         battery_capacity=battery_capacity,
         weight_capacity=500.0,
         volume_capacity=10.0,
-        load_time_fn=lambda: 1.0,
-        unload_time_fn=lambda: 1.0,
+        load_time=1.0,
+        unload_time=1.0,
     )
 
-    agvs: list[AGV] = [AGV(env=env, agv_type=agv_type, agv_id=f"agv-{i}", initial_node=node_b) for i in range(n_agvs)]
+    agvs: list[AGV] = [AGV(env=env, agv_type=agv_type, agv_id=f"AGV-{i}", initial_node=node_b) for i in range(n_agvs)]
 
     if traffic_manager is None:
         traffic_manager = FreeTrafficManager()
@@ -264,7 +264,6 @@ class TestBatteryManagement:
         assert order.status == OrderStatus.COMPLETED
         assert agv.state == AGVState.IDLE
         # The AGV must have spent time in the CHARGING state
-        agv._flush_current_state()
         assert agv.state_durations[AGVState.CHARGING] > 0
 
 
@@ -392,8 +391,8 @@ class TestTrafficManagement:
             n_slots=4,
             products=[sku],
             initial_inventory={sku: 200},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
         wh_b = Warehouse(
             env=env,
@@ -403,8 +402,8 @@ class TestTrafficManagement:
             n_slots=4,
             products=[sku],
             initial_inventory={sku: 0},
-            pick_time_fn=lambda s, q: 1.0,
-            put_time_fn=lambda s, q: 1.0,
+            pick_time=1.0,
+            put_time=1.0,
         )
 
         charging_station = ChargingStation(
@@ -431,12 +430,12 @@ class TestTrafficManagement:
             battery_capacity=1000.0,
             weight_capacity=500.0,
             volume_capacity=10.0,
-            load_time_fn=lambda: 1.0,
-            unload_time_fn=lambda: 1.0,
+            load_time=1.0,
+            unload_time=1.0,
         )
 
-        agv1 = AGV(env=env, agv_type=agv_type, agv_id="agv-0", initial_node=node_b)
-        agv2 = AGV(env=env, agv_type=agv_type, agv_id="agv-1", initial_node=node_b)
+        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-0", initial_node=node_b)
+        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_b)
 
         coordinator = FleetCoordinator(
             env=env,
