@@ -25,10 +25,12 @@ methods, and become values of the exact built-in type; other mappings are not wi
 from __future__ import annotations
 
 import math
+import sys
 from bisect import bisect_left
 from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping
-from types import MappingProxyType
+from decimal import Decimal
+from fractions import Fraction
 from typing import Any, TypeAlias
 
 import msgpack
@@ -102,12 +104,12 @@ class FrozenMap(Mapping[str, "Wire"]):
 def freeze(value: Any) -> Wire:
     """Return `value` as an immutable wire value, canonical by construction.
 
-    Lists and tuples become tuples, ``dict`` and :class:`FrozenMap` (and ``MappingProxyType``) become canonical
-    :class:`FrozenMap` (keys sorted by the UTF-8 bytes of the escaped key), NaN becomes the normalized NaN; a
-    canonical map is returned unchanged. Subclasses of the built-in types (enums, for example) become the exact
-    built-in type, read without calling their own methods. Raises `TypeError` for anything that is not a wire value
-    (including non-``str`` keys, ``bytes`` and other mappings) and `OverflowError` for integers outside
-    +/-(2**53 - 1).
+    Lists and tuples become tuples, ``dict`` and :class:`FrozenMap` become canonical :class:`FrozenMap` (keys
+    sorted by the UTF-8 bytes of the escaped key), NaN becomes the normalized NaN; a canonical map is returned
+    unchanged. Subclasses of the built-in types (enums, for example) become the exact built-in type, read without
+    calling their own methods. Raises `TypeError` for anything that is not a wire value (including non-``str``
+    keys, ``bytes`` and other mappings, ``MappingProxyType`` included: it may wrap a user mapping, ruling R34) and
+    `OverflowError` for integers outside +/-(2**53 - 1).
     """
     t = type(value)
     if t is str or value is None or t is bool:  # exact types first: the common, cheapest checks
@@ -157,8 +159,8 @@ def exact_int(value: int) -> int:
 
 def _builtin_items(value: Any, t: type) -> Any:
     """The items of a container through the built-in methods: a tuple for a ``list``/``tuple`` (or subclass), an
-    iterable of key-value pairs for a ``dict`` (or subclass), :class:`FrozenMap` or ``MappingProxyType``; None for
-    anything else."""
+    iterable of key-value pairs for a ``dict`` (or subclass) or a :class:`FrozenMap`; None for anything else (a
+    ``MappingProxyType`` too: reading it would call the methods of the mapping it wraps, ruling R34)."""
     if issubclass(t, tuple):
         return tuple.__getitem__(value, slice(None))
     if issubclass(t, list):
@@ -167,20 +169,19 @@ def _builtin_items(value: Any, t: type) -> Any:
         return dict.items(value)
     if issubclass(t, FrozenMap):
         return value._data.items()
-    if t is MappingProxyType:
-        return value.items()
     return None
 
 
 def wire_float(value: object) -> float:
     """`value` as a ``float`` for an event payload or state field, without calling user code (spec §6.1).
 
-    ``float`` and ``int`` values, including instances of their subclasses, convert through the built-in methods
-    (a subclass's own ``__float__`` is user code and is never called); other types only when NumPy defines their
-    ``__float__`` (NumPy scalars such as ``int64`` or ``float32``). Anything else is NaN: an int beyond the float
-    range, a value whose conversion is defined elsewhere (``Fraction``, ``Decimal``, user classes), a non-number.
-    The rule is the same on CPython and PyPy. See :func:`wire_float_or_none` for the variant that returns None
-    instead.
+    The values converted without user code (ruling R34): ``float`` and ``int`` values, including instances of their
+    subclasses, through the built-in methods (a subclass's own ``__float__`` is user code and is never called);
+    ``fractions.Fraction`` and ``decimal.Decimal`` (exact types: the standard library is framework-safe, R32) and
+    NumPy scalar numbers (``numpy.number``, ``numpy.bool_``) whose ``__float__`` is NumPy's, with ``float()``.
+    Anything else is NaN: an int beyond the float range, a user class, a NumPy array (an object array would call
+    its items' methods), a non-number. The rule is the same on CPython and PyPy. See :func:`wire_float_or_none`
+    for the variant that returns None instead.
     """
     if type(value) is float:
         return value
@@ -194,18 +195,29 @@ def wire_float_or_none(value: object) -> float | None:
     if t is float:
         return value  # ty: ignore[invalid-return-type]  # narrowed by the exact type check
     try:
+        if t is int:
+            return float(value)  # ty: ignore[invalid-argument-type]
         if issubclass(t, float):
             return float.__float__(value)  # ty: ignore[invalid-argument-type]
         if issubclass(t, int):
             return float(exact_int(value))  # ty: ignore[invalid-argument-type]
-        for klass in t.__mro__:
-            if "__float__" in klass.__dict__:
-                module = klass.__dict__.get("__module__", klass.__module__)
-                numpy = type(module) is str and (module == "numpy" or module.startswith("numpy."))
-                return float(value) if numpy else None  # ty: ignore[invalid-argument-type]
+        if t is Fraction or t is Decimal or _is_numpy_scalar(t):
+            return float(value)  # ty: ignore[invalid-argument-type]
     except (OverflowError, ValueError):
         return None
     return None
+
+
+def _is_numpy_scalar(t: type) -> bool:
+    """Whether `t` is a NumPy scalar number type whose ``__float__`` NumPy defines (not overridden by a subclass)."""
+    numpy = sys.modules.get("numpy")  # a NumPy value implies an imported NumPy
+    if numpy is None or not issubclass(t, (numpy.number, numpy.bool_)):
+        return False
+    for klass in t.__mro__:
+        if "__float__" in klass.__dict__:
+            module = klass.__dict__.get("__module__", klass.__module__)
+            return type(module) is str and (module == "numpy" or module.startswith("numpy."))
+    return False  # pragma: no cover - every NumPy scalar type inherits a __float__
 
 
 def wire_equal(a: object, b: object) -> bool:

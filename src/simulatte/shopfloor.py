@@ -23,6 +23,7 @@ Metrics come from collectors on the event bus (:mod:`simulatte.collectors`); eve
 from __future__ import annotations
 
 import inspect
+import math
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, cast, runtime_checkable
 
@@ -810,22 +811,25 @@ class ShopFloor(Entity, kind="shopfloor"):
         self.total_time_in_system += job.time_in_system
         if env.wants(JobFinished):
             job_id = job.id
+            finished = wire_float(finished_at)
             # Built directly, without DeltaBuilder: the default EMACollector makes this event part of every run with
             # a shop floor. The values are already wire values (ids, a finite time, a count), so freeze() is a no-op.
             deltas = Deltas(
                 (
                     ("set", job_id, "location", "done"),
-                    ("set", job_id, "finished_at", wire_float(finished_at)),
+                    ("set", job_id, "finished_at", finished),
                     ("set", self.id, "jobs_in_system", len(self.jobs)),
                 )
             )
+            # The derived values are computed here from converted floats, as the job's properties compute them, never
+            # through those properties: their arithmetic on user number types would run only when observed (R34).
             env.emit(
                 JobFinished(
                     job=job_id,
                     shopfloor=self.id,
-                    makespan=wire_float(job.makespan),
-                    lateness=wire_float(job.lateness),
-                    total_queue_time=wire_float(job.total_queue_time),
+                    makespan=finished - wire_float(job.created_at),
+                    lateness=finished - wire_float(job.due_date),
+                    total_queue_time=_wire_total_queue_time(job),
                     deltas=deltas,
                 )
             )
@@ -836,3 +840,12 @@ class ShopFloor(Entity, kind="shopfloor"):
 
         self.signal_job_finished(job)
         env.entities.retire(job)
+
+
+def _wire_total_queue_time(job: ProductionJob) -> float:
+    """:attr:`ProductionJob.total_queue_time` of a finished job, computed from wire floats of its stored times."""
+    entry, exit_ = job.servers_entry_at, job.servers_exit_at
+    return math.fsum(
+        wire_float(exit_[server]) - wire_float(entry[server]) - wire_float(processing)
+        for server, processing in job.routing.items()
+    )

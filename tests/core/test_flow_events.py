@@ -201,6 +201,59 @@ def test_operation_events_read_float_subclasses_without_user_code(tmp_path: Path
     assert type(state["due_date"]) is float
 
 
+def _due_arithmetic_run(observe: bool) -> tuple[int, float, list[Event]]:
+    """Codex probe_numeric_matrix: a due date whose ``__rsub__`` draws from the model's RNG stream."""
+    env = Environment(seed=42)
+    rng = env.rng("model")
+    calls: list[float] = []
+
+    class Due(float):
+        def __rsub__(self, other: float) -> float:
+            calls.append(rng.random())
+            return other - float.__float__(self)
+
+    sf = ShopFloor(env=env, default_metrics=False)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    seen: list[Event] = []
+    if observe:
+        env.bus.subscribe(seen.append, (JobFinished,))
+    sf.add(ProductionJob(env=env, sku="x", servers=[server], processing_times=[1.0], due_date=Due(10.0)))
+    env.run()
+    env.close()
+    return len(calls), rng.random(), seen
+
+
+def test_job_finished_does_not_add_model_arithmetic_when_observed() -> None:
+    """Ruling R34: values derived only for an event are computed from converted wire floats, never through the
+    model's properties (job.lateness would call the due date's ``__rsub__`` only when someone listens)."""
+    plain_calls, plain_next, _ = _due_arithmetic_run(observe=False)
+    observed_calls, observed_next, seen = _due_arithmetic_run(observe=True)
+
+    assert observed_calls == plain_calls == 0 and observed_next == plain_next
+    (finished,) = seen
+    assert isinstance(finished, JobFinished)
+    assert (finished.makespan, finished.lateness, finished.total_queue_time) == (1.0, -9.0, 0.0)
+
+
+def test_stdlib_number_times_are_recorded() -> None:
+    """Ruling R32: Fraction times convert with float(); they used to be recorded as NaN. (A Decimal time cannot run
+    a shop: the server adds it to a float; wire_float covers Decimal in test_wire.)"""
+    from fractions import Fraction
+
+    env = Environment(seed=1, debug=True)
+    sf = ShopFloor(env=env, default_metrics=False)
+    server = Server(env=env, capacity=1, shopfloor=sf)
+    seen = _record(env)
+    half: Any = Fraction(1, 2)
+    job = ProductionJob(env=env, sku="x", servers=[server], processing_times=[half], due_date=Fraction(2))  # ty: ignore[invalid-argument-type]
+    sf.add(job)
+    env.run()
+    started = next(e for e in seen if isinstance(e, OperationStarted))
+    finished = next(e for e in seen if isinstance(e, JobFinished))
+    assert (started.processing_time, started.planned_end) == (0.5, 0.5)
+    assert (finished.makespan, finished.lateness, finished.total_queue_time) == (0.5, -1.5, 0.0)
+
+
 def test_two_operations_update_op_index_and_location() -> None:
     env = Environment(debug=True)
     sf = ShopFloor(env=env)

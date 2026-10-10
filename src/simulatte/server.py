@@ -535,11 +535,13 @@ def _request_key(request: Any) -> Any:
 def _wire_priority(priority: object) -> Wire:
     """`priority` as recorded by ``job.queued`` (see :class:`JobQueued`); never raises and calls no user code.
 
-    Numbers (``bool`` and subclasses of ``int`` and ``float`` included) become floats through the built-in
-    conversions, None beyond the float range; other values are frozen, None when they are not wire values (R14).
+    Numbers (``bool``, subclasses of ``int`` and ``float``, ``Fraction``, ``Decimal`` and NumPy scalars, see
+    :func:`~simulatte._wire.wire_float`) become floats, None beyond the float range; other values are frozen, None
+    when they are not wire values (R14).
     """
-    if issubclass(type(priority), (int, float)):
-        return wire_float_or_none(priority)
+    number = wire_float_or_none(priority)
+    if number is not None:
+        return number
     try:
         return freeze(priority)
     except (TypeError, OverflowError):

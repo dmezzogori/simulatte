@@ -364,13 +364,13 @@ class TraceRecorder:
             self._extend_catalog(kinds=new_kinds)
         env = self._env
         requested = env.manifest().requested
+        replay = {entity: dict(fields) for entity, fields in state.items()}  # plain dicts of the frozen snapshot
         initial: Any = {
             "cursor": (float(env.now), -1),
-            "state": state,
+            "state": replay,
             "manifest": {k: v for k, v in requested.items() if k in ACTIVATION_MANIFEST_FIELDS},
         }
         payload = pack(initial)
-        replay = {entity: dict(fields) for entity, fields in state.items()}
         self._enqueue("initial", len(payload), (payload, replay))
 
     def _seal_locked(self) -> _Batch:

@@ -492,12 +492,12 @@ class TestNoUserCode:
             def __len__(self) -> int:  # pragma: no cover - must never be called
                 raise AssertionError("user code")
 
-        assert fz(MappingProxyType({"k": 1})) == {"k": 1}
-        assert upk(cpack(MappingProxyType({"k": 1}))) == {"k": 1}
-        with pytest.raises(TypeError, match="not a wire value"):
-            freeze(Custom())
-        with pytest.raises(TypeError, match="not a wire value"):
-            canonical_pack(Custom())  # ty: ignore[invalid-argument-type]
+        # A proxy may wrap a user mapping, whose methods reading it would call (ruling R34): not a wire value either.
+        for value in (Custom(), MappingProxyType({"k": 1}), MappingProxyType(Custom())):
+            with pytest.raises(TypeError, match="not a wire value"):
+                freeze(value)
+            with pytest.raises(TypeError, match="not a wire value"):
+                canonical_pack(value)  # ty: ignore[invalid-argument-type]
 
 
 class TestWireFloat:
@@ -511,6 +511,15 @@ class TestWireFloat:
         assert values == [2.5, 4.0, 0.5] and [type(v) for v in values] == [float, float, float]
         assert _Spy.calls == []
 
+    def test_stdlib_numbers_convert(self) -> None:
+        """Ruling R32: Fraction and Decimal are framework-safe and convert with float()."""
+        from decimal import Decimal
+        from fractions import Fraction
+
+        assert wire_float(Fraction(1, 2)) == 0.5 and wire_float(Decimal("2.5")) == 2.5
+        assert type(wire_float(Fraction(3, 1))) is float and math.isnan(wire_float(Decimal("NaN")))
+        assert wire_float_or_none(Decimal("sNaN")) is None  # float() refuses a signalling NaN
+
     def test_other_conversions_are_never_called(self) -> None:
         from decimal import Decimal
         from fractions import Fraction
@@ -519,14 +528,39 @@ class TestWireFloat:
             def __float__(self) -> float:  # pragma: no cover - must never be called
                 raise AssertionError("user code")
 
-        for value in (Number(), Fraction(1, 2), Decimal("0.5"), "1.5", None):
+        class MyFraction(Fraction):
+            def __float__(self) -> float:  # pragma: no cover - must never be called
+                raise AssertionError("user code")
+
+        class MyDecimal(Decimal):
+            def __float__(self) -> float:  # pragma: no cover - must never be called
+                raise AssertionError("user code")
+
+        for value in (Number(), MyFraction(1, 2), MyDecimal("0.5"), "1.5", None, (1.0,)):
             assert wire_float_or_none(value) is None and math.isnan(wire_float(value))
 
-    def test_numpy_conversions_are_used(self) -> None:
+    def test_numpy_scalars_convert_and_nothing_else_from_numpy(self) -> None:
+        """Ruling R34: NumPy scalar numbers (numpy.number, numpy.bool_) convert; object arrays and other arrays, and
+        subclasses that define their own ``__float__``, are not numbers for events. numpy is installed with
+        gymnasium, so this runs on CPython and PyPy alike."""
         np = pytest.importorskip("numpy")
+
+        class Number:
+            def __float__(self) -> float:  # pragma: no cover - must never be called
+                raise AssertionError("user code")
+
+        class Shadow(np.float32):
+            def __float__(self) -> float:  # pragma: no cover - must never be called
+                raise AssertionError("user code")
+
+        class Plain(np.int64):
+            pass
 
         assert wire_float(np.int64(3)) == 3.0 and type(wire_float(np.int64(3))) is float
         assert wire_float(np.float32(0.5)) == 0.5 and wire_float(np.float64(1.25)) == 1.25
+        assert wire_float(np.bool_(True)) == 1.0 and wire_float(Plain(4)) == 4.0
+        for value in (np.array(Number(), dtype=object), np.array(1.5), np.array([1.0]), Shadow(0.5)):
+            assert wire_float_or_none(value) is None
 
 
 class TestWireEqual:

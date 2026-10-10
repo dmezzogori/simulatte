@@ -482,6 +482,66 @@ def test_numeric_subclass_priorities_are_read_without_user_code() -> None:
     assert [type(p) for p in priorities[:2]] == [float, float] and type(priorities[2][0]) is float
 
 
+def _mapping_priority_run(observe: bool) -> tuple[int, float, list[Any]]:
+    """Codex probe_mapping_proxy: a read-only proxy over a mapping whose ``items`` draws from the RNG."""
+    from collections.abc import Mapping
+    from types import MappingProxyType
+
+    env = Environment(seed=42)
+    rng = env.rng("model")
+    calls: list[float] = []
+
+    class PriorityMapping(Mapping[str, int]):
+        def __iter__(self) -> Any:  # pragma: no cover - must never be called
+            calls.append(rng.random())
+            return iter(("k",))
+
+        def __len__(self) -> int:  # pragma: no cover - must never be called
+            calls.append(rng.random())
+            return 1
+
+        def __getitem__(self, key: str) -> int:  # pragma: no cover - must never be called
+            calls.append(rng.random())
+            return 0
+
+        def items(self) -> Any:  # pragma: no cover - must never be called
+            calls.append(rng.random())
+            return [("k", 0)]
+
+    priority = MappingProxyType(PriorityMapping())
+    seen: list[Event] = []
+    if observe:
+        env.bus.subscribe(seen.append, (JobQueued,))
+    server = Server(env=env, capacity=1)
+    job = _job(env, server, priority_policy=lambda job, server: priority)
+    env.process(_hold(env, server, job, rng.random()))
+    env.run()
+    env.close()
+    return len(calls), env.now, [event.priority for event in seen if isinstance(event, JobQueued)]
+
+
+def test_mapping_proxy_priority_is_recorded_as_none_without_reading_it() -> None:
+    """Ruling R34: a MappingProxyType may wrap a user mapping, so it is not a wire value; job.queued records None
+    and never reads it."""
+    plain = _mapping_priority_run(observe=False)
+    observed = _mapping_priority_run(observe=True)
+
+    assert plain[:2] == observed[:2] and observed[0] == 0
+    assert observed[2] == [None]
+
+
+def test_numpy_scalar_priorities_are_numbers() -> None:
+    np = pytest.importorskip("numpy")
+    env = Environment(seed=1)
+    seen = _record(env, (JobQueued,))
+    server = Server(env=env, capacity=1, name="s")
+    for value in (np.int64(3), np.float32(0.5), np.array(2.0)):
+        policy = (lambda v: lambda job, server: v)(value)
+        env.process(_hold(env, server, _job(env, server, priority_policy=policy), 1.0))
+    env.run()
+    assert [event.priority for event in seen if isinstance(event, JobQueued)] == [3.0, 0.5, None]
+
+
 def test_location_strings_are_built_once_per_server() -> None:
     env = Environment(seed=1)
     server = Server(env=env, capacity=1, name="s")
