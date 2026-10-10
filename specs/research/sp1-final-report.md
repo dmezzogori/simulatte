@@ -2,7 +2,7 @@
 
 Branch `feature/sp1-events-trace`, Task 25. Library code at 486630e; benchmark code at 96d4f9a (the benchmark scripts were uncommitted when the measurements were taken, so the `commit` field of the result files reads 486630e). Spec: `specs/2026-10-08-sp1-events-trace-design.md` (rev 4); budgets from the global design §C1.9. Measured on eva, 2026-10-09.
 
-**Verdict.** All final checks pass: the full suite with the 99 % branch-coverage gate, the PyPy lane, ruff, ty, the TypeScript conformance tests and the docs build. The unobserved path of the branch is 26 to 29 % faster than `simulatte==0.12.0` on CPython 3.14 and 33 to 38 % faster on PyPy 3.11, and 4.4 to 5.0 % slower than 0.12.0 without its debug calls on CPython (limit 8.5 %). The new modes cost, against the branch's `none` on the same workload: `default` (the default EMA collector) +6 to +8 % on CPython and +3 % on PyPy; `default_logging` nothing measurable; `kpi` 3.0 to 3.4× on CPython and 3.7 to 4.1× on PyPy. Of the D57 regression metrics, all hold except one: the CPython `full` ratio on the 50,000-job workload at utilization 0.90 is 4.83 to 4.99× against a budget of 4.9× (§7.1). Budgets for `default`, `default_logging` and `kpi` were proposed in §6 and **accepted by Davide on 2026-10-10 (D59)**, report-only until calibrated on CI runners like D57; the global spec C1.9 table now lists them. D57's CPython `full` budget stays at 4.9× by decision.
+**Verdict.** All final checks pass: the full suite with the 99 % branch-coverage gate, the PyPy lane, ruff, ty, the TypeScript conformance tests and the docs build. The unobserved path of the branch is 26 to 29 % faster than `simulatte==0.12.0` on CPython 3.14 and 33 to 38 % faster on PyPy 3.11, and 4.4 to 5.0 % slower than 0.12.0 without its debug calls on CPython (limit 8.5 %). The new modes cost, against the branch's `none` on the same workload: `default` (the default EMA collector) +6 to +8 % on CPython and +3 % on PyPy; `default_logging` nothing measurable; `kpi` 3.0 to 3.4× on CPython and 3.7 to 4.1× on PyPy. Of the D57 regression metrics, all hold except one: the CPython `full` ratio on the 50,000-job workload at utilization 0.90 is 4.83 to 4.99× against a budget of 4.9× (§7.1). Budgets for `default`, `default_logging` and `kpi` were proposed in §6 and **accepted by Davide on 2026-10-10 (D59)**, report-only until calibrated on CI runners like D57; the global spec C1.9 table now lists them. D57's CPython `full` budget was first kept at 4.9× (D59), then raised to 5.3× (D60) after the adversarial-review fixes added the `server.work_credited` event.
 
 ## 1. What SP1 delivered
 
@@ -166,7 +166,7 @@ The existing D57 budgets, checked against this run:
 |---|---|---|---|---|
 | `digest` / `none`, CPython | ≤ 3.2× | 3.02 | 3.04 | holds |
 | `digest` / `none`, PyPy | ≤ 4.3× | 3.67 | 3.78 | holds |
-| `full` / `none`, CPython | ≤ 4.9× | 4.71 | **4.99** (u90-50k) | borderline, see §7.1; **kept at 4.9× by decision (D59)** |
+| `full` / `none`, CPython | ≤ 4.9× | 4.71 | **4.99** (u90-50k) | borderline, see §7.1; kept at 4.9× (D59), **raised to 5.3× (D60)** |
 | `full` / `none`, PyPy | ≤ 7.0× | 6.47 | 6.72 | holds |
 | trace per job | ≤ 1.75 KB | – | 1.515 to 1.584 KB | holds |
 | cold seek p95 at 50k jobs | ≤ 100 ms | – | 51.9 to 53.4 ms | holds |
@@ -176,7 +176,7 @@ The existing D57 budgets, checked against this run:
 
 ### 7.1 CPython `full` at 50,000 jobs is at the D57 limit
 
-The first run gave 4.99× (30.284 s over 6.064 s) for `u90-50k`. I repeated the pair twice, alternating `none` and `full` in one process each: 29.606 s over 6.132 s (4.83×) and 29.798 s over 6.037 s (4.94×). The `full` time itself matches the G3 report (29.4 s); the ratio grew because the Task 12b tuning made `none` about 10 % faster (6.70 s then, about 6.1 s now). CI does not see it: CI runs `u90-5k` (4.71×) and gates nothing in this mode. The options considered were to accept a looser CPython `full` ratio (about 5.4× keeps the 10 % rule), to speed up the writer (G3 §5.3 measured the 64 MiB backpressure holding the simulation for 11 % of a 50k run), or to express the budget in absolute time. Davide decided on 2026-10-10 to keep D57's 4.9× (D59): the 4.83 to 4.99× on `u90-50k` stays a known, documented borderline case.
+The first run gave 4.99× (30.284 s over 6.064 s) for `u90-50k`. I repeated the pair twice, alternating `none` and `full` in one process each: 29.606 s over 6.132 s (4.83×) and 29.798 s over 6.037 s (4.94×). The `full` time itself matches the G3 report (29.4 s); the ratio grew because the Task 12b tuning made `none` about 10 % faster (6.70 s then, about 6.1 s now). CI does not see it: CI runs `u90-5k` (4.71×) and gates nothing in this mode. The options considered were to accept a looser CPython `full` ratio (about 5.4× keeps the 10 % rule), to speed up the writer (G3 §5.3 measured the 64 MiB backpressure holding the simulation for 11 % of a 50k run), or to express the budget in absolute time. Davide first decided on 2026-10-10 to keep D57's 4.9× (D59). After the adversarial-review fixes added a `server.work_credited` event per operation (about 5 % more `full` recording time, so an expected 5.1 to 5.2× on `u90-50k`), he raised the CPython budget to 5.3× the same day (D60).
 
 ### 7.2 A saturated fleet is orders of magnitude slower
 
@@ -207,7 +207,7 @@ From the ledger, grouped; none blocks the release.
 
 **Benchmark follow-ups:**
 - Calibrate the noise bands on the first CI runs (they come from eva); the new rows give a first look at `default`, `default_logging`, `kpi` and the intralogistics ratios on the runners.
-- The CPython `full` ratio stays at 4.9× by decision (§7.1); revisit if it fails on the runners.
+- The CPython `full` budget is 5.3× (D60, §7.1); re-measure `u90-50k` with the `server.work_credited` event and revisit if it fails on the runners.
 - Fix the saturated-fleet slowdown (§7.2 and the next item).
 - Add a workload that logs at INFO, so that `default_logging` measures logging cost and not only subscription bookkeeping.
 - The seek benchmark clears the reader cache before each seek and so measures the cold path only; warm seeks, the TypeScript reader's speed and end-to-end replication throughput (B20) are not covered here.

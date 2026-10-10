@@ -187,7 +187,7 @@ Benchmarks run in CI on CPython and PyPy, on reference workloads defined in SP1 
 | Default shop floor metrics (`default`) | Against released 0.12.0 `default`: ≤ 3 % + band. Against 0.12.0 `default` with debug calls stripped: ≤ 10 % + 2 % (CPython) / ≤ 3 % + 5 % (PyPy). Against the branch's no-subscriber time: ≤ 1.10× CPython / ≤ 1.06× PyPy. Report-only until calibrated on CI runners (D59) |
 | Default logging (`default_logging`) | ≤ 3 % + band over the same shop with the default log sinks closed (`bare`), that is the 5 % target (CPython 5 %, PyPy 8 %); the cross-version limits of no subscribers apply unchanged. Report-only until calibrated (D59) |
 | KPI only, with digest | digest ≤ 3.2× CPython / ≤ 4.3× PyPy of no-subscriber time (D57); `kpi` (digest, default EMA collector and KPI collector) ≤ 3.7× CPython / ≤ 4.5× PyPy of no-subscriber time, report-only until calibrated (D59) |
-| Full trace | ≤ 4.9× CPython / ≤ 7.0× PyPy; ≤ 1.75 KB/job; seek p95 ≤ 100 ms at 50k jobs; extra peak RSS ≤ 256 MB (D57) |
+| Full trace | ≤ 5.3× CPython (D60) / ≤ 7.0× PyPy; ≤ 1.75 KB/job; seek p95 ≤ 100 ms at 50k jobs; extra peak RSS ≤ 256 MB (D57) |
 
 Workloads include a congested case (long queues) so that delta and digest costs that grow with state size are caught (B19). **End-to-end replication throughput** (B20) is measured separately, on CPython and PyPy, for short and long runs, including process start, imports and warm-up; SP4 and SP5 establish the supported workload envelope from it before promising experiment throughput.
 
