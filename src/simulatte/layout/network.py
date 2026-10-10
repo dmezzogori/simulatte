@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from fractions import Fraction
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from .errors import LayoutError
+from .dependencies import DependencyClosure
+from .errors import LayoutDiagnostic, LayoutError
 from .geometry import ExactPoint, Rectangle, exact, materialize, segment_intersection
 from .layers import ResolvedValues
 from .refs import Address
 from .types import Direction, LayoutLimits, Point
+
+
+if TYPE_CHECKING:
+    from simulatte.intralogistics.graph import LayoutGraph, Node
 
 
 @dataclass(frozen=True)
@@ -30,8 +35,8 @@ class EdgeDefinition:
     address: Address
     source: Address
     target: Address
-    enabled: bool = True
-    direction: Direction = "both"
+    enabled: bool | None = True
+    direction: Direction | None = "both"
     speed_limit: float | None = None
     lineage: tuple[Address, ...] = ()
     blockers: tuple[str, ...] = ()
@@ -201,7 +206,7 @@ def _lattice(values: ResolvedValues, builder: _Builder) -> None:
     if neighbors == 8:
         edge_estimate += 2 * max(0, nx - 1) * max(0, ny - 1)
     _limit(
-        edge_estimate * (2 if spec.get("direction", "both") == "both" else 1),
+        edge_estimate * (2 if spec.get("direction") == "both" else 1),
         builder.limits.max_directed_arcs,
         "max_directed_arcs",
     )
@@ -221,7 +226,12 @@ def _lattice(values: ResolvedValues, builder: _Builder) -> None:
                 continue
             if not builder.segment_blockers(builder.nodes[source].position, builder.nodes[target].position):
                 address = Address({"kind": "edge", "source": source.to_dict(), "target": target.to_dict()})
-                builder.edge(address, source, target, spec)
+                builder.edge(
+                    address,
+                    source,
+                    target,
+                    {**spec, "enabled": spec.get("enabled"), "direction": spec.get("direction")},
+                )
 
 
 @dataclass(frozen=True)
@@ -240,7 +250,7 @@ def _lanes(values: ResolvedValues, builder: _Builder) -> None:
     _limit(count * (count - 1) // 2, builder.limits.max_lane_segment_pairs, "max_lane_segment_pairs")
     _limit(sum(len(lane.get("vertices", ())) for lane in lanes.values()), builder.limits.max_nodes, "max_nodes")
     arc_estimate = sum(
-        max(0, len(lane.get("vertices", ())) - 1) * (2 if lane.get("direction", "both") == "both" else 1)
+        max(0, len(lane.get("vertices", ())) - 1) * (2 if lane.get("direction") == "both" else 1)
         for lane in lanes.values()
     )
     _limit(arc_estimate, builder.limits.max_directed_arcs, "max_directed_arcs")
@@ -259,7 +269,16 @@ def _lanes(values: ResolvedValues, builder: _Builder) -> None:
                 raise LayoutError(f"lane {id!r} vertices {a['id']!r}, {b['id']!r}: zero-length segment")
             if builder.segment_blockers(p, q):
                 raise LayoutError(f"lane {id!r} segment {address.to_dict()}: intersects obstacle")
-            segments.append(_Segment(address, source, target, p, q, lane))
+            segments.append(
+                _Segment(
+                    address,
+                    source,
+                    target,
+                    p,
+                    q,
+                    {**lane, "enabled": lane.get("enabled"), "direction": lane.get("direction")},
+                )
+            )
             incidents.setdefault(exact(p), set()).add(source)
             incidents.setdefault(exact(q), set()).add(target)
     splits = [{exact(s.a), exact(s.b)} for s in segments]
@@ -277,7 +296,7 @@ def _lanes(values: ResolvedValues, builder: _Builder) -> None:
             incident = incidents.setdefault(intersection, set())
             for index, segment in ((i, first), (j, second)):
                 if intersection not in splits[index]:
-                    arc_estimate += 2 if segment.attributes.get("direction", "both") == "both" else 1
+                    arc_estimate += 2 if segment.attributes.get("direction") == "both" else 1
                     _limit(arc_estimate, builder.limits.max_directed_arcs, "max_directed_arcs")
                     splits[index].add(intersection)
                 incident.add(
@@ -353,7 +372,7 @@ def _explicit(values: ResolvedValues, builder: _Builder) -> None:
             if direction == "backward"
             else [(source, target), (target, source)]
         )
-        attributes = (arc.get("enabled", True), arc.get("speed_limit"))
+        attributes = (arc.get("enabled"), arc.get("speed_limit"))
         for pair in pairs:
             if pair in directed:
                 if directed[pair] != attributes:
@@ -384,3 +403,259 @@ def generate_base_network(values: ResolvedValues, *, limits: LayoutLimits) -> Ne
     builder = _Builder(network, _obstacles(values, network), limits)
     {"lattice": _lattice, "lanes": _lanes, "explicit": _explicit}[variant](values, builder)
     return builder.finish()
+
+
+@dataclass(frozen=True)
+class RequiredPathResult:
+    source: Address
+    target: Address
+    path: tuple[Address, ...]
+
+
+@dataclass(frozen=True)
+class ResolvedNetwork:
+    """The sole runtime graph plus immutable canonical metadata.
+
+    ``nodes`` contains enabled canonical addresses only. ``aliases`` and
+    ``definitions`` also retain disabled elements. Capacity keys are the same
+    concrete Node instances consumed by binders and traffic managers. Handle owner
+    checks belong to the facade; this pure layer accepts only logical Addresses.
+    """
+
+    graph: LayoutGraph
+    definitions: NetworkDefinitions
+    nodes: Mapping[Address, Node]
+    capacities: Mapping[Node, int | None]
+    diagnostics: tuple[LayoutDiagnostic, ...]
+    weak_components: tuple[tuple[Address, ...], ...]
+    strong_components: tuple[tuple[Address, ...], ...]
+
+    def __post_init__(self) -> None:
+        for name in ("nodes", "capacities"):
+            object.__setattr__(self, name, MappingProxyType(dict(getattr(self, name))))
+
+    @property
+    def aliases(self) -> Mapping[Address, Address]:
+        return self.definitions.aliases
+
+    def node(self, address: Address) -> Node:
+        canonical = self.aliases.get(address)
+        if canonical is None or canonical not in self.nodes:
+            raise LayoutError(f"missing or disabled required node: {address.to_dict()}")
+        return self.nodes[canonical]
+
+    def validate(
+        self,
+        *,
+        required_nodes: Iterable[Address] = (),
+        required_paths: Iterable[tuple[Address, Address]] = (),
+        existing_entity_ids: Iterable[str] = (),
+    ) -> tuple[RequiredPathResult, ...]:
+        """Validate late-stage requirements without regenerating the graph.
+
+        Returns canonical address paths suitable for saved binding metadata.
+        Call before any NodeBinding is attached; pass all existing entity ids.
+        """
+        existing = set(existing_entity_ids)
+        for definition in self.definitions.nodes.values():
+            if definition.id in existing:
+                raise LayoutError(f"network node id collision with existing entity: {definition.id!r}")
+        for address in required_nodes:
+            self.node(address)
+        addresses = {node: address for address, node in self.nodes.items()}
+        results = []
+        for source, target in required_paths:
+            start, end = self.node(source), self.node(target)
+            # Reachability is topological; no floating path-cost arithmetic needed.
+            parents: dict[Node, Node | None] = {start: None}
+            pending = [start]
+            for current in pending:
+                if current == end:
+                    break
+                for neighbor in self.graph.neighbors(current):
+                    if neighbor not in parents:
+                        parents[neighbor] = current
+                        pending.append(neighbor)
+            if end not in parents:
+                raise LayoutError(f"unreachable required path: {source.to_dict()} -> {target.to_dict()}")
+            path = []
+            cursor: Node | None = end
+            while cursor is not None:
+                path.append(addresses[cursor])
+                cursor = parents[cursor]
+            results.append(RequiredPathResult(source, target, tuple(reversed(path))))
+        return tuple(results)
+
+
+def _components(
+    adjacency: Mapping[Address, tuple[tuple[Address, Address], ...]],
+) -> tuple[tuple[tuple[Address, ...], ...], tuple[tuple[Address, ...], ...]]:
+    reverse: dict[Address, list[Address]] = {a: [] for a in adjacency}
+    for source, neighbors in adjacency.items():
+        for target, _ in neighbors:
+            reverse[target].append(source)
+    seen: set[Address] = set()
+    weak = []
+    for start in adjacency:
+        if start in seen:
+            continue
+        seen.add(start)
+        pending = [start]
+        for node in pending:
+            for neighbor in [*(a for a, _ in adjacency[node]), *reverse[node]]:
+                if neighbor not in seen:
+                    seen.add(neighbor)
+                    pending.append(neighbor)
+        weak.append(tuple(sorted(pending, key=lambda a: a._json)))
+    seen.clear()
+    finished = []
+    for start in adjacency:
+        if start in seen:
+            continue
+        seen.add(start)
+        stack = [(start, iter(adjacency[start]))]
+        while stack:
+            node, neighbors = stack[-1]
+            child = next(neighbors, None)
+            if child is None:
+                finished.append(node)
+                stack.pop()
+            elif child[0] not in seen:
+                seen.add(child[0])
+                stack.append((child[0], iter(adjacency[child[0]])))
+    seen.clear()
+    strong = []
+    for start in reversed(finished):
+        if start in seen:
+            continue
+        seen.add(start)
+        pending = [start]
+        for node in pending:
+            for neighbor in reverse[node]:
+                if neighbor not in seen:
+                    seen.add(neighbor)
+                    pending.append(neighbor)
+        strong.append(tuple(sorted(pending, key=lambda a: a._json)))
+    return tuple(weak), tuple(strong)
+
+
+def _physical_inputs(values: ResolvedValues, dependencies: DependencyClosure) -> None:
+    # Structural absence is physical even when no graph has been declared.
+    dependencies.record(values, ("network",), kind="presence")
+    dependencies.record(values, ("network",), kind="variant")
+    dependencies.record(values, ("grid",), kind="presence")
+    if "network" in values.explicit_data:
+        dependencies.read(values, ("network",))
+        values.require(("network", "clearance"), explicit=True)
+        network = values.explicit_data["network"]
+        if network.get("type") == "lattice":
+            dependencies.read(values, ("grid",))
+            values.require(("network", "neighbors"), explicit=True)
+        elif network.get("type") == "explicit":
+            # Base node eligibility and raw arc expansion determine identities before
+            # override application, so they cannot defer an unresolved input.
+            for i in range(len(network.get("nodes", ()))):
+                values.require(("network", "nodes", str(i), "enabled"), explicit=True)
+            for i in range(len(network.get("arcs", ()))):
+                values.require(("network", "arcs", str(i), "direction"), explicit=True)
+    obstacles = dependencies.select(values, ("placements",), "obstacle")
+    connectors = dependencies.select(values, ("placements",), "connector")
+    for entity in sorted(set(obstacles) | set(connectors)):
+        for leaf in ("kind", "position", "rotation", "footprint"):
+            dependencies.read(values, ("placements", entity, leaf))
+        if entity in connectors:
+            for port, record in values.explicit_data["placements"][entity].get("ports", {}).items():
+                if "connector" in record:
+                    dependencies.read(values, ("placements", entity, "ports", port))
+
+
+def resolve_network(
+    values: ResolvedValues, dependencies: DependencyClosure, *, limits: LayoutLimits
+) -> ResolvedNetwork:
+    """Compile once, recording explicit physical inputs and negative predicates.
+
+    The preparation coordinator tags these queries as network-owned. Direct callers
+    needing late candidate extension should use ``dependencies.network_queries()``.
+    Requirements declared by later stages use ``result.validate``; no callbacks,
+    environment, binding, RNG or second graph are involved.
+    """
+    from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
+
+    from .connectors import add_connectors
+    from .overrides import _matches, apply_overrides
+
+    _physical_inputs(values, dependencies)
+    definitions = add_connectors(values, generate_base_network(values, limits=limits), limits=limits)
+    dependencies.record(values, ("overrides",), kind="membership")
+    for i, record in enumerate(values.explicit_data.get("overrides", ())):
+        path = ("overrides", str(i))
+        dependencies.read(values, (*path, "target"))
+        selected_nodes, selected_edges = _matches(definitions, record["target"])
+        if selected_nodes or selected_edges:
+            dependencies.read(values, (*path, "properties"))
+    definitions, override_diagnostics = apply_overrides(values, definitions)
+    nodes = {}
+    ids = set()
+    for address, definition in definitions.nodes.items():
+        if definition.id in ids:
+            raise LayoutError(f"network node id collision: {definition.id!r}")
+        ids.add(definition.id)
+        if definition.enabled:
+            if definition.blockers:
+                raise LayoutError(f"enabled node {address.to_dict()} intersects blockers {definition.blockers}")
+            nodes[address] = Node(definition.id, definition.position.x, definition.position.y)
+    arcs = {}
+    adjacency: dict[Address, list[tuple[Address, Address]]] = {a: [] for a in nodes}
+    for address, edge in definitions.edges.items():
+        if not edge.enabled or edge.source not in nodes or edge.target not in nodes:
+            continue
+        if edge.blockers:
+            raise LayoutError(f"enabled edge {address.to_dict()} intersects blockers {edge.blockers}")
+        pairs = []
+        if edge.direction in ("both", "forward"):
+            pairs.append((edge.source, edge.target))
+        if edge.direction in ("both", "backward"):
+            pairs.append((edge.target, edge.source))
+        for source, target in pairs:
+            arc = Arc(nodes[source], nodes[target], False, edge.speed_limit)
+            if (source, target) in arcs:
+                if arcs[source, target] != arc:
+                    raise LayoutError(f"conflicting effective directed edges: {source.to_dict()} -> {target.to_dict()}")
+                continue
+            arcs[source, target] = arc
+            adjacency[source].append((target, address))
+    _limit(len(arcs), limits.max_directed_arcs, "max_directed_arcs")
+    final_adjacency = {a: tuple(neighbors) for a, neighbors in adjacency.items()}
+    definitions = NetworkDefinitions(
+        definitions.nodes,
+        definitions.edges,
+        definitions.aliases,
+        definitions.lineage,
+        final_adjacency,
+        definitions.obstacles,
+        definitions.clearance,
+    )
+    weak, strong = _components(final_adjacency)
+    diagnostics = list(values.diagnostics) + list(override_diagnostics)
+    if len(weak) > 1:
+        diagnostics.append(
+            LayoutDiagnostic(
+                "disconnected-network",
+                "warning",
+                ("network",),
+                None,
+                None,
+                f"optional network has {len(weak)} weak and {len(strong)} strong components",
+            )
+        )
+    stage_order = {name: i for i, (name, _) in enumerate(values.bundle.code_stages)}
+    diagnostics.sort(key=lambda d: (stage_order.get(d.stage, len(stage_order)), d.path, d.code, d.target or ""))
+    return ResolvedNetwork(
+        LayoutGraph._from_layout(nodes.values(), arcs.values()),
+        definitions,
+        nodes,
+        {node: definitions.nodes[a].capacity for a, node in nodes.items()},
+        tuple(diagnostics),
+        weak,
+        strong,
+    )
