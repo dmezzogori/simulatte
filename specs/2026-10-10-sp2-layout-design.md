@@ -386,6 +386,9 @@ Multiple fleets sharing a resolved graph and using resource traffic must share t
 Reject multiple resource managers over that layout graph in one environment; separate resource pools would
 permit conflicting reservations. Free-traffic fleets may share the graph. Custom managers register a binder
 and explicitly declare their shared resource owner; do not guess ownership from private attributes.
+The registration API is `layout.register_resource_owner(manager, *, owner, graph, binder)`, where `graph` is
+a same-layout GraphRef and `binder` names a registered `on_bind` hook. The shared `owner` identity token is
+runtime-only and is never serialized as a pointer or object representation.
 
 ## 8. Layers, schema and dependency identity
 
