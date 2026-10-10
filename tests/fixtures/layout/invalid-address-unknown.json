@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "overrides": [
+    {
+      "id": "o",
+      "target": {
+        "kind": "missing"
+      },
+      "properties": {}
+    }
+  ]
+}

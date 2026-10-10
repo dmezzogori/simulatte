@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "network": {
+    "clearance": {
+      "$unset": true
+    },
+    "neighbors": {
+      "$unset": true
+    },
+    "bounds": {
+      "$unset": true
+    }
+  },
+  "placements": {
+    "a": {
+      "kind": "server",
+      "footprint": {
+        "width": {
+          "$unset": true
+        }
+      },
+      "ports": {
+        "p": {
+          "approach": {
+            "$unset": true
+          },
+          "connector": {
+            "approach_margin": {
+              "$unset": true
+            }
+          }
+        }
+      }
+    }
+  }
+}

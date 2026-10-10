@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0",
+  "overrides": [
+    {
+      "id": "o0",
+      "target": {
+        "kind": "row",
+        "j": -1
+      },
+      "properties": {
+        "capacity": 2,
+        "speed_limit": {
+          "$unset": true
+        }
+      }
+    },
+    {
+      "id": "o1",
+      "target": {
+        "kind": "column",
+        "i": 2
+      },
+      "properties": {
+        "capacity": 2,
+        "speed_limit": {
+          "$unset": true
+        }
+      }
+    },
+    {
+      "id": "o2",
+      "target": {
+        "kind": "rectangle",
+        "bounds": [
+          0,
+          0,
+          1,
+          1
+        ]
+      },
+      "properties": {
+        "capacity": 2,
+        "speed_limit": {
+          "$unset": true
+        }
+      }
+    },
+    {
+      "id": "o3",
+      "target": {
+        "kind": "lane",
+        "id": "a"
+      },
+      "properties": {
+        "capacity": 2,
+        "speed_limit": {
+          "$unset": true
+        }
+      }
+    },
+    {
+      "id": "o4",
+      "target": {
+        "kind": "lattice",
+        "i": -1,
+        "j": 2
+      },
+      "properties": {
+        "capacity": 2,
+        "speed_limit": {
+          "$unset": true
+        }
+      }
+    },
+    {
+      "id": "o5",
+      "target": {
+        "kind": "explicit_arc",
+        "source": "a",
+        "target": "b"
+      },
+      "properties": {
+        "capacity": 2,
+        "speed_limit": {
+          "$unset": true
+        }
+      }
+    }
+  ]
+}

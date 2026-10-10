@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "network": {
+    "type": "lanes",
+    "lanes": {
+      "a": {
+        "vertices": [
+          {
+            "id": "a",
+            "position": [
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "b",
+            "position": [
+              1,
+              0,
+              0
+            ]
+          }
+        ],
+        "direction": "forward",
+        "enabled": true,
+        "speed_limit": 2
+      }
+    }
+  }
+}

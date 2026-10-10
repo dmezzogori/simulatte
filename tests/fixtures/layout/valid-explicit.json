@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "network": {
+    "type": "explicit",
+    "nodes": [
+      {
+        "id": "a",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "capacity": 2
+      },
+      {
+        "id": "b",
+        "position": [
+          1,
+          0,
+          0
+        ]
+      }
+    ],
+    "arcs": [
+      {
+        "source": "a",
+        "target": "b",
+        "enabled": false
+      }
+    ]
+  }
+}
