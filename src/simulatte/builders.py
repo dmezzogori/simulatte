@@ -29,6 +29,7 @@ def build_immediate_release_system(
     env: Environment,
     scenario: Scenario | None = None,
     prefix: str = "",
+    default_metrics: bool = True,
     priority_policies: Callable[..., float] | None = None,
     collect_workload: bool = False,
     collect_time_series: bool = False,
@@ -49,6 +50,7 @@ def build_immediate_release_system(
             ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
             several systems in one environment.
         priority_policies: Optional callable used to assign job priorities at servers.
+        default_metrics: Attach the shop floor's default EMA collector (True by default).
         collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
         collect_time_series: If True, attach a ``ServerTimeSeries`` (queue length and utilization) to each
             server (listed in ``env.collectors``).
@@ -69,6 +71,7 @@ def build_immediate_release_system(
     sf, servers = scenario.build_floor(
         env,
         prefix=prefix,
+        default_metrics=default_metrics,
         collect_workload=collect_workload,
         collect_time_series=collect_time_series,
         retain_job_history=retain_job_history,
@@ -82,6 +85,7 @@ def build_focus_system(
     env: Environment,
     scenario: Scenario | None = None,
     prefix: str = "",
+    default_metrics: bool = True,
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
     collect_workload: bool = False,
 ) -> BuiltSystem[None]:
@@ -104,6 +108,7 @@ def build_focus_system(
         focus_weights: FOCUS mechanism weights ``(w1, w2, w3, w4, w5)`` for
             (pi, omega, psi, gamma, beta); must each be in ``[0, 1]`` and sum
             to 1. Defaults to beta-dormant ``(0.25, 0.25, 0.25, 0.25, 0.0)``.
+        default_metrics: Attach the shop floor's default EMA collector (True by default).
         collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
@@ -123,7 +128,9 @@ def build_focus_system(
         https://doi.org/10.1016/j.omega.2022.102726
     """
     scenario = Scenario() if scenario is None else scenario
-    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    sf, servers = scenario.build_floor(
+        env, prefix=prefix, default_metrics=default_metrics, collect_workload=collect_workload
+    )
     priority = FocusPriorityRule(Focus(weights=focus_weights), sf)
     router = scenario.build_router(env, sf, servers, psp=None, priority_policies=priority, prefix=prefix)
     return BuiltSystem(psp=None, servers=servers, shop_floor=sf, router=router, policy=None)
@@ -134,6 +141,7 @@ def build_lumscor_system(
     env: Environment,
     scenario: Scenario | None = None,
     prefix: str = "",
+    default_metrics: bool = True,
     check_timeout: float,
     wl_norm_level: float,
     allowance_factor: int,
@@ -162,6 +170,7 @@ def build_lumscor_system(
             released only if adding them keeps corrected WIP at or below this level.
         allowance_factor: Buffer time per server for due date calculation.
             Higher values result in earlier (more conservative) releases.
+        default_metrics: Attach the shop floor's default EMA collector (True by default).
         collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
@@ -182,7 +191,9 @@ def build_lumscor_system(
         https://doi.org/10.1016/j.ijpe.2005.03.001
     """
     scenario = Scenario() if scenario is None else scenario
-    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    sf, servers = scenario.build_floor(
+        env, prefix=prefix, default_metrics=default_metrics, collect_workload=collect_workload
+    )
     psp = PreShopPool(env=env, shopfloor=sf, name=f"{prefix}psp")
     router = scenario.build_router(env, sf, servers, psp=psp, prefix=prefix)
     # LumsCor self-wires CorrectedWIPStrategy, router.priority_policies (PST),
@@ -204,6 +215,7 @@ def build_slar_system(
     env: Environment,
     scenario: Scenario | None = None,
     prefix: str = "",
+    default_metrics: bool = True,
     allowance_factor: float,
     collect_workload: bool = False,
 ) -> BuiltSystem[Slar]:
@@ -230,6 +242,7 @@ def build_slar_system(
             ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
             ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
             several systems in one environment.
+        default_metrics: Attach the shop floor's default EMA collector (True by default).
         collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
@@ -250,7 +263,9 @@ def build_slar_system(
         https://doi.org/10.1016/S0925-5273(98)00052-8
     """
     scenario = Scenario() if scenario is None else scenario
-    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    sf, servers = scenario.build_floor(
+        env, prefix=prefix, default_metrics=default_metrics, collect_workload=collect_workload
+    )
     psp = PreShopPool(env=env, shopfloor=sf, name=f"{prefix}psp")
     router = scenario.build_router(env, sf, servers, psp=psp, prefix=prefix)
     policy = Slar(shopfloor=sf, psp=psp, router=router, allowance_factor=allowance_factor)
@@ -262,6 +277,7 @@ def build_slar_limit_system(
     env: Environment,
     scenario: Scenario | None = None,
     prefix: str = "",
+    default_metrics: bool = True,
     allowance_factor: float,
     wl_norm_level: float,
     collect_workload: bool = False,
@@ -292,6 +308,7 @@ def build_slar_limit_system(
             ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
             ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
             several systems in one environment.
+        default_metrics: Attach the shop floor's default EMA collector (True by default).
         collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``) to
             the shopfloor for workload time-series.
 
@@ -314,7 +331,9 @@ def build_slar_limit_system(
         https://doi.org/10.1016/j.ijpe.2020.107881
     """
     scenario = Scenario() if scenario is None else scenario
-    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    sf, servers = scenario.build_floor(
+        env, prefix=prefix, default_metrics=default_metrics, collect_workload=collect_workload
+    )
     psp = PreShopPool(env=env, shopfloor=sf, name=f"{prefix}psp")
     router = scenario.build_router(env, sf, servers, psp=psp, prefix=prefix)
     # SlarLimit self-wires CorrectedWIPStrategy, router.priority_policies (PST),
@@ -328,6 +347,7 @@ def build_draco_system(
     env: Environment,
     scenario: Scenario | None = None,
     prefix: str = "",
+    default_metrics: bool = True,
     wip_target: int,
     loop_target: int,
     focus_weights: tuple[float, float, float, float, float] = (0.25, 0.25, 0.25, 0.25, 0.0),
@@ -368,6 +388,7 @@ def build_draco_system(
             ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
             ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
             several systems in one environment.
+        default_metrics: Attach the shop floor's default EMA collector (True by default).
         collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
@@ -388,7 +409,9 @@ def build_draco_system(
         https://doi.org/10.1016/j.ijpe.2022.108768
     """
     scenario = Scenario() if scenario is None else scenario
-    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    sf, servers = scenario.build_floor(
+        env, prefix=prefix, default_metrics=default_metrics, collect_workload=collect_workload
+    )
     psp = PreShopPool(env=env, shopfloor=sf, name=f"{prefix}psp")
     router = scenario.build_router(env, sf, servers, psp=psp, prefix=prefix)
     # Draco self-wires router.priority_policies, shop_floor.on_processing_end,
@@ -410,6 +433,7 @@ def build_conwip_system(
     env: Environment,
     scenario: Scenario | None = None,
     prefix: str = "",
+    default_metrics: bool = True,
     wip_cap: int,
     collect_workload: bool = False,
 ) -> BuiltSystem[ConWIP]:
@@ -429,6 +453,7 @@ def build_conwip_system(
             ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
             ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
             several systems in one environment.
+        default_metrics: Attach the shop floor's default EMA collector (True by default).
         collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
@@ -448,7 +473,9 @@ def build_conwip_system(
         https://doi.org/10.1080/00207549008942761
     """
     scenario = Scenario() if scenario is None else scenario
-    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    sf, servers = scenario.build_floor(
+        env, prefix=prefix, default_metrics=default_metrics, collect_workload=collect_workload
+    )
     psp = PreShopPool(env=env, shopfloor=sf, name=f"{prefix}psp")
     router = scenario.build_router(env, sf, servers, psp=psp, prefix=prefix)
     policy = ConWIP(shopfloor=sf, psp=psp, wip_cap=wip_cap)
@@ -460,6 +487,7 @@ def build_continuous_release_system(
     env: Environment,
     scenario: Scenario | None = None,
     prefix: str = "",
+    default_metrics: bool = True,
     wl_norm_level: float,
     allowance_factor: int = 2,
     collect_workload: bool = False,
@@ -482,6 +510,7 @@ def build_continuous_release_system(
             ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
             ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
             several systems in one environment.
+        default_metrics: Attach the shop floor's default EMA collector (True by default).
         collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
@@ -503,7 +532,9 @@ def build_continuous_release_system(
         https://doi.org/10.1016/j.ijpe.2010.09.026
     """
     scenario = Scenario() if scenario is None else scenario
-    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    sf, servers = scenario.build_floor(
+        env, prefix=prefix, default_metrics=default_metrics, collect_workload=collect_workload
+    )
     psp = PreShopPool(env=env, shopfloor=sf, name=f"{prefix}psp")
     router = scenario.build_router(env, sf, servers, psp=psp, prefix=prefix)
     # ContinuousRelease self-wires CorrectedWIPStrategy, the completion-triggered
@@ -517,6 +548,7 @@ def build_starvation_avoidance_system(
     env: Environment,
     scenario: Scenario | None = None,
     prefix: str = "",
+    default_metrics: bool = True,
     collect_workload: bool = False,
 ) -> BuiltSystem[None]:
     """Build a starvation-avoidance-only pull system.
@@ -535,6 +567,7 @@ def build_starvation_avoidance_system(
             ``wc-<i>``, ``shopfloor``, ``router`` and ``psp`` (if any) become
             ``f"{prefix}wc-<i>"`` and so on. Use distinct prefixes to build
             several systems in one environment.
+        default_metrics: Attach the shop floor's default EMA collector (True by default).
         collect_workload: If True, attach a ``CurrentWorkloadCollector`` (listed in ``env.collectors``).
 
     Returns:
@@ -548,7 +581,9 @@ def build_starvation_avoidance_system(
         >>> env.run(until=1000)
     """
     scenario = Scenario() if scenario is None else scenario
-    sf, servers = scenario.build_floor(env, prefix=prefix, collect_workload=collect_workload)
+    sf, servers = scenario.build_floor(
+        env, prefix=prefix, default_metrics=default_metrics, collect_workload=collect_workload
+    )
     psp = PreShopPool(env=env, shopfloor=sf, name=f"{prefix}psp")
     router = scenario.build_router(env, sf, servers, psp=psp, prefix=prefix)
 

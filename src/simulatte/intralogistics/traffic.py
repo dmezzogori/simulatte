@@ -74,7 +74,7 @@ class ResourceBasedTrafficManager:
         graph: LayoutGraph,
         env: Environment,
         node_capacity: int = 1,
-        deadlock_timeout: float = 30.0,
+        deadlock_timeout: float | None = 30.0,
         priority_fn: Callable[[AGV], float] | None = None,
     ) -> None:
         self._env = env
@@ -193,18 +193,24 @@ class ResourceBasedTrafficManager:
             self._start_wait(agv, node, req)
         try:
             yield req
-        except simpy.Interrupt:
-            # Interrupted by deadlock timeout — clean up local state only.
-            # The actual resource request cancellation is handled by cancel()
-            # which is called from _enter_with_timeout after the interrupt.
-            self._pending_requests.pop(agv, None)
+        except simpy.Interrupt as interrupt:
+            # An interrupt can arrive after the grant but before this generator resumes.
+            # Withdraw only this entry request; the AGV still occupies its previous node.
+            if req.triggered:
+                resource.release(req)
+            elif req in resource.queue:
+                req.cancel()
+            if self._pending_requests.get(agv) is req:
+                self._pending_requests.pop(agv)
             self._end_wait(agv, req, "interrupted")
             key = (agv, node)
-            if (
-                key in self._node_requests and self._node_requests[key] is req
-            ):  # pragma: no cover - defensive; cancel() normally cleans up first
+            if self._node_requests.get(key) is req:
                 del self._node_requests[key]
-            return
+            # The timeout helper intentionally abandons its child process; ordinary
+            # mission interrupts must reach the caller instead of implying entry.
+            if interrupt.cause == "deadlock_timeout":
+                return
+            raise
         self._pending_requests.pop(agv, None)
         self._end_wait(agv, req, "granted")
         self._reserve(agv, node)

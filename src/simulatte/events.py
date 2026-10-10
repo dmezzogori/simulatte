@@ -164,6 +164,8 @@ def apply_deltas(state: dict[str, dict[str, Any]], deltas: Deltas) -> None:
     duplicate ``create``, a ``remove``/``move`` of a missing value, a wrong arity or an unknown operation.
     """
     for op in deltas.ops:
+        if not op:
+            raise ValueError("an empty delta operation")
         name = op[0]
         arity = _ARITY.get(name) if type(name) is str else None
         if arity is None:
@@ -662,7 +664,7 @@ def matches_wire_type(wire_type: str, value: object) -> bool:
 class Subscription:
     """A handle returned by :meth:`EventBus.subscribe`."""
 
-    __slots__ = ("_bus", "_classes", "active", "handler", "types")
+    __slots__ = ("_bus", "_classes", "_log_threshold", "active", "handler", "types")
 
     def __init__(
         self,
@@ -673,6 +675,7 @@ class Subscription:
     ) -> None:
         self._bus = bus
         self._classes = classes
+        self._log_threshold = 0  # sinks opt into filtering; ordinary subscribers receive every level
         self.handler = handler
         self.types = types
         self.active = True
@@ -710,12 +713,13 @@ class EventBus:
     drew from ``env.rng``, which raises `RuntimeError` (debug mode).
     """
 
-    __slots__ = ("_delivering", "_interest", "_pending", "_probe", "_routes", "_subscriptions")
+    __slots__ = ("_delivering", "_interest", "_log_interest", "_pending", "_probe", "_routes", "_subscriptions")
 
     def __init__(self, *, probe: Callable[[], tuple[int, int]] | None = None) -> None:
         self._subscriptions: list[Subscription] = []
         self._routes: dict[type, tuple[Handler, ...]] = {}
         self._interest = _Interest(self._route)
+        self._log_interest: dict[int, bool] = {}
         self._pending: deque[Event] = deque()
         self._delivering = False
         self._probe = probe
@@ -747,11 +751,24 @@ class EventBus:
         self._subscriptions.append(subscription)
         self._routes.clear()
         self._interest.clear()
+        self._log_interest.clear()
         return subscription
 
     def wants(self, cls: type[Event]) -> bool:
         """Whether any subscriber listens to events of type `cls`."""
         return self._interest[cls]
+
+    def wants_log(self, priority: int) -> bool:
+        """Whether a log at `priority` has a subscriber (10 DEBUG, 20 INFO, etc.).
+
+        Sinks declare their minimum priority. Unfiltered subscriptions, including ``"**"``,
+        receive every level. Component filters remain the sink's responsibility.
+        """
+        if priority not in self._log_interest:
+            self._log_interest[priority] = any(
+                issubclass(LogEvent, s._classes) and priority >= s._log_threshold for s in self._subscriptions
+            )
+        return self._log_interest[priority]
 
     def publish(self, event: Event) -> None:
         """Deliver `event`, or queue it if delivery is in progress.
@@ -799,6 +816,7 @@ class EventBus:
         self._subscriptions.remove(subscription)
         self._routes.clear()
         self._interest.clear()
+        self._log_interest.clear()
 
 
 # ---------------------------------------------------------------------------------------------------------

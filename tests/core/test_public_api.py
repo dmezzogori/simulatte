@@ -45,3 +45,19 @@ def test_importing_a_submodule_first_does_not_cycle() -> None:
             [sys.executable, "-c", f"import {module}"], capture_output=True, text=True, check=False, timeout=120
         )
         assert result.returncode == 0, result.stderr
+
+
+def test_runner_is_lazy_but_discoverable() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys, simulatte; assert 'multiprocessing' not in sys.modules; "
+            "assert 'tqdm' not in sys.modules; assert 'Runner' in dir(simulatte); "
+            "from simulatte import Runner; assert Runner is simulatte.Runner",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr

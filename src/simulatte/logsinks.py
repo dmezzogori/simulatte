@@ -142,7 +142,9 @@ class LogSink:
             raise RuntimeError(f"{type(self).__name__} is already attached to an environment")
         self._open()
         self._env_id = uuid.uuid4().hex
-        self._subscriptions.append(env.bus.subscribe(self._on_log, (LogEvent,)))
+        subscription = env.bus.subscribe(self._on_log, (LogEvent,))
+        subscription._log_threshold = self._threshold
+        self._subscriptions.append(subscription)
         if self._render_domain and self._threshold <= _DEBUG:
             self._subscriptions.append(env.bus.subscribe(self._on_domain, "*"))
         env._sinks.append(self)

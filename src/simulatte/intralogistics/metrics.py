@@ -64,7 +64,7 @@ class OrderEMACollector(Collector):
     :meth:`~simulatte.environment.Environment.fingerprint`; :class:`FleetKPIs` has the windowed results.
 
     Example:
-        A fleet coordinator attaches one by default; for another `alpha`, attach your own::
+        A fleet coordinator attaches one by default; set its ``ema_alpha`` or attach your own::
 
             coordinator = FleetCoordinator(..., default_metrics=False)
             metrics = OrderEMACollector(coordinator, alpha=0.05).attach(env)

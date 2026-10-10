@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+import simpy
 
 from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVType
@@ -339,13 +340,14 @@ class TestResourceBasedTrafficManager:
             # Now interrupt the enter_node process
             if enter_proc.is_alive:
                 enter_proc.interrupt("test")
-            yield env.timeout(0.1)
+            with pytest.raises(simpy.Interrupt):
+                yield enter_proc
 
         env.process(block_forever())
         env.process(enter_then_get_interrupted())
         env.run(until=5.0)
 
-        # Should not raise — the interrupt handler handles missing key gracefully
+        # Cleanup tolerates a missing key while the interrupt still reaches its caller
         assert (agv_waiter, n2) not in tm._node_requests
 
     def test_cancel_stale_node_requests_not_triggered_not_processed(self) -> None:
@@ -551,3 +553,42 @@ class TestMinimalTrafficManager:
                 pass
 
         assert isinstance(MinimalTM(), TrafficManager)
+
+
+@pytest.mark.parametrize("timeout", [None, 30.0])
+@pytest.mark.parametrize("phase", ["queued", "granted"])
+def test_enter_node_propagates_interrupt_and_releases_request(timeout: float | None, phase: str) -> None:
+    env = Environment()
+    start, target = Node("start", 0.0, 0.0), Node("target", 1.0, 0.0)
+    graph = LayoutGraph([start, target], [Arc(start, target)])
+    tm = ResourceBasedTrafficManager(graph=graph, env=env, deadlock_timeout=timeout)
+    waiter, holder = _make_agv(env, start), _make_agv(env, target)
+    tm.place_now(waiter, start)
+    if phase == "queued":
+        tm.place_now(holder, target)
+    env.run()
+    causes = []
+
+    def enter():
+        try:
+            yield from tm.enter_node(waiter, target)
+        except simpy.Interrupt as exc:
+            causes.append(exc.cause)
+        else:
+            pytest.fail("Interrupted entry must not continue as if the node was acquired")
+
+    process = env.process(enter())
+    env.step()  # queued or granted, before its request event is processed
+    process.interrupt("cancelled")
+    env.run()
+    assert causes == ["cancelled"]
+    assert waiter not in tm._pending_requests
+    assert (waiter, target) not in tm._node_requests
+    assert tm._node_resources[start].count == 1
+    assert tm._node_resources[target].count == (1 if phase == "queued" else 0)
+    assert not tm._node_resources[target].queue
+    tm.leave_node(holder, target)
+    follower = _make_agv(env, start)
+    subsequent = env.process(tm.enter_node(follower, target))
+    env.run()
+    assert subsequent.triggered

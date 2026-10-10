@@ -184,7 +184,8 @@ def test_projection_layout_and_framing() -> None:
     state = unpack(project_state(env.initial_state))
     assert state == FrozenMap({"dial": FrozenMap({"$kind": "test_digest_dial", "setting": 1.0})})
 
-    item = unpack(project_event(turned))
+    kinds = {"dial": "test_digest_dial"}
+    item = unpack(project_event(turned, kinds))
     assert item == (
         0,
         "test.digest_turned",
@@ -193,12 +194,11 @@ def test_projection_layout_and_framing() -> None:
         FrozenMap({"dial": "dial", "to": 2.0}),
         (("set", "dial", "setting", 2.0),),
     )
-    assert project_event(turned, {"dial": "test_digest_dial"}) == project_event(turned)  # kind resolved or inferred
 
     import hashlib
 
     expected = hashlib.blake2b(digest_size=32)
-    for blob in (project_state(env.initial_state), project_event(turned)):
+    for blob in (project_state(env.initial_state), project_event(turned, kinds)):
         expected.update(len(blob).to_bytes(8, "big"))
         expected.update(blob)
     assert digest.hexdigest() == expected.hexdigest()

@@ -409,7 +409,7 @@ class TestCancellation:
         assert order.status == OrderStatus.COMPLETED
         # Cancel after completion — should not raise
         coordinator.cancel(order)
-        assert order.status == OrderStatus.CANCELLED  # status updated but no side effects
+        assert order.status == OrderStatus.COMPLETED  # terminal status is immutable
 
 
 class TestBattery:
@@ -4656,11 +4656,13 @@ class TestReturnToOriginPhysicalReturn:
         env.process(interrupt_at_mid())
         env.run()
 
-        # AGV must have physically returned to origin
-        assert agv.current_node == node_origin
-        # Inventory conservation: initial=90, pick removed 10 (to 80),
-        # return added 10 back (to 90).
-        assert wh_origin.get_inventory_level(sku_a) == 90
+        # The return restored inventory before retrying the same order.
+        assert wh_origin.total_puts == 1
+        assert order.status == OrderStatus.COMPLETED
+        assert not env.entities.is_live(order)
+        assert agv.current_node == node_dest
+        assert wh_origin.get_inventory_level(sku_a) == 80
+        assert wh_dest.get_inventory_level(sku_a) == 10
         assert agv.current_load is None
 
 
@@ -4898,3 +4900,240 @@ class TestSubmitBeforeRun:
         env.run()
 
         assert order.status == OrderStatus.COMPLETED
+
+
+class TestReleaseLifecycleRegressions:
+    @pytest.mark.parametrize("resume", [False, True])
+    @pytest.mark.parametrize("first_interrupt", [0.5, 1.5, 2.75])
+    @pytest.mark.parametrize("cancel", [False, True])
+    def test_repeated_interrupts_finish_inventory_recovery(
+        self,
+        env: Environment,
+        sku_a: SKU,
+        simple_speed: TrapezoidalProfile,
+        first_interrupt: float,
+        cancel: bool,
+        resume: bool,
+    ) -> None:
+        coordinator, agv, origin, destination = _build_simple_system(env, sku_a, simple_speed)
+        if resume:
+            from simulatte.intralogistics.policies import ResumeDelivery
+
+            coordinator._load_recovery_strategy = ResumeDelivery()
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=origin, destination=destination)
+        coordinator.submit(order)
+
+        def interrupt_recovery():
+            yield env.timeout(first_interrupt)
+            mission = coordinator._active_missions[order.id]
+            mission.interrupt("breakdown")
+            for _ in range(3):
+                yield env.timeout(0.1)
+                if cancel:
+                    coordinator.cancel(order)
+                else:
+                    mission.interrupt("another_breakdown")
+
+        env.process(interrupt_recovery())
+        env.run()
+
+        assert order.status == (OrderStatus.CANCELLED if cancel else OrderStatus.COMPLETED)
+        assert origin.get_inventory_level(sku_a) == (100 if cancel else 90)
+        assert destination.get_inventory_level(sku_a) == (0 if cancel else 10)
+        assert agv.current_load is None
+        assert not coordinator._active_missions and not coordinator._agv_mission
+        assert not coordinator._committed_picks and not coordinator._cancelled_missions
+        assert coordinator.pending_count == 0
+        assert not env.entities.is_live(order)
+
+    def test_cancel_completed_order_during_repositioning(
+        self,
+        env: Environment,
+        sku_a: SKU,
+        simple_speed: TrapezoidalProfile,
+    ) -> None:
+        coordinator, agv, origin, destination = _build_simple_system(env, sku_a, simple_speed)
+
+        class GoToOrigin:
+            def reposition(self, agv, context):
+                return origin.input_bays[0]
+
+        coordinator._repositioning_policy = GoToOrigin()
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=origin, destination=destination)
+        coordinator.on_delivery_complete(lambda order, agv: coordinator.cancel(order))
+        coordinator.submit(order)
+        env.run()
+
+        assert order.status == OrderStatus.COMPLETED
+        assert agv.current_node == origin.input_bays[0]
+        assert not env.entities.is_live(order)
+        coordinator.cancel(order)
+        assert order.status == OrderStatus.COMPLETED
+
+    def test_idle_hook_new_mission_keeps_tracking(
+        self,
+        env: Environment,
+        sku_a: SKU,
+        simple_speed: TrapezoidalProfile,
+    ) -> None:
+        coordinator, agv, origin, destination = _build_simple_system(env, sku_a, simple_speed)
+        first = coordinator.create_order(sku=sku_a, quantity=10, origin=origin, destination=destination)
+        second = coordinator.create_order(sku=sku_a, quantity=10, origin=origin, destination=destination)
+        observations = []
+
+        def dispatch_on_idle(idle_agv):
+            assert idle_agv not in coordinator._agv_mission
+            if second.dispatched_at is None:
+                coordinator.submit(second)
+                observations.append(coordinator._agv_mission[idle_agv])
+
+        coordinator.on_agv_idle(dispatch_on_idle)
+        coordinator.submit(first)
+        env.run(until=6)
+        assert observations == [second]
+        assert coordinator._agv_mission[agv] is second
+        assert coordinator._active_missions[second.id].is_alive
+        coordinator.cancel(second)
+        env.run()
+        assert first.status == OrderStatus.COMPLETED
+        assert second.status == OrderStatus.CANCELLED
+        assert not coordinator._agv_mission
+
+    def test_builtin_saturated_retries_do_not_scan_compatible_backlog(
+        self,
+        env: Environment,
+        sku_a: SKU,
+        simple_speed: TrapezoidalProfile,
+        monkeypatch,
+    ) -> None:
+        coordinator, agv, origin, destination = _build_simple_system(env, sku_a, simple_speed)
+        env.activate()
+        for _ in range(500):
+            coordinator.submit(coordinator.create_order(sku=sku_a, quantity=1, origin=origin, destination=destination))
+        calls = 0
+        original = agv.can_carry
+
+        def count_can_carry(sku, quantity):
+            nonlocal calls
+            calls += 1
+            return original(sku, quantity)
+
+        monkeypatch.setattr(agv, "can_carry", count_can_carry)
+        env.run(until=4)
+        assert coordinator.pending_count == 499
+        assert calls == 0
+        assert coordinator._dispatch_retries == {}
+
+    def test_custom_strategy_still_sees_busy_full_fleet_each_tick(
+        self,
+        env: Environment,
+        sku_a: SKU,
+        simple_speed: TrapezoidalProfile,
+    ) -> None:
+        from simulatte.intralogistics.policies import NearestIdleStrategy
+
+        coordinator, agv, origin, destination = _build_simple_system(env, sku_a, simple_speed)
+        calls = []
+
+        class CustomStrategy(NearestIdleStrategy):
+            def select(self, order, fleet, graph):
+                calls.append((env.now, tuple(fleet)))
+                return super().select(order, fleet, graph)
+
+        coordinator._dispatch_strategy = CustomStrategy()
+        for _ in range(2):
+            coordinator.submit(coordinator.create_order(sku=sku_a, quantity=1, origin=origin, destination=destination))
+        env.run(until=3.5)
+        assert [t for t, _ in calls] == [0, 0, 1, 2, 3]
+        assert all(fleet == (agv,) for _, fleet in calls)
+
+    @pytest.mark.parametrize("default_metrics", [False, True])
+    def test_ema_alpha_option(self, default_metrics: bool) -> None:
+        env = Environment()
+        coordinator = FleetCoordinator(
+            env=env,
+            graph=LayoutGraph([], []),
+            fleet=[],
+            warehouses=[],
+            charging_stations=[],
+            ema_alpha=0.2,
+            default_metrics=default_metrics,
+        )
+        if default_metrics:
+            assert coordinator.metrics is not None and coordinator.metrics.alpha == 0.2
+        else:
+            assert coordinator.metrics is None
+
+
+@pytest.mark.parametrize("phase", ["queued", "granted"])
+@pytest.mark.parametrize("repeated", [False, True])
+def test_interrupted_timeout_entry_finishes_child_cleanup(
+    env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile, phase: str, repeated: bool
+) -> None:
+    import simpy
+
+    coordinator, agv, _, _ = _build_simple_system(env, sku_a, simple_speed)
+    traffic = ResourceBasedTrafficManager(graph=coordinator.graph, env=env, deadlock_timeout=30)
+    coordinator._traffic_manager = traffic
+    target = next(node for node in coordinator.graph.nodes if node.id == "CORRIDOR")
+    holder = AGV(env=env, agv_type=agv.agv_type, initial_node=target)
+    if phase == "queued":
+        traffic.place_now(holder, target)
+    env.run()
+    start = agv.current_node
+    assert start is not None
+    causes = []
+
+    def travel():
+        try:
+            yield from coordinator._travel(agv, start, target, loaded=False)
+        except simpy.Interrupt as interruption:
+            causes.append(interruption.cause)
+
+    process = env.process(travel())
+    env.step()  # the parent creates its entry child
+    env.step()  # the child requests the target; its grant has not resumed it yet
+    process.interrupt("cancelled")
+    if repeated:
+        process.interrupt("another_interrupt")
+    env.run()
+
+    assert causes == ["cancelled"]
+    assert agv.current_node is start
+    assert not traffic._pending_requests and not traffic._waiting and not traffic._intents
+    assert (agv, target) not in traffic._node_requests
+    assert traffic._node_resources[target].count == (1 if phase == "queued" else 0)
+    assert not traffic._node_resources[target].queue
+    binding = env.entities.node_binding(target)
+    assert binding is not None
+    assert binding.reserved_by == ([holder.id] if phase == "queued" else [])
+
+
+def test_timeout_entry_consumes_custom_manager_child_interrupt(
+    env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+) -> None:
+    import simpy
+
+    coordinator, agv, _, _ = _build_simple_system(env, sku_a, simple_speed)
+
+    class InterruptibleEntry(FreeTrafficManager):
+        def enter_node(self, agv, node):
+            yield env.timeout(10)
+
+    coordinator._traffic_manager = InterruptibleEntry()
+    env.run()
+    target = next(node for node in coordinator.graph.nodes if node.id == "CORRIDOR")
+    causes = []
+
+    def enter():
+        try:
+            yield from coordinator._enter_with_timeout(agv, target, 30, destination=target)
+        except simpy.Interrupt as interruption:
+            causes.append(interruption.cause)
+
+    process = env.process(enter())
+    env.step()
+    env.step()
+    process.interrupt("cancelled")
+    env.run()
+    assert causes == ["cancelled"]

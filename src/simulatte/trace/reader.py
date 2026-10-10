@@ -395,7 +395,11 @@ class Trace:
 
     def _build_catalog(self) -> None:
         def build() -> tuple[
-            dict[str, CatalogEntry], dict[str, frozenset[str]], dict[str, float], dict[str, list[KpiPoint]]
+            dict[str, CatalogEntry],
+            dict[str, frozenset[str]],
+            dict[str, float],
+            dict[str, list[KpiPoint]],
+            dict[str, FrozenMap],
         ]:
             catalog = {str(name): CatalogEntry.from_wire(entry) for name, entry in self._header["catalog"].items()}
             kinds = {
@@ -406,11 +410,51 @@ class Trace:
                 kinds.update(
                     {str(kind): StateSchema.from_wire(schema).presentation for kind, schema in ext["kinds"].items()}
                 )
+            declarations: dict[str, FrozenMap] = {}
             scalars: dict[str, float] = {}
             series: dict[str, list[KpiPoint]] = {}
             for record in self._kpi_records:
                 if type(record) is not FrozenMap:
                     raise TypeError("a KPI record is a map")
+                if "declarations" in record:
+                    value = record["declarations"]
+                    if type(value) is not FrozenMap:
+                        raise TypeError("KPI declarations are a map")
+                    from simulatte.kpi import KPI
+
+                    for key, declaration in value.items():
+                        if key in declarations:
+                            raise ValueError(f"duplicate KPI declaration {key!r}")
+                        if type(declaration) is not FrozenMap:
+                            raise TypeError("a KPI declaration is a map")
+                        fields = {
+                            "name",
+                            "unit",
+                            "kind",
+                            "observation",
+                            "cohort",
+                            "aggregation",
+                            "clip",
+                            "censoring",
+                            "ema_reset",
+                            "empty",
+                            "description",
+                        }
+                        if set(declaration) != fields:
+                            raise ValueError("a KPI declaration must contain every declared metadata field")
+                        for field in ("name", "unit", "observation", "aggregation", "description"):
+                            if type(declaration[field]) is not str:
+                                raise TypeError(f"KPI {field} must be a string")
+                        if type(declaration["ema_reset"]) is not bool:
+                            raise TypeError("KPI ema_reset must be a bool")
+                        if declaration["empty"] is not None:
+                            _wire_real(declaration["empty"])
+                        if type(declaration["kind"]) is not tuple:
+                            raise TypeError("KPI kind must be an array")
+                        kpi = KPI(**dict(declaration))
+                        if not key.endswith("/" + kpi.name) or key == "/" + kpi.name:
+                            raise ValueError("a KPI key must be scope/name matching its declaration")
+                        declarations[key] = declaration
                 if "scalars" in record:
                     if type(record["scalars"]) is not FrozenMap:
                         raise TypeError("KPI scalars are a map")
@@ -423,13 +467,14 @@ class Trace:
                         raise TypeError(f"a KPI sample key is not a string: {key!r}")
                     cursor = _wire_cursor((t, seq))
                     series.setdefault(key, []).append((cursor, _wire_real(value)))
-            return catalog, kinds, scalars, series
+            return catalog, kinds, scalars, series, declarations
 
         built = _decoded(build, "catalog or KPI record")
         self._catalog: dict[str, CatalogEntry] = built[0]
         self._kind_presentation: dict[str, frozenset[str]] = built[1]
         self._kpis: dict[str, float] = built[2]
         self._kpi_series: dict[str, list[KpiPoint]] = built[3]
+        self._kpi_declarations = FrozenMap(built[4])
 
     # -------------------------------------------------------------------------
     # Metadata
@@ -491,6 +536,14 @@ class Trace:
         else:
             end = self._index[-1].last if self._index else start
         return start, max(start, end)
+
+    @property
+    def kpi_declarations(self) -> FrozenMap:
+        """Immutable KPI metadata keyed by ``scope/name``; empty for older traces.
+
+        Each declaration includes its unit, kind, description and observation semantics.
+        """
+        return self._kpi_declarations
 
     def kpis(self) -> dict[str, float]:
         """The KPI scalars of the ``KPI`` records, later records overriding earlier ones."""

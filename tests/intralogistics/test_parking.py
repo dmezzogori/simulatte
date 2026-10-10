@@ -173,3 +173,38 @@ class TestRepr:
         r = repr(area)
         assert "Main-Parking" in r
         assert "ParkingArea" in r
+
+
+@pytest.mark.parametrize("capacity", [1, 2])
+def test_enter_already_parked_is_noop(env: Environment, parking_node: Node, agv_type: AGVType, capacity: int) -> None:
+    area = ParkingArea(env=env, name="P", node=parking_node, capacity=capacity)
+    agv = _make_agv(env, agv_type)
+
+    def park_twice() -> ProcessGenerator:
+        yield from area.enter(agv)
+        original = area._agv_requests[agv]
+        yield from area.enter(agv)
+        assert area._agv_requests[agv] is original
+        assert area.available_capacity == capacity - 1
+        area.leave(agv)
+
+    process = env.process(park_twice())
+    env.run()
+    assert process.triggered
+    assert area.available_capacity == capacity
+    assert not area._resource.queue
+
+
+def test_simultaneous_entries_do_not_replace_occupied_slot(
+    env: Environment, parking_node: Node, agv_type: AGVType
+) -> None:
+    area = ParkingArea(env=env, name="P", node=parking_node, capacity=2)
+    agv = _make_agv(env, agv_type)
+    first = env.process(area.enter(agv))
+    second = env.process(area.enter(agv))
+    env.run()
+    assert first.triggered and second.triggered
+    assert area.available_capacity == 1
+    area.leave(agv)
+    env.run()
+    assert area.available_capacity == 2

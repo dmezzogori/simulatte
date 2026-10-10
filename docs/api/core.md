@@ -12,37 +12,44 @@ See the [architecture diagram](../introduction/architecture.md) for how these ob
 ::: simulatte.environment.Environment
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.shopfloor.ShopFloor
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.server.Server
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.job.ProductionJob
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.router.Router
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.psp.PreShopPool
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.runner.Runner
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ## Extension points
 
@@ -85,7 +92,8 @@ with `default_metrics=False`.
 ::: simulatte.collectors.ShopFloorTimeSeries
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.collectors.CurrentWorkloadCollector
     options:
@@ -95,7 +103,8 @@ with `default_metrics=False`.
 ::: simulatte.collectors.ServerTimeSeries
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.collectors.ShopFloorKPIs
     options:

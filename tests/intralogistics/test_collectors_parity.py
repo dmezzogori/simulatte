@@ -6,7 +6,11 @@
 :class:`FleetTimeSeries`; the examples run as they are, with :class:`FleetTimeSeries` replaced by a recording
 subclass. Inventory snapshots were recorded keyed by warehouse id and SKU id, as the new series keys them.
 
-Every series and EMA is compared exactly. The event mapping that reproduces the old callbacks:
+The historical example series and EMAs are compared exactly. The seeded simple systems include
+breakdowns and cancellations: their corrected outputs live in ``fleet_recovery_regression.json`` because
+#47/#49/#50/#51 intentionally change mission recovery. The original parity fixture remains unchanged.
+
+The event mapping that reproduces the old callbacks:
 
 - ``fleet_utilization_ts``: one point per ``agv.state_changed`` of a fleet AGV (the old callback ran after every
   state change the coordinator made, which are all the state changes in these systems), the mean utilization of
@@ -37,6 +41,7 @@ from simulatte.intralogistics.fleet import FleetCoordinator
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "tests" / "fixtures" / "fleet_collector_parity.json"
 DOCUMENT = json.loads(FIXTURE.read_text(encoding="utf-8"))
+RECOVERY = json.loads((FIXTURE.parent / "fleet_recovery_regression.json").read_text(encoding="utf-8"))
 HORIZON = DOCUMENT["horizon"]
 EMA_FIELDS = (
     "ema_fulfillment_time",
@@ -60,8 +65,8 @@ def _record(metrics: OrderEMACollector, series: FleetTimeSeries) -> dict[str, An
     }
 
 
-def _assert_parity(name: str, recorded: dict[str, Any]) -> None:
-    old = DOCUMENT["systems"][name]
+def _assert_parity(name: str, recorded: dict[str, Any], expected: dict[str, Any] = DOCUMENT) -> None:
+    old = expected["systems"][name]
     assert recorded["ema"] == old["ema"]
     for attribute in ("fleet_utilization_ts", "pending_orders_ts", "throughput_ts", "inventory_ts"):
         assert recorded[attribute] == old[attribute], f"{name} {attribute}"
@@ -119,8 +124,8 @@ def _simple_system(seed: int) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])
-def test_parity_simple_system(seed: int) -> None:
-    _assert_parity(f"simple-{seed}", _simple_system(seed))
+def test_recovery_regression_simple_system(seed: int) -> None:
+    _assert_parity(f"simple-{seed}", _simple_system(seed), RECOVERY)
 
 
 @pytest.mark.parametrize("name", ["intermediate", "advanced"])

@@ -212,7 +212,8 @@ built with `default_metrics=False`.
 ::: simulatte.intralogistics.FleetTimeSeries
     options:
       heading_level: 3
-      members: true
+      members: null
+      filters: ["!^_"]
 
 ::: simulatte.intralogistics.FleetKPIs
     options:
@@ -225,3 +226,14 @@ built with `default_metrics=False`.
     options:
       heading_level: 3
       members: false
+
+## Cancellation and recovery
+
+Cancelling a terminal order is a no-op, including a completed order whose AGV is still repositioning.
+When `ReturnToOrigin` successfully returns cargo after an interruption, the order goes back into the pending queue.
+Interrupts received during recovery are merged until rollback finishes; cancellation remains terminal.
+Idle callbacks run after the previous mission's ownership and order retirement have been updated.
+
+Interrupted charging and battery swaps release granted slots or cancel waiting requests. A swap interrupted before
+installation returns its battery to the pool. Traffic waits propagate mission interruptions even with
+`deadlock_timeout=None`. Entering a parking area again for the same parked AGV keeps its existing slot.

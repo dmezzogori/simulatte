@@ -379,3 +379,24 @@ class TestBuiltSystemPolicyField:
         assert shop_floor is not None
         assert router is not None
         assert isinstance(policy, ConWIP)
+
+
+@pytest.mark.parametrize(
+    "builder,kwargs",
+    [
+        (build_immediate_release_system, {}),
+        (build_focus_system, {}),
+        (build_lumscor_system, {"check_timeout": 5.0, "wl_norm_level": 6.0, "allowance_factor": 2}),
+        (build_slar_system, {"allowance_factor": 2}),
+        (build_slar_limit_system, {"allowance_factor": 2, "wl_norm_level": 6.0}),
+        (build_draco_system, {"wip_target": 10.0, "loop_target": 2.0}),
+        (build_conwip_system, {"wip_cap": 3}),
+        (build_continuous_release_system, {"wl_norm_level": 6.0}),
+        (build_starvation_avoidance_system, {}),
+    ],
+)
+def test_builders_can_disable_default_metrics(builder, kwargs) -> None:
+    with Environment() as env:
+        system = builder(env=env, default_metrics=False, **kwargs)
+        assert system.shop_floor.metrics is None
+        assert not env.collectors

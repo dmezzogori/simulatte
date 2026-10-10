@@ -235,7 +235,8 @@ class ReturnToOrigin:
     """Signal the coordinator to return cargo to the origin warehouse.
 
     Sets order status to PENDING. Physical travel and inventory return
-    are handled by the coordinator's _return_cargo_to_origin().
+    are handled by the coordinator, which re-queues the order after a successful
+    return. A failed return leaves the order FAILED.
     """
 
     def recover(

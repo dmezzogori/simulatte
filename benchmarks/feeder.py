@@ -125,13 +125,15 @@ def default_label() -> str:
     return "head" if has_trace() else f"simulatte {version('simulatte')}"
 
 
-def _new_environment() -> Any:
+def _new_environment(log_file: Path | None = None) -> Any:
     # The branch draws a seed from os.urandom when none is given; the feeder draws nothing, but a fixed seed keeps
     # the manifest stable. 0.12.0 has no seed parameter.
-    return Environment(seed=0) if _ENV_ACCEPTS_SEED else Environment()
+    return Environment(seed=0, log_file=log_file) if _ENV_ACCEPTS_SEED else Environment(log_file=log_file)
 
 
-def _feed(env: Any, rows: list[list[Any]], servers: list[Any], psp: Any, priority: Any) -> Generator[Any, Any, None]:
+def _feed(
+    env: Any, rows: list[list[Any]], servers: list[Any], psp: Any, priority: Any, log_info: bool = False
+) -> Generator[Any, Any, None]:
     for arrival, sku, routing, times, due in rows:
         delay = arrival - env.now
         if delay > 0:
@@ -145,6 +147,8 @@ def _feed(env: Any, rows: list[list[Any]], servers: list[Any], psp: Any, priorit
             priority_policy=priority,
         )
         psp.add(job)
+        if log_info:
+            env.info(f"arrived {sku}", component="benchmark")
 
 
 def _new_shopfloor(env: Any, *, metrics: bool) -> Any:
@@ -173,7 +177,9 @@ def _check_logging(env: Any, *, active: bool) -> None:
             raise RuntimeError(f"0.12.0's default log level should be INFO, found {level}")
 
 
-def run(workload: Workload, *, mode: str = "none", trace_path: str | Path | None = None) -> RunResult:
+def run(
+    workload: Workload, *, mode: str = "none", trace_path: str | Path | None = None, log_info: bool = False
+) -> RunResult:
     """Build the shop, replay `workload` until its horizon and close the environment, timing all of it.
 
     Raises `RuntimeError` if a job is still unfinished at the horizon or the counts disagree with the workload.
@@ -187,7 +193,8 @@ def run(workload: Workload, *, mode: str = "none", trace_path: str | Path | None
     rows = workload.jobs
     gc.collect()
     start = time.perf_counter()
-    env = _new_environment()
+    log_file = Path(trace_path).with_suffix(".log") if log_info and trace_path is not None else None
+    env = _new_environment(log_file)
     if mode == "digest":
         env.enable_digest()
     elif mode in ("full", "kpi"):
@@ -214,7 +221,7 @@ def run(workload: Workload, *, mode: str = "none", trace_path: str | Path | None
         check_timeout=CHECK_TIMEOUT,
         allowance_factor=ALLOWANCE_FACTOR,
     )
-    env.process(_feed(env, rows, servers, psp, router.priority_policies))
+    env.process(_feed(env, rows, servers, psp, router.priority_policies, log_info))
     _check_logging(env, active=mode != "bare")  # before close(), which closes the sinks
     env.run(until=workload.horizon)
     env.close()

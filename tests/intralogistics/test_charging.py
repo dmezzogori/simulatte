@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+import simpy
 from simpy.events import ProcessGenerator
 
 from simulatte.environment import Environment
@@ -329,3 +330,90 @@ class TestChargingStationMetrics:
         assert station.total_swaps == 1
         # occupied_time: 50 + 40 + 2 = 92
         assert station.total_occupied_time == pytest.approx(92.0)
+
+
+@pytest.mark.parametrize("mode", ["recharge", "swap"])
+@pytest.mark.parametrize("phase", ["queued", "granted", "active"])
+def test_interrupted_operation_releases_slot(
+    env: Environment, charging_node: Node, agv_type: AGVType, mode: str, phase: str
+) -> None:
+    station = ChargingStation(
+        env=env,
+        name="CS",
+        node=charging_node,
+        n_slots=1,
+        recharge_time=10.0,
+        supports_swap=True,
+        swap_pool_size=1,
+        swap_time=10.0,
+    )
+    interrupted = _make_agv(env, agv_type, 20.0)
+    follower = _make_agv(env, agv_type, 30.0)
+    operation = station.recharge if mode == "recharge" else station.swap
+    causes = []
+
+    def run_interrupted() -> ProcessGenerator:
+        try:
+            yield from operation(interrupted)
+        except simpy.Interrupt as exc:
+            causes.append(exc.cause)
+
+    if phase == "queued":
+        holder = _make_agv(env, agv_type, 40.0)
+        env.process(station.recharge(holder))
+    process = env.process(run_interrupted())
+    env.activate()
+    if phase == "granted":
+        env.step()  # slot granted by Initialize, before the process resumes
+    else:
+        env.run(until=1.0)
+    process.interrupt("breakdown")
+    follower_process = env.process(operation(follower))
+    env.run()
+
+    assert causes == ["breakdown"]
+    assert interrupted.battery.level == 20.0
+    assert follower_process.triggered
+    assert follower.battery.level == 100.0
+    assert station._slots.count == 0
+    assert not station._slots.queue
+    assert station._swap_pool is not None
+    assert station._swap_pool.level == 1
+
+
+@pytest.mark.parametrize("phase", ["queued", "granted"])
+def test_interrupted_swap_preserves_pool(env: Environment, charging_node: Node, agv_type: AGVType, phase: str) -> None:
+    station = ChargingStation(
+        env=env,
+        name="CS",
+        node=charging_node,
+        n_slots=1,
+        supports_swap=True,
+        swap_pool_size=0,
+        swap_time=10.0,
+    )
+    agv = _make_agv(env, agv_type, 20.0)
+
+    def swap() -> ProcessGenerator:
+        try:
+            yield from station.swap(agv)
+        except simpy.Interrupt:
+            pass
+
+    process = env.process(swap())
+    env.run(until=1.0)
+    pool = station._swap_pool
+    assert pool is not None
+    if phase == "granted":
+        pool.put(1)
+        env.step()  # get granted by the put callback, before swap resumes
+    process.interrupt("breakdown")
+    env.run()
+    if phase == "queued":
+        pool.put(1)
+        env.run()
+    assert pool.level == 1
+    assert not pool.get_queue
+    assert station._slots.count == 0
+    assert agv.battery.level == 20.0
+    assert station.total_swaps == 0

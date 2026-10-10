@@ -252,6 +252,7 @@ class Scenario:
         env: Environment,
         *,
         prefix: str = "",
+        default_metrics: bool = True,
         collect_workload: bool = False,
         collect_time_series: bool = False,
         retain_job_history: bool = False,
@@ -263,7 +264,7 @@ class Scenario:
         :class:`~simulatte.collectors.CurrentWorkloadCollector` to the shop floor and `collect_time_series` a
         :class:`~simulatte.collectors.ServerTimeSeries` to each server; ``env.collectors`` lists them.
         """
-        shop_floor = ShopFloor(env=env, name=f"{prefix}shopfloor")
+        shop_floor = ShopFloor(env=env, name=f"{prefix}shopfloor", default_metrics=default_metrics)
         servers = tuple(
             Server(
                 env=env,

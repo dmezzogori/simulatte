@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { encode } from "@msgpack/msgpack";
+import { pack as encode } from "./build";
 import {
   NotPreparedError,
   TraceCorrupted,

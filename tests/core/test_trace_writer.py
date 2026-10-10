@@ -993,3 +993,45 @@ def test_unsupported_or_nan_time_raises_at_the_first_recorded_event(
     if observe == "trace":
         trace = Trace.open(tmp_path / "t.simtrace")
         assert trace.outcome == "failed" and trace.cursor_range == ((0.0, -1), (0.0, -1))
+
+
+@pytest.mark.parametrize("level", ["full", "kpi"])
+@pytest.mark.parametrize("preactivation", [False, True])
+def test_kpi_latency_publishes_without_close(
+    tmp_path: Path, make_recorder: Callable[..., TraceRecorder], level: str, preactivation: bool
+) -> None:
+    from simulatte.events import KpiSample
+
+    path = tmp_path / "latency.simtrace"
+    clock = FakeClock()
+    env = Environment(seed=1)
+    rec = make_recorder(env, path, level=level, clock=clock)
+    if not preactivation:
+        env.activate()
+    env.emit(KpiSample(kpi="queue", scope="shop", value=2.0))
+    if preactivation:
+        env.activate()
+    assert clock.read_by_writer.wait(10)
+    clock.now += 1.5
+    with rec._cond:
+        rec._cond.notify_all()
+        assert rec._cond.wait_for(lambda: not rec._samples and rec._pending == 0, timeout=10)
+    records = _read(path)
+    assert records[-1].type == RecordType.KPI
+    assert [r.type for r in records].index(RecordType.INITIAL) < len(records) - 1
+    assert Trace.open(path).kpi_series()["shop/queue"][0][1] == 2.0
+    rec.close()
+
+
+def test_empty_delta_reports_value_error() -> None:
+    with pytest.raises(ValueError, match="empty delta operation"):
+        apply_deltas({}, Deltas(((),)))
+
+
+def test_empty_delta_names_event_outside_debug(tmp_path: Path, make_recorder: Callable[..., TraceRecorder]) -> None:
+    env = Environment(seed=1)
+    rec = make_recorder(env, tmp_path / "empty.simtrace")
+    env.activate()
+    with pytest.raises(ValueError, match="test.trace_set: an empty delta operation"):
+        env.emit(GaugeSet(gauge="g", level=1.0, deltas=Deltas(((),))))
+    rec.close()

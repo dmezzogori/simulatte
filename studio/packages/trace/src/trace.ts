@@ -51,14 +51,14 @@ export class NotPreparedError extends Error {
 
 /** An entry of the chunk index: where the `CHUNK` record is and which events it holds. */
 export interface ChunkInfo {
-  offset: number;
+  readonly offset: number;
   /** Size of the record including its framing. */
-  length: number;
-  first: Cursor;
-  last: Cursor;
-  tStart: number;
-  tEnd: number;
-  epoch: number;
+  readonly length: number;
+  readonly first: Cursor;
+  readonly last: Cursor;
+  readonly tStart: number;
+  readonly tEnd: number;
+  readonly epoch: number;
 }
 
 /** A recorded domain event: `[seq, ordinal, type, t, payload, deltas]` as stored in a chunk. */
@@ -70,6 +70,9 @@ export interface TraceEvent {
   payload: Wire;
   deltas: readonly Op[];
 }
+
+/** Recorded KPI declaration metadata represented as immutable wire values. */
+export type KpiDeclaration = Readonly<Record<string, Wire>>;
 
 export interface OpenOptions {
   /** Overrides of the default {@link ReaderLimits}. */
@@ -111,16 +114,25 @@ export async function openTrace(source: Blob | ArrayBuffer, options: OpenOptions
 }
 
 export class Trace {
-  /** The decoded `HEADER` record. */
-  header: Readonly<Dict> = {};
+  #header: Readonly<Dict> = Object.freeze(newMap());
+  #level = "";
+  #index: readonly ChunkInfo[] = Object.freeze([]);
+  #truncated = false;
+  #outcome: string | null = null;
+  readonly #kpiDeclarations: Record<string, KpiDeclaration> = Object.create(null) as Record<string, KpiDeclaration>;
+
+  /** The decoded `HEADER` record; nested maps and arrays are frozen. */
+  get header(): Readonly<Dict> { return this.#header; }
   /** The recording level, `"full"` or `"kpi"`. */
-  level = "";
-  /** The visible chunks, in file order. */
-  index: readonly ChunkInfo[] = [];
-  /** Whether the file ends with an incomplete tail (or lacks its trailer) that was ignored. */
-  truncated = false;
+  get level(): string { return this.#level; }
+  /** The visible chunks, in file order; entries and their cursors are frozen. */
+  get index(): readonly ChunkInfo[] { return this.#index; }
+  /** Whether an incomplete tail (or missing trailer) was ignored. */
+  get truncated(): boolean { return this.#truncated; }
   /** How the run ended (`completed`, `cancelled`, `failed`); null without a footer. */
-  outcome: string | null = null;
+  get outcome(): string | null { return this.#outcome; }
+  /** KPI declaration metadata, keyed by `scope/name`; empty in older traces. All nested values are frozen. */
+  get kpiDeclarations(): Readonly<Record<string, KpiDeclaration>> { return this.#kpiDeclarations; }
 
   #initial: State | null = null;
   #activation: Cursor | null = null;
@@ -155,10 +167,10 @@ export class Trace {
       const scan = await this.scan(PREAMBLE_SIZE, source.size, false, true);
       this.takeHead(scan);
       checkIndex(scan.index, PREAMBLE_SIZE, scan.stop);
-      this.index = scan.index;
+      this.#index = Object.freeze(scan.index);
       this.#footer = scan.footer;
       // A footer without its trailer: the trailer is missing or cut, an incomplete tail.
-      this.truncated = scan.truncated || scan.footer !== null;
+      this.#truncated = scan.truncated || scan.footer !== null;
     } else {
       const [footerOffset, footer] = located;
       this.#footer = footer;
@@ -167,7 +179,7 @@ export class Trace {
       const index = malformed("footer", () => arrayOf(field(footer, "index")).map(chunkInfo));
       malformed("footer", () => arrayOf(field(footer, "epochs")).map((offset) => integer(offset, "epoch offset")));
       checkIndex(index, head.stop, footerOffset);
-      this.index = index;
+      this.#index = Object.freeze(index);
       // The tail holds the last chunk, its index and late catalog extensions.
       const last = index[index.length - 1];
       const tailStart = last?.offset ?? head.stop;
@@ -177,12 +189,12 @@ export class Trace {
       }
       // KPI records may also sit between earlier chunks; they are checked like the Python reader checks them.
       await this.checkKpis(head.stop, tailStart);
-      this.truncated = false;
+      this.#truncated = false;
     }
     const footer = this.#footer;
     if (footer !== null) {
       malformed("footer", () => {
-        this.outcome = string(field(footer, "outcome"), "outcome");
+        this.#outcome = string(field(footer, "outcome"), "outcome");
         asCursor(field(footer, "cursor"));
         field(footer, "manifest");
         const fingerprint = mapOf(field(footer, "fingerprint"), "fingerprint");
@@ -191,6 +203,7 @@ export class Trace {
       });
     }
     this.#firsts = this.index.map((info) => info.first);
+    Object.freeze(this.#kpiDeclarations);
   }
 
   /**
@@ -205,7 +218,7 @@ export class Trace {
     let end: Cursor = start;
     if (this.#footer !== null && this.level === "full") end = asCursor(this.#footer["cursor"]);
     else if (this.index.length > 0) end = this.index[this.index.length - 1]!.last;
-    return [start, compare(end, start) > 0 ? end : start];
+    return Object.freeze([start, compare(end, start) > 0 ? end : start] as const);
   }
 
   /**
@@ -357,7 +370,7 @@ export class Trace {
       } else if (type === RecordType.CATALOG_EXT) {
         scan.exts.set(pos, this.decode(data, "a CATALOG_EXT record"));
       } else if (type === RecordType.KPI) {
-        malformed("KPI record", () => kpiRecord(this.decode(data, "a KPI record")));
+        malformed("KPI record", () => kpiRecord(this.decode(data, "a KPI record"), this.#kpiDeclarations));
       } else if (type === RecordType.PRELUDE) {
         this.decode(data, "a PRELUDE record");
       } else if (type === RecordType.FOOTER) {
@@ -378,7 +391,7 @@ export class Trace {
     malformed("header or initial record", () => {
       const features = mapOf(field(header, "features"), "features");
       const required = arrayOf(field(features, "required")).map((name) => string(name, "feature"));
-      this.level = string(field(header, "level"), "level");
+      this.#level = string(field(header, "level"), "level");
       mapOf(field(header, "manifest"), "manifest");
       if (initial !== null) {
         this.#initial = stateOf(field(initial, "state"));
@@ -390,7 +403,7 @@ export class Trace {
         throw new UnsupportedTrace(`the trace requires features this reader does not support: ${unknown.sort().join(", ")}`);
       }
     });
-    this.header = header;
+    this.#header = header;
   }
 
   /** Check the `KPI` records between `start` and `end`, walking the frames of the other records. */
@@ -403,7 +416,7 @@ export class Trace {
       if (frame.type === RecordType.KPI) {
         const data = await readPayload(source, pos, frame);
         if (data === null) throw new TraceCorrupted(`KPI record at offset ${pos} fails its CRC check`);
-        malformed("KPI record", () => kpiRecord(this.decode(data, "a KPI record")));
+        malformed("KPI record", () => kpiRecord(this.decode(data, "a KPI record"), this.#kpiDeclarations));
       }
       pos += FRAME_SIZE + frame.length;
     }
@@ -510,9 +523,41 @@ function time(value: unknown, what: string): number {
  * Check a `KPI` record as the Python reader reads it: a map with optional `scalars` (a map) and `samples` (an array of
  * `[seq, t, key, value]`: an integer, a time that is not NaN, a string and a number).
  */
-function kpiRecord(value: unknown): void {
+function kpiRecord(value: unknown, declarations: Record<string, KpiDeclaration>): void {
   const record = mapOf(value, "KPI record");
   if (Object.hasOwn(record, "scalars")) mapOf(field(record, "scalars"), "KPI scalars");
+  if (Object.hasOwn(record, "declarations")) {
+    const added = mapOf(field(record, "declarations"), "KPI declarations");
+    for (const key of Object.keys(added)) {
+      if (Object.hasOwn(declarations, key)) throw new TypeError(`duplicate KPI declaration ${JSON.stringify(key)}`);
+      const declaration = mapOf(field(added, key), "KPI declaration");
+      const fields = ["name", "unit", "kind", "observation", "cohort", "aggregation", "clip", "censoring", "ema_reset", "empty", "description"];
+      if (Object.keys(declaration).length !== fields.length || fields.some((name) => !Object.hasOwn(declaration, name))) {
+        throw new TypeError("a KPI declaration must contain every declared metadata field");
+      }
+      const name = string(field(declaration, "name"), "KPI name");
+      if (!name || name.includes("/") || name.includes("\0") || !key.endsWith(`/${name}`) || key === `/${name}`) {
+        throw new TypeError("KPI declaration key must end in /name, with a nonempty name without slash or NUL");
+      }
+      for (const label of ["unit", "description", "observation", "aggregation"]) string(field(declaration, label), label);
+      const kinds = arrayOf(field(declaration, "kind"));
+      if (!kinds.length || new Set(kinds).size !== kinds.length || kinds.some((kind) => kind !== "scalar" && kind !== "series")) {
+        throw new TypeError("KPI kind must contain scalar, series or both, without duplicates");
+      }
+      for (const [label, allowed] of [
+        ["cohort", ["completed_in_window", "arrived_in_window", "all"]],
+        ["clip", ["none", "window"]],
+        ["censoring", ["exclude", "include"]],
+      ] as const) {
+        const text = string(field(declaration, label), label);
+        if (!(allowed as readonly string[]).includes(text)) throw new TypeError(`invalid KPI ${label}`);
+      }
+      if (typeof field(declaration, "ema_reset") !== "boolean") throw new TypeError("KPI ema_reset must be boolean");
+      const empty = field(declaration, "empty");
+      if (empty !== null) real(empty, "KPI empty");
+      defineKey(declarations, key, declaration);
+    }
+  }
   if (!Object.hasOwn(record, "samples")) return;
   for (const sample of arrayOf(field(record, "samples"))) {
     const items = arrayOf(sample);
@@ -534,12 +579,12 @@ function asCursor(value: unknown, error: new (message: string) => Error = TypeEr
   ) {
     throw new error(`a cursor is a [t, seq] pair of numbers, got ${JSON.stringify(value)}`);
   }
-  return [value[0], value[1] as number];
+  return Object.freeze([value[0], value[1] as number] as const);
 }
 
 function chunkInfo(entry: unknown): ChunkInfo {
   const map = mapOf(entry, "index entry");
-  return {
+  return Object.freeze({
     offset: integer(field(map, "offset"), "offset"),
     length: integer(field(map, "length"), "length"),
     first: asCursor(field(map, "first")),
@@ -547,7 +592,7 @@ function chunkInfo(entry: unknown): ChunkInfo {
     tStart: time(field(map, "t_start"), "t_start"),
     tEnd: time(field(map, "t_end"), "t_end"),
     epoch: integer(field(map, "epoch"), "epoch"),
-  };
+  });
 }
 
 function traceEvent(entry: unknown): TraceEvent {

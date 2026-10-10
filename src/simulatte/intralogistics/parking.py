@@ -56,20 +56,28 @@ class ParkingArea(Entity, kind="parking_area"):
     def enter(self, agv: AGV) -> ProcessGenerator:
         """Request a parking slot. Blocks if the area is full.
 
-        Emits ``parking.entered`` once the slot is obtained. An AGV that enters again without leaving keeps its
-        place in ``parked`` (its new slot replaces the tracked one), so that event carries no delta.
+        Emits ``parking.entered`` once the slot is obtained. Entering again for an already parked AGV is a
+        no-op: it keeps its original slot and emits no event.
         """
+        if agv in self._agv_requests:
+            return
         req = self._resource.request()
         yield req
         requests = self._agv_requests
-        new = agv not in requests
+        if agv in requests:
+            # Another enter call for this AGV may have completed while we waited.
+            self._resource.release(req)
+            return
         requests[agv] = req
         env = self.env
         if env.wants(ParkingEntered):
-            build = Deltas.build()
-            if new:
-                build.insert(self.id, "parked", len(requests) - 1, agv.id)
-            env.emit(ParkingEntered(area=self.id, agv=agv.id, deltas=build.done()))
+            env.emit(
+                ParkingEntered(
+                    area=self.id,
+                    agv=agv.id,
+                    deltas=Deltas.build().insert(self.id, "parked", len(requests) - 1, agv.id).done(),
+                )
+            )
 
     def leave(self, agv: AGV) -> None:
         """Release the parking slot held by *agv*.

@@ -108,12 +108,12 @@ class ChargingStation(Entity, kind="charging_station"):
         """Acquire a slot, recharge the AGV battery, and release the slot.
 
         Uses the station's ``recharge_time`` if set, otherwise falls back to the
-        AGV battery's own ``recharge_time`` method.
+        AGV battery's own ``recharge_time`` method. Interrupting the operation cancels its waiting request or
+        releases its granted slot.
         """
         req = _SlotRequest(self._slots, agv, "recharge")
-        yield req
-
         try:
+            yield req
             target_level = target_pct * agv.battery.capacity
 
             if target_level <= agv.battery.level:
@@ -136,28 +136,38 @@ class ChargingStation(Entity, kind="charging_station"):
             self.total_occupied_time += occupied
             self.total_recharges += 1
         finally:
-            self._slots.release(req)
+            if req.triggered:
+                self._slots.release(req)
+            else:
+                req.cancel()
 
     def swap(self, agv: AGV) -> ProcessGenerator:
         """Swap the AGV's depleted battery with a pre-charged one from the pool.
 
-        Raises ``RuntimeError`` if this station does not support swapping.
+        Raises ``RuntimeError`` if this station does not support swapping. Interrupting before the swap
+        completes returns any reserved charged battery to the pool and releases or cancels the slot.
         """
         if not self.supports_swap:
             raise RuntimeError("Swap not supported by this station")
 
         req = _SlotRequest(self._slots, agv, "swap")
-        yield req
-
         try:
+            yield req
             start = self.env.now
 
             # Always wait for a battery to be available in the pool
             assert self._swap_pool is not None
-            yield self._swap_pool.get(1)
-
-            # Perform the swap (near-instant, takes swap_time)
-            yield self.env.timeout(self.swap_time)
+            battery = self._swap_pool.get(1)
+            try:
+                yield battery
+                # Until this wait completes the charged battery still belongs to the pool.
+                yield self.env.timeout(self.swap_time)
+            except BaseException:
+                if battery.triggered:
+                    self._swap_pool.put(1)
+                else:
+                    battery.cancel()
+                raise
 
             # Set AGV battery to full
             agv.battery.level = agv.battery.capacity
@@ -170,7 +180,10 @@ class ChargingStation(Entity, kind="charging_station"):
             # Kick off background recharge of the depleted battery
             self.env.process(self._replenish_pool())
         finally:
-            self._slots.release(req)
+            if req.triggered:
+                self._slots.release(req)
+            else:
+                req.cancel()
 
     def _battery_changed(self, agv: AGV) -> None:
         """Emit ``agv.battery_changed`` after a recharge or a swap changed the AGV's battery level."""

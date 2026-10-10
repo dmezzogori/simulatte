@@ -199,13 +199,17 @@ class TraceRecorder:
         self._last: tuple[float, int] = (0.0, -1)
         self._opened_at = 0.0
 
+        self._samples: list[bytes] = []
+        self._sample_bytes = 0
+        self._samples_opened_at = 0.0
+        self._samples_ready = False  # publish only after INITIAL has been queued
+
         # Simulation thread only.
         self._closed = False
+        self._known_collectors = 0
         self._last_seq = -1
         self._last_t = 0.0  # time of the last recorded chunk event (or of activation)
         self._subscription: Subscription | None = None
-        self._samples: list[bytes] = []  # encoded kpi.sample entries not yet published
-        self._sample_bytes = 0
         self._event_packer = new_packer()
         self._blocked_count = 0  # backpressure episodes: the first is logged, all are summarized at close()
         self._blocked_total = 0.0
@@ -308,27 +312,53 @@ class TraceRecorder:
             raise interrupted
 
     def _on_sample(self, event: KpiSample) -> None:
-        """Buffer a KPI sample; publish the buffer once the event-count or byte limit is reached."""
+        """Buffer a KPI sample; publish on the count, byte or wall-clock latency limit."""
         error = self._error  # read without the lock, as in _on_event
         if error is not None:
             raise error
+        if self._samples_ready:
+            self._sync_kpi_declarations()
         entry = pack((event.seq, wire_time(event.t), f"{event.scope}/{event.kpi}", event.value))
-        self._samples.append(entry)
-        self._sample_bytes += len(entry)
-        limits = self._limits
-        # Samples wait for activation, so that KPI records follow the INITIAL record.
-        if self._buf_type is RecordType.CHUNK and (
-            len(self._samples) >= limits.max_events or self._sample_bytes >= limits.max_bytes
-        ):
+        with self._cond:
+            if not self._samples:
+                self._samples_opened_at = self._clock()
+                self._cond.notify_all()
+            self._samples.append(entry)
+            self._sample_bytes += len(entry)
+            limits = self._limits
+            flush = self._samples_ready and (
+                len(self._samples) >= limits.max_events or self._sample_bytes >= limits.max_bytes
+            )
+        if flush:
             self._flush_samples()
+
+    def _sync_kpi_declarations(self) -> None:
+        collectors = self._env._collectors
+        if self._known_collectors == len(collectors):
+            return
+        declarations: Any = {
+            f"{collector._scope_id}/{name}": dataclasses.asdict(kpi)
+            for collector in collectors[self._known_collectors :]
+            for name, kpi in collector._declared.items()
+        }
+        self._known_collectors = len(collectors)
+        if declarations:
+            record: Any = {"declarations": declarations}
+            payload = pack(record)
+            self._enqueue("record", len(payload), (RecordType.KPI, payload))
+
+    def _seal_samples_locked(self) -> bytes:
+        samples, self._samples = self._samples, []
+        self._sample_bytes = 0
+        # Each thread needs its own MessagePack packer.
+        return b"".join([b"\x81", pack("samples"), new_packer().pack_array_header(len(samples)), *samples])
 
     def _flush_samples(self) -> None:
         """Publish the buffered KPI samples as a ``KPI`` record ``{"samples": [...]}``."""
-        samples = self._samples
-        self._samples = []
-        self._sample_bytes = 0
-        packer = self._event_packer
-        payload = b"".join([b"\x81", pack("samples"), packer.pack_array_header(len(samples)), *samples])
+        with self._cond:
+            if not self._samples:
+                return
+            payload = self._seal_samples_locked()
         self._enqueue("record", len(payload), (RecordType.KPI, payload))
 
     def _oversized(self, name: str, seq: int, size: int) -> None:
@@ -379,6 +409,10 @@ class TraceRecorder:
         }
         payload = pack(initial)
         self._enqueue("initial", len(payload), (payload, replay))
+        self._sync_kpi_declarations()
+        with self._cond:
+            self._samples_ready = True
+            self._cond.notify_all()
 
     def _seal_locked(self) -> _Batch:
         """Take the open buffer as a batch (the caller holds the lock and checked it is not empty)."""
@@ -474,6 +508,7 @@ class TraceRecorder:
                 self._enqueue("batch", batch.size, batch)
             if self._samples:
                 self._flush_samples()
+            self._sync_kpi_declarations()
             fingerprint = env.fingerprint()
             kpis: Any = dict(fingerprint.kpis)
             if kpis:
@@ -557,6 +592,15 @@ class TraceRecorder:
                     self._peak_pending = max(self._peak_pending, batch.size)
                     return ("batch", batch.size, batch)
                 timeout = remaining if math.isfinite(remaining) else None
+            if self._samples_ready and self._samples:
+                remaining = self._samples_opened_at + latency - self._clock()
+                if remaining <= 0:
+                    payload = self._seal_samples_locked()
+                    self._pending = len(payload)
+                    self._peak_pending = max(self._peak_pending, len(payload))
+                    return ("record", len(payload), (RecordType.KPI, payload))
+                if math.isfinite(remaining):
+                    timeout = remaining if timeout is None else min(timeout, remaining)
             cond.wait(timeout)
 
     def _write_item(self, kind: str, data: Any) -> bool:

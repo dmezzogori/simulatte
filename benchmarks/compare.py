@@ -45,16 +45,20 @@ def _check_comparable(base: dict[str, Any], head: dict[str, Any]) -> str | None:
         return "different interpreters"
     if base["workload"]["sha256"] != head["workload"]["sha256"]:
         return "different workloads"
+    if base.get("log_info", False) != head.get("log_info", False):
+        return "different logging workloads"
     if base["counts"] != head["counts"]:
         return f"different job/operation counts or trajectories: {base['counts']} vs {head['counts']}"
     return None
 
 
-def compare(base: dict[str, Any], head: dict[str, Any], *, budget: float, noise: float) -> tuple[str, bool]:
+def compare(
+    base: dict[str, Any], head: dict[str, Any], *, budget: float, noise: float, report_only: bool = False
+) -> tuple[str, bool]:
     """The Markdown row for the pair and whether the gate fails."""
     ratio = head["median_s"] / base["median_s"]
     overhead = ratio - 1
-    gated = base["mode"] == head["mode"] == "none"
+    gated = base["mode"] == head["mode"] == "none" and not report_only
     limit = budget + noise
     failed = gated and overhead > limit
     if gated:
@@ -80,6 +84,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--budget", type=float, help="allowed median overhead of mode none (required when both results are mode none)"
     )
+    parser.add_argument("--report-only", action="store_true", help="report without applying a performance gate")
     parser.add_argument("--noise", type=float, default=0.0, help="noise band added to the budget")
     parser.add_argument("--summary", help="also append the printed Markdown to this file")
     parser.add_argument("--no-header", action="store_true", help="print the row without the table header")
@@ -89,9 +94,9 @@ def main(argv: list[str] | None = None) -> int:
     if problem is not None:
         print(f"compare.py: {args.base} and {args.head} are not comparable: {problem}", file=sys.stderr)
         return 2
-    if base["mode"] == head["mode"] == "none" and args.budget is None:
+    if base["mode"] == head["mode"] == "none" and args.budget is None and not args.report_only:
         parser.error("--budget is required when both results are mode none (the gated comparison)")
-    row, failed = compare(base, head, budget=args.budget or 0.0, noise=args.noise)
+    row, failed = compare(base, head, budget=args.budget or 0.0, noise=args.noise, report_only=args.report_only)
     text = row if args.no_header else HEADER + row
     sys.stdout.write(text)
     if args.summary:
