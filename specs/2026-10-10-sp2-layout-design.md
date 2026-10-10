@@ -94,8 +94,9 @@ component graph references and graph traffic attributes are read-only. AGV movem
 enabled node objects (or None), never an equal copy. No-layout mutation behavior is unchanged (§10).
 
 No other contract change is intended. Two reviews are complete and triaged in the linked reports; revision 3
-addresses the second review's three findings. Targeted verification and Davide's approval remain pending;
-revision is not approval of A1–A5 or implementation.
+addresses the second review's three findings. Targeted verification confirmed those corrections, and its two
+minor documentation findings are corrected. Davide's approval remains pending; technical review is not approval
+of A1–A5 or implementation.
 
 ## 4. Data model and public surface
 
