@@ -167,8 +167,14 @@ import time
 
 import msgpack
 
-item = (1, "job.started", 1, 123.5, {"job": "job-1", "server": "wc-1"},
-        [("set", "job-1", "op_index", 2), ("add", "wc-1", "users", "job-1")])
+item = (
+    1,
+    "job.started",
+    1,
+    123.5,
+    {"job": "job-1", "server": "wc-1"},
+    [("set", "job-1", "op_index", 2), ("add", "wc-1", "users", "job-1")],
+)
 packer = msgpack.Packer(use_bin_type=True)
 packed = packer.pack(item)
 size = struct.pack(">Q", len(packed))

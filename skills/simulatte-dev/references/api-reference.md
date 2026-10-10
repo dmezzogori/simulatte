@@ -42,7 +42,7 @@ with `env.step()`.
 **Log querying:**
 ```python
 env.log_history.query(level="ERROR", component="Server", since=100.0)
-env.log_db.query(...)          # needs log_db_path; also env.log_db.execute_sql(...)
+env.log_db.query(...)  # needs log_db_path; also env.log_db.execute_sql(...)
 ```
 
 **Component filtering** (per sink):
@@ -56,12 +56,25 @@ for sink in env.sinks:
 
 ```python
 from simulatte import (
-    Collector, DomainEvent, Environment, Event, KPI, ObserverEvent, Provenance, Runner, Trace, TraceRecorder,
+    Collector,
+    DomainEvent,
+    Environment,
+    Event,
+    KPI,
+    ObserverEvent,
+    Provenance,
+    Runner,
+    Trace,
+    TraceRecorder,
 )
 from simulatte.events import event_type
 from simulatte.trace import ChunkLimits, ReaderLimits, TraceCorrupted
 from simulatte.collectors import (
-    EMACollector, ShopFloorTimeSeries, CurrentWorkloadCollector, ServerTimeSeries, ShopFloorKPIs,
+    EMACollector,
+    ShopFloorTimeSeries,
+    CurrentWorkloadCollector,
+    ServerTimeSeries,
+    ShopFloorKPIs,
 )
 ```
 
@@ -465,13 +478,15 @@ from typing import ClassVar
 from simulatte.kpi import KPI, Collector
 from simulatte.shopfloor import JobFinished
 
+
 class MyCollector(Collector):
     kpis: ClassVar = (KPI("max_lateness", unit="time", aggregation="max"),)
     subscribes: ClassVar = (JobFinished,)
-    scope_field: ClassVar = "shopfloor"           # only events of the owner
+    scope_field: ClassVar = "shopfloor"  # only events of the owner
 
     def on_event(self, event: JobFinished) -> None:
         self.observe("max_lateness", event.lateness)
+
 
 MyCollector(shopfloor).attach(env)
 ```
@@ -770,7 +785,7 @@ Call the factory with a per-operation allowance to get the dispatching callable:
 
 ```python
 # planned_slack_time: PST = (due_date - now) - sum(p_ik + k for k in remaining ops)
-pst_rule = planned_slack_time(allowance=2.0)          # returns (job, server) -> float
+pst_rule = planned_slack_time(allowance=2.0)  # returns (job, server) -> float
 router = Router(..., priority_policies=pst_rule)
 
 # slack_per_remaining_operation: S/OPN = PST / count(remaining ops)
@@ -810,9 +825,15 @@ Weight order is `(π, ξ, τ, δ, β)` = `(pi, omega, psi, gamma, beta)` — the
 
 ```python
 from simulatte.distributions import (
-    Distribution, TruncatedErlang, Exponential, Erlang,
-    LogNormal, Uniform, Deterministic,
-    pure_job_shop_routing, RunningStats,
+    Distribution,
+    TruncatedErlang,
+    Exponential,
+    Erlang,
+    LogNormal,
+    Uniform,
+    Deterministic,
+    pure_job_shop_routing,
+    RunningStats,
 )
 ```
 
@@ -841,11 +862,11 @@ a `Callable[[], Sequence[Server]]`):
 
 ```python
 from simulatte.typing import (
-    Sampler,                # Callable[[], T]
-    DiscreteDistribution,   # dict[K, T]
-    BuiltSystem,            # NamedTuple(psp, servers, shop_floor, router, policy); generic in PolicyT
-    Builder,                # Callable[..., S]
-    ProcessGenerator,       # re-exported from simpy.events
+    Sampler,  # Callable[[], T]
+    DiscreteDistribution,  # dict[K, T]
+    BuiltSystem,  # NamedTuple(psp, servers, shop_floor, router, policy); generic in PolicyT
+    Builder,  # Callable[..., S]
+    ProcessGenerator,  # re-exported from simpy.events
 )
 ```
 
@@ -900,17 +921,22 @@ def setup(self, *, seed: int | None, options: dict[str, Any] | None) -> None:
     """Build fresh simulation for a new episode.
     Use self.np_random for numpy randomness. seed is also forwarded directly."""
 
+
 def get_observation(self) -> Any:
     """Extract observation from simulation state. Must match observation_space."""
+
 
 def apply_action(self, action: Any) -> None:
     """Apply action and advance simulation to next decision point."""
 
+
 def compute_reward(self, action: Any) -> float:
     """Compute step reward. Receives the action for action-dependent costs."""
 
+
 def is_terminated(self) -> bool:
     """Whether the episode ended naturally (e.g., all jobs processed)."""
+
 
 def is_truncated(self) -> bool:
     """Whether the episode was cut short (e.g., time budget exceeded)."""
@@ -921,6 +947,7 @@ def is_truncated(self) -> bool:
 ```python
 def teardown(self) -> None:
     """Clean up resources. Called before setup() on re-resets and from close()."""
+
 
 def get_info(self) -> dict[str, Any]:
     """Return step info dict. Called last in step(). Default: {}."""

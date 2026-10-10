@@ -303,14 +303,17 @@ from pathlib import Path
 from simulatte.builders import build_immediate_release_system
 from simulatte.runner import Runner
 
+
 def builder(*, env):
     env.info("Simulation starting", component="Main")
     return build_immediate_release_system(env=env)
+
 
 def extract(system):
     _psp, servers, shopfloor, _router, _policy = system
     avg_util = sum(s.utilization_rate for s in servers) / len(servers)
     return {"jobs_done": len(shopfloor.jobs_done), "avg_utilization": avg_util}
+
 
 if __name__ == "__main__":
     runner = Runner(
@@ -346,6 +349,7 @@ Add logging to your custom components:
 
 ```python
 from simulatte.server import Server
+
 
 class MyServer(Server):
     def process_job(self, job, processing_time):

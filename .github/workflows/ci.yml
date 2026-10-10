@@ -45,6 +45,10 @@ jobs:
         if: matrix.python-version == '3.14'
         run: uv run --all-extras ruff check src tests
 
+      - name: Run formatting check
+        if: matrix.python-version == '3.14'
+        run: uv run --all-extras ruff format --check
+
       - name: Run type checking
         if: matrix.python-version == '3.14'
         run: uv run --all-extras ty check src

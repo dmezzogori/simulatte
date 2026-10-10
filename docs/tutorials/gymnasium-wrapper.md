@@ -31,17 +31,17 @@ class JobReleaseEnv(SimulatteEnv):
     def __init__(self):
         super().__init__()
         self.observation_space = spaces.Box(
-            low=0.0, high=np.inf, shape=(10,), dtype=np.float64,
+            low=0.0,
+            high=np.inf,
+            shape=(10,),
+            dtype=np.float64,
         )
         self.action_space = spaces.Discrete(2)  # 0 = hold, 1 = release
 
     def setup(self, *, seed, options):
         self.sim_env = Environment()
         self.shopfloor = ShopFloor(env=self.sim_env)
-        self.servers = [
-            Server(env=self.sim_env, capacity=1, shopfloor=self.shopfloor)
-            for _ in range(5)
-        ]
+        self.servers = [Server(env=self.sim_env, capacity=1, shopfloor=self.shopfloor) for _ in range(5)]
         self.psp = PreShopPool(env=self.sim_env, shopfloor=self.shopfloor)
         # Create jobs using self.np_random for reproducibility
         for _ in range(100):

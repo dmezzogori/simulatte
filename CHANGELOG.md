@@ -224,8 +224,8 @@ service = lambda: random.expovariate(0.5)
 
 # 0.13
 env = Environment(seed=42)
-service = Exponential(rate=0.5)       # managed: reproducible, recorded in the manifest
-rng = env.rng("my-stream")            # for your own draws
+service = Exponential(rate=0.5)  # managed: reproducible, recorded in the manifest
+rng = env.rng("my-stream")  # for your own draws
 ```
 
 **Logging.**
@@ -235,7 +235,8 @@ rng = env.rng("my-stream")            # for your own draws
 env.logger.disable_component("Server")
 rows = env.logger.query_sql(level="ERROR", component="Server")
 raw = env.logger.execute_sql("SELECT ...")
-if env.logger.db_enabled: ...
+if env.logger.db_enabled:
+    ...
 db_env_id = env.logger.env_id
 SimLogger.set_level("DEBUG")
 
@@ -244,12 +245,12 @@ for sink in env.sinks:
     sink.disable_component("Server")
 rows = env.log_db.query(level="ERROR", component="Server")  # Environment(log_db_path=...); returns LogEvents
 raw = env.log_db.execute_sql("SELECT ...")
-try:                                       # db_enabled: env.log_db raises RuntimeError without log_db_path
+try:  # db_enabled: env.log_db raises RuntimeError without log_db_path
     env.log_db
 except RuntimeError:
     ...
 db_env_id = env.log_db.env_id
-env = Environment(log_level="DEBUG")       # per environment
+env = Environment(log_level="DEBUG")  # per environment
 ```
 
 For built-in components, replace message-substring checks by subscribing to event classes (`JobQueued`,

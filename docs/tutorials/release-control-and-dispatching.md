@@ -54,11 +54,13 @@ Example: compose event-driven callbacks with a periodic trigger:
 ```python
 from simulatte.policies.triggers import periodic_trigger
 
+
 def my_release_fn(psp):
     """Release oldest job if shopfloor WIP is low."""
     if not psp.empty and len(psp.shopfloor.jobs) < 10:
         job = psp.remove()
         psp.shopfloor.add(job)
+
 
 def my_starvation_fn(job, server):
     """Release a PSP job when a server might starve.
@@ -72,10 +74,12 @@ def my_starvation_fn(job, server):
             psp.release(candidate)
             break
 
+
 def my_arrival_fn(job, psp):
     """Release a job immediately if its first server is idle."""
     if job.servers[0].is_idle:
         psp.release(job)
+
 
 # Register callbacks
 shopfloor.on_processing_end(my_starvation_fn)
@@ -159,9 +163,9 @@ from simulatte.environment import Environment
 env = Environment()
 psp, servers, shopfloor, router, _ = build_lumscor_system(
     env=env,
-    check_timeout=10.0,      # Check every 10 time units
-    wl_norm_level=5.0,       # Workload threshold per server
-    allowance_factor=2,      # Buffer for due date calculation
+    check_timeout=10.0,  # Check every 10 time units
+    wl_norm_level=5.0,  # Workload threshold per server
+    allowance_factor=2,  # Buffer for due date calculation
 )
 env.run(until=1000)
 
@@ -199,7 +203,7 @@ from simulatte.environment import Environment
 env = Environment()
 psp, servers, shopfloor, router, _ = build_slar_system(
     env=env,
-    allowance_factor=3.0,    # Slack per operation
+    allowance_factor=3.0,  # Slack per operation
 )
 env.run(until=1000)
 
@@ -234,8 +238,8 @@ from simulatte.environment import Environment
 env = Environment()
 psp, servers, shopfloor, router, _ = build_slar_limit_system(
     env=env,
-    allowance_factor=3.0,   # Slack per operation
-    wl_norm_level=5.0,      # Workload norm per server
+    allowance_factor=3.0,  # Slack per operation
+    wl_norm_level=5.0,  # Workload norm per server
 )
 env.run(until=1000)
 
@@ -265,8 +269,8 @@ from simulatte.environment import Environment
 env = Environment()
 psp, servers, shopfloor, router, _ = build_draco_system(
     env=env,
-    wip_target=8,    # target shop WIP (job count), tau
-    loop_target=4,   # target overlapping loop per server pair, epsilon
+    wip_target=8,  # target shop WIP (job count), tau
+    loop_target=4,  # target overlapping loop per server pair, epsilon
 )
 env.run(until=1000)
 
@@ -374,6 +378,7 @@ from simulatte.builders import (
 from simulatte.environment import Environment
 from simulatte.runner import Runner
 
+
 def run_system(builder_fn, builder_kwargs, until=1000):
     def builder(*, env):
         return builder_fn(env, **builder_kwargs)
@@ -389,6 +394,7 @@ def run_system(builder_fn, builder_kwargs, until=1000):
     # progress=None (default) auto-enables tqdm on TTY; set False to disable
     runner = Runner(builder=builder, seeds=range(5), parallel=False, extract_fn=extract)
     return runner.run(until=until)
+
 
 # Compare
 immediate = run_system(build_immediate_release_system, {})
@@ -478,8 +484,8 @@ from simulatte.environment import Environment
 env = Environment()
 psp, servers, shopfloor, router, _ = build_continuous_release_system(
     env=env,
-    wl_norm_level=5.0,       # Corrected workload norm per server
-    allowance_factor=2,      # Buffer for due-date planning
+    wl_norm_level=5.0,  # Corrected workload norm per server
+    allowance_factor=2,  # Buffer for due-date planning
 )
 env.run(until=1000)
 ```
@@ -525,12 +531,20 @@ Keep policies cheap.
 state = {"A": 10.0, "B": 20.0}
 
 job_a = ProductionJob(
-    env=env, sku="A", servers=[server], processing_times=[3.0],
-    due_date=1000.0, priority_policy=lambda j, s: state["A"],
+    env=env,
+    sku="A",
+    servers=[server],
+    processing_times=[3.0],
+    due_date=1000.0,
+    priority_policy=lambda j, s: state["A"],
 )
 job_b = ProductionJob(
-    env=env, sku="B", servers=[server], processing_times=[3.0],
-    due_date=1000.0, priority_policy=lambda j, s: state["B"],
+    env=env,
+    sku="B",
+    servers=[server],
+    processing_times=[3.0],
+    due_date=1000.0,
+    priority_policy=lambda j, s: state["B"],
 )
 
 # Both queue with A ahead of B.
