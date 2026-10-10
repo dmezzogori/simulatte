@@ -170,10 +170,13 @@ export class Trace {
       this.index = index;
       // The tail holds the last chunk, its index and late catalog extensions.
       const last = index[index.length - 1];
-      const tail = await this.scan(last?.offset ?? head.stop, footerOffset, false, false);
+      const tailStart = last?.offset ?? head.stop;
+      const tail = await this.scan(tailStart, footerOffset, false, false);
       if (!sameInfos(tail.index, last === undefined ? [] : [last])) {
         throw new TraceCorrupted("the footer index disagrees with the INDEX records at the end of the file");
       }
+      // KPI records may also sit between earlier chunks; they are checked like the Python reader checks them.
+      await this.checkKpis(head.stop, tailStart);
       this.truncated = false;
     }
     const footer = this.#footer;
@@ -354,7 +357,7 @@ export class Trace {
       } else if (type === RecordType.CATALOG_EXT) {
         scan.exts.set(pos, this.decode(data, "a CATALOG_EXT record"));
       } else if (type === RecordType.KPI) {
-        this.decode(data, "a KPI record");
+        malformed("KPI record", () => kpiRecord(this.decode(data, "a KPI record")));
       } else if (type === RecordType.PRELUDE) {
         this.decode(data, "a PRELUDE record");
       } else if (type === RecordType.FOOTER) {
@@ -388,6 +391,22 @@ export class Trace {
       }
     });
     this.header = header;
+  }
+
+  /** Check the `KPI` records between `start` and `end`, walking the frames of the other records. */
+  private async checkKpis(start: number, end: number): Promise<void> {
+    const { source, limits } = this;
+    let pos = start;
+    while (pos < end) {
+      const frame = await readFrame(source, pos, end, limits);
+      if (frame === null) throw new TraceCorrupted(`record at offset ${pos} is cut short`);
+      if (frame.type === RecordType.KPI) {
+        const data = await readPayload(source, pos, frame);
+        if (data === null) throw new TraceCorrupted(`KPI record at offset ${pos} fails its CRC check`);
+        malformed("KPI record", () => kpiRecord(this.decode(data, "a KPI record")));
+      }
+      pos += FRAME_SIZE + frame.length;
+    }
   }
 
   private decode(data: Uint8Array, what: string): Wire {
@@ -480,8 +499,39 @@ function real(value: unknown, what: string): number {
   return value;
 }
 
+/** A time read from the file: a number that is not NaN (ruling R35). */
+function time(value: unknown, what: string): number {
+  const t = real(value, what);
+  if (Number.isNaN(t)) throw new TypeError(`${what} is NaN`);
+  return t;
+}
+
+/**
+ * Check a `KPI` record as the Python reader reads it: a map with optional `scalars` (a map) and `samples` (an array of
+ * `[seq, t, key, value]`: an integer, a time that is not NaN, a string and a number).
+ */
+function kpiRecord(value: unknown): void {
+  const record = mapOf(value, "KPI record");
+  if (Object.hasOwn(record, "scalars")) mapOf(field(record, "scalars"), "KPI scalars");
+  if (!Object.hasOwn(record, "samples")) return;
+  for (const sample of arrayOf(field(record, "samples"))) {
+    const items = arrayOf(sample);
+    if (items.length !== 4) throw new TypeError("a KPI sample has four items");
+    const [seq, t, key, number] = items;
+    asCursor([t, seq]);
+    string(key, "KPI sample key");
+    real(number, "KPI sample value");
+  }
+}
+
 function asCursor(value: unknown, error: new (message: string) => Error = TypeError): Cursor {
-  if (!Array.isArray(value) || value.length !== 2 || typeof value[0] !== "number" || !Number.isSafeInteger(value[1])) {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 2 ||
+    typeof value[0] !== "number" ||
+    Number.isNaN(value[0]) ||
+    !Number.isSafeInteger(value[1])
+  ) {
     throw new error(`a cursor is a [t, seq] pair of numbers, got ${JSON.stringify(value)}`);
   }
   return [value[0], value[1] as number];
@@ -494,8 +544,8 @@ function chunkInfo(entry: unknown): ChunkInfo {
     length: integer(field(map, "length"), "length"),
     first: asCursor(field(map, "first")),
     last: asCursor(field(map, "last")),
-    tStart: real(field(map, "t_start"), "t_start"),
-    tEnd: real(field(map, "t_end"), "t_end"),
+    tStart: time(field(map, "t_start"), "t_start"),
+    tEnd: time(field(map, "t_end"), "t_end"),
     epoch: integer(field(map, "epoch"), "epoch"),
   };
 }
@@ -508,7 +558,7 @@ function traceEvent(entry: unknown): TraceEvent {
     seq: integer(seq, "seq"),
     ordinal: ordinal === null ? null : integer(ordinal, "ordinal"),
     type: string(type, "type"),
-    t: real(t, "t"),
+    t: time(t, "t"),
     payload: payload as Wire,
     deltas: arrayOf(deltas).map((op) => arrayOf(op)),
   };

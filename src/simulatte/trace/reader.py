@@ -409,10 +409,20 @@ class Trace:
             scalars: dict[str, float] = {}
             series: dict[str, list[KpiPoint]] = {}
             for record in self._kpi_records:
+                if type(record) is not FrozenMap:
+                    raise TypeError("a KPI record is a map")
                 if "scalars" in record:
+                    if type(record["scalars"]) is not FrozenMap:
+                        raise TypeError("KPI scalars are a map")
                     scalars.update(record["scalars"])
-                for seq, t, key, value in record.get("samples", ()):
-                    series.setdefault(str(key), []).append(((float(t), int(seq)), float(value)))
+                samples = record.get("samples", ())
+                if type(samples) is not tuple:
+                    raise TypeError("KPI samples are an array")
+                for seq, t, key, value in samples:  # as the TypeScript reader checks them
+                    if type(key) is not str:
+                        raise TypeError(f"a KPI sample key is not a string: {key!r}")
+                    cursor = _wire_cursor((t, seq))
+                    series.setdefault(key, []).append((cursor, _wire_real(value)))
             return catalog, kinds, scalars, series
 
         built = _decoded(build, "catalog or KPI record")
@@ -685,7 +695,15 @@ def _wire_cursor(value: Any) -> Cursor:
     requires; `TypeError` otherwise (reported as corruption)."""
     if type(value) is not tuple or len(value) != 2:
         raise TypeError(f"a cursor is a [t, seq] pair of numbers, got {value!r}")
-    return _wire_real(value[0]), _wire_int(value[1])
+    return _wire_time(value[0]), _wire_int(value[1])
+
+
+def _wire_time(value: Any) -> float:
+    """A time read from the file: a number that is not NaN (ruling R35); `TypeError` otherwise."""
+    t = _wire_real(value)
+    if t != t:
+        raise TypeError("a time is NaN")
+    return t
 
 
 def _wire_real(value: Any) -> float:
@@ -722,8 +740,8 @@ def _chunk_info(entry: Any) -> ChunkInfo:
         length=_wire_int(entry["length"]),
         first=_wire_cursor(entry["first"]),
         last=_wire_cursor(entry["last"]),
-        t_start=_wire_real(entry["t_start"]),
-        t_end=_wire_real(entry["t_end"]),
+        t_start=_wire_time(entry["t_start"]),
+        t_end=_wire_time(entry["t_end"]),
         epoch=_wire_int(entry["epoch"]),
     )
 

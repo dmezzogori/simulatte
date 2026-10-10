@@ -985,3 +985,95 @@ def test_user_cursors_beyond_the_integer_range_are_value_errors(tmp_path: Path) 
     trace = Trace.open(_hostile_trace(tmp_path, "fine", _initial(b"\x80")))
     with pytest.raises(ValueError, match="cursor"):
         trace.state_at((0.0, math.inf))  # ty: ignore[invalid-argument-type]
+
+
+_CELL_STATE: Any = {"cell": {"$kind": "cell", "value": 0, "values": ("a", "b"), "map": {"x": 1.0}}}
+
+
+def _records_trace(
+    tmp_path: Path,
+    name: str,
+    *,
+    initial: Any = None,
+    event: Any = None,
+    snapshot: Any = None,
+    entry_changes: Any = None,
+    footer_changes: Any = None,
+    kpis: tuple[Any, ...] = (),
+) -> Path:
+    """A complete hand-made trace with one chunk holding `event` (Codex probe_records), for record-level damage."""
+    header: Any = {
+        "features": {"required": ["wire-v1", "deltas-v1", "chunks-zlib"]},
+        "level": "full",
+        "manifest": {},
+        "catalog": {},
+        "kinds": {},
+    }
+    if initial is None:
+        initial = {"state": _CELL_STATE, "cursor": (0.0, -1), "manifest": {}}
+    event = (0, 0, "test.record", 1.0, {}, ()) if event is None else event
+    snapshot = initial["state"] if snapshot is None else snapshot
+    cursor = (event[3], event[0])
+    body: Any = {"first": cursor, "last": cursor, "t_start": event[3], "t_end": event[3], "epoch": 0}
+    body.update(snapshot=snapshot, events=(event,))
+    out = io.BytesIO()
+    write_preamble(out)
+    write_record(out, RecordType.HEADER, pack(header))
+    write_record(out, RecordType.INITIAL, pack(cast(Any, initial)))
+    for record in kpis:
+        write_record(out, RecordType.KPI, pack(record))
+    offset = out.tell()
+    length = write_record(out, RecordType.CHUNK, zlib.compress(pack(body)))
+    entry: Any = {k: body[k] for k in ("first", "last", "t_start", "t_end", "epoch")}
+    entry.update(offset=offset, length=length, **(entry_changes or {}))
+    write_record(out, RecordType.INDEX, pack(entry))
+    footer: Any = {
+        "index": [entry],
+        "epochs": [12],
+        "outcome": "completed",
+        "cursor": cursor,
+        "manifest": None,
+        "fingerprint": {"digest": None, "kpis": {}},
+    }
+    footer.update(footer_changes or {})
+    at = out.tell()
+    write_record(out, RecordType.FOOTER, pack(footer))
+    out.write(TRAILER.pack(at, b"SIMTEND\0"))
+    return _write(tmp_path, name, out.getvalue())
+
+
+def _read_everything(path: Path) -> None:
+    trace = Trace.open(path)
+    trace.check()
+    for event in trace.events():
+        trace.state_at((event.t, event.seq))
+    trace.kpi_series()
+
+
+_NAN = float("nan")
+_NAN_TIMES: dict[str, dict[str, Any]] = {
+    "initial": {"initial": {"state": _CELL_STATE, "cursor": (_NAN, -1), "manifest": {}}},
+    "footer": {"footer_changes": {"cursor": (_NAN, 0)}},
+    "event": {"event": (0, 0, "test.record", _NAN, {}, ())},
+    "index_first": {"entry_changes": {"first": (_NAN, 0)}},
+    "index_t_start": {"entry_changes": {"t_start": _NAN}},
+    "kpi_sample": {"kpis": ({"samples": ((0, _NAN, "cell/kpi", 1.0),)},)},
+}
+
+
+@pytest.mark.parametrize("where", sorted(_NAN_TIMES))
+def test_nan_cursor_times_are_corruption(tmp_path: Path, where: str) -> None:
+    """Ruling R35: a NaN time in a cursor, an index entry, an event or a KPI sample is corruption in both readers
+    (``studio/packages/trace/test/records.test.ts``). Codex probe_nan_cursor: a NaN footer time hid a recorded event,
+    and CPython and PyPy disagreed on NaN event times."""
+    with pytest.raises(TraceCorrupted):
+        _read_everything(_records_trace(tmp_path, where, **_NAN_TIMES[where]))
+
+
+def test_hand_made_record_trace_reads(tmp_path: Path) -> None:
+    kpi = {"samples": ((0, 1.0, "cell/kpi", _NAN),), "scalars": {"cell/x": 1.0}}
+    path = _records_trace(tmp_path, "fine", event=(0, 0, "test.record", 1.0, {}, (("set", "cell", "value", 7),)))
+    _read_everything(path)
+    assert Trace.open(path).state_at((1.0, 0))["cell"]["value"] == 7
+    with_kpis = Trace.open(_records_trace(tmp_path, "kpis", kpis=(kpi,)))
+    assert with_kpis.kpis() == {"cell/x": 1.0} and list(with_kpis.kpi_series()) == ["cell/kpi"]

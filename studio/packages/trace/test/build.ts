@@ -126,11 +126,21 @@ export interface ChunkSpec {
   snapshot: unknown;
 }
 
+export interface TraceOptions {
+  /** Records written after INITIAL and before the chunks (KPI records, for example), as `[type, value]`. */
+  records?: readonly (readonly [number, unknown])[];
+  /** Changes to every index entry (in the INDEX records and the footer). */
+  entry?: Record<string, unknown>;
+  /** Changes to the footer. */
+  footer?: Record<string, unknown>;
+}
+
 /** A complete trace (footer and trailer): header, the given initial record, one CHUNK and INDEX per chunk spec. */
-export function buildTrace(initial: unknown, chunks: readonly ChunkSpec[] = []): ArrayBuffer {
+export function buildTrace(initial: unknown, chunks: readonly ChunkSpec[] = [], options: TraceOptions = {}): ArrayBuffer {
   const out: number[] = [...new TextEncoder().encode("SIMTRACE"), 0, 1, 0, 0];
   out.push(...record(1, pack(HEADER)));
   out.push(...record(3, pack(initial)));
+  for (const [type, value] of options.records ?? []) out.push(...record(type, pack(value)));
   const index: unknown[] = [];
   let last: unknown = [0, -1];
   for (const chunk of chunks) {
@@ -141,7 +151,16 @@ export function buildTrace(initial: unknown, chunks: readonly ChunkSpec[] = []):
     const offset = out.length;
     const framed = record(5, new Uint8Array(deflateSync(raw)));
     out.push(...framed);
-    const entry = { offset, length: framed.length, first, last, t_start: first[0], t_end: (last as unknown[])[0], epoch: 0 };
+    const entry = {
+      offset,
+      length: framed.length,
+      first,
+      last,
+      t_start: first[0],
+      t_end: (last as unknown[])[0],
+      epoch: 0,
+      ...options.entry,
+    };
     index.push(entry);
     out.push(...record(6, pack(entry)));
   }
@@ -152,6 +171,7 @@ export function buildTrace(initial: unknown, chunks: readonly ChunkSpec[] = []):
     fingerprint: { digest: null, kpis: {} },
     index,
     epochs: [12],
+    ...options.footer,
   };
   const footerOffset = out.length;
   out.push(...record(8, pack(footer)));
