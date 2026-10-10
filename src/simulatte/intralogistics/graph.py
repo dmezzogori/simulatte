@@ -53,9 +53,10 @@ class NodeBinding(Entity, kind="node"):
         self.agvs: list[str] = [
             entity.id
             for entity in env.entities.live()
-            if entity.kind == "agv" and getattr(entity, "current_node", None) == node
+            if entity.kind == "agv" and getattr(entity, "_current_node", None) == node
         ]
         self.reserved_by: list[str] = []
+        self._uses_explicit_graph = env.layout is None
         env.entities.attach(self, name=node.id)
 
     def snapshot(self) -> dict[str, Any]:

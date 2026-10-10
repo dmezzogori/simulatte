@@ -303,13 +303,19 @@ class EntityRegistry:
             )
         if name is None:
             n = self._counters.get(kind, 0)
-            self._counters[kind] = n + 1
             entity_id = f"{kind}-{n}"
             if entity_id in self._names:
                 raise ValueError(f"generated id {entity_id!r} is already used as a name")
         else:
             self._check_name(name)
             entity_id = name
+        if self._env.layout is not None:
+            self._env.layout._before_attach(obj, entity_id)
+        elif getattr(obj, "_uses_explicit_graph", False):
+            self._env._register_graph_use()
+        if name is None:
+            self._counters[kind] = n + 1
+        else:
             self._names.add(name)
         target: Any = obj  # the slots for id and label are declared by the concrete class
         target.id = entity_id
@@ -370,6 +376,8 @@ class EntityRegistry:
         `ValueError` for a different `Node` with the id of a bound one, and for a node id that is not a valid,
         unused entity name.
         """
+        if self._env.layout is not None:
+            self._env.layout._validate_node(node)
         binding = self._nodes.get(node.id)
         if binding is None:
             from simulatte.intralogistics.graph import NodeBinding  # lazy: the intralogistics subsystem is optional
@@ -386,6 +394,10 @@ class EntityRegistry:
         if binding is None or binding.node != node:
             return None
         return binding
+
+    def is_named(self, entity_id: str) -> bool:
+        """Whether this id was explicitly named at attachment (including retired ids)."""
+        return entity_id in self._names
 
     def is_live(self, obj: Entity) -> bool:
         """Whether `obj` is a live entity of this environment."""

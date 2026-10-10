@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from enum import StrEnum
+from contextlib import nullcontext
 from typing import Any
 
 from .dependencies import MISSING, DependencyClosure, evaluate_query
@@ -52,6 +53,7 @@ class PreparationCoordinator:
         bind: Callable[[PreparationCoordinator], None] | None = None,
         finalize: Callable[[PreparationCoordinator], Any] | None = None,
         target_provider: Callable[[], Mapping[str, str]] | None = None,
+        binding_guard: Callable[[], Any] | None = None,
     ) -> None:
         self.env = env
         self.owner = self if owner is None else owner
@@ -68,6 +70,7 @@ class PreparationCoordinator:
         self._bind = bind
         self._finalize = finalize
         self._target_provider = target_provider
+        self._binding_guard = binding_guard or nullcontext
         self._stages: list[StageSpec] = []
         self._binders: list[StageSpec] = []
         self._code: list[tuple[str, Mapping[str, Any]]] = []
@@ -314,11 +317,12 @@ class PreparationCoordinator:
             self._check_changes(self.values)
             self.closure.extend_network(self.values)
             self.state = PreparationState.BINDING
-            if self._bind is not None:
-                self._bind(self)
-                self._check_failure()
-            for spec in self._binders:
-                self._run(spec, binding=True)
+            with self._binding_guard():
+                if self._bind is not None:
+                    self._bind(self)
+                    self._check_failure()
+                for spec in self._binders:
+                    self._run(spec, binding=True)
             self.closure.seal()
             self._result = self._finalize(self) if self._finalize else self.values
             self._check_failure()

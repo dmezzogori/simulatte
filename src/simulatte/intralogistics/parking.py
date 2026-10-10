@@ -9,10 +9,12 @@ from simpy.events import ProcessGenerator
 
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.events import Deltas
+from simulatte.layout.binding import node_input, pending, readonly
 from simulatte.intralogistics.events import ParkingEntered, ParkingLeft
 
 if TYPE_CHECKING:
     from simulatte.environment import Environment
+    from simulatte.layout.refs import NodeRef, PortRef
     from simulatte.intralogistics.agv import AGV
     from simulatte.intralogistics.graph import Node
 
@@ -42,17 +44,30 @@ class ParkingArea(Entity, kind="parking_area"):
         *,
         env: Environment,
         name: str,
-        node: Node,
+        node: Node | NodeRef | PortRef,
         capacity: int,
         label: str | None = None,
     ) -> None:
         self.env = env
         self.name = name
-        self.node = node
+        self._node, self._pending_node = node_input(env, node)
         self._resource = simpy.Resource(env, capacity=capacity)
         self._agv_requests: dict[AGV, simpy.resources.resource.Request] = {}
         self._pending_entries: dict[AGV, _PendingEntry] = {}
+        self._uses_explicit_graph = env.layout is None and True
         env.entities.attach(self, name=name, label=label)
+
+    @property
+    def node(self) -> Node:
+        if self._pending_node is not None:
+            pending(self, "node")
+        assert self._node is not None
+        return self._node
+
+    @node.setter
+    def node(self, value: Node) -> None:
+        readonly(self.env, "node")
+        self._node = value
 
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: the ids of the parked AGVs, in order of arrival."""

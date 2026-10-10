@@ -12,6 +12,7 @@ from simulatte._wire import FrozenMap, freeze, wire_float
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import deferrable
 from simulatte.events import Deltas
+from simulatte.layout.binding import graph_input, pending, readonly
 from simulatte.intralogistics.agv import AGVState
 from simulatte.intralogistics.events import (
     AgvLoadChanged,
@@ -47,6 +48,7 @@ if TYPE_CHECKING:
     from simpy.events import ProcessGenerator
 
     from simulatte.environment import Environment
+    from simulatte.layout.refs import GraphRef
     from simulatte.intralogistics.agv import AGV
     from simulatte.intralogistics.charging import ChargingStation
     from simulatte.intralogistics.graph import LayoutGraph, Node
@@ -126,7 +128,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         self,
         *,
         env: Environment,
-        graph: LayoutGraph,
+        graph: LayoutGraph | GraphRef,
         fleet: list[AGV],
         warehouses: list[Warehouse],
         charging_stations: list[ChargingStation],
@@ -145,13 +147,21 @@ class FleetCoordinator(Entity, kind="fleet"):
         label: str | None = None,
     ) -> None:
         self.env = env
-        self.graph = graph
+        self._graph, self._pending_graph = graph_input(env, graph)
         self.fleet = tuple(fleet)
         self.warehouses = tuple(warehouses)
         self.charging_stations = tuple(charging_stations)
         self.parking_areas = tuple(parking_areas or [])
 
         self._traffic_manager: TrafficManager = traffic_manager or FreeTrafficManager()
+        if env.layout is not None:
+            env.layout._validate_fleet(
+                (*self.fleet, *self.warehouses, *self.charging_stations, *self.parking_areas), self._traffic_manager
+            )
+            if any(agv.fleet is not None for agv in self.fleet) or len(set(self.fleet)) != len(self.fleet):
+                from simulatte.layout.errors import LayoutError
+
+                raise LayoutError("AGV already belongs to a fleet or occurs twice")
         self._path_planner: PathPlanner = path_planner or DijkstraPlanner()
         self._dispatch_strategy: DispatchStrategy = dispatch_strategy or NearestIdleStrategy()
         self._repositioning_policy: RepositioningPolicy = repositioning_policy or StayInPlace()
@@ -189,14 +199,16 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._hooks_on_charging_complete: list[Callable[[AGV, ChargingStation], None]] = []
         self._hooks_on_agv_idle: list[Callable[[AGV], None]] = []
 
+        self._uses_explicit_graph = env.layout is None and True
         env.entities.attach(self, name=name, label=label)
         self.metrics: OrderEMACollector | None = (
             OrderEMACollector(self, alpha=ema_alpha).attach(env) if default_metrics else None
         )
         """The default :class:`OrderEMACollector` (``ema_*`` averages of delivered orders), or None when built with
         ``default_metrics=False``."""
-        for node in sorted(graph.nodes, key=lambda node: node.id):
-            env.entities.bind_node(node)
+        if env.layout is None:
+            for node in sorted(self.graph.nodes, key=lambda node: node.id):
+                env.entities.bind_node(node)
         for agv in self.fleet:
             agv.fleet = self
             if env.wants(FleetAgvAdded):
@@ -206,6 +218,18 @@ class FleetCoordinator(Entity, kind="fleet"):
 
         # S1: Initial AGV placement — register starting positions with the traffic manager at activation
         env.on_activate(self._initial_placement)
+
+    @property
+    def graph(self) -> LayoutGraph:
+        if self._pending_graph is not None:
+            pending(self, "graph")
+        assert self._graph is not None
+        return self._graph
+
+    @graph.setter
+    def graph(self, value: LayoutGraph) -> None:
+        readonly(self.env, "graph")
+        self._graph = value
 
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: the ids of the pending orders, in queue order."""
@@ -1003,6 +1027,7 @@ class FleetCoordinator(Entity, kind="fleet"):
 
     def _end_segment(self, agv: AGV, node: Node) -> None:
         """Move the AGV to `node` at the end of a segment, clear its motion and emit ``agv.move_ended``."""
+        agv._validate_node(node)
         agv.motion = None
         left, entered = agv._relocate(node)
         env = self.env

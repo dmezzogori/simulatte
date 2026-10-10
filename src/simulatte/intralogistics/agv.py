@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from simulatte._wire import wire_float
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.events import Deltas
+from simulatte.layout.binding import node_input, pending
 from simulatte.intralogistics.battery import Battery
 from simulatte.intralogistics.events import AgvPlaced, AgvStateChanged
 
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
     from simulatte.intralogistics.sku import SKU
     from simulatte.intralogistics.speed import SpeedProfile
     from simulatte.rng import SamplerDescription
+    from simulatte.layout.refs import NodeRef, PortRef
 
 
 class AGVState(Enum):
@@ -93,12 +95,13 @@ class AGV(Entity, kind="agv"):
         env: Environment,
         agv_type: AGVType,
         agv_id: str | None = None,
-        initial_node: Node | None = None,
+        initial_node: Node | NodeRef | PortRef | None = None,
         label: str | None = None,
     ) -> None:
         self.env = env
         self.agv_type = agv_type
-        self._current_node = initial_node
+        self._current_node, self._pending_node = node_input(env, initial_node, optional=True)
+        initial_node = self._current_node
         self.current_load: dict[SKU, int] | None = None
         self.fleet: FleetCoordinator | None = None
         """The coordinator that took this AGV (owner field, spec §5.2)."""
@@ -119,6 +122,7 @@ class AGV(Entity, kind="agv"):
         self._state_entered_at: float = env.now
         self.state_durations: dict[AGVState, float] = {s: 0.0 for s in AGVState}
 
+        self._uses_explicit_graph = env.layout is None and initial_node is not None
         env.entities.attach(self, name=agv_id, label=label)
         self._load_time = env.bind(agv_type.load_time, kind="scalar", stream=f"{self.id}/load", owner=self.id)
         self._unload_time = env.bind(agv_type.unload_time, kind="scalar", stream=f"{self.id}/unload", owner=self.id)
@@ -155,10 +159,13 @@ class AGV(Entity, kind="agv"):
     @property
     def current_node(self) -> Node | None:
         """The node the AGV is at; during a segment, the node it left."""
+        if self._pending_node is not None:
+            pending(self, "current_node")
         return self._current_node
 
     @current_node.setter
     def current_node(self, node: Node | None) -> None:
+        self._validate_node(node)
         previous = self._current_node
         if node == previous:
             self._current_node = node
@@ -180,6 +187,7 @@ class AGV(Entity, kind="agv"):
 
         Returns the binding the AGV was removed from and the binding it was appended to (None when unchanged).
         """
+        self._validate_node(node)
         previous = self._current_node
         self._current_node = node
         entities = self.env.entities
@@ -195,6 +203,12 @@ class AGV(Entity, kind="agv"):
                 binding.agvs.append(self.id)
                 entered = binding
         return left, entered
+
+    def _validate_node(self, node: Node | None) -> None:
+        if self.env.layout is not None:
+            if self._pending_node is not None:
+                pending(self, "current_node")
+            self.env.layout._validate_node(node)
 
     def _node_deltas(self, node: Node | None, left: NodeBinding | None, entered: NodeBinding | None) -> DeltaBuilder:
         """Deltas of a :meth:`_relocate` to `node`: the AGV's ``node`` and the ``agvs`` lists it changed."""

@@ -9,6 +9,7 @@ import simulatte
 from simulatte.environment import Environment
 from simulatte.events import DomainEvent, Event, ObserverEvent
 from simulatte.kpi import KPI, Collector
+from simulatte.layout import Layout
 from simulatte.provenance import Provenance
 from simulatte.runner import Runner
 from simulatte.trace import Trace, TraceRecorder
@@ -19,6 +20,7 @@ EXPECTED = {
     "Environment": Environment,
     "Event": Event,
     "KPI": KPI,
+    "Layout": Layout,
     "ObserverEvent": ObserverEvent,
     "Provenance": Provenance,
     "Runner": Runner,
@@ -55,6 +57,24 @@ def test_runner_is_lazy_but_discoverable() -> None:
             "import sys, simulatte; assert 'multiprocessing' not in sys.modules; "
             "assert 'tqdm' not in sys.modules; assert 'Runner' in dir(simulatte); "
             "from simulatte import Runner; assert Runner is simulatte.Runner",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_layout_is_lazy_but_discoverable() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys, simulatte; "
+            "assert 'simulatte.layout' not in sys.modules; "
+            "assert 'simulatte.intralogistics.graph' not in sys.modules; "
+            "assert 'Layout' in dir(simulatte); from simulatte import Layout; "
+            "assert Layout is simulatte.Layout",
         ],
         capture_output=True,
         text=True,

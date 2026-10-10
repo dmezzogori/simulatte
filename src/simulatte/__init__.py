@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from simulatte.layout import Layout
     from simulatte.runner import Runner
 
 from simulatte.environment import Environment
@@ -23,6 +24,7 @@ __all__ = [
     "DomainEvent",
     "Environment",
     "Event",
+    "Layout",
     "ObserverEvent",
     "Provenance",
     "Runner",
@@ -32,6 +34,11 @@ __all__ = [
 
 
 def __getattr__(name: str) -> Any:
+    if name == "Layout":
+        from simulatte.layout import Layout
+
+        globals()[name] = Layout
+        return Layout
     if name == "Runner":
         from simulatte.runner import Runner
 

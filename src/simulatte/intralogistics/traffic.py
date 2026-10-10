@@ -7,6 +7,7 @@ import simpy
 from simpy.resources.resource import Request
 
 from simulatte.events import Deltas
+from simulatte.layout.binding import graph_input, pending, readonly
 from simulatte.intralogistics.events import TrafficReleased, TrafficReserved, TrafficWaitEnded, TrafficWaitStarted
 
 if TYPE_CHECKING:
@@ -15,6 +16,8 @@ if TYPE_CHECKING:
     from simpy.events import ProcessGenerator
 
     from simulatte.environment import Environment
+    from simulatte.layout.refs import GraphRef
+    from simulatte.layout.network import ResolvedNetwork
     from simulatte.intralogistics.agv import AGV
     from simulatte.intralogistics.graph import LayoutGraph, Node, NodeBinding
 
@@ -71,14 +74,18 @@ class ResourceBasedTrafficManager:
     def __init__(
         self,
         *,
-        graph: LayoutGraph,
+        graph: LayoutGraph | GraphRef,
         env: Environment,
         node_capacity: int = 1,
         deadlock_timeout: float | None = 30.0,
         priority_fn: Callable[[AGV], float] | None = None,
     ) -> None:
         self._env = env
-        self._graph = graph
+        self._graph, self._pending_graph = graph_input(env, graph)
+        if node_capacity <= 0:
+            raise ValueError('"capacity" must be > 0.')
+        if env.layout is not None:
+            env.layout._register_manager(self)
         self._node_capacity = node_capacity
         self._deadlock_timeout = deadlock_timeout
         self._priority_fn = priority_fn or (lambda agv: 0.0)
@@ -88,8 +95,32 @@ class ResourceBasedTrafficManager:
         self._intents: dict[AGV, list[Node]] = {}
         self._waiting: dict[Request, Node] = {}  # enter_node requests with an open traffic.wait_started
 
-        for node in graph.nodes:
-            self._node_resources[node] = simpy.Resource(env, capacity=node_capacity)
+        if self._graph is not None:
+            for node in self._graph.nodes:
+                self._node_resources[node] = simpy.Resource(env, capacity=node_capacity)
+        if env.layout is None:
+            env._register_graph_use()
+
+    @property
+    def graph(self) -> LayoutGraph:
+        if self._pending_graph is not None:
+            pending(self, "graph")
+        assert self._graph is not None
+        return self._graph
+
+    @graph.setter
+    def graph(self, value: LayoutGraph) -> None:
+        readonly(self._env, "graph")
+        self._graph = value
+
+    def _install_layout_graph(self, network: ResolvedNetwork) -> None:
+        self._graph = network.graph
+        self._pending_graph = None
+        for node in self._graph.nodes:
+            capacity = network.capacities[node]
+            self._node_resources[node] = simpy.Resource(
+                self._env, capacity=self._node_capacity if capacity is None else capacity
+            )
 
     @property
     def deadlock_timeout(self) -> float | None:
