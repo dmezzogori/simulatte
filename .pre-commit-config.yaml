@@ -14,14 +14,14 @@ repos:
   hooks:
     - id: ty
       name: ty check
-      entry: uv run ty check
+      entry: uv run --all-extras ty check
       language: system
       args: [--ignore, unresolved-import]
       types: [python]
       pass_filenames: false
     - id: pytest
       name: pytest
-      entry: uv run pytest
+      entry: uv run --all-extras pytest
       language: system
       types: [python]
       pass_filenames: false

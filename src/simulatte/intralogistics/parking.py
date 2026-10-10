@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import simpy
@@ -14,6 +15,13 @@ if TYPE_CHECKING:
     from simulatte.environment import Environment
     from simulatte.intralogistics.agv import AGV
     from simulatte.intralogistics.graph import Node
+
+
+@dataclass
+class _PendingEntry:
+    request: simpy.resources.resource.Request
+    waiters: int = 0
+    admitted: bool = False
 
 
 class ParkingArea(Entity, kind="parking_area"):
@@ -43,6 +51,7 @@ class ParkingArea(Entity, kind="parking_area"):
         self.node = node
         self._resource = simpy.Resource(env, capacity=capacity)
         self._agv_requests: dict[AGV, simpy.resources.resource.Request] = {}
+        self._pending_entries: dict[AGV, _PendingEntry] = {}
         env.entities.attach(self, name=name, label=label)
 
     def snapshot(self) -> dict[str, Any]:
@@ -57,27 +66,44 @@ class ParkingArea(Entity, kind="parking_area"):
         """Request a parking slot. Blocks if the area is full.
 
         Emits ``parking.entered`` once the slot is obtained. Entering again for an already parked AGV is a
-        no-op: it keeps its original slot and emits no event.
+        no-op: it keeps its original slot and emits no event. Concurrent calls for the same AGV share one
+        admission. Interrupting a waiting call cancels only that caller's wait; the reservation is cancelled
+        or released when no callers remain waiting for it.
         """
         if agv in self._agv_requests:
             return
-        req = self._resource.request()
-        yield req
-        requests = self._agv_requests
-        if agv in requests:
-            # Another enter call for this AGV may have completed while we waited.
-            self._resource.release(req)
-            return
-        requests[agv] = req
-        env = self.env
-        if env.wants(ParkingEntered):
-            env.emit(
-                ParkingEntered(
-                    area=self.id,
-                    agv=agv.id,
-                    deltas=Deltas.build().insert(self.id, "parked", len(requests) - 1, agv.id).done(),
+        pending = self._pending_entries.get(agv)
+        if pending is None:
+            pending = _PendingEntry(self._resource.request())
+            self._pending_entries[agv] = pending
+        pending.waiters += 1
+        try:
+            yield pending.request
+            # Remember admission on the shared reservation: a previous caller may
+            # already have left the area before another caller resumes.
+            if pending.admitted:
+                return
+            pending.admitted = True
+            del self._pending_entries[agv]
+            requests = self._agv_requests
+            requests[agv] = pending.request
+            env = self.env
+            if env.wants(ParkingEntered):
+                env.emit(
+                    ParkingEntered(
+                        area=self.id,
+                        agv=agv.id,
+                        deltas=Deltas.build().insert(self.id, "parked", len(requests) - 1, agv.id).done(),
+                    )
                 )
-            )
+        finally:
+            pending.waiters -= 1
+            if not pending.admitted and pending.waiters == 0:
+                del self._pending_entries[agv]
+                pending.request.cancel()
+                # The slot may have been granted before the interrupt was delivered.
+                if pending.request.triggered:
+                    self._resource.release(pending.request)
 
     def leave(self, agv: AGV) -> None:
         """Release the parking slot held by *agv*.

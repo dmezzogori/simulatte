@@ -5,11 +5,13 @@
 # latest.json manifest records the name for the controller to fetch.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-uv build --wheel
+build_dir="$(mktemp -d)"
+trap 'rm -rf "$build_dir"' EXIT
+uv build --wheel --out-dir "$build_dir"
 mkdir -p docs/assets/wheels
 rm -f docs/assets/wheels/simulatte-*.whl   # keep exactly one wheel in the dir
-cp dist/simulatte-*.whl docs/assets/wheels/
-wheel_name="$(basename "$(ls -1 dist/simulatte-*.whl | tail -1)")"
+cp "$build_dir"/simulatte-*.whl docs/assets/wheels/
+wheel_name="$(basename "$build_dir"/simulatte-*.whl)"
 printf '{"wheel": "%s"}\n' "$wheel_name" > docs/assets/wheels/latest.json
 echo "Wrote docs/assets/wheels/$wheel_name and latest.json"
 

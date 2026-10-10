@@ -38,15 +38,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libjpeg-dev zlib1g-dev
 
       - name: Install dependencies
-        run: uv sync --dev --python 3.12 --frozen
+        run: uv sync --dev --all-extras --python 3.12 --frozen
 
       - name: Build simulatte wheel into the docs site
         run: ./scripts/build_docs_wheel.sh
 
       - name: Build site
-        run: uv run zensical build --clean
+        run: uv run --all-extras zensical build --clean
       - name: Check internal documentation links
-        run: uv run python scripts/check_docs_links.py
+        run: uv run --all-extras python scripts/check_docs_links.py
 
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v5

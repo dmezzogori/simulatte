@@ -20,6 +20,8 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, ClassVar
 
+from simulatte._optional import import_optional
+
 from simulatte.intralogistics.agv import _UTILIZED_STATES
 from simulatte.intralogistics.events import AgvStateChanged, FleetPendingChanged, OrderStatusChanged
 from simulatte.kpi import KPI, Collector, TimeWeighted
@@ -226,7 +228,8 @@ class FleetTimeSeries(Collector):
 
     def plot_fleet_utilization(self) -> None:  # pragma: no cover
         """Step plot of the fleet utilization over time (nothing without data)."""
-        import matplotlib.pyplot as plt  # lazy: keeps headless runs free of matplotlib
+        import_optional("matplotlib.pyplot", "plot")
+        import matplotlib.pyplot as plt
 
         if not self.fleet_utilization_ts:
             return
@@ -239,6 +242,7 @@ class FleetTimeSeries(Collector):
 
     def plot_pending_orders(self) -> None:  # pragma: no cover
         """Step plot of the pending orders over time (nothing without data)."""
+        import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
 
         if not self.pending_orders_ts:
@@ -252,6 +256,7 @@ class FleetTimeSeries(Collector):
 
     def plot_throughput(self) -> None:  # pragma: no cover
         """Step plot of the cumulative delivered orders over time."""
+        import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
 
         times, counts = zip(*self.throughput_ts, strict=True)
@@ -263,6 +268,7 @@ class FleetTimeSeries(Collector):
 
     def plot_inventory(self) -> None:  # pragma: no cover
         """Step plot of each warehouse's inventory per SKU over time (nothing without data)."""
+        import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
 
         has_series = False

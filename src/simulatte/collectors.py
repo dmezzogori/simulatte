@@ -22,6 +22,8 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, ClassVar
 
+from simulatte._optional import import_optional
+
 from simulatte.kpi import KPI, Collector, TimeWeighted, _ExactSum
 from simulatte.server import JobGranted, JobQueued, JobQueueLeft, JobReleased
 from simulatte.shopfloor import JobFinished, OperationCompleted, ShopFloorEntered, ShopFloorWipUpdated
@@ -156,7 +158,8 @@ class ShopFloorTimeSeries(Collector):
 
     def plot_wip(self) -> None:  # pragma: no cover
         """Step plot of the total WIP over time (`RuntimeError` without data)."""
-        import matplotlib.pyplot as plt  # lazy: keeps headless runs free of matplotlib
+        import_optional("matplotlib.pyplot", "plot")
+        import matplotlib.pyplot as plt
 
         if not self.wip_ts:
             raise RuntimeError("No WIP data collected.")
@@ -170,6 +173,7 @@ class ShopFloorTimeSeries(Collector):
 
     def plot_job_count(self) -> None:  # pragma: no cover
         """Step plot of the jobs on the shop floor over time (`RuntimeError` without data)."""
+        import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
 
         if not self.job_count_ts:
@@ -184,6 +188,7 @@ class ShopFloorTimeSeries(Collector):
 
     def plot_throughput(self) -> None:  # pragma: no cover
         """Step plot of the cumulative throughput over time (`RuntimeError` before the first completion)."""
+        import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
 
         if len(self.throughput_ts) <= 1:
@@ -198,6 +203,7 @@ class ShopFloorTimeSeries(Collector):
     def plot_lateness(self) -> None:  # pragma: no cover
         """Scatter plot of job lateness at completion, tardy jobs red and early ones green (`RuntimeError` without
         data)."""
+        import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
 
         if not self.lateness_ts:
@@ -298,7 +304,8 @@ class ServerTimeSeries(Collector):
 
     def plot_qt(self) -> None:  # pragma: no cover
         """Step plot of the queue length over time (`RuntimeError` without data)."""
-        import matplotlib.pyplot as plt  # lazy: keeps headless runs free of matplotlib
+        import_optional("matplotlib.pyplot", "plot")
+        import matplotlib.pyplot as plt
 
         if not self.qt:
             raise RuntimeError("No queue length data collected.")
@@ -312,6 +319,7 @@ class ServerTimeSeries(Collector):
 
     def plot_ut(self) -> None:  # pragma: no cover
         """Step plot of the utilization over time, up to the current time."""
+        import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
 
         ut = [*self.ut, (self._server.env.now, self.ut[-1][1])]

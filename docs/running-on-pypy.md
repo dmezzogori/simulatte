@@ -29,7 +29,9 @@ uv pip install --python .venv-pypy simulatte
 .venv-pypy/bin/python my_simulation.py
 ```
 
-Your simulation scripts are unchanged — only the interpreter differs.
+Your simulation scripts are unchanged — only the interpreter differs. The base install excludes NumPy,
+Matplotlib, and Gymnasium. For plots, install `simulatte[plot]`; for the experimental Gymnasium wrapper,
+install `simulatte[rl]` (or `simulatte[all]` for both).
 
 ## Supported features on PyPy
 
@@ -47,8 +49,10 @@ Notes:
 
 - The pure-Python dependencies (`simpy`, `tqdm`, `tabulate`) are first-class on PyPy.
 - `matplotlib` and `numpy` are only needed for **plotting** and the experimental RL module —
-  they are never on the simulation hot path. If you run headless (no plots), you don't need
-  them at all.
+  they are never on the simulation hot path. Headless simulations that do not use the RL wrapper
+  need neither extra. The PyPy CI lane runs the core and intralogistics suites without either extra;
+  dependency-related skips are limited to NumPy-specific checks and the optional RL export check. Plotting and RL tests
+  run on CPython with all extras installed.
 
 ## Determinism across interpreters
 

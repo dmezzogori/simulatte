@@ -46,7 +46,8 @@ async function bootPyodide(id) {
   // sqlite3 is unvendored in Pyodide and is imported at module load by
   // simulatte/logsinks.py (which environment.py imports). Without it nothing imports.
   status("Loading numpy / matplotlib…");
-  await pyodide.loadPackage(["sqlite3", "micropip"]);
+  // The runnable examples include plots; matplotlib is an optional simulatte dependency.
+  await pyodide.loadPackage(["sqlite3", "micropip", "matplotlib"]);
   status("Installing simulatte…");
   const micropip = pyodide.pyimport("micropip");
   await micropip.install(wheelUrl);

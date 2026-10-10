@@ -8,14 +8,14 @@
    - `fix/<name>` for bug fixes
 3. Install dependencies and pre-commit hooks:
    ```bash
-   uv sync --dev
-   uv run pre-commit install
+   uv sync --dev --all-extras
+   uv run --all-extras pre-commit install
    ```
 
 ## Pull Requests
 
 - Open a PR against `main` with a clear description of what changed and why
-- All CI checks must pass (tests across Python 3.11–3.14, linting, type checking, docs build)
+- All CI checks must pass (tests across Python 3.11–3.15, linting, type checking, docs build)
 - At least one approving review is required
 - If your change adds or modifies functionality, update the documentation in `docs/` accordingly
 

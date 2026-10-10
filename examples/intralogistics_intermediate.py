@@ -1,3 +1,8 @@
+"""Intralogistics simulation with plots; install ``simulatte[plot]`` to run directly.
+
+Call ``main(plot=False)`` to run without plotting dependencies.
+"""
+
 from __future__ import annotations
 
 from simpy.events import ProcessGenerator
@@ -53,7 +58,7 @@ def order_batches(
             coordinator.submit(order)
 
 
-def main() -> None:
+def main(*, plot: bool = True) -> None:
     with Environment() as env:
         # --- Nodes ---
         rm_in = Node(id="RM_IN", x=0, y=0)
@@ -219,8 +224,9 @@ def main() -> None:
             )
 
         # --- Plots ---
-        ts_collector.plot_fleet_utilization()
-        ts_collector.plot_pending_orders()
+        if plot:
+            ts_collector.plot_fleet_utilization()
+            ts_collector.plot_pending_orders()
 
 
 if __name__ == "__main__":

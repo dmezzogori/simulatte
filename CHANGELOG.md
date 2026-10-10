@@ -2,7 +2,7 @@
 
 All notable changes to Simulatte are documented here.
 
-## 0.13.0 — Unreleased
+## 0.13.0 — 2026-10-10
 
 Simulatte now records everything that happens in a run as typed events on a per-environment bus. Logging, KPI
 collectors, the semantic digest and the new trace recorder are all subscribers of that bus. This release changes
@@ -70,6 +70,12 @@ many APIs and, because RNG streams are now derived from the seed and entity name
 - Docs: the [Events, Traces & KPIs guide](docs/guides/events-and-traces.md) and an Events & Traces API page.
 
 ### Changed
+
+- **Breaking:** plotting requires `pip install "simulatte[plot]"`; the experimental Gymnasium wrapper requires
+  `pip install "simulatte[rl]"`. Use `simulatte[all]` for both. Core installs no longer pull in matplotlib,
+  gymnasium or their NumPy dependency. Missing extras raise an error with the relevant install command.
+- Python 3.15 final is supported and its CI test lane is required. Linting, type checks and the primary
+  coverage upload remain on Python 3.14; the Python 3.11 language floor is unchanged.
 
 - Production builders accept `default_metrics=False`; `FleetCoordinator` accepts `ema_alpha`.
 - `Runner` is imported lazily from the top-level package. API reference pages filter private members.
@@ -162,6 +168,10 @@ many APIs and, because RNG streams are now derived from the seed and entity name
   (stateless, focus), release (WIP, workload, triggers) and release-policy comparison pages.
 
 ### Fixed
+
+- Concurrent parking requests for one AGV share a reservation. Interrupted pending parking requests cancel
+  their wait and release any just-granted slot when no other caller is waiting. A duplicate admission cannot
+  repark an AGV after it has left.
 
 - Fleet recovery now tolerates repeated interrupts, requeues orders after `ReturnToOrigin`, preserves terminal
   order status on cancellation, and completes mission cleanup before idle hooks can dispatch another mission.

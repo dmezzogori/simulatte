@@ -1,6 +1,6 @@
 [project]
 name = "simulatte"
-version = "0.12.0"
+version = "0.13.0"
 description = "A discrete-event simulation framework for intralogistics and operations management"
 readme = "README.md"
 authors = [
@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Scientific/Engineering",
@@ -27,12 +28,15 @@ classifiers = [
 ]
 dependencies = [
     "simpy>=4.0.1",
-    "matplotlib>=3.7.2",
     "tabulate>=0.9.0",
     "tqdm>=4.67.1",
-    "gymnasium>=1.0.0",
     "msgpack>=1.0.8",
 ]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.7.2"]
+rl = ["gymnasium>=1.0.0"]
+all = ["simulatte[plot,rl]"]
 
 [build-system]
 requires = ["hatchling"]
