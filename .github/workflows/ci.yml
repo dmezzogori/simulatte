@@ -132,13 +132,14 @@ jobs:
   # against the released baseline exceeds BUDGET_RELEASED + NOISE_RELEASED, or against the stripped one
   # BUDGET_STRIPPED + NOISE_STRIPPED; modes default (each version's default shop-floor metrics), default_logging
   # and kpi, the digest/full ratios, trace size, seeks, memory, sampling and the scaled-up intralogistics example
-  # are reported in the step summary (budgets for default, default_logging and kpi proposed in the final report,
-  # specs/research/sp1-final-report.md, pending acceptance). Expected duration (an estimate from local timings, not
-  # observed on a runner): about 15 minutes on CPython and 20 on PyPy, setup included.
+  # are reported in the step summary (budgets for default, default_logging and kpi accepted as D59, report-only
+  # until calibrated on runners; specs/research/sp1-final-report.md). Expected duration: about 15 minutes on CPython
+  # and 20 on PyPy, setup included. This is an estimate from local timings and has not been observed on a runner;
+  # the timeout is 45 minutes to leave room for slower runners.
   bench:
     name: bench (${{ matrix.python }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -224,7 +225,7 @@ jobs:
         run: |
           w=jobshop10-u90-5k
           echo "### Other modes, sampling and intralogistics, ${{ matrix.python }} (not gated)" >> "$GITHUB_STEP_SUMMARY"
-          # Modes default and default_logging: each version's defaults, against each baseline (budgets proposed, not gated).
+          # Modes default and default_logging: each version's defaults, against each baseline (budgets accepted as D59, not gated).
           header=""
           for mode in default default_logging; do
             /tmp/base/bin/python run.py --mode $mode --workload workloads/$w.json $RUN --json /tmp/out/base-$mode-$w.json
