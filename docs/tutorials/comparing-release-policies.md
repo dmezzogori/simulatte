@@ -149,9 +149,9 @@ Release policy comparison  (seed=42, sim_time=2000)
 
 Policy      Done    PSP left  Late %   Mean tardy  Mean span   End WIP    Util % 
 ---------------------------------------------------------------------------------
-Immediate   2963    0         10.5%    1.10        19.40       243.2      87.6%  
-LumsCor     2969    49        8.9%     0.97        18.77       52.7       87.4%  
-SLAR        2974    49        2.5%     0.20        18.53       49.7       87.6%  
+Immediate   2963    0         10.5%    1.10        19.40       243.2      87.6%
+LumsCor     2969    49        8.9%     0.97        18.77       52.7       87.4%
+SLAR        2974    49        2.5%     0.20        18.53       49.7       87.6%
 
 Columns:
   Done       = jobs completed by sim_time
