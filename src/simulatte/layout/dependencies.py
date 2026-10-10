@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 import json
 from typing import Any
 
+from .identity import normalized_query
 from .errors import LayoutError
 from .layers import FileLayer, ResolvedValues, _thaw, resolve_layers
 from .types import _freeze
@@ -239,7 +240,9 @@ class DependencyClosure:
         changed = set()
         for query in self._queries:
             values = resolve_layers(code_stages[: query.code_count], file_layer, targets=query.targets, final=True)
-            if evaluate_query(values, query.descriptor) != _thaw(query.observed):
+            if normalized_query(
+                query.descriptor, evaluate_query(values, query.descriptor), origin=query.origin, targets=query.targets
+            ) != normalized_query(query.descriptor, query.observed, origin=query.origin, targets=query.targets):
                 changed.add(tuple(query.descriptor["path"]))
         return tuple(sorted(changed))
 

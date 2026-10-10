@@ -540,7 +540,15 @@ class Environment(simpy.Environment):
             seed, time_unit, provenance, warmup = (
                 inputs if inputs is not None else (self._seed, self.time_unit, self._provenance, self._warmup)
             )
-            requested = build_requested(seed=seed, time_unit=time_unit, provenance=provenance, warmup=warmup)
+            layout_metadata = None
+            if self._layout is not None:
+                result = self._layout._coordinator._result
+                layout_metadata = (
+                    {"schema_version": "1.0", "status": "unresolved"} if result is None else result.bundle.manifest()
+                )
+            requested = build_requested(
+                seed=seed, time_unit=time_unit, provenance=provenance, warmup=warmup, layout=layout_metadata
+            )
             if inputs is not None:
                 self._requested = requested
         final = None

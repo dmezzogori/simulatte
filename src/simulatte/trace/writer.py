@@ -59,7 +59,7 @@ __all__ = ["ChunkLimits", "Outcome", "TraceRecorder"]
 Outcome = Literal["completed", "cancelled", "failed"]
 """How a recorded run ended (stored in the footer)."""
 
-ACTIVATION_MANIFEST_FIELDS: frozenset[str] = frozenset({"parameters", "time_unit", "warmup"})
+ACTIVATION_MANIFEST_FIELDS: frozenset[str] = frozenset({"parameters", "time_unit", "warmup", "layout"})
 """Requested-manifest fields fixed only at activation: stored in ``INITIAL``, the rest in ``HEADER`` (U1)."""
 
 _OUTCOMES = frozenset({"completed", "cancelled", "failed"})
@@ -147,6 +147,7 @@ class TraceRecorder:
         level: Literal["full", "kpi"] = "full",
         chunk_limits: ChunkLimits | None = None,
         max_pending_bytes: int = 64 << 20,
+        max_initial_bytes: int = 64 << 20,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         if env.activated:
@@ -158,6 +159,9 @@ class TraceRecorder:
             raise ValueError(f"level must be 'full' or 'kpi', got {level!r}")
         if max_pending_bytes < 1:
             raise ValueError(f"max_pending_bytes must be >= 1, got {max_pending_bytes}")
+        if type(max_initial_bytes) is not int or max_initial_bytes < 1:
+            raise ValueError("max_initial_bytes must be an integer >= 1")
+        self._max_initial = max_initial_bytes
         limits = ChunkLimits() if chunk_limits is None else chunk_limits
         self._env = env
         self._level = level
@@ -407,7 +411,13 @@ class TraceRecorder:
             "state": replay,
             "manifest": {k: v for k, v in requested.items() if k in ACTIVATION_MANIFEST_FIELDS},
         }
+        if env.layout is not None:
+            initial["layout"] = env.layout.prepare().bundle.to_dict()
         payload = pack(initial)
+        if len(payload) > self._max_initial:
+            raise ValueError(
+                f"INITIAL/layout payload size {len(payload)} exceeds max_initial_bytes={self._max_initial}"
+            )
         self._enqueue("initial", len(payload), (payload, replay))
         self._sync_kpi_declarations()
         with self._cond:

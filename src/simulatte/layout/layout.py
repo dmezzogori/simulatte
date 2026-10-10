@@ -7,10 +7,12 @@ from dataclasses import dataclass, fields, is_dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from .bundle import ResolvedLayout, finalize_layout
 from .auto import AutoLayer, TargetMetadata, auto_layout
 from .binding import bind_components, check_existing_endpoints
 from .dependencies import MISSING, DependencyClosure, evaluate_query
 from .errors import LayoutDiagnostic, LayoutError
+from .identity import normalized_query
 from .io import load_layout, save_layout
 from .layers import FileLayer, ResolvedValues, _thaw, resolve_layers
 from .lifecycle import PreparationCoordinator, PreparationState
@@ -384,7 +386,7 @@ class Layout:
             final=True,
         )
 
-    def _finalize(self, coordinator: PreparationCoordinator) -> _PreparedLayout:
+    def _finalize(self, coordinator: PreparationCoordinator) -> ResolvedLayout:
         assert self._auto is not None
         layer_codes = {"orphan-placement", "kind-mismatch", "non-placeable-target"}
         diagnostics = [
@@ -452,8 +454,16 @@ class Layout:
                             targets={} if target_kind is None else {entity_id: target_kind},
                             final=True,
                         )
-                    baseline = evaluate_query(baseline_views[query.code_count], query.descriptor)
-                    if baseline["flags"].get(entity_id) != _thaw(query.observed["flags"].get(entity_id)):
+                    baseline = normalized_query(
+                        query.descriptor,
+                        evaluate_query(baseline_views[query.code_count], query.descriptor),
+                        origin=query.origin,
+                        targets=query.targets,
+                    )["observed"]
+                    observed = normalized_query(
+                        query.descriptor, query.observed, origin=query.origin, targets=query.targets
+                    )["observed"]
+                    if baseline["flags"].get(entity_id) != observed["flags"].get(entity_id):
                         structural_override = True
                 elif path[:2] == prefix:
                     physical_paths.append(path)
@@ -485,13 +495,15 @@ class Layout:
                 )
             )
         assert self._auto is not None
-        return _PreparedLayout(
-            coordinator.values,
-            self._auto,
-            coordinator.network,
-            coordinator.closure,
-            _freeze(coordinator.stage_records()),
-            self._required_paths,
-            tuple(sorted(set(diagnostics), key=lambda d: (d.stage or "", d.path, d.code, d.target or ""))),
-            frozenset(entity.id for entity in self.env.entities.live() if self.env.entities.is_named(entity.id)),
+        return finalize_layout(
+            _PreparedLayout(
+                coordinator.values,
+                self._auto,
+                coordinator.network,
+                coordinator.closure,
+                _freeze(coordinator.stage_records()),
+                self._required_paths,
+                tuple(sorted(set(diagnostics), key=lambda d: (d.stage or "", d.path, d.code, d.target or ""))),
+                frozenset(entity.id for entity in self.env.entities.live() if self.env.entities.is_named(entity.id)),
+            )
         )

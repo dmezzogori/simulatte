@@ -38,6 +38,7 @@ import {
   type Frame,
   type ReaderLimits,
 } from "./container";
+import { layoutOf, type LayoutBundle } from "./layout";
 import { DeltaError, applyDeltas, type Op, type State } from "./deltas";
 import { decodeWire, defineKey, newMap, type Wire } from "./wire";
 
@@ -116,6 +117,9 @@ export async function openTrace(source: Blob | ArrayBuffer, options: OpenOptions
 export class Trace {
   #header: Readonly<Dict> = Object.freeze(newMap());
   #level = "";
+  #layout: LayoutBundle | null = null;
+  /** Immutable layout data, or null for old/no-layout traces. */
+  get layout(): LayoutBundle | null { return this.#layout; }
   #index: readonly ChunkInfo[] = Object.freeze([]);
   #truncated = false;
   #outcome: string | null = null;
@@ -397,6 +401,7 @@ export class Trace {
         this.#initial = stateOf(field(initial, "state"));
         this.#activation = asCursor(field(initial, "cursor"));
         mapOf(field(initial, "manifest"), "manifest");
+        if (initial["layout"] !== undefined && initial["layout"] !== null) this.#layout = layoutOf(initial["layout"]);
       }
       const unknown = required.filter((name) => !REQUIRED_FEATURES.includes(name));
       if (unknown.length > 0) {

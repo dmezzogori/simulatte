@@ -356,10 +356,15 @@ class Trace:
             self._initial: Mapping[str, Mapping[str, Wire]] | None = None
             self._activation: Cursor | None = None
             self._initial_manifest = FrozenMap({})
+            self._layout = None
             if initial is not None:
                 self._initial = _state(initial["state"])
                 self._activation = _wire_cursor(initial["cursor"])
                 self._initial_manifest = FrozenMap(initial["manifest"])
+                if initial.get("layout") is not None:
+                    from simulatte.layout.bundle import LayoutBundle
+
+                    self._layout = LayoutBundle.from_dict(initial["layout"])
         except _MALFORMED as exc:
             raise TraceCorrupted(f"malformed header or initial record: {exc!r}") from exc
         unknown = required - set(REQUIRED_FEATURES)
@@ -655,6 +660,11 @@ class Trace:
     # Validation
     # -------------------------------------------------------------------------
 
+    @property
+    def layout(self):
+        """Immutable saved layout, including opaque future versions; None in old/no-layout traces."""
+        return self._layout
+
     def check(self) -> None:
         """Validate the whole container; raise :class:`TraceCorrupted` at the first problem.
 
@@ -664,6 +674,15 @@ class Trace:
         R31: NaN equals NaN, -0.0 differs from 0.0). An incomplete tail is not a problem: it is reported by
         :attr:`truncated`.
         """
+        if self._layout is not None and self._layout.reusable:
+            try:
+                self._layout.check()
+                if self._layout.manifest() != self._initial_manifest.get("layout"):
+                    raise ValueError("layout activation manifest mismatch")
+            except ValueError as exc:
+                raise TraceCorrupted(str(exc)) from exc
+        elif self._layout is None and self._initial_manifest.get("layout") is not None:
+            raise TraceCorrupted("layout activation manifest has no INITIAL.layout")
         with open(self._path, "rb") as f:
             file = _File(f, self._size, self._limits)
             if self._footer_offset is not None:

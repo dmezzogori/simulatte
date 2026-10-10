@@ -64,3 +64,33 @@ describe("KPI declarations", () => {
     expect(trace.kpiDeclarations["cell/flow"]!["empty"]).toBe(empty);
   });
 });
+
+import { readFileSync } from "node:fs";
+const layoutExpected = JSON.parse(readFileSync(new URL("../../../../tests/fixtures/traces/generated/layout_full.expected.json", import.meta.url), "utf8")) as { layout: Record<string, unknown> };
+
+it("exposes immutable layout metadata, including unknown schemas, without interpreting future data", async () => {
+  const layout = layoutExpected.layout;
+  const trace = await openTrace(buildTrace({ ...INITIAL, layout }));
+  expect(trace.layout).toEqual(layout);
+  expect(Reflect.set(trace, "layout", null)).toBe(false);
+  expect(Reflect.set(trace.layout!, "physical_hash", "changed")).toBe(false);
+  expect(Reflect.set(trace.layout!["targets"] as object, "station", null)).toBe(false);
+  const opaque = await openTrace(buildTrace({ ...INITIAL, layout: { schema_version: "9.0", future: [1] } }));
+  expect(opaque.layout).toEqual({ schema_version: "9.0", future: [1] });
+  expect((await openTrace(buildTrace(INITIAL))).layout).toBeNull();
+});
+
+it.each([
+  ["schema_version", 1], ["algorithms", {}], ["full_hash", "bad"], ["stages", []],
+  ["aliases", {}], ["network", []], ["dependencies", {}], ["targets", { x: { kind: "node" } }],
+  ["layers", { file: {}, code: [] }], ["auto", null],
+])("rejects malformed known layout %s", async (key, value) => {
+  await expect(openTrace(buildTrace({ ...INITIAL, layout: { ...layoutExpected.layout, [key as string]: value } }))).rejects.toThrow(TraceCorrupted);
+});
+
+it("rejects missing layout metadata and non-finite saved values", async () => {
+  const layout = { ...layoutExpected.layout };
+  delete layout["resolved"];
+  await expect(openTrace(buildTrace({ ...INITIAL, layout }))).rejects.toThrow(TraceCorrupted);
+  await expect(openTrace(buildTrace({ ...INITIAL, layout: { ...layoutExpected.layout, bindings: { invalid: Infinity } } }))).rejects.toThrow(TraceCorrupted);
+});

@@ -23,7 +23,7 @@ import sys
 from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 from unittest import mock
 
 from simulatte._wire import FrozenMap
@@ -38,7 +38,7 @@ from simulatte.trace import ChunkLimits, Trace, TraceRecorder
 
 HERE = Path(__file__).resolve().parent
 
-SEEDS: dict[str, int] = {"shop_small": 5, "lumscor": 20260508, "cell_ops": 7}
+SEEDS: dict[str, int] = {"shop_small": 5, "lumscor": 20260508, "cell_ops": 7, "layout_full": 19, "layout_kpi": 19}
 """Generated fixtures and the explicit seed of each."""
 
 PROVENANCE = Provenance(
@@ -73,13 +73,14 @@ def record(
     max_events: int,
     seed: int | None = None,
     env: Environment | None = None,
+    level: Literal["full", "kpi"] = "full",
 ) -> Environment:
     """Run `build` in an environment recording to `path`, chunked by event count only; return the environment."""
     if env is None:
         env = Environment(seed=seed, provenance=PROVENANCE)
     limits = ChunkLimits(max_events=max_events, max_bytes=1 << 30, max_latency_s=3600.0)
     with fixed_volatile_metadata():
-        TraceRecorder(env, path, chunk_limits=limits)
+        TraceRecorder(env, path, chunk_limits=limits, level=level)
         build(env)
         env.run(until=until)
         env.close()
@@ -206,10 +207,32 @@ def _late_entity(env: Environment) -> Entity:
     return Late()
 
 
+def build_layout(env: Environment) -> None:
+    from simulatte import Layout
+    from simulatte.layout import Grid, Lattice, Point
+    from simulatte.server import Server
+
+    layout = Layout.from_dict(
+        env, {"schema_version": "1.0", "placements": {"ghost": {"kind": "server", "visual": {"label": "ignored"}}}}
+    )
+    layout.set_grid(Grid(2, 2))
+    layout.set_network(Lattice((0, 0, 2, 0), capacity=2))
+
+    @layout.stage("stations", reads=[])
+    def stations(ctx):
+        machine = Server(env=env, capacity=1, name="station")
+        layout.place(machine, position=Point(0, 3), footprint={"width": 2}, visual={"color": "#112233"})
+
+    width = layout.ref("placements", "station", "footprint", "width")
+    layout.on_bind("width", lambda ctx: ctx.physical(width), reads=[width])
+
+
 BUILDERS: dict[str, tuple[Callable[[Environment], object], float, int]] = {
     "shop_small": (build_shop_small, 20.0, 15),
     "lumscor": (build_lumscor, 25.0, 20),
     "cell_ops": (build_cell_ops, 30.0, 7),
+    "layout_full": (build_layout, 1.0, 7),
+    "layout_kpi": (build_layout, 1.0, 7),
 }
 """For each generated fixture: the builder, the horizon and the events per chunk."""
 
@@ -261,6 +284,7 @@ def expected_document(path: Path) -> dict[str, Any]:
     trace = Trace.open(path)
     bounds = trace.cursor_range
     return {
+        **({"layout": plain(trace.layout.to_dict())} if trace.layout is not None else {}),
         "trace": path.name,
         "level": trace.level,
         "outcome": trace.outcome,
@@ -281,6 +305,7 @@ def canonical_content(path: Path) -> dict[str, Any]:
     manifest = {k: v for k, v in trace.manifest.items() if k not in _MACHINE_DEPENDENT}
     bounds = trace.cursor_range
     return {
+        "layout": None if trace.layout is None else plain(trace.layout.to_dict()),
         "manifest": plain(manifest),
         "level": trace.level,
         "outcome": trace.outcome,
@@ -313,7 +338,9 @@ def generate(out: Path) -> list[Path]:
     for name, seed in SEEDS.items():
         build, until, max_events = BUILDERS[name]
         path = out / f"{name}.simtrace"
-        record(path, build, until=until, max_events=max_events, seed=seed)
+        record(
+            path, build, until=until, max_events=max_events, seed=seed, level="kpi" if name == "layout_kpi" else "full"
+        )
         written += [path, write_expected(path)]
     return written
 

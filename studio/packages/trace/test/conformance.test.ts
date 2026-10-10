@@ -23,6 +23,7 @@ interface Check {
 
 interface Expected {
   trace: string;
+  layout?: unknown;
   level: string;
   outcome: string | null;
   truncated: boolean;
@@ -94,6 +95,7 @@ describe.each([["generated"], ["frozen"]])("%s fixtures", (dir) => {
       for (const source of [copyOf(bytes), new Blob([bytes as BlobPart])]) {
         const trace = await openTrace(source);
         expect(trace.level).toBe(expected.level);
+        expect(canon(trace.layout)).toBe(canon(expected.layout ?? null));
         expect(trace.outcome).toBe(expected.outcome);
         expect(trace.truncated).toBe(expected.truncated);
         expect(trace.cursorRange).toEqual(expected.cursorRange);

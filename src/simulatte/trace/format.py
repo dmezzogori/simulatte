@@ -35,7 +35,7 @@ __all__ = [
 
 MAGIC: Final = b"SIMTRACE"
 FORMAT_MAJOR: Final = 1
-FORMAT_MINOR: Final = 0
+FORMAT_MINOR: Final = 1
 TRAILER_MAGIC: Final = b"SIMTEND\0"
 
 PREAMBLE: Final = struct.Struct(">8sHH")
@@ -47,7 +47,7 @@ TRAILER: Final = struct.Struct(">Q8s")
 
 REQUIRED_FEATURES: Final[tuple[str, ...]] = ("wire-v1", "deltas-v1", "chunks-zlib")
 """Features every reader of this version must understand (stored in the header)."""
-OPTIONAL_FEATURES: Final[tuple[str, ...]] = ("kpi-declarations-v1",)
+OPTIONAL_FEATURES: Final[tuple[str, ...]] = ("kpi-declarations-v1", "layout-v1")
 """Features a reader may ignore."""
 
 

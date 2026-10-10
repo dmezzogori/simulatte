@@ -84,6 +84,7 @@ def build_requested(
     provenance: Provenance | None,
     parameters: Mapping[str, object] | None = None,
     warmup: float = 0.0,
+    layout: object = None,
 ) -> FrozenMap:
     """The requested part of a manifest."""
     given = provenance if provenance is not None else Provenance()
@@ -112,6 +113,7 @@ def build_requested(
             "parameters": freeze(parameters or {}),
             "time_unit": time_unit,
             "warmup": float(warmup),
+            "layout": freeze(layout),
         }
     )
 
