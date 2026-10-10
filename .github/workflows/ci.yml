@@ -113,17 +113,22 @@ jobs:
         with:
           node-version: 24
 
+      # Corepack reads the pnpm version from the packageManager field of the package.json in the working
+      # directory, so the pnpm steps run inside studio/ (from the repository root it would fall back to its default pnpm).
       - name: Enable corepack (pnpm version comes from studio/package.json)
         run: corepack enable
 
       - name: Install dependencies
-        run: pnpm -C studio install --frozen-lockfile
+        working-directory: studio
+        run: pnpm install --frozen-lockfile
 
       - name: Type check
-        run: pnpm -C studio typecheck
+        working-directory: studio
+        run: pnpm typecheck
 
       - name: Run tests
-        run: pnpm -C studio test
+        working-directory: studio
+        run: pnpm test
 
   # Overhead gate (spec §14, gate G3, decision D55): the branch's mode `none` against two baselines built from
   # simulatte==0.12.0, on the same pre-generated workloads (benchmarks/README.md): the released package (the
