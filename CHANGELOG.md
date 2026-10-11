@@ -4,12 +4,19 @@ All notable changes to Simulatte are documented here.
 
 ## Unreleased
 
+## 0.14.0 — 2026-10-11
+
+Simulatte now prepares deterministic layouts and transport networks separately from simulation execution.
+The headless layout subsystem needs no extra runtime dependencies. See the
+[layout guide](docs/guides/layout.md) for runnable examples and migration guidance.
+
 ### Added
 
 - `Layout`: layered code/file placement, deterministic static auto layout, explicit/lattice/lane transport
   networks, ports/connectors, logical handles, staged physical reads and frozen dependency tracking.
 - Immutable saved layout bundles, full/physical/layers hashes and presentation-only re-resolution without
   rerunning model code. JSON Schema 1.0 ships in the core package; no new runtime dependency.
+- Structured `LayoutError.diagnostics` with stable categories, tuple paths and available stage/target context.
 - [Runnable layout guide](docs/guides/layout.md), API reference and migration examples.
 
 ### Changed
