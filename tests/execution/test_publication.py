@@ -22,18 +22,32 @@ def api():
     return importlib.import_module("simulatte.execution.publication")
 
 
-def prepared(tmp_path, *, level="full", transform=None, build=None, finalize=True):
+def prepared(tmp_path, *, level="full", transform=None, build=None, finalize=True, managed=True, wrong_identity=False):
     m = api()
     store = store_api().RunStore.open(tmp_path / ".simulatte")
     requested = request(schema, seed=42, level=level, parameters={}, kpis=(), stopping=Horizon(1).to_dict())
     key = store.assign(requested, store.create_revision({"source": "a"}))
     env = Environment(seed=42)
     path = tmp_path / "source.simtrace"
-    recorder = TraceRecorder(env, path, level=level)
+    resolved = schema.ResolvedManifest(runtime={}, dependencies={}, imports={}, layout={}, capabilities={})
+    embedded = replace(requested, layout_revision=requested.layout_revision + 1) if wrong_identity else requested
+    recorder = TraceRecorder(
+        env,
+        path,
+        level=level,
+        **(
+            {
+                "execution": {"schema": 1, "request_id": schema.request_id(embedded), "request": embedded.to_dict()},
+                "resolve_execution": resolved.to_dict,
+            }
+            if managed
+            else {}
+        ),
+    )
     if build is not None:
         build(env)
     execute_until(env, Horizon(1))
-    recorder.close()
+    recorder.close(termination="horizon")
     data = path.read_bytes()
     if transform is not None:
         data = transform(data)
@@ -468,3 +482,30 @@ def test_publication_reads_many_receipts_in_bounded_batches(tmp_path):
         store.transition(key, "finalizing")
         result = m.publish(store, key, proposal, execution_exited=True, descendants_cleaned=True)
         assert (result.path / "artifacts/many.txt").read_bytes() == data
+
+
+@pytest.mark.parametrize("failure", ["missing", "request", "resolved", "termination"])
+def test_execution_provenance_is_bound_to_published_result(tmp_path, failure):
+    from tests.core.test_trace_reader import _rewrite_footer
+
+    transform = (
+        (
+            lambda data: _rewrite_footer(
+                data, lambda body: body.update(execution={**body["execution"], "termination": "failed"})
+            )
+        )
+        if failure == "termination"
+        else None
+    )
+    store, key, proposal, _ = prepared(
+        tmp_path, managed=failure != "missing", wrong_identity=failure == "request", transform=transform
+    )
+    with store:
+        if failure == "resolved":
+            proposal = replace(
+                proposal, resolved_manifest=replace(proposal.resolved_manifest, runtime={"different": True})
+            )
+        with pytest.raises(ValueError, match="execution"):
+            api().publish(store, key, proposal, execution_exited=True, descendants_cleaned=True)
+        with pytest.raises(KeyError):
+            store.result(key.attempt_id)

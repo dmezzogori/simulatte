@@ -11,6 +11,7 @@ import socket
 import struct
 import sys
 import threading
+import tempfile
 import time
 
 from simulatte.execution.control import Control, Cancelled, AttemptTimeout
@@ -67,6 +68,7 @@ class ChildProcess:
         self.killed = False
         self.hello = False
         self.proposal = None
+        self.pending = None
         self.exit_code = None
         self.diagnostics = Diagnostics()
         self.reported_drops = 0
@@ -76,6 +78,7 @@ class ChildProcess:
         self.connection = None
         self.stream = None
         self.pumps = []
+        self.attempt_dir = None
         timeout = command.body.get("timeout")
         if timeout is not None and (type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0):
             raise ValueError("Attempt timeout must be positive and finite")
@@ -89,7 +92,10 @@ class ChildProcess:
         listener.settimeout(10)
         token = secrets.token_hex(32)
         try:
-            config = json.dumps(_plain(command.body["config"]), allow_nan=False).encode()
+            self.attempt_dir = tempfile.TemporaryDirectory(prefix="simulatte-attempt-")
+            configuration = _plain(command.body["config"])
+            configuration["attempt_dir"] = self.attempt_dir.name
+            config = json.dumps(configuration, allow_nan=False).encode()
             if len(config) > 256 << 10:
                 raise ValueError("Child configuration exceeds limit")
             self.process = ContainedProcess.start(
@@ -177,6 +183,8 @@ class ChildProcess:
             self.connection.close()
         for thread in self.pumps:
             thread.join(timeout=0.2)
+        if self.attempt_dir is not None:
+            self.attempt_dir.cleanup()
 
 
 class Supervisor:
@@ -222,15 +230,20 @@ class Supervisor:
             return
         assert self.channel is not None and child.channel is not None and child.process is not None
         child.escalate()
+        if child.cancel_at is not None:
+            child.pending = None
         channel_lost = False
         for _ in range(32):
-            try:
-                message = child.channel.receive(0.001)
-            except TimeoutError:
-                break
-            except OSError:
-                channel_lost = True
-                break
+            if child.pending is not None:
+                message = child.pending
+            else:
+                try:
+                    message = child.channel.receive(0.001)
+                except TimeoutError:
+                    break
+                except OSError:
+                    channel_lost = True
+                    break
             if message.type == "hello" and not child.hello:
                 child.hello = True
                 continue
@@ -243,7 +256,13 @@ class Supervisor:
             elif message.type == "progress":
                 child.progress.update(**dict(message.body))
             elif message.type in ("ready", "kpi", "trace_chunk", "artifact_fragment"):
-                self.channel.send(message.type, dict(message.body), key=child.key, payload=message.payload)
+                if child.cancel_at is None:
+                    try:
+                        self.channel.send(message.type, dict(message.body), key=child.key, payload=message.payload)
+                    except BufferError:
+                        child.pending = message
+                        break
+                child.pending = None
             else:
                 raise ValueError("Invalid private child message")
         if channel_lost and child.proposal is None:
@@ -258,7 +277,9 @@ class Supervisor:
                 child.reported_drops = report["dropped_bytes"]
                 self.channel.send("diagnostics", report, key=child.key)
             self._last_diagnostic = time.monotonic()
-        if child.exit_code is not None and (child.proposal is not None or channel_lost):
+        # A priority terminal proposal can overtake bulk messages. Drain private
+        # EOF before releasing the slot; otherwise the final poll batch is lost.
+        if child.exit_code is not None and channel_lost and child.pending is None:
             child.close()
             self.child = None
             if child.cancel_at is not None:
@@ -332,3 +353,5 @@ class Supervisor:
                 pass
             self.channel.close()
             thread.join(timeout=0.2)
+        if self.attempt_dir is not None:
+            self.attempt_dir.cleanup()

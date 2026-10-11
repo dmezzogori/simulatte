@@ -17,6 +17,7 @@ class AttemptTimeout(Exception):
 
 class Control:
     def __init__(self, *, deadline: float | None = None, clock: Callable[[], float] = time.monotonic):
+        self.phase = "preparing"
         self.deadline = deadline
         self.clock = clock
         self.cancelled = threading.Event()

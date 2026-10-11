@@ -35,7 +35,7 @@ __all__ = [
 
 MAGIC: Final = b"SIMTRACE"
 FORMAT_MAJOR: Final = 1
-FORMAT_MINOR: Final = 2
+FORMAT_MINOR: Final = 3
 TRAILER_MAGIC: Final = b"SIMTEND\0"
 
 PREAMBLE: Final = struct.Struct(">8sHH")

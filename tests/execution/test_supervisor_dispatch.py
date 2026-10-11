@@ -28,6 +28,8 @@ def actor(monkeypatch, messages=(), code=None):
 
     def receive(timeout):
         if not inbox:
+            if code is not None:
+                raise OSError("child EOF")
             raise TimeoutError()
         return inbox.popleft()
 
@@ -46,6 +48,7 @@ def actor(monkeypatch, messages=(), code=None):
         progress=m.Progress(),
         diagnostics=m.Diagnostics(),
         proposal=None,
+        pending=None,
         hello=False,
         exit_code=None,
         cancel_at=None,

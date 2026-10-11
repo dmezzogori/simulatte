@@ -32,7 +32,7 @@ import threading
 import time
 import zlib
 from collections import deque
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -149,6 +149,9 @@ class TraceRecorder:
         level: Literal["full", "kpi"] = "full",
         sink: TraceSink | None = None,
         control: Callable[[], None] | None = None,
+        execution: Mapping[str, Any] | None = None,
+        resolve_execution: Callable[[], Mapping[str, Any]] | None = None,
+        kpis: tuple[str, ...] | None = None,
         chunk_limits: ChunkLimits | None = None,
         max_pending_bytes: int = 64 << 20,
         max_initial_bytes: int = 64 << 20,
@@ -167,6 +170,17 @@ class TraceRecorder:
             raise ValueError("max_initial_bytes must be an integer >= 1")
         if (path is None) == (sink is None):
             raise ValueError("Supply exactly one trace path or sink")
+        if (execution is None) != (resolve_execution is None):
+            raise ValueError("Execution provenance requires requested and resolved metadata")
+        self._execution_header = None
+        self._resolve_execution = resolve_execution
+        if kpis is not None and (not isinstance(kpis, tuple) or any(type(k) is not str or not k for k in kpis)):
+            raise ValueError("KPI selection must be a tuple of nonempty keys")
+        self._selected_kpis = None if kpis is None else frozenset(kpis)
+        if execution is not None:
+            from simulatte.trace.execution import header as execution_header
+
+            self._execution_header = execution_header(execution)
         pending_limit = sink.pending_limit if sink is not None else None
         self._strict_pending = pending_limit is not None
         self._control = control
@@ -195,6 +209,9 @@ class TraceRecorder:
             "chunk_limits": limits.to_wire(),
             "volatile": dataclasses.asdict(env.volatile_metadata()),
         }
+        if self._execution_header is not None:
+            header["features"]["optional"] = (*OPTIONAL_FEATURES, "execution-v1")
+            header["execution"] = self._execution_header
         header_payload = pack(header)
         if self._strict_pending and len(header_payload) > self._max_pending:
             raise ValueError("Trace header exceeds pending byte limit")
@@ -409,6 +426,8 @@ class TraceRecorder:
         error = self._error  # read without the lock, as in _on_event
         if error is not None:
             raise error
+        if self._selected_kpis is not None and f"{event.scope}/{event.kpi}" not in self._selected_kpis:
+            return
         if self._samples_ready:
             self._sync_kpi_declarations()
         entry = pack((event.seq, wire_time(event.t), f"{event.scope}/{event.kpi}", event.value))
@@ -435,11 +454,13 @@ class TraceRecorder:
             }
             for collector in collectors[self._known_collectors :]
             for name, kpi in collector._declared.items()
+            if self._selected_kpis is None or f"{collector._scope_id}/{name}" in self._selected_kpis
         }
         display = {
             f"{collector._scope_id}/{name}": {"interpolation": kpi.interpolation, "missing": kpi.missing}
             for collector in collectors[self._known_collectors :]
             for name, kpi in collector._declared.items()
+            if self._selected_kpis is None or f"{collector._scope_id}/{name}" in self._selected_kpis
             if "series" in kpi.kind
         }
         self._known_collectors = len(collectors)
@@ -513,6 +534,10 @@ class TraceRecorder:
         }
         if env.layout is not None:
             initial["layout"] = env.layout.prepare().bundle.to_dict()
+        if self._resolve_execution is not None:
+            from simulatte.trace.execution import initial as execution_initial
+
+            initial["execution"] = execution_initial(self._resolve_execution())
         payload = pack(initial)
         if len(payload) > self._max_initial:
             raise ValueError(
@@ -620,7 +645,7 @@ class TraceRecorder:
             if self._error is not None:
                 raise self._error
 
-    def close(self, outcome: Outcome | None = None) -> None:
+    def close(self, outcome: Outcome | None = None, *, termination: str | None = None) -> None:
         """Seal the open chunk, write the KPI scalars and the footer, and wait until all is on disk.
 
         `outcome` defaults to ``"failed"`` if :meth:`Environment.run` raised, ``"cancelled"`` if a run was
@@ -648,7 +673,9 @@ class TraceRecorder:
                 self._flush_samples()
             self._sync_kpi_declarations()
             fingerprint = env.fingerprint()
-            kpis: Any = dict(fingerprint.kpis)
+            kpis: Any = {
+                k: v for k, v in fingerprint.kpis.items() if self._selected_kpis is None or k in self._selected_kpis
+            }
             if kpis:
                 payload = pack(FrozenMap({"scalars": kpis}))
                 self._enqueue("record", len(payload), (RecordType.KPI, payload))
@@ -665,6 +692,10 @@ class TraceRecorder:
                 "fingerprint": {"digest": fingerprint.digest, "kpis": kpis},
                 "volatile": dataclasses.asdict(env.volatile_metadata()),
             }
+            if self._execution_header is not None:
+                from simulatte.trace.execution import footer as execution_footer
+
+                footer["execution"] = execution_footer(termination if termination is not None else outcome, end)
             self._enqueue("footer", len(pack(footer)) if self._strict_pending else 0, footer)
             if self._blocked_count > 1:
                 self._diagnostic(

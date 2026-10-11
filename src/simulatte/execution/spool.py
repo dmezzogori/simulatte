@@ -216,7 +216,8 @@ class Spool:
         with self._condition:
             return tuple(self._segments.values())
 
-    def ack(self, identity: str, digest: str) -> bool:
+    def receipt_info(self, identity: str, digest: str) -> tuple[int, int, bool]:
+        """Authenticate the opaque receipt, including already-retired segments."""
         match = _ID.fullmatch(identity) if isinstance(identity, str) else None
         try:
             _hash(digest)
@@ -224,7 +225,21 @@ class Spool:
             raise ValueError("Invalid segment ACK digest") from error
         if match is None or not hmac.compare_digest(self._tag(identity.rsplit("-", 1)[0], digest), match[5]):
             raise ValueError("Invalid segment ACK identity/digest")
-        sequence = int(match[1], 16)
+        sequence, length = int(match[1], 16), int(match[3], 16)
+        with self._condition:
+            return sequence, length, sequence <= self._acked
+
+    def note_progress(self, identity: str, digest: str) -> None:
+        """New durable fragment credit resets liveness without reclaiming bytes."""
+        self.receipt_info(identity, digest)
+        with self._condition:
+            if identity not in self._segments:
+                raise ValueError("Progress for an unknown segment")
+            self._last_ack = self.clock()
+            self._condition.notify_all()
+
+    def ack(self, identity: str, digest: str) -> bool:
+        sequence, _, _ = self.receipt_info(identity, digest)
         with self._condition:
             if sequence <= self._acked:
                 return False

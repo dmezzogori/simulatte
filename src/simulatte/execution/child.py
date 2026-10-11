@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import errno
 import math
 import threading
 import traceback
@@ -23,6 +24,7 @@ def serve(config, connection) -> int:
     channel.send("hello", {"pid": os.getpid(), "protocol": [1, 0]})
     control = Control()
     key = None
+    sender = None
     stopped = threading.Event()
     try:
         if channel.receive(10).type != "hello":
@@ -52,7 +54,10 @@ def serve(config, connection) -> int:
                         control.cancel()
                     elif message.type == "ready_ack":
                         control.ack_ready()
-                    elif message.type != "ack":
+                    elif message.type == "ack":
+                        if sender is not None:
+                            sender.ack(dict(message.body))
+                    else:
                         control.fail(ValueError("Unsupported private control message"))
                 except TimeoutError:
                     continue
@@ -68,21 +73,41 @@ def serve(config, connection) -> int:
         if command.type == "inspect":
             from simulatte.execution.bootstrap import inspect_configuration
 
+            control.phase = "inspecting"
             metadata = inspect_configuration(config)
             control.check()
             channel.send("model_info", {"metadata": metadata, "pid": os.getpid()}, key=key)
         else:
-            raise ValueError("Execution driver is not connected yet")
+            from pathlib import Path
+            from simulatte.execution.driver import execute
+            from simulatte.execution.spool import Spool
+            from simulatte.execution.transfer import SegmentSender
+
+            spool = Spool(Path(config["attempt_dir"]) / "spool", control=control)
+
+            def send(kind, body, **kwargs):
+                channel.send(kind, body, key=key, **kwargs)
+
+            sender = SegmentSender(spool, send)
+            sender.start()
+            proposal = execute(config, command.body["request"], key, control, spool, send)
+            sender.finish()
+            sender.wait()
+            channel.send("result", {"proposal": proposal, "pid": os.getpid()}, key=key)
         channel.drain(5)
         return 0
     except BaseException as error:
         kind = "cancelled" if isinstance(error, Cancelled) else "error"
         code = "cancelled" if kind == "cancelled" else "timeout" if isinstance(error, AttemptTimeout) else "child_error"
+        if isinstance(error, OSError) and (
+            error.errno in (errno.ENOSPC, errno.EDQUOT) or getattr(error, "code", None) == "disk_full"
+        ):
+            code = "disk_full"
         try:
             channel.send(
                 kind,
                 {
-                    "phase": "preparing",
+                    "phase": control.phase,
                     "code": code,
                     "message": str(error)[:4096],
                     "traceback": "".join(traceback.format_exception(error))
@@ -96,6 +121,12 @@ def serve(config, connection) -> int:
             pass
         return 2
     finally:
+        control.cancel()
+        if sender is not None:
+            try:
+                sender.wait(1)
+            except BaseException:
+                pass
         stopped.set()
         try:
             connection.shutdown(2)

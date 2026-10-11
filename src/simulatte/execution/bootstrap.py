@@ -15,7 +15,7 @@ import sys
 from typing import Any
 
 
-def inspect_model(reference: str, roots: tuple[Path, ...]) -> dict[str, Any]:
+def load_model(reference: str, roots: tuple[Path, ...]):
     from simulatte.model import get_model_spec
 
     relative, separator, selected = reference.partition(":")
@@ -63,10 +63,15 @@ def inspect_model(reference: str, roots: tuple[Path, ...]) -> dict[str, Any]:
         raise ValueError("Unknown model; available: " + ", ".join(names))
     if not separator and len(models) != 1:
         raise ValueError("Select a model by name; available: " + ", ".join(names))
-    return {"models": models, "selected": selected if separator else names[0]}
+    selection = selected if separator else names[0]
+    return {"models": models, "selected": selection}, getattr(module, selection)
 
 
-def inspect_configuration(config: dict[str, Any]) -> dict[str, Any]:
+def inspect_model(reference: str, roots: tuple[Path, ...]) -> dict[str, Any]:
+    return load_model(reference, roots)[0]
+
+
+def load_configuration(config: dict[str, Any]):
     snapshot = tuple(Path(root).resolve() for root in config["snapshot_roots"])
     external = tuple(Path(root).resolve() for root in config["external_roots"])
     # -S preserves stdlib roots even where venv sys.prefix differs across Python
@@ -88,14 +93,18 @@ def inspect_configuration(config: dict[str, Any]) -> dict[str, Any]:
 
     sys.addaudithook(audit_open)
     try:
-        result = inspect_model(config["reference"], snapshot)
+        result, build = load_model(config["reference"], snapshot)
         declarations = {name for model in result["models"] for name in model["inputs"]}
         if opened & declarations:
             raise ValueError("Declared data inputs must be read during build, not model import")
         result["imports"] = policy.audit()
-        return result
+        return result, build, policy
     finally:
         active = False
+
+
+def inspect_configuration(config: dict[str, Any]) -> dict[str, Any]:
+    return load_configuration(config)[0]
 
 
 def _worker_entry(port: int, token: str) -> int:

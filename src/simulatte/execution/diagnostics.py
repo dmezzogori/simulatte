@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import math
 import time
 
 
@@ -65,6 +66,22 @@ class Progress:
         self._lock = threading.Lock()
 
     def update(self, **values) -> None:
+        # A malformed child must not grow the supervisor's retained state with
+        # arbitrary keys or values, even across otherwise bounded frames.
+        if set(values) - self.state.keys():
+            raise ValueError("Unknown progress fields")
+        for name, value in values.items():
+            if name == "phase":
+                valid = value in ("starting", "inspecting", "preparing", "ready", "running", "finalizing")
+            elif name == "simulation_time":
+                valid = type(value) in (int, float) and math.isfinite(value) and value >= 0
+            elif name == "backpressure":
+                valid = type(value) is bool
+            else:
+                maximum = {"event_count": 2**53 - 1, "spool_bytes": 256 << 20, "spool_files": 1024}[name]
+                valid = type(value) is int and 0 <= value <= maximum
+            if not valid:
+                raise ValueError("Invalid progress value: " + name)
         with self._lock:
             if any(self.state.get(key) != value for key, value in values.items()):
                 self.last_change = self.clock()
@@ -73,4 +90,8 @@ class Progress:
     def heartbeat(self) -> dict:
         with self._lock:
             now = self.clock()
-            return {**self.state, "elapsed": now - self.started, "stalled": now - self.last_change >= 10}
+            return {
+                **self.state,
+                "elapsed": now - self.started,
+                "stalled": not self.state["backpressure"] and now - self.last_change >= 10,
+            }

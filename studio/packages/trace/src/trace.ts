@@ -37,6 +37,7 @@ import {
   type Frame,
   type ReaderLimits,
 } from "./container";
+import { executionOf, type ExecutionProvenance } from "./execution";
 import { layoutOf, type LayoutBundle } from "./layout";
 import { DeltaError, applyDeltas, type Op, type State } from "./deltas";
 import { decodeWire, defineKey, newMap, type Wire } from "./wire";
@@ -150,6 +151,9 @@ export class Trace {
   /** KPI declaration metadata, keyed by `scope/name`; empty in older traces. All nested values are frozen. */
   get kpiDeclarations(): Readonly<Record<string, KpiDeclaration>> { return this.#kpiDeclarations; }
 
+  #execution: ExecutionProvenance | null = null;
+  #initialExecution: unknown = null;
+  get execution(): ExecutionProvenance | null { return this.#execution; }
   #initial: State | null = null;
   /** Immutable activation state, also used to anchor viewer-only fallback geometry. */
   get initialState(): State | null {
@@ -241,6 +245,8 @@ export class Trace {
         field(fingerprint, "digest");
       });
     }
+    this.#execution = executionOf(this.#header as Readonly<Record<string, Wire>>, this.#initialExecution,
+      this.#footer as Readonly<Record<string, Wire>> | null, this.#initial !== null);
     this.#firsts = this.index.map((info) => info.first);
     Object.freeze(this.#kpiDeclarations);
   }
@@ -519,6 +525,7 @@ export class Trace {
       this.#level = string(field(header, "level"), "level");
       mapOf(field(header, "manifest"), "manifest");
       if (initial !== null) {
+        this.#initialExecution = initial["execution"];
         this.#initial = stateOf(field(initial, "state"));
         this.#activation = asCursor(field(initial, "cursor"));
         mapOf(field(initial, "manifest"), "manifest");

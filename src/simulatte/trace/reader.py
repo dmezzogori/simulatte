@@ -202,6 +202,14 @@ class Trace:
             file = _File(f, os.fstat(f.fileno()).st_size, limits)
             self._size = file.size
             self._open(file)
+        from simulatte.trace.execution import read as read_execution
+
+        self._execution = _decoded(
+            lambda: read_execution(
+                self._header, self._initial_execution, self._footer, has_initial=self._initial is not None
+            ),
+            "execution metadata",
+        )
 
     @classmethod
     def open(cls, path: str | Path, *, limits: ReaderLimits | None = None) -> Trace:
@@ -354,6 +362,7 @@ class Trace:
             self._level = str(header["level"])
             self._header_manifest = FrozenMap(header["manifest"])
             initial = scan.initial
+            self._initial_execution = None if initial is None else initial.get("execution")
             self._initial: Mapping[str, Mapping[str, Wire]] | None = None
             self._activation: Cursor | None = None
             self._initial_manifest = FrozenMap({})
@@ -528,6 +537,11 @@ class Trace:
     def outcome(self) -> str | None:
         """How the run ended (``completed``, ``cancelled``, ``failed``); None without a footer."""
         return None if self._footer is None else str(self._footer["outcome"])
+
+    @property
+    def execution(self) -> FrozenMap | None:
+        """Optional requested/resolved/termination provenance; absent on older traces."""
+        return self._execution
 
     @property
     def fingerprint(self) -> Fingerprint | None:

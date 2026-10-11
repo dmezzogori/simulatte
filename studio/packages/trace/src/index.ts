@@ -8,3 +8,5 @@ export { HttpSource } from "./source";
 export { openRecording, Recording, type EventQuery, type SeriesDisplay, type Sample } from "./recording";
 export type { ByteSource } from "./container";
 export { Replay, compare } from "./trace";
+
+export type { ExecutionProvenance } from "./execution";

@@ -24,6 +24,7 @@ interface Check {
 interface Expected {
   trace: string;
   layout?: unknown;
+  execution?: unknown;
   level: string;
   outcome: string | null;
   truncated: boolean;
@@ -96,6 +97,7 @@ describe.each([["generated"], ["frozen"]])("%s fixtures", (dir) => {
         const trace = await openTrace(source);
         expect(trace.level).toBe(expected.level);
         expect(canon(trace.layout)).toBe(canon(expected.layout ?? null));
+        expect(canon(trace.execution)).toBe(canon(expected.execution ?? null));
         expect(trace.outcome).toBe(expected.outcome);
         expect(trace.truncated).toBe(expected.truncated);
         expect(trace.cursorRange).toEqual(expected.cursorRange);

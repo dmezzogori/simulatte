@@ -326,3 +326,21 @@ Any additional readers must use URI `mode=ro`; they cannot write or checkpoint.
 This is consistent with ownership and avoids the documented trigger of the
 [SQLite WAL-reset race](https://www.sqlite.org/wal.html) in older bundled
 SQLite versions. Native version/platform acceptance remains required.
+
+**D83. Preserve ready provenance and record the final import audit separately.**
+`ResolvedManifest` is captured with INITIAL and referenced by `ready`; publication
+requires identical resolved bytes in the trace and result proposal. Lazy imports
+can occur after readiness, so the final result also retains `final_imports` from
+a second origin-policy audit. Do not mutate INITIAL or the acknowledged manifest
+to insert facts learned later. Every ordinary import remains guarded throughout
+execution. This resolves the timing gap between the ready contract and complete
+import evidence; it does not promise that arbitrary custom/native loading is
+sandboxed.
+
+The execution trace uses optional `execution-v1` in container 1.3. Python validates
+request identity; the TypeScript reader validates its structure, retaining its
+existing division of responsibility (coordinator verifies request hashes and
+semantic fingerprints). Released Python 0.15.0 can check and verify the shared
+new fixture. KPI selection filters recorded declarations, series and scalar
+fingerprints; it never detaches collectors or changes domain accounting. Compare
+common KPI keys, as required by the existing invariance contract.

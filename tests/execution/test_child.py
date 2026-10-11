@@ -7,7 +7,7 @@ import pytest
 
 from simulatte.execution import bootstrap, child
 from simulatte.execution.control import Control
-from simulatte.execution.schema import AttemptKey
+from simulatte.execution.schema import AttemptKey, _plain
 from simulatte.execution.transport import FramedChannel
 
 
@@ -116,3 +116,69 @@ def test_private_child_terminal_and_control_fences(monkeypatch, mode):
         channel.close()
         stream.close()
         left.close()
+
+
+@pytest.mark.parametrize("failure", [None, "cancel", "bad_ack", "disk_full"])
+def test_private_run_transfers_metadata_with_ack_and_terminal_cleanup(tmp_path, monkeypatch, failure):
+    from dataclasses import asdict
+    import errno
+    from simulatte.execution import driver
+    from simulatte.execution.receipts import FragmentReceipt
+
+    def execute(config, request, key, control, spool, send):
+        control.phase = "finalizing"
+        if failure == "disk_full":
+            raise OSError(errno.ENOSPC, "full")
+        return driver.metadata_segment(spool, "result-proposal", {"padding": "x" * ((1 << 20) + 9)})
+
+    monkeypatch.setattr(driver, "execute", execute)
+    left, right = socket.socketpair()
+    stream = left.makefile("rwb", buffering=0)
+    channel = FramedChannel(stream, stream)
+    results = []
+    thread = threading.Thread(target=lambda: results.append(child.serve({"attempt_dir": str(tmp_path)}, right)))
+    thread.start()
+    key = AttemptKey("a" * 64, "b" * 32, 1)
+    try:
+        channel.send("hello", {})
+        assert channel.receive(2).type == "hello"
+        channel.send("run", {"request": {}}, key=key)
+        transferred = 0
+        while True:
+            message = channel.receive(3)
+            if message.type != "artifact_fragment":
+                break
+            transferred += len(message.payload)
+            if failure == "cancel":
+                channel.send("cancel", {}, key=key)
+            elif failure == "bad_ack":
+                channel.send("ack", {}, key=key)
+            else:
+                segment = _plain(message.body["segment"])
+                offset = _plain(message.body["fragment_offset"])
+                receipt = FragmentReceipt(
+                    segment["id"],
+                    offset,
+                    len(message.payload),
+                    segment["sha256"],
+                    offset + len(message.payload) == segment["length"],
+                )
+                channel.send("ack", asdict(receipt), key=key)
+        assert message.type == ("result" if failure is None else "cancelled" if failure == "cancel" else "error")
+        if failure == "disk_full":
+            assert message.body["code"] == "disk_full"
+            assert message.body["phase"] == "finalizing"
+        if failure is None:
+            assert transferred > 1 << 20
+            assert not list((tmp_path / "spool").glob("*.segment"))
+        thread.join(3)
+        assert results == [0 if failure is None else 2]
+    finally:
+        try:
+            left.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        channel.close()
+        stream.close()
+        left.close()
+        thread.join(3)

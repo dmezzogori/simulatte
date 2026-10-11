@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 import os
 from pathlib import Path
@@ -26,9 +26,11 @@ class ResultProposal:
     resolved_manifest: ResolvedManifest
     fingerprint: Mapping[str, Any]
     artifacts: tuple[Mapping[str, Any], ...]
+    final_imports: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         _hash(self.trace_sha256)
+        object.__setattr__(self, "final_imports", _mapping(self.final_imports))
         object.__setattr__(self, "simulation_manifest", _mapping(self.simulation_manifest))
         object.__setattr__(self, "fingerprint", _mapping(self.fingerprint))
         paths = set()
@@ -192,13 +194,21 @@ def publish(
         raise ValueError("Trace fingerprint proposal mismatch")
     if canonical_pack(trace.manifest) != canonical_pack(_mapping(proposal.simulation_manifest)):
         raise ValueError("Trace manifest proposal mismatch")
-    for field, expected in (
+    execution: Any = trace.execution
+    if execution is None or execution["header"]["request_id"] != key.request_id:
+        raise ValueError("Trace execution request mismatch")
+    if canonical_pack(execution["initial"]["resolved"]) != _blob(proposal.resolved_manifest.to_dict()):
+        raise ValueError("Trace resolved execution manifest mismatch")
+    expected_reason = "horizon" if request.stopping["type"] == "horizon" else "drained"
+    if execution["footer"]["termination"] != expected_reason:
+        raise ValueError("Trace execution termination mismatch")
+    for name, expected in (
         ("seed", str(request.seed)),
         ("parameters", request.parameters),
         ("stopping_policy", request.stopping),
     ):
-        if canonical_pack(freeze(trace.manifest.get(field))) != canonical_pack(freeze(expected)):
-            raise ValueError(f"Trace requested {field} mismatch")
+        if canonical_pack(freeze(trace.manifest.get(name))) != canonical_pack(freeze(expected)):
+            raise ValueError(f"Trace requested {name} mismatch")
     for stream, item in expected_artifacts.items():
         assemble(stream, output_root / "artifacts" / item["path"], item["sha256"], item["length"])
     checkpoint("verified")
@@ -207,6 +217,7 @@ def publish(
         "schema": 1,
         "request": request.to_dict(),
         "resolved": proposal.resolved_manifest.to_dict(),
+        "final_imports": _plain(proposal.final_imports),
         "simulation": _plain(proposal.simulation_manifest),
         "trace_sha256": proposal.trace_sha256,
         "verification": verification,

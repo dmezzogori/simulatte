@@ -180,3 +180,124 @@ def test_import_failures_and_uncooperative_cancellation(tmp_path, behavior):
             pytest.fail("Worker did not terminate the attempt")
     finally:
         worker.close()
+
+
+def forwarding_actor(messages):
+    from collections import deque
+    from types import SimpleNamespace
+    from simulatte.execution.schema import AttemptKey
+
+    m = api()
+    key = AttemptKey("a" * 64, "b" * 32, 1)
+    queue = deque(messages)
+    outgoing = []
+
+    def receive(timeout):
+        if queue:
+            return queue.popleft()
+        raise OSError("EOF")
+
+    child = SimpleNamespace(
+        key=key,
+        channel=SimpleNamespace(receive=receive),
+        process=SimpleNamespace(wait=lambda **kw: 0),
+        hello=True,
+        proposal=None,
+        pending=None,
+        exit_code=None,
+        cancel_at=None,
+        timeout=False,
+        failure=None,
+        reported_drops=0,
+        diagnostics=m.Diagnostics(),
+        progress=m.Progress(),
+        escalate=lambda: None,
+        close=lambda: None,
+    )
+    channel = SimpleNamespace(send=lambda kind, body, **kwargs: outgoing.append(kind))
+    actor = m.Supervisor(channel)
+    actor.child = child
+    return actor, child, outgoing
+
+
+def child_message(kind, payload=b""):
+    from simulatte.execution.protocol import Message
+    from simulatte.execution.transport import envelope
+    from simulatte.execution.schema import AttemptKey
+    from simulatte._wire import FrozenMap, freeze
+
+    key = AttemptKey("a" * 64, "b" * 32, 1)
+    value = freeze(envelope(kind, {"payload_bytes": len(payload)}, 0, key))
+    assert isinstance(value, FrozenMap)
+    return Message(value, payload)
+
+
+def test_full_forwarding_queue_retains_fragment_and_does_not_end_attempt():
+    actor, child, outgoing = forwarding_actor([child_message("trace_chunk", b"x"), child_message("result")])
+    original = actor.channel.send
+
+    def full(kind, body, **kwargs):
+        if kind == "trace_chunk":
+            raise BufferError("full")
+        original(kind, body, **kwargs)
+
+    actor.channel.send = full
+    actor._poll_child()
+    assert actor.child is child and child.pending.payload == b"x"
+    assert not outgoing
+    actor.channel.send = original
+    actor._poll_child()
+    assert outgoing == ["trace_chunk", "result"]
+    assert actor.child is None
+
+
+def test_terminal_proposal_waits_until_all_private_messages_are_drained():
+    actor, child, outgoing = forwarding_actor(
+        [child_message("result"), *[child_message("trace_chunk", b"x") for _ in range(40)]]
+    )
+    actor._poll_child()
+    assert "result" not in outgoing
+    assert actor.child is child
+    actor._poll_child()
+    assert outgoing == ["trace_chunk"] * 40 + ["result"]
+
+
+def test_cancel_discards_pending_provisional_fragments_but_still_finishes_cleanup():
+    actor, child, outgoing = forwarding_actor([child_message("trace_chunk", b"late"), child_message("cancelled")])
+    child.pending = child_message("trace_chunk", b"pending")
+    child.cancel_at = 1
+    actor._poll_child()
+    assert outgoing == ["cancelled"]
+    assert actor.child is None
+
+
+def test_backpressure_is_not_reported_as_stalled():
+    m = api()
+    clock = [0.0]
+    progress = m.Progress(clock=lambda: clock[0])
+    progress.update(backpressure=True)
+    clock[0] = 11
+    assert progress.heartbeat()["backpressure"]
+    assert not progress.heartbeat()["stalled"]
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"unknown": 1},
+        {"phase": "x" * 100},
+        {"simulation_time": float("nan")},
+        {"simulation_time": -1},
+        {"event_count": True},
+        {"event_count": 2**53},
+        {"spool_bytes": (256 << 20) + 1},
+        {"spool_files": 1025},
+        {"backpressure": "yes"},
+    ],
+)
+def test_invalid_progress_cannot_grow_or_corrupt_heartbeat_state(values):
+    progress = api().Progress()
+    original = dict(progress.state)
+    with pytest.raises(ValueError, match="progress"):
+        progress.update(**values)
+    assert progress.state == original
