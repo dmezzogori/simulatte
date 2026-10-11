@@ -343,7 +343,7 @@ def build(
 - An **execution request** (B5) is immutable and identified by a hash of what the coordinator knows before running anything: model reference, source snapshot hash, input hashes, layout file revision, parameters, seed, the normalized stopping policy (horizon, warm-up, or arrival cutoff and safety limit) (C7), recording level, KPI selection and the requested runtime and provisioning spec. It contains no value that only execution can produce. A stored result remains valid for a new request that differs only in the layout file revision when the difference touches nothing in that result's physical dependency closure (B6); the coordinator reuses it instead of re-running.
 - The **resolved manifest** is produced by the worker during preparation and reported in `ready`: actual runtime, resolved dependencies, physical and full layout hashes, physical dependency closure. Results carry both. A `full` re-run of a `kpi` replication is a separate request linked to it as `replay-of`; verification compares resolved manifests and fingerprints.
 - **Attempts.** Each execution of a request is an attempt with its own id. Execution is at-least-once. Only the attempt the coordinator currently assigns may publish results; late results from superseded attempts are discarded (fencing).
-- **Publication** (B8). While an attempt runs, its committed chunks and KPI updates are **provisionally visible**: served to viewers tagged with the attempt and revision, and only for the attempt the coordinator currently assigns. Cancellation or supersession invalidates them, and viewers are notified. Final results are **committed** atomically: artifacts are written to staging, verified, moved into place, and recorded in the index in one transaction. Experiments, comparisons and replays use committed results only.
+- **Publication** (B8). While an attempt runs, its committed chunks and KPI updates are **provisionally visible**: served to viewers tagged with the attempt and revision, and only for the attempt the coordinator currently assigns. Cancellation or supersession invalidates them, and viewers are notified. Final results are **committed** atomically: artifacts are written to staging, verified, moved durably into immutable artifact storage, then made visible by a fenced index transaction (SP4 A1/D77). Filesystem rename and SQLite commit are not one physical transaction; restart recovery rejects/quarantines unindexed artifacts. Experiments, comparisons and replays use committed results only.
 
 #### C5.2 Remote environments (SP5) (A15, A16)
 
@@ -501,5 +501,19 @@ The studio executes user code and accepts requests only from the local machine w
 - SP1: trace encoding and compression; event catalog and delta schema per kind; snapshot and chunk limits; stream naming and per-job substreams; history and SQLite query APIs; loguru; benchmark workloads.
 - SP2: resolved by the [dedicated layout specification](2026-10-10-sp2-layout-design.md#3-design-decisions), approved for implementation on 2026-10-10: deterministic SCC/layer packing; node-capacity traffic (D61); connected lane crossings with overlaps rejected; owned node/port/graph handles; named ordered stages with declared reads.
 - SP3: specified in the [approved viewer design](2026-10-11-sp3-viewer-design.md), decisions D66–D69. uPlot/dockview/Mediabunny/zip.js, light industrial style, bounded exports and keyframes are accepted; Firefox, actual Safari, export and memory acceptance is recorded in the [SP3 acceptance report](research/2026-10-11-sp3-acceptance.md).
-- SP4: frame encoding; module names; file watcher library; import tracking for watching; spool bounds; warm spare policy; source snapshot mechanism.
+- SP4: resolved by the [approved SP4 design](2026-10-11-sp4-studio-design.md), D71–D80; implementation evidence remains pending.
 - SP5: worker host config; bundle manifest details; warm-up aids; experiment file format; store retention.
+
+## SP4 amendments approved 2026-10-11
+
+Davide approved the [focused SP4 design](2026-10-11-sp4-studio-design.md) and plan ("Reviewed and approved. Proceed"). Its §§3–12 refine C3–C6, and these amendments govern conflicts with earlier wording:
+
+- A1/D77: publication is atomic indexed visibility after durable verified artifact rename, with attempt fencing and crash recovery, not a transaction spanning SQLite and the filesystem.
+- A2/D79: finite stopping uses explicit Population admission/completion/pending tracking; registry/queue emptiness does not define drain.
+- A3/D73: inspect decorator metadata in a disposable source-only child before capturing declared data. Import-time reads of declared data are unsupported; final execution revalidates metadata.
+- A4/D72: readiness barrier follows initial capture/activation bookkeeping and precedes queued commands; coordinator acknowledgement releases it.
+- A5/D74–D75: snapshots/import validation are not hostile-code sandboxing. POSIX deliberate process-group detachment is outside cleanup guarantees; ordinary descendants and parent death remain covered.
+- A6/D73: bundle.include is additive explicit membership in Git projects and mandatory outside Git; selected model/declared inputs cannot be excluded, configured layout remains separate.
+- A7/D79: optional execution-v1 metadata in trace1.3, preserving released reader verification and layout1.0, as specified in the focused design's trace provenance section.
+
+Worker protocol1.0 is bounded MessagePack plus raw fragments; module boundaries are execution/ plus model.py/stopping.py; watchfiles uses full-manifest reconciliation; import validation includes lazy resolution; spool defaults256MiB/1024files with16MiB in flight; no warm spares in SP4; snapshots capture normalized working-tree bytes. These are accepted choices, not completed implementation or acceptance claims.

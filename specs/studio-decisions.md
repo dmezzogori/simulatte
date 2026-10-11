@@ -218,3 +218,83 @@ memory-method limits belong in the SP3 acceptance report. This is an implementat
 limit under the approved provisional-budget rule, not a relaxation of that budget.
 Actual Safari was initially deferred at Davide’s request; his subsequent manual
 checks passed and are recorded in the SP3 acceptance report.
+
+## SP4 approval, 2026-10-11
+
+**Status: approved by Davide ("Reviewed and approved. Proceed"), not yet implemented.** These entries record the focused
+[SP4 design](2026-10-11-sp4-studio-design.md) and
+[implementation plan](../plans/2026-10-11-sp4-studio.md). A1–A7 are the explicit approved amendment/clarification list. The direct implementation authorization supersedes the pending review gate; no separate adversarial review pass is claimed.
+
+**D71. Execution boundaries and local scheduling.** Public optional metadata in
+`model.py`, population/stopping API in `stopping.py`, internal `execution/`
+package shared by headless CLI and Studio. One local slot, zero automatic retries,
+no model imports in coordinator/supervisor, one-use inspection and run children.
+Reuse SP3 scene/playback/export/auth and SP2 layout re-resolution. Rejected:
+ASGI-process execution, interpreter reuse, or a second simulation/replay engine.
+
+**D72. Worker protocol 1.0 uses bounded MessagePack envelopes and raw fragments.**
+Fixed magic, u32 big-endian frames, 2 MiB frame/256 KiB envelope/1 MiB fragment
+caps; stdlib plus existing pure-Python-capable msgpack. Separate control and
+bounded stdout/stderr drains; ready acknowledgement before queued commands.
+Rejected: pickle, line-delimited stdout JSON and encoding large trace bytes as
+base64 JSON. A4 documents the required activation integration.
+
+**D73. Content-addressed immutable working-byte snapshots.** Explicit Git-tracked
+membership plus declared includes/inputs, current dirty disk bytes, normalized
+PAX archives and domain-separated canonical manifest hashes. Layout remains
+separate. Detached per-attempt read-only materialization, no editable hardlinks.
+Source-only disposable metadata inspection resolves input declarations (A3);
+additive includes clarify untracked Git membership (A6). Reject `git archive
+HEAD`, implicit ignored-file capture and running directly from editable sources.
+
+**D74. Import validation does not define watching.** Isolated `-I -S` bootstrap,
+validated local import roots and guarded origins throughout execution, including
+lazy/namespace imports; runtime/dependency evidence in resolved manifests.
+Watch the whole manifest, not merely imported modules. Unsupported executable
+startup hooks/editable loaders fail explicitly; custom/native code is not an OS
+sandbox (A5). Reject sys.path-prepending alone as an isolation guarantee.
+
+**D75. Bounded, acknowledged spool and independent lifecycle.** Default
+256 MiB/1,024 files per attempt including reservations; maximum segment 128 MiB,
+16 MiB transfer window, 64 MiB recorder pending budget. ACK only after durable
+coordinator receipt; a full spool blocks, with cancel-responsive waits and
+`disk_full` after 60 s without reclaiming ACKs. Supervisor heartbeat 1 s/loss 5 s,
+stalled 10 s, graceful cancel 2 s then TERM/KILL escalation. POSIX guardian plus
+process groups; Windows suspended child assigned to kill-on-close Job Object.
+Deliberate POSIX session escape is a documented limitation, not hidden coverage.
+
+**D76. No warm spare in SP4.** Default and implemented pool size zero; measure
+cold inspection/ready/run/close cost on CPython and PyPy. C4 permits spares and
+D45 motivates them but does not require one before measurement. Rejected:
+pre-importing user code or a speculative background interpreter pool.
+
+**D77. Durable atomic visibility and attempt fencing.** SQLite index schema 1,
+immutable verified artifacts renamed before a fenced DB transaction publishes
+results, crash recovery never adopts unindexed results. This explicitly amends
+C5.1's literal cross-filesystem/SQLite transaction wording on approval (A1).
+Single project writer lock; provisional streams fenced by attempt/generation;
+presentation views link original result identity without changing its trace.
+Rejected: marking success before artifacts are durable, or late-result wins.
+
+**D78. watchfiles with manifest reconciliation and optimistic revisions.**
+Optional Studio dependency, custom full-manifest filter, 250 ms quiet/1 s maximum
+batch debounce, 5 s reconciliation and polling fallback. Monotonic revision plus
+input digest prevents ABA; server/disk validation guards all writes. Reuse
+`reresolve_presentation` including structural/negative dependencies; physical or
+source changes cancel/rerun. Reject Uvicorn reload and visual-field-name heuristics.
+
+**D79. Finite stopping needs an explicit population interface.** Add normalized
+Horizon/FinitePopulation policies and Population admission/completion/pending
+tracking. Count/time cutoff and safety limit determine drain time; registry or
+queue emptiness is not a population definition. A2 fills the master API gap.
+Optional trace `execution-v1` in container 1.3 records execution provenance without
+changing domain events/digest (A7); layout schema stays 1.0. Rejected: opaque
+SimPy event stopping with falsely complete provenance.
+
+**D80. Extend SP3's server/viewer with bounded live protocols and editing.**
+Reuse bootstrap/sessionStorage/terminal renewal, add explicit websocket backend,
+Origin/Host checks and first-message secret auth. Incremental committed-prefix
+reader retains SP3 cache limits; one websocket/tab carries control/availability,
+HTTP carries immutable trace bytes. Full typed parameter and SP2 layout editing,
+revision-aware undo/redo and orphan/stale controls. Exports pin committed results
+and separate presentation overlays. Experiments, comparisons and SSH stay SP5.

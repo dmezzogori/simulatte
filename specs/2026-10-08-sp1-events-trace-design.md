@@ -500,3 +500,7 @@ requires attachment before construction/preparation. Attachment after activation
 ## SP3 accepted trace amendment, 2026-10-11
 
 Decisions D66–D68 and [SP3 §3](2026-10-11-sp3-viewer-design.md#3-decisions-and-proposed-amendments) extend this shipped contract. Format1.2 preserves domain CHUNK/PRELUDE/INDEX/footer replay semantics and existing kpi-declarations-v1 fields. Optional kpi-display-v1 adds `KPI.series_display`; optional observer-events-v1 adds independently committed OBSERVERS records (type9), phase/bounds/catalog epoch, six-field entries with null ordinals and empty deltas. Old readers skip them and must still verify the domain digest. New APIs merge observer/domain histories without applying observer deltas; separate KPI records remain authoritative for values. Recorder diagnostics bypass the bus. Portable keyframe motion and exact-vs-continuous KPI display rules are defined in SP3. Approval does not claim implemented behavior.
+
+## SP4 execution metadata amendment (approved 2026-10-11)
+
+SP4 A7/D79 adds optional execution-v1 in container1.3. HEADER.execution carries {schema:1,request_id,request}, INITIAL.execution carries {schema:1,resolved}, FOOTER.execution carries {schema:1,termination,actual_end}. The authoritative field/limit contract is the [SP4 trace provenance section](2026-10-11-sp4-studio-design.md#trace-provenance-extension-a7). No event/KPI/digest semantics change; existing readers must continue check/verify on new recordings. Layout schema stays1.0. Implementation and conformance evidence are pending.
