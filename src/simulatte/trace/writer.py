@@ -40,6 +40,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import msgpack
 
 from simulatte._wire import FrozenMap, freeze, new_packer, pack, prepared, prepared_op, wire_time
+from simulatte.trace.sink import FileSink, TraceSink
 from simulatte.entities import KINDS
 from simulatte.events import CATALOG, Deltas, DomainEvent, Event, KpiSample, Op, Subscription, apply_deltas
 from simulatte.trace.format import (
@@ -143,9 +144,11 @@ class TraceRecorder:
     def __init__(
         self,
         env: Environment,
-        path: str | Path,
+        path: str | Path | None = None,
         *,
         level: Literal["full", "kpi"] = "full",
+        sink: TraceSink | None = None,
+        control: Callable[[], None] | None = None,
         chunk_limits: ChunkLimits | None = None,
         max_pending_bytes: int = 64 << 20,
         max_initial_bytes: int = 64 << 20,
@@ -162,6 +165,14 @@ class TraceRecorder:
             raise ValueError(f"max_pending_bytes must be >= 1, got {max_pending_bytes}")
         if type(max_initial_bytes) is not int or max_initial_bytes < 1:
             raise ValueError("max_initial_bytes must be an integer >= 1")
+        if (path is None) == (sink is None):
+            raise ValueError("Supply exactly one trace path or sink")
+        pending_limit = sink.pending_limit if sink is not None else None
+        self._strict_pending = pending_limit is not None
+        self._control = control
+        if pending_limit is not None:
+            max_pending_bytes = min(max_pending_bytes, pending_limit)
+            max_initial_bytes = min(max_initial_bytes, max_pending_bytes)
         self._max_initial = max_initial_bytes
         limits = ChunkLimits() if chunk_limits is None else chunk_limits
         self._env = env
@@ -185,6 +196,8 @@ class TraceRecorder:
             "volatile": dataclasses.asdict(env.volatile_metadata()),
         }
         header_payload = pack(header)
+        if self._strict_pending and len(header_payload) > self._max_pending:
+            raise ValueError("Trace header exceeds pending byte limit")
 
         # Shared state, guarded by _cond.
         self._cond = threading.Condition()
@@ -193,6 +206,7 @@ class TraceRecorder:
         self._peak_pending = 0
         self._producer_waiting = False
         self._stop = False
+        self._writing = False
         self._error: BaseException | None = None
         self._epoch = 0
         self._chunks_written = 0
@@ -232,7 +246,8 @@ class TraceRecorder:
         self._replay: dict[str, dict[str, Any]] = {}
         self._packer = msgpack.Packer()
 
-        self._file = open(path, "wb")  # closed by close() once the writer thread has finished
+        assert sink is not None or path is not None
+        self._file: TraceSink = sink if sink is not None else FileSink(cast("str | Path", path))
         self._thread = threading.Thread(target=self._run, name="simulatte-trace-writer", daemon=True)
         self._thread.start()
         self._enqueue("header", len(header_payload), header_payload)
@@ -525,14 +540,22 @@ class TraceRecorder:
         self._buf_bytes = 0
         return batch
 
+    def _check_pending_size(self, size: int) -> None:
+        if self._strict_pending and size > self._max_pending:
+            error = ValueError("Trace queue item exceeds pending byte limit")
+            self._file.abort_waits(error)
+            raise error
+
     def _enqueue(self, kind: str, size: int, data: Any) -> None:
         """Append an item to the publication queue, blocking while pending bytes would exceed the bound.
 
-        An item that does not fit even in an empty queue is admitted once the queue has drained. Raises the
+        File output admits an item that does not fit once the queue has drained. Raises the
         latched writer exception. Any other exception raised while waiting (for example KeyboardInterrupt)
         is re-raised after the item was queued anyway, overshooting the bound once, so that what the
         simulation thread already committed to (sealed events, catalog extensions) reaches the file (R10).
+        Bounded segment output rejects oversize items and wakes blocked disk writes on interruption.
         """
+        self._check_pending_size(size)
         cond = self._cond
         blocked_since: float | None = None
         with cond:
@@ -548,10 +571,14 @@ class TraceRecorder:
                         blocked_since = self._clock()
                     self._producer_waiting = True
                     cond.notify_all()
-                    cond.wait()
+                    if self._control is not None:
+                        self._control()
+                    cond.wait(0.05 if self._control is not None else None)
             except BaseException as exc:
                 self._producer_waiting = False
-                if exc is not self._error:
+                if self._strict_pending:
+                    self._file.abort_waits(exc)
+                elif exc is not self._error:
                     self._admit_locked(kind, size, data)
                 raise
             self._producer_waiting = False
@@ -576,6 +603,22 @@ class TraceRecorder:
         if kind == "ext":
             self._epoch = data[0]
         self._cond.notify_all()
+
+    def wait_committed(self) -> None:
+        """Wait for already-enqueued records, including the activation INITIAL.
+
+        Does not seal a still-open event buffer. Managed execution uses this at
+        its ready barrier; it is cancellable while a segment waits for credit.
+        """
+        with self._cond:
+            while self._queue or self._pending or self._writing:
+                if self._error is not None:
+                    raise self._error
+                if self._control is not None:
+                    self._control()
+                self._cond.wait(0.05)
+            if self._error is not None:
+                raise self._error
 
     def close(self, outcome: Outcome | None = None) -> None:
         """Seal the open chunk, write the KPI scalars and the footer, and wait until all is on disk.
@@ -615,14 +658,14 @@ class TraceRecorder:
                 end = wire_time(env.now)
             except (TypeError, ValueError):  # the run failed on its time (R35): end at the last recorded event
                 end = self._last_t
-            footer = {
+            footer: Any = {
                 "outcome": outcome,
                 "cursor": (end, self._last_seq),
                 "manifest": env.manifest().final,
                 "fingerprint": {"digest": fingerprint.digest, "kpis": kpis},
                 "volatile": dataclasses.asdict(env.volatile_metadata()),
             }
-            self._enqueue("footer", 0, footer)
+            self._enqueue("footer", len(pack(footer)) if self._strict_pending else 0, footer)
             if self._blocked_count > 1:
                 self._diagnostic(
                     f"trace writer backpressure: the simulation blocked {self._blocked_count} times for "
@@ -630,6 +673,9 @@ class TraceRecorder:
                     blocked_count=self._blocked_count,
                     blocked_s=self._blocked_total,
                 )
+        except BaseException as error:
+            self._file.abort_waits(error)
+            raise
         finally:
             with cond:
                 self._stop = True
@@ -650,12 +696,14 @@ class TraceRecorder:
             while True:
                 with cond:
                     item = self._next_item_locked()
+                    self._writing = item is not None
                 if item is None:
                     return
                 kind, size, data = item
                 done = self._write_item(kind, data)
                 with cond:
                     self._pending -= size
+                    self._writing = False
                     if kind == "batch" and data.rtype is RecordType.CHUNK:
                         self._chunks_written += 1
                     cond.notify_all()
@@ -664,6 +712,7 @@ class TraceRecorder:
         except BaseException as exc:  # latched for the simulation thread
             with cond:
                 self._error = exc
+                self._writing = False
                 cond.notify_all()
 
     def _next_item_locked(self) -> _Item | None:
@@ -682,6 +731,7 @@ class TraceRecorder:
                     # The queue is empty, so admitting the batch respects both backpressure rules.
                     batch = self._seal_locked()
                     assert self._pending == 0
+                    self._check_pending_size(batch.size)
                     self._pending = batch.size
                     self._peak_pending = max(self._peak_pending, batch.size)
                     return ("batch", batch.size, batch)
@@ -690,6 +740,7 @@ class TraceRecorder:
                 remaining = self._observer_opened_at + latency - self._clock()
                 if remaining <= 0:
                     batch = self._seal_observers_locked()
+                    self._check_pending_size(batch.size)
                     self._pending = batch.size
                     self._peak_pending = max(self._peak_pending, batch.size)
                     return ("batch", batch.size, batch)
@@ -699,6 +750,7 @@ class TraceRecorder:
                 remaining = self._samples_opened_at + latency - self._clock()
                 if remaining <= 0:
                     payload = self._seal_samples_locked()
+                    self._check_pending_size(len(payload))
                     self._pending = len(payload)
                     self._peak_pending = max(self._peak_pending, len(payload))
                     return ("record", len(payload), (RecordType.KPI, payload))
@@ -729,9 +781,9 @@ class TraceRecorder:
             offset = self._offset
             self._offset += write_record(f, RecordType.FOOTER, pack(footer))
             self._offset += write_trailer(f, offset)
-            f.flush()
+            f.commit()
             return True
-        f.flush()
+        f.commit()
         return False
 
     def _write_batch(self, batch: _Batch) -> None:

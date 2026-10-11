@@ -218,5 +218,11 @@ suspended creation and Job assignment before execution, and refuses assignment
 failure. Native Windows acceptance is still pending; API unit checks are not a
 substitute for that evidence.
 
+Worker trace output now uses durable segments at existing record boundaries.
+Temporary reservations and committed files share a 256 MiB / 1,024-file quota;
+only validated acknowledgements release space. A full spool blocks recording
+without dropping events, and blocked writes remain cancellable. The ordinary
+file recorder retains its existing trace bytes.
+
 These are internal execution foundations. The run store, managed run driver,
 Studio editing and live viewer integration remain separate implementation work.

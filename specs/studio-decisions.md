@@ -298,3 +298,14 @@ reader retains SP3 cache limits; one websocket/tab carries control/availability,
 HTTP carries immutable trace bytes. Full typed parameter and SP2 layout editing,
 revision-aware undo/redo and orphan/stale controls. Exports pin committed results
 and separate presentation overlays. Experiments, comparisons and SSH stay SP5.
+
+
+**D81. Bounded spool receipts do not require unbounded duplicate history.**
+Use attempt-local authenticated opaque segment ids carrying sequence, offset,
+length and stream identity, bound to the content SHA-256. Authenticate every ACK
+before recognizing a retired sequence as a duplicate. These ids are transport
+receipts, never canonical run/content identities. Active temporary reservations
+count against quotas; failed deletion retains credit usage. File trace output
+keeps released bytes and interruption behavior; segmented output strictly rejects
+oversized pending items, including latency-triggered seals. Partial transfer and
+receiver durability are completed with the store integration in Tasks 6–7.

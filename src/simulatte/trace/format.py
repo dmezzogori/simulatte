@@ -15,7 +15,7 @@ from __future__ import annotations
 import struct
 import zlib
 from enum import IntEnum
-from typing import BinaryIO, Final
+from typing import Final, Protocol
 
 __all__ = [
     "FORMAT_MAJOR",
@@ -65,17 +65,21 @@ class RecordType(IntEnum):
     OBSERVERS = 9
 
 
-def write_preamble(f: BinaryIO) -> int:
+class Writable(Protocol):
+    def write(self, data: bytes, /) -> int: ...
+
+
+def write_preamble(f: Writable) -> int:
     """Write the magic and the format version; return the number of bytes written."""
     return f.write(PREAMBLE.pack(MAGIC, FORMAT_MAJOR, FORMAT_MINOR))
 
 
-def write_record(f: BinaryIO, rtype: int, payload: bytes) -> int:
+def write_record(f: Writable, rtype: int, payload: bytes) -> int:
     """Write one framed record; return the number of bytes written (framing included)."""
     header = RECORD_HEADER.pack(len(payload), rtype, zlib.crc32(payload))
     return f.write(header) + f.write(payload)
 
 
-def write_trailer(f: BinaryIO, footer_offset: int) -> int:
+def write_trailer(f: Writable, footer_offset: int) -> int:
     """Write the trailer pointing at the ``FOOTER`` record at `footer_offset`; return the bytes written."""
     return f.write(TRAILER.pack(footer_offset, TRAILER_MAGIC))
