@@ -1,0 +1,119 @@
+"""Trusted -I -S child bootstrap; standard-library-only until roots are installed.
+
+The supervisor supplies configuration over a private channel. The small stdin
+inspection entry is also useful for isolated bootstrap conformance checks.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import sys
+from typing import Any
+
+
+def inspect_model(reference: str, roots: tuple[Path, ...]) -> dict[str, Any]:
+    from simulatte.model import get_model_spec
+
+    relative, separator, selected = reference.partition(":")
+    candidate = (roots[0] / relative).resolve()
+    if not candidate.is_relative_to(roots[0]) or candidate.suffix != ".py" or not candidate.is_file():
+        raise ValueError("Model reference must name a Python file inside the snapshot")
+    # Give package models their normal module name for relative imports; standalone
+    # scripts receive a private stable name and can import sibling snapshot modules.
+    module_name = "_simulatte_model"
+    parent = candidate.parent
+    parts = [candidate.stem]
+    while parent != roots[0] and (parent / "__init__.py").is_file():
+        parts.insert(0, parent.name)
+        parent = parent.parent
+    if len(parts) > 1:
+        module_name = ".".join(parts)
+    spec = importlib.util.spec_from_file_location(module_name, candidate)
+    if spec is None or spec.loader is None:
+        raise ValueError("Cannot load model file")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    models: list[dict[str, Any]] = []
+    for name, build in vars(module).items():
+        if getattr(build, "__module__", None) != module_name or not hasattr(build, "__simulatte_model__"):
+            continue
+        metadata = get_model_spec(build)
+        models.append(
+            {
+                "name": name,
+                "description": metadata.description,
+                "parameters": metadata.schema.to_dict(),
+                "inputs": list(metadata.inputs),
+                "time_unit": metadata.time_unit,
+                "stopping": metadata.stop.to_dict()
+                if metadata.stop is not None
+                else {"type": "horizon", "horizon": metadata.horizon, "warmup": metadata.warmup},
+            }
+        )
+    models.sort(key=lambda item: item["name"])
+    if not models:
+        raise ValueError("No decorated model found")
+    names = [item["name"] for item in models]
+    if separator and selected not in names:
+        raise ValueError("Unknown model; available: " + ", ".join(names))
+    if not separator and len(models) != 1:
+        raise ValueError("Select a model by name; available: " + ", ".join(names))
+    return {"models": models, "selected": selected if separator else names[0]}
+
+
+def inspect_configuration(config: dict[str, Any]) -> dict[str, Any]:
+    snapshot = tuple(Path(root).resolve() for root in config["snapshot_roots"])
+    external = tuple(Path(root).resolve() for root in config["external_roots"])
+    # -S preserves stdlib roots even where venv sys.prefix differs across Python
+    # versions. External package roots are supplied by the supervising runtime.
+    standard = tuple(Path(root).resolve() for root in sys.path if root and Path(root).exists())
+    sys.path[:] = [str(root) for root in (*snapshot, *external, *standard)]
+    from simulatte.execution.imports import install_import_policy
+
+    policy = install_import_policy(Path(config["project_root"]), snapshot, (*external, *standard))
+    os.chdir(snapshot[0])
+    opened: set[str] = set()
+    active = True
+
+    def audit_open(event, args):
+        if active and event == "open" and args and isinstance(args[0], (str, bytes)):
+            path = Path(os.fsdecode(args[0])).resolve()
+            if path.is_relative_to(snapshot[0]):
+                opened.add(path.relative_to(snapshot[0]).as_posix())
+
+    sys.addaudithook(audit_open)
+    try:
+        result = inspect_model(config["reference"], snapshot)
+        declarations = {name for model in result["models"] for name in model["inputs"]}
+        if opened & declarations:
+            raise ValueError("Declared data inputs must be read during build, not model import")
+        result["imports"] = policy.audit()
+        return result
+    finally:
+        active = False
+
+
+def main() -> int:
+    try:
+        raw = sys.stdin.buffer.read((256 << 10) + 1)
+        if len(raw) > 256 << 10:
+            raise ValueError("Bootstrap configuration exceeds 256 KiB")
+        config = json.loads(raw)
+        # Private protocol output is kept separate from Python-level import noise.
+        # OS descriptor capture/diagnostic bounds belong to the worker supervisor.
+        with contextlib.redirect_stdout(sys.stderr):
+            result = inspect_configuration(config)
+        sys.stdout.write(json.dumps(result, allow_nan=False))
+        return 0
+    except (OSError, ValueError, ImportError, TypeError, KeyError) as error:
+        print(f"{type(error).__name__}: {str(error)[:4096]}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
