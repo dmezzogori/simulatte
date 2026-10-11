@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from contextlib import contextmanager
+from dataclasses import dataclass, replace
 from typing import Literal
 
 
@@ -25,15 +26,48 @@ class LayoutDiagnostic:
 
 
 class LayoutError(ValueError):
-    """Invalid layout declaration, patch or resolved model."""
+    """Invalid layout declaration, patch or resolved model, with structured diagnostics."""
 
-    def __init__(self, message: str, *, diagnostics: tuple[LayoutDiagnostic, ...] = ()) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        diagnostics: tuple[LayoutDiagnostic, ...] = (),
+        code: str = "invalid-layout",
+        path: tuple[str, ...] = (),
+        stage: str | None = None,
+        target: str | None = None,
+        related_paths: tuple[tuple[str, ...], ...] = (),
+    ) -> None:
         super().__init__(message)
-        self.diagnostics = tuple(diagnostics)
+        self.diagnostics = tuple(diagnostics) or (
+            LayoutDiagnostic(
+                code,
+                "error",
+                path,
+                stage,
+                target if target is not None else (path[1] if len(path) > 1 and path[0] == "placements" else None),
+                message,
+                related_paths,
+            ),
+        )
 
 
 class LayoutNotReady(LayoutError):
     """A handle or layout-dependent value was read before binding."""
+
+
+@contextmanager
+def diagnostic_context(*, path: tuple[str, ...] = (), stage: str | None = None, target: str | None = None):
+    """Add known caller context without replacing a more precise originating location."""
+    try:
+        yield
+    except LayoutError as error:
+        error.diagnostics = tuple(
+            replace(item, path=item.path or path, stage=item.stage or stage, target=item.target or target)
+            for item in error.diagnostics
+        )
+        raise
 
 
 def sort_diagnostics(

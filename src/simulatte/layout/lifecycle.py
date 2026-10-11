@@ -12,7 +12,7 @@ from contextlib import nullcontext
 from typing import Any
 
 from .dependencies import MISSING, DependencyClosure, evaluate_query
-from .errors import LayoutError, LayoutNotReady
+from .errors import LayoutError, LayoutNotReady, diagnostic_context
 from .layers import FileLayer, ResolvedValues, resolve_layers
 from .refs import GraphRef, NodeRef, PortRef, ValueRef
 from .stages import BindContext, StageContext, StageSpec, ordered_stages
@@ -106,11 +106,13 @@ class PreparationCoordinator:
             (PreparationState.DECLARING,) if registration else (PreparationState.DECLARING, PreparationState.RESOLVING)
         )
         if self.state not in allowed:
-            raise LayoutError(f"layout mutation prohibited while {self.state.value}")
+            raise LayoutError(
+                f"layout mutation prohibited while {self.state.value}", code="lifecycle-error", stage=self._stage
+            )
 
     def _owner(self, ref: ValueRef | GraphRef | NodeRef | PortRef) -> None:
         if ref.owner is not self.owner:
-            raise LayoutError("foreign layout reference")
+            raise LayoutError("foreign layout reference", code="foreign-handle")
 
     def stage(self, name: str, *, reads: Sequence[ValueRef | GraphRef], after: Sequence[str] = ()) -> Callable:
         self._mutable(registration=True)
@@ -119,7 +121,9 @@ class PreparationCoordinator:
             self._mutable(registration=True)
             spec = StageSpec(name, callback, tuple(reads), tuple(after))
             if any(s.name == name for s in self._stages):
-                raise LayoutError(f"duplicate stage id: {name}")
+                raise LayoutError(
+                    f"duplicate stage id: {name}", code="lifecycle-error", path=("stages", name), stage=name
+                )
             self._stages.append(spec)
             return callback
 
@@ -131,7 +135,9 @@ class PreparationCoordinator:
         self._mutable(registration=True)
         spec = StageSpec(name, callback, tuple(reads))
         if any(s.name == name for s in self._binders):
-            raise LayoutError(f"duplicate binder id: {name}")
+            raise LayoutError(
+                f"duplicate binder id: {name}", code="lifecycle-error", path=("binders", name), stage=name
+            )
         self._binders.append(spec)
 
     def attach_target(self, entity_id: str, kind: str) -> None:
@@ -147,7 +153,13 @@ class PreparationCoordinator:
                 and query.descriptor["kind"] in ("value", "membership", "selection")
                 and entity_id not in query.targets
             ):
-                raise LayoutError("placement collection membership is frozen")
+                raise LayoutError(
+                    "placement collection membership is frozen",
+                    code="frozen-layout-input",
+                    path=("placements",),
+                    stage=self._stage,
+                    target=entity_id,
+                )
         old_targets = dict(self._targets)
         self._targets[entity_id] = kind
         try:
@@ -167,9 +179,21 @@ class PreparationCoordinator:
         paths.extend((key,) for key in ("grid", "network") if key in data)
         for path in paths:
             if path in self._frozen:
-                raise LayoutError(f"target/specification is frozen: {path}")
+                raise LayoutError(
+                    f"target/specification is frozen: {path}",
+                    code="late-network-edit"
+                    if self._barrier and path[0] in ("network", "grid")
+                    else "frozen-layout-input",
+                    path=path,
+                    stage=self._stage,
+                )
         if self._barrier and any(key in data for key in ("network", "grid", "overrides")):
-            raise LayoutError("late-network-edit after graph barrier")
+            raise LayoutError(
+                "late-network-edit after graph barrier",
+                code="late-network-edit",
+                path=(next(key for key in ("network", "grid", "overrides") if key in data),),
+                stage=self._stage,
+            )
         self._code.append((self._stage, data))
         try:
             candidate = self._resolve()
@@ -194,10 +218,21 @@ class PreparationCoordinator:
                 before = evaluate_query(self._network_values, descriptor)
                 after = evaluate_query(network_values, descriptor)
                 if after["selected"] != before["selected"]:
-                    raise LayoutError("late-network-edit: new obstacle or connector")
+                    raise LayoutError(
+                        "late-network-edit: new obstacle or connector",
+                        code="late-network-edit",
+                        path=("placements",),
+                        stage=self._stage,
+                    )
         changed = self.closure.changed(candidate, network_values=network_values, allow_network_extensions=True)
         if changed:
-            raise LayoutError(f"physical dependency is frozen: {changed}")
+            raise LayoutError(
+                f"physical dependency is frozen: {changed}",
+                code="frozen-layout-input",
+                path=changed[0],
+                stage=self._stage,
+                related_paths=changed[1:],
+            )
         if network_values is not None:
             self._network_values = network_values
 
@@ -213,10 +248,21 @@ class PreparationCoordinator:
         if not any(
             isinstance(grant, ValueRef) and ref.path[: len(grant.path)] == grant.path for grant in context.spec.reads
         ):
-            raise LayoutError(f"undeclared physical read: {ref.path}")
+            raise LayoutError(
+                f"undeclared physical read: {ref.path}",
+                code="undeclared-physical-read",
+                path=ref.path,
+                stage=context.spec.name,
+            )
         if len(ref.path) >= 2 and ref.path[0] == "placements":
             if ("placements", ref.path[1]) not in self._frozen or ref.path[1] not in self.values.targets:
-                raise LayoutError(f"physical read requires a prior-stage target: {ref.path}")
+                raise LayoutError(
+                    f"physical read requires a prior-stage target: {ref.path}",
+                    code="non-prior-stage-read",
+                    path=ref.path,
+                    stage=context.spec.name,
+                    target=ref.path[1],
+                )
 
     def read_physical(self, context: StageContext, ref: ValueRef, *, default: Any = MISSING) -> Any:
         self.check_grant(context, ref)
@@ -228,22 +274,35 @@ class PreparationCoordinator:
             return self.active_context.physical(ref, default=default)
         if self.state is PreparationState.FINALIZED:
             return self.closure.read(self.values, ref.path, default=default)
-        raise LayoutNotReady(f"physical read unavailable while {self.state.value}")
+        raise LayoutNotReady(
+            f"physical read unavailable while {self.state.value}", code="lifecycle-error", path=ref.path
+        )
 
     def read_graph(self, context: StageContext, ref: GraphRef) -> Any:
         self._owner(ref)
         if ref not in context.spec.reads:
-            raise LayoutError("undeclared graph read")
+            raise LayoutError(
+                "undeclared graph read", code="undeclared-physical-read", path=("network",), stage=context.spec.name
+            )
         if self.network is None:
-            raise LayoutNotReady("no declared/resolved network")
+            raise LayoutNotReady(
+                "no declared/resolved network", code="missing-handle", path=("network",), stage=context.spec.name
+            )
         return self._graph_of(self.network)
 
     def read_node(self, context: BindContext, ref: NodeRef | PortRef) -> Any:
         self._owner(ref)
         if self.graph() not in context.spec.reads:
-            raise LayoutError("node binding requires a declared graph read")
+            raise LayoutError(
+                "node binding requires a declared graph read",
+                code="undeclared-physical-read",
+                path=("network",),
+                stage=context.spec.name,
+            )
         if self._node_resolver is None or self._node_identity is None:
-            raise LayoutNotReady("node resolver is not installed")
+            raise LayoutNotReady(
+                "node resolver is not installed", code="lifecycle-error", path=("network",), stage=context.spec.name
+            )
         value = self._node_resolver(ref)
         self.closure.bind(
             f"{context.spec.name}:{ref.address.encoded_id}",
@@ -253,27 +312,31 @@ class PreparationCoordinator:
 
     def _run(self, spec: StageSpec, *, binding: bool = False) -> None:
         context = BindContext(self, spec) if binding else StageContext(self, spec)
+        previous_stage = self._stage
+        self._stage = spec.name
         self.active_context = context
         try:
-            for ref in spec.reads:
-                self._owner(ref)
-                if isinstance(ref, ValueRef):
-                    self.check_grant(context, ref)
-                    if self.values.at(ref.path, explicit=True).state == "present":
-                        self.closure.read(self.values, ref.path)
+            with diagnostic_context(stage=spec.name):
+                for ref in spec.reads:
+                    self._owner(ref)
+                    if isinstance(ref, ValueRef):
+                        self.check_grant(context, ref)
+                        if self.values.at(ref.path, explicit=True).state == "present":
+                            self.closure.read(self.values, ref.path)
+                        else:
+                            self.closure.record(self.values, ref.path)
                     else:
-                        self.closure.record(self.values, ref.path)
-                else:
-                    self.read_graph(context, ref)
-            spec.callback(context)
-            if self.state is PreparationState.FAILED:
-                raise LayoutError("preparation failed during callback")
+                        self.read_graph(context, ref)
+                spec.callback(context)
+                if self.state is PreparationState.FAILED:
+                    raise LayoutError("preparation failed during callback", code="lifecycle-error", stage=self._stage)
         finally:
             self.active_context = None
+            self._stage = previous_stage
 
     def _check_failure(self) -> None:
         if self.state is PreparationState.FAILED:
-            raise LayoutError("preparation failed during hook")
+            raise LayoutError("preparation failed during hook", code="lifecycle-error", stage=self._stage)
 
     def _build_network(self) -> None:
         self._barrier = True
@@ -289,17 +352,18 @@ class PreparationCoordinator:
         if self.state is PreparationState.FINALIZED:
             return self._result
         if self.state is PreparationState.FAILED:
-            raise LayoutError("preparation failed; use a fresh environment")
+            raise LayoutError("preparation failed; use a fresh environment", code="lifecycle-error", stage=self._stage)
         if self.state is not PreparationState.DECLARING:
             self.state = PreparationState.FAILED
             self.active_context = None
-            raise LayoutError("reentrant preparation")
+            raise LayoutError("reentrant preparation", code="lifecycle-error", stage=self._stage)
         self.state = PreparationState.RESOLVING
         try:
             stages = ordered_stages(self._stages)
             for spec in (*stages, *self._binders):
-                for ref in spec.reads:
-                    self._owner(ref)
+                with diagnostic_context(stage=spec.name):
+                    for ref in spec.reads:
+                        self._owner(ref)
             self._freeze_stage()
             for spec in stages:
                 if not self._barrier and any(isinstance(ref, GraphRef) for ref in spec.reads):

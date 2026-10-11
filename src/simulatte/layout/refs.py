@@ -68,7 +68,9 @@ class _Ref:
 
     def __getattr__(self, name: str) -> Any:
         if name in ("x", "y", "z", "nodes", "neighbors", "arc_between"):
-            raise LayoutNotReady(f"{type(self).__name__} is a logical handle; resolve it before reading {name}")
+            raise LayoutNotReady(
+                f"{type(self).__name__} is a logical handle; resolve it before reading {name}", code="lifecycle-error"
+            )
         raise AttributeError(name)
 
 

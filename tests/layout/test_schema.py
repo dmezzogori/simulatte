@@ -190,7 +190,7 @@ def test_unique_items_uses_json_equality(value, valid):
     rule = {"type": "array", "uniqueItems": True}
     assert Draft202012Validator(rule).is_valid(value) == valid
     if valid:
-        _validate(value, rule, "$")
+        _validate(value, rule, ())
     else:
         with pytest.raises(LayoutError, match="duplicate array item"):
-            _validate(value, rule, "$")
+            _validate(value, rule, ())

@@ -310,12 +310,22 @@ with Environment(seed=7) as env:
 The packaged [layout JSON Schema](https://github.com/dmezzogori/simulatte/blob/main/src/simulatte/layout/schema/layout-v1.schema.json)
 defines author format `1.0`. Load it offline with
 `importlib.resources.files("simulatte.layout.schema").joinpath("layout-v1.schema.json")`.
-A `LayoutError` is a `ValueError` with optional structured `diagnostics`; each diagnostic provides `code`,
+A `LayoutError` is a `ValueError` with a nonempty tuple of structured `diagnostics`; each diagnostic provides `code`,
 `severity`, `path`, `stage`, `target`, `message` and `related_paths`. Successful results expose warnings through
 `result.diagnostics`. Diagnostics follow actual stage execution order, then path, code and target; file and
 unstaged diagnostics follow the stages. Saved replay retains that order. Check these for orphans, kind
 mismatches and stale overrides before trusting an edit.
 Required missing bindings, blocked connectors, unreachable paths, unknown fields and late edits fail preparation.
+
+Handle errors use `missing-handle` or `foreign-handle`; connector and reachability failures use
+`blocked-connector` and `unreachable-required-path`. Physical read errors use `physical-auto-read`,
+`undeclared-physical-read` or `non-prior-stage-read`. Frozen inputs use `frozen-layout-input`, graph edits
+after the barrier use `late-network-edit`, and preparation/activation misuse uses `lifecycle-error`.
+Invalid file data uses `schema-error`; other validation failures use `invalid-layout`.
+Catch `LayoutError` and inspect these codes instead of parsing its human-readable message.
+Paths are tuples of intact keys (including keys containing `/`) and string list indices; an empty path
+means the whole layout. Required path diagnostics refer to `("required_paths", index)` in declaration order.
+The target and stage are supplied when known; errors inside a stage or binder retain its name.
 
 Trace container 1.1 stores the immutable bundle at `INITIAL.layout` in both full and KPI traces. The activation
 manifest carries schema and hashes; the earlier manifest reports unresolved layout status. Old 1.0/no-layout

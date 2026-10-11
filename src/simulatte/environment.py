@@ -368,7 +368,9 @@ class Environment(simpy.Environment):
             coordinator = self._layout._coordinator
             if coordinator.state not in (PreparationState.DECLARING, PreparationState.FINALIZED):
                 coordinator.state = PreparationState.FAILED
-                raise LayoutError("cannot advance or activate during failed/in-progress layout preparation")
+                raise LayoutError(
+                    "cannot advance or activate during failed/in-progress layout preparation", code="lifecycle-error"
+                )
 
     def activate(self) -> None:
         """End preparation and start the run (spec §10). Idempotent; :meth:`run` calls it on first use.
@@ -573,7 +575,7 @@ class Environment(simpy.Environment):
         if self._layout is not None and not self._activated:
             from simulatte.layout.errors import LayoutError
 
-            raise LayoutError("call env.activate() before env.step() with a layout")
+            raise LayoutError("call env.activate() before env.step() with a layout", code="lifecycle-error")
         try:
             super().step()
         except KeyboardInterrupt:

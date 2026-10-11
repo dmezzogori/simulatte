@@ -115,7 +115,13 @@ def apply_overrides(
         if name == "enabled" or (
             edge is not None and edge.enabled and nodes[edge.source].enabled and nodes[edge.target].enabled
         ):
-            raise LayoutError(f"required input is unset: {'/'.join(path)}")
+            source = values.at(path).source
+            raise LayoutError(
+                f"required input is unset: {'/'.join(path)}",
+                code="required-input",
+                path=path,
+                stage=source.stage if source else None,
+            )
     return NetworkDefinitions(
         nodes,
         edges,

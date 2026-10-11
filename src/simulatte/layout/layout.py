@@ -44,7 +44,7 @@ _BUILTINS = {
 def _data(value: Any, owner: object) -> Any:
     if isinstance(value, (NodeRef, PortRef, GraphRef, ValueRef)):
         if value.owner is not owner:
-            raise LayoutError("foreign layout reference")
+            raise LayoutError("foreign layout reference", code="foreign-handle")
         return value.to_dict()
     if isinstance(value, Point):
         return [value.x, value.y, value.z]
@@ -80,7 +80,9 @@ class Layout:
         self, env: Environment, *, file: str | Path | None = None, limits: LayoutLimits = LayoutLimits()
     ) -> None:
         if env.layout is not None or env._activation_started or env._explicit_graph_use or env.now != 0:
-            raise LayoutError("Layout requires an unactivated environment without explicit graph consumers")
+            raise LayoutError(
+                "Layout requires an unactivated environment without explicit graph consumers", code="lifecycle-error"
+            )
         check_existing_endpoints(env)
         self.env, self.limits = env, limits
         layer = FileLayer({"schema_version": "1.0"}) if file is None else load_layout(file, limits=limits)
@@ -243,10 +245,11 @@ class Layout:
     def _accept_reference(self, value: Any, classes: tuple[type, ...]) -> None:
         state = self._coordinator.state
         if state not in (PreparationState.DECLARING, PreparationState.RESOLVING, PreparationState.FINALIZED):
-            raise LayoutError(f"cannot construct layout consumer while {state.value}")
+            raise LayoutError(f"cannot construct layout consumer while {state.value}", code="lifecycle-error")
         if not isinstance(value, classes) or value.owner is not self:
             raise LayoutError(
-                "layout consumers require a reference from the same layout; direct nodes/graphs are invalid"
+                "layout consumers require a reference from the same layout; direct nodes/graphs are invalid",
+                code="foreign-handle",
             )
 
     def _resolve_node(self, ref: NodeRef | PortRef) -> Node:
@@ -265,7 +268,7 @@ class Layout:
 
     def _graph_of(self, network: ResolvedNetwork):
         if self._coordinator.values.at(("network",), explicit=True).state != "present":
-            raise LayoutError("graph reference requires a declared network")
+            raise LayoutError("graph reference requires a declared network", code="missing-handle", path=("network",))
         return network.graph
 
     def _validate_node(self, node: Node | None) -> None:

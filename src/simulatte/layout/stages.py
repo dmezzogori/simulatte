@@ -22,9 +22,13 @@ class StageSpec:
         object.__setattr__(self, "reads", tuple(self.reads))
         object.__setattr__(self, "after", tuple(self.after))
         if any(not isinstance(ref, (ValueRef, GraphRef)) for ref in self.reads):
-            raise LayoutError("stage reads must contain ValueRef or GraphRef")
+            raise LayoutError(
+                "stage reads must contain ValueRef or GraphRef", code="lifecycle-error", path=("stages", "reads")
+            )
         if not self.name or self.name == "declare":
-            raise LayoutError("stage name must be nonempty and cannot be declare")
+            raise LayoutError(
+                "stage name must be nonempty and cannot be declare", code="lifecycle-error", path=("stages",)
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Persist grants and topology without callbacks or process-local owner ids."""
@@ -34,11 +38,16 @@ class StageSpec:
 def ordered_stages(stages: Sequence[StageSpec]) -> tuple[StageSpec, ...]:
     names = [stage.name for stage in stages]
     if len(set(names)) != len(names):
-        raise LayoutError("duplicate stage id")
+        raise LayoutError("duplicate stage id", code="lifecycle-error", path=("stages",))
     for stage in stages:
         unknown = set(stage.after) - {*names, "declare"}
         if unknown:
-            raise LayoutError(f"unknown stage predecessor: {sorted(unknown)}")
+            raise LayoutError(
+                f"unknown stage predecessor: {sorted(unknown)}",
+                code="lifecycle-error",
+                path=("stages", stage.name, "after"),
+                stage=stage.name,
+            )
     done = {"declare"}
     pending = list(stages)
     result = []
@@ -52,7 +61,12 @@ def ordered_stages(stages: Sequence[StageSpec]) -> tuple[StageSpec, ...]:
             while name not in chain:
                 chain.append(name)
                 name = next(p for p in by_name[name].after if p not in done)
-            raise LayoutError("stage cycle: " + " -> ".join(chain[chain.index(name) :] + [name]))
+            raise LayoutError(
+                "stage cycle: " + " -> ".join(chain[chain.index(name) :] + [name]),
+                code="lifecycle-error",
+                path=("stages", name, "after"),
+                stage=name,
+            )
         result.append(ready)
         pending.remove(ready)
         done.add(ready.name)
@@ -70,7 +84,7 @@ class StageContext:
 
     def _check(self) -> None:
         if self._coordinator.active_context is not self:
-            raise LayoutError("stage/bind context is no longer active")
+            raise LayoutError("stage/bind context is no longer active", code="lifecycle-error", stage=self.spec.name)
 
     def physical(self, ref: ValueRef, *, default: Any = MISSING) -> Any:
         self._check()

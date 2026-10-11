@@ -28,34 +28,38 @@ def schema() -> dict[str, Any]:
     return json.loads(json.dumps(_schema()))
 
 
-def _utf8(value: str, path: str) -> None:
+def _utf8(value: str, path: tuple[str, ...]) -> None:
     try:
         value.encode("utf-8")
     except UnicodeEncodeError as exc:
-        raise LayoutError(f"{path}: strings must be valid UTF-8") from exc
+        raise LayoutError(
+            f"{'/'.join(('$', *path))}: strings must be valid UTF-8", code="schema-error", path=path
+        ) from exc
 
 
-def _copy(value: Any, path: str, depth: int, max_nesting: int) -> Any:
+def _copy(value: Any, path: tuple[str, ...], depth: int, max_nesting: int) -> Any:
     if depth > max_nesting:
-        raise LayoutError(f"{path}: max_nesting exceeded ({max_nesting})")
+        raise LayoutError(
+            f"{'/'.join(('$', *path))}: max_nesting exceeded ({max_nesting})", code="schema-error", path=path
+        )
     if isinstance(value, Mapping):
         if any(not isinstance(key, str) for key in value):
-            raise LayoutError(f"{path}: object keys must be strings")
+            raise LayoutError(f"{'/'.join(('$', *path))}: object keys must be strings", code="schema-error", path=path)
         for key in value:
             _utf8(key, path)
-        return {key: _copy(item, f"{path}/{key}", depth + 1, max_nesting) for key, item in value.items()}
+        return {key: _copy(item, (*path, key), depth + 1, max_nesting) for key, item in value.items()}
     if isinstance(value, (tuple, list)):
-        return [_copy(item, f"{path}/{i}", depth + 1, max_nesting) for i, item in enumerate(value)]
+        return [_copy(item, (*path, str(i)), depth + 1, max_nesting) for i, item in enumerate(value)]
     if isinstance(value, float) and not math.isfinite(value):
-        raise LayoutError(f"{path}: numbers must be finite")
+        raise LayoutError(f"{'/'.join(('$', *path))}: numbers must be finite", code="schema-error", path=path)
     if isinstance(value, str):
         _utf8(value, path)
     if value is None or isinstance(value, (str, bool, int, float)):
         return value
-    raise LayoutError(f"{path}: expected JSON data")
+    raise LayoutError(f"{'/'.join(('$', *path))}: expected JSON data", code="schema-error", path=path)
 
 
-def _matches(value: Any, rule: dict[str, Any], path: str) -> bool:
+def _matches(value: Any, rule: dict[str, Any], path: tuple[str, ...]) -> bool:
     try:
         _validate(value, rule, path)
     except LayoutError:
@@ -74,12 +78,12 @@ def _json_key(value: Any) -> tuple[Any, ...]:
     return ("scalar", value)
 
 
-def _validate(value: Any, rule: dict[str, Any], path: str) -> None:
+def _validate(value: Any, rule: dict[str, Any], path: tuple[str, ...]) -> None:
     if not rule:
         return
 
     def fail(message: str) -> None:
-        raise LayoutError(f"{path}: {message}")
+        raise LayoutError(f"{'/'.join(('$', *path))}: {message}", code="schema-error", path=path)
 
     if "$ref" in rule:
         _validate(value, _schema()["$defs"][rule["$ref"].removeprefix("#/$defs/")], path)
@@ -108,11 +112,11 @@ def _validate(value: Any, rule: dict[str, Any], path: str) -> None:
             fail("missing required field")
         for key, item in value.items():
             if "propertyNames" in rule:
-                _validate(key, rule["propertyNames"], f"{path}/{key}")
+                _validate(key, rule["propertyNames"], (*path, key))
             child = rule.get("properties", {}).get(key, rule.get("additionalProperties", {}))
             if child is False:
                 fail(f"unknown field {key}")
-            _validate(item, child, f"{path}/{key}")
+            _validate(item, child, (*path, key))
     if isinstance(value, list):
         if len(value) < rule.get("minItems", 0) or len(value) > rule.get("maxItems", math.inf):
             fail("invalid array length")
@@ -123,7 +127,7 @@ def _validate(value: Any, rule: dict[str, Any], path: str) -> None:
             child = prefix[i] if i < len(prefix) else rule.get("items", {})
             if child is False:
                 fail("extra array item")
-            _validate(item, child, f"{path}/{i}")
+            _validate(item, child, (*path, str(i)))
     if isinstance(value, str):
         if len(value) < rule.get("minLength", 0) or ("pattern" in rule and re.search(rule["pattern"], value) is None):
             fail("invalid string")
@@ -136,15 +140,19 @@ def _validate(value: Any, rule: dict[str, Any], path: str) -> None:
 
 def validate_definition(value: Any, definition: str, *, max_nesting: int = 64) -> Any:
     """Validate and copy one schema definition; do not fill defaults or snap."""
-    result = _copy(value, "$", 0, max_nesting)
-    _validate(result, _schema()["$defs"][definition], "$")
+    result = _copy(value, (), 0, max_nesting)
+    _validate(result, _schema()["$defs"][definition], ())
     return result
 
 
 def parse_patch(value: Mapping[str, Any], *, max_nesting: int = 64) -> dict[str, Any]:
     """Validate and copy a file-layer patch, retaining authored leaf values."""
-    result = _copy(value, "$", 0, max_nesting)
+    result = _copy(value, (), 0, max_nesting)
     if isinstance(result, dict) and result.get("schema_version", "1.0") != "1.0":
-        raise LayoutError("unsupported layout schema_version; upgrade the layout reader")
-    _validate(result, _schema(), "$")
+        raise LayoutError(
+            "unsupported layout schema_version; upgrade the layout reader",
+            code="schema-error",
+            path=("schema_version",),
+        )
+    _validate(result, _schema(), ())
     return result

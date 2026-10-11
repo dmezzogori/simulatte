@@ -32,7 +32,12 @@ def _data(value: Any) -> Any:
 def _eligible(values: ResolvedValues, path: Path) -> None:
     for candidate, leaf in values.leaves.items():
         if candidate[: len(path)] == path and leaf.source is not None and leaf.source.kind == "auto":
-            raise LayoutError(f"auto value cannot be physical: {candidate}")
+            raise LayoutError(
+                f"auto value cannot be physical: {candidate}",
+                code="physical-auto-read",
+                path=candidate,
+                target=candidate[1] if len(candidate) > 1 and candidate[0] == "placements" else None,
+            )
 
 
 def _selection(values: ResolvedValues, path: Path, predicate: str) -> dict[str, Any]:
@@ -144,7 +149,7 @@ class DependencyClosure:
 
     def record(self, values: ResolvedValues, path: Path, *, kind: str = "value", **options: Any) -> Any:
         if self._sealed:
-            raise LayoutError("physical dependency closure is sealed")
+            raise LayoutError("physical dependency closure is sealed", code="lifecycle-error")
         descriptor = _data({"kind": kind, "path": list(path), **options})
         observed = evaluate_query(values, descriptor)
         query = DependencyQuery(descriptor, observed, len(values.bundle.code_stages), values.targets, self._origin)
@@ -159,7 +164,7 @@ class DependencyClosure:
             default = _freeze(normalize(_data(default), path))
         if self._sealed:
             if not self.covers(path):
-                raise LayoutError(f"physical path is not covered: {path}")
+                raise LayoutError(f"physical path is not covered: {path}", code="undeclared-physical-read", path=path)
         else:
             if leaf.state == "present" or default is MISSING:
                 _eligible(values, path)
@@ -183,7 +188,7 @@ class DependencyClosure:
 
     def bind(self, name: str, value: Any) -> None:
         if self._sealed:
-            raise LayoutError("physical dependency closure is sealed")
+            raise LayoutError("physical dependency closure is sealed", code="lifecycle-error")
         frozen = _freeze(_data(value))
         if name in self._bindings and self._bindings[name] != frozen:
             raise LayoutError(f"conflicting physical binding: {name}")
@@ -206,7 +211,7 @@ class DependencyClosure:
     def extend_network(self, values: ResolvedValues) -> None:
         """At finalization include newly allowed nonmatching graph candidates."""
         if self._sealed:
-            raise LayoutError("physical dependency closure is sealed")
+            raise LayoutError("physical dependency closure is sealed", code="lifecycle-error")
         self._queries = [
             replace(
                 q,

@@ -22,7 +22,7 @@ def node_input(env: Environment, value: Any, *, optional: bool = False) -> tuple
     layout = env.layout
     if layout is None:
         if not isinstance(value, Node):
-            raise LayoutError("node references require their owning Layout environment")
+            raise LayoutError("node references require their owning Layout environment", code="foreign-handle")
         return value, None
     layout._accept_reference(value, (NodeRef, PortRef))
     if layout._coordinator.state is PreparationState.FINALIZED:
@@ -36,7 +36,7 @@ def graph_input(env: Environment, value: Any) -> tuple[LayoutGraph | None, Graph
     layout = env.layout
     if layout is None:
         if not isinstance(value, LayoutGraph):
-            raise LayoutError("graph references require their owning Layout environment")
+            raise LayoutError("graph references require their owning Layout environment", code="foreign-handle")
         return value, None
     layout._accept_reference(value, (GraphRef,))
     if layout._coordinator.state is PreparationState.FINALIZED:
@@ -47,13 +47,16 @@ def graph_input(env: Environment, value: Any) -> tuple[LayoutGraph | None, Graph
 def pending(component: Any, field: str) -> None:
     env = getattr(component, "env", None) or component._env
     raise LayoutNotReady(
-        f"{type(component).__name__}.{field} is unresolved while {env.layout._coordinator.state.value}"
+        f"{type(component).__name__}.{field} is unresolved while {env.layout._coordinator.state.value}",
+        code="lifecycle-error",
+        target=getattr(component, "id", None),
+        path=("bindings", field),
     )
 
 
 def readonly(env: Environment, field: str) -> None:
     if env.layout is not None:
-        raise LayoutError(f"{field} is read-only in layout mode")
+        raise LayoutError(f"{field} is read-only in layout mode", code="lifecycle-error", path=("bindings", field))
 
 
 def check_existing_endpoints(env: Environment) -> None:
@@ -69,7 +72,7 @@ def check_existing_endpoints(env: Environment) -> None:
                 for field in ("input_bays", "output_bays")
             )
         if concrete:
-            raise LayoutError("Layout cannot adopt existing explicit graph consumers")
+            raise LayoutError("Layout cannot adopt existing explicit graph consumers", code="foreign-handle")
 
 
 def bind_components(layout: Layout) -> None:

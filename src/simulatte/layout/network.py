@@ -449,7 +449,12 @@ class ResolvedNetwork:
     def node(self, address: Address) -> Node:
         canonical = self.aliases.get(address)
         if canonical is None or canonical not in self.nodes:
-            raise LayoutError(f"missing or disabled required node: {address.to_dict()}")
+            raise LayoutError(
+                f"missing or disabled required node: {address.to_dict()}",
+                code="missing-handle",
+                path=("network", "nodes"),
+                target=address.to_dict().get("id", address.encoded_id),
+            )
         return self.nodes[canonical]
 
     def validate(
@@ -472,7 +477,7 @@ class ResolvedNetwork:
             self.node(address)
         addresses = {node: address for address, node in self.nodes.items()}
         results = []
-        for source, target in required_paths:
+        for index, (source, target) in enumerate(required_paths):
             start, end = self.node(source), self.node(target)
             # Reachability is topological; no floating path-cost arithmetic needed.
             parents: dict[Node, Node | None] = {start: None}
@@ -485,7 +490,13 @@ class ResolvedNetwork:
                         parents[neighbor] = current
                         pending.append(neighbor)
             if end not in parents:
-                raise LayoutError(f"unreachable required path: {source.to_dict()} -> {target.to_dict()}")
+                raise LayoutError(
+                    f"unreachable required path: {source.to_dict()} -> {target.to_dict()}",
+                    code="unreachable-required-path",
+                    path=("required_paths", str(index)),
+                    target=source.to_dict().get("id", source.encoded_id),
+                    related_paths=(("required_paths", str(index), "source"), ("required_paths", str(index), "target")),
+                )
             path = []
             cursor: Node | None = end
             while cursor is not None:
