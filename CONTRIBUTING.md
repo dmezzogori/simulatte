@@ -26,3 +26,24 @@ PRs are squash-merged into `main` by the maintainer ([@dmezzogori](https://githu
 ## Releases
 
 New versions are published to PyPI by the maintainer via `v*` tags. Contributors should not create release tags.
+
+## Studio and distributable builds
+
+Python editable installs do not require Node. To develop Studio or build a wheel
+from a checkout, use Node.js 24 and the pinned pnpm version:
+
+```bash
+corepack enable
+pnpm --dir studio install --frozen-lockfile
+pnpm --dir studio typecheck
+pnpm --dir studio test
+pnpm --dir studio build
+uv run python studio/scripts/package_assets.py
+uv build
+```
+
+The build hook rejects missing, tampered or stale assets. Rebuild after changing
+frontend inputs. An sdist includes validated assets and builds offline without
+Node when Python build dependencies are installed. `scripts/build_docs_wheel.sh`
+also requires the assets above because the documentation embeds a complete wheel.
+See [Studio](docs/development/studio.md) for browser checks and recording examples.

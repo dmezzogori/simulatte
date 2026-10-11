@@ -1133,7 +1133,9 @@ def test_malformed_kpi_declarations(tmp_path: Path, changes: dict[str, Any]) -> 
     from dataclasses import asdict
     from simulatte.kpi import KPI
 
-    declaration = asdict(KPI("x", unit="time")) | changes
+    declaration = {
+        k: v for k, v in asdict(KPI("x", unit="time")).items() if k not in ("interpolation", "missing")
+    } | changes
     path = _records_trace(tmp_path, "bad-declaration", kpis=({"declarations": {"scope/x": declaration}},))
     with pytest.raises(TraceCorrupted):
         Trace.open(path)
@@ -1150,7 +1152,10 @@ def test_duplicate_kpi_declarations(tmp_path: Path) -> None:
     from dataclasses import asdict
     from simulatte.kpi import KPI
 
-    record = {"declarations": {"scope/x": asdict(KPI("x", unit="time", empty=0.0))}}
+    declaration = asdict(KPI("x", unit="time", empty=0.0))
+    declaration.pop("interpolation")
+    declaration.pop("missing")
+    record = {"declarations": {"scope/x": declaration}}
     path = _records_trace(tmp_path, "duplicate", kpis=(record, record))
     with pytest.raises(TraceCorrupted, match="duplicate KPI"):
         Trace.open(path)

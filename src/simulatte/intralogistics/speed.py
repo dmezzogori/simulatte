@@ -19,7 +19,13 @@ class SpeedProfile(Protocol):
     """Travel time of a segment.
 
     A profile may also define ``motion(distance, load_weight, battery_level, speed_limit) -> MotionDescription``,
-    the curve a viewer uses to interpolate the position (spec §6.5); profiles without it are described by
+    the curve a viewer uses to interpolate the position (spec §6.5). A portable custom curve may use
+    ``{"curve": "keyframes", "keyframes": [[elapsed, fraction], ...], "accuracy": meters}``.
+    At least two finite points must start at ``[0, 0]``, end at fraction 1, have strictly increasing elapsed
+    times and nondecreasing fractions in [0, 1]. Accuracy is finite and nonnegative. The final elapsed time
+    must match the finite positive segment duration within eight float64 ULPs of the larger absolute endpoint
+    time (minimum tolerance 1e-12). Viewers interpolate between points and never call the profile.
+    Profiles without a description are represented by
     :data:`LINEAR_MOTION`. The method is optional, so it is not part of this protocol.
     """
 

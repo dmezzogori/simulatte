@@ -68,6 +68,10 @@ class KPI:
     - `ema_reset`: whether an exponential moving average restarts at the warm-up.
     - `empty`: the scalar when there is no observation; None leaves the scalar out of the results.
     - `description`: free text.
+    - `interpolation`: series display rule, ``"previous"`` (default), ``"linear"`` or ``"none"``.
+      Exact-event inspection always uses recorded eligible samples, never a future linear bracket.
+    - `missing`: ``"gap"`` (default) breaks at non-finite samples; ``"hold"`` uses the preceding finite value.
+      These presentation settings do not change recorded values or scalar estimands.
     """
 
     name: str
@@ -82,6 +86,8 @@ class KPI:
     ema_reset: bool = False
     empty: float | None = None
     description: str = ""
+    interpolation: Literal["previous", "linear", "none"] = "previous"
+    missing: Literal["gap", "hold"] = "gap"
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name or "/" in self.name or "\0" in self.name:
@@ -94,6 +100,8 @@ class KPI:
             ("cohort", self.cohort, _COHORTS),
             ("clip", self.clip, _CLIPS),
             ("censoring", self.censoring, _CENSORING),
+            ("interpolation", self.interpolation, frozenset({"previous", "linear", "none"})),
+            ("missing", self.missing, frozenset({"gap", "hold"})),
         ):
             if value not in allowed:
                 raise ValueError(f"KPI {self.name!r}: {field} must be one of {sorted(allowed)}, got {value!r}")

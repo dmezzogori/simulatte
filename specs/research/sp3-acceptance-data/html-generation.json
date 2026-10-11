@@ -1,0 +1,16 @@
+{
+  "mode": "html",
+  "sourceBytes": 103272908,
+  "outputBytes": 138396390,
+  "seconds": 1.9218000000119209,
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 Safari/537.36",
+  "longestTaskMs": 107,
+  "wallSeconds": 2.04,
+  "errors": [],
+  "rss": {
+    "method": "macOS ps RSS sampled every 100 ms via CDP process IDs; renderer includes engine/native, total includes GPU and browser",
+    "baselineRenderer": 74301440,
+    "peakRenderer": 502366208,
+    "peakTotal": 997376000
+  }
+}

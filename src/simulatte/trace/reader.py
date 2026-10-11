@@ -15,6 +15,7 @@ cursor is at or before the given one; the activation cursor ``(t_activation, -1)
 from __future__ import annotations
 
 import os
+import heapq
 import zlib
 from bisect import bisect_right
 from collections import OrderedDict
@@ -23,7 +24,7 @@ from dataclasses import dataclass, field
 from itertools import pairwise
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, BinaryIO, Literal, NamedTuple, TypeAlias, TypeVar
+from typing import Any, BinaryIO, Literal, NamedTuple, TypeAlias, TypeVar, cast
 
 from simulatte._wire import MAX_SAFE_INT, FrozenMap, Wire, unpack, wire_equal
 from simulatte.digest import DigestAccumulator, Fingerprint
@@ -100,7 +101,7 @@ class TraceEvent(NamedTuple):
     """A recorded domain event: ``[seq, ordinal, type, t, payload, deltas]`` as stored in a chunk."""
 
     seq: int
-    ordinal: int
+    ordinal: int | None
     type: str
     t: float
     payload: Mapping[str, Wire]
@@ -405,6 +406,7 @@ class Trace:
             dict[str, float],
             dict[str, list[KpiPoint]],
             dict[str, FrozenMap],
+            dict[str, FrozenMap],
         ]:
             catalog = {str(name): CatalogEntry.from_wire(entry) for name, entry in self._header["catalog"].items()}
             kinds = {
@@ -416,6 +418,7 @@ class Trace:
                     {str(kind): StateSchema.from_wire(schema).presentation for kind, schema in ext["kinds"].items()}
                 )
             declarations: dict[str, FrozenMap] = {}
+            display: dict[str, FrozenMap] = {}
             scalars: dict[str, float] = {}
             series: dict[str, list[KpiPoint]] = {}
             for record in self._kpi_records:
@@ -460,6 +463,18 @@ class Trace:
                         if not key.endswith("/" + kpi.name) or key == "/" + kpi.name:
                             raise ValueError("a KPI key must be scope/name matching its declaration")
                         declarations[key] = declaration
+                for key, rules in record.get("series_display", FrozenMap({})).items():
+                    if key in display or key not in declarations:
+                        raise ValueError("duplicate or undeclared series display key")
+                    if type(rules) is not FrozenMap or set(rules) != {"interpolation", "missing"}:
+                        raise ValueError("series display requires interpolation and missing")
+                    if rules["interpolation"] not in ("previous", "linear", "none"):
+                        raise ValueError("invalid series interpolation")
+                    if rules["missing"] not in ("gap", "hold"):
+                        raise ValueError("invalid series missing rule")
+                    if "series" not in cast(tuple, declarations[key]["kind"]):
+                        raise ValueError("series display requires a series KPI")
+                    display[key] = rules
                 if "scalars" in record:
                     if type(record["scalars"]) is not FrozenMap:
                         raise TypeError("KPI scalars are a map")
@@ -472,7 +487,7 @@ class Trace:
                         raise TypeError(f"a KPI sample key is not a string: {key!r}")
                     cursor = _wire_cursor((t, seq))
                     series.setdefault(key, []).append((cursor, _wire_real(value)))
-            return catalog, kinds, scalars, series, declarations
+            return catalog, kinds, scalars, series, declarations, display
 
         built = _decoded(build, "catalog or KPI record")
         self._catalog: dict[str, CatalogEntry] = built[0]
@@ -480,6 +495,7 @@ class Trace:
         self._kpis: dict[str, float] = built[2]
         self._kpi_series: dict[str, list[KpiPoint]] = built[3]
         self._kpi_declarations = FrozenMap(built[4])
+        self._kpi_series_display = FrozenMap(built[5])
 
     # -------------------------------------------------------------------------
     # Metadata
@@ -549,6 +565,79 @@ class Trace:
         Each declaration includes its unit, kind, description and observation semantics.
         """
         return self._kpi_declarations
+
+    @property
+    def kpi_series_display(self) -> FrozenMap:
+        """Declared series display rules. Older traces return an empty map."""
+        return self._kpi_series_display
+
+    def observer_events(self, *, prelude: bool = False) -> Iterator[TraceEvent]:
+        """Recorded observer events, separate from the domain replay/digest stream.
+
+        Prelude events are available only with ``prelude=True``. Records are decoded
+        one at a time; no observer history is retained by the reader.
+        """
+        seen_initial = False
+        epoch = 0
+        last: Cursor | None = None
+        catalog = dict(self._header["catalog"])
+        with open(self._path, "rb") as stream:
+            file = _File(stream, self._size, self._limits)
+            end = self._footer_offset if self._footer_offset is not None else self._size
+            pos = PREAMBLE.size
+            while pos < end:
+                frame = file.frame(pos, end)
+                if frame is None:
+                    return
+                rtype, length, crc = frame
+                next_pos = pos + _FRAME + length
+                if rtype in (RecordType.OBSERVERS, RecordType.INITIAL, RecordType.CATALOG_EXT):
+                    data = file.payload(pos, length, crc)
+                    if data is None:
+                        if self.truncated and not file.valid_record_from(next_pos, end):
+                            return
+                        raise TraceCorrupted(f"record at {pos} fails its CRC check")
+                    body = file.decode(data, "observer metadata")
+                    if rtype == RecordType.INITIAL:
+                        seen_initial = True
+                    elif rtype == RecordType.CATALOG_EXT:
+                        epoch = body["epoch"]
+                        catalog.update(body["types"])
+                    else:
+
+                        def validate() -> tuple[TraceEvent, ...]:
+                            nonlocal last
+                            if set(body) != {"phase", "first", "last", "epoch", "events"}:
+                                raise ValueError("invalid OBSERVERS fields")
+                            phase = "simulation" if seen_initial else "prelude"
+                            if body["phase"] != phase or _wire_int(body["epoch"]) != epoch:
+                                raise ValueError("observer phase or catalog epoch mismatch")
+                            events = tuple(_trace_event(item) for item in body["events"])
+                            if (
+                                not events
+                                or (events[0].t, events[0].seq) != _wire_cursor(body["first"])
+                                or (events[-1].t, events[-1].seq) != _wire_cursor(body["last"])
+                            ):
+                                raise ValueError("observer cursor bounds mismatch")
+                            for event in events:
+                                cursor = (event.t, event.seq)
+                                if last is not None and cursor <= last:
+                                    raise ValueError("observer cursors are not ordered")
+                                if event.ordinal is not None or event.deltas:
+                                    raise ValueError("observers require null ordinal and empty deltas")
+                                if catalog[event.type]["category"] != "observer":
+                                    raise ValueError("observer event is not in the observer catalog")
+                                last = cursor
+                            return events
+
+                        events = _decoded(validate, f"OBSERVERS record at {pos}")
+                        if prelude != seen_initial:
+                            yield from events
+                pos = next_pos
+
+    def inspect_events(self) -> Iterator[TraceEvent]:
+        """Merge simulation domain and observer history, without duplicating KPI samples."""
+        return heapq.merge(self.events(), self.observer_events(), key=lambda event: (event.t, event.seq))
 
     def kpis(self) -> dict[str, float]:
         """The KPI scalars of the ``KPI`` records, later records overriding earlier ones."""
@@ -697,6 +786,9 @@ class Trace:
                 state = _copy(chunk.snapshot)
                 _apply(state, chunk.events)
 
+        for _ in self.observer_events():
+            pass
+
     def verify(self) -> bool | Literal["not_verifiable"]:
         """Recompute the semantic digest from the initial state and the events and compare it with the footer.
 
@@ -723,7 +815,7 @@ class Trace:
                     )
                 _decoded(
                     lambda event=event, entry=entry, hidden=hidden: digest.feed_event_parts(
-                        event.ordinal,
+                        cast(int, event.ordinal),
                         event.type,
                         entry.version,
                         event.t,

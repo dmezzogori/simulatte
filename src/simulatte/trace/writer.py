@@ -41,7 +41,7 @@ import msgpack
 
 from simulatte._wire import FrozenMap, freeze, new_packer, pack, prepared, prepared_op, wire_time
 from simulatte.entities import KINDS
-from simulatte.events import CATALOG, Deltas, DomainEvent, KpiSample, Op, Subscription, apply_deltas
+from simulatte.events import CATALOG, Deltas, DomainEvent, Event, KpiSample, Op, Subscription, apply_deltas
 from simulatte.trace.format import (
     OPTIONAL_FEATURES,
     REQUIRED_FEATURES,
@@ -114,6 +114,7 @@ class _Batch:
     last: tuple[float, int]
     epoch: int
     size: int
+    phase: str | None = None
 
 
 def _frozen_op(op: Any) -> Op:
@@ -203,6 +204,12 @@ class TraceRecorder:
         self._last: tuple[float, int] = (0.0, -1)
         self._opened_at = 0.0
 
+        self._observers: list[bytes] = []
+        self._observer_bytes = 0
+        self._observer_opened_at = 0.0
+        self._observer_first: tuple[float, int] = (0.0, -1)
+        self._observer_last: tuple[float, int] = (0.0, -1)
+
         self._samples: list[bytes] = []
         self._sample_bytes = 0
         self._samples_opened_at = 0.0
@@ -234,13 +241,80 @@ class TraceRecorder:
         self._digest.share_tails()
         env.request_projection(self._on_initial_state)
         if level == "full":
-            self._subscription = env.bus.subscribe(self._on_event, "*")
+            self._subscription = env.bus.subscribe(self._on_recordable, "**")
         self._sample_subscription = env.bus.subscribe(self._on_sample, (KpiSample,))
         env._recorders.append(self)
 
     # -------------------------------------------------------------------------
     # Simulation thread
     # -------------------------------------------------------------------------
+
+    def _on_recordable(self, event: Event) -> None:
+        if isinstance(event, DomainEvent):
+            self._on_event(event)
+        else:
+            self._on_observer(event)
+
+    def _on_observer(self, event: Event) -> None:
+        if self._error is not None:
+            raise self._error
+        cls = type(event)
+        raw: Any = (
+            event.seq,
+            None,
+            cls.type_name,
+            wire_time(event.t),
+            {name: getattr(event, name) for name in cls.payload_fields},
+            (),
+        )
+        entry = pack(raw)
+        if len(entry) > self._limits.max_event_bytes:
+            self._oversized(cls.type_name, event.seq, len(entry))
+        interrupted: BaseException | None = None
+        try:
+            if cls.type_name not in self._known_types:
+                self._extend_catalog(types=(cls.type_name,))
+        except BaseException as exc:
+            interrupted = exc
+        with self._cond:
+            if not self._observers:
+                self._observer_first = (wire_time(event.t), event.seq)
+                self._observer_opened_at = self._clock()
+                self._cond.notify_all()
+            self._observers.append(entry)
+            self._observer_bytes += len(entry)
+            self._observer_last = (wire_time(event.t), event.seq)
+            full = len(self._observers) >= self._limits.max_events or self._observer_bytes >= self._limits.max_bytes
+            batch = self._seal_observers_locked() if full else None
+        if batch is not None:
+            self._enqueue("batch", batch.size, batch)
+        if interrupted is not None:
+            raise interrupted
+
+    def _seal_observers_locked(self) -> _Batch:
+        batch = _Batch(
+            RecordType.OBSERVERS,
+            self._observers,
+            [],
+            self._observer_first,
+            self._observer_last,
+            self._epoch,
+            self._observer_bytes,
+            "prelude" if self._buf_type is RecordType.PRELUDE else "simulation",
+        )
+        self._observers = []
+        self._observer_bytes = 0
+        return batch
+
+    def _flush_observers(self) -> None:
+        with self._cond:
+            batch = self._seal_observers_locked() if self._observers else None
+        if batch is not None:
+            self._enqueue("batch", batch.size, batch)
+
+    def _diagnostic(self, message: str, **extra: Any) -> None:
+        for sink in self._env.sinks:
+            sink.diagnostic(float(self._env.now), message, **extra)
 
     def _on_event(self, event: DomainEvent) -> None:
         error = self._error  # read without the lock: a writer error set meanwhile is raised by the next event
@@ -341,13 +415,21 @@ class TraceRecorder:
         if self._known_collectors == len(collectors):
             return
         declarations: Any = {
-            f"{collector._scope_id}/{name}": dataclasses.asdict(kpi)
+            f"{collector._scope_id}/{name}": {
+                k: v for k, v in dataclasses.asdict(kpi).items() if k not in ("interpolation", "missing")
+            }
             for collector in collectors[self._known_collectors :]
             for name, kpi in collector._declared.items()
         }
+        display = {
+            f"{collector._scope_id}/{name}": {"interpolation": kpi.interpolation, "missing": kpi.missing}
+            for collector in collectors[self._known_collectors :]
+            for name, kpi in collector._declared.items()
+            if "series" in kpi.kind
+        }
         self._known_collectors = len(collectors)
         if declarations:
-            record: Any = {"declarations": declarations}
+            record: Any = {"declarations": declarations, "series_display": display}
             payload = pack(record)
             self._enqueue("record", len(payload), (RecordType.KPI, payload))
 
@@ -372,7 +454,9 @@ class TraceRecorder:
         )
         if self._env.debug_mode:
             raise ValueError(message)
-        self._env.warning(f"{message}; recorded anyway", component="TraceRecorder")
+        self._diagnostic(
+            f"{message}; recorded anyway",
+        )
 
     def _extend_catalog(self, *, types: Iterable[str] = (), kinds: Iterable[str] = ()) -> None:
         """Enqueue a ``CATALOG_EXT`` record for event types or kinds absent from the header."""
@@ -394,6 +478,7 @@ class TraceRecorder:
         """Activation: publish the prelude, then the ``INITIAL`` record; later events go to chunks."""
         if self._closed:
             return
+        self._flush_observers()
         with self._cond:
             batch = self._seal_locked() if self._entries else None
             self._buf_type = RecordType.CHUNK
@@ -476,11 +561,10 @@ class TraceRecorder:
             self._blocked_count += 1
             self._blocked_total += blocked
             if self._blocked_count == 1:  # later episodes are summarized by close(), not logged one by one
-                self._env.warning(
+                self._diagnostic(
                     f"trace writer backpressure: the simulation blocked for {blocked:.3f} s "
                     f"(max_pending_bytes={self._max_pending}); further blocks are summarized when the recorder "
                     "closes",
-                    component="TraceRecorder",
                     blocked_s=blocked,
                 )
 
@@ -511,6 +595,7 @@ class TraceRecorder:
         env = self._env
         cond = self._cond
         try:
+            self._flush_observers()
             with cond:
                 batch = self._seal_locked() if self._entries else None
                 cond.notify_all()
@@ -539,10 +624,9 @@ class TraceRecorder:
             }
             self._enqueue("footer", 0, footer)
             if self._blocked_count > 1:
-                self._env.warning(
+                self._diagnostic(
                     f"trace writer backpressure: the simulation blocked {self._blocked_count} times for "
                     f"{self._blocked_total:.3f} s in total (max_pending_bytes={self._max_pending})",
-                    component="TraceRecorder",
                     blocked_count=self._blocked_count,
                     blocked_s=self._blocked_total,
                 )
@@ -602,6 +686,15 @@ class TraceRecorder:
                     self._peak_pending = max(self._peak_pending, batch.size)
                     return ("batch", batch.size, batch)
                 timeout = remaining if math.isfinite(remaining) else None
+            if self._observers:
+                remaining = self._observer_opened_at + latency - self._clock()
+                if remaining <= 0:
+                    batch = self._seal_observers_locked()
+                    self._pending = batch.size
+                    self._peak_pending = max(self._peak_pending, batch.size)
+                    return ("batch", batch.size, batch)
+                if math.isfinite(remaining):
+                    timeout = remaining if timeout is None else min(timeout, remaining)
             if self._samples_ready and self._samples:
                 remaining = self._samples_opened_at + latency - self._clock()
                 if remaining <= 0:
@@ -645,6 +738,18 @@ class TraceRecorder:
         f = self._file
         first: Any = batch.first
         last: Any = batch.last
+        if batch.rtype is RecordType.OBSERVERS:
+            body = self._frame(
+                [
+                    ("phase", pack(batch.phase)),
+                    ("first", pack(first)),
+                    ("last", pack(last)),
+                    ("epoch", pack(batch.epoch)),
+                ],
+                batch.entries,
+            )
+            self._offset += write_record(f, RecordType.OBSERVERS, body)
+            return
         if batch.rtype is RecordType.PRELUDE:
             body = self._frame([("first", pack(first)), ("last", pack(last))], batch.entries)
             self._offset += write_record(f, RecordType.PRELUDE, body)

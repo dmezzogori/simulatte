@@ -100,7 +100,7 @@ jobs:
   # and must reproduce the states the Python reader wrote into their expected JSON.
   trace-ts:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v7
@@ -129,6 +129,42 @@ jobs:
         working-directory: studio
         run: pnpm test
 
+      - name: Build Studio production assets
+        working-directory: studio
+        run: pnpm build
+
+      - name: Install browser engines
+        working-directory: studio
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
+
+      - name: Browser acceptance
+        working-directory: studio
+        run: pnpm test:browser
+
+      - name: Install uv for asset manifest
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+
+      - name: Package and validate assets
+        run: |
+          uv run python studio/scripts/package_assets.py
+          uv build
+
+      - name: Smoke test the installed wheel and offline player
+        run: |
+          wheels=(dist/simulatte-*.whl)
+          test "${#wheels[@]}" -eq 1
+          uv venv "$RUNNER_TEMP/studio-wheel" --python 3.14
+          uv pip install --python "$RUNNER_TEMP/studio-wheel/bin/python" "${wheels[0]}[studio]"
+          node studio/scripts/installed-smoke.mjs \
+            "$RUNNER_TEMP/studio-wheel/bin/simulatte" \
+            tests/fixtures/traces/generated/shop_small.simtrace
+
+      - name: Upload Studio assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: studio-assets
+          path: src/simulatte/studio/static/
+
   # Overhead gate (spec §14, gate G3, decision D55): the branch's mode `none` against two baselines built from
   # simulatte==0.12.0, on the same pre-generated workloads (benchmarks/README.md): the released package (the
   # user-facing promise) and a copy of it without its env.debug calls (benchmarks/strip_debug.py), which isolates
@@ -140,6 +176,7 @@ jobs:
   # until calibrated on runners; specs/research/sp1-final-report.md). PR #57 took about 18 minutes on CPython
   # and 25 on PyPy, setup included; the timeout is 45 minutes to leave room for slower runners.
   bench:
+    needs: trace-ts
     name: bench (${{ matrix.python }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -184,6 +221,12 @@ jobs:
 
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libjpeg-dev zlib1g-dev
+
+      - name: Download validated Studio assets
+        uses: actions/download-artifact@v8
+        with:
+          name: studio-assets
+          path: src/simulatte/studio/static/
 
       - name: Create the environments (branch, released 0.12.0 with the same dependency versions, stripped 0.12.0)
         run: |

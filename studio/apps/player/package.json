@@ -1,0 +1,25 @@
+{
+  "name": "@simulatte/player",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@simulatte/trace": "workspace:*",
+    "@simulatte/playback": "workspace:*",
+    "@simulatte/scene": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.3.7",
+    "vitest": "3.2.7",
+    "@types/node": "24.19.1"
+  }
+}

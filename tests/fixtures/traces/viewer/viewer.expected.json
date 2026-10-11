@@ -1,0 +1,1053 @@
+{
+  "display": {
+    "first/level": {
+      "interpolation": "linear",
+      "missing": "hold"
+    }
+  },
+  "events": [
+    [
+      0.0,
+      3,
+      "kpi.sample"
+    ],
+    [
+      1.0,
+      4,
+      "fixture.cell_changed"
+    ],
+    [
+      2.0,
+      5,
+      "fixture.cell_changed"
+    ],
+    [
+      3.0,
+      6,
+      "fixture.cell_changed"
+    ],
+    [
+      4.0,
+      7,
+      "fixture.cell_changed"
+    ],
+    [
+      5.0,
+      8,
+      "kpi.sample"
+    ],
+    [
+      5.0,
+      9,
+      "kpi.sample"
+    ],
+    [
+      5.0,
+      10,
+      "log"
+    ],
+    [
+      5.0,
+      11,
+      "fixture.cell_changed"
+    ],
+    [
+      6.0,
+      12,
+      "fixture.cell_changed"
+    ],
+    [
+      7.0,
+      13,
+      "fixture.cell_changed"
+    ],
+    [
+      8.0,
+      14,
+      "fixture.cell_changed"
+    ],
+    [
+      9.0,
+      15,
+      "fixture.cell_changed"
+    ],
+    [
+      10.0,
+      16,
+      "kpi.sample"
+    ],
+    [
+      10.0,
+      17,
+      "fixture.cell_changed"
+    ],
+    [
+      11.0,
+      18,
+      "fixture.cell_changed"
+    ],
+    [
+      12.0,
+      19,
+      "fixture.cell_changed"
+    ],
+    [
+      13.0,
+      20,
+      "fixture.cell_changed"
+    ],
+    [
+      14.0,
+      21,
+      "fixture.cell_changed"
+    ],
+    [
+      15.0,
+      22,
+      "kpi.sample"
+    ],
+    [
+      15.0,
+      23,
+      "fixture.cell_changed"
+    ],
+    [
+      16.0,
+      24,
+      "fixture.cell_changed"
+    ],
+    [
+      16.0,
+      25,
+      "fixture.cell_changed"
+    ],
+    [
+      17.5,
+      26,
+      "entity.created"
+    ],
+    [
+      17.5,
+      27,
+      "fixture.cell_changed"
+    ],
+    [
+      18.5,
+      28,
+      "entity.created"
+    ],
+    [
+      18.5,
+      29,
+      "fixture.cell_changed"
+    ],
+    [
+      19.5,
+      30,
+      "entity.retired"
+    ],
+    [
+      19.5,
+      31,
+      "log"
+    ]
+  ],
+  "prelude": [
+    [
+      0.0,
+      2,
+      "log"
+    ]
+  ],
+  "samples": {
+    "first/level": [
+      [
+        [
+          0.0,
+          3
+        ],
+        0.0
+      ],
+      [
+        [
+          5.0,
+          8
+        ],
+        2.0
+      ],
+      [
+        [
+          5.0,
+          9
+        ],
+        3.0
+      ],
+      [
+        [
+          10.0,
+          16
+        ],
+        "nan"
+      ],
+      [
+        [
+          15.0,
+          22
+        ],
+        9.0
+      ]
+    ]
+  },
+  "states": [
+    {
+      "cursor": [
+        0.0,
+        3
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "first",
+          "level": 1,
+          "tags": []
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        1.0,
+        4
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "first",
+          "level": "high",
+          "tags": []
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        2.0,
+        5
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "first",
+          "level": [
+            1,
+            2.5,
+            "x",
+            null,
+            true
+          ],
+          "tags": []
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        3.0,
+        6
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "first",
+          "level": {
+            "a": 1,
+            "b": [
+              2,
+              3
+            ]
+          },
+          "tags": []
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        4.0,
+        7
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "first",
+          "level": 2.0,
+          "tags": []
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        5.0,
+        8
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "first",
+          "level": 2.0,
+          "tags": []
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        5.0,
+        9
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "first",
+          "level": 2.0,
+          "tags": []
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        5.0,
+        10
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "first",
+          "level": 2.0,
+          "tags": []
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        5.0,
+        11
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "first",
+          "level": 2.0,
+          "tags": [
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        6.0,
+        12
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "first",
+          "level": 2.0,
+          "tags": [
+            "a",
+            "c"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        7.0,
+        13
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "first",
+          "level": 2.0,
+          "tags": [
+            "a",
+            "b",
+            "c"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        8.0,
+        14
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "first",
+          "level": 2.0,
+          "tags": [
+            "b",
+            "c",
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        9.0,
+        15
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "first",
+          "level": 2.0,
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        10.0,
+        16
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "first",
+          "level": 2.0,
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        10.0,
+        17
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 10
+          },
+          "label": "first",
+          "level": 2.0,
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        11.0,
+        18
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 10,
+            "y": [
+              1,
+              2
+            ]
+          },
+          "label": "first",
+          "level": 2.0,
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        12.0,
+        19
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 11,
+            "y": [
+              1,
+              2
+            ]
+          },
+          "label": "first",
+          "level": 2.0,
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        13.0,
+        20
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 11
+          },
+          "label": "first",
+          "level": 2.0,
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        14.0,
+        21
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 11
+          },
+          "label": "first",
+          "level": 2.0,
+          "note": "created by set",
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        15.0,
+        22
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 11
+          },
+          "label": "first",
+          "level": 2.0,
+          "note": "created by set",
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        15.0,
+        23
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 11
+          },
+          "label": "first",
+          "level": 2.0,
+          "note": "created by set",
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 1,
+          "note": null,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        16.0,
+        24
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 11
+          },
+          "label": "first",
+          "level": 2.0,
+          "note": "created by set",
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 3,
+          "note": null,
+          "tags": [
+            "t"
+          ]
+        }
+      }
+    },
+    {
+      "cursor": [
+        16.0,
+        25
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 11
+          },
+          "label": "first",
+          "level": "same time",
+          "note": "created by set",
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 3,
+          "note": null,
+          "tags": [
+            "t"
+          ]
+        }
+      }
+    },
+    {
+      "cursor": [
+        17.5,
+        26
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 11
+          },
+          "label": "first",
+          "level": "same time",
+          "note": "created by set",
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 3,
+          "note": null,
+          "tags": [
+            "t"
+          ]
+        },
+        "third": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "third",
+          "level": 1,
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        17.5,
+        27
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 11
+          },
+          "label": "first",
+          "level": "same time",
+          "note": "created by set",
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 3,
+          "note": null,
+          "tags": [
+            "t"
+          ]
+        },
+        "third": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "third",
+          "level": "fresh",
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        18.5,
+        28
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 11
+          },
+          "label": "first",
+          "level": "same time",
+          "note": "created by set",
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "late": {
+          "$kind": "fixture_late",
+          "label": "late",
+          "size": 3
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 3,
+          "note": null,
+          "tags": [
+            "t"
+          ]
+        },
+        "third": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "third",
+          "level": "fresh",
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        18.5,
+        29
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 11
+          },
+          "label": "first",
+          "level": "late",
+          "note": "created by set",
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "late": {
+          "$kind": "fixture_late",
+          "label": "late",
+          "size": 3
+        },
+        "second": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "second",
+          "level": 3,
+          "note": null,
+          "tags": [
+            "t"
+          ]
+        },
+        "third": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "third",
+          "level": "fresh",
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        19.5,
+        30
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 11
+          },
+          "label": "first",
+          "level": "late",
+          "note": "created by set",
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "late": {
+          "$kind": "fixture_late",
+          "label": "late",
+          "size": 3
+        },
+        "third": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "third",
+          "level": "fresh",
+          "tags": []
+        }
+      }
+    },
+    {
+      "cursor": [
+        19.5,
+        31
+      ],
+      "state": {
+        "first": {
+          "$kind": "fixture_cell",
+          "attrs": {
+            "x": 11
+          },
+          "label": "first",
+          "level": "late",
+          "note": "created by set",
+          "tags": [
+            "b",
+            "a"
+          ]
+        },
+        "late": {
+          "$kind": "fixture_late",
+          "label": "late",
+          "size": 3
+        },
+        "third": {
+          "$kind": "fixture_cell",
+          "attrs": {},
+          "label": "third",
+          "level": "fresh",
+          "tags": []
+        }
+      }
+    }
+  ]
+}

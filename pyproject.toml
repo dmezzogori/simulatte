@@ -1,6 +1,6 @@
 [project]
 name = "simulatte"
-version = "0.14.0"
+version = "0.15.0"
 description = "A discrete-event simulation framework for intralogistics and operations management"
 readme = "README.md"
 authors = [
@@ -33,14 +33,24 @@ dependencies = [
     "msgpack>=1.0.8",
 ]
 
+[project.scripts]
+simulatte = "simulatte.cli:main"
+
 [project.optional-dependencies]
 plot = ["matplotlib>=3.7.2"]
 rl = ["gymnasium>=1.0.0"]
-all = ["simulatte[plot,rl]"]
+studio = ["starlette>=0.48", "uvicorn>=0.35"]
+all = ["simulatte[plot,rl,studio]"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
+[tool.hatch.build]
+artifacts = ["src/simulatte/studio/static/**"]
 
 [tool.hatch.build.targets.sdist]
 exclude = [
@@ -48,7 +58,7 @@ exclude = [
   "docs/",
   "specs/",
   "plans/",
-  "studio/",
+  "/studio/",
   "tests/",
   "overrides/",
   ".claude/",
@@ -62,6 +72,8 @@ exclude = [
 
 [dependency-groups]
 dev = [
+    "hatchling",
+    "httpx>=0.28",
     "jsonschema>=4.0",
     "mkdocstrings[python]>=1.0.4",
     "pre-commit>=3.3.3",

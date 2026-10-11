@@ -1,0 +1,26 @@
+{
+  "name": "@simulatte/export",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@simulatte/playback": "workspace:*",
+    "@simulatte/scene": "workspace:*",
+    "@simulatte/trace": "workspace:*",
+    "@zip.js/zip.js": "2.23.0",
+    "mediabunny": "1.61.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "typescript": "5.9.3",
+    "vite": "7.3.7",
+    "vitest": "3.2.7"
+  }
+}

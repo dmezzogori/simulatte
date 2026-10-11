@@ -13,8 +13,7 @@
  * is asynchronous (decompression), so the API is split as in the viewer: `await prepare(cursor)` loads the chunk,
  * then the synchronous `stateAt(cursor)` replays it.
  *
- * Not ported from the Python reader: the event catalog and KPI scalars (not needed to replay states) and
- * `check()`/`verify()`.
+ * Viewer catalogs and KPI queries live in Recording. Python `check()`/`verify()` are not ported.
  */
 
 import {
@@ -83,9 +82,22 @@ export interface OpenOptions {
 type Dict = Record<string, unknown>;
 
 interface Chunk {
+  bytes: number;
   snapshot: State;
   events: readonly TraceEvent[];
   cursors: readonly Cursor[];
+}
+
+interface ChunkConsumer {
+  resolve: (chunk: Chunk) => void;
+  reject: (error: unknown) => void;
+  detach: () => void;
+}
+interface SharedChunkRead {
+  index: number;
+  controller: AbortController;
+  consumers: Set<ChunkConsumer>;
+  started: boolean;
 }
 
 interface Scan {
@@ -107,7 +119,7 @@ const CACHED_CHUNKS = 4;
  * Rejects with {@link TraceCorrupted} for damaged or inconsistent files and files above the limits, and with
  * {@link UnsupportedTrace} for a format version or required feature this reader does not support.
  */
-export async function openTrace(source: Blob | ArrayBuffer, options: OpenOptions = {}): Promise<Trace> {
+export async function openTrace(source: Blob | ArrayBuffer | ByteSource, options: OpenOptions = {}): Promise<Trace> {
   const limits = resolveLimits(options.limits);
   const trace = new Trace(byteSource(source), limits);
   await trace.load();
@@ -139,11 +151,34 @@ export class Trace {
   get kpiDeclarations(): Readonly<Record<string, KpiDeclaration>> { return this.#kpiDeclarations; }
 
   #initial: State | null = null;
+  /** Immutable activation state, also used to anchor viewer-only fallback geometry. */
+  get initialState(): State | null {
+    if (this.#initial && !Object.isFrozen(this.#initial)) {
+      for (const fields of Object.values(this.#initial)) Object.freeze(fields);
+      Object.freeze(this.#initial);
+    }
+    return this.#initial;
+  }
+  #initialManifest: Readonly<Dict> = Object.freeze(newMap());
+  get manifest(): Readonly<Dict> { return Object.freeze({ ...this.header["manifest"] as Dict, ...this.#initialManifest }); }
+  get finalManifest(): unknown { return this.#footer?.["manifest"] ?? null; }
+  get fingerprint(): unknown { return this.#footer?.["fingerprint"] ?? null; }
+  get activation(): Cursor | null { return this.#activation; }
+  get endTime(): number | null {
+    return this.#footer ? asCursor(this.#footer["cursor"])[0] : this.cursorRange?.[1][0] ?? null;
+  }
   #activation: Cursor | null = null;
   #footer: Dict | null = null;
   #firsts: readonly Cursor[] = [];
   readonly #cache = new Map<number, Chunk>();
-  readonly #loading = new Map<number, Promise<Chunk>>();
+  #readers = 0;
+  #waiters: SharedChunkRead[] = [];
+  /** Estimated decoded-cache occupancy; excludes caller-held replay frames and browser/GPU allocations. */
+  get cacheStats(): Readonly<{chunks: number; estimatedBytes: number; activeReads: number}> {
+    return Object.freeze({chunks: this.#cache.size, estimatedBytes: [...this.#cache.values()].reduce((n,c)=>n+c.bytes,0), activeReads: this.#readers});
+  }
+  get oversizedWorkingSet(): boolean { return [...this.#cache.values()].some(c => c.bytes > 128 * 1024 * 1024); }
+  readonly #loading = new Map<number, SharedChunkRead>();
 
   /** @internal Use {@link openTrace}. */
   constructor(
@@ -228,9 +263,11 @@ export class Trace {
   /**
    * Load and decompress the chunk that {@link stateAt} needs for `cursor` (nothing for the activation state).
    * Rejects with `RangeError` for a cursor outside {@link cursorRange} and with {@link TraceCorrupted} if the chunk
-   * is damaged. The last few prepared chunks stay available.
+   * is damaged. The last few prepared chunks stay available. Cancellation releases this caller's subscription;
+   * the underlying read is aborted only when no other caller needs it.
    */
-  async prepare(cursor: Cursor): Promise<void> {
+  async prepare(cursor: Cursor, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
     const i = this.chunkFor(this.checkedCursor(cursor));
     if (i < 0) return;
     const cached = this.#cache.get(i);
@@ -239,13 +276,72 @@ export class Trace {
       this.#cache.set(i, cached);
       return;
     }
+    await this.loadChunk(i, signal);
+    signal?.throwIfAborted();
+  }
+
+  private async loadChunk(i: number, signal?: AbortSignal): Promise<Chunk> {
+    signal?.throwIfAborted();
+    const cached = this.#cache.get(i);
+    if (cached) return cached;
     let loading = this.#loading.get(i);
     if (loading === undefined) {
-      loading = this.readChunk(this.index[i]!).finally(() => this.#loading.delete(i));
+      loading = { index: i, controller: new AbortController(), consumers: new Set(), started: false };
       this.#loading.set(i, loading);
+      this.#waiters.push(loading);
     }
-    this.#cache.set(i, await loading);
-    while (this.#cache.size > CACHED_CHUNKS) this.#cache.delete(this.#cache.keys().next().value!);
+    const shared = loading;
+    return new Promise<Chunk>((resolve, reject) => {
+      const cancel = () => {
+        consumer.detach();
+        shared.consumers.delete(consumer);
+        reject(signal!.reason);
+        if (shared.consumers.size === 0) {
+          if (this.#loading.get(i) === shared) this.#loading.delete(i);
+          if (!shared.started) {
+            const index = this.#waiters.indexOf(shared);
+            if (index >= 0) this.#waiters.splice(index, 1);
+          }
+          shared.controller.abort(signal!.reason);
+        }
+      };
+      const consumer: ChunkConsumer = {
+        resolve, reject,
+        detach: () => signal?.removeEventListener("abort", cancel),
+      };
+      shared.consumers.add(consumer);
+      signal?.addEventListener("abort", cancel, { once: true });
+      this.startReads();
+    });
+  }
+  private startReads(): void {
+    while (this.#readers < 2 && this.#waiters.length) {
+      const shared = this.#waiters.shift()!;
+      shared.started = true;
+      this.#readers++;
+      void this.readShared(shared);
+    }
+  }
+  private async readShared(shared: SharedChunkRead): Promise<void> {
+    try {
+      const chunk = await this.readChunk(this.index[shared.index]!, shared.controller.signal);
+      shared.controller.signal.throwIfAborted();
+      this.#cache.delete(shared.index); this.#cache.set(shared.index, chunk);
+      let bytes = [...this.#cache.values()].reduce((n,c) => n+c.bytes, 0);
+      while (this.#cache.size > 1 && (this.#cache.size > CACHED_CHUNKS || bytes > 128*1024*1024)) {
+        const oldest = this.#cache.keys().next().value!;
+        bytes -= this.#cache.get(oldest)!.bytes; this.#cache.delete(oldest);
+      }
+      for (const consumer of shared.consumers) { consumer.detach(); consumer.resolve(chunk); }
+    } catch (error) {
+      for (const consumer of shared.consumers) { consumer.detach(); consumer.reject(error); }
+    } finally {
+      shared.consumers.clear();
+      if (this.#loading.get(shared.index) === shared) this.#loading.delete(shared.index);
+      // A source must settle an aborted read before its physical read slot can be reused.
+      this.#readers--;
+      this.startReads();
+    }
   }
 
   /**
@@ -264,6 +360,19 @@ export class Trace {
     if (chunk === undefined) {
       throw new NotPreparedError(`the chunk for cursor [${at[0]}, ${at[1]}] is not prepared: await prepare(cursor) first`);
     }
+    return this.replayChunk(chunk, at);
+  }
+
+  /** Prepare and reconstruct using a retained chunk reference, safe across concurrent cache eviction. */
+  async preparedState(cursor: Cursor, signal?: AbortSignal): Promise<State> {
+    signal?.throwIfAborted();
+    const at = this.checkedCursor(cursor), i = this.chunkFor(at);
+    const chunk = i < 0 ? null : await this.loadChunk(i, signal);
+    signal?.throwIfAborted();
+    return chunk === null ? copyState(this.#initial!) : this.replayChunk(chunk, at);
+  }
+
+  private replayChunk(chunk: Chunk, at: Cursor): State {
     const state = copyState(chunk.snapshot);
     const events = chunk.events.slice(0, upperBound(chunk.cursors, at));
     for (const event of events) {
@@ -278,6 +387,18 @@ export class Trace {
     }
     return state;
   }
+
+  /** Immutable events from one committed chunk; also prepares that chunk for replay. */
+  async chunkEvents(index: number, signal?: AbortSignal): Promise<readonly TraceEvent[]> {
+    const info = this.index[index];
+    if (!info) throw new RangeError("chunk index out of range");
+    const chunk = await this.loadChunk(index, signal);
+    signal?.throwIfAborted();
+    return chunk.events;
+  }
+
+  /** Sequential replay session. Its result is owned by the caller, never mutated later. */
+  replay(): Replay { return new Replay(this); }
 
   private checkedCursor(cursor: Cursor): Cursor {
     const at = asCursor(cursor, TypeError);
@@ -401,6 +522,7 @@ export class Trace {
         this.#initial = stateOf(field(initial, "state"));
         this.#activation = asCursor(field(initial, "cursor"));
         mapOf(field(initial, "manifest"), "manifest");
+        this.#initialManifest = mapOf(field(initial, "manifest"), "manifest");
         if (initial["layout"] !== undefined && initial["layout"] !== null) this.#layout = layoutOf(initial["layout"]);
       }
       const unknown = required.filter((name) => !REQUIRED_FEATURES.includes(name));
@@ -439,19 +561,20 @@ export class Trace {
   // Chunks
   // -----------------------------------------------------------------------------------------------------------
 
-  private async readChunk(info: ChunkInfo): Promise<Chunk> {
+  private async readChunk(info: ChunkInfo, signal?: AbortSignal): Promise<Chunk> {
     const { source, limits } = this;
     const { offset } = info;
-    const frame = await readFrame(source, offset, source.size, limits);
+    const frame = await readFrame(source, offset, source.size, limits, signal);
     if (frame === null || frame.type !== RecordType.CHUNK) {
       throw new TraceCorrupted(`the chunk index names offset ${offset} as a CHUNK record, which it is not`);
     }
     if (FRAME_SIZE + frame.length !== info.length) {
       throw new TraceCorrupted(`CHUNK record at offset ${offset} has length ${FRAME_SIZE + frame.length}, not ${info.length}`);
     }
-    const data = await readPayload(source, offset, frame);
+    const data = await readPayload(source, offset, frame, signal);
     if (data === null) throw new TraceCorrupted(`CHUNK record at offset ${offset} fails its CRC check`);
     const raw = await inflate(data, limits.maxChunk, `CHUNK record at offset ${offset}`);
+    signal?.throwIfAborted();
     const body = this.decode(raw, `the chunk at offset ${offset}`);
     return malformed(`chunk at offset ${offset}`, () => {
       const map = mapOf(body, "chunk");
@@ -468,7 +591,7 @@ export class Trace {
         compare(last, asCursor(field(map, "last"))) === 0 &&
         cursors.every((cursor, i) => i === 0 || compare(cursors[i - 1]!, cursor) < 0);
       if (!consistent) throw new TraceCorrupted(`the events of the chunk at offset ${offset} disagree with its index entry`);
-      return { snapshot: stateOf(field(map, "snapshot")), events, cursors };
+      return { bytes: raw.length * 4, snapshot: stateOf(field(map, "snapshot")), events, cursors };
     });
   }
 }
@@ -600,18 +723,18 @@ function chunkInfo(entry: unknown): ChunkInfo {
   });
 }
 
-function traceEvent(entry: unknown): TraceEvent {
+export function traceEvent(entry: unknown): TraceEvent {
   const items = arrayOf(entry);
   if (items.length !== 6) throw new TypeError("an event has six items");
   const [seq, ordinal, type, t, payload, deltas] = items;
-  return {
+  return Object.freeze({
     seq: integer(seq, "seq"),
     ordinal: ordinal === null ? null : integer(ordinal, "ordinal"),
     type: string(type, "type"),
     t: time(t, "t"),
     payload: payload as Wire,
-    deltas: arrayOf(deltas).map((op) => arrayOf(op)),
-  };
+    deltas: Object.freeze(arrayOf(deltas).map((op) => Object.freeze(arrayOf(op)))),
+  });
 }
 
 /**
@@ -643,7 +766,7 @@ function copyState(state: State): State {
   return copy as State;
 }
 
-function compare(a: Cursor, b: Cursor): number {
+export function compare(a: Cursor, b: Cursor): number {
   if (a[0] !== b[0]) return a[0] < b[0] ? -1 : 1;
   if (a[1] !== b[1]) return a[1] < b[1] ? -1 : 1;
   return 0;
@@ -693,5 +816,91 @@ function checkIndex(index: readonly ChunkInfo[], start: number, end: number): vo
     }
     previousEnd = info.offset + info.length + FRAME_SIZE;
     previousLast = info.last;
+  }
+}
+
+interface ReplayRequest {
+  cursor: Cursor;
+  signal: AbortSignal | undefined;
+  resolve: (state: State) => void;
+  reject: (error: unknown) => void;
+  detach: () => void;
+}
+/** An independent serialized replay cursor. Canceled requests never commit partially reconstructed state. */
+export class Replay {
+  #at: Cursor | null = null;
+  #chunk = -2;
+  #state: State | null = null;
+  #queue: ReplayRequest[] = [];
+  #busy = false;
+  #offset = 0;
+  constructor(readonly trace: Trace) {}
+
+  prepare(cursor: Cursor, signal?: AbortSignal): Promise<State> {
+    if (signal?.aborted) return Promise.reject(signal.reason);
+    return new Promise<State>((resolve, reject) => {
+      const cancel = () => {
+        const index = this.#queue.indexOf(request);
+        if (index >= 0) this.#queue.splice(index, 1);
+        request.detach();
+        reject(signal!.reason);
+      };
+      const request: ReplayRequest = {
+        cursor, signal, resolve, reject,
+        detach: () => signal?.removeEventListener("abort", cancel),
+      };
+      signal?.addEventListener("abort", cancel, { once: true });
+      this.#queue.push(request);
+      if (!this.#busy) void this.drain();
+    });
+  }
+  private async drain(): Promise<void> {
+    this.#busy = true;
+    while (this.#queue.length) {
+      const request = this.#queue.shift()!;
+      try {
+        const state = await this.advance(request.cursor, request.signal);
+        request.signal?.throwIfAborted();
+        request.resolve(state);
+      } catch (error) { request.reject(error); }
+      finally { request.detach(); }
+    }
+    this.#busy = false;
+  }
+  private async advance(cursor: Cursor, signal?: AbortSignal): Promise<State> {
+    await this.trace.prepare(cursor, signal);
+    signal?.throwIfAborted();
+    let lo = 0, hi = this.trace.index.length;
+    while (lo < hi) { const mid = (lo+hi) >>> 1; if (compare(this.trace.index[mid]!.first, cursor) <= 0) lo=mid+1; else hi=mid; }
+    const chunk = lo - 1;
+    let state = this.#state;
+    let offset = this.#offset;
+    if (this.#state === null || this.#at === null || chunk !== this.#chunk || compare(cursor, this.#at) < 0) {
+      state = await this.trace.preparedState(cursor, signal);
+      offset = 0;
+      if (chunk >= 0) { const events = await this.trace.chunkEvents(chunk, signal); while (offset < events.length && compare([events[offset]!.t,events[offset]!.seq],cursor) <= 0) offset++; }
+    } else if (compare(cursor, this.#at) !== 0 && chunk >= 0) {
+      const events = await this.trace.chunkEvents(chunk, signal);
+      state = { ...this.#state };
+      const touched = new Set<string>();
+      for (; offset < events.length; offset++) {
+        const event = events[offset]!;
+        if (compare([event.t, event.seq], cursor) > 0) break;
+        for (const op of event.deltas) {
+          const id = op[1] as string;
+          if (!touched.has(id) && Object.hasOwn(state, id)) state[id] = { ...state[id] };
+          touched.add(id);
+        }
+        applyDeltas(state, event.deltas);
+      }
+    }
+    signal?.throwIfAborted();
+    for (const fields of Object.values(state!)) Object.freeze(fields);
+    Object.freeze(state);
+    this.#state = state!;
+    this.#offset = offset;
+    this.#at = cursor;
+    this.#chunk = chunk;
+    return this.#state;
   }
 }

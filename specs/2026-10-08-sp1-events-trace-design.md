@@ -495,3 +495,8 @@ in the writer to match explicitly raised reader limits. Full details and conform
 Recorder attachment after layout preparation but before activation is valid. INITIAL contains complete bound
 state and layout; prelude events emitted before attachment are absent, as in SP1. Capturing the entire prelude
 requires attachment before construction/preparation. Attachment after activation remains prohibited.
+
+
+## SP3 accepted trace amendment, 2026-10-11
+
+Decisions D66–D68 and [SP3 §3](2026-10-11-sp3-viewer-design.md#3-decisions-and-proposed-amendments) extend this shipped contract. Format1.2 preserves domain CHUNK/PRELUDE/INDEX/footer replay semantics and existing kpi-declarations-v1 fields. Optional kpi-display-v1 adds `KPI.series_display`; optional observer-events-v1 adds independently committed OBSERVERS records (type9), phase/bounds/catalog epoch, six-field entries with null ordinals and empty deltas. Old readers skip them and must still verify the domain digest. New APIs merge observer/domain histories without applying observer deltas; separate KPI records remain authoritative for values. Recorder diagnostics bypass the bus. Portable keyframe motion and exact-vs-continuous KPI display rules are defined in SP3. Approval does not claim implemented behavior.

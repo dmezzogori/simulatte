@@ -21,7 +21,7 @@ def test_layout_initial_and_version(tmp_path):
     assert env.manifest().requested["layout"] == {"schema_version": "1.0", "status": "unresolved"}
     env.run()
     env.close()
-    assert PREAMBLE.unpack(path.read_bytes()[: PREAMBLE.size])[1:] == (1, 1)
+    assert PREAMBLE.unpack(path.read_bytes()[: PREAMBLE.size])[1:] == (1, 2)
     trace = Trace.open(path)
     assert trace.layout.full_hash == layout.prepare().full_hash
     trace.check()
@@ -97,7 +97,7 @@ def test_no_layout_metadata_and_default_limit(tmp_path):
     env.close()
     trace = Trace.open(path)
     assert trace.layout is None and trace.manifest["layout"] is None
-    assert PREAMBLE.unpack(path.read_bytes()[: PREAMBLE.size])[1:] == (1, 1)
+    assert PREAMBLE.unpack(path.read_bytes()[: PREAMBLE.size])[1:] == (1, 2)
     trace.check()
 
 
