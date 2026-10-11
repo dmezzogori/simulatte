@@ -1,0 +1,3 @@
+Using CPython 3.14.1
+Creating virtual environment at: /var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g/sdist-env
+Activate with: source /var/folders/tn/7gp72jm51v55_1wlvzln986c0000gn/T/sp2-final-acceptance-ukvjyd0g/sdist-env/bin/activate

@@ -8,6 +8,7 @@ from simpy.resources.resource import Request
 from simulatte._wire import wire_float
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.events import Deltas
+from simulatte.layout.binding import node_input, pending, readonly
 from simulatte.intralogistics._resources import NotifyingContainer, NotifyingResource
 from simulatte.intralogistics.events import AgvBatteryChanged, ChargingEnded, ChargingPoolChanged, ChargingStarted
 
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
     from simpy.resources.container import ContainerAmount
 
     from simulatte.environment import Environment
+    from simulatte.layout.refs import NodeRef, PortRef
     from simulatte.intralogistics.agv import AGV
     from simulatte.intralogistics.graph import Node
     from simulatte.rng import SamplerDescription
@@ -60,7 +62,7 @@ class ChargingStation(Entity, kind="charging_station"):
         *,
         env: Environment,
         name: str,
-        node: Node,
+        node: Node | NodeRef | PortRef,
         n_slots: int,
         recharge_time: SamplerDescription[float] | float | Callable[[float, float], float] | None = None,
         supports_swap: bool = False,
@@ -71,7 +73,7 @@ class ChargingStation(Entity, kind="charging_station"):
     ) -> None:
         self.env = env
         self.name = name
-        self.node = node
+        self._node, self._pending_node = node_input(env, node)
         self.supports_swap = supports_swap
         self.swap_time = swap_time
         self.swap_recharge_time = swap_recharge_time
@@ -88,12 +90,25 @@ class ChargingStation(Entity, kind="charging_station"):
         self.total_recharges: int = 0
         self.total_swaps: int = 0
         self.total_occupied_time: float = 0.0
+        self._uses_explicit_graph = env.layout is None and True
         env.entities.attach(self, name=name, label=label)
         self._recharge_time: Callable[..., float] | None = (
             None
             if recharge_time is None
             else env.bind(recharge_time, kind="contextual", stream=f"{self.id}/recharge", owner=self.id)
         )
+
+    @property
+    def node(self) -> Node:
+        if self._pending_node is not None:
+            pending(self, "node")
+        assert self._node is not None
+        return self._node
+
+    @node.setter
+    def node(self, value: Node) -> None:
+        readonly(self.env, "node")
+        self._node = value
 
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: slots in use and the swap-pool level (None without battery swapping)."""

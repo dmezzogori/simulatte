@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "placements": {
+    "WH-A": {
+      "kind": "warehouse",
+      "position": [
+        2,
+        4,
+        0
+      ],
+      "rotation": -90,
+      "footprint": {
+        "width": 2,
+        "depth": 1,
+        "height": 0
+      },
+      "obstacle": false,
+      "visual": {
+        "shape": "box",
+        "icon": "warehouse",
+        "label": "A",
+        "color": "blue"
+      },
+      "ports": {
+        "out": {
+          "position": [
+            1,
+            0,
+            0
+          ],
+          "approach": [
+            1,
+            0,
+            0
+          ],
+          "connector": {
+            "target": {
+              "kind": "explicit",
+              "id": "a"
+            },
+            "max_distance": 2,
+            "approach_margin": 0.01
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+unformatted: File would be reformatted
+   --> benchmarks/layout_acceptance.py:120:1
+    |
+119 |     import tracemalloc  # CPython-only probe; PyPy fixtures need no tracemalloc extension.
+120 +
+121 |     assert nodes in (1000, 10000)
+    |
+
+1 file would be reformatted, 312 files already formatted

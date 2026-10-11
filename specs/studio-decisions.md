@@ -160,3 +160,35 @@ Runner artifact calibration keeps the CPython noise band at 2% and changes the P
 to 7%: the largest measured upward bootstrap uncertainty was 6.22 percentage points. D55/D59 overhead
 budgets are unchanged; only the empirical noise allowance changes. Methods, inputs and limitations are in
 [`research/2026-10-10-pre-013-hardening.md`](research/2026-10-10-pre-013-hardening.md).
+
+## SP2 amendments, 2026-10-10 (Davide)
+
+Davide approved all five amendments after the SP2 reviews and a concise explanation of A1–A5 (“All approved”).
+The [SP2 specification §3.1](2026-10-10-sp2-layout-design.md#31-approved-amendments-and-clarifications)
+records their detailed contracts. Approval records decisions, not implemented behavior.
+
+**D61. SP2 traffic remains node-based (A1).** Node capacity configures the existing resource-based manager;
+enabled/directed/speed-limited arcs are supported, but segment reservations are outside SP2. The existing
+head-on passing limitation remains. This bounds changes to fleet traversal, cancellation and deadlock behavior.
+Amends C2.3/D6; rejected for SP2: segment locks or arc reservation attributes without enforcement.
+
+**D62. Inserting a lane vertex makes removed-segment overrides stale (A2).** Inserting V between A and B
+replaces `(A,B)` with `(A,V)` and `(V,B)`; existing vertex ids and unaffected segment addresses remain stable.
+An override targeting `(A,B)` is reported stale, never silently transferred to both children. Clarifies C2.3;
+rejected: preserving a removed address or inferring override intent from proximity or lineage.
+
+**D63. Simulatte 0.14 writes trace format 1.1 with optional layout metadata (A3).** Optional `layout-v1` adds
+`INITIAL.layout`; the manifest's activation-time fields include layout schema version and full/physical/layers
+hashes, or null without Layout. INITIAL is written after preparation, avoiding provisional HEADER hashes.
+Major version stays 1, older readers may ignore layout, and new readers retain 1.0 support. Amends C1.7 and
+the SP1 trace contract; rejected: recording unresolved layout in HEADER or requiring a major-version break.
+
+**D64. Layout mode guards manual stepping and shares traffic resources (A4).** Manual `env.step()` requires
+completed activation with Layout attached. Resource-based fleets on the same layout graph share one manager,
+so separate reservations cannot contradict each other. No-layout stepping and manager ownership are unchanged.
+Refines C1.10/C2.7; rejected: allowing simulation before binding or independent managers over one layout graph.
+
+**D65. Layout bindings cannot be invalidated by public mutation (A5).** After binding, static bays, station/
+parking nodes, component graph references and graph traffic attributes are read-only. AGV movement accepts
+only canonical enabled nodes of the resolved graph, or None; equal copies are rejected. No-layout mutation
+behavior stays unchanged. Refines C2.7; rejected: constructor-only checks that later public mutation can bypass.

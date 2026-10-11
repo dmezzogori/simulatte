@@ -1,0 +1,2 @@
+$ pnpm -r typecheck
+$ tsc --noEmit -p tsconfig.json

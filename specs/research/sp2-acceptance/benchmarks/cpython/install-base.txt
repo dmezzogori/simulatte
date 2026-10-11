@@ -1,0 +1,4 @@
+error: Couldn't parse requirement in `/tmp/simulatte-sp2-bench.jsKjEr/cpython/constraints.txt` at position 0
+  cause: Expected one of `@`, `(`, `<`, `=`, `>`, `~`, `!`, `;`, found `P`
+         Using Python 3.14.1 environment at: /tmp/simulatte-sp2-bench.jsKjEr/cpython/head
+               ^

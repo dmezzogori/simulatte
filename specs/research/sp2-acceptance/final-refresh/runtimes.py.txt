@@ -1,0 +1,53 @@
+import json
+from pathlib import Path
+import subprocess
+from run import ROOT, OUT, run
+
+angles = (0,90,180,270,13.7,27.3,45)
+interpreters = {'cpython': ROOT/'.venv/bin/python', 'pypy': Path('/tmp/sp2-task10-acceptance/pypy-env/bin/python')}
+results = {}
+for runtime, python in interpreters.items():
+    for angle in angles:
+        for seed in (0,1,42):
+            name = f'fixture-{runtime}-{angle}-{seed}'
+            status = run(name, [str(python),'benchmarks/layout_acceptance.py','fixture','--rotation',str(angle)], env={'PYTHONHASHSEED':str(seed)})
+            if status:
+                raise RuntimeError(name)
+            data = json.loads((OUT/(name+'.txt')).read_text())
+            result = data['result']
+            key = runtime,angle
+            if key in results:
+                assert result == results[key]['result'], (runtime,angle,seed,'repeatability')
+                results[key]['hashseeds'].append(seed)
+            else:
+                results[key] = data | {'hashseeds':[seed]}
+comparison = {}
+for angle in angles:
+    a,b = (results[runtime,angle]['result'] for runtime in interpreters)
+    if angle in (0,90,180,270):
+        assert a == b, (angle,'cross-runtime parity')
+    comparison[str(angle)] = {
+        'equal_entire_fixture': a==b,
+        'equal_hashes': a['hashes']==b['hashes'],
+        'equal_obstacles': a['geometry']['obstacles']==b['geometry']['obstacles'],
+        'equal_trajectory': a['trajectory']==b['trajectory'],
+        'equal_fingerprint': a['fingerprint']==b['fingerprint'],
+    }
+artifact = OUT/'runtime-fixtures.json'
+artifact.write_text(json.dumps({'results':[{'runtime_key':r,'rotation':a,**v} for (r,a),v in results.items()], 'comparison':comparison},indent=2,sort_keys=True)+'\n')
+print(json.dumps(comparison,indent=2))
+
+for nodes in (1000,10000):
+    for rep in range(3):
+        status = run(f'prepare-{nodes}-time-{rep}', [str(interpreters['cpython']),'benchmarks/layout_acceptance.py','prepare','--nodes',str(nodes)])
+        if status:
+            raise RuntimeError(f'prepare{nodes}')
+    status = run(f'prepare-{nodes}-memory', [str(interpreters['cpython']),'benchmarks/layout_acceptance.py','prepare','--nodes',str(nodes),'--memory'])
+    if status:
+        raise RuntimeError(f'memory{nodes}')
+values = {p.stem:json.loads(p.read_text()) for p in sorted(OUT.glob('prepare-*.txt'))}
+for nodes in (1000,10000):
+    probes = [v['result'] for k,v in values.items() if k.startswith(f'prepare-{nodes}-')]
+    assert all(p['hashes'] == probes[0]['hashes'] for p in probes)
+    assert all(p['initial_payload_bytes'] == probes[0]['initial_payload_bytes'] for p in probes)
+(OUT/'preparation.json').write_text(json.dumps(values,indent=2,sort_keys=True)+'\n')

@@ -1,0 +1,7 @@
+ruff check...............................................................Passed
+ruff format..............................................................Passed
+ty check.................................................................Passed
+pytest...................................................................Passed
+[feature/sp2-layout addf0fa] fix(layout): align physical reads and saved metadata
+ 13 files changed, 290 insertions(+), 31 deletions(-)
+ create mode 100644 tests/layout/test_final_regressions.py

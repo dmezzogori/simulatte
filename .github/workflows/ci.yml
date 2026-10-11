@@ -91,10 +91,10 @@ jobs:
       - name: Install dependencies (PyPy)
         run: uv sync --dev --python pypy-3.11 --frozen
 
-      - name: Run tests on PyPy (core + intralogistics, coverage disabled)
+      - name: Run tests on PyPy (core + intralogistics + layout, coverage disabled)
         env:
           MPLBACKEND: Agg
-        run: uv run --python pypy-3.11 pytest tests/core tests/intralogistics -o addopts="-q -p no:cacheprovider"
+        run: uv run --python pypy-3.11 pytest tests/core tests/intralogistics tests/layout -o addopts="-q -p no:cacheprovider"
 
   # TypeScript conformance reader (gate G2): the studio trace package reads the committed trace fixtures
   # and must reproduce the states the Python reader wrote into their expected JSON.

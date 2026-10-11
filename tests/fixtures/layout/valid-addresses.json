@@ -1,0 +1,148 @@
+{
+  "schema_version": "1.0",
+  "overrides": [
+    {
+      "id": "0",
+      "target": {
+        "kind": "explicit",
+        "id": "a"
+      },
+      "properties": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "1",
+      "target": {
+        "kind": "lane_vertex",
+        "lane": "road",
+        "vertex": "start"
+      },
+      "properties": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "2",
+      "target": {
+        "kind": "lane_segment",
+        "lane": "road",
+        "source": "start",
+        "target": "end"
+      },
+      "properties": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "3",
+      "target": {
+        "kind": "intersection",
+        "incidents": [
+          {
+            "kind": "lane_vertex",
+            "lane": "road",
+            "vertex": "start"
+          },
+          {
+            "kind": "lane_segment",
+            "lane": "road",
+            "source": "start",
+            "target": "end"
+          }
+        ]
+      },
+      "properties": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "4",
+      "target": {
+        "kind": "lane_child",
+        "segment": {
+          "kind": "lane_segment",
+          "lane": "road",
+          "source": "start",
+          "target": "end"
+        },
+        "source": {
+          "kind": "lane_vertex",
+          "lane": "road",
+          "vertex": "start"
+        },
+        "target": {
+          "kind": "explicit",
+          "id": "a"
+        }
+      },
+      "properties": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "5",
+      "target": {
+        "kind": "edge",
+        "source": {
+          "kind": "explicit",
+          "id": "a"
+        },
+        "target": {
+          "kind": "lane_vertex",
+          "lane": "road",
+          "vertex": "start"
+        }
+      },
+      "properties": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "6",
+      "target": {
+        "kind": "port",
+        "entity": "a",
+        "port": "out"
+      },
+      "properties": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "7",
+      "target": {
+        "kind": "approach",
+        "entity": "a",
+        "port": "out"
+      },
+      "properties": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "8",
+      "target": {
+        "kind": "connector",
+        "entity": "a",
+        "port": "out",
+        "segment": "interior"
+      },
+      "properties": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "9",
+      "target": {
+        "kind": "connector",
+        "entity": "a",
+        "port": "out",
+        "segment": "outer"
+      },
+      "properties": {
+        "enabled": false
+      }
+    }
+  ]
+}

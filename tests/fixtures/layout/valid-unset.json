@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "placements": {
+    "a": {
+      "kind": "server",
+      "position": {
+        "$unset": true
+      },
+      "visual": {
+        "color": {
+          "$unset": true
+        }
+      },
+      "ports": {
+        "p": {
+          "$unset": true
+        }
+      }
+    }
+  }
+}

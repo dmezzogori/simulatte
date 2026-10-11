@@ -307,3 +307,20 @@ class TestBuildSimpleSystemNames:
         b[0].submit(order)
         env.run()
         assert order.status is OrderStatus.COMPLETED and order.assigned_agv is b[1][0]
+
+
+def test_no_layout_builder_digest_remains_compatible():
+    from simulatte.intralogistics import build_simple_system
+
+    with Environment(seed=17) as env:
+        env.enable_digest()
+        fleet, agvs, origin, destination, _ = build_simple_system(env)
+        assert all(not env.entities.is_named(agv.id) for agv in agvs)
+        for quantity in (5, 8, 12, 6):
+            fleet.submit(
+                fleet.create_order(
+                    sku=next(iter(origin.inventory)), quantity=quantity, origin=origin, destination=destination
+                )
+            )
+        env.run(until=120)
+        assert env.fingerprint().digest == "59489157154dbab39c43f13cf618eb3f01f6504d08c04eac10162741342bf4ad"

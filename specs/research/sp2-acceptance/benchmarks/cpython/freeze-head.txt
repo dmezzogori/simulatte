@@ -1,0 +1,21 @@
+Using Python 3.14.1 environment at: /tmp/simulatte-sp2-bench.jsKjEr/cpython/head
+cloudpickle==3.1.2
+contourpy==1.4.0
+cycler==0.12.1
+farama-notifications==0.0.6
+fonttools==4.66.1
+gymnasium==1.4.0
+kiwisolver==1.5.1
+matplotlib==3.11.2
+msgpack==1.2.3
+numpy==2.5.4
+packaging==26.3
+pillow==12.3.0
+pyparsing==3.3.3
+python-dateutil==2.9.0.post0
+simpy==4.1.2
+simulatte @ file:///Users/davide/Developer/simulatte
+six==1.17.0
+tabulate==0.10.0
+tqdm==4.70.1
+typing-extensions==4.16.0

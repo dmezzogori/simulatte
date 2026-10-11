@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "placements": {
+    "a": {
+      "kind": "server",
+      "ports": {
+        "p": {
+          "connector": {
+            "approach_margin": 0
+          }
+        }
+      }
+    }
+  }
+}

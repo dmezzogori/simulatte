@@ -1,0 +1,32 @@
+{
+  "parameters": {
+    "replications": 8,
+    "horizon": 1000.0,
+    "servers": 6,
+    "workers": 2,
+    "repeat": 3,
+    "json": null
+  },
+  "modes": {
+    "sequential": {
+      "samples_s": [
+        0.7512823340075556,
+        0.7451852500089444,
+        0.7394559159874916
+      ],
+      "median_s": 0.7451852500089444,
+      "replications_per_s": 10.735585547223293,
+      "trajectory": "c98ce8eaf3a5058de9347965164b2248caa884af946308a043d5d1a9630d0bd3"
+    },
+    "parallel": {
+      "samples_s": [
+        0.4885783329955302,
+        0.4720409580040723,
+        0.48120587499579415
+      ],
+      "median_s": 0.48120587499579415,
+      "replications_per_s": 16.624900932620413,
+      "trajectory": "c98ce8eaf3a5058de9347965164b2248caa884af946308a043d5d1a9630d0bd3"
+    }
+  }
+}

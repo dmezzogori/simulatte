@@ -1,0 +1,11 @@
+Using Python 3.14.1 environment at: /tmp/sp2-task10-acceptance/sdist-env
+Resolved 5 packages in 23ms
+   Building simulatte @ file:///tmp/sp2-task10-acceptance/dist/simulatte-0.13.0.tar.gz
+      Built simulatte @ file:///tmp/sp2-task10-acceptance/dist/simulatte-0.13.0.tar.gz
+Prepared 1 package in 301ms
+Installed 5 packages in 3ms
+ + msgpack==1.2.3
+ + simpy==4.1.2
+ + simulatte==0.13.0 (from file:///tmp/sp2-task10-acceptance/dist/simulatte-0.13.0.tar.gz)
+ + tabulate==0.10.0
+ + tqdm==4.70.1

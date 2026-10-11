@@ -1,0 +1,65 @@
+Found 26 runnable block(s).
+Loading Pillow, contourpy, cycler, fonttools, kiwisolver, matplotlib, micropip, numpy, packaging, pyparsing, python-dateutil, pytz, six, sqlite3
+Didn't find package sqlite3-1.0.0-cp313-cp313-pyodide_2025_0_wasm32.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Didn't find package contourpy-1.3.1-cp313-cp313-pyodide_2025_0_wasm32.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Didn't find package numpy-2.2.5-cp313-cp313-pyodide_2025_0_wasm32.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Didn't find package cycler-0.12.1-py3-none-any.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Didn't find package six-1.17.0-py2.py3-none-any.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Didn't find package matplotlib-3.8.4-cp313-cp313-pyodide_2025_0_wasm32.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Didn't find package fonttools-4.56.0-py3-none-any.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Didn't find package kiwisolver-1.4.8-cp313-cp313-pyodide_2025_0_wasm32.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Didn't find package packaging-24.2-py3-none-any.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Didn't find package pillow-11.3.0-cp313-cp313-pyodide_2025_0_wasm32.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Didn't find package pyparsing-3.2.1-py3-none-any.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Didn't find package micropip-0.10.1-py3-none-any.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Didn't find package pytz-2025.2-py2.py3-none-any.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Didn't find package python_dateutil-2.9.0.post0-py2.py3-none-any.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Package cycler-0.12.1-py3-none-any.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Package six-1.17.0-py2.py3-none-any.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Package kiwisolver-1.4.8-cp313-cp313-pyodide_2025_0_wasm32.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Package packaging-24.2-py3-none-any.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Package pyparsing-3.2.1-py3-none-any.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Package contourpy-1.3.1-cp313-cp313-pyodide_2025_0_wasm32.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Package micropip-0.10.1-py3-none-any.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Package python_dateutil-2.9.0.post0-py2.py3-none-any.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Package pytz-2025.2-py2.py3-none-any.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Package sqlite3-1.0.0-cp313-cp313-pyodide_2025_0_wasm32.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Package fonttools-4.56.0-py3-none-any.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Package pillow-11.3.0-cp313-cp313-pyodide_2025_0_wasm32.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Package numpy-2.2.5-cp313-cp313-pyodide_2025_0_wasm32.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Package matplotlib-3.8.4-cp313-cp313-pyodide_2025_0_wasm32.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Loaded Pillow, contourpy, cycler, fonttools, kiwisolver, matplotlib, micropip, numpy, packaging, pyparsing, python-dateutil, pytz, six, sqlite3
+Loading msgpack, tqdm
+Didn't find package tqdm-4.67.1-py3-none-any.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Didn't find package msgpack-1.1.1-cp313-cp313-pyodide_2025_0_wasm32.whl locally, attempting to load from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/
+Package tqdm-4.67.1-py3-none-any.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Package msgpack-1.1.1-cp313-cp313-pyodide_2025_0_wasm32.whl loaded from https://cdn.jsdelivr.net/pyodide/v0.28.3/full/, caching the wheel in node_modules for future use.
+Loaded msgpack, tqdm
+PASS docs/examples/benchmark-shops.md
+PASS docs/examples/dispatching-focus.md
+PASS docs/examples/dispatching-parameterized.md
+PASS docs/examples/dispatching-stateless.md
+PASS docs/examples/intralogistics.md
+PASS docs/examples/intralogistics.md
+PASS docs/examples/intralogistics.md
+PASS docs/examples/release-triggers.md
+PASS docs/examples/release-wip.md
+PASS docs/examples/release-workload.md
+PASS docs/guides/layout.md
+PASS docs/guides/layout.md
+PASS docs/guides/layout.md
+PASS docs/guides/layout.md
+PASS docs/guides/layout.md
+PASS docs/guides/layout.md
+PASS docs/guides/layout.md
+PASS docs/index.md
+PASS docs/introduction/basic-usage.md
+PASS docs/tutorials/multi-run-experiments.md
+PASS docs/tutorials/release-control-and-dispatching.md
+PASS docs/tutorials/release-control-and-dispatching.md
+PASS docs/tutorials/release-control-and-dispatching.md
+PASS docs/tutorials/release-control-and-dispatching.md
+PASS docs/tutorials/release-control-and-dispatching.md
+PASS docs/tutorials/release-control-and-dispatching.md
+
+26/26 passed.

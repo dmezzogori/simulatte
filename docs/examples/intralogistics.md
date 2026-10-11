@@ -1,5 +1,7 @@
 # Intralogistics examples
 
+For generated lattices, lanes, ports and migration from explicit graphs, see the [layout guide](../guides/layout.md).
+
 Three runnable scripts in [`examples/`](https://github.com/dmezzogori/simulatte/tree/main/examples) form a progressive learning path --- from a minimal setup to a full-shift warehouse operation.
 
 See also: [Intralogistics API](../api/intralogistics.md)

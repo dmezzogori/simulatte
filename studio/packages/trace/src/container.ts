@@ -9,6 +9,7 @@
 
 export const MAGIC = "SIMTRACE";
 export const FORMAT_MAJOR = 1;
+export const FORMAT_MINOR = 1;
 export const PREAMBLE_SIZE = 12;
 export const FRAME_SIZE = 9;
 export const TRAILER_SIZE = 16;

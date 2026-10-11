@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "overrides": [
+    {
+      "id": "o",
+      "target": {
+        "kind": "explicit",
+        "id": ""
+      },
+      "properties": {}
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+$ vite build --ssr benchmark/trace.ts --outDir .benchmark --logLevel error && node .benchmark/trace.js --iterations 30 --cursors 8
+{
+  "runtime": "v24.13.0",
+  "platform": "darwin/arm64",
+  "timingUnit": "milliseconds",
+  "notes": {
+    "open": "in-memory source; includes metadata decoding and validation; excludes disk I/O",
+    "decode": "first decompressed chunk (or HEADER); excludes inflate and framing; one runtime warm-up",
+    "coldSeek": "prepare + stateAt using a fresh reader; excludes open; OS and runtime caches may be warm",
+    "warmSeek": "prepare + stateAt at the same cursor immediately after cold seek; chunk cache is warm"
+  },
+  "results": [
+    {
+      "file": "/Users/davide/Developer/simulatte/tests/fixtures/traces/generated/shop_small.simtrace",
+      "bytes": 32599,
+      "chunks": 21,
+      "iterations": 30,
+      "cursors": [
+        [
+          2.5,
+          19
+        ],
+        [
+          5.5,
+          49
+        ],
+        [
+          7,
+          94
+        ],
+        [
+          10,
+          139
+        ],
+        [
+          13,
+          184
+        ],
+        [
+          15,
+          229
+        ],
+        [
+          17.5,
+          274
+        ],
+        [
+          19,
+          308
+        ]
+      ],
+      "open": {
+        "samples": 30,
+        "medianMs": 0.4686249999999994,
+        "p95Ms": 0.6627919999999996,
+        "minMs": 0.36299999999999955,
+        "maxMs": 0.7644160000000007
+      },
+      "decode": {
+        "payloadBytes": 2790,
+        "record": "CHUNK",
+        "samples": 30,
+        "medianMs": 0.11662499999999909,
+        "p95Ms": 0.1686249999999987,
+        "minMs": 0.0641249999999971,
+        "maxMs": 0.3345409999999944
+      },
+      "coldSeek": {
+        "samples": 240,
+        "medianMs": 0.28845799999999144,
+        "p95Ms": 0.5706250000000068,
+        "minMs": 0.20050000000000523,
+        "maxMs": 1.183833
+      },
+      "warmSeek": {
+        "samples": 240,
+        "medianMs": 0.029458000000005313,
+        "p95Ms": 0.042999999999992156,
+        "minMs": 0.0227079999999944,
+        "maxMs": 0.06587500000000546
+      }
+    }
+  ]
+}

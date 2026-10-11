@@ -135,6 +135,8 @@ class Environment(simpy.Environment):
         self._projection_listeners: list[Callable[[InitialState], None]] = []
         self._initializers: list[Callable[[], object]] = []
         self._commands: list[tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]]] = []
+        self._layout = None
+        self._explicit_graph_use = False
         self._activation_started = False
         self._initializers_done = False  # set once the initializer loop of activate() finished
         self._activated = False
@@ -349,6 +351,27 @@ class Environment(simpy.Environment):
             raise RuntimeError("request_projection() must be called before activation")
         self._projection_listeners.append(on_initial_state)
 
+    @property
+    def layout(self):
+        """The attached Layout, or None (layout is imported only on explicit use)."""
+        return self._layout
+
+    def _register_graph_use(self) -> None:
+        """Record a validated explicit graph consumer before its publication."""
+        self._explicit_graph_use = True
+
+    def _guard_layout_advance(self) -> None:
+        if self._layout is not None:
+            from simulatte.layout.lifecycle import PreparationState
+            from simulatte.layout.errors import LayoutError
+
+            coordinator = self._layout._coordinator
+            if coordinator.state not in (PreparationState.DECLARING, PreparationState.FINALIZED):
+                coordinator.state = PreparationState.FAILED
+                raise LayoutError(
+                    "cannot advance or activate during failed/in-progress layout preparation", code="lifecycle-error"
+                )
+
     def activate(self) -> None:
         """End preparation and start the run (spec §10). Idempotent; :meth:`run` calls it on first use.
 
@@ -358,11 +381,14 @@ class Environment(simpy.Environment):
         a command propagates; commands after a failing one are dropped. Calling it again after a failed
         initializer, or from an initializer, raises `RuntimeError`.
         """
+        self._guard_layout_advance()
         if self._activated:
             return
         if self._activation_started:
             raise RuntimeError("activation is in progress or failed; the environment cannot be activated again")
         self._activation_started = True
+        if self._layout is not None:
+            self._layout.prepare()
         initializers = self._initializers
         index = 0
         while index < len(initializers):  # initializers may register further initializers
@@ -392,13 +418,22 @@ class Environment(simpy.Environment):
         now = self._now
         # Shadow the class method with an instance attribute only while the initializer runs, so the hot
         # scheduling path stays untouched otherwise.
-        self.__dict__["schedule"] = self._schedule_blocked
-        try:
+        with self._scheduling_blocked():
             fn()
-        finally:
-            self.__dict__.pop("schedule", None)
         if self._now != now:
             raise RuntimeError(f"initializer {fn!r} advanced simulated time from {now} to {self._now}")
+
+    @contextmanager
+    def _scheduling_blocked(self):
+        previous = self.__dict__.get("schedule")
+        self.__dict__["schedule"] = self._schedule_blocked
+        try:
+            yield
+        finally:
+            if previous is None:
+                self.__dict__.pop("schedule", None)
+            else:
+                self.__dict__["schedule"] = previous
 
     def _schedule_blocked(self, event: simpy.Event, priority: int = 1, delay: float = 0) -> None:
         raise RuntimeError(
@@ -422,6 +457,7 @@ class Environment(simpy.Environment):
         The stopping policy of the manifest is the one of the last call: a horizon for a numeric `until`,
         exhaustion for ``None``. If it raises, trace recorders report the run as ``failed``.
         """
+        self._guard_layout_advance()
         try:
             if not self._activated:
                 self.activate()
@@ -506,7 +542,15 @@ class Environment(simpy.Environment):
             seed, time_unit, provenance, warmup = (
                 inputs if inputs is not None else (self._seed, self.time_unit, self._provenance, self._warmup)
             )
-            requested = build_requested(seed=seed, time_unit=time_unit, provenance=provenance, warmup=warmup)
+            layout_metadata = None
+            if self._layout is not None:
+                result = self._layout._coordinator._result
+                layout_metadata = (
+                    {"schema_version": "1.0", "status": "unresolved"} if result is None else result.bundle.manifest()
+                )
+            requested = build_requested(
+                seed=seed, time_unit=time_unit, provenance=provenance, warmup=warmup, layout=layout_metadata
+            )
             if inputs is not None:
                 self._requested = requested
         final = None
@@ -527,6 +571,11 @@ class Environment(simpy.Environment):
         as ``cancelled``.
         """
 
+        self._guard_layout_advance()
+        if self._layout is not None and not self._activated:
+            from simulatte.layout.errors import LayoutError
+
+            raise LayoutError("call env.activate() before env.step() with a layout", code="lifecycle-error")
         try:
             super().step()
         except KeyboardInterrupt:

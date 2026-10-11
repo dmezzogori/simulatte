@@ -1,0 +1,16 @@
+eva.local
+ProductName:		macOS
+ProductVersion:		27.0.1
+BuildVersion:		26A434
+Apple M1 Pro
+10
+17179869184
+uv 0.13.0 (Homebrew 2026-10-09 aarch64-apple-darwin)
+v24.13.0
+11.5.1
+6a3f131d8eec99d6552ed4c5ddf5807a3beea104
+?? tests/layout/test_acceptance.py
+
+Process inventory omitted from durable copy; full raw capture remains at /tmp/simulatte-sp2-bench.jsKjEr/metadata.log.
+Relevant background-load observation:
+10163     1  51.4 /Applications/Ghostty.app/Contents/MacOS/ghostty

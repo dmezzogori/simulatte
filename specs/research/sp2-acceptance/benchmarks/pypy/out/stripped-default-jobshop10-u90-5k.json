@@ -1,0 +1,96 @@
+{
+  "label": "0.12.0 without env.debug calls",
+  "simulatte_version": "0.12.0",
+  "has_trace": false,
+  "mode": "default",
+  "log_info": false,
+  "python": {
+    "implementation": "pypy",
+    "version": "3.11.11",
+    "build": "b38de282cead"
+  },
+  "platform": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "node": "eva.local"
+  },
+  "commit": "6a3f131d8eec99d6552ed4c5ddf5807a3beea104",
+  "log_level": "INFO",
+  "hardware": {
+    "machine": "arm64",
+    "cpu": "Apple M1 Pro",
+    "cpus": 10
+  },
+  "workload": {
+    "path": "workloads/jobshop10-u90-5k.json",
+    "sha256": "13c8f5271a803d6bef515ae84501ecba3907f8dfe7cbb2985690b20be21f2a60",
+    "params": {
+      "servers": 10,
+      "jobs": 5000,
+      "util": 0.9,
+      "seed": 1,
+      "drain": 1000.0,
+      "arrival_rate": 1.6541746515531173,
+      "service": {
+        "dist": "truncated_erlang",
+        "rate": 2.0,
+        "shape": 2,
+        "max": 4.0
+      },
+      "due_offset": {
+        "dist": "uniform",
+        "low": 30.0,
+        "high": 45.0
+      },
+      "generator": "cpython"
+    },
+    "horizon": 4008.57985
+  },
+  "counts": {
+    "jobs_fed": 5000,
+    "operations_fed": 27566,
+    "jobs_done": 5000,
+    "operations_done": 27566,
+    "trajectory": "46a002564584e3dc64acc3b4c80bad2b4bc176a35e1e0cf5fba8e0bde7feab6f"
+  },
+  "subscribers": 0,
+  "digest": null,
+  "warmup": 8,
+  "repeat": 5,
+  "processes": 3,
+  "process_medians_s": [
+    0.39355087498552166,
+    0.4072402090241667,
+    0.39551395797752775
+  ],
+  "samples_s": [
+    0.40571779099991545,
+    0.3905208749929443,
+    0.39402391598559916,
+    0.39156516699586064,
+    0.39355087498552166,
+    0.40808720799395815,
+    0.4103710420022253,
+    0.4072402090241667,
+    0.3941547079884913,
+    0.4046434159972705,
+    0.39149129201541655,
+    0.40270612499443814,
+    0.39551395797752775,
+    0.3887186250067316,
+    0.41183699999237433
+  ],
+  "median_s": 0.39551395797752775,
+  "iqr_s": 0.013920979021349922,
+  "min_s": 0.3887186250067316,
+  "max_s": 0.41183699999237433,
+  "peak_mb": 100.483072,
+  "rss_before_mb": 64.733184,
+  "trace_bytes": null,
+  "chunks": null,
+  "open_ms": null,
+  "seek_p50_ms": null,
+  "seek_p95_ms": null,
+  "seek_max_ms": null,
+  "seeks": null
+}

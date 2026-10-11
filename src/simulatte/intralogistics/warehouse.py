@@ -7,11 +7,13 @@ import simpy
 from simulatte._wire import wire_float
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.events import Deltas
+from simulatte.layout.binding import node_input, pending, readonly
 from simulatte.intralogistics._resources import NotifyingContainer, NotifyingResource
 from simulatte.intralogistics.events import WarehouseInventoryChanged, WarehouseSlotChanged
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
+    from simulatte.layout.refs import NodeRef, PortRef
 
     from simpy.events import ProcessGenerator
     from simpy.resources.container import ContainerAmount
@@ -37,13 +39,18 @@ class Warehouse(Entity, kind="warehouse"):
         {"inventory": FieldSpec("float", collection="map"), "slots_in_use": FieldSpec("int")}
     )
 
+    _input_bays: list[Node] | tuple[Node, ...]
+    _output_bays: list[Node] | tuple[Node, ...]
+    _pending_input_bays: tuple[NodeRef | PortRef, ...] | None
+    _pending_output_bays: tuple[NodeRef | PortRef, ...] | None
+
     def __init__(
         self,
         *,
         env: Environment,
         name: str,
-        input_bays: list[Node],
-        output_bays: list[Node],
+        input_bays: Sequence[Node] | Sequence[NodeRef | PortRef],
+        output_bays: Sequence[Node] | Sequence[NodeRef | PortRef],
         n_slots: int,
         products: list[SKU],
         initial_inventory: dict[SKU, int] | None = None,
@@ -53,8 +60,12 @@ class Warehouse(Entity, kind="warehouse"):
     ) -> None:
         self.env = env
         self.name = name
-        self.input_bays = list(input_bays)
-        self.output_bays = list(output_bays)
+        for field, supplied in (("input_bays", input_bays), ("output_bays", output_bays)):
+            checked = [node_input(env, node) for node in supplied]
+            nodes = [node for node, _ in checked]
+            refs = tuple(ref for _, ref in checked if ref is not None)
+            setattr(self, "_" + field, tuple(nodes) if env.layout is not None else nodes)
+            setattr(self, "_pending_" + field, refs or None)
         self._slots = NotifyingResource(env, capacity=n_slots, on_change=self._slot_changed)
 
         initial = initial_inventory or {}
@@ -72,9 +83,32 @@ class Warehouse(Entity, kind="warehouse"):
         self.total_puts: int = 0
         self._total_pick_time: float = 0.0
         self._total_put_time: float = 0.0
+        self._uses_explicit_graph = env.layout is None and bool(input_bays or output_bays)
         env.entities.attach(self, name=name, label=label)
         self._pick_time = env.bind(pick_time, kind="contextual", stream=f"{self.id}/pick", owner=self.id)
         self._put_time = env.bind(put_time, kind="contextual", stream=f"{self.id}/put", owner=self.id)
+
+    @property
+    def input_bays(self) -> list[Node] | tuple[Node, ...]:
+        if self._pending_input_bays is not None:
+            pending(self, "input_bays")
+        return self._input_bays
+
+    @input_bays.setter
+    def input_bays(self, value: list[Node]) -> None:
+        readonly(self.env, "input_bays")
+        self._input_bays = value
+
+    @property
+    def output_bays(self) -> list[Node] | tuple[Node, ...]:
+        if self._pending_output_bays is not None:
+            pending(self, "output_bays")
+        return self._output_bays
+
+    @output_bays.setter
+    def output_bays(self, value: list[Node]) -> None:
+        readonly(self.env, "output_bays")
+        self._output_bays = value
 
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: inventory level per SKU id and the number of slots in use."""
@@ -160,7 +194,7 @@ class Warehouse(Entity, kind="warehouse"):
         return self._nearest_bay(from_node, self.output_bays, graph)
 
     @staticmethod
-    def _nearest_bay(from_node: Node, bays: list[Node], graph: LayoutGraph) -> Node:
+    def _nearest_bay(from_node: Node, bays: Sequence[Node], graph: LayoutGraph) -> Node:
         def _graph_distance(bay: Node) -> float:
             path = graph.shortest_path(from_node, bay)
             if path is None:

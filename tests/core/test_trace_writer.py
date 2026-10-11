@@ -252,7 +252,7 @@ def test_initial_record_written_at_activation(tmp_path: Path, make_recorder: Cal
     assert prelude["events"][0][1] is None
     assert initial["cursor"] == (0.0, -1)
     assert initial["state"] == env.initial_state
-    assert initial["manifest"] == {"parameters": {}, "time_unit": "minute", "warmup": 0.0}
+    assert initial["manifest"] == {"parameters": {}, "time_unit": "minute", "warmup": 0.0, "layout": None}
     rec.close()
 
 

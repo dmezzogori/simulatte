@@ -1,0 +1,5 @@
+3.14.1 (main, Dec  2 2025, 22:17:19) [Clang 21.1.4 ]
+macOS-27.0.1-arm64-arm-64bit-Mach-O
+/tmp/simulatte-sp2-bench.jsKjEr/cpython/head/bin/python
+/tmp/simulatte-sp2-bench.jsKjEr/cpython/head/lib/python3.14/site-packages/simulatte/__init__.py
+0.13.0

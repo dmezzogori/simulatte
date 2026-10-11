@@ -1,0 +1,182 @@
+{
+  "draws": 10000,
+  "unit": "process median",
+  "rows": [
+    {
+      "artifacts": "/tmp/simulatte-sp2-bench.jsKjEr/cpython/out",
+      "workload": "jobshop10-u90-5k",
+      "baseline": "base",
+      "python": {
+        "implementation": "cpython",
+        "version": "3.14.1",
+        "build": "main"
+      },
+      "commit": "6a3f131d8eec99d6552ed4c5ddf5807a3beea104",
+      "processes": [
+        3,
+        3
+      ],
+      "pooled_overhead_pct": -27.4032072162133,
+      "head_iqr_pct": 1.3216243953338487,
+      "base_iqr_pct": 0.6117597358084232,
+      "noise_interval_pp": [
+        -0.9564788267863666,
+        0.58192899225048
+      ]
+    },
+    {
+      "artifacts": "/tmp/simulatte-sp2-bench.jsKjEr/cpython/out",
+      "workload": "jobshop10-u90-5k",
+      "baseline": "stripped",
+      "python": {
+        "implementation": "cpython",
+        "version": "3.14.1",
+        "build": "main"
+      },
+      "commit": "6a3f131d8eec99d6552ed4c5ddf5807a3beea104",
+      "processes": [
+        3,
+        3
+      ],
+      "pooled_overhead_pct": 5.773626616129723,
+      "head_iqr_pct": 1.3216243953338487,
+      "base_iqr_pct": 1.07498505412537,
+      "noise_interval_pp": [
+        -2.9942784990211857,
+        0.6634237285854994
+      ]
+    },
+    {
+      "artifacts": "/tmp/simulatte-sp2-bench.jsKjEr/cpython/out",
+      "workload": "jobshop10-u95-5k",
+      "baseline": "base",
+      "python": {
+        "implementation": "cpython",
+        "version": "3.14.1",
+        "build": "main"
+      },
+      "commit": "6a3f131d8eec99d6552ed4c5ddf5807a3beea104",
+      "processes": [
+        3,
+        3
+      ],
+      "pooled_overhead_pct": -25.865838858400203,
+      "head_iqr_pct": 1.241701811376137,
+      "base_iqr_pct": 1.1966093826367659,
+      "noise_interval_pp": [
+        -0.7091225743617535,
+        0.718798721634506
+      ]
+    },
+    {
+      "artifacts": "/tmp/simulatte-sp2-bench.jsKjEr/cpython/out",
+      "workload": "jobshop10-u95-5k",
+      "baseline": "stripped",
+      "python": {
+        "implementation": "cpython",
+        "version": "3.14.1",
+        "build": "main"
+      },
+      "commit": "6a3f131d8eec99d6552ed4c5ddf5807a3beea104",
+      "processes": [
+        3,
+        3
+      ],
+      "pooled_overhead_pct": 6.249145608018369,
+      "head_iqr_pct": 1.241701811376137,
+      "base_iqr_pct": 1.1951318103772821,
+      "noise_interval_pp": [
+        -0.39323238467428023,
+        0.6496095675503577
+      ]
+    },
+    {
+      "artifacts": "/tmp/simulatte-sp2-bench.jsKjEr/pypy/out",
+      "workload": "jobshop10-u90-5k",
+      "baseline": "base",
+      "python": {
+        "implementation": "pypy",
+        "version": "3.11.11",
+        "build": "b38de282cead"
+      },
+      "commit": "6a3f131d8eec99d6552ed4c5ddf5807a3beea104",
+      "processes": [
+        3,
+        3
+      ],
+      "pooled_overhead_pct": -38.98654970562878,
+      "head_iqr_pct": 3.052592853421033,
+      "base_iqr_pct": 6.439106673774213,
+      "noise_interval_pp": [
+        -5.5319429629162915,
+        0.7160512485094417
+      ]
+    },
+    {
+      "artifacts": "/tmp/simulatte-sp2-bench.jsKjEr/pypy/out",
+      "workload": "jobshop10-u90-5k",
+      "baseline": "stripped",
+      "python": {
+        "implementation": "pypy",
+        "version": "3.11.11",
+        "build": "b38de282cead"
+      },
+      "commit": "6a3f131d8eec99d6552ed4c5ddf5807a3beea104",
+      "processes": [
+        3,
+        3
+      ],
+      "pooled_overhead_pct": -20.790250824002264,
+      "head_iqr_pct": 3.052592853421033,
+      "base_iqr_pct": 3.4514226123238294,
+      "noise_interval_pp": [
+        -0.2978765562927532,
+        3.50211577364945
+      ]
+    },
+    {
+      "artifacts": "/tmp/simulatte-sp2-bench.jsKjEr/pypy/out",
+      "workload": "jobshop10-u95-5k",
+      "baseline": "base",
+      "python": {
+        "implementation": "pypy",
+        "version": "3.11.11",
+        "build": "b38de282cead"
+      },
+      "commit": "6a3f131d8eec99d6552ed4c5ddf5807a3beea104",
+      "processes": [
+        3,
+        3
+      ],
+      "pooled_overhead_pct": -34.03496274973021,
+      "head_iqr_pct": 3.477324315110311,
+      "base_iqr_pct": 2.5191626133579037,
+      "noise_interval_pp": [
+        -2.6103761132160286,
+        0.4893105497668415
+      ]
+    },
+    {
+      "artifacts": "/tmp/simulatte-sp2-bench.jsKjEr/pypy/out",
+      "workload": "jobshop10-u95-5k",
+      "baseline": "stripped",
+      "python": {
+        "implementation": "pypy",
+        "version": "3.11.11",
+        "build": "b38de282cead"
+      },
+      "commit": "6a3f131d8eec99d6552ed4c5ddf5807a3beea104",
+      "processes": [
+        3,
+        3
+      ],
+      "pooled_overhead_pct": -19.19515019820379,
+      "head_iqr_pct": 3.477324315110311,
+      "base_iqr_pct": 2.2194451100533055,
+      "noise_interval_pp": [
+        -3.325447446159091,
+        0.45798847227508377
+      ]
+    }
+  ]
+}

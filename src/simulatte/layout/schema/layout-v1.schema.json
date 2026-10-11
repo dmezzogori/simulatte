@@ -1,0 +1,1860 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://simulatte.dev/schema/layout-v1.schema.json",
+  "title": "Simulatte layout 1.0 file patch",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "pattern": "^[^\\uD800-\\uDFFF]*$"
+    },
+    "schema_version": {
+      "const": "1.0"
+    },
+    "grid": {
+      "$ref": "#/$defs/grid"
+    },
+    "network": {
+      "$ref": "#/$defs/network"
+    },
+    "placements": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/id"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/placement"
+      }
+    },
+    "overrides": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/override"
+      }
+    }
+  },
+  "required": [
+    "schema_version"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\u0000\\uD800-\\uDFFF]+$"
+    },
+    "number": {
+      "type": "number",
+      "minimum": -1.7976931348623157e+308,
+      "maximum": 1.7976931348623157e+308
+    },
+    "positive": {
+      "$ref": "#/$defs/number",
+      "exclusiveMinimum": 0
+    },
+    "nonnegative": {
+      "$ref": "#/$defs/number",
+      "minimum": 0
+    },
+    "integer": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "capacity": {
+      "$ref": "#/$defs/integer",
+      "minimum": 1
+    },
+    "unset": {
+      "type": "object",
+      "properties": {
+        "$unset": {
+          "const": true
+        }
+      },
+      "required": [
+        "$unset"
+      ],
+      "additionalProperties": false
+    },
+    "point": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/number"
+        },
+        {
+          "$ref": "#/$defs/number"
+        },
+        {
+          "type": "number",
+          "const": 0
+        }
+      ],
+      "items": false,
+      "minItems": 3
+    },
+    "bounds": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/number"
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "footprint": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positive"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "depth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positive"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "height": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/nonnegative"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "visual": {
+      "type": "object",
+      "properties": {
+        "shape": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[^\\uD800-\\uDFFF]*$"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "icon": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[^\\uD800-\\uDFFF]*$"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "color": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[^\\uD800-\\uDFFF]*$"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[^\\uD800-\\uDFFF]*$"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "direction": {
+      "enum": [
+        "both",
+        "forward",
+        "backward"
+      ]
+    },
+    "nodeProperties": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "capacity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/capacity"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "edgeProperties": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/direction"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "speed_limit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positive"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "address": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "explicit"
+            },
+            "id": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "lattice"
+            },
+            "i": {
+              "$ref": "#/$defs/integer"
+            },
+            "j": {
+              "$ref": "#/$defs/integer"
+            }
+          },
+          "required": [
+            "kind",
+            "i",
+            "j"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "lane_vertex"
+            },
+            "lane": {
+              "$ref": "#/$defs/id"
+            },
+            "vertex": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "lane",
+            "vertex"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "lane_segment"
+            },
+            "lane": {
+              "$ref": "#/$defs/id"
+            },
+            "source": {
+              "$ref": "#/$defs/id"
+            },
+            "target": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "lane",
+            "source",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "intersection"
+            },
+            "incidents": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/address"
+              },
+              "minItems": 2,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "kind",
+            "incidents"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "lane_child"
+            },
+            "segment": {
+              "$ref": "#/$defs/address"
+            },
+            "source": {
+              "$ref": "#/$defs/address"
+            },
+            "target": {
+              "$ref": "#/$defs/address"
+            }
+          },
+          "required": [
+            "kind",
+            "segment",
+            "source",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "edge"
+            },
+            "source": {
+              "$ref": "#/$defs/address"
+            },
+            "target": {
+              "$ref": "#/$defs/address"
+            }
+          },
+          "required": [
+            "kind",
+            "source",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "explicit_arc"
+            },
+            "source": {
+              "$ref": "#/$defs/id"
+            },
+            "target": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "source",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "port"
+            },
+            "entity": {
+              "$ref": "#/$defs/id"
+            },
+            "port": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "entity",
+            "port"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "approach"
+            },
+            "entity": {
+              "$ref": "#/$defs/id"
+            },
+            "port": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "entity",
+            "port"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "connector"
+            },
+            "entity": {
+              "$ref": "#/$defs/id"
+            },
+            "port": {
+              "$ref": "#/$defs/id"
+            },
+            "segment": {
+              "enum": [
+                "interior",
+                "outer"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "entity",
+            "port",
+            "segment"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "value"
+            },
+            "path": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "kind",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "graph"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "nodeAddress": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "explicit"
+            },
+            "id": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "lattice"
+            },
+            "i": {
+              "$ref": "#/$defs/integer"
+            },
+            "j": {
+              "$ref": "#/$defs/integer"
+            }
+          },
+          "required": [
+            "kind",
+            "i",
+            "j"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "lane_vertex"
+            },
+            "lane": {
+              "$ref": "#/$defs/id"
+            },
+            "vertex": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "lane",
+            "vertex"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "intersection"
+            },
+            "incidents": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/address"
+              },
+              "minItems": 2,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "kind",
+            "incidents"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "port"
+            },
+            "entity": {
+              "$ref": "#/$defs/id"
+            },
+            "port": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "entity",
+            "port"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "approach"
+            },
+            "entity": {
+              "$ref": "#/$defs/id"
+            },
+            "port": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "entity",
+            "port"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "elementAddress": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "explicit"
+            },
+            "id": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "lattice"
+            },
+            "i": {
+              "$ref": "#/$defs/integer"
+            },
+            "j": {
+              "$ref": "#/$defs/integer"
+            }
+          },
+          "required": [
+            "kind",
+            "i",
+            "j"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "lane_vertex"
+            },
+            "lane": {
+              "$ref": "#/$defs/id"
+            },
+            "vertex": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "lane",
+            "vertex"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "lane_segment"
+            },
+            "lane": {
+              "$ref": "#/$defs/id"
+            },
+            "source": {
+              "$ref": "#/$defs/id"
+            },
+            "target": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "lane",
+            "source",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "intersection"
+            },
+            "incidents": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/address"
+              },
+              "minItems": 2,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "kind",
+            "incidents"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "lane_child"
+            },
+            "segment": {
+              "$ref": "#/$defs/address"
+            },
+            "source": {
+              "$ref": "#/$defs/address"
+            },
+            "target": {
+              "$ref": "#/$defs/address"
+            }
+          },
+          "required": [
+            "kind",
+            "segment",
+            "source",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "edge"
+            },
+            "source": {
+              "$ref": "#/$defs/address"
+            },
+            "target": {
+              "$ref": "#/$defs/address"
+            }
+          },
+          "required": [
+            "kind",
+            "source",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "explicit_arc"
+            },
+            "source": {
+              "$ref": "#/$defs/id"
+            },
+            "target": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "source",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "port"
+            },
+            "entity": {
+              "$ref": "#/$defs/id"
+            },
+            "port": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "entity",
+            "port"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "approach"
+            },
+            "entity": {
+              "$ref": "#/$defs/id"
+            },
+            "port": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "entity",
+            "port"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "connector"
+            },
+            "entity": {
+              "$ref": "#/$defs/id"
+            },
+            "port": {
+              "$ref": "#/$defs/id"
+            },
+            "segment": {
+              "enum": [
+                "interior",
+                "outer"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "entity",
+            "port",
+            "segment"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "selector": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "row"
+            },
+            "j": {
+              "$ref": "#/$defs/integer"
+            }
+          },
+          "required": [
+            "kind",
+            "j"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "column"
+            },
+            "i": {
+              "$ref": "#/$defs/integer"
+            }
+          },
+          "required": [
+            "kind",
+            "i"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "rectangle"
+            },
+            "bounds": {
+              "$ref": "#/$defs/bounds"
+            }
+          },
+          "required": [
+            "kind",
+            "bounds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "lane"
+            },
+            "id": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "connector": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/nodeAddress"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "max_distance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positive"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "approach_margin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positive"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ],
+          "default": 0.01
+        },
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/direction"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "speed_limit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positive"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "port": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/point"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "approach": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/point"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "connector": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/connector"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "placement": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/id"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/point"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "rotation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/number"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "footprint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/footprint"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "ports": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/id"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/port"
+              },
+              {
+                "$ref": "#/$defs/unset"
+              }
+            ]
+          }
+        },
+        "obstacle": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "visual": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/visual"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "grid": {
+      "type": "object",
+      "properties": {
+        "dx": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positive"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "dy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positive"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "origin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/point"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "blockedRectangle": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/point"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "width": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positive"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "depth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positive"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "rotation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/number"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "blocked": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/id"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/blockedRectangle"
+          },
+          {
+            "$ref": "#/$defs/unset"
+          }
+        ]
+      }
+    },
+    "vertex": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/point"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "position"
+      ],
+      "additionalProperties": false
+    },
+    "lane": {
+      "type": "object",
+      "properties": {
+        "vertices": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/vertex"
+              },
+              "minItems": 2
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/direction"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "speed_limit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positive"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "lanes": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/id"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/lane"
+          },
+          {
+            "$ref": "#/$defs/unset"
+          }
+        ]
+      }
+    },
+    "explicitNode": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/point"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "capacity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/capacity"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "position"
+      ],
+      "additionalProperties": false
+    },
+    "explicitArc": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/id"
+        },
+        "target": {
+          "$ref": "#/$defs/id"
+        },
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/direction"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "speed_limit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positive"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "network": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "lattice"
+            },
+            "clearance": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/nonnegative"
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            },
+            "blocked": {
+              "$ref": "#/$defs/blocked"
+            },
+            "capacity": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/capacity"
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            },
+            "bounds": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/bounds"
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            },
+            "neighbors": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "enum": [
+                    4,
+                    8
+                  ]
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            },
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            },
+            "direction": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/direction"
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            },
+            "speed_limit": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/positive"
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "lanes"
+            },
+            "clearance": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/nonnegative"
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            },
+            "blocked": {
+              "$ref": "#/$defs/blocked"
+            },
+            "capacity": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/capacity"
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            },
+            "lanes": {
+              "$ref": "#/$defs/lanes"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "explicit"
+            },
+            "clearance": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/nonnegative"
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            },
+            "blocked": {
+              "$ref": "#/$defs/blocked"
+            },
+            "capacity": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/capacity"
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            },
+            "nodes": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/explicitNode"
+                  }
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            },
+            "arcs": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/explicitArc"
+                  }
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "clearance": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/nonnegative"
+                    },
+                    {
+                      "$ref": "#/$defs/unset"
+                    }
+                  ]
+                },
+                "blocked": {
+                  "$ref": "#/$defs/blocked"
+                },
+                "capacity": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/capacity"
+                    },
+                    {
+                      "$ref": "#/$defs/unset"
+                    }
+                  ]
+                },
+                "bounds": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/bounds"
+                    },
+                    {
+                      "$ref": "#/$defs/unset"
+                    }
+                  ]
+                },
+                "neighbors": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "enum": [
+                        4,
+                        8
+                      ]
+                    },
+                    {
+                      "$ref": "#/$defs/unset"
+                    }
+                  ]
+                },
+                "enabled": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "$ref": "#/$defs/unset"
+                    }
+                  ]
+                },
+                "direction": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/direction"
+                    },
+                    {
+                      "$ref": "#/$defs/unset"
+                    }
+                  ]
+                },
+                "speed_limit": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/positive"
+                    },
+                    {
+                      "$ref": "#/$defs/unset"
+                    }
+                  ]
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "clearance": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/nonnegative"
+                    },
+                    {
+                      "$ref": "#/$defs/unset"
+                    }
+                  ]
+                },
+                "blocked": {
+                  "$ref": "#/$defs/blocked"
+                },
+                "capacity": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/capacity"
+                    },
+                    {
+                      "$ref": "#/$defs/unset"
+                    }
+                  ]
+                },
+                "lanes": {
+                  "$ref": "#/$defs/lanes"
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "clearance": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/nonnegative"
+                    },
+                    {
+                      "$ref": "#/$defs/unset"
+                    }
+                  ]
+                },
+                "blocked": {
+                  "$ref": "#/$defs/blocked"
+                },
+                "capacity": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/capacity"
+                    },
+                    {
+                      "$ref": "#/$defs/unset"
+                    }
+                  ]
+                },
+                "nodes": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/explicitNode"
+                      }
+                    },
+                    {
+                      "$ref": "#/$defs/unset"
+                    }
+                  ]
+                },
+                "arcs": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/explicitArc"
+                      }
+                    },
+                    {
+                      "$ref": "#/$defs/unset"
+                    }
+                  ]
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          ]
+        }
+      ]
+    },
+    "override": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "target": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/elementAddress"
+            },
+            {
+              "$ref": "#/$defs/selector"
+            }
+          ]
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            },
+            "capacity": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/capacity"
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            },
+            "direction": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/direction"
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            },
+            "speed_limit": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/positive"
+                },
+                {
+                  "$ref": "#/$defs/unset"
+                }
+              ]
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "target",
+        "properties"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

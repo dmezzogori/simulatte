@@ -1,0 +1,61 @@
+{
+  "python": "3.14.1 (main, Dec  2 2025, 22:17:19) [Clang 21.1.4 ]",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "packages": {
+    "simulatte": "0.13.0",
+    "pytest": "9.1.1",
+    "ruff": "0.16.10",
+    "ty": "0.0.85",
+    "zensical": "0.0.68",
+    "msgpack": "1.2.3",
+    "simpy": "4.1.2"
+  },
+  "commands": [
+    {
+      "argv": [
+        "uv",
+        "--version"
+      ],
+      "output": "uv 0.13.0 (Homebrew 2026-10-09 aarch64-apple-darwin)"
+    },
+    {
+      "argv": [
+        "node",
+        "--version"
+      ],
+      "output": "v24.13.0"
+    },
+    {
+      "argv": [
+        "pnpm",
+        "--version"
+      ],
+      "output": "11.5.1"
+    },
+    {
+      "argv": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "output": "6a3f131d8eec99d6552ed4c5ddf5807a3beea104"
+    },
+    {
+      "argv": [
+        "sysctl",
+        "-n",
+        "hw.model",
+        "hw.memsize",
+        "hw.ncpu",
+        "machdep.cpu.brand_string"
+      ],
+      "output": "MacBookPro18,1\n17179869184\n10\nApple M1 Pro"
+    },
+    {
+      "argv": [
+        "sw_vers"
+      ],
+      "output": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0.1\nBuildVersion:\t\t26A434"
+    }
+  ]
+}

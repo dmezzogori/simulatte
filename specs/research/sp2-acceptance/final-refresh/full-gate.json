@@ -1,0 +1,25 @@
+{
+  "product_sha": "addf0fa1729077fa618305efcde496c116ae55f8",
+  "signature": "G",
+  "hooks": [
+    "ruff check",
+    "ruff format",
+    "ty check",
+    "pytest"
+  ],
+  "all_passed": true,
+  "coverage": {
+    "version": "7.16.2",
+    "timestamp": "1791667971606",
+    "lines-valid": "10590",
+    "lines-covered": "10557",
+    "line-rate": "0.9969",
+    "branches-valid": "3626",
+    "branches-covered": "3569",
+    "branch-rate": "0.9843",
+    "complexity": "0"
+  },
+  "combined_percent": 99.36691052335397,
+  "source_log": "/tmp/sp2-final-commit.txt",
+  "note": "Successful pre-commit hooks suppress detailed pytest counts; no full-suite count inferred."
+}
