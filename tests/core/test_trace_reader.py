@@ -1133,7 +1133,9 @@ def test_malformed_kpi_declarations(tmp_path: Path, changes: dict[str, Any]) -> 
     from dataclasses import asdict
     from simulatte.kpi import KPI
 
-    declaration = asdict(KPI("x", unit="time")) | changes
+    declaration = {
+        k: v for k, v in asdict(KPI("x", unit="time")).items() if k not in ("interpolation", "missing")
+    } | changes
     path = _records_trace(tmp_path, "bad-declaration", kpis=({"declarations": {"scope/x": declaration}},))
     with pytest.raises(TraceCorrupted):
         Trace.open(path)
@@ -1150,7 +1152,54 @@ def test_duplicate_kpi_declarations(tmp_path: Path) -> None:
     from dataclasses import asdict
     from simulatte.kpi import KPI
 
-    record = {"declarations": {"scope/x": asdict(KPI("x", unit="time", empty=0.0))}}
+    declaration = asdict(KPI("x", unit="time", empty=0.0))
+    declaration.pop("interpolation")
+    declaration.pop("missing")
+    record = {"declarations": {"scope/x": declaration}}
     path = _records_trace(tmp_path, "duplicate", kpis=(record, record))
     with pytest.raises(TraceCorrupted, match="duplicate KPI"):
         Trace.open(path)
+
+
+@pytest.mark.parametrize(
+    "rules,kind,declared,repeat,message",
+    [
+        ({"interpolation": "linear", "missing": "hold"}, "series", False, False, "undeclared"),
+        ({"interpolation": "linear", "missing": "hold"}, "series", True, True, "duplicate"),
+        (("linear", "hold"), "series", True, False, "requires interpolation and missing"),
+        ({"interpolation": "linear"}, "series", True, False, "requires interpolation and missing"),
+        ({"interpolation": "linear", "missing": "hold", "extra": True}, "series", True, False, "requires"),
+        ({"interpolation": "cubic", "missing": "hold"}, "series", True, False, "invalid series interpolation"),
+        ({"interpolation": "linear", "missing": "zero"}, "series", True, False, "invalid series missing"),
+        ({"interpolation": "linear", "missing": "hold"}, "scalar", True, False, "requires a series KPI"),
+    ],
+)
+def test_malformed_series_display_metadata(
+    tmp_path: Path, rules: Any, kind: Literal["scalar", "series"], declared: bool, repeat: bool, message: str
+) -> None:
+    from dataclasses import asdict
+
+    from simulatte.kpi import KPI
+
+    declaration = {
+        k: v for k, v in asdict(KPI("x", unit="time", kind=(kind,))).items() if k not in ("interpolation", "missing")
+    }
+    display = {"series_display": {"scope/x": rules}}
+    record = {**display, **({"declarations": {"scope/x": declaration}} if declared else {})}
+    path = _records_trace(tmp_path, "bad-display", kpis=(record, display) if repeat else (record,))
+    with pytest.raises(TraceCorrupted, match=message):
+        Trace.open(path)
+
+
+def test_cut_short_interior_record_rejected_by_indexed_kpi_scan(tmp_path: Path) -> None:
+    path, _, _ = _record_shop(tmp_path)
+    data = path.read_bytes()
+    chunks = _of(data, RecordType.CHUNK)
+    assert len(chunks) > 2
+    offset = chunks[1][0]
+    # The head and last-chunk checks do not read this frame. The metadata scan
+    # must reject a length extending beyond its interior interval.
+    damaged = bytearray(data)
+    damaged[offset : offset + 4] = struct.pack(">I", len(data))
+    with pytest.raises(TraceCorrupted, match=f"record at offset {offset} is cut short"):
+        Trace.open(_write(tmp_path, "cut-interior-frame", bytes(damaged)))

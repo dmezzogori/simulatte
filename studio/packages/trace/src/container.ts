@@ -9,7 +9,7 @@
 
 export const MAGIC = "SIMTRACE";
 export const FORMAT_MAJOR = 1;
-export const FORMAT_MINOR = 1;
+export const FORMAT_MINOR = 2;
 export const PREAMBLE_SIZE = 12;
 export const FRAME_SIZE = 9;
 export const TRAILER_SIZE = 16;
@@ -25,6 +25,7 @@ export const RecordType = {
   INDEX: 6,
   KPI: 7,
   FOOTER: 8,
+  OBSERVERS: 9,
 } as const;
 
 /** The trace file is damaged beyond an incomplete tail, inconsistent, or exceeds the reader limits. */
@@ -67,11 +68,11 @@ export function resolveLimits(limits: Partial<ReaderLimits> | undefined): Reader
 /** Random access to the bytes of a trace file. */
 export interface ByteSource {
   readonly size: number;
-  /** Up to `length` bytes at `offset` (fewer only at the end of the file). */
-  read(offset: number, length: number): Promise<Uint8Array>;
+  /** Up to `length` bytes at `offset` (fewer only at EOF). Settle promptly on abort to release the read slot. */
+  read(offset: number, length: number, signal?: AbortSignal): Promise<Uint8Array>;
 }
 
-export function byteSource(source: Blob | ArrayBuffer): ByteSource {
+export function byteSource(source: Blob | ArrayBuffer | ByteSource): ByteSource {
   if (source instanceof ArrayBuffer) {
     const bytes = new Uint8Array(source);
     return { size: bytes.length, read: async (offset, length) => bytes.subarray(offset, offset + length) };
@@ -82,7 +83,9 @@ export function byteSource(source: Blob | ArrayBuffer): ByteSource {
       read: async (offset, length) => new Uint8Array(await source.slice(offset, offset + length).arrayBuffer()),
     };
   }
-  throw new TypeError("a trace source is a Blob or an ArrayBuffer");
+  if (source && Number.isSafeInteger((source as ByteSource).size) && (source as ByteSource).size >= 0 &&
+      typeof (source as ByteSource).read === "function") return source as ByteSource;
+  throw new TypeError("a trace source is a Blob, ArrayBuffer or ByteSource");
 }
 
 export interface Frame {
@@ -101,9 +104,12 @@ export async function readFrame(
   offset: number,
   end: number,
   limits: ReaderLimits,
+  signal?: AbortSignal,
 ): Promise<Frame | null> {
+  signal?.throwIfAborted();
   if (offset + FRAME_SIZE > end) return null;
-  const head = await source.read(offset, FRAME_SIZE);
+  const head = await source.read(offset, FRAME_SIZE, signal);
+  signal?.throwIfAborted();
   if (head.length < FRAME_SIZE) return null;
   const view = new DataView(head.buffer, head.byteOffset, head.byteLength);
   const length = view.getUint32(0);
@@ -117,8 +123,10 @@ export async function readFrame(
 }
 
 /** The payload of the record at `offset`, or null if it fails its CRC check. */
-export async function readPayload(source: ByteSource, offset: number, frame: Frame): Promise<Uint8Array | null> {
-  const data = await source.read(offset + FRAME_SIZE, frame.length);
+export async function readPayload(source: ByteSource, offset: number, frame: Frame, signal?: AbortSignal): Promise<Uint8Array | null> {
+  signal?.throwIfAborted();
+  const data = await source.read(offset + FRAME_SIZE, frame.length, signal);
+  signal?.throwIfAborted();
   return data.length === frame.length && crc32(data) === frame.crc ? data : null;
 }
 

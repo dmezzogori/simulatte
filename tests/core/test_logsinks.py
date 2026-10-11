@@ -458,3 +458,35 @@ def test_close_stops_delivery_to_collectors_and_other_subscribers() -> None:
     env.info("also after")
     assert [e.message for e in seen] == ["before"]
     assert env._seq == seq and event.seq == -1
+
+
+@pytest.mark.parametrize(
+    "options,accepted",
+    [
+        ({}, True),
+        ({"level": "ERROR"}, False),
+        ({"exclude": ("TraceRecorder",)}, False),
+        ({"components": ("Other",)}, False),
+    ],
+)
+def test_recorder_diagnostics_respect_filters_and_closed_sinks_without_bus_events(options, accepted) -> None:
+    stream = io.StringIO()
+    with Environment() as env:
+        observed: list[LogEvent] = []
+        env.bus.subscribe(observed.append, (LogEvent,))
+        sink = JsonSink(stream, **options).attach(env)
+        seq = env._seq
+        sink.diagnostic(2.5, "bounded recorder warning", pending_bytes=512)
+        records = [json.loads(line) for line in stream.getvalue().splitlines()]
+        assert len(records) == int(accepted)
+        if accepted:
+            assert records[0]["seq"] == -1
+            assert records[0]["sim_time"] == 2.5
+            assert records[0]["level"] == "WARNING"
+            assert records[0]["component"] == "TraceRecorder"
+            assert records[0]["extra"] == {"pending_bytes": 512}
+        sink.close()
+        before = stream.getvalue()
+        sink.diagnostic(3.0, "after close")
+        assert stream.getvalue() == before
+        assert observed == [] and env._seq == seq

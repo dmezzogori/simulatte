@@ -4,6 +4,27 @@ All notable changes to Simulatte are documented here.
 
 ## Unreleased
 
+## 0.15.0 — 2026-10-11
+
+- Added Studio: `simulatte view` with authenticated loopback serving, recorded-state playback, a Pixi
+  scene, docked inspector, event history, KPI charts and presentation mode. Install with `[studio]`.
+- Added standalone offline HTML, streamed MP4/WebM and PNG ZIP64 exports, bounded temporary-file
+  storage and cancellable manual export timelines. Actual Safari export and offline-player paths passed manual acceptance.
+- Trace container 1.2 adds optional separate observer records and KPI series display rules while
+  retaining 1.0/1.1 reading and the existing domain replay/digest contract.
+- Recorder diagnostics bypass the event bus to prevent recursive recording, including with multiple
+  recorders attached to one environment.
+
+### Migration
+
+- Install `simulatte[studio]` to use `simulatte view`; core simulation use does not require the extra.
+- New recordings use trace container 1.2. Studio reads 1.0/1.1/1.2; older readers skip optional
+  observer/display metadata while preserving domain replay and verification.
+- KPI display defaults remain previous-sample interpolation with gaps. Set `interpolation` and
+  `missing` on KPI declarations to choose other display rules; numeric KPI calculations are unchanged.
+- Offline HTML embeds the complete recording. Video exports are capped at 100,000 frames and PNG
+  sequences at 10,000; temporary export storage is scoped to the serving origin.
+
 ## 0.14.0 — 2026-10-11
 
 Simulatte now prepares deterministic layouts and transport networks separately from simulation execution.

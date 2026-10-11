@@ -181,6 +181,17 @@ class LogSink:
         if LEVELS.get(event.level, 0) >= self._threshold and self._accepts(event.component):
             self._write_log(event)
 
+    def diagnostic(self, t: float, message: str, **extra: Any) -> None:
+        """Write a recorder diagnostic directly, without emitting a bus event.
+
+        Diagnostics have sequence -1: they are not simulation or observer events.
+        Closed sinks ignore them. Component filters and the warning threshold still apply.
+        """
+        if not self._closed:
+            self._on_log(
+                LogEvent(t=t, level="WARNING", message=message, component="TraceRecorder", extra=FrozenMap(extra))
+            )
+
     def _on_domain(self, event: DomainEvent) -> None:
         if self._accepts(_namespace(event)):
             self._write_domain(event)

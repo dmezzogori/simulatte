@@ -1,0 +1,28 @@
+[
+  {
+    "browser": "chromium",
+    "version": "156.0.8078.4",
+    "openMs": 2050,
+    "errors": [],
+    "requests": [],
+    "heap": {
+      "used": 109979194,
+      "total": 114639150
+    }
+  },
+  {
+    "browser": "webkit",
+    "version": "27.2",
+    "openMs": 3898,
+    "errors": [],
+    "requests": [],
+    "heap": null
+  },
+  {
+    "browser": "firefox",
+    "version": "157.0",
+    "openMs": 3478,
+    "errors": [],
+    "requests": []
+  }
+]

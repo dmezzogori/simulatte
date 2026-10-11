@@ -42,6 +42,20 @@ jobs:
       - name: Run formatting check
         run: uv run --all-extras ruff format --check
 
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Build Studio assets
+        run: |
+          corepack enable
+          cd studio
+          pnpm install --frozen-lockfile
+          pnpm build
+          cd ..
+          uv run python studio/scripts/package_assets.py
+
       - name: Build package
         run: uv build
 

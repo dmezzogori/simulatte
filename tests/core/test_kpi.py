@@ -756,6 +756,9 @@ def test_trace_keeps_kpi_declarations_and_late_collectors(tmp_path: Path) -> Non
         late.sample("level", 3.0)
         final = Plain(Desk(env, name="final")).attach(env)
     expected = {f"{c.scope.id}/{kpi.name}": asdict(kpi) for c in (early, late, final) for kpi in c.kpis}
+    for declaration in expected.values():
+        declaration.pop("interpolation")
+        declaration.pop("missing")
     declarations = Trace.open(path).kpi_declarations
     from simulatte._wire import freeze
 

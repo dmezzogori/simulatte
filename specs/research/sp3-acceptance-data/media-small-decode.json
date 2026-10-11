@@ -1,0 +1,70 @@
+[
+  {
+    "artifact": "studio/test-results/export-exports-webm-through-OPFS-without-moving-the-viewer-webkit/export.webm",
+    "exit": 0,
+    "errors": "",
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "vp9",
+          "width": 320,
+          "height": 180,
+          "nb_read_frames": "4"
+        }
+      ]
+    }
+  },
+  {
+    "artifact": "studio/test-results/export-exports-mp4-through-OPFS-without-moving-the-viewer-webkit/export.mp4",
+    "exit": 0,
+    "errors": "",
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1920,
+          "height": 1080,
+          "nb_read_frames": "4"
+        }
+      ]
+    }
+  },
+  {
+    "artifact": "studio/test-results/export-exports-webm-through-OPFS-without-moving-the-viewer-chromium/export.webm",
+    "exit": 0,
+    "errors": "",
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "vp9",
+          "width": 320,
+          "height": 180,
+          "nb_read_frames": "4"
+        }
+      ]
+    }
+  },
+  {
+    "artifact": "studio/test-results/export-exports-mp4-through-OPFS-without-moving-the-viewer-chromium/export.mp4",
+    "exit": 0,
+    "errors": "",
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1920,
+          "height": 1080,
+          "nb_read_frames": "4"
+        }
+      ]
+    }
+  }
+]

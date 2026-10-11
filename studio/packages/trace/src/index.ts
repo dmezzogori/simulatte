@@ -4,3 +4,7 @@ export { NotPreparedError, openTrace, Trace, type ChunkInfo, type Cursor, type K
 export { escapeKey, unescapeKey, type Wire } from "./wire";
 
 export type { LayoutBundle } from "./layout";
+export { HttpSource } from "./source";
+export { openRecording, Recording, type EventQuery, type SeriesDisplay, type Sample } from "./recording";
+export type { ByteSource } from "./container";
+export { Replay, compare } from "./trace";

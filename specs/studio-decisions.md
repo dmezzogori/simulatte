@@ -192,3 +192,29 @@ Refines C1.10/C2.7; rejected: allowing simulation before binding or independent 
 parking nodes, component graph references and graph traffic attributes are read-only. AGV movement accepts
 only canonical enabled nodes of the resolved graph, or None; equal copies are rejected. No-layout mutation
 behavior stays unchanged. Refines C2.7; rejected: constructor-only checks that later public mutation can bypass.
+
+
+## SP3 approval, 2026-10-11 (Davide)
+
+Davide approved [SP3 revision 2](2026-10-11-sp3-viewer-design.md) and its implementation plan after two adversarial reviews and correction verification (“Approved”). Browser/performance acceptance remains to be demonstrated.
+
+**D66. Trace 1.2 adds optional KPI display metadata (A1).** Python KPI declarations gain interpolation/missing rules. Preserve the exact kpi-declarations-v1 wire fields and publish separate `KPI.series_display` under `kpi-display-v1`. Older readers ignore it; new readers retain 1.0/1.1 support and explicit legacy display defaults. No change to KPI arithmetic or digest.
+
+**D67. Full traces capture observers separately (A2).** Optional `observer-events-v1` uses OBSERVERS type 9 with phase/bounds/catalog epoch and null-ordinal, empty-delta entries. Domain chunks/prelude/footer replay semantics stay unchanged, preserving released-reader verification. Merge histories only in new inspection APIs; KPI records remain the value source. Recorder diagnostics use a non-bus channel to prevent recursion, including across recorders. Rejected: adding observers to domain chunks, which makes released `Trace.verify()` report a false mismatch.
+
+**D68. Portable keyframes (A3).** Define elapsed-time/progress-fraction keyframes and recorded accuracy, endpoint/monotonicity validation and timestamp rounding tolerance as specified by SP3 §3. Motion always follows recorded state; unknown/invalid descriptions are explicitly approximate.
+
+**D69. Viewer implementation choices and limits.** Light industrial visual direction; React19/compiler, Pixi8 with CSP-safe extension, dockview, uPlot, Mediabunny ordinary MP4 with positioned streaming sinks, zip.js ZIP64. HTML caps100MiB trace/150MiB output, warn25MiB; every video/PNG export at most100000 frames. Provisional256MiB export working-set budget requires measurement. Direct file writes preferred; Safari uses OPFS as required by D35. Cleanup is current-origin/session scoped: crashes may leave temporary exports and random-port later sessions cannot remove another origin's files; document browser site-data cleanup and origin-reuse exposure. Actual Safari MP4 and all other acceptance tests remain release gates.
+
+
+**D70. Lower the PNG frame cap after ZIP metadata measurements (2026-10-11).**
+SP3 §9 explicitly permits lowering the provisional cap to stay within the export
+working-set budget. Keep video at 100,000 frames; cap PNG at 10,000 plus its timing
+manifest. A pinned zip.js 100,000-entry / >4 GiB ZIP64 stress archive passed Python
+`zipfile.testzip()`, but Node peak RSS reached 1.61 GB; it does not justify a
+100,000-frame browser promise. A Chromium 10,000-entry metadata probe peaked at
+95,970,737 bytes of JS heap. Real-render export measurements and their narrower
+memory-method limits belong in the SP3 acceptance report. This is an implementation
+limit under the approved provisional-budget rule, not a relaxation of that budget.
+Actual Safari was initially deferred at Davide’s request; his subsequent manual
+checks passed and are recorded in the SP3 acceptance report.

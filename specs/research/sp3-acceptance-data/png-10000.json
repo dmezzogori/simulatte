@@ -1,0 +1,19 @@
+{
+  "mode": "video",
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 Safari/537.36",
+  "frames": 10000,
+  "size": 76704661,
+  "seconds": 775.445900000006,
+  "sink": "temporary",
+  "openMs": 22.700000017881393,
+  "heapPeak": 50862746,
+  "longestTaskMs": 241,
+  "wallSeconds": 775.515,
+  "errors": [],
+  "rss": {
+    "method": "macOS ps RSS sampled every100ms via CDP process IDs; renderer includes engine/native, total includes GPU and browser",
+    "baselineRenderer": 74334208,
+    "peakRenderer": 297435136,
+    "peakTotal": 626589696
+  }
+}

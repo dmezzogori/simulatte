@@ -174,12 +174,12 @@ Using the environment as a context manager (`with Environment(...) as env:`) clo
 
 | Level | Records | Use |
 |---|---|---|
-| `"full"` (default) | header, initial state, every domain event in compressed chunks, KPI records, footer | replay, seeking, verification |
+| `"full"` (default) | header, initial state, every domain event in compressed chunks, separate observer records, KPI records, footer | replay, seeking, verification |
 | `"kpi"` | header, initial state, KPI records, footer | cheap summaries; the trace cannot be verified |
 
 KPI sample buffers publish within the same wall-clock latency limit, even when no more simulation events arrive. Samples emitted before activation wait until the initial-state record.
 
-Events are grouped into chunks sealed at 10,000 events, 1 MiB, 1 second of wall-clock time or an optional simulated-time window (`ChunkLimits`). A writer thread compresses and writes them; if it falls behind, the simulation waits (the pending bytes are bounded), so memory stays flat. The first such wait logs a warning, and that log event takes a sequence number, so two runs with the same seed can have different `(t, seq)` cursors when only one of them waited: compare traces by digest, not by cursor. The recorder never changes the trajectory: the digest is identical with or without it. Several `env.run()` calls continue the same trace. The footer records how the run ended (`completed`, `cancelled` for a keyboard interrupt, `failed` if `run` raised).
+Events are grouped into chunks sealed at 10,000 events, 1 MiB, 1 second of wall-clock time or an optional simulated-time window (`ChunkLimits`). A writer thread compresses and writes them; if it falls behind, the simulation waits (the pending bytes are bounded), so memory stays flat. Recorder warnings go directly to log sinks, outside the event bus, so they cannot recursively trigger recording or consume simulation sequence numbers. Compare trajectories by digest, rather than by observer-dependent sequence numbers. The recorder never changes the trajectory: the digest is identical with or without it. Several `env.run()` calls continue the same trace. The footer records how the run ended (`completed`, `cancelled` for a keyboard interrupt, `failed` if `run` raised).
 
 ## 7) Reading and verifying a trace
 
@@ -199,7 +199,9 @@ for event in trace.events(start, (1.0, 10**9)):  # events with start < (t, seq) 
 ```
 
 - `state_at(cursor)` returns `{entity id: state}` and seeks directly to the right chunk, so jumping around a long run is cheap. The activation cursor `(t, -1)` is the initial state.
-- `events(start, end)` yields the recorded events between two cursors.
+- `events(start, end)` yields the domain events between two cursors.
+- `observer_events()` yields the separate simulation observer history; `observer_events(prelude=True)` reads preparation observers. `inspect_events()` merges simulation domain and observer entries by `(t, seq)` without duplicating KPI observer entries.
+- `kpi_series_display` exposes separate `interpolation` and `missing` rules. These are optional format 1.2 metadata; older traces use previous-sample display and gaps for missing samples.
 - `kpi_declarations` maps `scope/name` to immutable metadata: unit, kind, description and observation settings. Older traces return an empty map.
 - `kpis()` returns the scalars and `kpi_series()` the samples of the KPI records.
 - `check()` validates the container (checksums, index, limits) and raises `TraceCorrupted` on damage.
@@ -268,3 +270,20 @@ Log calls below every attached sink's level are skipped without constructing an 
 ## 10) Debug mode
 
 `Environment(debug=True)` validates every emitted event against the catalog (payload types, nullability, the fields its deltas may touch) and against the state schemas of the entities, rejects mutable containers (lists, dicts, sets) anywhere in payloads and deltas, since event contents must be immutable (tuples and `FrozenMap`), rejects subscribers that schedule events or draw random numbers, and refuses to bind two different values to one RNG stream. It is slower and meant for tests and model development; it never changes results.
+
+
+Series KPIs may declare `interpolation="previous"`, `"linear"` or `"none"`, and
+`missing="gap"` or `"hold"`. Defaults are `previous` and `gap`. These settings only
+control display: original samples and estimands remain unchanged. Exact-event
+inspection cannot use future samples. Continuous linear playback may use the
+next sample and labels that value as interpolated. Missing means a non-finite
+sample; hold substitutes the most recent finite value, when one exists.
+
+Format 1.2 keeps the existing eleven-field KPI declaration unchanged and stores
+these display rules separately. Its observer records also remain separate from
+domain replay and digest verification. Readers continue to accept format 1.0 and
+1.1; older readers can ignore the optional additions.
+
+A development preview of Studio is available from the repository; see
+[Studio development](../development/studio.md). The packaged viewer command and
+video export are still in development.

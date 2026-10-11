@@ -1,0 +1,29 @@
+{
+  "mode": "performance",
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 Safari/537.36",
+  "openMs": 231.5,
+  "coldSeekP50": 40.599999994039536,
+  "coldSeekP95": 90.90000000596046,
+  "warmSeekP50": 0.7000000178813934,
+  "warmSeekP95": 3,
+  "renderP95": 6.5999999940395355,
+  "traceBytes": 83828844,
+  "cache": {
+    "chunks": 4,
+    "estimatedBytes": 14234128,
+    "activeReads": 0
+  },
+  "heap": {
+    "used": 133838050,
+    "total": 187931222
+  },
+  "longestTaskMs": 482,
+  "wallSeconds": 28.042,
+  "errors": [],
+  "rss": {
+    "method": "macOS ps RSS sampled every 100 ms via CDP process IDs; renderer includes engine/native, total includes GPU and browser",
+    "baselineRenderer": 74301440,
+    "peakRenderer": 541376512,
+    "peakTotal": 1013383168
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "@simulatte/viewer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@simulatte/export": "workspace:*",
+    "@simulatte/playback": "workspace:*",
+    "@simulatte/scene": "workspace:*",
+    "@simulatte/trace": "workspace:*",
+    "dockview": "8.4.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "uplot": "1.6.32"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.7",
+    "vitest": "3.2.7"
+  }
+}
