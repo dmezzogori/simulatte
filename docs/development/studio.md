@@ -146,3 +146,48 @@ network access. See the repository’s `CONTRIBUTING.md` for the contribution wo
 Production browser checks enforce a restrictive content security policy and test
 saved HTML with networking disabled. The acceptance evidence in `specs/research/`
 records measured workloads, limits and outstanding platform checks.
+
+## Model metadata and stopping (0.16 development)
+
+The optional `@simulatte.model` decorator describes a build function without
+wrapping it: ordinary Python calls keep working. Use a frozen dataclass for
+parameters. Supported fields are bool, safe integer, finite float, string,
+scalar Literal and Enum. Annotated fields accept Range (inclusive bounds),
+Length (Unicode code points) and Description. Enum command-line values use
+member names; defaults must be members. Default factories are unsupported.
+
+```python
+from dataclasses import dataclass
+from typing import Annotated
+import simulatte
+
+@dataclass(frozen=True)
+class Params:
+    rate: Annotated[float, simulatte.Range(0.1, 2.0)] = 0.8
+
+@simulatte.model(params=Params, horizon=1000, warmup=100, time_unit="min")
+def build(env, layout, params):
+    # Attach components and schedule processes here; do not run the environment.
+    pass
+```
+
+`get_model_spec(build)` returns immutable metadata. The decorator alone does
+not start workers, create a run store or require Studio dependencies. Core
+`Environment(parameters=..., artifacts_dir=...)` records supplied parameters
+and exposes an optional output directory; ordinary scripts retain their defaults.
+
+Stopping policies are `Horizon(until, warmup=0)` or
+`FinitePopulation(arrivals=N, safety_limit=S)` /
+`FinitePopulation(cutoff=T, safety_limit=S)`. Finite models explicitly bind
+`Population(env, policy)` in scripts (the execution driver supplies the policy
+in managed runs), admit unique work keys and complete them after their final
+transition. Bracket scheduled arrivals with `pending(key)` and `unpending(key)`.
+`admit` returns false after closure; generators must abandon pending arrivals
+when `population.closed` fires. A finite run succeeds only after closure and
+zero active/pending work, without waiting for unrelated housekeeping timers.
+Arrivals exactly at a time cutoff are refused; completion exactly at the safety
+limit is accepted. Failure to drain is an error. These are model-control
+operations, not collector observations.
+
+The execution and interactive Studio commands are under development; this
+metadata API does not imply that the full SP4 workflow has shipped.

@@ -71,6 +71,8 @@ class Environment(simpy.Environment):
         seed: int | None = None,
         time_unit: str | None = None,
         provenance: Provenance | None = None,
+        parameters: Mapping[str, object] | None = None,
+        artifacts_dir: str | Path | None = None,
         debug: bool = False,
         log_level: str = "INFO",
         log_file: str | Path | None = None,
@@ -111,6 +113,11 @@ class Environment(simpy.Environment):
         self.time_unit = time_unit
         """Name of the unit of simulated time, or None."""
         self._provenance = provenance
+        self._parameters = cast(FrozenMap, freeze(dict(parameters or {})))
+        self.artifacts_dir = Path(artifacts_dir) if artifacts_dir is not None else None
+        self._ready_callbacks: list[Callable[[], None]] = []
+        self._population = None
+        self._execution_policy = None
         self._digest: SemanticDigest | None = None
         self._requested: FrozenMap | None = None
         self._requested_inputs: tuple[int, str | None, Provenance | None, float] | None = None
@@ -408,10 +415,44 @@ class Environment(simpy.Environment):
         # cheap; the manifest is built lazily
         self._requested_inputs = (self._seed, self.time_unit, self._provenance, self._warmup)
         self._activated = True
+        callbacks, self._ready_callbacks = self._ready_callbacks, []
+        try:
+            for callback in callbacks:
+                callback()
+        except BaseException:
+            self._activated = False
+            self._commands = []
+            self._run_failed = True
+            raise
 
         commands, self._commands = self._commands, []
         for fn, args, kwargs in commands:
             fn(*args, **kwargs)
+
+    def _on_ready(self, callback: Callable[[], None]) -> None:
+        """Internal worker barrier: after projection capture, before deferred commands."""
+        if self._activation_started:
+            raise RuntimeError("ready barrier must be registered before activation")
+        self._ready_callbacks.append(callback)
+
+    @contextmanager
+    def _building(self):
+        """Allow declaration/scheduling, but not advancing time from a model build."""
+
+        def blocked(*args, **kwargs):
+            raise RuntimeError("model build must not activate, run or step the environment")
+
+        names = ("activate", "run", "step")
+        previous = {name: self.__dict__.get(name) for name in names}
+        self.__dict__.update({name: blocked for name in names})
+        try:
+            yield
+        finally:
+            for name, value in previous.items():
+                if value is None:
+                    self.__dict__.pop(name, None)
+                else:
+                    self.__dict__[name] = value
 
     def _run_initializer(self, fn: Callable[[], object]) -> None:
         """Call `fn` with scheduling blocked, and fail if it advanced simulated time."""
@@ -549,7 +590,12 @@ class Environment(simpy.Environment):
                     {"schema_version": "1.0", "status": "unresolved"} if result is None else result.bundle.manifest()
                 )
             requested = build_requested(
-                seed=seed, time_unit=time_unit, provenance=provenance, warmup=warmup, layout=layout_metadata
+                seed=seed,
+                time_unit=time_unit,
+                provenance=provenance,
+                warmup=warmup,
+                parameters=self._parameters,
+                layout=layout_metadata,
             )
             if inputs is not None:
                 self._requested = requested
