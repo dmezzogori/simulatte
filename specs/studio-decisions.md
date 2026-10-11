@@ -309,3 +309,20 @@ count against quotas; failed deletion retains credit usage. File trace output
 keeps released bytes and interruption behavior; segmented output strictly rejects
 oversized pending items, including latency-triggered seals. Partial transfer and
 receiver durability are completed with the store integration in Tasks 6–7.
+
+
+**D82. Fragment credit and complete-segment durability are different ACK states.**
+The 128 MiB segment cap cannot operate under a 16 MiB window if every ACK waits
+for a whole segment. Fsync and transactionally record each canonical fragment's
+contiguous extent before returning transfer credit. Partial uploads stay invisible
+and consume worker spool space. Only a hash-verified complete segment receipt
+publishes a prefix and releases spool credit. Entering finalizing closes uploads;
+publication streams receipt batches and checks the assignment again at commit.
+KPI-only results preserve `not_verifiable` for semantic digest verification;
+structural checks and exact byte/manifest/fingerprint equality still apply.
+
+The store uses one mutex-serialized writable/checkpointing SQLite connection.
+Any additional readers must use URI `mode=ro`; they cannot write or checkpoint.
+This is consistent with ownership and avoids the documented trigger of the
+[SQLite WAL-reset race](https://www.sqlite.org/wal.html) in older bundled
+SQLite versions. Native version/platform acceptance remains required.

@@ -224,5 +224,10 @@ only validated acknowledgements release space. A full spool blocks recording
 without dropping events, and blocked writes remain cancellable. The ordinary
 file recorder retains its existing trace bytes.
 
-These are internal execution foundations. The run store, managed run driver,
-Studio editing and live viewer integration remain separate implementation work.
+The local run-store foundation uses one coordinator owner, durable segment
+receipts and fenced result publication. Partial uploads stay private; a result
+becomes visible only after trace verification, execution cleanup and the final
+index transaction. Recovery removes unindexed output rather than adopting it.
+
+These are internal execution foundations. The managed run driver, Studio editing
+and live viewer integration remain separate implementation work.

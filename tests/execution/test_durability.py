@@ -74,4 +74,5 @@ def test_windows_rename_uses_write_through_and_unicode_paths(monkeypatch, unc, s
             durability.replace_durable(source, destination)
     prefix = "\\\\?\\UNC\\host\\share" if unc else "\\\\?\\C:"
     assert calls == [(prefix + "\\é.tmp", prefix + "\\é.final", 9)]
+    durability.sync_directory(destination)
     assert move.argtypes == [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32]

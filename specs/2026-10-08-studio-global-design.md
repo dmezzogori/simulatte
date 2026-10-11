@@ -517,3 +517,10 @@ Davide approved the [focused SP4 design](2026-10-11-sp4-studio-design.md) and pl
 - A7/D79: optional execution-v1 metadata in trace1.3, preserving released reader verification and layout1.0, as specified in the focused design's trace provenance section.
 
 Worker protocol1.0 is bounded MessagePack plus raw fragments; module boundaries are execution/ plus model.py/stopping.py; watchfiles uses full-manifest reconciliation; import validation includes lazy resolution; spool defaults256MiB/1024files with16MiB in flight; no warm spares in SP4; snapshots capture normalized working-tree bytes. These are accepted choices, not completed implementation or acceptance claims.
+
+
+SP4 transport clarification (D82, 2026-10-12): fragment ACKs return the bounded
+transfer window's credit only after durable partial receipt. They do not publish
+partial data or reclaim worker spool files. A complete-segment ACK retains the
+original durable-receipt/reclamation contract. This distinction allows the
+accepted 128 MiB segment size with 16 MiB in flight.

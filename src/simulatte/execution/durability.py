@@ -24,7 +24,14 @@ def replace_durable(source: Path, destination: Path) -> None:
             raise OSError(getattr(ctypes, "get_last_error")(), "Durable file replacement failed")
         return
     os.replace(source, destination)
-    descriptor = os.open(destination.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    sync_directory(destination.parent)
+
+
+def sync_directory(path: Path) -> None:
+    """Sync directory entries where supported; Windows uses write-through rename."""
+    if os.name == "nt":
+        return
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
     try:
         os.fsync(descriptor)
     finally:
