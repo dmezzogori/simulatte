@@ -19,7 +19,7 @@ from simulatte.builders import build_immediate_release_system
 from simulatte.digest import Fingerprint
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment
-from simulatte.events import Deltas, DomainEvent, LogEvent, apply_deltas, event_type
+from simulatte.events import Deltas, DomainEvent, LogEvent, ObserverEvent, apply_deltas, event_type
 from simulatte.scenario import Scenario
 from simulatte.trace import ChunkLimits, RecordType, Trace, TraceRecorder
 from simulatte.trace.format import FORMAT_MAJOR, FORMAT_MINOR, MAGIC, TRAILER_MAGIC
@@ -481,6 +481,8 @@ def test_writer_failure_propagates(
         assert rec._cond.wait_for(lambda: rec._error is not None, timeout=10)
     with pytest.raises(OSError, match="disk full"):
         _emit_set(env, gauge, 2.0)
+    with pytest.raises(OSError, match="disk full"):
+        env.info("observer after writer failure")
     with pytest.raises(OSError, match="disk full"):
         rec.close()
     rec.close()  # repeated close is a no-op, even after a failure
@@ -1035,3 +1037,81 @@ def test_empty_delta_names_event_outside_debug(tmp_path: Path, make_recorder: Ca
     with pytest.raises(ValueError, match="test.trace_set: an empty delta operation"):
         env.emit(GaugeSet(gauge="g", level=1.0, deltas=Deltas(((),))))
     rec.close()
+
+
+def test_interrupted_observer_catalog_publication_preserves_committed_events(
+    tmp_path: Path, make_recorder: Callable[..., TraceRecorder], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "observer-interrupt.simtrace"
+    env = Environment(seed=1)
+    rec = make_recorder(env, path, max_pending_bytes=1, clock=FakeClock())
+    _drain(rec)
+
+    @event_type("test.trace_interrupted_observer")
+    class LateObserver(ObserverEvent):
+        value: int
+
+    armed = [True]
+    real_wait = rec._cond.wait
+
+    def wait(timeout: float | None = None) -> bool:
+        if armed and threading.current_thread() is threading.main_thread() and rec._producer_waiting:
+            armed.clear()
+            raise KeyboardInterrupt
+        return real_wait(timeout)
+
+    monkeypatch.setattr(rec._cond, "wait", wait)
+    _gate_writes(monkeypatch, rec, RecordType.INITIAL, lambda: rec._closed)
+
+    def process() -> Any:
+        yield env.timeout(1)
+        env.emit(LateObserver(value=1))
+
+    env.process(process())
+    env.run()
+    assert env._interrupted and not armed
+    env.emit(LateObserver(value=2))
+    rec.close()
+    records = _read(path)
+    (extension,) = _of(records, RecordType.CATALOG_EXT)
+    (observers,) = _of(records, RecordType.OBSERVERS)
+    assert records.index(extension) < records.index(observers)
+    assert observers.body["epoch"] == extension.body["epoch"]
+    assert [event[4]["value"] for event in observers.body["events"]] == [1, 2]
+    assert records[-1].body["outcome"] == "cancelled"
+    assert Trace.open(path).verify()
+
+
+def test_infinite_latency_waits_for_explicit_flush_without_losing_observers_or_samples(
+    tmp_path: Path, make_recorder: Callable[..., TraceRecorder], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from simulatte.events import KpiSample
+
+    path = tmp_path / "infinite-latency.simtrace"
+    env = Environment(seed=1)
+    rec = make_recorder(env, path, chunk_limits=ChunkLimits(max_latency_s=float("inf")), clock=FakeClock())
+    env.activate()
+    _drain(rec)
+    waiting = threading.Event()
+    real_wait = rec._cond.wait
+
+    def wait(timeout: float | None = None) -> bool:
+        if threading.current_thread() is not threading.main_thread() and rec._observers and rec._samples:
+            assert timeout is None
+            waiting.set()
+        return real_wait(timeout)
+
+    monkeypatch.setattr(rec._cond, "wait", wait)
+    env.emit(KpiSample(kpi="queue", scope="shop", value=2.0))
+    assert waiting.wait(10)
+    assert not _of(_read(path), RecordType.KPI)
+    rec._flush_samples()
+    rec._flush_samples()  # Another publisher may already have drained the buffer.
+    rec.close()
+    records = _read(path)
+    (kpi,) = _of(records, RecordType.KPI)
+    assert len(kpi.body["samples"]) == 1
+    trace = Trace.open(path)
+    assert trace.kpi_series()["shop/queue"][0][1] == 2.0
+    assert len(list(trace.observer_events())) == 1
+    assert trace.verify()

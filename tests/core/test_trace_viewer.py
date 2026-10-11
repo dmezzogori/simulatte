@@ -98,7 +98,10 @@ def test_invalid_series_display_rule(field: str, value: str) -> None:
         {"phase": "prelude"},
         {"epoch": 99},
         {"first": (9.0, 0)},
+        {"last": (9.0, 0)},
         {"extra": True},
+        {"events": ()},
+        {"events": ((0, None, "test.viewer.observer", 0.0, {"value": 1}, ()),) * 2},
         {"events": ((0, 1, "test.viewer.observer", 0.0, {"value": 1}, ()),)},
         {"events": ((0, None, "test.viewer.domain", 0.0, {"value": 1}, ()),)},
         {"events": ((0, None, "test.viewer.observer", 0.0, {"value": 1}, (("retire", "x"),)),)},
@@ -172,3 +175,43 @@ def test_observer_latency_flushes_without_a_following_event(tmp_path: Path) -> N
         assert recorder._cond.wait_for(lambda: not recorder._observers and recorder._pending == 0, timeout=5)
     assert [e.payload["value"] for e in Trace.open(path).observer_events()] == [1]
     recorder.close()
+
+
+@pytest.mark.parametrize("tail", [False, True])
+def test_observer_crc_damage_rejects_interior_records_but_ignores_incomplete_tail(tmp_path: Path, tail: bool) -> None:
+    from simulatte.trace.format import PREAMBLE, RECORD_HEADER, RecordType
+    from simulatte.trace.reader import TraceCorrupted
+
+    path = tmp_path / "observer-crc.simtrace"
+    env = Environment()
+    recorder = TraceRecorder(env, path, chunk_limits=ChunkLimits(max_events=1))
+    env.activate()
+    env.emit(Change(value=0))
+    env.emit(Observation(value=1))
+    env.emit(Observation(value=2))
+    env.emit(Change(value=3))
+    recorder.close()
+    data = bytearray(path.read_bytes())
+    observers: list[tuple[int, int]] = []
+    offset = PREAMBLE.size
+    while offset < len(data):
+        length, kind, _ = RECORD_HEADER.unpack_from(data, offset)
+        if kind == RecordType.FOOTER:
+            break
+        end = offset + RECORD_HEADER.size + length
+        if kind == RecordType.OBSERVERS:
+            observers.append((offset, end))
+        offset = end
+    assert len(observers) == 2
+    damaged, end = observers[-1]
+    data[damaged + RECORD_HEADER.size] ^= 0xFF
+    path.write_bytes(data[:end] if tail else data)
+    trace = Trace.open(path)
+    if tail:
+        assert trace.truncated
+        assert [event.payload["value"] for event in trace.observer_events()] == [1]
+        trace.check()
+    else:
+        assert not trace.truncated
+        with pytest.raises(TraceCorrupted, match=f"record at {damaged} fails its CRC check"):
+            list(trace.observer_events())

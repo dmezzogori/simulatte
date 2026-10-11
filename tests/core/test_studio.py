@@ -176,6 +176,12 @@ def test_assets_missing_stale_and_valid(tmp_path, monkeypatch):
     manifest["source_fingerprint"] = digest.hexdigest()
     publish()
     assert server.assets() == directory
+    # Dependency caches, output, and directories are not frontend source inputs.
+    for name in ("node_modules", "dist"):
+        ignored = frontend / name
+        ignored.mkdir()
+        (ignored / "generated.js").write_bytes(b"not a source input")
+    assert server.assets() == directory
     schema.write_bytes(b"changed schema")
     with pytest.raises(RuntimeError, match="Studio assets"):
         server.assets()
@@ -257,3 +263,55 @@ def test_portable_binary_ranges(viewer, tmp_path, monkeypatch):
             assert client.get("/trace", headers={**headers, "Range": "bytes=2-6"}).content == data[2:7]
     finally:
         binary.close()
+
+
+def test_trace_replacement_during_open_closes_rejected_descriptor(viewer, tmp_path, monkeypatch):
+    import os
+
+    server, _ = viewer
+    trace = tmp_path / "racy.simtrace"
+    replacement = tmp_path / "replacement.simtrace"
+    trace.write_bytes(b"original")
+    replacement.write_bytes(b"replacement")
+    opened = []
+    original_open = os.open
+
+    def replace_before_open(path, flags):
+        replacement.replace(trace)
+        descriptor = original_open(path, flags)
+        opened.append(descriptor)
+        return descriptor
+
+    monkeypatch.setattr(os, "open", replace_before_open)
+    with pytest.raises(ValueError, match="regular file"):
+        ViewerServer(trace, 8124, server.static)
+    assert len(opened) == 1
+    with pytest.raises(OSError):
+        os.fstat(opened[0])
+
+
+@pytest.mark.parametrize("stage", ["before_read", "after_read", "short_read"])
+def test_stream_rejects_changes_after_response_headers(viewer, monkeypatch, stage):
+    import os
+
+    server, client = viewer
+    headers = authenticate(server, client)
+    checks = iter([True, False] if stage == "before_read" else [True, True, False])
+    monkeypatch.setattr(server, "unchanged", lambda: next(checks))
+    if stage == "short_read":
+        monkeypatch.setattr(os, "pread", lambda *args: b"", raising=False)
+    with pytest.raises(RuntimeError, match="Recording changed; reopen the trace"):
+        client.get("/trace", headers=headers)
+    # A failed response does not own or close the server's shared descriptor.
+    assert os.fstat(server.fd).st_size == 10
+
+
+def test_allowlisted_asset_symlink_cannot_escape_static_directory(viewer, tmp_path):
+    server, client = viewer
+    outside = tmp_path / "private.txt"
+    outside.write_text("private recording contents")
+    (server.static / "escape.js").symlink_to(outside)
+    server.allowed.add("escape.js")
+    response = client.get("/escape.js")
+    assert response.status_code == 404
+    assert "private recording contents" not in response.text
