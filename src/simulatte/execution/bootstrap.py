@@ -98,8 +98,37 @@ def inspect_configuration(config: dict[str, Any]) -> dict[str, Any]:
         active = False
 
 
+def _worker_entry(port: int, token: str) -> int:
+    import socket
+    import struct
+
+    with socket.create_connection(("127.0.0.1", port), timeout=10) as connection:
+        connection.sendall(token.encode("ascii") + b"\n")
+
+        def read_exact(size):
+            data = bytearray()
+            while len(data) < size:
+                part = connection.recv(size - len(data))
+                if not part:
+                    raise ValueError("Incomplete child configuration")
+                data.extend(part)
+            return bytes(data)
+
+        size = struct.unpack(">I", read_exact(4))[0]
+        if not 1 <= size <= 256 << 10:
+            raise ValueError("Invalid child configuration length")
+        config = json.loads(read_exact(size))
+        sys.path[:0] = [*config["snapshot_roots"], *config["external_roots"]]
+        from simulatte.execution.child import serve
+
+        connection.settimeout(None)
+        return serve(config, connection)
+
+
 def main() -> int:
     try:
+        if len(sys.argv) == 3 and sys.argv[1] == "--child":
+            return _worker_entry(int(sys.argv[2]), os.environ.pop("SIMULATTE_CHILD_TOKEN"))
         raw = sys.stdin.buffer.read((256 << 10) + 1)
         if len(raw) > 256 << 10:
             raise ValueError("Bootstrap configuration exceeds 256 KiB")
@@ -110,7 +139,7 @@ def main() -> int:
             result = inspect_configuration(config)
         sys.stdout.write(json.dumps(result, allow_nan=False))
         return 0
-    except (OSError, ValueError, ImportError, TypeError, KeyError) as error:
+    except (OSError, ValueError, ImportError, TypeError, KeyError, RecursionError) as error:
         print(f"{type(error).__name__}: {str(error)[:4096]}", file=sys.stderr)
         return 2
 

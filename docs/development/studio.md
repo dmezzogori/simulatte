@@ -191,3 +191,32 @@ operations, not collector observations.
 
 The execution and interactive Studio commands are under development; this
 metadata API does not imply that the full SP4 workflow has shipped.
+
+### Execution isolation foundation
+
+Managed execution captures current working-tree bytes, including dirty tracked
+files. Git projects start with tracked membership; non-Git projects must declare
+`[tool.simulatte.bundle].include` in `pyproject.toml`. Additional include/exclude
+patterns and project-relative `python-path` roots are supported. Source, declared
+data inputs and the configured layout are separate inputs. Declared data must be
+read during build or simulation, so metadata inspection can import the model
+without reading it.
+
+The internal worker uses disposable `-I -S` children. It does not execute `.pth`
+or startup hooks; supported local imports come from the captured tree. Workspace
+and installed local-package metadata determine import roots, and external local
+packages are rejected. A development installation of the trusted Simulatte runtime
+is frozen separately. Read-only materializations protect against accidental
+writes; they are not a security sandbox.
+
+Worker framing, diagnostic buffering and controls have fixed bounds. Native
+stdout/stderr is drained separately from protocol traffic. Heartbeats belong to
+the supervisor, so an unresponsive model can still be cancelled. POSIX cleanup
+uses an independent guardian and process groups, including cleanup after parent
+exit; deliberately detached sessions are outside this guarantee. Windows uses
+suspended creation and Job assignment before execution, and refuses assignment
+failure. Native Windows acceptance is still pending; API unit checks are not a
+substitute for that evidence.
+
+These are internal execution foundations. The run store, managed run driver,
+Studio editing and live viewer integration remain separate implementation work.

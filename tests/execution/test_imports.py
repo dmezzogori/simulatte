@@ -218,6 +218,16 @@ def test_bootstrap_main_real_inspection_and_bad_config(tmp_path, monkeypatch):
 def test_import_time_declared_data_read_is_rejected(tmp_path, monkeypatch):
     from simulatte.execution.bootstrap import inspect_configuration
 
+    # CPython deliberately skips tracing audit hooks unless they opt in. Keep
+    # instrumentation in the test; production inspection need not trace hooks.
+    add_hook = sys.addaudithook
+
+    def traced_hook(hook):
+        hook.__cantrace__ = True
+        add_hook(hook)
+
+    monkeypatch.setattr(sys, "addaudithook", traced_hook)
+
     root = tmp_path / "project"
     root.mkdir()
     snap = tmp_path / "snapshot"
@@ -321,3 +331,54 @@ def test_ambiguous_local_roots_and_editable_allowlist_are_rejected(tmp_path):
         ImportPolicy(working, (first, second), ())
     with pytest.raises(ValueError, match="editable"):
         ImportPolicy(working, (first,), (working,))
+
+
+@pytest.mark.parametrize("damage", ["valid", "oversize", "header_eof", "body_eof"])
+def test_private_bootstrap_configuration_is_bounded(tmp_path, monkeypatch, damage):
+    import socket
+    import struct
+    import threading
+    from simulatte.execution import bootstrap, child
+
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    config = {"snapshot_roots": [str(tmp_path)], "external_roots": [str(RUNTIME), SITE]}
+    data = json.dumps(config).encode()
+    payload = struct.pack(">I", len(data)) + data
+    if damage == "oversize":
+        payload = struct.pack(">I", (256 << 10) + 1)
+    if damage == "header_eof":
+        payload = b"\0"
+    if damage == "body_eof":
+        payload = payload[:-1]
+
+    def server():
+        connection, _ = listener.accept()
+        with connection:
+            assert connection.recv(6) == b"token\n"
+            for offset in range(0, len(payload), 3):
+                connection.sendall(payload[offset : offset + 3])
+            connection.shutdown(socket.SHUT_WR)
+
+    thread = threading.Thread(target=server)
+    thread.start()
+
+    def serve(received, connection):
+        assert received == config
+        assert connection.gettimeout() is None
+        return 7
+
+    monkeypatch.setattr(child, "serve", serve)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    try:
+        if damage == "valid":
+            monkeypatch.setattr(sys, "argv", ["bootstrap.py", "--child", str(listener.getsockname()[1])])
+            monkeypatch.setenv("SIMULATTE_CHILD_TOKEN", "token")
+            assert bootstrap.main() == 7
+        else:
+            with pytest.raises(ValueError):
+                bootstrap._worker_entry(listener.getsockname()[1], "token")
+    finally:
+        thread.join(2)
+        listener.close()

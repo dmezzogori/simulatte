@@ -7,6 +7,11 @@ import sys
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv == ["_worker"]:
+        from simulatte.execution.supervisor import Supervisor
+
+        return Supervisor().run_stdio()
     parser = argparse.ArgumentParser(prog="simulatte")
     commands = parser.add_subparsers(dest="command", required=True)
     view = commands.add_parser("view", help="Open a recorded trace in the local viewer")

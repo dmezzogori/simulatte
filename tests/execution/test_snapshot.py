@@ -431,3 +431,112 @@ def test_local_dependency_missing_or_nonlocal_metadata(tmp_path):
         m.local_package_roots(tmp_path, {}, [dist({"url": "https://example.invalid/source", "dir_info": {}})])
     with pytest.raises(ValueError, match="missing"):
         m.local_package_roots(tmp_path, {"tool": {"uv": {"sources": {"missing": {"path": "absent"}}}}}, [])
+
+
+def test_atomic_replace_between_stat_and_open_is_rejected(tmp_path, monkeypatch):
+    m = api()
+    path = tmp_path / "plant.py"
+    path.write_text("OLD")
+    real_open = m.os.open
+
+    def racing_open(name, flags, *args, **kwargs):
+        replacement = tmp_path / "replacement"
+        replacement.write_text("NEW")
+        replacement.replace(path)
+        return real_open(name, flags, *args, **kwargs)
+
+    monkeypatch.setattr(m.os, "open", racing_open)
+    with pytest.raises(m.SnapshotChanged):
+        m._copy(tmp_path, "plant.py", None, 100)
+
+
+@pytest.mark.parametrize("remaining", [10, 100])
+def test_source_growth_during_read_is_not_silently_captured(tmp_path, monkeypatch, remaining):
+    m = api()
+    path = tmp_path / "plant.py"
+    path.write_bytes(b"123456")
+    real_hash = m.hashlib.sha256
+    changed = False
+
+    class Digest:
+        def __init__(self):
+            self.actual = real_hash()
+
+        def update(self, data):
+            nonlocal changed
+            self.actual.update(data)
+            if not changed:
+                with path.open("ab") as stream:
+                    stream.write(b"12345")
+                changed = True
+
+        def hexdigest(self):
+            return self.actual.hexdigest()
+
+    monkeypatch.setattr(m.hashlib, "sha256", Digest)
+    with pytest.raises(ValueError, match="limit|snapshot_changed"):
+        m._copy(tmp_path, "plant.py", None, remaining)
+
+
+def test_inputs_share_byte_quota_and_edits_after_copy_fail(tmp_path, monkeypatch):
+    from dataclasses import replace
+
+    m = api()
+    source = m.capture_source(m.discover_project(project(tmp_path)))
+    extra = tmp_path / "extra.csv"
+    extra.write_text("more data")
+    limited = replace(source, project=replace(source.project, max_bytes=sum(e.size for e in source.entries)))
+    with pytest.raises(ValueError, match="Combined snapshot byte"):
+        m.capture_inputs(limited, ("extra.csv",))
+    copy = m._copy
+
+    def changed(root, name, destination, remaining):
+        entry = copy(root, name, destination, remaining)
+        if name == "extra.csv" and destination is not None:
+            extra.write_text("changed")
+        return entry
+
+    monkeypatch.setattr(m, "_copy", changed)
+    with pytest.raises(m.SnapshotChanged, match="inputs"):
+        m.capture_inputs(source, ("extra.csv",))
+
+
+def test_manifest_reopen_obeys_size_caps(tmp_path):
+    from dataclasses import replace
+
+    m = api()
+    source = m.capture_source(m.discover_project(project(tmp_path)))
+    with pytest.raises(ValueError, match="byte limit"):
+        m.load_source(replace(source.project, max_bytes=1), source.content_hash)
+    with pytest.raises(ValueError, match="file limit"):
+        m.load_source(replace(source.project, max_files=1), source.content_hash)
+    with source.archive.with_suffix(".msgpack").open("wb") as stream:
+        stream.truncate((64 << 20) + 1)
+    with pytest.raises(ValueError, match="manifest exceeds"):
+        m.load_source(source.project, source.content_hash)
+
+
+@pytest.mark.parametrize("mode", ["conflict", "submodule", "removed_git"])
+def test_git_membership_inconsistency_refuses_capture(tmp_path, mode):
+    import shutil
+
+    m = api()
+    model = project(tmp_path)
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    spec = m.discover_project(model)
+    digest = subprocess.check_output(["git", "-C", str(tmp_path), "hash-object", "plant.py"]).decode().strip()
+    if mode == "conflict":
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "update-index", "--index-info"],
+            input=f"100644 {digest} 1\thelper.py\n".encode(),
+            check=True,
+        )
+    elif mode == "submodule":
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "update-index", "--add", "--cacheinfo", f"160000,{digest},vendor"], check=True
+        )
+    else:
+        shutil.rmtree(tmp_path / ".git")
+    with pytest.raises(ValueError, match="conflicts|Submodule|Git source"):
+        m.capture_source(spec)
