@@ -554,3 +554,35 @@ def test_project_discovery_normalizes_symlinked_parent_without_losing_model_name
     project = discover_project(alias / "plant.py")
     assert project.root == real.resolve()
     assert project.model == "plant.py"
+
+
+def test_capture_rejects_configuration_changed_after_project_discovery(tmp_path):
+    m = api()
+    model = project(tmp_path)
+    spec = m.discover_project(model)
+    (tmp_path / "pyproject.toml").write_text('[tool.simulatte.bundle]\ninclude=["plant.py"]\n')
+    with pytest.raises(m.SnapshotChanged, match="configuration"):
+        m.capture_source(spec)
+    current = m.capture_source(m.discover_project(model))
+    assert "helper.py" not in {entry.path for entry in current.entries}
+
+
+def test_configuration_creation_and_removal_are_fenced_against_discovery(tmp_path):
+    m = api()
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    model = tmp_path / "plant.py"
+    model.write_text("pass\n")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "plant.py"], check=True)
+    absent = m.discover_project(model)
+    assert absent.config_hash is not None
+    original = m.capture_source(absent)
+    (tmp_path / "pyproject.toml").write_text("")
+    with pytest.raises(m.SnapshotChanged, match="configuration"):
+        m.capture_source(absent)
+    present = m.discover_project(model)
+    assert present.config_hash != absent.config_hash
+    m.capture_source(present)
+    (tmp_path / "pyproject.toml").unlink()
+    with pytest.raises(m.SnapshotChanged, match="configuration"):
+        m.capture_source(present)
+    assert m.capture_source(m.discover_project(model)).content_hash == original.content_hash

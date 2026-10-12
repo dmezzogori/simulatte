@@ -114,15 +114,20 @@ def run(args):
                     raise ValueError("Parameters use NAME=VALUE")
                 raw.append((name, value))
             parameters = parse_parameters(ParameterSchema.from_dict(model["parameters"]), raw)
-            request = coordinator.make_request(
-                prepared,
-                parameters=parameters,
-                seed=args.seed,
-                stopping=_stopping(args, model["stopping"]),
-                level=args.level,
-                kpis=tuple(args.kpi),
+            state = coordinator.inputs.bind(prepared)
+            state = coordinator.inputs.apply(
+                state.revision,
+                {
+                    "parameters": parameters,
+                    "seed": args.seed,
+                    "stopping": _stopping(args, model["stopping"]),
+                    "level": args.level,
+                    "kpis": tuple(args.kpi),
+                },
+                auto_run=False,
             )
-            key = coordinator.submit(request, prepared.revision, timeout=args.timeout)
+            assert state.request is not None
+            key = coordinator.submit(state.request, state.revision, timeout=args.timeout)
             result = coordinator.wait(key)
         key = result.key
         if args.output is not None:

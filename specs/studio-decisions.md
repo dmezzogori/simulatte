@@ -376,3 +376,35 @@ failure that also prevents the terminal index write is reported as an undurable
 live failure and closes admission until restart. Startup recovery owns the orphan
 transition; the running coordinator must not report a durable terminal write that
 did not happen.
+
+**D85. Bind discovered project settings to the configuration bytes that produced them.**
+Project discovery records a domain-separated identity for the parsed
+`pyproject.toml` bytes, including an explicit absent-file identity. Source capture
+checks that binding against its captured entries before publication. A changed
+configuration must produce `snapshot_changed` within the existing three-attempt
+capture budget and require fresh discovery; it must not pair new configuration
+bytes with old include/exclude/import-root settings. Reproduction still uses the
+stored project settings and captured bytes without reopening working configuration.
+Synthetic trusted-runtime bundles do not derive their membership from a project's
+pyproject and remain independent of this binding.
+
+Input-state documents encode the seed as canonical decimal text, just like the
+execution request wire schema. CLI integers and canonical text normalize to the
+same value; the execution request retains its internal integer representation.
+This preserves all supported 63-bit seeds without weakening the wire format's
+safe-integer bound. Source refresh retains valid parameter values and same-family
+stopping values; incompatible fields or a changed stopping family require Apply.
+
+**D86. Coalesce watcher observations without losing the newest layout edit.**
+The monitor has one refresh processor and one latest pending observation. Source
+changes invalidate provisional work immediately. A layout observation made stale
+by an earlier presentation commit may be re-observed against the current revision,
+provided no newer observation, permission pause or shutdown superseded it. This
+reconciles file observations; it does not retry a failed execution attempt.
+Acknowledgement uses captured manifest/configuration/layout identities, never a
+new working-tree scan that could swallow edits made during inspection.
+
+A watcher or background-read permission failure pauses execution. If the index
+cannot persist invalidation, admission closes, queued work is discarded and the
+failure is explicitly marked `index_terminal_state: not_durable`. Last committed
+results remain distinct from current invalid or provisional inputs.

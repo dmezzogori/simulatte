@@ -357,3 +357,19 @@ def test_watcher_refuses_layout_symlink_escape(tmp_path):
     (tmp_path / "layout.json").symlink_to(tmp_path.parent / "outside-layout.json")
     with pytest.raises(ValueError, match="escapes"):
         m.ProjectWatcher(spec).scan()
+
+
+def test_captured_baseline_does_not_swallow_edits_during_inspection(tmp_path):
+    from simulatte.execution.snapshot import capture_source, capture_inputs
+
+    m = api()
+    spec = project(tmp_path)
+    snapshot = capture_inputs(capture_source(spec), ("data.csv",))
+    baseline = m.captured_state(snapshot, layout_hash=None)
+    watcher = m.ProjectWatcher(spec, inputs=("data.csv",), baseline=baseline)
+    assert watcher.scan() == baseline
+    (tmp_path / "data.csv").write_text("newer working bytes")
+    watcher.configure(inputs=("data.csv",), project=spec, baseline=baseline)
+    change = watcher.check()
+    assert change.changed == frozenset({"inputs"})
+    assert change.state.input_hash != snapshot.inputs.content_hash

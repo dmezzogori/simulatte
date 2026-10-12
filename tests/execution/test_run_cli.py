@@ -15,11 +15,37 @@ def test_run_json_and_reproduce_without_working_model_or_web(tmp_path, capsys):
     model = spec.root / "plant.py"
     model.write_text('import sys\nprint("model stdout")\nprint("model stderr", file=sys.stderr)\n' + model.read_text())
     output = tmp_path / "result.simtrace"
-    with patch.dict(sys.modules, {"starlette": None, "uvicorn": None}):
-        assert main(["run", str(spec.root / "plant.py"), "--param", "n=4", "--json", "--output", str(output)]) == 0
+    with patch.dict(sys.modules, {"starlette": None, "uvicorn": None, "watchfiles": None, "websockets": None}):
+        assert (
+            main(
+                [
+                    "run",
+                    str(spec.root / "plant.py"),
+                    "--param",
+                    "n=4",
+                    "--seed",
+                    str(2**63 - 1),
+                    "--json",
+                    "--output",
+                    str(output),
+                ]
+            )
+            == 0
+        )
         result = json.loads(capsys.readouterr().out)
         assert result["status"] == "succeeded"
         assert output.is_file()
+        from simulatte.execution.store import RunStore, _read
+
+        with RunStore.open(spec.root / ".simulatte") as store:
+            revision = store.current_revision()
+            assert revision is not None
+            with store._transaction() as db:
+                inputs = _read(
+                    db.execute("SELECT inputs FROM revisions WHERE number=?", (revision.number,)).fetchone()[0]
+                )
+            assert inputs["options"]["parameters"] == {"n": 4}
+            assert inputs["options"]["seed"] == str(2**63 - 1)
         (spec.root / "plant.py").unlink()
         (spec.root / "pyproject.toml").write_text("broken toml[")
         assert main(["run", "--reproduce", result["request_id"], "--project", str(spec.root), "--json"]) == 0
@@ -182,9 +208,10 @@ def test_keyboard_interrupt_cancels_assigned_attempt(monkeypatch, capsys):
     def interrupt(*args):
         raise KeyboardInterrupt()
 
+    state = SimpleNamespace(revision=None, request=object())
     owner = SimpleNamespace(
         prepare=lambda **kw: prepared,
-        make_request=lambda *a, **kw: None,
+        inputs=SimpleNamespace(bind=lambda *a: state, apply=lambda *a, **kw: state),
         submit=lambda *a, **kw: key,
         wait=interrupt,
         cancel=cancelled.append,

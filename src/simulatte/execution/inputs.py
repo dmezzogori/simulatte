@@ -51,6 +51,13 @@ class InputOwner:
         with self.coordinator._condition:
             return self._state
 
+    def captured_inputs(self):
+        """Return one consistent immutable observation for the project watcher."""
+        with self.coordinator._condition:
+            if self._state is None or self._prepared is None or self._captured is None:
+                raise RuntimeError("Model metadata must be prepared before watching inputs")
+            return self._state, self._prepared, self._captured
+
     def _check(self, base):
         if self.coordinator._closed or self.coordinator._fatal is not None:
             raise RuntimeError("Coordinator cannot accept input changes")
@@ -362,6 +369,7 @@ class InputOwner:
                             self.coordinator._fatal = ExecutionFailure(
                                 None, "failed", {"message": str(error)[:4096], "index_terminal_state": "not_durable"}
                             )
+                            self.coordinator._pending = None
                             self.coordinator._condition.notify_all()
                         raise
         except RevisionConflict:

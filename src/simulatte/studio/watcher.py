@@ -47,6 +47,26 @@ class InputChange:
     permission_denied: bool = False
 
 
+def captured_state(snapshot, *, layout_hash):
+    """Acknowledge execution bytes, never whatever happens to be on disk now."""
+    configuration = asdict(snapshot.source.project)
+    configuration.pop("root")
+    configuration["pyproject"] = next(
+        (
+            entry.sha256
+            for entry in (*snapshot.source.entries, *snapshot.inputs.entries)
+            if entry.path == "pyproject.toml"
+        ),
+        None,
+    )
+    return ProjectState(
+        snapshot.source.content_hash,
+        snapshot.inputs.content_hash,
+        layout_hash,
+        canonical_hash("watch-config-v1", configuration),
+    )
+
+
 def _file_hash(path: Path, *, optional=False):
     try:
         with path.open("rb") as file:
@@ -93,7 +113,7 @@ class ProjectWatcher:
         parts = path.relative_to(self.project.root).parts
         return not set(parts) & _RESERVED
 
-    def configure(self, *, inputs, project=None):
+    def configure(self, *, inputs, project=None, baseline=None):
         """Adopt metadata discovery without treating it as a watcher observation."""
         values = tuple(inputs)
         _validate_names(values)
@@ -103,6 +123,8 @@ class ProjectWatcher:
                     raise ValueError("Watcher cannot switch project roots")
                 self.project = project
             self.inputs = values
+            if baseline is not None:
+                self._last, self._error = baseline, None
             self._generation += 1
             self._watch_stop.set()
 

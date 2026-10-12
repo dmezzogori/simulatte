@@ -489,8 +489,11 @@ def test_unwritable_index_after_save_stops_all_new_admission(tmp_path, monkeypat
             raise OSError("index unavailable")
 
         monkeypatch.setattr(coordinator.store, "create_revision", fail)
-        with pytest.raises(OSError, match="index unavailable"):
-            owner.write_layout(state.revision, {"schema_version": "1.0", "grid": {"dx": 2}}, auto_run=False)
+        with coordinator._condition:
+            coordinator.submit(state.request, state.revision, timeout=10)
+            with pytest.raises(OSError, match="index unavailable"):
+                owner.write_layout(state.revision, {"schema_version": "1.0", "grid": {"dx": 2}}, auto_run=False)
+            assert coordinator._pending is None
         assert coordinator._fatal.details["index_terminal_state"] == "not_durable"
         with pytest.raises(RuntimeError):
             owner.apply(state.revision, {"seed": 2})

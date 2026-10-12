@@ -44,6 +44,7 @@ class ProjectSpec:
     git: bool
     max_bytes: int = 1 << 30
     max_files: int = 100_000
+    config_hash: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,7 +149,8 @@ def discover_project(
         raise ValueError("model escapes project root")
     relative = _path(model.relative_to(root).as_posix())
     layout = _path(layout)
-    config = tomllib.loads((root / "pyproject.toml").read_text()) if (root / "pyproject.toml").is_file() else {}
+    config_bytes = (root / "pyproject.toml").read_bytes() if (root / "pyproject.toml").is_file() else None
+    config = tomllib.loads(config_bytes.decode("utf-8")) if config_bytes is not None else {}
     bundle = config.get("tool", {}).get("simulatte", {}).get("bundle", {})
     patterns = {}
     for key in ("include", "exclude"):
@@ -174,7 +176,22 @@ def discover_project(
     limits = {name: bundle.get(name, default) for name, default in [("max_bytes", 1 << 30), ("max_files", 100_000)]}
     if any(type(value) is not int or value < 1 for value in limits.values()):
         raise ValueError("Invalid capture limit")
-    return ProjectSpec(root, relative, layout, patterns["include"], patterns["exclude"], tuple(roots), git, **limits)
+    config_hash = _configuration_hash(None if config_bytes is None else hashlib.sha256(config_bytes).hexdigest())
+    return ProjectSpec(
+        root,
+        relative,
+        layout,
+        patterns["include"],
+        patterns["exclude"],
+        tuple(roots),
+        git,
+        **limits,
+        config_hash=config_hash,
+    )
+
+
+def _configuration_hash(pyproject_hash):
+    return canonical_hash("project-config-v1", {"pyproject": pyproject_hash})
 
 
 def local_package_roots(root: Path, config: Mapping, distributions=None) -> tuple[str, ...]:
@@ -396,10 +413,14 @@ def capture_source(project: ProjectSpec) -> SourceSnapshot:
                 for entry in entries:
                     if _copy(project.root, entry.path, None, project.max_bytes) != entry:
                         raise SnapshotChanged("snapshot_changed: bytes")
+                if project.config_hash is not None:
+                    config_hash = next((entry.sha256 for entry in entries if entry.path == "pyproject.toml"), None)
+                    if _configuration_hash(config_hash) != project.config_hash:
+                        raise SnapshotChanged("snapshot_changed: project configuration; rediscover project")
                 return _publish(project, tuple(entries), tree, "source")
-        except (SnapshotChanged, FileNotFoundError):
+        except (SnapshotChanged, FileNotFoundError) as error:
             if retry == 2:
-                raise SnapshotChanged("snapshot_changed after three capture attempts") from None
+                raise SnapshotChanged(f"snapshot_changed after three capture attempts: {error}") from None
     raise AssertionError("unreachable")  # pragma: no cover
 
 

@@ -22,11 +22,19 @@ After the seed fix, a fresh full run passed **2,882 tests**, with one native Win
 
 Linux used an isolated source copy on strangelove, without modifying its existing repository. The transferred source archive's SHA-256 was `89cee1cbafa95e727812a5cbc4e01d572597441d81f9b35bf9f0345e0af84511`; it contained the same tested production files and tests. Local logs are retained in the ignored SP4 work ledger. The targeted command was `uv run --all-extras pytest tests/execution/test_inputs.py tests/execution/test_layout_files.py tests/execution/test_revisions.py tests/core/test_studio_watcher.py --no-cov -q`; macOS compatibility runs additionally selected isolated CPython/PyPy 3.11 environments.
 
+## Watcher and CLI integration
+
+The monitor now owns one refresh processor and one latest pending observation. Source changes invalidate provisional work immediately; layout observations use SP2 classification and can re-observe current disk bytes after an earlier presentation commit advances the revision. Permission errors pause execution, including a permission change between the watcher scan and background layout read. Failed index invalidation closes admission and discards queued work. Shutdown fences an in-flight refresh before stopping the processor.
+
+Watcher acknowledgements derive from captured source, declared-input, configuration and raw-layout identities. They do not rescan working files, which could otherwise hide edits made during inspection. Project discovery now binds parsed settings to the exact configuration bytes. A regression test reproduced the old failure: new configuration bytes could be captured with old membership settings. Capture now rejects that mismatch within its existing retry budget and requires fresh discovery. Creation/removal and absent-versus-empty configuration identities are tested.
+
+Headless `run` uses the same input owner and Apply normalization as Studio will use. Reproduction retains its captured preparation path. The full current regression gate passed **2,897 tests**, with one native Windows skip, one existing warning and **99.03% branch coverage**, in 338.59 s. Ruff lint/format, repository-wide type checking and whitespace checks pass.
+
+The 134 monitor/watcher/snapshot/CLI/input-owner tests passed on native Linux CPython 3.14.0 in 221.03 s. The isolated source archive SHA-256 was `4092dad0ea1d07b03d40bf04e03eab8d28cc211a20fadfb5a63e8623b41ad5db`. The 106 monitor/watcher/snapshot/CLI tests passed on macOS CPython 3.11 in 68.75 s and PyPy 3.11 in 69.81 s. Native Windows watcher and containment evidence remains a Task 13 requirement.
+
 ## Remaining integration
 
-- Connect the watcher to a bounded latest-change queue and one refresh worker; acknowledge captured manifest baselines without losing edits during inspection.
-- Move headless CLI input selection through the shared owner and retain reproduction behavior.
-- Finish failure/coverage and native platform checks before treating Task 8 as complete.
+- Complete platform acceptance, including native Windows; the available Linux/macOS checks do not substitute for it.
 - Implement Tasks 9–14: incremental live reader, authenticated Studio transport, parameter forms/full layout editor, history/export integration, acceptance and documentation/distribution.
 
 No frontend live editing, complete Studio session, published package or complete platform acceptance is claimed by this foundation.
