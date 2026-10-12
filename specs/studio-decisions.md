@@ -471,3 +471,45 @@ is reconciled by the watcher or rejected by the final protected-write comparison
 Finite float parameters outside JavaScript's safe-integer range use an explicit
 JSON exponent; their field schema still distinguishes them from integer inputs.
 Nonfinite command and layout values are rejected before sending.
+
+## D89 — Editor drafts, inverse history and disposable physical previews (2026-10-12)
+
+Parameter drafts retain their base revision until explicit review. A new schema
+flags incompatible or removed edits; Apply sends one normalized input change.
+Layout history retains guarded field patches (64 entries and 32 MiB total).
+Arrays replace wholly, as in SP2. Undo and redo apply inverse/new patches to the
+latest revision and refuse overlapping external changes; they do not restore
+an old whole-file snapshot. Numeric controls and canvas gestures share these
+drafts, with pointer movement kept imperative until pointer-up.
+
+Use the existing SP2 JSON schema and validator for structured controls. Schema
+forms cover fields that do not have specialized canvas handles. File Reset
+removes an override, while `$unset` suppresses an optional inherited value.
+Lane vertex ids remain stable; edits never transfer old segment overrides to
+new vertex ids. Generated-id physical moves are refused, and presentation
+references carry a visible stability warning.
+
+Physical `layout.validate` reuses the normal immutable request, supervisor,
+receiver and durable INITIAL/ready barrier in a disposable coordinator with its
+own temporary run store. It cancels before `ready_ack`, so no simulation event
+is stepped. Return the resolved layout only after the supervisor confirms exit
+and descendant cleanup. No simulation result is published, no working layout
+is written, and the real coordinator's revision/active attempt is unchanged.
+One preview may run alongside the project's execution slot; there is no warm
+spare. The default preview timeout is 30 seconds (an explicit serving timeout
+also applies). A changed revision or coordinator shutdown cancels the preview.
+
+This resolves the focused design's unspecified preview scheduling detail:
+preview needs a separate bounded slot to avoid replacing an active run merely
+to validate an unsaved draft. It uses existing worker protocol messages and
+never weakens normal result publication. The read-only validation command does
+not hold the Studio mutation lock during Python preparation, allowing cancel
+and newer revision commands to proceed; the preview rechecks its base before
+returning. Presentation-only validation still uses pure re-resolution.
+
+Large preview drafts use authenticated `PUT /api/layout/validate` with the same
+16 MiB streaming body cap and revision header as layout writes. This endpoint
+only validates; it never replaces the configured file. Small websocket
+`layout.validate` remains supported. This makes the existing large-document
+contract apply to validation as well as saving, without raising control-frame
+limits or creating a general upload API.

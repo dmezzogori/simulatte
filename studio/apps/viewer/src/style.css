@@ -413,3 +413,22 @@ input[type="range"] {
 
 .studio-controls {padding: .65rem 1rem; border-bottom: 1px solid #ddd; background: #fafafa; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;}
 .studio-controls pre {max-height: 8rem; overflow: auto; width: 100%;}
+.studio-parameters {width: 100%;}
+.studio-parameters summary {cursor: pointer; font-weight: 600;}
+.parameter-form {max-height: 45vh; overflow: auto; padding: .5rem;}
+.parameter-form fieldset {display: flex; flex-wrap: wrap; align-items: start; gap: .75rem; margin: .5rem 0;}
+.parameter-form label, .parameter-field {display: flex; flex-direction: column; gap: .25rem;}
+.parameter-field {max-width: 24rem;}
+.parameter-field small {display: block;}
+.parameter-form [aria-invalid=true] {outline: 1px solid #bd3030;}
+.parameter-form [role=alert] {color: #9a2424;}
+.parameter-form > [role=status] {margin-left: .5rem;}
+.studio-layout {width: 100%;}
+.studio-layout summary {cursor: pointer; font-weight: 600;}
+.layout-editor {max-height: 55vh; overflow: auto; padding: .5rem;}
+.layout-editor fieldset {margin: .4rem 0; padding: .5rem; border: 1px solid #ccc;}
+.layout-editor label {display: inline-flex; flex-direction: column; gap: .2rem; margin: .25rem;}
+.layout-property {margin: .4rem 0;}
+.layout-editor [role=alert] {color: #9a2424;}
+.layout-canvas {height: 280px; min-width: 300px; position: relative; background: #f4f5f0;}
+.layout-canvas canvas {display: block; max-width: 100%;}

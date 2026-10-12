@@ -220,14 +220,20 @@ export class StudioClient {
     if (socket && sequence === this.#sequence) {this.#statePending = result.state; if (!this.#stateReading) await this.readState(socket, this.#epoch);}
   }
   async writeLayout(layer: Record<string, unknown>, revision: Revision, signal?: AbortSignal): Promise<Record<string, unknown>> {
+    return this.layoutCommand(false, layer, revision, signal);
+  }
+  async validateLayout(layer: Record<string, unknown>, revision: Revision, signal?: AbortSignal): Promise<Record<string, unknown>> {
+    return this.layoutCommand(true, layer, revision, signal);
+  }
+  private async layoutCommand(validate: boolean, layer: Record<string, unknown>, revision: Revision, signal?: AbortSignal): Promise<Record<string, unknown>> {
     if (this.status !== 'connected') throw new Error('Studio must synchronize before editing');
     const raw = serialize(layer, 16 << 20);
-    const response = await (this.options.fetch ?? fetch)(new URL('/api/layout', this.origin), {
+    const response = await (this.options.fetch ?? fetch)(new URL(validate ? '/api/layout/validate' : '/api/layout', this.origin), {
       method: 'PUT', headers: {'X-Simulatte-Session': this.secret, 'Content-Type': 'application/json',
         'X-Simulatte-Revision': JSON.stringify(revision), 'X-Simulatte-Command': crypto.randomUUID()},
       body: raw, credentials: 'same-origin', redirect: 'error', signal: signal ?? null,
     });
-    const result: unknown = await response.json();
+    const result: unknown = await this.expand(await response.json(), signal ?? this.#abort.signal);
     if (!response.ok || !object(result)) throw new Error(response.status === 409
       ? 'Layout changed; keep your draft and reload its base before saving'
       : 'Layout save failed; resynchronize before trying again');

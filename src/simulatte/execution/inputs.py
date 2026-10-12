@@ -259,6 +259,24 @@ class InputOwner:
                 return LayoutValidation(base, True)
             return result
 
+    def preview_layout(self, base: Revision, patch: Mapping[str, Any], *, timeout=30):
+        """Pure presentation resolution, or a disposable physical preparation child."""
+        validation = self.validate_layout(base, patch)
+        if not validation.requires_rerun:
+            return validation
+        with self.coordinator._condition:
+            self._check(base)
+            state, prepared = self._state, self._prepared
+            if state is None or prepared is None or state.issues:
+                raise ValueError("Resolve execution input issues before previewing physical changes")
+            layer = FileLayer(patch).to_dict()
+            prepared = replace(prepared, layout=layer)
+            request = self._request(prepared, _plain(state.options))
+        bundle = self.coordinator.preview(prepared, request, layer, timeout=timeout)
+        with self.coordinator._condition:
+            self._check(base)
+            return replace(validation, bundle=bundle)
+
     def _adopt_layout(self, captured, validation):
         prepared, state = self._prepared, self._state
         assert prepared is not None and state is not None

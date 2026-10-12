@@ -14,6 +14,7 @@ import errno
 import sqlite3
 from pathlib import Path
 import sysconfig
+import tempfile
 import threading
 import time
 from typing import Any
@@ -118,15 +119,18 @@ class _Job:
     snapshot: Snapshot
     documents: dict
     deadline: float | None
+    preview: dict | None = None
 
 
 class Coordinator:
-    def __init__(self, project: ProjectSpec, *, reference: str | None = None):
+    def __init__(self, project: ProjectSpec, *, reference: str | None = None, _store_root=None, _runtime=None):
         self.project = project
         self.reference = reference or project.model
-        self.store = RunStore.open(project.root / ".simulatte")
+        self.store = RunStore.open(project.root / ".simulatte" if _store_root is None else _store_root)
         try:
-            self.runtime = freeze_runtime(Path(__file__).resolve().parents[1], project.root)
+            self.runtime = (
+                freeze_runtime(Path(__file__).resolve().parents[1], project.root) if _runtime is None else _runtime
+            )
             self.distribution_roots = list(dict.fromkeys(sysconfig.get_path(name) for name in ("purelib", "platlib")))
             self._condition = threading.Condition()
             self._pending: _Job | None = None
@@ -135,6 +139,10 @@ class Coordinator:
             self._closed = False
             self._fatal: ExecutionFailure | None = None
             self._inputs = None
+            self._preview = None
+            self._preview_lock = threading.Lock()
+            self._preview_done = threading.Event()
+            self._preview_done.set()
             self._events: deque[dict] = deque()
             self._event_bytes = 0
             self._thread = threading.Thread(target=self._loop, name="simulatte-coordinator", daemon=True)
@@ -251,6 +259,47 @@ class Coordinator:
             snapshot, revision, project.model + ":" + metadata["selected"], metadata, layer, runtime, documents
         )
 
+    def preview(self, prepared, request, layer, *, timeout=30):
+        """Build in one disposable worker, cancel at INITIAL, never publish or replace a run."""
+        timeout = 30 if timeout is None else timeout
+        deadline = self._deadline(timeout)
+        with self._condition:
+            if self._closed:
+                raise RuntimeError("Coordinator is closed")
+            if not self._preview_lock.acquire(blocking=False):
+                raise RuntimeError("A layout preview is already running")
+            self._preview_done.clear()
+        try:
+            with tempfile.TemporaryDirectory(prefix="simulatte-preview-") as temporary:
+                with Coordinator(self.project, _store_root=Path(temporary), _runtime=self.runtime) as preview:
+                    with self._condition:
+                        self._preview = preview
+                    revision = preview.store.create_revision({"preview": request_id(request)})
+                    documents = {**prepared.documents, "layout_ref": preview._document("layout", layer)}
+                    outcome = {}
+                    key = preview._schedule(
+                        request, revision, prepared.snapshot, documents, self._remaining(deadline), _preview=outcome
+                    )
+                    while True:
+                        with self._condition:
+                            if self._closed or self.store.current_revision() != prepared.revision:
+                                preview.cancel(key)
+                                raise RevisionConflict("Layout preview was superseded")
+                        poll_timeout = min(0.1, self._remaining(deadline))
+                        try:
+                            preview.wait(key, timeout=poll_timeout)
+                        except TimeoutError:
+                            continue
+                        except ExecutionFailure as error:
+                            if error.status == "cancelled" and outcome.get("complete"):
+                                return outcome["bundle"]
+                            raise
+        finally:
+            with self._condition:
+                self._preview = None
+                self._preview_lock.release()
+                self._preview_done.set()
+
     def make_request(
         self, prepared: PreparedModel, *, parameters=None, seed=0, stopping=None, level="full", kpis=()
     ) -> ExecutionRequest:
@@ -324,7 +373,7 @@ class Coordinator:
             raise ValueError("Timeout must be positive and finite")
         return None if timeout is None else time.monotonic() + timeout
 
-    def _schedule(self, request, revision, snapshot, documents, timeout):
+    def _schedule(self, request, revision, snapshot, documents, timeout, *, _preview=None):
         deadline = self._deadline(timeout)
         with self._condition:
             if self._closed or self._fatal is not None:
@@ -334,7 +383,7 @@ class Coordinator:
                 if isinstance(request, InspectionRequest)
                 else self.store.assign(request, revision)
             )
-            self._pending = _Job(key, request, snapshot, documents, deadline)
+            self._pending = _Job(key, request, snapshot, documents, deadline, _preview)
             self._condition.notify_all()
         self._emit("queued", key, {})
         return key
@@ -522,6 +571,8 @@ class Coordinator:
                 ):
                     raise ValueError("Worker message belongs to another assignment")
                 if message.type in ("error", "cancelled"):
+                    if job.preview is not None and message.type == "cancelled" and acknowledged:
+                        job.preview["complete"] = True
                     if active:
                         details = _plain(message.body)
                         status = (
@@ -574,8 +625,8 @@ class Coordinator:
                     self._emit("model_info", key, {"document": document})
                     return
                 elif message.type == "result":
-                    if inspect or not acknowledged:
-                        raise ValueError("Result before acknowledged readiness")
+                    if inspect or not acknowledged or job.preview is not None:
+                        raise ValueError("Result before acknowledged readiness or from a preview")
                     data = self._metadata(receiver, message.body["proposal"], "result-proposal")
                     if data.pop("schema") != 1:
                         raise ValueError("Unknown result proposal schema")
@@ -611,6 +662,13 @@ class Coordinator:
                     ):
                         raise ValueError("Ready metadata differs from durable INITIAL")
                     self.store.transition(key, "ready")
+                    if job.preview is not None:
+                        if trace.layout is None or not trace.layout.reusable:
+                            raise ValueError("Preview requires a resolved layout")
+                        job.preview["bundle"] = trace.layout
+                        self._send(worker, "cancel", {}, key=key)
+                        cancelled = acknowledged = True
+                        continue
                     if trace.layout is not None and trace.layout.reusable:
                         self.store.bind_ready_view(key, trace.layout)
                     self.store.transition(key, "running")
@@ -680,6 +738,8 @@ class Coordinator:
         self._thread.join(10)
         if self._thread.is_alive():
             raise RuntimeError("Coordinator shutdown did not finish")
+        if not self._preview_done.wait(10):
+            raise RuntimeError("Layout preview shutdown did not finish")
         self.store.close()
 
     def __enter__(self):

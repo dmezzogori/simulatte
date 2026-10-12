@@ -13,3 +13,4 @@ export type { ExecutionProvenance } from "./execution";
 
 export { LiveRecording, PrefixSource, type PrefixDescriptor, type PrefixProvider } from "./live";
 export type { RecordingView } from "./recording";
+export { validateLayoutPatch } from "./layout-schema";

@@ -153,3 +153,15 @@ it('preserves finite float parameters outside the safe integer range as JSON flo
   socket.message({v: 1, type: 'response', id, body: {ok: true}});
   await expect(pending).resolves.toEqual({ok: true}); client.dispose();
 });
+
+it('validates large layouts over bounded HTTP without writing the file', async () => {
+  const socket = new Socket();
+  const fetcher = vi.fn<typeof fetch>(async () => Response.json({ok: true, requires_rerun: true}));
+  const client = new StudioClient('secret', {origin: 'http://127.0.0.1:8000', fetch: fetcher, socket: () => socket as unknown as WebSocket});
+  client.connect(); socket.open(); socket.message({v: 1, type: 'state', event_seq: 1, body: state}); await tick();
+  await expect(client.validateLayout({schema_version: '1.0', text: 'x'.repeat(300000)}, revision)).resolves.toMatchObject({ok: true});
+  expect(String(fetcher.mock.calls[0]![0])).toBe('http://127.0.0.1:8000/api/layout/validate');
+  expect(fetcher.mock.calls[0]![1]?.method).toBe('PUT');
+  await expect(client.validateLayout({text: 'x'.repeat(16 << 20)}, revision)).rejects.toThrow(/limit/);
+  client.dispose();
+});

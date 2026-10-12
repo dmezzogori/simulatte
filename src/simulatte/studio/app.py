@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from dataclasses import asdict
 import hashlib
 import json
@@ -224,7 +224,7 @@ class StudioServer(SessionAuth):
                 self.session._status("ready")
             return {"ok": True, "revision": asdict(state.revision)}
         if kind == "layout.validate":
-            validation = co.inputs.validate_layout(base, body)
+            validation = co.inputs.preview_layout(base, body, timeout=self.timeout or 30)
             return {
                 "ok": True,
                 "revision": asdict(validation.revision),
@@ -238,7 +238,9 @@ class StudioServer(SessionAuth):
         raise ValueError("Unsupported Studio command")
 
     async def command(self, message, peer):
-        async with self.commands:
+        # Preview is read-only and independently bounded. Do not block run.cancel
+        # or another tab's revision change while a model builds its preview.
+        async with nullcontext() if message["type"] == "layout.validate" else self.commands:
             try:
                 return self._body(await asyncio.to_thread(self._command, message, peer))
             except (ValueError, KeyError, TypeError, OSError, RuntimeError, sqlite3.Error) as error:
@@ -431,7 +433,7 @@ class StudioServer(SessionAuth):
                     if request.method == "HEAD":
                         return Response(status_code=status, headers=headers)
                     return StreamingResponse(source.chunks(start, end), status_code=status, headers=headers)
-                if path == "api/layout" and request.method == "PUT":
+                if path in ("api/layout", "api/layout/validate") and request.method == "PUT":
                     for name in ("x-simulatte-command", "x-simulatte-revision"):
                         if len(request.headers.getlist(name)) != 1:
                             raise ValueError("Layout PUT requires unique command and revision headers")
@@ -443,13 +445,15 @@ class StudioServer(SessionAuth):
                     layer = parse_layout(bytes(raw)).to_dict()
                     message = {
                         "v": 1,
-                        "type": "layout.write",
+                        "type": "layout.validate" if path.endswith("/validate") else "layout.write",
                         "id": request.headers.get("x-simulatte-command", ""),
                         "revision": json.loads(request.headers.get("x-simulatte-revision", "null")),
                         "body": layer,
                     }
                     if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", message["id"]) is None:
                         raise ValueError("Layout PUT requires a command id")
+                    if message["type"] == "layout.validate":
+                        return response(await self.command(message, None))
                     # HTTP retries use the same content-bound identity as websocket mutations.
                     async with self.commands:
                         result = self.http_commands.get(message)

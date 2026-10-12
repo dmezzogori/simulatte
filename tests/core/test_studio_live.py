@@ -378,3 +378,37 @@ def test_layout_get_returns_the_captured_base_not_unobserved_disk_bytes(tmp_path
         assert json.loads((coordinator.project.root / "layout.json").read_text()) == external
     finally:
         coordinator.close()
+
+
+def test_large_layout_validation_uses_bounded_authenticated_http_without_writing(tmp_path):
+    from tests.execution.test_inputs import PRESENTATION_MODEL
+
+    coordinator, server = setup(tmp_path, PRESENTATION_MODEL)
+    try:
+        with TestClient(server.app, base_url=server.origin) as client:
+            headers = auth(server, client)
+            state = wait_state(client, headers, lambda value: bool(value["results"]))
+            request_headers = {
+                **headers,
+                "X-Simulatte-Command": "preview-large",
+                "X-Simulatte-Revision": json.dumps(state["revision"]),
+            }
+            # A large set of legitimate visual fields exceeds a control frame.
+            layer = {
+                "schema_version": "1.0",
+                "placements": {f"orphan-{i}": {"kind": "server", "visual": {"label": "x" * 1024}} for i in range(260)},
+            }
+            assert len(json.dumps(layer)) > 256 << 10
+            assert client.put("/api/layout/validate", json=layer, headers=request_headers).status_code == 403
+            request_headers["Origin"] = server.origin
+            reply = client.put("/api/layout/validate", json=layer, headers=request_headers)
+            assert reply.status_code == 200 and reply.json()["ok"]
+            assert coordinator.store.current_revision().number == state["revision"]["number"]
+            assert not (coordinator.project.root / coordinator.project.layout).exists()
+            assert coordinator.store._db.execute("SELECT COUNT(*) FROM results").fetchone()[0] == 1
+            assert (
+                client.put("/api/layout/validate", content=b" " * ((16 << 20) + 1), headers=request_headers).status_code
+                == 413
+            )
+    finally:
+        coordinator.close()

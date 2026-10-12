@@ -1,4 +1,6 @@
 import {useState} from 'react';
+import {Parameters} from './parameters';
+import {LayoutEditor} from './layout-editor';
 import type {ConnectionStatus, StudioClient, StudioState} from './studio-client';
 
 /** Execution controls use authoritative revisions; disconnect never owns a run. */
@@ -35,5 +37,7 @@ export function StudioPanel({client, state, status, onError}: {
     {state?.startup.error != null && <pre role="alert">{JSON.stringify(state.startup.error, null, 2)}</pre>}
     {state?.fatal != null && <pre role="alert">{JSON.stringify(state.fatal, null, 2)}</pre>}
     {issues.length > 0 && <ul>{issues.map(([name, issue]) => <li key={name}>{name}: {String(issue)}</li>)}</ul>}
+    <Parameters client={client} state={state} status={status} />
+    <LayoutEditor client={client} state={state} status={status} />
   </section>;
 }

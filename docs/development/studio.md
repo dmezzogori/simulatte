@@ -231,3 +231,46 @@ index transaction. Recovery removes unindexed output rather than adopting it.
 
 These are internal execution foundations. The managed run driver, Studio editing
 and live viewer integration remain separate implementation work.
+
+## Parameter and layout editing (0.16 development)
+
+The development `simulatte studio MODEL.py` command serves the local editor.
+It inspects a decorated model in a fresh process and runs once when the declared
+inputs and parameter defaults are valid. Missing required parameters open the
+form without starting a run. `simulatte run MODEL.py` uses the same execution
+inputs for a single headless run; ordinary scripts and the read-only `view`
+command remain available.
+
+Open **Parameters** to edit typed values, the decimal seed, stopping policy,
+recording level and KPI keys. Typing does not start a run. **Apply and run**
+submits one revision. When another tab or a source edit changes the inputs,
+review the new revision before keeping your draft or reloading authoritative
+values. Removed fields and incompatible types stay visible as validation issues.
+An empty required string must be supplied explicitly.
+
+Open **Layout** for structured SP2 controls and a draft canvas. Shift-click or
+use the handle list for multiple selection; dragging commits one draft gesture
+on pointer-up. Numeric movement and rotation work without dragging. Coordinates
+use the existing y-up convention and z=0. Snap uses the declared grid. Vertex
+insertion keeps existing lane vertex ids; segment overrides never move to new
+segments automatically.
+
+**Validate layout** checks presentation changes without executing the model.
+Physical changes use a fresh disposable preparation process and stop at the
+ready barrier, without stepping the simulation or publishing a run. Validation
+does not write the working file or replace an active run. **Apply layout** saves
+through the revision check and atomic replacement: physical changes run again;
+presentation-only changes update the view association. A failed validation
+retains the draft and the prior view.
+
+**Reset** removes a file override and inherits the code or automatic value.
+**Remove optional value ($unset)** suppresses an inherited optional value.
+The provenance table describes the last resolved layout, including diagnostics.
+Reassign or remove orphan entries explicitly. Generated entity ids may be used
+for presentation overrides with a warning; physical overrides require explicit
+names in Python.
+
+Undo and redo submit inverse or repeated patches against the latest revision.
+They preserve unrelated edits and reject overlapping changes. History is kept
+in the browser, bounded to 64 entries and 32 MiB; reloading the page does not
+restore that local history. Layout files retain the existing 16 MiB limit.
