@@ -14,6 +14,16 @@ function merge(base: Layer, patch: Layer): Layer {
   }
   return result;
 }
+/** Content identity excludes run provenance and geometry shadowed by the draft. */
+export function canvasBasisKey(layer: Layer, bundle: Layer): string {
+  const targets = Object.fromEntries(Object.entries(asObject(bundle.targets)).map(([id, value]) => {
+    const target = asObject(value);
+    return [id, {kind: target.kind, explicitly_named: target.explicitly_named}];
+  }));
+  return JSON.stringify({resolved: merge(asObject(bundle.resolved), layer), targets}, (_, value: unknown) =>
+    value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : value);
+}
 /** Ghost geometry only: Python resolution remains authoritative for the physical graph. */
 export function canvasTargets(layer: Layer, bundle: Layer): CanvasTarget[] {
   const resolved = merge(asObject(bundle.resolved), layer), targets = asObject(bundle.targets), result: CanvasTarget[] = [];

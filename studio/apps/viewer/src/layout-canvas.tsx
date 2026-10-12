@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {Scene, type Projection} from '@simulatte/scene';
-import {asObject, canvasTargets, moveTargets, rotateTargets, snapDelta, type CanvasTarget, type XY} from './layout-canvas-model';
+import {asObject, canvasBasisKey, canvasTargets, moveTargets, rotateTargets, snapDelta, type CanvasTarget, type XY} from './layout-canvas-model';
 import type {Layer} from './layout-history';
 function projection(targets: CanvasTarget[], selected: Set<string>, delta: XY = {x: 0, y: 0}): Projection {
   return {fallback: false, links: [], ports: [], glyphs: targets.map(target => ({
@@ -17,7 +17,9 @@ export function LayoutCanvas({layer, bundle, enabled, change, onError}: {layer: 
   const [selection, setSelection] = useState<string[]>([]), [snap, setSnap] = useState(true), [ready, setReady] = useState(false);
   const [filter, setFilter] = useState(''), [page, setPage] = useState(0);
   const [dx, setDx] = useState('0'), [dy, setDy] = useState('0'), [angle, setAngle] = useState('90');
-  const targets = useMemo(() => canvasTargets(layer, bundle), [layer, bundle]);
+  const basisKey = useMemo(() => canvasBasisKey(layer, bundle), [layer, bundle]);
+  const basis = useMemo(() => JSON.parse(basisKey) as Layer, [basisKey]);
+  const targets = useMemo(() => canvasTargets({}, basis), [basis]);
   const filtered = targets.filter(target => target.name.toLowerCase().includes(filter.toLowerCase()));
   const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / 100) - 1));
   const visible = filtered.slice(currentPage * 100, (currentPage + 1) * 100);
@@ -53,7 +55,7 @@ export function LayoutCanvas({layer, bundle, enabled, change, onError}: {layer: 
       let delta = {x: event.point.x - active.start.x, y: event.point.y - active.start.y};
       if (Math.hypot(delta.x, delta.y) * current.camera.scale > 3) active.moved = true;
       if (!active.moved) delta = {x: 0, y: 0};
-      if (active.moved && snap && active.targets[0]) delta = snapDelta(delta, active.targets[0], {...asObject(asObject(bundle.resolved).grid), ...asObject(layer.grid)});
+      if (active.moved && snap && active.targets[0]) delta = snapDelta(delta, active.targets[0], asObject(asObject(basis.resolved).grid));
       active.delta = delta;
       if (event.phase === 'move') current.renderProjection(projection(targets, selected.current, delta));
       else {
@@ -65,7 +67,7 @@ export function LayoutCanvas({layer, bundle, enabled, change, onError}: {layer: 
       return true;
     };
     return () => {current.onEditorPointer = null; gesture.current = null;};
-  }, [targets, layer, bundle, enabled, snap, ready]);
+  }, [targets, layer, basis, enabled, snap, ready]);
   const transform = (rotate: boolean) => {
     const chosen = targets.filter(target => selected.current.has(target.id));
     try {

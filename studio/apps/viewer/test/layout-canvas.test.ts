@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {canvasTargets, moveTargets, rotateTargets, snapDelta} from '../src/layout-canvas-model';
+import {canvasBasisKey, canvasTargets, moveTargets, rotateTargets, snapDelta} from '../src/layout-canvas-model';
 const bundle = {targets: {machine: {kind: 'server', explicitly_named: true}, 'server-1': {kind: 'server', explicitly_named: false}},
   resolved: {placements: {machine: {kind: 'server', position: [1, 2, 0], rotation: 90}, 'server-1': {kind: 'server', position: [0, 0, 0]}},
     network: {type: 'lanes', lanes: {main: {vertices: [{id: 'a', position: [0, 0, 0]}, {id: 'b', position: [2, 0, 0]}]}}}}};
@@ -29,4 +29,16 @@ describe('canvas draft transforms', () => {
   it('snaps group movement relative to the first target and the declared origin', () => {
     expect(snapDelta({x: 1.2, y: 2.4}, {x: 1, y: 2}, {dx: 2, dy: 3, origin: [1, 1, 0]})).toEqual({x: 2, y: 2});
   });
+});
+
+it('keeps the effective canvas basis stable when a completed run publishes the already edited geometry', () => {
+  const layer = {schema_version: '1.0', placements: {machine: {position: [3, 2, 0]}}};
+  const published = structuredClone(bundle);
+  published.resolved.placements.machine.position = [3, 2, 0];
+  expect(canvasBasisKey(layer, published)).toBe(canvasBasisKey(layer, bundle));
+  published.resolved.placements.machine.rotation = 180;
+  expect(canvasBasisKey(layer, published)).not.toBe(canvasBasisKey(layer, bundle));
+  published.resolved.placements.machine.rotation = 90;
+  published.targets.machine.explicitly_named = false;
+  expect(canvasBasisKey(layer, published)).not.toBe(canvasBasisKey(layer, bundle));
 });
