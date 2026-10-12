@@ -1,0 +1,134 @@
+{
+  "children_cpu_per_execution": 1.2945360000000001,
+  "children_cpu_seconds_total": 5.1781440000000005,
+  "completed_replications": 3,
+  "coordinator_cpu_per_replication": 0.6896100000000001,
+  "coordinator_peak_rss_bytes": 255438848,
+  "coordinator_wall_per_replication": 1.9491296756314114,
+  "coordinator_wall_per_replication_excluding_first": 1.8525815199245699,
+  "cpu_count": 16,
+  "events": 20000,
+  "failure": {
+    "details": {
+      "code": "child_error",
+      "message": "initializer for ctype 'blake_state *' must be a compatible pointer, not cdata 'unsigned int *'",
+      "phase": "preparing",
+      "traceback": "Traceback (most recent call last):\n  File \"/tmp/simulatte-throughput-bench-477hl1td/.simulatte/tools/29e8ae0d447e4381eec1c632c521b6792ad99af9544507bfdddd024380b2b888/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/simulatte-throughput-bench-477hl1td/.simulatte/tools/29e8ae0d447e4381eec1c632c521b6792ad99af9544507bfdddd024380b2b888/simulatte/execution/driver.py\", line 187, in execute\n    recorder = TraceRecorder(\n               ^^^^^^^^^^^^^^\n  File \"/tmp/simulatte-throughput-bench-477hl1td/.simulatte/tools/29e8ae0d447e4381eec1c632c521b6792ad99af9544507bfdddd024380b2b888/simulatte/trace/writer.py\", line 272, in __init__\n    self._digest = env.enable_digest()  # subscribed before this recorder, so it projects each event first\n                       ^^^^^^^^^^^^^\n  File \"/tmp/simulatte-throughput-bench-477hl1td/.simulatte/tools/29e8ae0d447e4381eec1c632c521b6792ad99af9544507bfdddd024380b2b888/simulatte/environment.py\", line 563, in enable_digest\n    self._digest = SemanticDigest.attach(self)\n                                  ^^^^^^\n  File \"/tmp/simulatte-throughput-bench-477hl1td/.simulatte/tools/29e8ae0d447e4381eec1c632c521b6792ad99af9544507bfdddd024380b2b888/simulatte/digest.py\", line 272, in attach\n    digest = cls()\n             ^^^^^\n  File \"/tmp/simulatte-throughput-bench-477hl1td/.simulatte/tools/29e8ae0d447e4381eec1c632c521b6792ad99af9544507bfdddd024380b2b888/simulatte/digest.py\", line 253, in __init__\n    self._acc = DigestAccumulator()\n                ^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/simulatte-throughput-bench-477hl1td/.simulatte/tools/29e8ae0d447e4381eec1c632c521b6792ad99af9544507bfdddd024380b2b888/simulatte/digest.py\", line 186, in __init__\n    self._hash = hashlib.blake2b(digest_size=32)\n                         ^^^^^^^\n  File \"/home/davide/.local/share/uv/python/pypy-3.11.16-linux-x86_64-gnu/lib/pypy3.11/_blake2/__init__.py\", line 106, in __new__\n    if _lib.blake_init_param(self._state, self._param) < 0:\n            ^^^^^^^^^^^^^^^^\nTypeError: initializer for ctype 'blake_state *' must be a compatible pointer, not cdata 'unsigned int *'\n"
+    },
+    "seed": 3,
+    "status": "validation_failed"
+  },
+  "first_replication": {
+    "ready_to_publication": 1.1205725959734991,
+    "seed": 0,
+    "store_commit": 0.5340246829437092,
+    "submit_to_ready": 1.0134052620269358,
+    "wait_return_lag": 0.008248129044659436,
+    "wall": 2.1422259870450944
+  },
+  "implementation": "PyPy",
+  "machine": "x86_64",
+  "overhead_per_replication": 1.944502898149949,
+  "overhead_per_replication_excluding_first": 1.8479547424431075,
+  "phases": {
+    "close_seconds": 0.11754876805935055,
+    "coordinator_loop_cpu_seconds": 2.06883,
+    "loop_seconds": 5.854416729067452,
+    "prepare_seconds": 1.0254043369786814
+  },
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+  "python": "3.11.16",
+  "ready_to_publication": {
+    "max": 1.1205725959734991,
+    "mean": 0.9455582336522639,
+    "median": 0.8846722739981487,
+    "min": 0.8314298309851438
+  },
+  "reaped_children_peak_rss_bytes": 124407808,
+  "replications": 32,
+  "replications_per_minute": 30.74601763593145,
+  "replications_per_minute_excluding_first": 32.387238755594936,
+  "runner_replications_per_minute": 12967.989111297476,
+  "runner_samples": [
+    0.026306451065465808,
+    0.004036348080262542,
+    0.003914139000698924,
+    0.0039086679462343454,
+    0.003930888022296131,
+    0.003939059097319841,
+    0.0038888880517333746,
+    0.0038675980176776648,
+    0.003920197952538729,
+    0.0038789380341768265,
+    0.0038745179772377014,
+    0.003864097991026938,
+    0.0038665980100631714,
+    0.003911577980034053,
+    0.0039013680070638657,
+    0.003904378041625023,
+    0.003862167941406369,
+    0.0038793979911133647,
+    0.003897598013281822,
+    0.003914418979547918,
+    0.0038960680831223726,
+    0.0039790780283510685,
+    0.003920029033906758,
+    0.0038866079412400723,
+    0.0039033580105751753,
+    0.004546213080175221,
+    0.003914937959052622,
+    0.0038953779730945826,
+    0.0038516679778695107,
+    0.003935158019885421,
+    0.003931129002012312,
+    0.003929958096705377
+  ],
+  "runner_wall_per_replication": 0.004626777481462341,
+  "runner_wall_per_replication_median": 0.003906522993929684,
+  "samples": [
+    {
+      "ready_to_publication": 1.1205725959734991,
+      "seed": 0,
+      "store_commit": 0.5340246829437092,
+      "submit_to_ready": 1.0134052620269358,
+      "wait_return_lag": 0.008248129044659436,
+      "wall": 2.1422259870450944
+    },
+    {
+      "ready_to_publication": 0.8846722739981487,
+      "seed": 1,
+      "store_commit": 0.3168358060065657,
+      "submit_to_ready": 0.9557554669445381,
+      "wait_return_lag": 0.004701294004917145,
+      "wall": 1.845129034947604
+    },
+    {
+      "ready_to_publication": 0.8314298309851438,
+      "seed": 2,
+      "store_commit": 0.30483727995306253,
+      "submit_to_ready": 1.0201393929310143,
+      "wait_return_lag": 0.008464780985377729,
+      "wall": 1.8600340049015358
+    }
+  ],
+  "slots": 1,
+  "store_commit": {
+    "max": 0.5340246829437092,
+    "mean": 0.3852325896344458,
+    "median": 0.3168358060065657,
+    "min": 0.30483727995306253
+  },
+  "submit_to_ready": {
+    "max": 1.0201393929310143,
+    "mean": 0.9964333739674961,
+    "median": 1.0134052620269358,
+    "min": 0.9557554669445381
+  },
+  "wait_return_lag": {
+    "max": 0.008464780985377729,
+    "mean": 0.007138068011651437,
+    "median": 0.008248129044659436,
+    "min": 0.004701294004917145
+  },
+  "worker": "strangelove"
+}
