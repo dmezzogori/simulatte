@@ -209,7 +209,10 @@ def _launch(argv, cwd, env=None):
 
 
 def _guardian(port: int, token: str | None = None, lifeline=None) -> int:
-    lifeline = sys.stdin.buffer if lifeline is None else lifeline
+    # The daemon lifeline reader may still be blocked when the child exits.
+    # Buffered stdin holds a Python I/O lock and can SIGABRT at finalization;
+    # raw file reads have no buffered lock for interpreter shutdown to acquire.
+    lifeline = getattr(sys.stdin.buffer, "raw", sys.stdin.buffer) if lifeline is None else lifeline
     channel = socket.create_connection(("127.0.0.1", port), timeout=10)
     child = None
     commands: queue.Queue[bytes] = queue.Queue(maxsize=4)

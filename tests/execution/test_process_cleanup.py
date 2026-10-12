@@ -51,6 +51,10 @@ def test_ordinary_descendants_reaped_on_exit_or_cancel(tmp_path, parent_exit):
         if not parent_exit:
             process.terminate()
         assert process.wait(timeout=5) == (0 if parent_exit else -signal.SIGTERM)
+        # A daemon reader must not hold BufferedReader's lock at interpreter exit.
+        # The child exit code alone used to hide a guardian SIGABRT and its delay.
+        assert process._guardian.returncode == 0
+        assert b"Fatal Python error" not in process.stderr.read()
         gone(*pids)
         assert process.stdout.read() == b""
     finally:
