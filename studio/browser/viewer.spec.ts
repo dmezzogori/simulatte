@@ -39,7 +39,8 @@ test("production viewer loads, steps, seeks and presents under CSP", async ({
   await expect(page.locator("output")).toContainText("t = 4");
   await page.getByRole("button", { name: "Play", exact: true }).click();
   await page.waitForTimeout(250);
-  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  // Span playback frames: rewriting the label during a press suppresses WebKit's click.
+  await page.getByRole("button", { name: "Pause", exact: true }).click({delay: 100});
   await expect(page.locator(".status")).toHaveText("paused");
   expect(errors).toEqual([]);
 });
@@ -66,6 +67,10 @@ test("exported HTML works from file without network requests", async ({
   await expect(page.locator("output")).toContainText("t = 0");
   await page.getByRole("button", { name: "Next event", exact: true }).click();
   await expect(page.locator("output")).toContainText("seq 5");
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.waitForTimeout(250);
+  await page.getByRole("button", { name: "Pause", exact: true }).click({delay: 100});
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
   expect(requests).toEqual([]);
   expect(errors).toEqual([]);
 });

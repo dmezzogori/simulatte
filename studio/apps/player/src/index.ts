@@ -78,7 +78,18 @@ async function start() {
       await new Promise((resolve) => setTimeout(resolve, 0));
   }
   const recording = await openRecording(bytes.buffer);
-  const session = new Session(recording);
+  const presentation = document.getElementById('presentation');
+  let overlay = null;
+  if (presentation) {
+    const data = JSON.parse(presentation.textContent ?? 'null');
+    presentation.remove();
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    const hash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    if (!data || data.version !== 1 || Object.keys(data).sort().join(',') !== 'layout,trace_sha256,version' || data.trace_sha256 !== hash)
+      throw new Error('Presentation metadata does not match this trace');
+    overlay = data.layout;
+  }
+  const session = new Session(recording, overlay);
   session.setSeries(recording.seriesKeys.slice(0, 8));
   const playback = new Playback(session),
     scene = new Scene();
@@ -121,8 +132,9 @@ async function start() {
   playback.subscribe((frame, status, failure) => {
     scene.setPlaying(status === "playing");
     if (failure) error.textContent = String(failure);
-    play.textContent =
-      status === "playing" || status === "buffering" ? "Pause" : "Play";
+    const playLabel = status === "playing" || status === "buffering" ? "Pause" : "Play";
+    // Preserve the pressed text node across frames so WebKit delivers the click.
+    if (play.textContent !== playLabel) play.textContent = playLabel;
     play.disabled =
       !frame ||
       !recording.finiteRange ||

@@ -38,7 +38,14 @@ from simulatte.trace import ChunkLimits, Trace, TraceRecorder
 
 HERE = Path(__file__).resolve().parent
 
-SEEDS: dict[str, int] = {"shop_small": 5, "lumscor": 20260508, "cell_ops": 7, "layout_full": 19, "layout_kpi": 19}
+SEEDS: dict[str, int] = {
+    "shop_small": 5,
+    "lumscor": 20260508,
+    "cell_ops": 7,
+    "layout_full": 19,
+    "layout_kpi": 19,
+    "execution_full": 19,
+}
 """Generated fixtures and the explicit seed of each."""
 
 PROVENANCE = Provenance(
@@ -74,15 +81,52 @@ def record(
     seed: int | None = None,
     env: Environment | None = None,
     level: Literal["full", "kpi"] = "full",
+    execution: bool = False,
 ) -> Environment:
     """Run `build` in an environment recording to `path`, chunked by event count only; return the environment."""
     if env is None:
         env = Environment(seed=seed, provenance=PROVENANCE)
     limits = ChunkLimits(max_events=max_events, max_bytes=1 << 30, max_latency_s=3600.0)
+    options: dict[str, Any] = {}
+    if execution:
+        from simulatte.execution.schema import ExecutionRequest, ResolvedManifest, request_id
+        from simulatte.stopping import Horizon, execute_until
+
+        request = ExecutionRequest(
+            model="fixtures.py:build_layout",
+            source_hash="2" * 64,
+            input_hash="3" * 64,
+            layout_hash="5" * 64,
+            layout_revision=1,
+            parameters={},
+            seed=int(str(env.manifest().requested["seed"])),
+            stopping=Horizon(until).to_dict(),
+            level=level,
+            runtime={"kind": "conformance-fixture"},
+        )
+
+        def resolved():
+            assert env is not None and env.layout is not None
+            return ResolvedManifest(
+                runtime=request.runtime,
+                dependencies={"hash": "4" * 64},
+                imports={"fixture": "snapshot:fixtures.py"},
+                layout=env.layout.prepare().bundle.manifest(),
+                capabilities={"conformance_fixture": True},
+            ).to_dict()
+
+        options = {
+            "execution": {"schema": 1, "request_id": request_id(request), "request": request.to_dict()},
+            "resolve_execution": resolved,
+        }
     with fixed_volatile_metadata():
-        TraceRecorder(env, path, chunk_limits=limits, level=level)
+        recorder = TraceRecorder(env, path, chunk_limits=limits, level=level, **options)
         build(env)
-        env.run(until=until)
+        if execution:
+            stop = execute_until(env, Horizon(until))
+            recorder.close(termination=stop.reason)
+        else:
+            env.run(until=until)
         env.close()
     return env
 
@@ -233,6 +277,7 @@ BUILDERS: dict[str, tuple[Callable[[Environment], object], float, int]] = {
     "cell_ops": (build_cell_ops, 30.0, 7),
     "layout_full": (build_layout, 1.0, 7),
     "layout_kpi": (build_layout, 1.0, 7),
+    "execution_full": (build_layout, 1.0, 7),
 }
 """For each generated fixture: the builder, the horizon and the events per chunk."""
 
@@ -285,6 +330,7 @@ def expected_document(path: Path) -> dict[str, Any]:
     bounds = trace.cursor_range
     return {
         **({"layout": plain(trace.layout.to_dict())} if trace.layout is not None else {}),
+        **({"execution": plain(trace.execution)} if trace.execution is not None else {}),
         "trace": path.name,
         "level": trace.level,
         "outcome": trace.outcome,
@@ -306,6 +352,7 @@ def canonical_content(path: Path) -> dict[str, Any]:
     bounds = trace.cursor_range
     return {
         "layout": None if trace.layout is None else plain(trace.layout.to_dict()),
+        **({"execution": plain(trace.execution)} if trace.execution is not None else {}),
         "manifest": plain(manifest),
         "level": trace.level,
         "outcome": trace.outcome,
@@ -339,7 +386,13 @@ def generate(out: Path) -> list[Path]:
         build, until, max_events = BUILDERS[name]
         path = out / f"{name}.simtrace"
         record(
-            path, build, until=until, max_events=max_events, seed=seed, level="kpi" if name == "layout_kpi" else "full"
+            path,
+            build,
+            until=until,
+            max_events=max_events,
+            seed=seed,
+            level="kpi" if name == "layout_kpi" else "full",
+            execution=name == "execution_full",
         )
         written += [path, write_expected(path)]
     return written

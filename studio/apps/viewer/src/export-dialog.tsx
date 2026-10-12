@@ -8,14 +8,18 @@ import {
   type ExportFile,
   type MediaOptions,
 } from "@simulatte/export";
-import type { Recording } from "@simulatte/trace";
+import {pinPresentation} from "@simulatte/playback";
+import type { RecordingView, LayoutBundle } from "@simulatte/trace";
 export function ExportDialog({
-  recording,
+  recording: initialRecording,
+  presentation: initialPresentation = null,
   close,
 }: {
-  recording: Recording;
+  recording: RecordingView;
+  presentation?: LayoutBundle | null;
   close(): void;
 }) {
+  const [{recording, presentation}] = useState(() => ({recording: initialRecording, presentation: pinPresentation(initialRecording, initialPresentation)}));
   const [options, setOptions] = useState<MediaOptions>({
     start: recording.finiteRange?.[0] ?? 0,
     end: recording.finiteRange?.[1] ?? 0,
@@ -92,6 +96,7 @@ export function ExportDialog({
           if (progress.current)
             progress.current.textContent = `${frame.toLocaleString()} / ${total.toLocaleString()} frames`;
         },
+        presentation,
       );
       if (!mounted.current) {
         await file.remove();

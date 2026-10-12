@@ -1,0 +1,16 @@
+{
+  "no_web_dependencies": true,
+  "core-model": {
+    "request_id": "71a4f7b3876689409a6e84495f43a36135ad3d3affe05d535b9c5c8fc10caddc",
+    "verified": true
+  },
+  "core-finite-count": {
+    "request_id": "fb751d3fd57fadf4fb872ec255e3a9f6c8b929b779e8fa2e8d027f7d83ee663e",
+    "verified": true
+  },
+  "core-finite-cutoff": {
+    "request_id": "d4fc66dfda6be9fef4e904616d40aeeee6849c1ce99f7f577f268ab848e95f49",
+    "verified": true
+  },
+  "reproduce": true
+}

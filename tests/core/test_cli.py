@@ -17,6 +17,11 @@ def test_cli_optional_dependency_and_module(monkeypatch, capsys):
     assert result.value.code == 0
 
 
+def test_parsed_worker_command_starts_supervisor():
+    with patch("simulatte.execution.supervisor.Supervisor.run_stdio", return_value=7):
+        assert main(["worker", "--stdio", "--stdio"]) == 7
+
+
 def test_help_without_optional_libraries():
     import sys
 

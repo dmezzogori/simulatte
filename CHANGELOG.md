@@ -4,6 +4,31 @@ All notable changes to Simulatte are documented here.
 
 ## Unreleased
 
+## 0.16.0 — 2026-10-12
+
+- Added typed `@model` metadata, constraints and explicit horizon/finite-population
+  stopping, preserving ordinary script calls and the existing `Runner`.
+- Added `simulatte run` and `simulatte studio`: immutable source/declared-input
+  capture, fresh local execution processes, bounded durable output, cancellation,
+  revision fencing, result verification and captured-request reproduction.
+- Studio adds parameter forms, complete layout editing and undo/redo, live
+  playback/progress/KPIs, committed-run history, conflict recovery and pinned
+  presentation exports. Physical/source edits rerun; presentation-only edits
+  update the view association.
+- Trace container 1.3 adds optional execution provenance. Existing trace reading,
+  verification, `simulatte view` and offline/media exports remain supported.
+
+### Migration
+
+- Core-only installs support `run`; install `[studio]` for the interactive server.
+- Managed models use frozen dataclass parameters and finish build before running
+  simulation events. Declare data inputs and non-Git source membership explicitly;
+  external editable imports/startup hooks are not executed in managed children.
+- Finite models explicitly track pending/admitted/completed work through
+  `Population`; an empty event queue alone is not completion.
+- Managed output belongs under `env.artifacts_dir`. The local `.simulatte` store
+  has one coordinator owner; close Studio before headless execution in that project.
+
 ## 0.15.0 — 2026-10-11
 
 - Added Studio: `simulatte view` with authenticated loopback serving, recorded-state playback, a Pixi

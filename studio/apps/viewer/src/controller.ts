@@ -4,12 +4,13 @@ import uPlot from "uplot";
 import {
   openRecording,
   HttpSource,
-  type Recording,
+  type RecordingView,
+  type LayoutBundle,
   compare,
   type Cursor,
   type TraceEvent,
 } from "@simulatte/trace";
-import { Session, Playback, type PreparedFrame } from "@simulatte/playback";
+import { Session, Playback, type PreparedFrame, type Position } from "@simulatte/playback";
 import { Scene } from "@simulatte/scene";
 export const format = (v: unknown): string =>
   JSON.stringify(
@@ -40,9 +41,10 @@ const el = <K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   return node;
 };
+import {LiveSession} from "./live-session";
 export class Controller {
-  playback: Playback | null = null;
-  recording: Recording | null = null;
+  playback: Playback | LiveSession | null = null;
+  recording: RecordingView | null = null;
   source: Blob | HttpSource | null = null;
   name = "";
   scene: Scene | null = null;
@@ -282,7 +284,7 @@ export class Controller {
     if (enabled && panel) this.dock.maximizeGroup(panel);
     else this.dock.exitMaximizedGroup();
   }
-  async open(source: Blob | HttpSource, name: string): Promise<void> {
+  async open(source: Blob | HttpSource, name: string, presentation: LayoutBundle | null = null, position?: Position): Promise<void> {
     const generation = ++this.#generation;
     this.#abort?.abort();
     this.#historyGeneration++;
@@ -306,43 +308,12 @@ export class Controller {
       const recording = await openRecording(source, {}, abort.signal);
       if (generation !== this.#generation) return;
       this.recording = recording;
-      const session = new Session(recording);
+      const session = new Session(recording, presentation);
       this.#schemaKey = "";
       this.#series = recording.seriesKeys.slice(0, 8);
-      session.setSeries(this.#series);
-      this.#seriesPicker.replaceChildren();
-      const select = el("select");
-      select.setAttribute("aria-label", "Recorded series");
-      for (const key of recording.seriesKeys) {
-        const option = el("option", key);
-        option.value = key;
-        select.append(option);
-      }
-      const add = el("button", "Add series"),
-        clear = el("button", "Clear series");
-      const refresh = async () => {
-        session.setSeries(this.#series);
-        await this.charts();
-        if (this.#frame) await this.playback?.seek(this.#frame);
-      };
-      add.onclick = () => {
-        if (!this.#series.includes(select.value) && this.#series.length < 8) {
-          this.#series.push(select.value);
-          void refresh().catch((e) => this.onError?.(String(e)));
-        }
-      };
-      clear.onclick = () => {
-        this.#series = [];
-        void refresh().catch((e) => this.onError?.(String(e)));
-      };
-      this.#seriesPicker.append(
-        select,
-        add,
-        clear,
-        el("small", "Up to eight active series"),
-      );
       const playback = new Playback(session);
       this.playback = playback;
+      this.seriesControls();
       const scene = new Scene();
       this.scene = scene;
       await scene.init(this.#panels.get("scene")!);
@@ -359,44 +330,7 @@ export class Controller {
       scene.onError = (message) => this.onError?.(message);
       playback.subscribe((frame, status, error) => {
         if (generation !== this.#generation) return;
-        scene.setPlaying(status === "playing");
-        this.status.textContent = status;
-        this.status.title = frame?.diagnostics.join("\n") ?? "";
-        const current = frame?.cursor;
-        this.playButton.disabled =
-          !frame ||
-          !recording.finiteRange ||
-          !Number.isFinite(frame.time) ||
-          status === "ended";
-        const previous =
-          this.playButton.parentElement?.querySelector<HTMLButtonElement>(
-            '[aria-label="Previous event"]',
-          );
-        const next =
-          this.playButton.parentElement?.querySelector<HTMLButtonElement>(
-            '[aria-label="Next event"]',
-          );
-        if (previous)
-          previous.disabled =
-            recording.trace.level !== "full" ||
-            !frame ||
-            frame.mode === "activation";
-        if (next)
-          next.disabled =
-            recording.trace.level !== "full" ||
-            !recording.historyEnd ||
-            !!(current && compare(current, recording.historyEnd) >= 0);
-        this.playButton.textContent =
-          status === "playing" || status === "buffering" ? "Pause" : "Play";
-        if (error) this.onError?.(String(error));
-        if (frame && frame !== this.#frame) {
-          this.#frame = frame;
-          scene.render(frame);
-          this.time.textContent = `t = ${number(frame.time)}${frame.mode === "exact" ? " · seq " + frame.cursor?.[1] : frame.mode === "activation" ? " · activation" : ""}`;
-          this.timeline.value = String(frame.time);
-          this.updateInspector();
-          this.updateKpis(frame);
-        }
+        this.displayFrame(frame, status, error);
       });
       const range = recording.finiteRange;
       this.timeline.disabled = !range;
@@ -412,9 +346,9 @@ export class Controller {
       await this.history();
       const activation = recording.trace.activation;
       await playback.seek(
-        activation
+        position ?? (activation
           ? { mode: "activation", time: activation[0], cursor: activation }
-          : { mode: "continuous", time: range?.[0] ?? 0, cursor: null },
+          : { mode: "continuous", time: range?.[0] ?? 0, cursor: null }),
       );
     } catch (error) {
       if (generation === this.#generation) {
@@ -422,6 +356,143 @@ export class Controller {
         this.onError?.(error instanceof Error ? error.message : String(error));
       }
     }
+  }
+  private setSeries(): void {
+    if (this.playback instanceof LiveSession) this.playback.setSeries(this.#series);
+    else this.playback?.session.setSeries(this.#series);
+  }
+  private seriesControls(): void {
+    const recording = this.recording;
+    if (!recording) return;
+    this.setSeries();
+    this.#seriesPicker.replaceChildren();
+    const select = el("select");
+    select.setAttribute("aria-label", "Recorded series");
+    for (const key of recording.seriesKeys) {
+      const option = el("option", key);
+      option.value = key;
+      select.append(option);
+    }
+    const add = el("button", "Add series"),
+      clear = el("button", "Clear series");
+    const refresh = async () => {
+      this.setSeries();
+      await this.charts();
+      if (this.#frame) await this.playback?.seek(this.#frame);
+    };
+    add.onclick = () => {
+      if (!this.#series.includes(select.value) && this.#series.length < 8) {
+        this.#series.push(select.value);
+        void refresh().catch((e) => this.onError?.(String(e)));
+      }
+    };
+    clear.onclick = () => {
+      this.#series = [];
+      void refresh().catch((e) => this.onError?.(String(e)));
+    };
+    this.#seriesPicker.append(
+      select,
+      add,
+      clear,
+      el("small", "Up to eight active series"),
+    );
+  }
+  /** Attach once per attempt. Prefix changes update panels; frames never enter React. */
+  async attachLive(live: LiveSession, name: string): Promise<void> {
+    const generation = ++this.#generation;
+    this.#abort?.abort(); this.#abort = null;
+    this.#historyGeneration++; this.#retiredGeneration++; this.#chartGeneration++;
+    this.playback?.dispose(); this.scene?.dispose();
+    this.playback = live; this.recording = null; this.source = null;
+    this.#frame = null; this.#selected = null; this.#retiredKey = null;
+    this.name = name; this.#schemaKey = "";
+    clearInspection(this.#fields); clearInspection(this.#details);
+    const scene = new Scene(); this.scene = scene;
+    await scene.init(this.#panels.get("scene")!);
+    if (generation !== this.#generation) {scene.dispose(); return;}
+    scene.onSelect = id => {this.#selected = id; scene.select(id); clearInspection(this.#fields); this.updateInspector();};
+    scene.onError = message => this.onError?.(message);
+    const changed = () => {
+      if (generation !== this.#generation) return;
+      const state = live.state;
+      if (!state.recording) {
+        this.status.textContent = state.status;
+        if (state.status === 'invalidated') {
+          this.recording = null; this.#frame = null; this.playButton.disabled = true;
+          this.timeline.disabled = true; scene.dispose(); this.scene = null;
+          clearInspection(this.#fields); clearInspection(this.#details);
+          this.#tiles.replaceChildren(); this.#charts.replaceChildren(); this.#history.replaceChildren();
+        }
+        return;
+      }
+      if (state.recording !== this.recording) {
+        const first = this.recording === null;
+        this.recording = state.recording;
+        if (first) this.#series = state.recording.seriesKeys.slice(0, 8);
+        this.seriesControls();
+        const range = state.recording.finiteRange;
+        this.timeline.disabled = !range; this.timeline.min = String(range?.[0] ?? 0);
+        this.timeline.max = String(range?.[1] ?? 1); this.timeline.step = 'any';
+        this.onInfo?.(name, `${state.recording.trace.level} trace · live committed prefix ${state.generation}`);
+        this.#after = undefined;
+        void this.charts().then(() => {if (this.#frame) this.updateKpis(this.#frame);}).catch(error => this.onError?.(String(error)));
+        void this.history();
+      }
+      this.displayFrame(state.frame, state.status, state.error);
+    };
+    live.subscribe(changed); changed();
+  }
+  private displayFrame(frame: PreparedFrame | null, status: string, error?: unknown): void {
+    const recording = this.recording, scene = this.scene;
+    if (!recording || !scene) return;
+    scene.setPlaying(status === "playing");
+    this.status.textContent = status;
+    this.status.title = frame?.diagnostics.join("\n") ?? "";
+    const current = frame?.cursor;
+    this.playButton.disabled =
+      !frame ||
+      !recording.finiteRange ||
+      !Number.isFinite(frame.time) ||
+      status === "ended";
+    const previous =
+      this.playButton.parentElement?.querySelector<HTMLButtonElement>(
+        '[aria-label="Previous event"]',
+      );
+    const next =
+      this.playButton.parentElement?.querySelector<HTMLButtonElement>(
+        '[aria-label="Next event"]',
+      );
+    if (previous)
+      previous.disabled =
+        recording.trace.level !== "full" ||
+        !frame ||
+        frame.mode === "activation";
+    if (next)
+      next.disabled =
+        recording.trace.level !== "full" ||
+        !recording.historyEnd ||
+        !!(current && compare(current, recording.historyEnd) >= 0);
+    const playLabel = status === "playing" || status === "buffering" ? "Pause" : "Play";
+    // Preserve the pressed text node across frames so WebKit delivers the click.
+    if (this.playButton.textContent !== playLabel) this.playButton.textContent = playLabel;
+    if (error) this.onError?.(String(error));
+    if (frame && frame !== this.#frame) {
+      this.#frame = frame;
+      scene.render(frame);
+      this.time.textContent = `t = ${number(frame.time)}${frame.mode === "exact" ? " · seq " + frame.cursor?.[1] : frame.mode === "activation" ? " · activation" : ""}`;
+      this.timeline.value = String(frame.time);
+      this.updateInspector();
+      this.updateKpis(frame);
+    }
+  }
+  get presentation(): LayoutBundle | null {
+    const playback = this.playback;
+    return playback instanceof LiveSession ? playback.presentation : playback?.session.presentation ?? null;
+  }
+  async setPresentation(layout: LayoutBundle | null): Promise<void> {
+    const playback = this.playback;
+    if (playback instanceof LiveSession) await playback.setPresentation(layout);
+    else if (playback) await playback.setPresentation(layout);
   }
   private updateInspector(): void {
     const frame = this.#frame;

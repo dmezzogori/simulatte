@@ -37,6 +37,7 @@ import {
   type Frame,
   type ReaderLimits,
 } from "./container";
+import { executionOf, type ExecutionProvenance } from "./execution";
 import { layoutOf, type LayoutBundle } from "./layout";
 import { DeltaError, applyDeltas, type Op, type State } from "./deltas";
 import { decodeWire, defineKey, newMap, type Wire } from "./wire";
@@ -94,10 +95,11 @@ interface ChunkConsumer {
   detach: () => void;
 }
 interface SharedChunkRead {
-  index: number;
+  key: symbol;
   controller: AbortController;
   consumers: Set<ChunkConsumer>;
   started: boolean;
+  read: (signal: AbortSignal) => Promise<Chunk>;
 }
 
 interface Scan {
@@ -109,6 +111,7 @@ interface Scan {
   truncated: boolean;
   /** Offset where the pass stopped. */
   stop: number;
+  pending: boolean;
 }
 
 const CACHED_CHUNKS = 4;
@@ -150,6 +153,9 @@ export class Trace {
   /** KPI declaration metadata, keyed by `scope/name`; empty in older traces. All nested values are frozen. */
   get kpiDeclarations(): Readonly<Record<string, KpiDeclaration>> { return this.#kpiDeclarations; }
 
+  #execution: ExecutionProvenance | null = null;
+  #initialExecution: unknown = null;
+  get execution(): ExecutionProvenance | null { return this.#execution; }
   #initial: State | null = null;
   /** Immutable activation state, also used to anchor viewer-only fallback geometry. */
   get initialState(): State | null {
@@ -170,15 +176,14 @@ export class Trace {
   #activation: Cursor | null = null;
   #footer: Dict | null = null;
   #firsts: readonly Cursor[] = [];
-  readonly #cache = new Map<number, Chunk>();
-  #readers = 0;
-  #waiters: SharedChunkRead[] = [];
+  #chunkKeys: readonly symbol[] = [];
+  #pool = {cache: new Map<symbol, Chunk>(), readers: 0, waiters: [] as SharedChunkRead[],
+    loading: new Map<symbol, SharedChunkRead>()};
   /** Estimated decoded-cache occupancy; excludes caller-held replay frames and browser/GPU allocations. */
   get cacheStats(): Readonly<{chunks: number; estimatedBytes: number; activeReads: number}> {
-    return Object.freeze({chunks: this.#cache.size, estimatedBytes: [...this.#cache.values()].reduce((n,c)=>n+c.bytes,0), activeReads: this.#readers});
+    return Object.freeze({chunks: this.#pool.cache.size, estimatedBytes: [...this.#pool.cache.values()].reduce((n,c)=>n+c.bytes,0), activeReads: this.#pool.readers});
   }
-  get oversizedWorkingSet(): boolean { return [...this.#cache.values()].some(c => c.bytes > 128 * 1024 * 1024); }
-  readonly #loading = new Map<number, SharedChunkRead>();
+  get oversizedWorkingSet(): boolean { return [...this.#pool.cache.values()].some(c => c.bytes > 128 * 1024 * 1024); }
 
   /** @internal Use {@link openTrace}. */
   constructor(
@@ -241,8 +246,68 @@ export class Trace {
         field(fingerprint, "digest");
       });
     }
+    this.#execution = executionOf(this.#header as Readonly<Record<string, Wire>>, this.#initialExecution,
+      this.#footer as Readonly<Record<string, Wire>> | null, this.#initial !== null);
     this.#firsts = this.index.map((info) => info.first);
+    this.#chunkKeys = this.index.map(() => Symbol());
     Object.freeze(this.#kpiDeclarations);
+  }
+
+  /** @internal A fully committed live boundary; validation publishes a fresh immutable view. */
+  static async committed(source: ByteSource, options: OpenOptions = {}, previous?: Trace,
+    signal?: AbortSignal): Promise<Trace> {
+    const trace = new Trace(source, resolveLimits(options.limits));
+    let start = PREAMBLE_SIZE;
+    if (previous) {
+      if (previous.#footer || source.size <= previous.source.size)
+        throw new TraceCorrupted("Cannot extend terminal or non-growing trace");
+      start = previous.source.size;
+      trace.#header = previous.#header;
+      trace.#level = previous.#level;
+      trace.#layout = previous.#layout;
+      trace.#initial = previous.#initial;
+      trace.#initialManifest = previous.#initialManifest;
+      trace.#initialExecution = previous.#initialExecution;
+      trace.#activation = previous.#activation;
+      trace.#pool = previous.#pool;
+      Object.assign(trace.#kpiDeclarations, previous.#kpiDeclarations);
+    } else {
+      const preamble = await source.read(0, PREAMBLE_SIZE, signal);
+      if (preamble.length !== PREAMBLE_SIZE || new TextDecoder().decode(preamble.subarray(0, 8)) !== MAGIC)
+        throw new TraceCorrupted("Invalid live trace preamble");
+      if (new DataView(preamble.buffer, preamble.byteOffset, preamble.byteLength).getUint16(8) !== FORMAT_MAJOR)
+        throw new UnsupportedTrace("Unsupported live trace major version");
+    }
+    const scan = await trace.scan(start, source.size, false, false, signal);
+    if (scan.pending) throw new TraceCorrupted("Live prefix ends before committing INDEX");
+    if (previous && scan.header) throw new TraceCorrupted("Repeated live HEADER");
+    if ((previous && previous.#initial) && scan.initial) throw new TraceCorrupted("Repeated live INITIAL");
+    if (!previous || scan.initial) trace.takeHead({...scan, header: scan.header ?? {...trace.#header}});
+    const combined = [...(previous?.index ?? []), ...scan.index];
+    checkIndex(combined, PREAMBLE_SIZE, scan.stop);
+    trace.#index = Object.freeze(combined);
+    trace.#firsts = combined.map(info => info.first);
+    trace.#chunkKeys = [...((previous ? previous.#chunkKeys : undefined) ?? []), ...scan.index.map(() => Symbol())];
+    trace.#footer = scan.footer;
+    if (scan.footer) {
+      const located = await trace.locateFooter(signal);
+      if (!located || scan.stop + TRAILER_SIZE !== source.size ||
+          !sameInfos(combined, arrayOf(field(scan.footer, "index")).map(chunkInfo)))
+        throw new TraceCorrupted("Invalid committed live footer/index/trailer");
+      malformed("footer", () => {
+        trace.#outcome = string(field(scan.footer!, "outcome"), "outcome");
+        asCursor(field(scan.footer!, "cursor"));
+        field(scan.footer!, "manifest");
+        const fingerprint = mapOf(field(scan.footer!, "fingerprint"), "fingerprint");
+        mapOf(field(fingerprint, "kpis"), "kpis"); field(fingerprint, "digest");
+        arrayOf(field(scan.footer!, "epochs")).map(offset => integer(offset, "epoch offset"));
+      });
+    } else if (scan.stop !== source.size) throw new TraceCorrupted("Incomplete committed live record");
+    trace.#execution = executionOf(trace.#header as Readonly<Record<string, Wire>>, trace.#initialExecution,
+      trace.#footer as Readonly<Record<string, Wire>> | null, trace.#initial !== null);
+    Object.freeze(trace.#kpiDeclarations);
+    signal?.throwIfAborted();
+    return trace;
   }
 
   /**
@@ -270,10 +335,10 @@ export class Trace {
     signal?.throwIfAborted();
     const i = this.chunkFor(this.checkedCursor(cursor));
     if (i < 0) return;
-    const cached = this.#cache.get(i);
+    const cached = this.#pool.cache.get(this.#chunkKeys[i]!);
     if (cached !== undefined) {
-      this.#cache.delete(i); // most recently used last
-      this.#cache.set(i, cached);
+      this.#pool.cache.delete(this.#chunkKeys[i]!); // most recently used last
+      this.#pool.cache.set(this.#chunkKeys[i]!, cached);
       return;
     }
     await this.loadChunk(i, signal);
@@ -282,13 +347,14 @@ export class Trace {
 
   private async loadChunk(i: number, signal?: AbortSignal): Promise<Chunk> {
     signal?.throwIfAborted();
-    const cached = this.#cache.get(i);
+    const cached = this.#pool.cache.get(this.#chunkKeys[i]!);
     if (cached) return cached;
-    let loading = this.#loading.get(i);
+    const key = this.#chunkKeys[i]!;
+    let loading = this.#pool.loading.get(key);
     if (loading === undefined) {
-      loading = { index: i, controller: new AbortController(), consumers: new Set(), started: false };
-      this.#loading.set(i, loading);
-      this.#waiters.push(loading);
+      loading = { key, controller: new AbortController(), consumers: new Set(), started: false, read: signal => this.readChunk(this.index[i]!, signal) };
+      this.#pool.loading.set(key, loading);
+      this.#pool.waiters.push(loading);
     }
     const shared = loading;
     return new Promise<Chunk>((resolve, reject) => {
@@ -297,10 +363,10 @@ export class Trace {
         shared.consumers.delete(consumer);
         reject(signal!.reason);
         if (shared.consumers.size === 0) {
-          if (this.#loading.get(i) === shared) this.#loading.delete(i);
+          if (this.#pool.loading.get(key) === shared) this.#pool.loading.delete(key);
           if (!shared.started) {
-            const index = this.#waiters.indexOf(shared);
-            if (index >= 0) this.#waiters.splice(index, 1);
+            const index = this.#pool.waiters.indexOf(shared);
+            if (index >= 0) this.#pool.waiters.splice(index, 1);
           }
           shared.controller.abort(signal!.reason);
         }
@@ -315,31 +381,31 @@ export class Trace {
     });
   }
   private startReads(): void {
-    while (this.#readers < 2 && this.#waiters.length) {
-      const shared = this.#waiters.shift()!;
+    while (this.#pool.readers < 2 && this.#pool.waiters.length) {
+      const shared = this.#pool.waiters.shift()!;
       shared.started = true;
-      this.#readers++;
+      this.#pool.readers++;
       void this.readShared(shared);
     }
   }
   private async readShared(shared: SharedChunkRead): Promise<void> {
     try {
-      const chunk = await this.readChunk(this.index[shared.index]!, shared.controller.signal);
+      const chunk = await shared.read(shared.controller.signal);
       shared.controller.signal.throwIfAborted();
-      this.#cache.delete(shared.index); this.#cache.set(shared.index, chunk);
-      let bytes = [...this.#cache.values()].reduce((n,c) => n+c.bytes, 0);
-      while (this.#cache.size > 1 && (this.#cache.size > CACHED_CHUNKS || bytes > 128*1024*1024)) {
-        const oldest = this.#cache.keys().next().value!;
-        bytes -= this.#cache.get(oldest)!.bytes; this.#cache.delete(oldest);
+      this.#pool.cache.delete(shared.key); this.#pool.cache.set(shared.key, chunk);
+      let bytes = [...this.#pool.cache.values()].reduce((n,c) => n+c.bytes, 0);
+      while (this.#pool.cache.size > 1 && (this.#pool.cache.size > CACHED_CHUNKS || bytes > 128*1024*1024)) {
+        const oldest = this.#pool.cache.keys().next().value!;
+        bytes -= this.#pool.cache.get(oldest)!.bytes; this.#pool.cache.delete(oldest);
       }
       for (const consumer of shared.consumers) { consumer.detach(); consumer.resolve(chunk); }
     } catch (error) {
       for (const consumer of shared.consumers) { consumer.detach(); consumer.reject(error); }
     } finally {
       shared.consumers.clear();
-      if (this.#loading.get(shared.index) === shared) this.#loading.delete(shared.index);
+      if (this.#pool.loading.get(shared.key) === shared) this.#pool.loading.delete(shared.key);
       // A source must settle an aborted read before its physical read slot can be reused.
-      this.#readers--;
+      this.#pool.readers--;
       this.startReads();
     }
   }
@@ -356,7 +422,7 @@ export class Trace {
     const at = this.checkedCursor(cursor);
     const i = this.chunkFor(at);
     if (i < 0) return copyState(this.#initial!);
-    const chunk = this.#cache.get(i);
+    const chunk = this.#pool.cache.get(this.#chunkKeys[i]!);
     if (chunk === undefined) {
       throw new NotPreparedError(`the chunk for cursor [${at[0]}, ${at[1]}] is not prepared: await prepare(cursor) first`);
     }
@@ -424,21 +490,21 @@ export class Trace {
   // -----------------------------------------------------------------------------------------------------------
 
   /** The offset and decoded payload of the footer named by a valid trailer; null if the file has no trailer. */
-  private async locateFooter(): Promise<[number, Dict] | null> {
+  private async locateFooter(signal?: AbortSignal): Promise<[number, Dict] | null> {
     const { source } = this;
     const size = source.size;
     if (size < PREAMBLE_SIZE + TRAILER_SIZE) return null;
-    const trailer = await source.read(size - TRAILER_SIZE, TRAILER_SIZE);
+    const trailer = await source.read(size - TRAILER_SIZE, TRAILER_SIZE, signal);
     if (new TextDecoder().decode(trailer.subarray(8)) !== TRAILER_MAGIC) return null;
     const view = new DataView(trailer.buffer, trailer.byteOffset, trailer.byteLength);
     const offsetBig = view.getBigUint64(0);
     const end = size - TRAILER_SIZE;
     const offset = offsetBig <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(offsetBig) : -1;
-    const frame = offset >= PREAMBLE_SIZE && offset < end ? await readFrame(source, offset, end, this.limits) : null;
+    const frame = offset >= PREAMBLE_SIZE && offset < end ? await readFrame(source, offset, end, this.limits, signal) : null;
     if (frame === null || frame.type !== RecordType.FOOTER || offset + FRAME_SIZE + frame.length !== end) {
       throw new TraceCorrupted("the trailer does not point at a footer record");
     }
-    const data = await readPayload(source, offset, frame);
+    const data = await readPayload(source, offset, frame, signal);
     if (data === null) throw new TraceCorrupted("the footer record fails its CRC check");
     return [offset, malformed("footer", () => mapOf(this.decode(data, "the footer"), "footer"))];
   }
@@ -450,13 +516,13 @@ export class Trace {
    * (walking the frames that follow, damaged or not, until one is cut short or exceeds `maxRecord`), ends the pass
    * as an incomplete tail; otherwise any damage raises.
    */
-  private async scan(start: number, end: number, headOnly: boolean, damageIsTail: boolean): Promise<Scan> {
+  private async scan(start: number, end: number, headOnly: boolean, damageIsTail: boolean, signal?: AbortSignal): Promise<Scan> {
     const { source, limits } = this;
-    const scan: Scan = { header: null, initial: null, exts: new Map(), index: [], footer: null, truncated: false, stop: 0 };
+    const scan: Scan = { header: null, initial: null, exts: new Map(), index: [], footer: null, truncated: false, stop: 0, pending: false };
     let pending: readonly [number, number] | null = null; // [offset, record size] of a chunk awaiting its INDEX
     let pos = start;
     while (pos < end) {
-      const frame: Frame | null = await readFrame(source, pos, end, limits);
+      const frame: Frame | null = await readFrame(source, pos, end, limits, signal);
       if (frame === null) {
         if (!damageIsTail) throw new TraceCorrupted(`record at offset ${pos} is cut short`);
         scan.truncated = true;
@@ -470,7 +536,7 @@ export class Trace {
         break;
       }
       const recordEnd = pos + FRAME_SIZE + length;
-      const data = await readPayload(source, pos, frame);
+      const data = await readPayload(source, pos, frame, signal);
       if (data === null) {
         if (!damageIsTail || (await validRecordFrom(source, recordEnd, end, limits))) {
           throw new TraceCorrupted(`record at offset ${pos} fails its CRC check and valid records follow it`);
@@ -505,6 +571,7 @@ export class Trace {
       }
       pos = recordEnd; // record types of later minor versions are skipped
     }
+    scan.pending = pending !== null;
     scan.stop = pos;
     return scan;
   }
@@ -519,6 +586,7 @@ export class Trace {
       this.#level = string(field(header, "level"), "level");
       mapOf(field(header, "manifest"), "manifest");
       if (initial !== null) {
+        this.#initialExecution = initial["execution"];
         this.#initial = stateOf(field(initial, "state"));
         this.#activation = asCursor(field(initial, "cursor"));
         mapOf(field(initial, "manifest"), "manifest");
@@ -534,14 +602,14 @@ export class Trace {
   }
 
   /** Check the `KPI` records between `start` and `end`, walking the frames of the other records. */
-  private async checkKpis(start: number, end: number): Promise<void> {
+  private async checkKpis(start: number, end: number, signal?: AbortSignal): Promise<void> {
     const { source, limits } = this;
     let pos = start;
     while (pos < end) {
-      const frame = await readFrame(source, pos, end, limits);
+      const frame = await readFrame(source, pos, end, limits, signal);
       if (frame === null) throw new TraceCorrupted(`record at offset ${pos} is cut short`);
       if (frame.type === RecordType.KPI) {
-        const data = await readPayload(source, pos, frame);
+        const data = await readPayload(source, pos, frame, signal);
         if (data === null) throw new TraceCorrupted(`KPI record at offset ${pos} fails its CRC check`);
         malformed("KPI record", () => kpiRecord(this.decode(data, "a KPI record"), this.#kpiDeclarations));
       }

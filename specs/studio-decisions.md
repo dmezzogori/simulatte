@@ -218,3 +218,362 @@ memory-method limits belong in the SP3 acceptance report. This is an implementat
 limit under the approved provisional-budget rule, not a relaxation of that budget.
 Actual Safari was initially deferred at Davide’s request; his subsequent manual
 checks passed and are recorded in the SP3 acceptance report.
+
+## SP4 approval, 2026-10-11
+
+**Status: approved by Davide ("Reviewed and approved. Proceed"), not yet implemented.** These entries record the focused
+[SP4 design](2026-10-11-sp4-studio-design.md) and
+[implementation plan](../plans/2026-10-11-sp4-studio.md). A1–A7 are the explicit approved amendment/clarification list. The direct implementation authorization supersedes the pending review gate; no separate adversarial review pass is claimed.
+
+**D71. Execution boundaries and local scheduling.** Public optional metadata in
+`model.py`, population/stopping API in `stopping.py`, internal `execution/`
+package shared by headless CLI and Studio. One local slot, zero automatic retries,
+no model imports in coordinator/supervisor, one-use inspection and run children.
+Reuse SP3 scene/playback/export/auth and SP2 layout re-resolution. Rejected:
+ASGI-process execution, interpreter reuse, or a second simulation/replay engine.
+
+**D72. Worker protocol 1.0 uses bounded MessagePack envelopes and raw fragments.**
+Fixed magic, u32 big-endian frames, 2 MiB frame/256 KiB envelope/1 MiB fragment
+caps; stdlib plus existing pure-Python-capable msgpack. Separate control and
+bounded stdout/stderr drains; ready acknowledgement before queued commands.
+Rejected: pickle, line-delimited stdout JSON and encoding large trace bytes as
+base64 JSON. A4 documents the required activation integration.
+
+**D73. Content-addressed immutable working-byte snapshots.** Explicit Git-tracked
+membership plus declared includes/inputs, current dirty disk bytes, normalized
+PAX archives and domain-separated canonical manifest hashes. Layout remains
+separate. Detached per-attempt read-only materialization, no editable hardlinks.
+Source-only disposable metadata inspection resolves input declarations (A3);
+additive includes clarify untracked Git membership (A6). Reject `git archive
+HEAD`, implicit ignored-file capture and running directly from editable sources.
+
+**D74. Import validation does not define watching.** Isolated `-I -S` bootstrap,
+validated local import roots and guarded origins throughout execution, including
+lazy/namespace imports; runtime/dependency evidence in resolved manifests.
+Watch the whole manifest, not merely imported modules. Unsupported executable
+startup hooks/editable loaders fail explicitly; custom/native code is not an OS
+sandbox (A5). Reject sys.path-prepending alone as an isolation guarantee.
+
+**D75. Bounded, acknowledged spool and independent lifecycle.** Default
+256 MiB/1,024 files per attempt including reservations; maximum segment 128 MiB,
+16 MiB transfer window, 64 MiB recorder pending budget. ACK only after durable
+coordinator receipt; a full spool blocks, with cancel-responsive waits and
+`disk_full` after 60 s without reclaiming ACKs. Supervisor heartbeat 1 s/loss 5 s,
+stalled 10 s, graceful cancel 2 s then TERM/KILL escalation. POSIX guardian plus
+process groups; Windows suspended child assigned to kill-on-close Job Object.
+Deliberate POSIX session escape is a documented limitation, not hidden coverage.
+
+**D76. No warm spare in SP4.** Default and implemented pool size zero; measure
+cold inspection/ready/run/close cost on CPython and PyPy. C4 permits spares and
+D45 motivates them but does not require one before measurement. Rejected:
+pre-importing user code or a speculative background interpreter pool.
+
+**D77. Durable atomic visibility and attempt fencing.** SQLite index schema 1,
+immutable verified artifacts renamed before a fenced DB transaction publishes
+results, crash recovery never adopts unindexed results. This explicitly amends
+C5.1's literal cross-filesystem/SQLite transaction wording on approval (A1).
+Single project writer lock; provisional streams fenced by attempt/generation;
+presentation views link original result identity without changing its trace.
+Rejected: marking success before artifacts are durable, or late-result wins.
+
+**D78. watchfiles with manifest reconciliation and optimistic revisions.**
+Optional Studio dependency, custom full-manifest filter, 250 ms quiet/1 s maximum
+batch debounce, 5 s reconciliation and polling fallback. Monotonic revision plus
+input digest prevents ABA; server/disk validation guards all writes. Reuse
+`reresolve_presentation` including structural/negative dependencies; physical or
+source changes cancel/rerun. Reject Uvicorn reload and visual-field-name heuristics.
+
+**D79. Finite stopping needs an explicit population interface.** Add normalized
+Horizon/FinitePopulation policies and Population admission/completion/pending
+tracking. Count/time cutoff and safety limit determine drain time; registry or
+queue emptiness is not a population definition. A2 fills the master API gap.
+Optional trace `execution-v1` in container 1.3 records execution provenance without
+changing domain events/digest (A7); layout schema stays 1.0. Rejected: opaque
+SimPy event stopping with falsely complete provenance.
+
+**D80. Extend SP3's server/viewer with bounded live protocols and editing.**
+Reuse bootstrap/sessionStorage/terminal renewal, add explicit websocket backend,
+Origin/Host checks and first-message secret auth. Incremental committed-prefix
+reader retains SP3 cache limits; one websocket/tab carries control/availability,
+HTTP carries immutable trace bytes. Full typed parameter and SP2 layout editing,
+revision-aware undo/redo and orphan/stale controls. Exports pin committed results
+and separate presentation overlays. Experiments, comparisons and SSH stay SP5.
+
+
+**D81. Bounded spool receipts do not require unbounded duplicate history.**
+Use attempt-local authenticated opaque segment ids carrying sequence, offset,
+length and stream identity, bound to the content SHA-256. Authenticate every ACK
+before recognizing a retired sequence as a duplicate. These ids are transport
+receipts, never canonical run/content identities. Active temporary reservations
+count against quotas; failed deletion retains credit usage. File trace output
+keeps released bytes and interruption behavior; segmented output strictly rejects
+oversized pending items, including latency-triggered seals. Partial transfer and
+receiver durability are completed with the store integration in Tasks 6–7.
+
+
+**D82. Fragment credit and complete-segment durability are different ACK states.**
+The 128 MiB segment cap cannot operate under a 16 MiB window if every ACK waits
+for a whole segment. Fsync and transactionally record each canonical fragment's
+contiguous extent before returning transfer credit. Partial uploads stay invisible
+and consume worker spool space. Only a hash-verified complete segment receipt
+publishes a prefix and releases spool credit. Entering finalizing closes uploads;
+publication streams receipt batches and checks the assignment again at commit.
+KPI-only results preserve `not_verifiable` for semantic digest verification;
+structural checks and exact byte/manifest/fingerprint equality still apply.
+
+The store uses one mutex-serialized writable/checkpointing SQLite connection.
+Any additional readers must use URI `mode=ro`; they cannot write or checkpoint.
+This is consistent with ownership and avoids the documented trigger of the
+[SQLite WAL-reset race](https://www.sqlite.org/wal.html) in older bundled
+SQLite versions. Native version/platform acceptance remains required.
+
+**D83. Preserve ready provenance and record the final import audit separately.**
+`ResolvedManifest` is captured with INITIAL and referenced by `ready`; publication
+requires identical resolved bytes in the trace and result proposal. Lazy imports
+can occur after readiness, so the final result also retains `final_imports` from
+a second origin-policy audit. Do not mutate INITIAL or the acknowledged manifest
+to insert facts learned later. Every ordinary import remains guarded throughout
+execution. This resolves the timing gap between the ready contract and complete
+import evidence; it does not promise that arbitrary custom/native loading is
+sandboxed.
+
+The execution trace uses optional `execution-v1` in container 1.3. Python validates
+request identity; the TypeScript reader validates its structure, retaining its
+existing division of responsibility (coordinator verifies request hashes and
+semantic fingerprints). Released Python 0.15.0 can check and verify the shared
+new fixture. KPI selection filters recorded declarations, series and scalar
+fingerprints; it never detaches collectors or changes domain accounting. Compare
+common KPI keys, as required by the existing invariance contract.
+
+**D84. Inspection and execution share fencing, but not a fabricated run identity.**
+Inspection requests contain the model reference, captured source identity and
+runtime evidence and use the `inspection-request-v1` hash domain. They have normal
+attempt generations and durable metadata receipts, but successful inspection does
+not insert a simulation result. Large metadata, request, runtime and layout maps
+travel as verified local MessagePack document references; control frames retain
+their existing bounds. A referenced document binds its kind, length and SHA-256,
+and readers reject mutation and symlink replacement. These local references are
+an SP4 transport detail; they are not an SSH protocol contract.
+
+The physical source root and configured import search roots are separate. A
+`src` project can load its selected model at the source root without implicitly
+adding that root to its import path. The guarded finder preserves the stdlib
+`find_distributions` extension for data-only installed metadata discovery (see
+[Python's primary documentation](https://docs.python.org/3.11/library/importlib.metadata.html#extending-the-search-algorithm));
+it does not restore editable finders or startup hooks. Runtime evidence includes
+actual interpreter/platform facts, normalized installed versions and RECORD
+manifest hashes and is checked in each child before model import and after the
+run. RECORD identity does not claim to hash every installed package file or
+snapshot the external environment; missing RECORD data is an explicit provenance
+warning. No dependency provisioning is introduced.
+
+The coordinator persists captured preparation independently of working project
+configuration, so reproduction can reopen after the model or pyproject is edited
+or removed. Snapshot archive and manifest directory entries must be durable before
+the preparation index is committed. A run deadline includes queueing and detached
+materialization; expiration before dispatch must not launch user code. A storage
+failure that also prevents the terminal index write is reported as an undurable
+live failure and closes admission until restart. Startup recovery owns the orphan
+transition; the running coordinator must not report a durable terminal write that
+did not happen.
+
+**D85. Bind discovered project settings to the configuration bytes that produced them.**
+Project discovery records a domain-separated identity for the parsed
+`pyproject.toml` bytes, including an explicit absent-file identity. Source capture
+checks that binding against its captured entries before publication. A changed
+configuration must produce `snapshot_changed` within the existing three-attempt
+capture budget and require fresh discovery; it must not pair new configuration
+bytes with old include/exclude/import-root settings. Reproduction still uses the
+stored project settings and captured bytes without reopening working configuration.
+Synthetic trusted-runtime bundles do not derive their membership from a project's
+pyproject and remain independent of this binding.
+
+Input-state documents encode the seed as canonical decimal text, just like the
+execution request wire schema. CLI integers and canonical text normalize to the
+same value; the execution request retains its internal integer representation.
+This preserves all supported 63-bit seeds without weakening the wire format's
+safe-integer bound. Source refresh retains valid parameter values and same-family
+stopping values; incompatible fields or a changed stopping family require Apply.
+
+**D86. Coalesce watcher observations without losing the newest layout edit.**
+The monitor has one refresh processor and one latest pending observation. Source
+changes invalidate provisional work immediately. A layout observation made stale
+by an earlier presentation commit may be re-observed against the current revision,
+provided no newer observation, permission pause or shutdown superseded it. This
+reconciles file observations; it does not retry a failed execution attempt.
+Acknowledgement uses captured manifest/configuration/layout identities, never a
+new working-tree scan that could swallow edits made during inspection.
+
+A watcher or background-read permission failure pauses execution. If the index
+cannot persist invalidation, admission closes, queued work is discarded and the
+failure is explicitly marked `index_terminal_state: not_durable`. Last committed
+results remain distinct from current invalid or provisional inputs.
+
+**D87. Live reader generations share bounded caches, not mutable query metadata.**
+A committed prefix is identified by attempt, monotonic generation, byte length and
+SHA-256. Coalescing may skip notification generations, but every byte in the
+new extent is read and hashed; missing bytes or a mismatched cumulative digest
+reject the extension. Original prefix extents retain their original immutable
+byte sources. Metadata parsing starts at the previous committed boundary and
+publishes a new query view only after successful validation. Old views retain
+their catalog, bounds and KPI declarations.
+
+Use pinned `@noble/hashes` 2.0.1 for incremental SHA-256 state and cloning, with
+1 MiB digest reads. The [primary API documentation](https://github.com/paulmillr/noble-hashes/tree/2.0.1)
+and installed package source confirm incremental updates, cloned state and ESM
+subpath imports; its Node >=20.19 requirement fits the existing Node >=22 workspace.
+No full-prefix buffering or from-zero rehash is introduced. Standalone reader
+bundle verification includes this dependency and still prohibits runtime network
+and filesystem access.
+
+Generations share the existing decoded-cache bounds and a two-read byte-source
+scheduler. Each candidate's new chunks get distinct cache identities, so a
+candidate rejected during metadata validation cannot contaminate a later one.
+Previously committed chunk identities remain reusable. The live playback adapter
+retains one newest pending notification and fences both reads and frames on an
+attempt/revision change. Follow is explicit; manual seek, step and playback leave
+Follow. Terminal status is supplied by the coordinator, never inferred from a
+missing or present trace footer.
+
+**D88. Preserve explicit websocket queue semantics and reconcile before replay.**
+Studio selects Uvicorn's `WebSocketProtocol` class explicitly, with asyncio, h11,
+256 KiB receive frames, a 16-message receive queue, compression disabled and no
+proxy headers/access logging/reload. The locked Uvicorn 0.54.0 backend and
+websockets 17.2 are exercised together. Uvicorn warns that its `websockets` alias
+will change to the SansIO implementation; selecting a class avoids silently
+changing this queue contract. The legacy implementation is deprecated, so a future
+backend migration must verify equivalent bounds before replacing it. This does
+not change the separate 256-message/4 MiB application send queue.
+
+Primary source verification: [Uvicorn configuration](https://github.com/Kludex/uvicorn/blob/0.54.0/uvicorn/config.py)
+accepts a protocol class; the [selected backend](https://github.com/Kludex/uvicorn/blob/0.54.0/uvicorn/protocols/websockets/websockets_impl.py)
+passes the configured frame and queue limits to websockets. Existing optional
+Starlette and Uvicorn versions remain unchanged; only websockets is added directly.
+
+A newly authenticated socket receives its initial state before notifications
+observed while that snapshot was being read. Its initial event sequence is
+reserved before the read; later queued notifications retain their order. Events
+with an attempt carry that attempt's original input revision and top-level
+`attempt_id`/`generation`, separate from the current presentation association.
+The browser retains one pending state refresh, bounds outstanding commands to 32,
+and rejects unresolved commands as having an unknown outcome on disconnect.
+Reconnect obtains authoritative state and never automatically replays a mutation.
+HTTP layout PUT also uses a content-bound command id and an explicit base revision.
+
+Partial valid startup parameters are retained as a draft. Missing required fields
+prevent auto-run. Invalid CLI overrides open an explicit error and reviewable model
+defaults without executing them; successful Apply is required before starting.
+This refines startup recovery without relaxing validation for normal Apply.
+
+Layout reads expose the immutable bytes captured for the returned input revision,
+not an unobserved working-file read paired with that revision. A later disk edit
+is reconciled by the watcher or rejected by the final protected-write comparison.
+Finite float parameters outside JavaScript's safe-integer range use an explicit
+JSON exponent; their field schema still distinguishes them from integer inputs.
+Nonfinite command and layout values are rejected before sending.
+
+## D89 — Editor drafts, inverse history and disposable physical previews (2026-10-12)
+
+Parameter drafts retain their base revision until explicit review. A new schema
+flags incompatible or removed edits; Apply sends one normalized input change.
+Layout history retains guarded field patches (64 entries and 32 MiB total).
+Arrays replace wholly, as in SP2. Undo and redo apply inverse/new patches to the
+latest revision and refuse overlapping external changes; they do not restore
+an old whole-file snapshot. Numeric controls and canvas gestures share these
+drafts, with pointer movement kept imperative until pointer-up.
+
+Use the existing SP2 JSON schema and validator for structured controls. Schema
+forms cover fields that do not have specialized canvas handles. File Reset
+removes an override, while `$unset` suppresses an optional inherited value.
+Lane vertex ids remain stable; edits never transfer old segment overrides to
+new vertex ids. Generated-id physical moves are refused, and presentation
+references carry a visible stability warning.
+
+Physical `layout.validate` reuses the normal immutable request, supervisor,
+receiver and durable INITIAL/ready barrier in a disposable coordinator with its
+own temporary run store. It cancels before `ready_ack`, so no simulation event
+is stepped. Return the resolved layout only after the supervisor confirms exit
+and descendant cleanup. No simulation result is published, no working layout
+is written, and the real coordinator's revision/active attempt is unchanged.
+One preview may run alongside the project's execution slot; there is no warm
+spare. The default preview timeout is 30 seconds (an explicit serving timeout
+also applies). A changed revision or coordinator shutdown cancels the preview.
+
+This resolves the focused design's unspecified preview scheduling detail:
+preview needs a separate bounded slot to avoid replacing an active run merely
+to validate an unsaved draft. It uses existing worker protocol messages and
+never weakens normal result publication. The read-only validation command does
+not hold the Studio mutation lock during Python preparation, allowing cancel
+and newer revision commands to proceed; the preview rechecks its base before
+returning. Presentation-only validation still uses pure re-resolution.
+
+Large preview drafts use authenticated `PUT /api/layout/validate` with the same
+16 MiB streaming body cap and revision header as layout writes. This endpoint
+only validates; it never replaces the configured file. Small websocket
+`layout.validate` remains supported. This makes the existing large-document
+contract apply to validation as well as saving, without raising control-frame
+limits or creating a general upload API.
+
+## D90 — Live presentation, pinned exports and explicit recovery (SP4)
+
+Studio reuses `LiveRecording`, `Session`, `Playback`, the SP3 controller panels
+and `Scene`. A `LiveSession` adapter owns one current and one pending prefix;
+an imperative reconciliation layer switches attempts and committed results.
+Frames do not enter React. Manual seek/step exits Follow; only the explicit
+Follow control resumes edge-following. Failed or superseded provisional data
+is invalidated, while an indexed previous result remains selectable. Historical
+run selection uses that attempt's recorded layout, even when repeated attempts
+share one input revision and its current presentation association has moved.
+The history UI shows the newest 20 committed attempts.
+
+A presentation overlay is a separate immutable, structurally validated
+layout-v1 bundle whose physical hash must match the recording. Python's saved
+association remains the authority for physical equivalence; the TypeScript
+reader does not implement a second layout resolver/hash verifier. HTML embeds
+an inert, escaped JSON envelope `{version:1,trace_sha256,layout}`, bound to the
+unchanged embedded trace bytes. The offline player verifies that binding before
+using the overlay. Video/PNG use the same `Session` overlay. Export dialogs pin
+both recording and presentation at opening; later live or layout updates cannot
+replace them. Live prefixes cannot be exported before result publication. SP3
+file exports and no-network HTML CSP remain available.
+
+Add `project.rescan` to the focused design's v1 control-command list. Its body
+accepts only optional boolean `retry`. Focus requests rescan without retry and
+does not rerun unchanged healthy inputs. The explicit Rescan / retry control
+may restart a failed initial inspection; revision checks fence a scan racing a
+newer edit. This fills the specified focus/manual-rescan behavior rather than
+using `state.get` (which remains read-only reconciliation) as an execution
+trigger.
+
+An initially invalid layout is repairable before model metadata is available.
+`layout.get` pins the exact bytes to the current revision; replacement requires
+that captured invalid baseline, canonical layout validation, a durable backup,
+a final disk comparison and a revision check. A valid initial file cannot use
+this path to bypass normal input ownership. Saving invokes the normal watcher
+and inspection path; it never executes against a substituted empty layout.
+
+`trace_available.last_cursor` is a hint derived from each newly committed
+segment, including INITIAL, domain indexes, simulation observers, KPI samples
+and the footer. It is null before INITIAL. It never advances on preparation
+records or uncommitted fragments. The scan skips compressed event bodies and
+never rescans prior prefixes; metadata decoding uses the existing reader record
+bound. The browser still derives playback state exclusively from verified
+prefix bytes, and does not trust the hint as an index or a progress deadline.
+
+Concurrent viewer/editor/export scenes share Pixi global resources. Dispose a
+renderer with `releaseGlobalResources` only when the final owned scene exits;
+otherwise disposing a preview can invalidate another active renderer. Native
+Linux Firefox exposed this lifecycle defect; browser evidence is recorded in
+`research/2026-10-12-sp4-live.md`.
+
+## D91 — Cross-entry-point request comparison retains revision identity (SP4)
+
+The distribution acceptance comparison must compare captured source/input/layout
+hashes, parameters, seed, stopping, trace options, runtime and final fingerprint.
+Raw request ids are equal only when the included `layout_revision` is equal too.
+Studio's initial watched revision and headless preparation can assign different
+local revision numbers to identical captured content (observed 4 versus 3 in
+fresh stores). Keep the approved request-hashing contract unchanged: do not
+remove revision fencing from `ExecutionRequest` to make a smoke assertion pass.
+The acceptance report records the normalized content comparison and the distinct
+attempt identities explicitly. Reproduction still reuses the exact stored request.

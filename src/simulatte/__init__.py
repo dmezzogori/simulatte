@@ -15,10 +15,20 @@ if TYPE_CHECKING:
 from simulatte.environment import Environment
 from simulatte.events import DomainEvent, Event, ObserverEvent
 from simulatte.kpi import KPI, Collector
+from simulatte.model import Description, Length, Range, get_model_spec, model
 from simulatte.provenance import Provenance
 from simulatte.trace import Trace, TraceRecorder
+from simulatte.stopping import Horizon, FinitePopulation, Population
 
 __all__ = [
+    "Description",
+    "Length",
+    "Range",
+    "get_model_spec",
+    "model",
+    "Horizon",
+    "FinitePopulation",
+    "Population",
     "KPI",
     "Collector",
     "DomainEvent",

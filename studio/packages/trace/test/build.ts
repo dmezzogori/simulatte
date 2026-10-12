@@ -127,6 +127,7 @@ export interface ChunkSpec {
 }
 
 export interface TraceOptions {
+  header?: Record<string, unknown>;
   /** Records written after INITIAL and before the chunks (KPI records, for example), as `[type, value]`. */
   records?: readonly (readonly [number, unknown])[];
   /** Changes to every index entry (in the INDEX records and the footer). */
@@ -138,7 +139,7 @@ export interface TraceOptions {
 /** A complete trace (footer and trailer): header, the given initial record, one CHUNK and INDEX per chunk spec. */
 export function buildTrace(initial: unknown, chunks: readonly ChunkSpec[] = [], options: TraceOptions = {}): ArrayBuffer {
   const out: number[] = [...new TextEncoder().encode("SIMTRACE"), 0, 1, 0, 0];
-  out.push(...record(1, pack(HEADER)));
+  out.push(...record(1, pack(options.header ?? HEADER)));
   out.push(...record(3, pack(initial)));
   for (const [type, value] of options.records ?? []) out.push(...record(type, pack(value)));
   const index: unknown[] = [];

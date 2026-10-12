@@ -1,0 +1,120 @@
+{
+  "browser": "156.0.8078.4",
+  "samples": [
+    {
+      "cursor": [
+        12,
+        12
+      ],
+      "milliseconds": 110.988037109375
+    },
+    {
+      "cursor": [
+        24,
+        24
+      ],
+      "milliseconds": 121.567138671875
+    },
+    {
+      "cursor": [
+        36,
+        36
+      ],
+      "milliseconds": 180.76513671875
+    },
+    {
+      "cursor": [
+        47,
+        47
+      ],
+      "milliseconds": 127.858154296875
+    },
+    {
+      "cursor": [
+        57,
+        57
+      ],
+      "milliseconds": 115.906982421875
+    },
+    {
+      "cursor": [
+        68,
+        68
+      ],
+      "milliseconds": 131.740234375
+    },
+    {
+      "cursor": [
+        79,
+        79
+      ],
+      "milliseconds": 147.091064453125
+    },
+    {
+      "cursor": [
+        92,
+        92
+      ],
+      "milliseconds": 124.701904296875
+    },
+    {
+      "cursor": [
+        103,
+        103
+      ],
+      "milliseconds": 163.074951171875
+    },
+    {
+      "cursor": [
+        114,
+        114
+      ],
+      "milliseconds": 173.93212890625
+    },
+    {
+      "cursor": [
+        124,
+        124
+      ],
+      "milliseconds": 178.47900390625
+    },
+    {
+      "cursor": [
+        133,
+        133
+      ],
+      "milliseconds": 143.887939453125
+    },
+    {
+      "cursor": [
+        144,
+        144
+      ],
+      "milliseconds": 72.599853515625
+    },
+    {
+      "cursor": [
+        157,
+        157
+      ],
+      "milliseconds": 91.968017578125
+    },
+    {
+      "cursor": [
+        160,
+        160
+      ],
+      "milliseconds": 133.10498046875
+    },
+    {
+      "cursor": [
+        161,
+        160
+      ],
+      "milliseconds": 125.75390625
+    }
+  ],
+  "max_ms": 180.76513671875,
+  "errors": [],
+  "method": "Same host epoch clock: SegmentReceiver.receive return after durable commit to next animation frame after controller output update; Follow enabled; excludes initial bootstrap"
+}

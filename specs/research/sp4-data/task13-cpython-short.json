@@ -1,0 +1,23 @@
+{
+  "close_seconds": 0.10065765492618084,
+  "committed_prefix_notifications": 5,
+  "coordinator_peak_rss_bytes": 38985728,
+  "coordinator_setup_seconds": 0.08960705494973809,
+  "events": 100,
+  "heartbeat_samples": 1,
+  "implementation": "CPython",
+  "inspection_including_recapture_seconds": 0.5380253290059045,
+  "maximum_observed_heartbeat_gap_seconds": null,
+  "maximum_observed_spool_bytes": 0,
+  "maximum_observed_spool_files": 0,
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+  "python": "3.14.0",
+  "ready_to_publication_seconds": 0.14727169601246715,
+  "reaped_children_peak_rss_bytes": 43429888,
+  "source_bytes": 1113,
+  "standalone_snapshot_seconds": 0.0014399740612134337,
+  "submit_to_publication_seconds": 0.744024246931076,
+  "submit_to_ready_seconds": 0.5967525509186089,
+  "total_seconds": 1.4977014519972727,
+  "trace_bytes": 48583
+}

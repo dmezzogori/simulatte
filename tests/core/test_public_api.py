@@ -11,10 +11,20 @@ from simulatte.events import DomainEvent, Event, ObserverEvent
 from simulatte.kpi import KPI, Collector
 from simulatte.layout import Layout
 from simulatte.provenance import Provenance
+from simulatte.model import model, get_model_spec, Range, Length, Description
+from simulatte.stopping import Horizon, FinitePopulation, Population
 from simulatte.runner import Runner
 from simulatte.trace import Trace, TraceRecorder
 
 EXPECTED = {
+    "model": model,
+    "get_model_spec": get_model_spec,
+    "Range": Range,
+    "Length": Length,
+    "Description": Description,
+    "Horizon": Horizon,
+    "FinitePopulation": FinitePopulation,
+    "Population": Population,
     "Collector": Collector,
     "DomainEvent": DomainEvent,
     "Environment": Environment,

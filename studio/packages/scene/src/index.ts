@@ -22,7 +22,14 @@ export type TrustedRenderer = (
   glyph: Glyph,
   scale: number,
 ) => void;
+export interface EditorPointer {
+  phase: 'start' | 'move' | 'end' | 'cancel'; point: Point; id: string | null; shift: boolean;
+}
+// Viewer, editor and export scenes can coexist. Pixi's boolean destroy(true)
+// also clears global pools; only the last scene may release shared resources.
+let liveScenes = 0;
 export class Scene {
+  constructor() {liveScenes++;}
   readonly #renderers = new Map<string, TrustedRenderer>();
   /** Only application code can install a renderer; recording data never supplies executable code. */
   registerRenderer(kind: string, renderer: TrustedRenderer): () => void {
@@ -66,6 +73,17 @@ export class Scene {
   #resize: ResizeObserver | null = null;
   #cleanup: (() => void)[] = [];
   onSelect: ((id: string | null) => void) | null = null;
+  onEditorPointer: ((event: EditorPointer) => boolean) | null = null;
+  screenToWorld(x: number, y: number): Point {
+    return {x: (x - this.#camera.x) / this.#camera.scale, y: -(y - this.#camera.y) / this.#camera.scale};
+  }
+  /** Static editor projections reuse rendering/camera controls without a playback clock. */
+  renderProjection(projection: Projection): void {
+    if (this.#disposed) return;
+    const first = this.#projection === null;
+    this.#projection = projection;
+    if (first) this.fit(); else this.draw();
+  }
   onError: ((message: string) => void) | null = null;
   get canvas(): HTMLCanvasElement {
     return this.app.canvas;
@@ -99,7 +117,7 @@ export class Scene {
       preserveDrawingBuffer: true,
     });
     if (this.#disposed) {
-      this.app.destroy(true, { children: true, texture: true });
+      this.app.destroy({removeView: true, releaseGlobalResources: liveScenes === 0}, { children: true, texture: true });
       return;
     }
     this.app.stage.addChild(this.#world);
@@ -120,12 +138,20 @@ export class Scene {
     };
     let drag: Point | null = null,
       moved = false;
+    let editing = false;
+    const editorEvent = (phase: EditorPointer['phase'], e: PointerEvent): boolean => {
+      const rect = this.canvas.getBoundingClientRect(), x = e.clientX - rect.left, y = e.clientY - rect.top;
+      return this.onEditorPointer?.({phase, point: this.screenToWorld(x, y), id: phase === 'start' ? this.pick(x, y) : null, shift: e.shiftKey}) ?? false;
+    };
     listen("pointerdown", (e) => {
-      drag = { x: e.clientX, y: e.clientY };
+      if (e.button !== 0 && this.onEditorPointer) return;
+      editing = editorEvent('start', e);
+      drag = editing ? null : { x: e.clientX, y: e.clientY };
       moved = false;
       this.canvas.setPointerCapture(e.pointerId);
     });
     listen("pointermove", (e) => {
+      if (editing) {editorEvent('move', e); return;}
       if (!drag) return;
       const dx = e.clientX - drag.x,
         dy = e.clientY - drag.y;
@@ -134,13 +160,16 @@ export class Scene {
       drag = { x: e.clientX, y: e.clientY };
     });
     listen("pointerup", (e) => {
+      if (editing) {editorEvent('end', e); editing = false; return;}
       if (drag && !moved) {
         const rect = this.canvas.getBoundingClientRect();
         this.onSelect?.(this.pick(e.clientX - rect.left, e.clientY - rect.top));
       }
       drag = null;
     });
-    listen("pointercancel", () => {
+    listen("pointercancel", (e) => {
+      if (editing) editorEvent('cancel', e);
+      editing = false;
       drag = null;
     });
     listen(
@@ -283,10 +312,7 @@ export class Scene {
     this.draw();
   }
   private pick(x: number, y: number): string | null {
-    const point = {
-      x: (x - this.#camera.x) / this.#camera.scale,
-      y: -(y - this.#camera.y) / this.#camera.scale,
-    };
+    const point = this.screenToWorld(x, y);
     for (const g of [...(this.#projection?.glyphs ?? [])].reverse()) {
       const dx = point.x - g.x,
         dy = point.y - g.y,
@@ -474,10 +500,11 @@ export class Scene {
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
+    liveScenes--;
     this.#resize?.disconnect();
     this.#cleanup.forEach((fn) => fn());
     if (this.app.renderer)
-      this.app.destroy(true, { children: true, texture: true });
+      this.app.destroy({removeView: true, releaseGlobalResources: liveScenes === 0}, { children: true, texture: true });
     this.#texts.clear();
   }
 }

@@ -96,14 +96,29 @@ def test_links_renewal_head_and_instances(viewer):
     assert client.get("/trace", headers={"X-Simulatte-Session": server.secret}).status_code == 403
 
 
-@pytest.mark.parametrize("change", ["write", "replace", "delete", "symlink"])
+@pytest.mark.parametrize("change", ["write", "write_same_size", "replace", "delete", "symlink"])
 def test_changed_trace_rejected(viewer, change):
+    import os
+
     server, client = viewer
     headers = authenticate(server, client)
     if change == "write":
         server.path.write_bytes(b"modified")
+    elif change == "write_same_size":
+        server.path.write_bytes(b"abcdefghij")
+        os.utime(server.path, ns=(server.path.stat().st_atime_ns, server.identity.st_mtime_ns))
     else:
-        server.path.unlink()
+        try:
+            server.path.unlink()
+        except PermissionError as error:
+            # Windows denies deletion while the viewer pins the file handle.
+            # The rejected mutation must leave the original recording readable.
+            if os.name != "nt" or error.winerror != 32:
+                raise
+            assert server.path.read_bytes() == b"0123456789"
+            response = client.get("/trace", headers=headers)
+            assert response.status_code == 200 and response.content == b"0123456789"
+            return
         if change == "replace":
             server.path.write_bytes(b"0123456789")
         elif change == "symlink":
@@ -247,14 +262,32 @@ def test_fifo_and_portable_read(viewer, tmp_path, monkeypatch):
     assert client.get("/trace", headers={**headers, "Range": "bytes=2-4"}).content == b"234"
 
 
-def test_portable_binary_ranges(viewer, tmp_path, monkeypatch):
+@pytest.mark.parametrize("windows_ctime", [False, True])
+def test_portable_binary_ranges(viewer, tmp_path, monkeypatch, windows_ctime):
     import os
+    from types import SimpleNamespace
+    from simulatte.execution import references
 
     server, _ = viewer
     trace = tmp_path / "binary.simtrace"
     data = b"ab\r\n\x1a\xffcd"
     trace.write_bytes(data)
     monkeypatch.delattr(os, "pread", raising=False)
+    if windows_ctime:
+        fstat = os.fstat
+
+        def descriptor_stat(fd):
+            value = fstat(fd)
+            return SimpleNamespace(
+                **{name: getattr(value, name) for name in ("st_mode", "st_dev", "st_ino", "st_size", "st_mtime_ns")},
+                st_birthtime_ns=getattr(value, "st_birthtime_ns", value.st_ctime_ns),
+                st_ctime_ns=value.st_ctime_ns + 1,
+            )
+
+        # CPython's Windows path stat reports creation time as ctime, whereas
+        # descriptor stat can report change time. Birth time agrees on both.
+        monkeypatch.setattr(references, "_WINDOWS", True)
+        monkeypatch.setattr(os, "fstat", descriptor_stat)
     binary = ViewerServer(trace, 8125, server.static)
     try:
         with TestClient(binary.app, base_url=binary.origin) as client:
@@ -315,3 +348,14 @@ def test_allowlisted_asset_symlink_cannot_escape_static_directory(viewer, tmp_pa
     response = client.get("/escape.js")
     assert response.status_code == 404
     assert "private recording contents" not in response.text
+
+
+def test_duplicate_origin_and_credentials_are_rejected(viewer):
+    server, client = viewer
+    headers = authenticate(server, client)
+    for duplicates in [
+        [("Origin", server.origin), ("Origin", "http://attacker.invalid")],
+        [("X-Simulatte-Session", server.secret), ("X-Simulatte-Session", "other")],
+    ]:
+        pairs = list(headers.items()) if duplicates[0][0] == "Origin" else []
+        assert client.get("/trace", headers=pairs + duplicates).status_code == 403

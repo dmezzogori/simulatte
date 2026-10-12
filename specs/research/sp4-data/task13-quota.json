@@ -1,0 +1,13 @@
+{
+  "file_quota": {
+    "backpressure": true,
+    "bytes": 1024,
+    "files": 1024,
+    "peak_bytes": 1024,
+    "peak_files": 1024
+  },
+  "sender_window": {
+    "in_flight": 16777216,
+    "peak_in_flight": 16777216
+  }
+}

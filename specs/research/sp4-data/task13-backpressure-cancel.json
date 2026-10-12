@@ -1,0 +1,21 @@
+{
+  "action": "cancel",
+  "cancel_seconds": 0.18810912501066923,
+  "details": {
+    "code": "cancelled",
+    "message": "Attempt stopped"
+  },
+  "implementation": "CPython",
+  "max_heartbeat_gap_seconds": 1.1118255000328645,
+  "parent_peak_rss_bytes": 47267840,
+  "pid": 45014,
+  "pid_gone": true,
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.1",
+  "saturated_heartbeats": 3,
+  "spool_peak_observed_bytes": 268435456,
+  "spool_peak_observed_files": 257,
+  "terminal": "cancelled",
+  "withheld_ack_to_terminal_seconds": 3.8111708749784157,
+  "withheld_payload_bytes": 1048576
+}

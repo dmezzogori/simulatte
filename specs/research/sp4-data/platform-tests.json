@@ -1,0 +1,68 @@
+[
+  {
+    "platform": "Linux",
+    "python": "3.11.16",
+    "passed": 3001,
+    "skipped": 2,
+    "duration_seconds": 550.7,
+    "coverage_percent": 99.03,
+    "runtime_commit": "4ed9fe8"
+  },
+  {
+    "platform": "Linux",
+    "python": "3.12.12",
+    "passed": 3001,
+    "skipped": 2,
+    "duration_seconds": 508.05,
+    "coverage_percent": 99.02,
+    "runtime_commit": "4ed9fe8"
+  },
+  {
+    "platform": "Linux",
+    "python": "3.13.9",
+    "passed": 3001,
+    "skipped": 2,
+    "duration_seconds": 487.96,
+    "coverage_percent": 99.03,
+    "runtime_commit": "4ed9fe8"
+  },
+  {
+    "platform": "Linux",
+    "python": "3.14.0",
+    "passed": 3001,
+    "skipped": 2,
+    "duration_seconds": 261.05,
+    "coverage_percent": 99.01,
+    "runtime_commit": "4ed9fe8"
+  },
+  {
+    "platform": "Linux",
+    "python": "3.15.0",
+    "passed": 3001,
+    "skipped": 2,
+    "duration_seconds": 254.6,
+    "coverage_percent": 99.01,
+    "runtime_commit": "4ed9fe8"
+  },
+  {
+    "platform": "macOS",
+    "python": "3.14.1",
+    "passed": 3002,
+    "skipped": 1,
+    "duration_seconds": 264.77,
+    "coverage_percent": 99.03,
+    "runtime_commit": "4ed9fe8",
+    "frontend_commit": "a43e868"
+  },
+  {
+    "platform": "Linux",
+    "implementation": "PyPy",
+    "python": "3.11.16",
+    "pypy": "8.0.0",
+    "passed": 2883,
+    "skipped": 23,
+    "duration_seconds": 343.08,
+    "coverage_percent": null,
+    "runtime_commit": "4ed9fe8"
+  }
+]
