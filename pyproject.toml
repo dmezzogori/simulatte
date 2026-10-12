@@ -39,7 +39,11 @@ simulatte = "simulatte.cli:main"
 [project.optional-dependencies]
 plot = ["matplotlib>=3.7.2"]
 rl = ["gymnasium>=1.0.0"]
-studio = ["starlette>=0.48", "uvicorn>=0.35"]
+studio = [
+    "starlette>=0.48",
+    "uvicorn>=0.35",
+    "watchfiles>=1.1",
+]
 all = ["simulatte[plot,rl,studio]"]
 
 [build-system]

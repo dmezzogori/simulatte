@@ -134,6 +134,7 @@ class Coordinator:
             self._worker = None
             self._closed = False
             self._fatal: ExecutionFailure | None = None
+            self._inputs = None
             self._events: deque[dict] = deque()
             self._event_bytes = 0
             self._thread = threading.Thread(target=self._loop, name="simulatte-coordinator", daemon=True)
@@ -163,6 +164,15 @@ class Coordinator:
     def _document(self, kind, value):
         return write_document(self.store.root / "documents", kind, value)
 
+    @property
+    def inputs(self):
+        from simulatte.execution.inputs import InputOwner
+
+        with self._condition:
+            if self._inputs is None:
+                self._inputs = InputOwner(self)
+            return self._inputs
+
     def _relocate(self, reference):
         return {
             **reference,
@@ -189,14 +199,19 @@ class Coordinator:
             self._event_bytes = 0
             return result
 
-    def prepare(self, *, timeout=None) -> PreparedModel:
+    def prepare(
+        self, *, timeout=None, expected: Revision | None = None, _on_revision=None, _project=None
+    ) -> PreparedModel:
         if self._closed:
             raise RuntimeError("Coordinator is closed")
+        if expected is not None and self.store.current_revision() != expected:
+            raise RevisionConflict("Preparation belongs to an obsolete revision")
+        project = self.project if _project is None else _project
         deadline = self._deadline(timeout)
-        source = capture_source(self.project)
+        source = capture_source(project)
         self._remaining(deadline)
         source_only = capture_inputs(source, ())
-        layer_path = self.project.root / self.project.layout
+        layer_path = project.root / project.layout
         layer = _plain(load_layout(layer_path).data) if layer_path.exists() else {"schema_version": "1.0"}
         evidence = describe_runtime(self.distribution_roots)
         runtime = {
@@ -206,34 +221,50 @@ class Coordinator:
         }
         documents = {"runtime_ref": self._document("runtime", evidence), "layout_ref": self._document("layout", layer)}
         self._remaining(deadline)
-        revision = self.store.create_revision({"source": source.content_hash, "layout": layout_hash("file", layer)})
         inspection = InspectionRequest(model=self.reference, source_hash=source.content_hash, runtime=runtime)
-        key = self._schedule(inspection, revision, source_only, documents, self._remaining(deadline))
+        with self._condition:
+            revision = self.store.create_revision(
+                {"source": source.content_hash, "layout": layout_hash("file", layer)}, expected=expected
+            )
+            if _on_revision is not None:
+                _on_revision(revision)
+            key = self._schedule(inspection, revision, source_only, documents, self._remaining(deadline))
         metadata = self.wait(key, timeout=None if timeout is None else timeout + 5)
         selected = selected_model(metadata)
         snapshot = capture_inputs(source, tuple(selected["inputs"]))
         self._remaining(deadline)
         # Input discovery changes the source/data partition. Record that final
         # captured input state before a request can be assigned.
-        revision = self.store.create_revision(
-            {
-                "source": snapshot.source.content_hash,
-                "inputs": snapshot.inputs.content_hash,
-                "layout": layout_hash("file", layer),
-            },
-            expected=revision,
-        )
+        with self._condition:
+            revision = self.store.create_revision(
+                {
+                    "source": snapshot.source.content_hash,
+                    "inputs": snapshot.inputs.content_hash,
+                    "layout": layout_hash("file", layer),
+                },
+                expected=revision,
+            )
+            if _on_revision is not None:
+                _on_revision(revision)
         documents["expected_metadata_ref"] = self._document("model-info", metadata)
         return PreparedModel(
-            snapshot, revision, self.project.model + ":" + metadata["selected"], metadata, layer, runtime, documents
+            snapshot, revision, project.model + ":" + metadata["selected"], metadata, layer, runtime, documents
         )
 
     def make_request(
         self, prepared: PreparedModel, *, parameters=None, seed=0, stopping=None, level="full", kpis=()
     ) -> ExecutionRequest:
+        request = self._build_request(
+            prepared, parameters=parameters, seed=seed, stopping=stopping, level=level, kpis=kpis
+        )
+        self._remember(prepared, request)
+        return request
+
+    @staticmethod
+    def _build_request(prepared, *, parameters=None, seed=0, stopping=None, level="full", kpis=()):
         selected = selected_model(prepared.metadata)
         parameters = validate_parameters(ParameterSchema.from_dict(selected["parameters"]), parameters or {})
-        request = ExecutionRequest(
+        return ExecutionRequest(
             model=prepared.model,
             source_hash=prepared.snapshot.source.content_hash,
             input_hash=prepared.snapshot.inputs.content_hash,
@@ -246,18 +277,22 @@ class Coordinator:
             kpis=kpis,
             runtime=prepared.runtime,
         )
-        manifest = {
+
+    def _preparation_manifest(self, prepared, request):
+        return {
             "request": request.to_dict(),
             "documents": prepared.documents,
             "project": {**asdict(prepared.snapshot.source.project), "root": str(self.project.root)},
         }
+
+    def _remember(self, prepared, request):
+        manifest = self._preparation_manifest(prepared, request)
         with self.store._transaction() as db:
             if prepared.revision != self.store._current_revision(db):
                 raise RevisionConflict("Prepared model belongs to an obsolete revision")
             db.execute(
                 "INSERT OR REPLACE INTO snapshots VALUES (?,?,?)", (request_id(request), "preparation", _blob(manifest))
             )
-        return request
 
     def _preparation(self, request):
         with self.store._transaction() as db:
@@ -576,6 +611,8 @@ class Coordinator:
                     ):
                         raise ValueError("Ready metadata differs from durable INITIAL")
                     self.store.transition(key, "ready")
+                    if trace.layout is not None and trace.layout.reusable:
+                        self.store.bind_ready_view(key, trace.layout)
                     self.store.transition(key, "running")
                     self._send(worker, "ready_ack", {}, key=key)
                     acknowledged = True

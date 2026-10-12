@@ -10,6 +10,19 @@ from simulatte.layout.layers import FileLayer
 from simulatte.layout.types import LayoutLimits
 
 
+def test_parse_exact_bytes_without_reopening_file(tmp_path):
+    from simulatte.layout.io import parse_layout
+
+    path = tmp_path / "layout.json"
+    raw = b'{"schema_version":"1.0","grid":{"dx":2}}'
+    path.write_bytes(raw)
+    captured = path.read_bytes()
+    path.write_text("invalid external edit")
+    assert parse_layout(captured).to_dict()["grid"]["dx"] == 2
+    with pytest.raises(LayoutError, match="max_file_bytes"):
+        parse_layout(raw, limits=LayoutLimits(max_file_bytes=4))
+
+
 @pytest.mark.parametrize(
     "text,match",
     [

@@ -222,7 +222,17 @@ class RunStore:
         with self._transaction() as db:
             return self._current_revision(db)
 
-    def create_revision(self, inputs: dict, *, expected: Revision | None = None) -> Revision:
+    def create_revision(
+        self,
+        inputs: dict,
+        *,
+        expected: Revision | None = None,
+        revoke_active: bool = False,
+        view=None,
+        preparation=None,
+    ) -> Revision:
+        if revoke_active and view is not None:
+            raise ValueError("Cannot revoke an attempt and associate its presentation in one change")
         data, digest = _blob(inputs), canonical_hash("revision-inputs-v1", inputs)
         with self._transaction() as db:
             current = self._current_revision(db)
@@ -231,7 +241,90 @@ class RunStore:
             number = 1 if current is None else current.number + 1
             revision = Revision(number, digest)
             db.execute("INSERT INTO revisions VALUES (?,?,?)", (number, digest, data))
+            if revoke_active:
+                active = db.execute("SELECT active FROM state WHERE singleton=1").fetchone()[0]
+                if active is not None:
+                    db.execute(
+                        "UPDATE attempts SET status='superseded',updated=?,details=? WHERE id=?",
+                        (time.time(), _blob({"message": "Inputs changed"}), active),
+                    )
+                    db.execute("UPDATE state SET active=NULL WHERE singleton=1")
+            if view is not None:
+                self._put_view(db, revision, *view)
+            if preparation is not None:
+                request = ExecutionRequest.from_dict(preparation["request"])
+                if request.layout_revision != number:
+                    raise RevisionConflict("Preparation does not match the new revision")
+                db.execute(
+                    "INSERT OR REPLACE INTO snapshots VALUES (?,?,?)",
+                    (request_id(request), "preparation", _blob(preparation)),
+                )
             return revision
+
+    def _put_view(self, db, revision, key, bundle):
+        bundle.check()
+        row = db.execute(
+            "SELECT status FROM attempts WHERE id=? AND request_id=? AND generation=?",
+            (key.attempt_id, key.request_id, key.generation),
+        ).fetchone()
+        if row is None:
+            raise StaleAttempt("View assignment does not exist")
+        if row[0] == "succeeded":
+            if db.execute("SELECT 1 FROM results WHERE attempt=?", (key.attempt_id,)).fetchone() is None:
+                raise ValueError("View requires an indexed simulation result")
+        else:
+            self._require_active(db, key)
+            if row[0] not in ("ready", "running", "finalizing"):
+                raise ValueError("View requires a durable ready bundle")
+        db.execute(
+            "INSERT OR REPLACE INTO views VALUES (?,?,?)", (revision.number, key.attempt_id, _blob(bundle.to_dict()))
+        )
+
+    def bind_view(self, revision, key, bundle):
+        with self._transaction() as db:
+            if revision != self._current_revision(db):
+                raise RevisionConflict("Project revision changed before view binding")
+            self._put_view(db, revision, key, bundle)
+
+    def bind_ready_view(self, key, bundle):
+        """Associate the first verified INITIAL only with its assigned inputs."""
+        with self._transaction() as db:
+            self._require_active(db, key)
+            number = db.execute("SELECT revision FROM attempts WHERE id=?", (key.attempt_id,)).fetchone()[0]
+            revision = self._current_revision(db)
+            if revision is None or revision.number != number:
+                raise StaleAttempt("Ready bundle belongs to obsolete inputs")
+            self._put_view(db, revision, key, bundle)
+
+    def presentation_view(self, *, revision: Revision | None = None, committed_only=False):
+        from simulatte.execution.revisions import PresentationView
+        from simulatte.layout.bundle import LayoutBundle
+
+        with self._transaction() as db:
+            row = db.execute(
+                "SELECT v.revision,r.digest,a.id,a.request_id,a.generation,v.layout,"
+                "result.attempt IS NOT NULL AS committed FROM views v "
+                "JOIN revisions r ON r.number=v.revision JOIN attempts a ON a.id=v.attempt "
+                "JOIN state s ON s.singleton=1 LEFT JOIN results result ON result.attempt=a.id "
+                "WHERE ((a.status='succeeded' AND result.attempt IS NOT NULL) OR "
+                "(?=0 AND s.active=a.id AND s.generation=a.generation "
+                "AND a.status IN ('ready','running','finalizing'))) "
+                "AND (? IS NULL OR (v.revision=? AND r.digest=?)) ORDER BY v.revision DESC LIMIT 1",
+                (
+                    int(committed_only),
+                    None if revision is None else revision.number,
+                    None if revision is None else revision.number,
+                    None if revision is None else revision.digest,
+                ),
+            ).fetchone()
+        if row is None:
+            return None
+        return PresentationView(
+            Revision(row[0], row[1]),
+            AttemptKey(row[3], row[2], row[4]),
+            LayoutBundle.from_dict(_read(row[5])),
+            bool(row[6]),
+        )
 
     def assign(self, request: ExecutionRequest, revision: Revision) -> AttemptKey:
         return self._assign(request_id(request), request.to_dict(), revision)

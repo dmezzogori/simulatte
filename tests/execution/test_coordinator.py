@@ -54,6 +54,40 @@ def project(tmp_path, model=MODEL):
     return discover_project(root / "plant.py", root)
 
 
+def test_prepare_rejects_stale_revision_before_capture_or_child(tmp_path, monkeypatch):
+    m = api()
+    with m.Coordinator(project(tmp_path)) as coordinator:
+        old = coordinator.store.create_revision({"source": "old"})
+        current = coordinator.store.create_revision({"source": "current"})
+
+        def forbidden(*args):
+            pytest.fail("stale preparation must not capture or launch")
+
+        monkeypatch.setattr(m, "capture_source", forbidden)
+        with pytest.raises(m.RevisionConflict):
+            coordinator.prepare(expected=old)
+        assert coordinator.store.current_revision() == current
+
+
+def test_prepare_cannot_replace_revision_changed_during_capture(tmp_path, monkeypatch):
+    m = api()
+    with m.Coordinator(project(tmp_path)) as coordinator:
+        base = coordinator.store.create_revision({"source": "base"})
+        original = m.capture_source
+        newer = []
+
+        def capture(spec):
+            snapshot = original(spec)
+            newer.append(coordinator.store.create_revision({"source": "newer"}))
+            return snapshot
+
+        monkeypatch.setattr(m, "capture_source", capture)
+        with pytest.raises(m.RevisionConflict):
+            coordinator.prepare(expected=base)
+        assert coordinator.store.current_revision() == newer[0]
+        assert coordinator.events() == []
+
+
 def test_capture_inspect_run_publish_and_reproduce_survive_working_tree_edits(tmp_path, monkeypatch):
     m = api()
     spec = project(tmp_path)
@@ -67,6 +101,9 @@ def test_capture_inspect_run_publish_and_reproduce_survive_working_tree_edits(tm
         assert (result.path / "artifacts/answer.txt").read_text() == "8"
         trace = Trace.open(result.path / "run.simtrace")
         assert trace.verify() is True
+        view = coordinator.store.presentation_view(revision=prepared.revision)
+        assert view is not None and view.committed and view.key == key
+        assert view.bundle.full_hash == trace.layout.full_hash
         assert trace.cursor_range is not None
         assert trace.state_at(trace.cursor_range[1])["cell"]["count"] == 8
         repeated = coordinator.reproduce(key.request_id, timeout=15)

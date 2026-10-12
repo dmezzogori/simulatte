@@ -50,6 +50,11 @@ def _constant(value: str) -> None:
 def load_layout(path: str | Path, *, limits: LayoutLimits = LayoutLimits()) -> FileLayer:
     with Path(path).open("rb") as stream:
         raw = stream.read(limits.max_file_bytes + 1)
+    return parse_layout(raw, limits=limits)
+
+
+def parse_layout(raw: bytes, *, limits: LayoutLimits = LayoutLimits()) -> FileLayer:
+    """Validate captured bytes without reading mutable project files again."""
     if len(raw) > limits.max_file_bytes:
         raise LayoutError(f"max_file_bytes exceeded ({limits.max_file_bytes})", code="schema-error")
     try:
