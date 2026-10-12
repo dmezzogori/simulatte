@@ -67,6 +67,8 @@ exclude = [
   "tests/",
   "overrides/",
   ".claude/",
+  ".superpowers/",
+  ".simulatte/",
   ".github/",
   ".vscode/",
   ".pre-commit-config.yaml",

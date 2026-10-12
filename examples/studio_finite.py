@@ -75,8 +75,10 @@ def build(env, layout, params):
         while population.open:
             key = f"arrival-{index}"
             population.pending(key)
-            yield env.timeout(params.interarrival)
+            yield env.timeout(params.interarrival) | population.closed
             population.unpending(key)
+            if not population.open:
+                return
             if population.admit(key):
                 env.process(process(key))
             index += 1

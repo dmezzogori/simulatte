@@ -565,3 +565,15 @@ renderer with `releaseGlobalResources` only when the final owned scene exits;
 otherwise disposing a preview can invalidate another active renderer. Native
 Linux Firefox exposed this lifecycle defect; browser evidence is recorded in
 `research/2026-10-12-sp4-live.md`.
+
+## D91 — Cross-entry-point request comparison retains revision identity (SP4)
+
+The distribution acceptance comparison must compare captured source/input/layout
+hashes, parameters, seed, stopping, trace options, runtime and final fingerprint.
+Raw request ids are equal only when the included `layout_revision` is equal too.
+Studio's initial watched revision and headless preparation can assign different
+local revision numbers to identical captured content (observed 4 versus 3 in
+fresh stores). Keep the approved request-hashing contract unchanged: do not
+remove revision fencing from `ExecutionRequest` to make a smoke assertion pass.
+The acceptance report records the normalized content comparison and the distinct
+attempt identities explicitly. Reproduction still reuses the exact stored request.

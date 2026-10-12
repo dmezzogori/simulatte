@@ -60,7 +60,7 @@ nav = [
   ]},
   { "Development" = [
     { "Contributing" = "development/contributing.md" },
-    { "Studio viewer" = "development/studio.md" },
+    { "Studio" = "development/studio.md" },
     { "Agent Skill" = "development/agent-skill.md" },
     { "Changelog" = "development/changelog.md" },
   ]},

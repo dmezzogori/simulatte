@@ -1,4 +1,4 @@
-# Studio: viewing recorded simulations
+# Studio: local execution and recorded simulations
 
 Studio opens a `.simtrace` recording without running the model. Install the optional
 server dependencies and open a recording:
@@ -16,8 +16,10 @@ link if browser launch failed or another tab needs access. Reloading the origina
 tab works; copying its token-free address to a new tab does not grant trace access.
 Ctrl-C stops the server. A recording changed on disk must be reopened.
 
-Studio is available starting with 0.15. Actual Safari MP4 output, export cancellation
-and cleanup, and standalone offline playback have passed manual acceptance.
+The read-only viewer is available starting with 0.15. Its Safari MP4, export
+cancellation and standalone playback checks passed SP3 acceptance. The 0.16
+execution/editor work below is unreleased; actual Safari live-edit acceptance
+is a separate release gate.
 
 ## Make a recording
 
@@ -161,9 +163,11 @@ from dataclasses import dataclass
 from typing import Annotated
 import simulatte
 
+
 @dataclass(frozen=True)
 class Params:
     rate: Annotated[float, simulatte.Range(0.1, 2.0)] = 0.8
+
 
 @simulatte.model(params=Params, horizon=1000, warmup=100, time_unit="min")
 def build(env, layout, params):
@@ -189,8 +193,9 @@ Arrivals exactly at a time cutoff are refused; completion exactly at the safety
 limit is accepted. Failure to drain is an error. These are model-control
 operations, not collector observations.
 
-The execution and interactive Studio commands are under development; this
-metadata API does not imply that the full SP4 workflow has shipped.
+The following managed workflow targets 0.16. Plain Python scripts and `Runner`
+keep their existing execution path; adding metadata does not opt a script into
+managed execution.
 
 ### Execution isolation foundation
 
@@ -229,8 +234,8 @@ receipts and fenced result publication. Partial uploads stay private; a result
 becomes visible only after trace verification, execution cleanup and the final
 index transaction. Recovery removes unindexed output rather than adopting it.
 
-These are internal execution foundations. The managed run driver, Studio editing
-and live viewer integration remain separate implementation work.
+Managed run and Studio use these same execution components. Each attempt gets
+a fresh execution process; the local supervisor is reused, with no warm spare.
 
 ## Parameter and layout editing (0.16 development)
 
@@ -299,3 +304,123 @@ is invalid, the Layout editor offers a repair field. Saving preserves the exact
 previous bytes in `.simulatte`, refuses a changed disk/revision baseline, and
 restarts normal inspection. Invalid layouts are never silently replaced by
 empty defaults for execution.
+
+## Run a decorated model
+
+Core-only installation is sufficient for a headless run:
+
+```bash
+pip install simulatte
+simulatte run examples/studio_model.py --param servers=3 --seed 17 --json
+simulatte run examples/studio_finite.py --arrivals 8 --safety-limit 100
+```
+
+From a source checkout, prefix commands with `uv run`. Install `[studio]` for
+interactive editing:
+
+```bash
+pip install 'simulatte[studio]'
+simulatte studio examples/studio_model.py --no-browser
+```
+
+A file containing multiple decorated models requires `MODEL.py:build_name`.
+Build functions receive `(env, layout, params)` and must finish preparation
+without advancing simulation time. Complete layout/component wiring there;
+schedule generators with `env.process`. The worker activates and runs the
+prepared environment only after the coordinator accepts durable initial state.
+
+Use repeated `--param name=value`, `--seed`, `--horizon`/`--warmup`, or
+`--arrivals`/`--cutoff` with `--safety-limit`. `--level kpi` records KPI-only
+output; `--kpi KEY` selects KPI keys. `--timeout SECONDS` bounds the whole attempt,
+including preparation. `--output PATH` copies the committed trace and refuses to
+overwrite an existing file. `--json` prints one result envelope; diagnostics go
+to stderr. Exit codes are 0 for success, 2 for validation failure, 1 for execution
+failure and 130 for cancellation.
+
+### Source and declared inputs
+
+A project is discovered from the model path or selected with `--project DIR`.
+Dirty tracked Git files are included; an untracked helper needs an explicit
+include. Outside Git, declare membership in `pyproject.toml`:
+
+```toml
+[tool.simulatte.bundle]
+include = ["model.py", "helpers/*.py", "data/rates.json"]
+exclude = ["scratch/**"]
+python-path = ["."]
+```
+
+Use `@model(params=Params, horizon=100, inputs=("data/rates.json",))` to declare
+simulation data. Read it inside `build`, relative to the captured model file,
+for example `Path(__file__).parent / "data/rates.json"`. Import-time reads of
+declared data are rejected. External paths, special files and symlink escapes
+are rejected; in-project links are materialized as bytes. Captures are capped at
+1 GiB and 100,000 files, retry observable races three times and report
+`snapshot_changed` when they cannot obtain a stable capture. Timestamps are not
+part of input identity. The configured `layout.json` is captured separately and
+cannot also be a declared input. Use `--layout PATH` to select another layout.
+
+Imports from the project must resolve to captured files. Installed dependencies
+must be available in the selected Python environment; external editable sources
+and unverifiable loaders are refused. Adding or deleting a module can change
+input identity, including negative dependencies. The watcher combines native
+notifications with content rescans, so atomic saves and same-mtime edits matter.
+
+Physical/source/input changes cancel obsolete attempts and schedule the newest
+valid revision. Presentation changes use the recorded layout dependency closure.
+If the model read a visual field, changing it is a simulation input and reruns.
+Changes to unread labels/colors or positions classified as presentation update
+the view without changing the original request or trace. Invalid source/layout
+pauses admission and keeps the last committed run available with its origin label.
+
+### Results, reproduction and side effects
+
+The minimal `.simulatte` store holds snapshots, captured runtime documents,
+revision/attempt records, durable receipts and committed results. A single local
+coordinator owns the store at a time; close Studio before starting a headless run
+in the same project. There is no retention/garbage-collection UI in this release.
+Do not edit its index or move individual internal files. Partial attempts are
+never adopted as successful results after a crash.
+
+Write managed output under `env.artifacts_dir`; published artifacts are copied
+and checked with the result. Arbitrary external writes, network services, wall
+clock values and unbound randomness are outside reproducibility guarantees.
+Process isolation prevents accidental module reuse; it is not an untrusted-code
+sandbox. Normal descendants are cleaned up on completion/cancel; deliberately
+detached POSIX sessions are outside containment.
+
+Use the request id from the JSON envelope to reproduce captured inputs:
+
+```bash
+simulatte run --reproduce REQUEST_ID --project /path/to/project --json
+```
+
+This creates a new attempt and compares fingerprint and artifacts against a
+committed baseline. It does not read the current working model, but requires a
+compatible runtime/dependency environment. Incomplete provenance or a mismatch
+fails verification rather than claiming success.
+
+### Limits and recovery
+
+A slow/disconnected browser cannot acknowledge worker data or determine success.
+The coordinator durably receives output independently. Worker spool bounds are
+256 MiB and 1,024 files with at most 16 MiB of unacknowledged transfer payload.
+No events are dropped to regain space. No durable credit while a full spool is
+blocked for 60 seconds produces `disk_full`. Diagnostic tails are bounded to
+1 MiB per stream; the UI shows a smaller tail. Progress heartbeats can continue
+while simulation progress is stalled.
+
+Cancel targets an exact attempt. A stale tab must reload authoritative revision
+state before saving; reconnection never replays mutation commands automatically.
+Conflicting external edits preserve the draft and backup bytes. An uncooperative
+editor can still race the final check/rename interval; recoverable backups make
+that filesystem limitation explicit. Closing Studio cancels owned work and
+cleans descendants before releasing the store owner lock.
+
+SP4 is local single-run execution/editing. Experiments, statistical comparisons
+and SSH workers remain outside this release.
+
+Request ids include the captured layout revision. Identical model bytes and
+parameters reached through different revision histories can therefore have
+different request ids, while producing the same semantic fingerprint. An exact
+reproduction retains the stored request identity and creates a new attempt.

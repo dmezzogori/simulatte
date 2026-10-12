@@ -47,3 +47,13 @@ frontend inputs. An sdist includes validated assets and builds offline without
 Node when Python build dependencies are installed. `scripts/build_docs_wheel.sh`
 also requires the assets above because the documentation embeds a complete wheel.
 See [Studio](docs/development/studio.md) for browser checks and recording examples.
+
+For SP4 execution changes, run `uv run --all-extras pytest tests/execution` and
+relevant `tests/core/test_studio*.py` checks, then the full 99% branch gate.
+Keep `src/simulatte` (including packaged assets) unchanged during full tests:
+workers freeze that runtime, and reproduction correctly rejects changing bytes.
+Run `node studio/scripts/studio-smoke.mjs /absolute/path/to/simulatte chromium required`
+against a fresh installed wheel for parameter/editor/live/export integration.
+Use Linux for native Firefox acceptance; Playwright WebKit does not substitute
+for actual Safari manual release checks. Platform/failure evidence is maintained
+in the SP4 acceptance report under `specs/research/`.

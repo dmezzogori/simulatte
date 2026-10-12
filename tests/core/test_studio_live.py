@@ -496,3 +496,37 @@ def test_unbound_layout_repair_requires_captured_invalid_bytes_and_current_file(
         assert path.read_bytes() == b"{changed"
     finally:
         coordinator.close()
+
+
+def test_cli_and_studio_use_equivalent_input_content_and_fingerprints(tmp_path, capsys):
+    from simulatte import Trace
+    from simulatte.cli import main
+    from simulatte.execution.store import RunStore
+
+    cli_root, studio_root = tmp_path / "cli", tmp_path / "studio"
+    cli_root.mkdir()
+    studio_root.mkdir()
+    spec = project(cli_root)
+    assert main(["run", str(spec.root / "plant.py"), "--json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    cli_trace = Trace.open(result["trace"])
+    with RunStore.open(spec.root / ".simulatte") as store:
+        cli_request = store.request(result["request_id"]).to_dict()
+    coordinator, server = setup(studio_root)
+    try:
+        with TestClient(server.app, base_url=server.origin) as client:
+            state = wait_state(client, auth(server, client), lambda value: bool(value["results"]))
+            actual = state["results"][0]["key"]
+            studio_request = coordinator.store.request(actual["request_id"]).to_dict()
+            # Revision numbers are local fences and remain part of request identity.
+            assert cli_request.pop("layout_revision") > 0
+            assert studio_request.pop("layout_revision") > 0
+            assert studio_request == cli_request
+            assert actual["attempt_id"] != result["attempt_id"]
+            committed = coordinator.store.result(actual["attempt_id"])
+            studio_trace = Trace.open(committed.path / "run.simtrace")
+            assert cli_trace.verify() and studio_trace.verify()
+            assert cli_trace.fingerprint == studio_trace.fingerprint
+            assert (committed.path / "artifacts/answer.txt").read_text() == "7"
+    finally:
+        coordinator.close()
