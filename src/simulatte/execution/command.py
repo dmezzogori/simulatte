@@ -16,8 +16,8 @@ from simulatte.model import ParameterSchema, parse_parameters
 from simulatte.stopping import Horizon, FinitePopulation, stopping_from_dict
 
 
-def add_arguments(parser):
-    parser.add_argument("model", nargs="?")
+def add_arguments(parser, *, headless=True):
+    parser.add_argument("model", **({"nargs": "?"} if headless else {}))
     parser.add_argument("--project")
     parser.add_argument("--layout", default="layout.json")
     parser.add_argument("--param", action="append", default=[])
@@ -31,9 +31,10 @@ def add_arguments(parser):
     parser.add_argument("--level", choices=("full", "kpi"), default="full")
     parser.add_argument("--kpi", action="append", default=[])
     parser.add_argument("--timeout", type=float)
-    parser.add_argument("--output", type=Path)
-    parser.add_argument("--json", action="store_true")
-    parser.add_argument("--reproduce")
+    if headless:
+        parser.add_argument("--output", type=Path)
+        parser.add_argument("--json", action="store_true")
+        parser.add_argument("--reproduce")
 
 
 def _stopping(args, default):

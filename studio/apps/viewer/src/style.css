@@ -410,3 +410,6 @@ input[type="range"] {
   color: #516158;
   margin-top: 4px;
 }
+
+.studio-controls {padding: .65rem 1rem; border-bottom: 1px solid #ddd; background: #fafafa; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;}
+.studio-controls pre {max-height: 8rem; overflow: auto; width: 100%;}

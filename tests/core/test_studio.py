@@ -315,3 +315,14 @@ def test_allowlisted_asset_symlink_cannot_escape_static_directory(viewer, tmp_pa
     response = client.get("/escape.js")
     assert response.status_code == 404
     assert "private recording contents" not in response.text
+
+
+def test_duplicate_origin_and_credentials_are_rejected(viewer):
+    server, client = viewer
+    headers = authenticate(server, client)
+    for duplicates in [
+        [("Origin", server.origin), ("Origin", "http://attacker.invalid")],
+        [("X-Simulatte-Session", server.secret), ("X-Simulatte-Session", "other")],
+    ]:
+        pairs = list(headers.items()) if duplicates[0][0] == "Origin" else []
+        assert client.get("/trace", headers=pairs + duplicates).status_code == 403

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 import mimetypes
 import os
@@ -17,16 +16,13 @@ import webbrowser
 
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, Response, StreamingResponse
+from starlette.responses import Response, StreamingResponse
 from starlette.routing import Route
 import uvicorn
 
+from simulatte.studio.auth import SessionAuth, response_headers
+
 BUILD_COMMAND = "pnpm --dir studio build && uv run python studio/scripts/package_assets.py"
-CSP = (
-    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-    "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; "
-    "object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
-)
 
 
 def assets() -> Path:
@@ -61,7 +57,7 @@ def assets() -> Path:
     return directory
 
 
-class ViewerServer:
+class ViewerServer(SessionAuth):
     def __init__(self, trace: Path, port: int, static: Path):
         self.path = trace.absolute()
         try:
@@ -81,22 +77,11 @@ class ViewerServer:
         ):
             os.close(self.fd)
             raise ValueError("Trace must be a readable regular file")
-        self.origin = f"http://127.0.0.1:{port}"
-        self.host = f"127.0.0.1:{port}"
-        self.secret = secrets.token_urlsafe(32)
-        self.cookie_name = "simulatte-" + secrets.token_hex(8)
-        self.cookie = secrets.token_urlsafe(32)
-        self.token = ""
-        self.lock = threading.Lock()
+        super().__init__(port)
         self.static = static
         self.allowed = set(json.loads((static / "manifest.json").read_text())["assets"])
         self.etag = '"' + secrets.token_hex(32) + '"'
         self.app = Starlette(routes=[Route("/{path:path}", self.request, methods=["GET", "HEAD"])])
-
-    def link(self) -> str:
-        with self.lock:
-            self.token = secrets.token_urlsafe(32)
-            return f"{self.origin}/bootstrap?token={self.token}"
 
     def unchanged(self) -> bool:
         try:
@@ -108,58 +93,20 @@ class ViewerServer:
             return False
 
     async def request(self, request: Request) -> Response:
-        headers = {
-            "Cache-Control": "no-store",
-            "Referrer-Policy": "no-referrer",
-            "X-Content-Type-Options": "nosniff",
-            "Content-Security-Policy": CSP,
-        }
+        headers = response_headers()
 
         def response(body: str, status: int = 400) -> Response:
             return Response(body, status_code=status, headers=headers)
 
-        if request.headers.get("host") != self.host or len(request.headers.getlist("host")) != 1:
-            return response("Invalid host", 403)
-        origin = request.headers.get("origin")
-        if origin is not None and origin != self.origin:
-            return response("Invalid origin", 403)
+        if not self.headers_valid(request):
+            return response("Invalid host or origin", 403)
         path = request.path_params["path"]
         if path == "bootstrap":
-            token = request.query_params.get("token", "")
-            with self.lock:
-                accepted = bool(self.token and hmac.compare_digest(token.encode(), self.token.encode()))
-                if accepted and request.method == "GET":
-                    self.token = ""
-                else:
-                    accepted = False
-            if not accepted:
-                return response(
-                    "Link unavailable. Enter link in the serving terminal, or restart with --no-browser.", 403
-                )
-            nonce = secrets.token_urlsafe(24)
-            headers["Content-Security-Policy"] = (
-                f"default-src 'none'; script-src 'nonce-{nonce}'; "
-                "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
-            )
-            body = (
-                f'<!doctype html><meta charset="utf-8"><title>Simulatte</title><p id="message">Opening viewer…</p>'
-                f'<script nonce="{nonce}">try {{const key={json.dumps(self.secret)};'
-                'sessionStorage.setItem("simulatte-session",key);'
-                'if(sessionStorage.getItem("simulatte-session")!==key)throw Error();'
-                'location.replace("/");}catch{document.getElementById("message").textContent='
-                '"Browser storage unavailable. Enable session storage, then enter link in the serving terminal '
-                'or restart with --no-browser.";}</script>'
-            )
-            result = HTMLResponse(body, headers=headers)
-            result.set_cookie(self.cookie_name, self.cookie, httponly=True, samesite="strict", path="/")
-            return result
+            return self.bootstrap(request)
         if request.url.query:
             return response("Unknown resource", 404)
         if path == "trace":
-            if not (
-                hmac.compare_digest(request.cookies.get(self.cookie_name, "").encode(), self.cookie.encode())
-                and hmac.compare_digest(request.headers.get("x-simulatte-session", "").encode(), self.secret.encode())
-            ):
+            if not self.authenticated(request):
                 return response("Authentication required. Open a fresh terminal link.", 403)
             if not self.unchanged():
                 return response("Recording changed. Close the viewer and reopen the trace.", 409)

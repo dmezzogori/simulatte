@@ -7,10 +7,18 @@ import playerStyle from "../../player/src/player.css?raw";
 import playerScript from "../../player/dist/player.js?raw";
 import { ExportDialog } from "./export-dialog";
 import { Controller } from "./controller";
+import {StudioClient, type StudioState, type ConnectionStatus} from "./studio-client";
+import {StudioPanel} from "./studio-panel";
 import "dockview/dist/styles/dockview.css";
 import "uplot/dist/uPlot.min.css";
 import "./style.css";
 function App() {
+  const [studioMode] = useState(() => {
+    try {return sessionStorage.getItem("simulatte-mode") === "studio";} catch {return false;}
+  });
+  const studio = useRef<StudioClient | null>(null);
+  const [studioState, setStudioState] = useState<StudioState | null>(null);
+  const [connection, setConnection] = useState<ConnectionStatus>("connecting");
   const dock = useRef<HTMLDivElement>(null),
     timeline = useRef<HTMLInputElement>(null),
     time = useRef<HTMLOutputElement>(null),
@@ -49,7 +57,27 @@ function App() {
         "Session storage is unavailable. Local trace files can still be opened.",
       );
     }
-    if (secret)
+    let selectedResult: string | null = null;
+    let closed = false;
+    if (secret && studioMode) {
+      const headers = {"X-Simulatte-Session": secret};
+      const client = new StudioClient(secret, {
+        onStatus: setConnection,
+        onError: error => setError(String(error)),
+        onState: state => {
+          setStudioState(state);
+          const result = state.results[0];
+          if (result?.trace && result.key.attempt_id !== selectedResult) {
+            selectedResult = result.key.attempt_id;
+            const attempt = selectedResult;
+            void HttpSource.open(result.trace.url, headers).then(source => {
+              if (!closed && selectedResult === attempt) return c.open(source, `Run · revision ${result.revision}`);
+            }).catch(error => {if (!closed && selectedResult === attempt) setError(String(error));});
+          }
+        },
+      });
+      studio.current = client; client.connect();
+    } else if (secret)
       void HttpSource.open("/trace", { "X-Simulatte-Session": secret })
         .then((source) => c.open(source, "Recorded run"))
         .catch((e) => setError(String(e)));
@@ -68,6 +96,8 @@ function App() {
     };
     document.addEventListener("keydown", keyboard);
     return () => {
+      closed = true;
+      studio.current?.dispose(); studio.current = null;
       document.removeEventListener("keydown", keyboard);
       htmlAbort.current?.abort();
       c.dispose();
@@ -117,7 +147,7 @@ function App() {
           <span className="mark">s</span>
           <div>
             simulatte <b>studio</b>
-            <small>RECORDED RUN VIEWER</small>
+            <small>{studioMode ? "LOCAL MODEL STUDIO" : "RECORDED RUN VIEWER"}</small>
           </div>
         </div>
         <div className="run-title">
@@ -173,6 +203,7 @@ function App() {
           </button>
         </nav>
       </header>
+      {studioMode && <StudioPanel client={studio.current} state={studioState} status={connection} onError={setError} />}
       {error && (
         <div role="alert" className="error">
           {error}

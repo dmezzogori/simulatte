@@ -434,3 +434,40 @@ retains one newest pending notification and fences both reads and frames on an
 attempt/revision change. Follow is explicit; manual seek, step and playback leave
 Follow. Terminal status is supplied by the coordinator, never inferred from a
 missing or present trace footer.
+
+**D88. Preserve explicit websocket queue semantics and reconcile before replay.**
+Studio selects Uvicorn's `WebSocketProtocol` class explicitly, with asyncio, h11,
+256 KiB receive frames, a 16-message receive queue, compression disabled and no
+proxy headers/access logging/reload. The locked Uvicorn 0.54.0 backend and
+websockets 17.2 are exercised together. Uvicorn warns that its `websockets` alias
+will change to the SansIO implementation; selecting a class avoids silently
+changing this queue contract. The legacy implementation is deprecated, so a future
+backend migration must verify equivalent bounds before replacing it. This does
+not change the separate 256-message/4 MiB application send queue.
+
+Primary source verification: [Uvicorn configuration](https://github.com/Kludex/uvicorn/blob/0.54.0/uvicorn/config.py)
+accepts a protocol class; the [selected backend](https://github.com/Kludex/uvicorn/blob/0.54.0/uvicorn/protocols/websockets/websockets_impl.py)
+passes the configured frame and queue limits to websockets. Existing optional
+Starlette and Uvicorn versions remain unchanged; only websockets is added directly.
+
+A newly authenticated socket receives its initial state before notifications
+observed while that snapshot was being read. Its initial event sequence is
+reserved before the read; later queued notifications retain their order. Events
+with an attempt carry that attempt's original input revision and top-level
+`attempt_id`/`generation`, separate from the current presentation association.
+The browser retains one pending state refresh, bounds outstanding commands to 32,
+and rejects unresolved commands as having an unknown outcome on disconnect.
+Reconnect obtains authoritative state and never automatically replays a mutation.
+HTTP layout PUT also uses a content-bound command id and an explicit base revision.
+
+Partial valid startup parameters are retained as a draft. Missing required fields
+prevent auto-run. Invalid CLI overrides open an explicit error and reviewable model
+defaults without executing them; successful Apply is required before starting.
+This refines startup recovery without relaxing validation for normal Apply.
+
+Layout reads expose the immutable bytes captured for the returned input revision,
+not an unobserved working-file read paired with that revision. A later disk edit
+is reconciled by the watcher or rejected by the final protected-write comparison.
+Finite float parameters outside JavaScript's safe-integer range use an explicit
+JSON exponent; their field schema still distinguishes them from integer inputs.
+Nonfinite command and layout values are rejected before sending.

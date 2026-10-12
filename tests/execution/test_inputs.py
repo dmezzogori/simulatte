@@ -560,3 +560,34 @@ def test_input_owner_preserves_full_63_bit_seed_without_json_precision_loss(tmp_
             with pytest.raises(ValueError):
                 owner.apply(changed.revision, {"seed": seed}, auto_run=False)
         assert owner.state == changed and initial.revision != changed.revision
+
+
+def test_initial_options_preserve_partial_parameters_without_execution(tmp_path):
+    source = MODEL.replace("n: int = 2", "n: int\n    label: str")
+    with Coordinator(project(tmp_path, source)) as coordinator:
+        prepared = coordinator.prepare(timeout=10)
+        base = coordinator.store.current_revision()
+        for initial in ({"parameters": {"n": "bad"}}, {"unknown": True}, {"seed": -1}, {"parameters": {"unknown": 1}}):
+            with pytest.raises(ValueError):
+                coordinator.inputs.bind(prepared, initial=initial)
+        assert coordinator.inputs.state is None and coordinator.store.current_revision() == base
+        state = coordinator.inputs.bind(prepared, initial={"parameters": {"n": 8}, "seed": 12})
+        assert state.options["parameters"] == {"n": 8}
+        assert state.options["seed"] == "12"
+        assert set(state.issues) == {"label"} and state.request is None
+        with pytest.raises(ValueError, match="initial"):
+            coordinator.inputs.bind(coordinator.inputs.captured_inputs()[1], initial={})
+        applied = coordinator.inputs.apply(state.revision, {"parameters": {"n": 8, "label": "ok"}}, auto_run=False)
+        assert applied.request.seed == 12 and applied.request.parameters["label"] == "ok"
+
+
+def test_startup_override_error_survives_source_refresh_until_apply(tmp_path):
+    spec = project(tmp_path)
+    with Coordinator(spec) as coordinator:
+        state = coordinator.inputs.bind(coordinator.prepare(timeout=10), initial_error="Review invalid CLI override")
+        assert state.request is None and "startup" in state.issues
+        (spec.root / "plant.py").write_text(MODEL + "\n# source edit\n")
+        state = coordinator.inputs.refresh(state.revision, auto_run=False, timeout=10)
+        assert state.request is None and "startup" in state.issues
+        accepted = coordinator.inputs.apply(state.revision, {}, auto_run=False)
+        assert accepted.request is not None and not accepted.issues

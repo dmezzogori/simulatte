@@ -14,6 +14,7 @@ from simulatte.execution.store import RevisionConflict
 from simulatte.execution.snapshot import discover_project
 from simulatte.layout.bundle import LayoutBundle, reresolve_presentation
 from simulatte.layout.layers import FileLayer
+from simulatte.layout.identity import layout_hash
 from simulatte.model import ParameterSchema, validate_parameters
 
 
@@ -64,19 +65,59 @@ class InputOwner:
         if self.coordinator.store.current_revision() != base:
             raise RevisionConflict("Project revision changed; reload before editing")
 
-    def bind(self, prepared: PreparedModel):
+    def bind(self, prepared: PreparedModel, *, initial=None, initial_error: str | None = None):
         """Adopt inspected metadata, retaining only still-valid parameter values."""
         with self.coordinator._condition:
             self._check(prepared.revision)
+            if (initial is not None or initial_error is not None) and self._state is not None:
+                raise ValueError("Options are initial only; use Apply after binding")
             captured = read_layout_file(self.coordinator.project.root, self.coordinator.project.layout)
             if captured.layer().to_dict() != _plain(prepared.layout):
                 raise RevisionConflict("Layout changed on disk during preparation")
             selected = selected_model(prepared.metadata)
             schema = ParameterSchema.from_dict(selected["parameters"])
-            old = {} if self._state is None else _plain(self._state.options["parameters"])
+            initial_options: dict[str, Any] | None = None
+            if initial is not None:
+                # Validate a partial startup draft without admitting it as a run.
+                if not isinstance(initial, Mapping) or set(initial) - {
+                    "parameters",
+                    "seed",
+                    "stopping",
+                    "level",
+                    "kpis",
+                }:
+                    raise ValueError("Unknown initial execution input")
+                supplied = initial.get("parameters", {})
+                partial = ParameterSchema(tuple(field for field in schema.fields if field.name in supplied))
+                parameters = validate_parameters(partial, supplied)
+                draft = ExecutionRequest(
+                    model=prepared.model,
+                    source_hash=prepared.snapshot.source.content_hash,
+                    input_hash=prepared.snapshot.inputs.content_hash,
+                    layout_hash=layout_hash("file", prepared.layout),
+                    layout_revision=prepared.revision.number,
+                    parameters=parameters,
+                    seed=initial.get("seed", 0),
+                    stopping=initial.get("stopping", selected["stopping"]),
+                    level=initial.get("level", "full"),
+                    kpis=initial.get("kpis", ()),
+                    runtime=prepared.runtime,
+                )
+                initial_options = {
+                    "parameters": _plain(draft.parameters),
+                    "seed": str(draft.seed),
+                    "stopping": _plain(draft.stopping),
+                    "level": draft.level,
+                    "kpis": list(draft.kpis),
+                }
+            old = (
+                (initial_options or {}).get("parameters", {})
+                if self._state is None
+                else _plain(self._state.options["parameters"])
+            )
             parameters = {}
             issues = (
-                {}
+                ({} if initial_error is None else {"startup": initial_error})
                 if self._state is None
                 else {
                     key: value for key, value in _plain(self._state.issues).items() if key not in ("source", "layout")
@@ -103,6 +144,8 @@ class InputOwner:
                 "level": "full",
                 "kpis": [],
             }
+            if initial_options is not None:
+                options.update({key: value for key, value in initial_options.items() if key != "parameters"})
             if self._state is not None:
                 for name in ("seed", "level", "kpis"):
                     options[name] = _plain(self._state.options[name])
