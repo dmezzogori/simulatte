@@ -118,6 +118,35 @@ def test_descriptor_mutation_and_short_reads_fail_closed(tmp_path, monkeypatch):
         list(RangeSource([descriptor], 3).chunks(0, 2))
 
 
+@pytest.mark.parametrize("phase", ["during", "between"])
+def test_descriptor_change_time_guards_reads_and_verified_cache(tmp_path, monkeypatch, phase):
+    import os
+    from simulatte.studio import http
+
+    path = tmp_path / "data"
+    path.write_bytes(b"abc")
+    descriptor = ImmutableFile(path, 3, hashlib.sha256(b"abc").hexdigest())
+    before = path.stat()
+    # Model the Windows cross-API identity, whose creation time does not change.
+    monkeypatch.setattr(http, "_identity", lambda info: (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns))
+
+    def mutate():
+        path.write_bytes(b"xyz")
+        os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+
+    if phase == "during":
+        with pytest.raises(ValueError, match="during read"):
+            with descriptor.open():
+                mutate()
+    else:
+        with descriptor.open():
+            pass
+        mutate()
+        with pytest.raises(ValueError, match="hash mismatch"):
+            with descriptor.open():
+                pass
+
+
 def test_verified_identity_cache_and_segment_iteration_are_bounded(tmp_path, monkeypatch):
     from collections import OrderedDict
     from simulatte.studio import http

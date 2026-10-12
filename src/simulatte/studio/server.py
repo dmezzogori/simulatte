@@ -21,6 +21,7 @@ from starlette.routing import Route
 import uvicorn
 
 from simulatte.studio.auth import SessionAuth, response_headers
+from simulatte.execution.references import _identity
 
 BUILD_COMMAND = "pnpm --dir studio build && uv run python studio/scripts/package_assets.py"
 
@@ -87,8 +88,13 @@ class ViewerServer(SessionAuth):
         try:
             current = os.stat(self.path, follow_symlinks=False)
             opened = os.fstat(self.fd)
-            keys = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
-            return all(getattr(current, key) == getattr(self.identity, key) == getattr(opened, key) for key in keys)
+            # Compare change time within the descriptor API too: on Windows
+            # path stat exposes creation time under ctime, but fstat can detect
+            # a same-size rewrite even when the caller restores mtime.
+            return (
+                _identity(current) == _identity(self.identity) == _identity(opened)
+                and opened.st_ctime_ns == self.identity.st_ctime_ns
+            )
         except OSError:
             return False
 

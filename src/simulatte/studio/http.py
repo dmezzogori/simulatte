@@ -92,9 +92,11 @@ class ImmutableFile:
             raise ValueError("Invalid immutable file length")
 
     def _unchanged(self, file, before):
-        if self.path.resolve() != self.path or _identity(self.path.lstat()) != before:
+        identity, changed = before
+        if self.path.resolve() != self.path or _identity(self.path.lstat()) != identity:
             raise ValueError("Immutable file path changed")
-        if _identity(os.fstat(file.fileno())) != before:
+        current = os.fstat(file.fileno())
+        if _identity(current) != identity or current.st_ctime_ns != changed:
             raise ValueError("Immutable file changed during read")
 
     @contextmanager
@@ -109,6 +111,7 @@ class ImmutableFile:
         flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
         fd = os.open(path, flags)
         with os.fdopen(fd, "rb") as file:
+            before = (before, os.fstat(file.fileno()).st_ctime_ns)
             self._unchanged(file, before)
             key = (str(path), before, self.sha256)
             with _verified_lock:

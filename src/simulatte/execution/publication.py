@@ -61,14 +61,16 @@ def _copy(source: Path, output, digest) -> int:
         raise ValueError("Artifact source is not a regular file")
     length = 0
     with source.open("rb") as file:
-        if _identity(os.fstat(file.fileno())) != _identity(before):
+        opened = os.fstat(file.fileno())
+        if _identity(opened) != _identity(before):
             raise ValueError("Artifact source changed before copy")
         while data := file.read(MAX_FRAGMENT):
             if output.write(data) != len(data):
                 raise OSError("Incomplete artifact write")
             digest.update(data)
             length += len(data)
-        if _identity(os.fstat(file.fileno())) != _identity(before):
+        after = os.fstat(file.fileno())
+        if _identity(after) != _identity(before) or after.st_ctime_ns != opened.st_ctime_ns:
             raise ValueError("Artifact source changed during copy")
     if _identity(source.lstat()) != _identity(before):
         raise ValueError("Artifact source changed after copy")

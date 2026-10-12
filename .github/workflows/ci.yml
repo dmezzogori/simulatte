@@ -43,18 +43,18 @@ jobs:
 
       - name: Run linting
         if: matrix.python-version == '3.14'
-        run: uv run --all-extras ruff check src tests
+        run: uv run --python ${{ matrix.python-version }} --all-extras ruff check src tests
 
       - name: Run formatting check
         if: matrix.python-version == '3.14'
-        run: uv run --all-extras ruff format --check
+        run: uv run --python ${{ matrix.python-version }} --all-extras ruff format --check
 
       - name: Run type checking
         if: matrix.python-version == '3.14'
-        run: uv run --all-extras ty check src
+        run: uv run --python ${{ matrix.python-version }} --all-extras ty check src
 
       - name: Run tests with coverage
-        run: uv run --all-extras pytest
+        run: uv run --python ${{ matrix.python-version }} --all-extras pytest
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.14'
@@ -109,6 +109,8 @@ jobs:
           - os: macos-latest
             python: "3.15"
           - os: windows-latest
+            python: "3.14"
+          - os: windows-latest
             python: "3.15"
     steps:
       - uses: actions/checkout@v7
@@ -122,7 +124,7 @@ jobs:
       - name: Native process containment, worker and Studio transport
         # This lane must exercise the real Windows Job Object test, not its POSIX mocks.
         # Coverage is enforced by the full Linux matrix; retain platform-specific skips.
-        run: uv run --extra studio pytest tests/execution tests/core/test_studio.py tests/core/test_studio_http.py tests/core/test_studio_connections.py tests/core/test_studio_websocket.py tests/core/test_studio_live.py tests/core/test_studio_lifecycle.py tests/core/test_studio_monitor.py tests/core/test_studio_watcher.py --no-cov
+        run: uv run --python ${{ matrix.python }} --extra studio pytest tests/execution tests/core/test_studio.py tests/core/test_studio_http.py tests/core/test_studio_connections.py tests/core/test_studio_websocket.py tests/core/test_studio_live.py tests/core/test_studio_lifecycle.py tests/core/test_studio_monitor.py tests/core/test_studio_watcher.py --no-cov
 
   # TypeScript conformance reader (gate G2): the studio trace package reads the committed trace fixtures
   # and must reproduce the states the Python reader wrote into their expected JSON.

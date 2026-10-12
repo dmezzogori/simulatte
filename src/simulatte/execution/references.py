@@ -15,10 +15,15 @@ from simulatte.execution.schema import _hash, _plain
 
 MAX_DOCUMENT = 128 << 20
 _KINDS = frozenset(("request", "model-info", "layout", "runtime"))
+_WINDOWS = os.name == "nt"
 
 
 def _identity(info):
-    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+    # Windows stat/lstat retain creation time in the deprecated ctime fields,
+    # while modern CPython fstat reports metadata change time there. Birthtime
+    # is comparable across both APIs; Python 3.11 still uses ctime for both.
+    timestamp = getattr(info, "st_birthtime_ns", info.st_ctime_ns) if _WINDOWS else info.st_ctime_ns
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, timestamp
 
 
 def read_document(reference, kind):
@@ -37,10 +42,12 @@ def read_document(reference, kind):
     if before.st_size != length:
         raise ValueError("Document length mismatch")
     with path.open("rb") as file:
-        if _identity(os.fstat(file.fileno())) != _identity(before):
+        opened = os.fstat(file.fileno())
+        if _identity(opened) != _identity(before):
             raise ValueError("Document changed before reading")
         data = file.read(length + 1)
-        if _identity(os.fstat(file.fileno())) != _identity(before):
+        after = os.fstat(file.fileno())
+        if _identity(after) != _identity(before) or after.st_ctime_ns != opened.st_ctime_ns:
             raise ValueError("Document changed while reading")
     if _identity(path.lstat()) != _identity(before):
         raise ValueError("Document changed after reading")

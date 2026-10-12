@@ -127,8 +127,15 @@ def test_actual_owner_death_releases_lock(tmp_path):
             m.RunStore.open(root)
         process.kill()
         process.wait(5)
-        with m.RunStore.open(root):
-            pass
+        try:
+            with m.RunStore.open(root):
+                pass
+        except sqlite3.Error as error:
+            error.add_note(
+                f"SQLite {sqlite3.sqlite_version}: {error.sqlite_errorname} ({error.sqlite_errorcode}); "
+                f"files={[(path.name, path.stat().st_size) for path in root.iterdir() if path.is_file()]}"
+            )
+            raise
     finally:
         if process.poll() is None:
             process.kill()

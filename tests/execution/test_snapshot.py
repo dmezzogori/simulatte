@@ -54,6 +54,27 @@ def test_archive_and_identity_ignore_mtime_and_listing_order(tmp_path):
     assert m.capture_source(m.discover_project(model)).content_hash != first.content_hash
 
 
+def test_archive_durability_uses_a_writable_descriptor(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+
+    m = api()
+    original_open = open
+    synced = []
+
+    @contextmanager
+    def archive_open(*args, **kwargs):
+        with original_open(*args, **kwargs) as stream:
+            # Windows FlushFileBuffers, used by os.fsync, requires write access.
+            assert stream.writable()
+            synced.append(stream.name)
+            yield stream
+
+    monkeypatch.setattr(m, "open", archive_open, raising=False)
+    snapshot = m.capture_source(m.discover_project(project(tmp_path)))
+    assert synced
+    assert m.load_source(snapshot.project, snapshot.content_hash) == snapshot
+
+
 def test_git_reads_working_bytes_and_only_explicit_membership(tmp_path):
     m = api()
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
@@ -291,13 +312,14 @@ def test_runtime_cache_verification_and_executable_mode(tmp_path):
     package = tmp_path / "editable" / "simulatte"
     package.mkdir(parents=True)
     (package / "__init__.py").write_text("VERSION=1")
-    (package / "run.py").write_text("pass")
-    (package / "run.py").chmod(0o755)
+    # Windows derives execute bits from the extension, not chmod's POSIX bits.
+    (package / "run.exe").write_text("executable fixture")
+    (package / "run.exe").chmod(0o755)
     store = tmp_path / "project"
     store.mkdir()
     first = m.freeze_runtime(package, store)
     assert m.freeze_runtime(package, store) == first
-    target = first.root / "simulatte/run.py"
+    target = first.root / "simulatte/run.exe"
     assert target.stat().st_mode & 0o111
     target.chmod(0o755)
     target.write_text("modified")
@@ -537,6 +559,10 @@ def test_git_membership_inconsistency_refuses_capture(tmp_path, mode):
             ["git", "-C", str(tmp_path), "update-index", "--add", "--cacheinfo", f"160000,{digest},vendor"], check=True
         )
     else:
+        # Git object files are read-only, which also prevents unlink on Windows.
+        for path in (tmp_path / ".git").rglob("*"):
+            if path.is_file():
+                path.chmod(0o600)
         shutil.rmtree(tmp_path / ".git")
     with pytest.raises(ValueError, match="conflicts|Submodule|Git source"):
         m.capture_source(spec)

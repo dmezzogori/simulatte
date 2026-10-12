@@ -63,13 +63,16 @@ def read_layout_file(root, name, *, limits=LayoutLimits()):
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
     descriptor = os.open(path, flags)
     try:
-        if _identity(os.fstat(descriptor)) != _identity(before):
+        opened = os.fstat(descriptor)
+        if _identity(opened) != _identity(before):
             raise RevisionConflict("Layout changed on disk before reading")
         with os.fdopen(descriptor, "rb", closefd=False) as stream:
             raw = stream.read(limits.max_file_bytes + 1)
+        after = os.fstat(descriptor)
         if (
             len(raw) > limits.max_file_bytes
-            or _identity(os.fstat(descriptor)) != _identity(before)
+            or _identity(after) != _identity(before)
+            or after.st_ctime_ns != opened.st_ctime_ns
             or _identity(path.lstat()) != _identity(before)
             or _path(root, name) != path
         ):

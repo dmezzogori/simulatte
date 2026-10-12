@@ -71,7 +71,8 @@ def _artifacts(root, spool):
             sink = SegmentSink(spool, stream="artifact/" + relative)
             try:
                 with path.open("rb") as file:
-                    if _identity(os.fstat(file.fileno())) != _identity(before):
+                    opened = os.fstat(file.fileno())
+                    if _identity(opened) != _identity(before):
                         raise ValueError("Artifact changed before reading")
                     while data := file.read(1 << 20):
                         spool.control.check()
@@ -79,7 +80,8 @@ def _artifacts(root, spool):
                         digest.update(data)
                         # Fixed-size segments bound disk/memory even for huge outputs.
                         sink.commit()
-                    if _identity(os.fstat(file.fileno())) != _identity(before):
+                    after = os.fstat(file.fileno())
+                    if _identity(after) != _identity(before) or after.st_ctime_ns != opened.st_ctime_ns:
                         raise ValueError("Artifact changed while reading")
                 if _identity(path.lstat()) != _identity(before) or sink.tell() != before.st_size:
                     raise ValueError("Artifact changed after reading")

@@ -358,9 +358,6 @@ def test_artifact_mutation_and_name_collisions_are_refused(tmp_path, monkeypatch
                 self.file = file
 
             def __enter__(self):
-                if when == "before":
-                    path.unlink()
-                    path.write_bytes(b"replacement")
                 return self
 
             def read(self, size):
@@ -381,6 +378,10 @@ def test_artifact_mutation_and_name_collisions_are_refused(tmp_path, monkeypatch
                     path.write_bytes(b"changed")
 
         def open_file(self, *args, **kwargs):
+            if self == path and args == ("rb",) and when == "before":
+                # Replace between stat and open; Windows disallows unlinking an open file.
+                path.unlink()
+                path.write_bytes(b"replacement")
             file = original(self, *args, **kwargs)
             return Changed(file) if self == path and args == ("rb",) else file
 

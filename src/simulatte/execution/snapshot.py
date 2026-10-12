@@ -29,6 +29,7 @@ from simulatte.execution.hashing import canonical_hash
 from simulatte._wire import pack, unpack, freeze
 from simulatte.execution.schema import _hash
 from simulatte.execution.durability import replace_durable, sync_directory
+from simulatte.execution.references import _identity
 
 _RESERVED = {".git", ".simulatte", ".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
 
@@ -286,10 +287,6 @@ def _validate_names(names) -> None:
         folded.add(normalized)
 
 
-def _identity(info):
-    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
-
-
 def _copy(root: Path, name: str, destination: Path | None, remaining: int) -> Entry:
     original = root / name
     try:
@@ -330,8 +327,10 @@ def _copy(root: Path, name: str, destination: Path | None, remaining: int) -> En
             finally:
                 if sink is not None:
                     sink.close()
+        after = os.fstat(descriptor)
         if (
-            _identity(os.fstat(descriptor)) != _identity(before)
+            _identity(after) != _identity(before)
+            or after.st_ctime_ns != opened.st_ctime_ns
             or original.resolve() != resolved
             or _identity(resolved.stat()) != _identity(before)
         ):
@@ -364,7 +363,7 @@ def _publish(project: ProjectSpec, entries: tuple[Entry, ...], tree: Path, kind:
                 info.uname = info.gname = ""
                 with (tree / entry.path).open("rb") as content:
                     target.addfile(info, content)
-        with open(temporary, "rb") as stream:
+        with open(temporary, "r+b") as stream:
             os.fsync(stream.fileno())
         digest = _digest_file(Path(temporary))
         if archive.exists():

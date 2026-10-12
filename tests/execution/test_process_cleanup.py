@@ -148,7 +148,9 @@ def test_guardian_control_pipe_and_status_cleanup(command, early):
 
 
 @pytest.mark.parametrize(
-    "raw", [b"bad\n", b"{}", b"x" * (256 * 1024 + 1), b'{"argv":["/no/such/program"],"cwd":null}\n']
+    "raw",
+    [b"bad\n", b"{}", b"x" * (256 * 1024 + 1), b'{"argv":["/no/such/program"],"cwd":null}\n'],
+    ids=["invalid-json", "missing-newline", "oversized", "missing-program"],
 )
 def test_guardian_malformed_configuration_is_reported(raw):
     import io
