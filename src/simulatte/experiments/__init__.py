@@ -15,6 +15,7 @@ from simulatte.experiments.definition import (
     load_experiment,
 )
 from simulatte.experiments.expansion import Configuration, ExperimentRun, expand
+from simulatte.experiments.runner import run
 
 __all__ = [
     "Configuration",
@@ -28,4 +29,5 @@ __all__ = [
     "experiment_id",
     "experiment_type",
     "load_experiment",
+    "run",
 ]

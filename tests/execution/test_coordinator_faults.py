@@ -276,7 +276,7 @@ def test_revocation_at_dispatch_closes_worker_before_next_slot(coordinator, monk
         coordinator.store.revoke(coordinator._current.key, "cancelled")
         return peer
 
-    monkeypatch.setattr(coordinator, "_start_worker", start)
+    monkeypatch.setattr(coordinator._actors["interactive"], "_start_worker", start)
     key = coordinator._schedule(request(schema), coordinator.store.create_revision({}), None, {}, 2)
     with pytest.raises(m.ExecutionFailure):
         coordinator.wait(key, timeout=3)

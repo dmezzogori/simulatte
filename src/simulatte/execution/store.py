@@ -54,18 +54,23 @@ MAX_DISPATCHES = 3
 _REPLICATION = {
     "pending": ("reused", "cancelled"),
     "dispatched": ("succeeded", "failed", "cancelled", "lost"),
-    "lost": ("pending",),
+    # A lost replication is queued again within the bound, or cancelled with its run.
+    "lost": ("pending", "cancelled"),
     "succeeded": (),
     "failed": (),
     "cancelled": (),
     "reused": (),
 }
+# `completed` needs one succeeded or reused replication (a run of reused results only
+# completes); `failed` is a run whose replications all ended without a result.
 _RUN = {
-    "running": ("completed", "cancelled", "paused"),
+    "running": ("completed", "failed", "cancelled", "paused"),
     "paused": ("running", "cancelled"),
     "completed": (),
+    "failed": (),
     "cancelled": (),
 }
+_SNAPSHOT = re.compile("[0-9a-f]{64}")
 # Schema 2 tables shared by fresh stores and the 1 -> 2 migration. `state` only
 # allocates unique generations; each slot fences its own active attempt.
 _STATE = """CREATE TABLE state (singleton INTEGER PRIMARY KEY CHECK(singleton=1), generation INTEGER NOT NULL)"""
@@ -853,6 +858,7 @@ class RunStore:
             )
 
     def set_run_status(self, run_id: str, status: str, details: dict | None = None) -> None:
+        """Apply one run transition; ``completed`` also accepts a run whose results were all reused."""
         if status not in _RUN:
             raise ValueError("Invalid experiment run status")
         with self._transaction() as db:
@@ -861,7 +867,7 @@ class RunStore:
                 raise KeyError(run_id)
             if status not in _RUN[row[0]]:
                 raise ValueError("Invalid experiment run transition")
-            if status == "completed":
+            if status in ("completed", "failed"):
                 counts = dict(
                     db.execute(
                         "SELECT CASE WHEN status IN ('pending','dispatched') OR (status='lost' AND dispatches<?) "
@@ -871,8 +877,11 @@ class RunStore:
                 )
                 if counts.get("open"):
                     raise ValueError("Experiment run has non-terminal replications")
-                if not counts.get("succeeded") and not counts.get("reused"):
+                succeeded = counts.get("succeeded") or counts.get("reused")
+                if status == "completed" and not succeeded:
                     raise ValueError("Experiment run completed without a succeeded replication")
+                if status == "failed" and succeeded:
+                    raise ValueError("Experiment run with succeeded replications cannot fail")
             db.execute(
                 "UPDATE experiment_runs SET status=?,updated=?,details=COALESCE(?,details) WHERE id=?",
                 (status, time.time(), None if details is None else _blob(details), run_id),
@@ -897,35 +906,95 @@ class RunStore:
         verified = row["verified"]
         return {**dict(row), "verified": None if verified is None else bool(verified), "details": _read(row["details"])}
 
-    def prune(self, dry_run: bool = False) -> dict:
-        """Remove results referenced by no experiment, replay, view or newest 20 interactive results.
+    @staticmethod
+    def _unreferenced(db, candidates=None) -> list[str]:
+        """Results referenced by no replication, replay, view or the newest 20 interactive results."""
+        return [
+            row[0]
+            for row in db.execute(
+                """SELECT r.attempt FROM results r JOIN attempts a ON a.id=r.attempt
+                WHERE r.attempt NOT IN (SELECT attempt FROM replications WHERE attempt IS NOT NULL)
+                AND r.attempt NOT IN (SELECT attempt FROM replays WHERE attempt IS NOT NULL)
+                AND a.request_id NOT IN (SELECT original FROM replays UNION SELECT request_id FROM replays)
+                AND r.attempt NOT IN (SELECT attempt FROM views)
+                AND r.attempt NOT IN (SELECT n.attempt FROM results n JOIN attempts i ON i.id=n.attempt
+                    WHERE i.slot=? ORDER BY n.created DESC,n.attempt DESC LIMIT 20)
+                ORDER BY r.attempt""",
+                (INTERACTIVE,),
+            )
+            if candidates is None or row[0] in candidates
+        ]
 
+    def _drop_results(self, db, attempts) -> None:
+        for table in ("kpis", "artifacts", "results"):
+            db.executemany(f"DELETE FROM {table} WHERE attempt=?", [(attempt,) for attempt in attempts])
+
+    def _remove_results(self, attempts) -> None:
+        for attempt in attempts:
+            path = self.root / "results" / attempt
+            if path.exists() or path.is_symlink():
+                _remove(path)
+
+    def prune(self, dry_run: bool = False) -> dict:
+        """Remove unreferenced results (see ``_unreferenced``) and snapshots referenced by no request.
+
+        Snapshot directories are kept when any stored request or captured preparation names
+        them as source, inputs or trusted runtime. Only the exclusive owner may prune, and only without a
+        live preparation that has not created a request yet (the CLI opens the store alone).
         The index transaction commits first; directories are removed afterwards, so an
         interrupted prune leaves only unindexed directories that ``recover`` removes.
         """
         with self._transaction() as db:
-            attempts = [
-                row[0]
-                for row in db.execute(
-                    """SELECT r.attempt FROM results r JOIN attempts a ON a.id=r.attempt
-                    WHERE r.attempt NOT IN (SELECT attempt FROM replications WHERE attempt IS NOT NULL)
-                    AND r.attempt NOT IN (SELECT attempt FROM replays WHERE attempt IS NOT NULL)
-                    AND a.request_id NOT IN (SELECT original FROM replays UNION SELECT request_id FROM replays)
-                    AND r.attempt NOT IN (SELECT attempt FROM views)
-                    AND r.attempt NOT IN (SELECT n.attempt FROM results n JOIN attempts i ON i.id=n.attempt
-                        WHERE i.slot=? ORDER BY n.created DESC,n.attempt DESC LIMIT 20)
-                    ORDER BY r.attempt""",
-                    (INTERACTIVE,),
-                )
+            attempts = self._unreferenced(db)
+            referenced = set()
+            bodies = [_read(row[0]) for row in db.execute("SELECT body FROM requests")]
+            bodies += [
+                _read(row[0])["request"]
+                for row in db.execute("SELECT manifest FROM snapshots WHERE kind='preparation'")
             ]
+            for body in bodies:
+                referenced.update(body.get(name) for name in ("source_hash", "input_hash"))
+                referenced.add(body["runtime"].get("trusted_runtime_hash"))
+            snapshots = sorted(
+                path.name
+                for path in (self.root / "snapshots").iterdir()
+                if _SNAPSHOT.fullmatch(path.name) and path.name not in referenced
+            )
             if not dry_run:
-                for table in ("kpis", "artifacts", "results"):
-                    db.executemany(f"DELETE FROM {table} WHERE attempt=?", [(attempt,) for attempt in attempts])
+                self._drop_results(db, attempts)
         if not dry_run:
-            for attempt in attempts:
-                path = self.root / "results" / attempt
-                if path.exists() or path.is_symlink():
-                    _remove(path)
+            self._remove_results(attempts)
+            for name in snapshots:
+                _remove(self.root / "snapshots" / name)
+        return {"results": attempts, "snapshots": snapshots}
+
+    def delete_experiment_run(self, run_id: str) -> dict:
+        """Remove a run's rows, then the results no other run, replay, view or recent history keeps.
+
+        A running run must be cancelled or paused first. Like ``prune``, the index commits
+        before directories are removed.
+        """
+        with self._transaction() as db:
+            row = db.execute("SELECT experiment,status FROM experiment_runs WHERE id=?", (run_id,)).fetchone()
+            if row is None:
+                raise KeyError(run_id)
+            if row["status"] == "running":
+                raise ValueError("Experiment run is running; cancel it before deleting")
+            owned = {
+                item[0]
+                for item in db.execute(
+                    "SELECT attempt FROM replications WHERE run=? AND attempt IS NOT NULL", (run_id,)
+                )
+            }
+            for table, column in (("replications", "run"), ("configurations", "run"), ("experiment_runs", "id")):
+                db.execute(f"DELETE FROM {table} WHERE {column}=?", (run_id,))
+            db.execute(
+                "DELETE FROM experiments WHERE id=? AND id NOT IN (SELECT experiment FROM experiment_runs)",
+                (row["experiment"],),
+            )
+            attempts = self._unreferenced(db, owned)
+            self._drop_results(db, attempts)
+        self._remove_results(attempts)
         return {"results": attempts}
 
     def recover(self) -> None:

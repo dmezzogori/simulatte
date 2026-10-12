@@ -260,13 +260,14 @@ def test_timeout_includes_materialization_before_child_launch(tmp_path, monkeypa
 
         monkeypatch.setattr(m, "materialize", slow)
         starts = []
-        start = coordinator._start_worker
+        actor = coordinator._actors["interactive"]
+        start = actor._start_worker
 
         def start_worker():
             starts.append(True)
             return start()
 
-        monkeypatch.setattr(coordinator, "_start_worker", start_worker)
+        monkeypatch.setattr(actor, "_start_worker", start_worker)
         key = coordinator.submit(request, prepared.revision, timeout=0.02)
         with pytest.raises(m.ExecutionFailure, match="deadline|timeout"):
             coordinator.wait(key, timeout=5)

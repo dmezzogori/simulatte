@@ -564,7 +564,7 @@ def test_prune_keeps_referenced_results_and_survives_interruption(tmp_path, monk
         run = store.create_experiment_run(experiment, {}, configurations()[:1], replications()[:1])
         store.set_replication_status(run, 0, 0, "reused", attempt=replication.attempt_id)
         expected = sorted([unreferenced.attempt_id, loose.attempt_id])
-        assert store.prune(dry_run=True) == {"results": expected}
+        assert store.prune(dry_run=True) == {"results": expected, "snapshots": []}
         assert all((root / "results" / attempt).is_dir() for attempt in expected)
         store.result(loose.attempt_id)
 
@@ -585,9 +585,102 @@ def test_prune_keeps_referenced_results_and_survives_interruption(tmp_path, monk
         kept += [key.attempt_id for key in newest]
         for attempt in kept:
             assert store.result(attempt).path.is_dir()
-        assert store.prune() == {"results": []}
+        assert store.prune() == {"results": [], "snapshots": []}
         extra = result(6, 2e9 + 100, "local-1")
         missing = result(7, 2e9 + 101, "local-1")
         shutil.rmtree(root / "results" / missing.attempt_id)  # removed by hand: pruning still succeeds
-        assert store.prune() == {"results": sorted([extra.attempt_id, missing.attempt_id])}
+        assert store.prune() == {"results": sorted([extra.attempt_id, missing.attempt_id]), "snapshots": []}
         assert not (root / "results" / extra.attempt_id).exists()
+
+
+def test_lost_replications_can_be_cancelled_and_runs_without_success_fail(tmp_path):
+    m = api()
+    with m.RunStore.open(tmp_path / ".simulatte") as store:
+        revision = store.create_revision({})
+        _, run = experiment_run(store)
+        key = store.assign(request(schema, seed=0), revision, slot="local-1", pinned=True)
+        store.bind_replication(run, 0, 0, key)
+        store.set_replication_status(run, 0, 0, "lost", attempt=key.attempt_id)
+        store.set_replication_status(run, 0, 0, "cancelled")
+        for configuration, index in ((0, 1), (1, 0), (1, 1)):
+            store.set_replication_status(run, configuration, index, "cancelled")
+        with pytest.raises(ValueError, match="succeeded"):
+            store.set_run_status(run, "completed")
+        store.set_run_status(run, "failed")
+        with pytest.raises(ValueError, match="transition"):
+            store.set_run_status(run, "running")
+        experiment = store.put_experiment({**DEFINITION, "name": "open"})
+        pending = store.create_experiment_run(experiment, {}, configurations()[:1], replications()[:1])
+        with pytest.raises(ValueError, match="terminal"):
+            store.set_run_status(pending, "failed")
+        store.set_replication_status(pending, 0, 0, "reused", attempt=commit_result(store, revision))
+        with pytest.raises(ValueError, match="cannot fail"):
+            store.set_run_status(pending, "failed")
+
+
+def commit_result(store, revision):
+    key = store.assign(request(schema, seed=99), revision, slot="local-9", pinned=True)
+    advance(store, key, "finalizing")
+    commit(store, key, 1.0)
+    return key.attempt_id
+
+
+def test_prune_removes_snapshots_referenced_by_no_request(tmp_path):
+    m = api()
+    root = tmp_path / ".simulatte"
+    with m.RunStore.open(root) as store:
+        revision = store.create_revision({})
+        requested = request(schema)
+        store.assign(requested, revision)
+        prepared = replace(requested, seed=9, source_hash="5" * 64, input_hash="6" * 64)
+        with store._transaction() as db:
+            db.execute(
+                "INSERT INTO snapshots VALUES (?,?,?)",
+                (schema.request_id(prepared), "preparation", m._blob({"request": prepared.to_dict()})),
+            )
+        requested = replace(requested, runtime={**requested.runtime, "trusted_runtime_hash": "4" * 64})
+        store.assign(requested, revision)
+        kept = [requested.source_hash, requested.input_hash, "4" * 64, "5" * 64, "6" * 64]
+        for identity in [*kept, "7" * 64]:
+            (root / "snapshots" / identity).mkdir()
+            (root / "snapshots" / identity / "source.tar").write_bytes(b"tar")
+        (root / "snapshots" / "not-a-snapshot").mkdir()
+        assert store.prune(dry_run=True) == {"results": [], "snapshots": ["7" * 64]}
+        assert (root / "snapshots" / ("7" * 64)).is_dir()
+        assert store.prune() == {"results": [], "snapshots": ["7" * 64]}
+        assert sorted(path.name for path in (root / "snapshots").iterdir()) == sorted([*kept, "not-a-snapshot"])
+
+
+def test_delete_experiment_run_removes_rows_and_only_its_unreferenced_results(tmp_path):
+    m = api()
+    root = fixture_copy(tmp_path)
+    with m.RunStore.open(root) as store:
+        revision = store.create_revision({})
+        experiment, run = experiment_run(store)
+        other = store.create_experiment_run(
+            store.put_experiment({**DEFINITION, "name": "other"}), {}, configurations()[:1], replications()[:1]
+        )
+        owned = store.assign(request(schema, seed=0), revision, slot="local-1", pinned=True)
+        store.bind_replication(run, 0, 0, owned)
+        advance(store, owned, "finalizing")
+        commit(store, owned, 1.0)
+        store.set_replication_status(run, 0, 0, "succeeded", attempt=owned.attempt_id)
+        shared = store.assign(request(schema, seed=1), revision, slot="local-1", pinned=True)
+        advance(store, shared, "finalizing")
+        commit(store, shared, 1.0)
+        store.set_replication_status(run, 0, 1, "reused", attempt=shared.attempt_id)
+        store.set_replication_status(other, 0, 0, "reused", attempt=shared.attempt_id)
+        store.set_replication_status(run, 1, 0, "reused", attempt=FIXTURE_ATTEMPT)
+        with pytest.raises(ValueError, match="running"):
+            store.delete_experiment_run(run)
+        store.set_run_status(run, "paused")
+        assert store.delete_experiment_run(run) == {"results": [owned.attempt_id]}
+        with pytest.raises(KeyError):
+            store.experiment_run(run)
+        with pytest.raises(KeyError):
+            store.delete_experiment_run(run)
+        with pytest.raises(KeyError):
+            store.experiment(experiment)
+        assert not (root / "results" / owned.attempt_id).exists()
+        assert store.result(shared.attempt_id).path.is_dir() and store.result(FIXTURE_ATTEMPT).path.is_dir()
+        assert store.experiment_run(other)["status"] == "running"
