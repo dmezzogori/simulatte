@@ -71,6 +71,8 @@ class ProjectSession:
             with self.coordinator._condition:
                 self.monitor._ingest(change)
             return
+        if change.state is not None and change.changed == {"experiments"}:
+            return  # Non-source inputs (D104) never restart preparation.
         self._epoch += 1
         base = self._pause(change)
         if base is None:

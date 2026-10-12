@@ -153,3 +153,66 @@ def test_stopping_rejects_nonfinite_and_negative_cutoffs():
     ]:
         with pytest.raises(ValueError):
             make()
+
+
+LOCAL_0_16 = {
+    "schema": 1,
+    "model": "plant.py:build",
+    "source_hash": "a" * 64,
+    "input_hash": "b" * 64,
+    "layout_hash": "c" * 64,
+    "layout_revision": 3,
+    "parameters": {"servers": 2, "rate": 0.5, "fast": True, "rule": "FIFO"},
+    "seed": "7",
+    "stopping": {"type": "horizon", "horizon": 100.0, "warmup": 10.0},
+    "level": "kpi",
+    "kpis": ["shop/leadtime"],
+    "runtime": {
+        "facts": {"implementation": "CPython", "version": "3.14.1"},
+        "dependencies_hash": "d" * 64,
+        "trusted_runtime_hash": "e" * 64,
+    },
+}
+
+UV_RUNTIME = {
+    "kind": "uv",
+    "python": "3.14.1",
+    "lock_hash": "1" * 64,
+    "pyproject_hash": "2" * 64,
+    "extras": ["plot"],
+    "groups": [],
+    "local_packages": ["packages/helpers"],
+    "trusted_runtime_hash": "e" * 64,
+}
+
+
+def test_local_request_identity_is_unchanged_from_0_16():
+    # Ids computed with the 0.16 schema before the uv runtime kind existed.
+    m = api()
+    r = m.ExecutionRequest.from_dict(LOCAL_0_16)
+    assert r.to_dict() == LOCAL_0_16
+    assert m.request_id(r) == "bb9d6047622211e9429bd352689b0b35ddf5a9976097c914e324ae916c9c55e8"
+    assert m.content_id(r) == "01e3148a5eaeb0deade0c28fbef735362798502c3e4503008f1847f2b1f4bb15"
+
+
+def test_uv_runtime_requires_exactly_the_provisioning_spec():
+    # Other kinds stay opaque 0.16 mappings: committed 0.16 traces use one.
+    m = api()
+    r = m.ExecutionRequest.from_dict(LOCAL_0_16 | {"runtime": UV_RUNTIME})
+    assert r.to_dict()["runtime"] == UV_RUNTIME
+    assert m.ExecutionRequest.from_dict(r.to_dict()) == r
+    assert m.request_id(r) != m.request_id(m.ExecutionRequest.from_dict(LOCAL_0_16))
+    fixture = m.ExecutionRequest.from_dict(LOCAL_0_16 | {"runtime": {"kind": "conformance-fixture"}})
+    assert fixture.to_dict()["runtime"] == {"kind": "conformance-fixture"}
+    for runtime in (
+        UV_RUNTIME | {"extra": "x"},
+        {key: value for key, value in UV_RUNTIME.items() if key != "groups"},
+        UV_RUNTIME | {"python": 3.14},
+        UV_RUNTIME | {"python": ""},
+        UV_RUNTIME | {"lock_hash": None},
+        UV_RUNTIME | {"extras": "plot"},
+        UV_RUNTIME | {"groups": [1]},
+        UV_RUNTIME | {"local_packages": [""]},
+    ):
+        with pytest.raises(ValueError, match="runtime"):
+            m.ExecutionRequest.from_dict(LOCAL_0_16 | {"runtime": runtime})

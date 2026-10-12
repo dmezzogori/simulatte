@@ -61,6 +61,8 @@ class ProjectMonitor:
             )
         )
         layout_changed = observed is not None and observed.layout_hash != baseline.layout_hash
+        if observed is not None and "experiments" in change.changed:
+            self.observe_experiments(change)
         if not source_changed and not layout_changed:
             return
         self._sequence += 1
@@ -70,6 +72,9 @@ class ProjectMonitor:
                 return
         self._pending = ("source" if source_changed else "layout", state.revision, self._sequence)
         self._wake.set()
+
+    def observe_experiments(self, change):
+        """Experiment files and layout variants changed; they never refresh the prepared model (D104)."""
 
     def _pause(self, base, message):
         with self.coordinator._condition:

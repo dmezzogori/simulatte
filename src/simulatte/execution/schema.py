@@ -29,6 +29,32 @@ def _mapping(value: Any) -> FrozenMap:
     return result
 
 
+_UV_TEXT = ("python", "lock_hash", "pyproject_hash", "trusted_runtime_hash")
+_UV_LISTS = ("extras", "groups", "local_packages")
+
+
+def _texts(value: Any) -> bool:
+    return type(value) is tuple and all(type(item) is str and item for item in value)
+
+
+def _runtime(value: Any) -> FrozenMap:
+    """``kind: "uv"`` is a remote provisioning spec (design section 9) and must be exact.
+
+    Every other mapping is the 0.16 runtime, kept as is so stored request ids do not
+    move; 0.16 traces (the conformance fixtures) carry their own ``kind`` values.
+    """
+    runtime = _mapping(value)
+    if runtime.get("kind") != "uv":
+        return runtime
+    if (
+        set(runtime) != {"kind", *_UV_TEXT, *_UV_LISTS}
+        or any(type(runtime[key]) is not str or not runtime[key] for key in _UV_TEXT)
+        or not all(_texts(runtime[key]) for key in _UV_LISTS)
+    ):
+        raise ValueError("Invalid uv runtime provisioning spec")
+    return runtime
+
+
 def _plain(value: Any) -> Any:
     if isinstance(value, Mapping):
         return {key: _plain(item) for key, item in value.items()}
@@ -132,7 +158,7 @@ class ExecutionRequest:
                 raise ValueError("Parameters must be finite typed scalars")
         object.__setattr__(self, "parameters", params)
         object.__setattr__(self, "stopping", _mapping(stopping_from_dict(self.stopping).to_dict()))
-        object.__setattr__(self, "runtime", _mapping(self.runtime))
+        object.__setattr__(self, "runtime", _runtime(self.runtime))
 
     def to_dict(self) -> dict[str, Any]:
         return {"schema": 1, **{f.name: _plain(getattr(self, f.name)) for f in fields(self)}, "seed": str(self.seed)}

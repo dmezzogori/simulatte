@@ -46,6 +46,7 @@ class ProjectSpec:
     max_bytes: int = 1 << 30
     max_files: int = 100_000
     config_hash: str | None = None
+    layouts: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +166,7 @@ def discover_project(
     )
     if not git and not patterns["include"]:
         raise ValueError("Non-Git projects require bundle.include")
+    layouts = _layout_variants(root, bundle.get("layouts", []))
     roots = bundle.get("python-path", [".", *(["src"] if (root / "src").is_dir() else [])])
     if not isinstance(roots, list) or not roots:
         raise ValueError("bundle.python-path must be a nonempty list")
@@ -188,7 +190,27 @@ def discover_project(
         git,
         **limits,
         config_hash=config_hash,
+        layouts=layouts,
     )
+
+
+def _layout_variants(root: Path, values) -> tuple[str, ...]:
+    """Layout variants are non-source inputs (D104): in-root regular files, possibly not yet written."""
+    if not isinstance(values, list):
+        raise ValueError("bundle.layouts must be a list")
+    names = []
+    for item in values:
+        try:
+            name = _path(item)
+        except ValueError as error:
+            raise ValueError(f"Invalid bundle.layouts entry: {error}") from None
+        path = root / name
+        if not path.resolve().is_relative_to(root) or (path.exists() and not path.is_file()):
+            raise ValueError("bundle.layouts entries must be regular files inside the project root")
+        if name in names:
+            raise ValueError("Duplicate bundle.layouts entry")
+        names.append(name)
+    return tuple(names)
 
 
 def _configuration_hash(pyproject_hash):
@@ -242,7 +264,7 @@ def local_package_roots(root: Path, config: Mapping, distributions=None) -> tupl
     return tuple(sorted(roots))
 
 
-def _members(project: ProjectSpec) -> tuple[str, ...]:
+def _candidates(project: ProjectSpec) -> set[str]:
     names = set()
     if project.git:
         raw = _git(project.root, "ls-files", "-z", "--stage", "--", ".")
@@ -264,15 +286,38 @@ def _members(project: ProjectSpec) -> tuple[str, ...]:
                 names.add(path.relative_to(project.root).as_posix())
     if (project.root / "pyproject.toml").is_file():
         names.add("pyproject.toml")
-    names = {
+    return {
         name
         for name in names
         if not set(PurePosixPath(name).parts) & _RESERVED
         and name != project.layout
         and not any(fnmatch.fnmatchcase(name, pattern) for pattern in project.exclude)
     }
+
+
+def _non_source(project: ProjectSpec, name: str) -> bool:
+    return name.endswith(".experiment.json") or name in project.layouts
+
+
+def _members(project: ProjectSpec) -> tuple[str, ...]:
+    names = {name for name in _candidates(project) if not _non_source(project, name)}
     if project.model not in names:
         raise ValueError("Selected model is missing from source membership")
+    _validate_names(names)
+    return tuple(sorted(names, key=lambda n: n.encode("utf-8")))
+
+
+def non_source_members(project: ProjectSpec) -> tuple[str, ...]:
+    """Experiment files in membership and existing layout variants: shipped as documents, never source."""
+    names = {name for name in _candidates(project) if _non_source(project, name)}
+    names.update(
+        name
+        for name in project.layouts
+        if name != project.layout
+        and (project.root / name).is_file()
+        and not set(PurePosixPath(name).parts) & _RESERVED
+        and not any(fnmatch.fnmatchcase(name, pattern) for pattern in project.exclude)
+    )
     _validate_names(names)
     return tuple(sorted(names, key=lambda n: n.encode("utf-8")))
 

@@ -487,3 +487,24 @@ def test_permission_pause_wins_over_a_woken_but_unconsumed_refresh(tmp_path):
                 await asyncio.wait_for(processor, 5)
 
         asyncio.run(run())
+
+
+def test_experiment_changes_notify_without_refresh_or_layout_observation(tmp_path, monkeypatch):
+    from simulatte.studio.monitor import ProjectMonitor
+
+    spec = project(tmp_path)
+    with Coordinator(spec) as coordinator:
+        owner = coordinator.inputs
+        state = owner.bind(coordinator.prepare(timeout=10))
+        watcher = ProjectWatcher(spec, inputs=("input.txt",))
+        monitor = ProjectMonitor(coordinator, watcher=watcher)
+        observed = watcher.scan()
+        notified = []
+        monkeypatch.setattr(monitor, "observe_experiments", notified.append)
+        change = InputChange(observed, frozenset({"experiments"}))
+        monitor._ingest(change)
+        assert notified == [change]
+        assert monitor._pending is None and not monitor._wake.is_set()
+        assert owner.state == state
+        assert ProjectMonitor.observe_experiments(monitor, change) is None
+        monitor.close()

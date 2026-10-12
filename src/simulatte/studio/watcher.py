@@ -7,7 +7,7 @@ are hints: manifest membership and content hashes decide whether inputs changed.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 import fnmatch
 import hashlib
 from pathlib import Path
@@ -26,6 +26,7 @@ from simulatte.execution.snapshot import (
     _members,
     _validate_names,
     discover_project,
+    non_source_members,
 )
 
 
@@ -35,6 +36,9 @@ class ProjectState:
     input_hash: str
     layout_hash: str | None
     config_hash: str
+    # Experiment files and layout variants (D104): not execution state, so not compared;
+    # None when only captured bytes are known.
+    experiments_hash: str | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,7 +52,11 @@ class InputChange:
 
 
 def captured_state(snapshot, *, layout_hash):
-    """Acknowledge execution bytes, never whatever happens to be on disk now."""
+    """Acknowledge execution bytes, never whatever happens to be on disk now.
+
+    Snapshots hold no experiment files, so the experiments class stays unknown here and
+    the watcher keeps its own last observation of it.
+    """
     configuration = asdict(snapshot.source.project)
     configuration.pop("root")
     configuration["pyproject"] = next(
@@ -124,6 +132,8 @@ class ProjectWatcher:
                 self.project = project
             self.inputs = values
             if baseline is not None:
+                if baseline.experiments_hash is None and self._last is not None:
+                    baseline = replace(baseline, experiments_hash=self._last.experiments_hash)
                 self._last, self._error = baseline, None
             self._generation += 1
             self._watch_stop.set()
@@ -161,6 +171,9 @@ class ProjectWatcher:
             entry = _copy(project.root, name, None, remaining)
             remaining -= entry.size
             target.append(entry.to_dict())
+        experiments = [
+            _copy(project.root, name, None, project.max_bytes).to_dict() for name in non_source_members(project)
+        ]
         layout = project.root / project.layout
         if not layout.resolve().is_relative_to(project.root):
             raise ValueError("Layout escapes project root")
@@ -172,6 +185,7 @@ class ProjectWatcher:
             canonical_hash("inputs-manifest-v1", data),
             _file_hash(layout, optional=True),
             canonical_hash("watch-config-v1", configuration),
+            canonical_hash("watch-experiments-v1", experiments),
         )
 
     def check(self, paths=(), *, rescan=False):
@@ -204,13 +218,19 @@ class ProjectWatcher:
             previous = self._last
             changed = frozenset(
                 name
-                for name, field in (
+                for name, attribute in (
                     ("source", "source_hash"),
                     ("inputs", "input_hash"),
                     ("layout", "layout_hash"),
                     ("configuration", "config_hash"),
+                    ("experiments", "experiments_hash"),
                 )
-                if previous is None or getattr(previous, field) != getattr(state, field)
+                if previous is None
+                or (
+                    getattr(previous, attribute) != getattr(state, attribute)
+                    # An unknown experiments baseline is adopted, not reported.
+                    and (attribute != "experiments_hash" or previous.experiments_hash is not None)
+                )
             )
             recovered = self._error is not None
             self._last, self._error = state, None

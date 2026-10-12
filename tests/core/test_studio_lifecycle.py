@@ -245,3 +245,18 @@ def test_explicit_rescan_retries_unchanged_failure_and_rejects_a_stale_scan(tmp_
             session.close()
 
     asyncio.run(run())
+
+
+def test_experiment_only_changes_do_not_restart_preparation(tmp_path):
+    from simulatte.studio.watcher import InputChange
+
+    spec = project(tmp_path)
+    with Coordinator(spec) as coordinator:
+        watcher = ProjectWatcher(spec)
+        session = ProjectSession(coordinator, watcher=watcher, timeout=10)
+        revision = coordinator.store.current_revision()
+        session._ingest(InputChange(watcher.scan(), frozenset({"experiments"})))
+        assert session._pending is None and coordinator.store.current_revision() == revision
+        session._ingest(InputChange(watcher.scan(), frozenset({"experiments", "source"})))
+        assert session._pending is not None and coordinator.store.current_revision() != revision
+        session.close()

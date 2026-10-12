@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://simulatte.dev/schema/experiment-v1.schema.json",
+  "title": "Simulatte experiment definition, schema 1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "model": {
+      "type": "string",
+      "pattern": "^[^:\\\\]+\\.py(:[^:]+)?$"
+    },
+    "replications": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "base_seed": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{15,18}$"
+            }
+          ]
+        }
+      },
+      "required": ["count"],
+      "additionalProperties": false
+    },
+    "configurations": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "grid": {
+              "type": "object",
+              "maxProperties": 64,
+              "propertyNames": {
+                "$ref": "#/$defs/identifier"
+              },
+              "additionalProperties": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "$ref": "#/$defs/scalar"
+                }
+              }
+            }
+          },
+          "required": ["grid"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "explicit": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 10000,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "pattern": "^[^/]*$"
+                  },
+                  "parameters": {
+                    "type": "object",
+                    "propertyNames": {
+                      "$ref": "#/$defs/identifier"
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/scalar"
+                    }
+                  }
+                },
+                "required": ["parameters"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["explicit"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "layouts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "$ref": "#/$defs/name"
+          },
+          "file": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^/\\\\][^\\\\]*$"
+          }
+        },
+        "required": ["label", "file"],
+        "additionalProperties": false
+      }
+    },
+    "stopping": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "horizon"
+            },
+            "horizon": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "warmup": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "required": ["type", "horizon", "warmup"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "finite_population"
+            },
+            "arrivals": {
+              "type": ["integer", "null"],
+              "minimum": 0
+            },
+            "cutoff": {
+              "type": ["number", "null"],
+              "minimum": 0
+            },
+            "safety_limit": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "required": ["type", "arrivals", "cutoff", "safety_limit"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "level": {
+      "enum": ["kpi", "full"]
+    },
+    "kpis": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "workers": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/name"
+      }
+    }
+  },
+  "required": ["schema", "name", "model", "replications", "configurations"],
+  "additionalProperties": false,
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "scalar": {
+      "type": ["string", "number", "boolean"]
+    }
+  }
+}

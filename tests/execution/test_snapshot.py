@@ -612,3 +612,46 @@ def test_configuration_creation_and_removal_are_fenced_against_discovery(tmp_pat
     with pytest.raises(m.SnapshotChanged, match="configuration"):
         m.capture_source(present)
     assert m.capture_source(m.discover_project(model)).content_hash == original.content_hash
+
+
+@pytest.mark.parametrize(
+    "layouts",
+    [
+        '"layouts/wide.json"',
+        '["../wide.json"]',
+        '["layouts/*.json"]',
+        '["a.json", "a.json"]',
+        '["layouts"]',
+        '["link.json"]',
+    ],
+)
+def test_layout_variant_settings_are_validated(tmp_path, layouts):
+    m = api()
+    model = project(tmp_path)
+    (tmp_path / "layouts").mkdir()
+    (tmp_path / "link.json").symlink_to(tmp_path.parent / "outside.json")
+    (tmp_path.parent / "outside.json").write_text("{}")
+    (tmp_path / "pyproject.toml").write_text(f'[tool.simulatte.bundle]\ninclude = ["*.py"]\nlayouts = {layouts}\n')
+    with pytest.raises(ValueError, match="layouts"):
+        m.discover_project(model)
+
+
+def test_layout_variants_are_recorded_and_may_be_missing(tmp_path):
+    m = api()
+    model = project(tmp_path)
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.simulatte.bundle]\ninclude = ["*.py", "*.json"]\nlayouts = ["wide.json", "layout.json"]\n'
+    )
+    (tmp_path / "sweep.experiment.json").write_text("{}")
+    spec = m.discover_project(model)
+    assert spec.layouts == ("wide.json", "layout.json")
+    assert m.non_source_members(spec) == ("sweep.experiment.json",)
+    (tmp_path / "wide.json").write_text("{}")
+    assert m.non_source_members(spec) == ("sweep.experiment.json", "wide.json")
+    assert {entry.path for entry in m.capture_source(spec).entries} == {"plant.py", "helper.py", "pyproject.toml"}
+    assert m.discover_project(model).config_hash == spec.config_hash
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.simulatte.bundle]\ninclude = ["*.py", "*.json"]\nlayouts = ["wide.json"]\n'
+    )
+    with pytest.raises(ValueError, match="project configuration"):
+        m.capture_source(spec)
