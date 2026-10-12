@@ -61,6 +61,9 @@ def test_studio_auto_run_auth_references_and_committed_ranges(tmp_path):
             metadata = client.get(state["metadata"]["url"], headers=headers)
             assert metadata.status_code == 200 and metadata.json()["selected"] == "build"
             result = state["results"][0]
+            assert result["origin"] == state["revision"]
+            assert state["latest_attempt"]["key"] == result["key"]
+            assert state["latest_attempt"]["status"] == "succeeded"
             trace = client.get(result["trace"]["url"], headers=headers)
             assert trace.status_code == 200 and trace.content.startswith(b"SIMTRACE")
             head = client.head(result["trace"]["url"], headers=headers)
@@ -266,6 +269,10 @@ def test_command_outcomes_view_selection_and_original_notification_revision(tmp_
                     return response(socket, identity)
 
                 assert send("state.get", {}, "state")["state"]["revision"] == state["revision"]
+                assert send("project.rescan", {}, "rescan")["ok"]
+                assert send("project.rescan", {"retry": True}, "retry")["ok"]
+                assert not send("project.rescan", {"retry": 1}, "invalid_retry")["ok"]
+                assert len(client.get("/api/state", headers=headers).json()["results"]) == 1
                 assert send("layout.get", {}, "layout")["ok"]
                 assert send("layout.validate", {"schema_version": "1.0"}, "validate")["requires_rerun"] is False
                 assert send("view.select", {"revision": state["revision"]}, "select")["view"]["committed"]
@@ -410,5 +417,82 @@ def test_large_layout_validation_uses_bounded_authenticated_http_without_writing
                 client.put("/api/layout/validate", content=b" " * ((16 << 20) + 1), headers=request_headers).status_code
                 == 413
             )
+    finally:
+        coordinator.close()
+
+
+def test_initial_invalid_layout_can_be_repaired_with_exact_backup(tmp_path):
+    from simulatte.execution.layout_files import backup_layout, LayoutFile
+    from simulatte.execution.store import _read
+
+    coordinator, server = setup(tmp_path)
+    raw = b"{ broken layout"
+    (coordinator.project.root / "layout.json").write_bytes(raw)
+    try:
+        with TestClient(server.app, base_url=server.origin) as client:
+            headers = auth(server, client)
+            deadline = time.monotonic() + 20
+            while True:
+                state = client.get("/api/state", headers=headers).json()
+                if state["startup"]["phase"] == "error":
+                    break
+                assert time.monotonic() < deadline
+                time.sleep(0.02)
+            assert state["inputs"] is None and not state["results"]
+            with client.websocket_connect(
+                server.origin.replace("http:", "ws:") + "/ws", headers={"Origin": server.origin}
+            ) as socket:
+                socket.send_json({"v": 1, "type": "auth", "secret": server.secret})
+                socket.receive_json()
+                socket.send_json({"v": 1, "type": "layout.get", "id": "get", "revision": state["revision"], "body": {}})
+                loaded = response(socket, "get")
+                assert not client.get(loaded["layout"]["url"], headers=headers).json()["valid"]
+                socket.send_json(
+                    {
+                        "v": 1,
+                        "type": "layout.write",
+                        "id": "repair",
+                        "revision": loaded["revision"],
+                        "body": {"schema_version": "1.0"},
+                    }
+                )
+                repaired = response(socket, "repair")
+                assert repaired["ok"]
+            ready = wait_state(client, headers, lambda value: bool(value["results"]))
+            assert ready["startup"]["phase"] == "ready"
+            identity = backup_layout(coordinator.store, LayoutFile("layout.json", raw))
+            with coordinator.store._transaction() as db:
+                saved = _read(db.execute("SELECT manifest FROM snapshots WHERE id=?", (identity,)).fetchone()[0])
+            import base64
+
+            assert base64.b64decode(saved["raw_base64"]) == raw
+    finally:
+        coordinator.close()
+
+
+def test_unbound_layout_repair_requires_captured_invalid_bytes_and_current_file(tmp_path):
+    from simulatte.execution.store import RevisionConflict
+
+    coordinator, server = setup(tmp_path)
+    try:
+        base = coordinator.store.create_revision({"preparing": True})
+        command = {
+            "type": "layout.write",
+            "revision": {"number": base.number, "digest": base.digest},
+            "body": {"schema_version": "1.0"},
+        }
+        with pytest.raises(RevisionConflict, match="Read the failed layout"):
+            server._command(command, None)
+        server._command({"type": "layout.get", "body": {}}, None)
+        with pytest.raises(ValueError, match="valid layout"):
+            server._command(command, None)
+        path = coordinator.project.root / "layout.json"
+        path.write_bytes(b"{invalid")
+        server._unbound_layout = None
+        server._command({"type": "layout.get", "body": {}}, None)
+        path.write_bytes(b"{changed")
+        with pytest.raises(RevisionConflict, match="changed on disk"):
+            server._command(command, None)
+        assert path.read_bytes() == b"{changed"
     finally:
         coordinator.close()

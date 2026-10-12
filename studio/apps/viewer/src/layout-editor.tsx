@@ -11,6 +11,7 @@ interface Loaded {document: LayoutDocument; revision: Revision;}
 export function LayoutEditor({client, state, status}: {client: StudioClient | null; state: StudioState | null; status: ConnectionStatus}) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [draft, setDraft] = useState<LayoutDraft | null>(null);
+  const [repair, setRepair] = useState('');
   const [error, setError] = useState('');
   const [preview, setPreview] = useState('');
   const [bundle, setBundle] = useState<Layer>({});
@@ -43,6 +44,7 @@ export function LayoutEditor({client, state, status}: {client: StudioClient | nu
     }).catch(error => {if (!abort.signal.aborted) setError(String(error));});
     return () => abort.abort();
   }, [client, revision?.number, status, busy]);
+  useEffect(() => {if (loaded && !loaded.document.valid) setRepair(loaded.document.raw ?? '');}, [loaded]);
   useEffect(() => {
     if (!loaded?.document.valid || !loaded.document.layer || applying.current) return;
     if (!draft) {setDraft(new LayoutDraft(loaded.document.layer, loaded.revision)); setPreview('');}
@@ -50,8 +52,9 @@ export function LayoutEditor({client, state, status}: {client: StudioClient | nu
       draft.observe(loaded.document.layer, loaded.revision); redraw(value => value + 1); setPreview('');
     }
   }, [loaded, draft, busy]);
+  const layer = draft?.snapshot;
   let validation = '';
-  if (draft) try {validateLayoutPatch(draft.layer);} catch (error) {validation = String(error);}
+  if (draft) try {validateLayoutPatch(layer!);} catch (error) {validation = String(error);}
   const enabled = status === 'connected' && loaded?.revision.number === revision?.number;
   const act = async (action: 'save' | 'preview' | 'undo' | 'redo') => {
     if (!client || !draft || busy || !enabled) return;
@@ -77,19 +80,34 @@ export function LayoutEditor({client, state, status}: {client: StudioClient | nu
   return <details className="studio-layout"><summary>Layout</summary>
     <div className="layout-editor">
       <p>File overrides. Reset inherits the code or automatic value. Choose Remove optional value ($unset) to suppress an inherited optional value.</p>
-      {loaded && !loaded.document.valid && <div role="alert">{loaded.document.error}<pre>{loaded.document.raw}</pre></div>}
+      {loaded && !loaded.document.valid && <div>
+        <p role="alert">{loaded.document.error}</p>
+        <label>Repair layout JSON<textarea aria-label="Repair layout JSON" value={repair} disabled={busy} onChange={event => setRepair(event.target.value)} /></label>
+        <p>Saving preserves the exact previous file in the run store and retries inspection. No run uses the invalid layout.</p>
+        <button disabled={!enabled || busy} onClick={() => {
+          if (!client) return;
+          setBusy(true); setError(''); applying.current = true;
+          void (async () => {
+            if (new TextEncoder().encode(repair).length > 16 << 20) throw new Error('Layout exceeds 16 MiB');
+            const layer = JSON.parse(repair); validateLayoutPatch(layer);
+            const result = await client.writeLayout(layer, loaded.revision);
+            if (!result.ok) throw new Error(JSON.stringify(result.error));
+            setDraft(null); setLoaded(null); await client.resync();
+          })().catch(error => setError(String(error))).finally(() => {applying.current = false; setBusy(false);});
+        }}>Save repaired layout</button>
+      </div>}
       {draft?.conflict && <div role="alert">The layout base revision changed. Your draft is preserved.
         <button disabled={busy} onClick={() => {try {draft.rebase('keep'); setError('');} catch (error) {setError(String(error));} redraw(value => value + 1);}}>Reapply non-conflicting layout edits</button>
         <button disabled={busy} onClick={() => {draft.rebase('reload'); setError(''); redraw(value => value + 1);}}>Reload layout</button>
       </div>}
-      {draft && <>
-        <LayoutProvenance bundle={bundle} layer={draft.layer} />
-        <LayoutCanvas layer={draft.layer} bundle={bundle} enabled={enabled && !busy && !draft.conflict} onError={setError} change={value => {
+      {draft && loaded?.document.valid && <>
+        <LayoutProvenance bundle={bundle} layer={layer!} />
+        <LayoutCanvas layer={layer!} bundle={bundle} enabled={enabled && !busy && !draft.conflict} onError={setError} change={value => {
           try {draft.edit(value); setError(''); setPreview('');} catch (error) {setError(String(error));}
           redraw(value => value + 1);
         }} />
         <fieldset disabled={!enabled || busy}>
-          <SchemaField rule={layoutRule} value={draft.layer} path="layout" invalid={invalid} change={value => {
+          <SchemaField rule={layoutRule} value={layer!} path="layout" invalid={invalid} change={value => {
             try {draft.edit(value as Layer); setError(''); setPreview('');} catch (error) {setError(String(error));}
             redraw(value => value + 1);
           }} />

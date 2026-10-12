@@ -8,7 +8,7 @@ import {
 import { ZipWriter, BlobReader, TextReader } from "@zip.js/zip.js";
 import { Session } from "@simulatte/playback";
 import { Scene } from "@simulatte/scene";
-import type { Recording } from "@simulatte/trace";
+import type { RecordingView, LayoutBundle } from "@simulatte/trace";
 import { frameSchedule } from "./index";
 import type { Destination, ExportFile } from "./sink";
 export const PNG_FRAME_LIMIT = 10000;
@@ -92,13 +92,14 @@ export async function codecFor(
   );
 }
 export async function exportMedia(
-  recording: Recording,
+  recording: RecordingView,
   options: MediaOptions,
   sink: Destination,
   signal: AbortSignal,
   progress: (frame: number, total: number) => void,
+  presentation: LayoutBundle | null = null,
 ): Promise<ExportFile> {
-  const session = new Session(recording),
+  const session = new Session(recording, presentation),
     scene = new Scene();
   const callerSignal = signal,
     lifetime = new AbortController();

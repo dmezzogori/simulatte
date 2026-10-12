@@ -25,7 +25,11 @@ export type TrustedRenderer = (
 export interface EditorPointer {
   phase: 'start' | 'move' | 'end' | 'cancel'; point: Point; id: string | null; shift: boolean;
 }
+// Viewer, editor and export scenes can coexist. Pixi's boolean destroy(true)
+// also clears global pools; only the last scene may release shared resources.
+let liveScenes = 0;
 export class Scene {
+  constructor() {liveScenes++;}
   readonly #renderers = new Map<string, TrustedRenderer>();
   /** Only application code can install a renderer; recording data never supplies executable code. */
   registerRenderer(kind: string, renderer: TrustedRenderer): () => void {
@@ -113,7 +117,7 @@ export class Scene {
       preserveDrawingBuffer: true,
     });
     if (this.#disposed) {
-      this.app.destroy(true, { children: true, texture: true });
+      this.app.destroy({removeView: true, releaseGlobalResources: liveScenes === 0}, { children: true, texture: true });
       return;
     }
     this.app.stage.addChild(this.#world);
@@ -496,10 +500,11 @@ export class Scene {
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
+    liveScenes--;
     this.#resize?.disconnect();
     this.#cleanup.forEach((fn) => fn());
     if (this.app.renderer)
-      this.app.destroy(true, { children: true, texture: true });
+      this.app.destroy({removeView: true, releaseGlobalResources: liveScenes === 0}, { children: true, texture: true });
     this.#texts.clear();
   }
 }

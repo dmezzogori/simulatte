@@ -65,3 +65,14 @@ describe('layout patch history', () => {
     expect(() => draft.edit({schema_version: '1.0', grid: {size: NaN}})).toThrow(/finite/);
   });
 });
+
+it('keeps an immutable render snapshot stable through unrelated UI updates', () => {
+  const draft = new LayoutDraft(layer, revision(1));
+  const snapshot = draft.snapshot;
+  expect(draft.snapshot).toBe(snapshot);
+  expect(Object.isFrozen(snapshot)).toBe(true);
+  expect(Object.isFrozen(snapshot.placements)).toBe(true);
+  draft.edit({...layer, grid: {dx: 2}});
+  expect(draft.snapshot).not.toBe(snapshot);
+  expect(snapshot).toEqual(layer);
+});

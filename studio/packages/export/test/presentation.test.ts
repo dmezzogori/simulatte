@@ -1,0 +1,24 @@
+import {readFileSync} from 'node:fs';
+import {expect, it} from 'vitest';
+import {openRecording} from '@simulatte/trace';
+import {offlineHtml} from '../src/index';
+it('embeds a pinned presentation document bound to unchanged trace bytes under the offline CSP', async () => {
+  const bytes = new Uint8Array(readFileSync(new URL('../../../../tests/fixtures/traces/generated/layout_full.simtrace', import.meta.url)));
+  const recording = await openRecording(bytes.buffer);
+  const overlay = structuredClone(recording.trace.layout!) as any;
+  const id = Object.keys(overlay.resolved.placements)[0]!;
+  overlay.resolved.placements[id].visual = {label: '</script><script>unexpected()</script>'};
+  const source = new Blob([bytes]);
+  const pending = offlineHtml(source, 'console.log("player")', '', undefined, overlay);
+  overlay.resolved.placements[id].visual.label = 'later edit';
+  const html = await (await pending).text();
+  const embedded = html.match(/<script id="presentation" type="application\/json">(.*?)<\/script>/s)![1]!;
+  const document = JSON.parse(embedded);
+  const expected = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), byte => byte.toString(16).padStart(2, '0')).join('');
+  expect(document.version).toBe(1); expect(document.trace_sha256).toBe(expected);
+  expect(document.layout.resolved.placements[id].visual.label).toContain('unexpected');
+  expect(html).not.toContain('<script>unexpected');
+  const trace = html.match(/<script id="trace" type="application\/octet-stream">(.*?)<\/script>/s)![1]!;
+  expect(Buffer.from(trace, 'base64')).toEqual(Buffer.from(bytes));
+  expect(html).toContain("connect-src 'none'"); expect(html).not.toContain('unsafe-inline');
+});

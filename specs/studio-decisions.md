@@ -513,3 +513,55 @@ only validates; it never replaces the configured file. Small websocket
 `layout.validate` remains supported. This makes the existing large-document
 contract apply to validation as well as saving, without raising control-frame
 limits or creating a general upload API.
+
+## D90 — Live presentation, pinned exports and explicit recovery (SP4)
+
+Studio reuses `LiveRecording`, `Session`, `Playback`, the SP3 controller panels
+and `Scene`. A `LiveSession` adapter owns one current and one pending prefix;
+an imperative reconciliation layer switches attempts and committed results.
+Frames do not enter React. Manual seek/step exits Follow; only the explicit
+Follow control resumes edge-following. Failed or superseded provisional data
+is invalidated, while an indexed previous result remains selectable. Historical
+run selection uses that attempt's recorded layout, even when repeated attempts
+share one input revision and its current presentation association has moved.
+The history UI shows the newest 20 committed attempts.
+
+A presentation overlay is a separate immutable, structurally validated
+layout-v1 bundle whose physical hash must match the recording. Python's saved
+association remains the authority for physical equivalence; the TypeScript
+reader does not implement a second layout resolver/hash verifier. HTML embeds
+an inert, escaped JSON envelope `{version:1,trace_sha256,layout}`, bound to the
+unchanged embedded trace bytes. The offline player verifies that binding before
+using the overlay. Video/PNG use the same `Session` overlay. Export dialogs pin
+both recording and presentation at opening; later live or layout updates cannot
+replace them. Live prefixes cannot be exported before result publication. SP3
+file exports and no-network HTML CSP remain available.
+
+Add `project.rescan` to the focused design's v1 control-command list. Its body
+accepts only optional boolean `retry`. Focus requests rescan without retry and
+does not rerun unchanged healthy inputs. The explicit Rescan / retry control
+may restart a failed initial inspection; revision checks fence a scan racing a
+newer edit. This fills the specified focus/manual-rescan behavior rather than
+using `state.get` (which remains read-only reconciliation) as an execution
+trigger.
+
+An initially invalid layout is repairable before model metadata is available.
+`layout.get` pins the exact bytes to the current revision; replacement requires
+that captured invalid baseline, canonical layout validation, a durable backup,
+a final disk comparison and a revision check. A valid initial file cannot use
+this path to bypass normal input ownership. Saving invokes the normal watcher
+and inspection path; it never executes against a substituted empty layout.
+
+`trace_available.last_cursor` is a hint derived from each newly committed
+segment, including INITIAL, domain indexes, simulation observers, KPI samples
+and the footer. It is null before INITIAL. It never advances on preparation
+records or uncommitted fragments. The scan skips compressed event bodies and
+never rescans prior prefixes; metadata decoding uses the existing reader record
+bound. The browser still derives playback state exclusively from verified
+prefix bytes, and does not trust the hint as an index or a progress deadline.
+
+Concurrent viewer/editor/export scenes share Pixi global resources. Dispose a
+renderer with `releaseGlobalResources` only when the final owned scene exits;
+otherwise disposing a preview can invalidate another active renderer. Native
+Linux Firefox exposed this lifecycle defect; browser evidence is recorded in
+`research/2026-10-12-sp4-live.md`.

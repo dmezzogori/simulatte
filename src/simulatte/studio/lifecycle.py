@@ -13,7 +13,7 @@ from simulatte.execution.schema import Revision
 from simulatte.execution.snapshot import discover_project
 from simulatte.execution.store import RevisionConflict, _read
 from simulatte.studio.monitor import ProjectMonitor
-from simulatte.studio.watcher import ProjectWatcher
+from simulatte.studio.watcher import ProjectWatcher, InputChange
 
 
 class ProjectSession:
@@ -154,6 +154,17 @@ class ProjectSession:
                     self._status("error", {"message": str(error)[:4096]})
                     with suppress(ValueError, KeyError, OSError):
                         self._discovered_inputs()
+
+    async def rescan(self, *, retry=False, expected=None):
+        """Focus checks only observe changes; explicit retry may restart failed inspection."""
+        change = await asyncio.to_thread(self.watcher.check, rescan=True)
+        if change is None and retry:
+            observed = await asyncio.to_thread(self.watcher.scan)
+            change = InputChange(observed, frozenset(), rescan=True)
+        if expected is not None and self.coordinator.store.current_revision() != expected:
+            raise RevisionConflict("Project changed during rescan")
+        if change is not None:
+            self._ingest(change)
 
     async def run(self):
         if self._running:

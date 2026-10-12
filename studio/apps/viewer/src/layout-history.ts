@@ -48,6 +48,8 @@ export class LayoutDraft {
   #base: Base;
   #next: Base | null = null;
   #layer: Layer;
+  #snapshotSource: Layer | null = null;
+  #snapshot: Layer | null = null;
   #undo: Patch[][] = [];
   #redo: Patch[][] = [];
   #operation: 'edit' | 'undo' | 'redo' = 'edit';
@@ -56,6 +58,18 @@ export class LayoutDraft {
     this.check(layer); this.#base = structuredClone({layer, revision}); this.#layer = structuredClone(layer);
   }
   private check(layer: Layer): void {if (size(layer) > 16 << 20) throw new Error('Layout exceeds 16 MiB');}
+  /** Stable immutable identity prevents unrelated live notifications cancelling gestures. */
+  get snapshot(): Layer {
+    if (this.#snapshotSource !== this.#layer) {
+      const freeze = (value: Json): Json => {
+        if (value && typeof value === 'object') {for (const child of Object.values(value)) freeze(child); Object.freeze(value);}
+        return value;
+      };
+      this.#snapshot = freeze(structuredClone(this.#layer)) as Layer;
+      this.#snapshotSource = this.#layer;
+    }
+    return this.#snapshot!;
+  }
   get layer(): Layer {return structuredClone(this.#layer);}
   get revision(): Revision {return {...this.#base.revision};}
   get conflict(): boolean {return this.#next !== null;}

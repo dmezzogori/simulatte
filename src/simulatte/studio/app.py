@@ -16,11 +16,12 @@ from starlette.applications import Starlette
 from starlette.responses import Response, StreamingResponse
 from starlette.routing import Route, WebSocketRoute
 
-from simulatte.execution.layout_files import read_layout_file
+from simulatte.execution.layout_files import read_layout_file, backup_layout, stage_layout
 from simulatte.execution.references import read_document
 from simulatte.execution.schema import AttemptKey, Revision, _plain
 from simulatte.execution.store import RevisionConflict, StaleAttempt, _read
 from simulatte.layout.io import parse_layout
+from simulatte.layout.layers import FileLayer
 from simulatte.layout.types import LayoutLimits
 from simulatte.studio.auth import SessionAuth, response_headers
 from simulatte.studio.http import ImmutableFile, RangeSource, References, parse_range
@@ -35,6 +36,8 @@ class StudioServer(SessionAuth):
         self.static = Path(static)
         self.allowed = set(json.loads((self.static / "manifest.json").read_text())["assets"])
         self.timeout = timeout
+        self.progress = None
+        self._unbound_layout = None
         self.references = References()
         self.session = ProjectSession(coordinator, timeout=timeout, configure=configure, watcher=watcher)
         self.commands = asyncio.Lock()
@@ -125,14 +128,27 @@ class StudioServer(SessionAuth):
                     {
                         "key": asdict(AttemptKey(item["request_id"], item["id"], item["generation"])),
                         "revision": item["revision"],
+                        "origin": {"number": item["revision"], "digest": item["revision_digest"]},
                         "created": item["created"],
                         "trace": self._prefix(db, item["id"]),
                     }
                     for item in db.execute(
-                        "SELECT a.*,r.created FROM results r JOIN attempts a ON a.id=r.attempt "
+                        "SELECT a.*,r.created,v.digest AS revision_digest FROM results r "
+                        "JOIN attempts a ON a.id=r.attempt JOIN revisions v ON v.number=a.revision "
                         "ORDER BY a.generation DESC LIMIT 20"
                     ).fetchall()
                 ]
+                latest = db.execute("SELECT * FROM attempts ORDER BY generation DESC LIMIT 1").fetchone()
+                latest_attempt = (
+                    None
+                    if latest is None
+                    else {
+                        "key": asdict(AttemptKey(latest["request_id"], latest["id"], latest["generation"])),
+                        "revision": latest["revision"],
+                        "status": latest["status"],
+                        "details": _read(latest["details"]),
+                    }
+                )
             state = {
                 "revision": None if revision is None else asdict(revision),
                 "inputs": None
@@ -141,6 +157,12 @@ class StudioServer(SessionAuth):
                 "startup": dict(self.session.status),
                 "active": active,
                 "results": results,
+                "latest_attempt": latest_attempt,
+                "progress": self.progress
+                if active is not None
+                and self.progress is not None
+                and self.progress["attempt_id"] == active["key"]["attempt_id"]
+                else None,
                 "fatal": None if co._fatal is None else {"status": co._fatal.status, "details": co._fatal.details},
             }
             view = co.store.presentation_view(revision=revision) if revision is not None else None
@@ -174,7 +196,9 @@ class StudioServer(SessionAuth):
             with co._condition:
                 if co.inputs.state is None:
                     revision = co.store.current_revision()
-                    captured = read_layout_file(co.project.root, co.project.layout)
+                    if revision is None or self._unbound_layout is None or self._unbound_layout[0] != revision:
+                        self._unbound_layout = (revision, read_layout_file(co.project.root, co.project.layout))
+                    captured = self._unbound_layout[1]
                 else:
                     state, _, captured = co.inputs.captured_inputs()
                     revision = state.revision
@@ -232,6 +256,26 @@ class StudioServer(SessionAuth):
                 "layout": None if validation.bundle is None else self.references.put(validation.bundle.to_dict()),
                 "changed_paths": validation.changed_paths,
             }
+        if kind == "layout.write" and co.inputs.state is None:
+            with co._condition:
+                self._check_revision(message["revision"])
+                if self._unbound_layout is None or self._unbound_layout[0] != base:
+                    raise RevisionConflict("Read the failed layout before repairing it")
+                captured = self._unbound_layout[1]
+                try:
+                    captured.layer()
+                except ValueError:
+                    pass
+                else:
+                    raise ValueError("Wait for model metadata before editing a valid layout")
+                with stage_layout(co.project.root, co.project.layout, FileLayer(body)) as staged:
+                    backup_layout(co.store, captured)
+                    staged.replace(expected=captured)
+                    revision = co.store.create_revision(
+                        {"layout_repair": staged.replacement.digest}, expected=base, revoke_active=True
+                    )
+                self._unbound_layout = None
+            return {"ok": True, "revision": asdict(revision)}
         if kind == "layout.write":
             state = co.inputs.write_layout(base, body, timeout=self.timeout)
             return {"ok": True, "revision": asdict(state.revision)}
@@ -242,7 +286,17 @@ class StudioServer(SessionAuth):
         # or another tab's revision change while a model builds its preview.
         async with nullcontext() if message["type"] == "layout.validate" else self.commands:
             try:
-                return self._body(await asyncio.to_thread(self._command, message, peer))
+                if message["type"] == "project.rescan":
+                    body = message["body"]
+                    if set(body) - {"retry"} or type(body.get("retry", False)) is not bool:
+                        raise ValueError("Rescan accepts only a retry boolean")
+                    base = self._check_revision(message["revision"])
+                    await self.session.rescan(retry=body.get("retry", False), expected=base)
+                    return {"ok": True}
+                outcome = await asyncio.to_thread(self._command, message, peer)
+                if message["type"] == "layout.write" and self.coordinator.inputs.state is None:
+                    await self.session.rescan(retry=True)
+                return self._body(outcome)
             except (ValueError, KeyError, TypeError, OSError, RuntimeError, sqlite3.Error) as error:
                 code = (
                     "revision_conflict"
@@ -288,6 +342,7 @@ class StudioServer(SessionAuth):
                     }
                 elif kind == "heartbeat":
                     kind = "progress"
+                    self.progress = {"attempt_id": key["attempt_id"], "body": body}
                 elif kind == "model_info":
                     metadata = await asyncio.to_thread(read_document, body["document"], "model-info")
                     body = {"metadata": self.references.put(metadata)}

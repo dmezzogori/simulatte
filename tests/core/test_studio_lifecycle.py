@@ -209,3 +209,36 @@ def test_close_contains_active_initial_inspection(tmp_path):
                 coordinator.store.require_active(key)
 
     asyncio.run(run())
+
+
+def test_explicit_rescan_retries_unchanged_failure_and_rejects_a_stale_scan(tmp_path, monkeypatch):
+    import pytest
+    from simulatte.execution.store import RevisionConflict
+
+    async def run():
+        spec = project(tmp_path)
+        with Coordinator(spec) as coordinator:
+            watcher = ProjectWatcher(spec)
+            session = ProjectSession(coordinator, watcher=watcher)
+            watcher.check()
+            base = coordinator.store.create_revision({"initial": True})
+            await session.rescan(expected=base)
+            assert session._pending is None
+            session._status("error", {"message": "previous inspection failed"})
+            await session.rescan(retry=True, expected=base)
+            assert session._pending is not None
+            session._pending = None
+            current = coordinator.store.current_revision()
+            original = watcher.check
+
+            def racing(**kwargs):
+                coordinator.store.create_revision({"new": True}, expected=current)
+                return original(**kwargs)
+
+            monkeypatch.setattr(watcher, "check", racing)
+            with pytest.raises(RevisionConflict, match="rescan"):
+                await session.rescan(expected=current)
+            assert session._pending is None
+            session.close()
+
+    asyncio.run(run())

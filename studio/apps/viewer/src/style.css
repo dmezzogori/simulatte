@@ -432,3 +432,7 @@ input[type="range"] {
 .layout-editor [role=alert] {color: #9a2424;}
 .layout-canvas {height: 280px; min-width: 300px; position: relative; background: #f4f5f0;}
 .layout-canvas canvas {display: block; max-width: 100%;}
+
+.studio-progress {padding: .3rem 1rem; font-size: .8rem; max-height: 10rem; overflow: auto;}
+.studio-progress pre {white-space: pre-wrap; overflow-wrap: anywhere;}
+.layout-editor textarea {display: block; width: 100%; min-height: 10rem; font-family: monospace;}

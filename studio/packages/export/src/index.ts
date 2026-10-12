@@ -1,3 +1,5 @@
+import {freezePresentation} from '@simulatte/playback';
+import type {LayoutBundle} from '@simulatte/trace';
 /** Validated manual export timeline. The terminal state receives one complete frame. */
 export function frameSchedule(
   start: number,
@@ -52,10 +54,13 @@ export async function offlineHtml(
   script: string,
   style = "",
   signal?: AbortSignal,
+  presentation: LayoutBundle | null = null,
 ): Promise<Blob> {
   if (source.size > HTML_SOURCE_LIMIT)
     throw new RangeError("Offline HTML supports traces up to 100 MiB");
   signal?.throwIfAborted();
+  // Capture before the first await; an editor update cannot alter an in-flight export.
+  const pinned = presentation === null ? null : freezePresentation(presentation);
   const safeStyle = style.replace(/<\/style/gi, "<\\/style");
   const safeScript = script.replace(/<\/script/gi, "<\\/script");
   const digest = await crypto.subtle.digest(
@@ -69,7 +74,15 @@ export async function offlineHtml(
   );
   const styleHash = btoa(String.fromCharCode(...new Uint8Array(styleDigest)));
   const head = `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-${hash}'; style-src 'sha256-${styleHash}'; img-src data:; font-src data:; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>Simulatte recorded run</title><style>${safeStyle}</style></head><body><script id="trace" type="application/octet-stream">`;
-  const suffix = `</script><script>${safeScript}</script></body></html>`;
+  let presentationBlock = '';
+  if (pinned) {
+    signal?.throwIfAborted();
+    const digest = await crypto.subtle.digest('SHA-256', await source.arrayBuffer());
+    const trace_sha256 = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    const document = JSON.stringify({version: 1, trace_sha256, layout: pinned}).replaceAll('<', '\\u003c');
+    presentationBlock = `<script id="presentation" type="application/json">${document}</script>`;
+  }
+  const suffix = `</script>${presentationBlock}<script>${safeScript}</script></body></html>`;
   const exactSize =
     Math.ceil(source.size / 3) * 4 + new Blob([head, suffix]).size;
   if (exactSize > HTML_OUTPUT_LIMIT)

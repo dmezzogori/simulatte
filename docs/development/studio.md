@@ -274,3 +274,28 @@ Undo and redo submit inverse or repeated patches against the latest revision.
 They preserve unrelated edits and reject overlapping changes. History is kept
 in the browser, bounded to 64 entries and 32 MiB; reloading the page does not
 restore that local history. Layout files retain the existing 16 MiB limit.
+
+### Live playback and recovery
+
+Studio opens a verified live prefix when the worker reaches INITIAL. Playback
+starts at activation. **Follow live** moves to the newest committed simulation
+time; seeking or stepping returns to manual playback. The execution progress
+line separately reports simulation time, event count, worker liveness, stalled
+execution and trace-storage backpressure. Run diagnostics retain a bounded tail
+and identify the originating revision and attempt.
+
+**Run history** selects one of the latest 20 committed attempts with its recorded
+layout. Selection stays pinned until **Follow live**. The current presentation
+can change without rewriting the trace or rerunning the model. HTML, video and
+PNG exports pin the selected committed run and presentation; a later edit or
+run cannot change an open export dialog. Live export becomes available only
+after the result is committed. Offline HTML contains the original trace bytes
+plus separate presentation metadata bound to their SHA-256 digest.
+
+**Rescan / retry** checks source and declared inputs and can retry a failed
+initial inspection. Returning focus to the browser also checks for changed
+files, but does not retry or rerun unchanged inputs. If the initial layout JSON
+is invalid, the Layout editor offers a repair field. Saving preserves the exact
+previous bytes in `.simulatte`, refuses a changed disk/revision baseline, and
+restarts normal inspection. Invalid layouts are never silently replaced by
+empty defaults for execution.

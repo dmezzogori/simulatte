@@ -547,6 +547,7 @@ class Coordinator:
             self.store.require_active(key)
             self._send(worker, "inspect" if inspect else "run", body, key=key)
             ready = None
+            last_cursor = None
             cancelled = False
             acknowledged = False
             while True:
@@ -600,10 +601,23 @@ class Coordinator:
                     if receipt.segment_complete and message.type == "trace_chunk":
                         prefix = receiver.prefix()
                         assert prefix is not None
+                        from simulatte.execution.cursor_hint import committed_cursor
+
+                        if not receipt.duplicate:
+                            last_cursor = committed_cursor(
+                                receiver.segment_path(receipt.id),
+                                first=message.body["segment"]["offset"] == 0,
+                                previous=last_cursor,
+                            )
                         self._emit(
                             "trace_available",
                             key,
-                            {"generation": prefix.generation, "length": prefix.length, "sha256": prefix.sha256},
+                            {
+                                "generation": prefix.generation,
+                                "length": prefix.length,
+                                "sha256": prefix.sha256,
+                                "last_cursor": last_cursor,
+                            },
                         )
                 elif message.type == "ready":
                     if inspect or ready is not None:

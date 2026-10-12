@@ -1,6 +1,6 @@
 /** Live transport adapter. Network generations and playback frames have separate fences. */
-import {LiveRecording, type PrefixDescriptor, type PrefixProvider, type RecordingView} from '@simulatte/trace';
-import {Playback, Session, type Clock, type Position, type PreparedFrame} from '@simulatte/playback';
+import {LiveRecording, type PrefixDescriptor, type PrefixProvider, type RecordingView, type LayoutBundle} from '@simulatte/trace';
+import {Playback, Session, freezePresentation, pinPresentation, type Clock, type Position, type PreparedFrame} from '@simulatte/playback';
 
 export interface LiveSessionState {
   readonly attempt: string | null;
@@ -23,6 +23,29 @@ export class LiveSession {
   #runner: Promise<void> | null = null;
   #abort: AbortController | null = null;
   #series: readonly string[] = [];
+  #presentation: LayoutBundle | null = null;
+  #rate = 1;
+  #hidden = false;
+  #listeners = new Set<(frame: PreparedFrame | null, status: LiveSessionState['status'], error?: unknown) => void>();
+  get frame(): PreparedFrame | null {return this.state.frame;}
+  get status(): LiveSessionState['status'] {return this.state.status;}
+  get rate(): number {return this.#rate;}
+  set rate(value: number) {
+    if (!Number.isFinite(value) || value <= 0 || value > 1024) throw new RangeError('Playback rate must be in (0, 1024]');
+    this.#rate = value; if (this.#playback) this.#playback.rate = value;
+  }
+  get presentation(): LayoutBundle | null {return this.#presentation;}
+  async setPresentation(layout: LayoutBundle | null): Promise<void> {
+    this.usable();
+    this.#presentation = this.state.recording ? pinPresentation(this.state.recording, layout)
+      : layout ? freezePresentation(layout) : null;
+    if (this.#playback) await this.#playback.setPresentation(this.#presentation);
+  }
+  subscribe(listener: (frame: PreparedFrame | null, status: LiveSessionState['status'], error?: unknown) => void): () => void {
+    this.#listeners.add(listener); return () => this.#listeners.delete(listener);
+  }
+  setHidden(hidden: boolean): void {this.#hidden = hidden; this.#playback?.setHidden(hidden);}
+  async seekTime(time: number): Promise<void> {await this.seek({mode: 'continuous', time, cursor: null});}
   #state: LiveSessionState = Object.freeze({attempt: null, revision: null, generation: null,
     recording: null, frame: null, following: false, terminal: null, status: 'loading', error: null});
   constructor(private readonly provider: PrefixProvider, private readonly options: Options = {}) {}
@@ -30,6 +53,7 @@ export class LiveSession {
   private publish(change: Partial<LiveSessionState>): void {
     this.#state = Object.freeze({...this.#state, ...change});
     this.options.onChange?.(this.#state);
+    for (const listener of this.#listeners) listener(this.frame, this.status, this.state.error);
   }
   private stop(): void {
     this.#epoch++;
@@ -41,7 +65,7 @@ export class LiveSession {
   }
   reset(attempt: string, revision: string): void {
     if (this.state.status === 'disposed') throw new Error('Live session disposed');
-    this.stop();
+    this.stop(); this.#presentation = null;
     this.publish({attempt, revision, generation: null, recording: null, frame: null,
       following: false, terminal: null, status: 'loading', error: null});
   }
@@ -72,10 +96,10 @@ export class LiveSession {
         const recording = opened.snapshot();
         const oldPosition = this.#playback?.frame;
         const playing = this.#playback?.status === 'playing';
-        const rate = this.#playback?.rate ?? 1;
+        const rate = this.#rate;
         this.#unsubscribe?.(); this.#playback?.dispose();
-        const session = new Session(recording); session.setSeries(this.#series);
-        const playback = new Playback(session, this.options.clock); playback.rate = rate;
+        const session = new Session(recording, this.#presentation); session.setSeries(this.#series);
+        const playback = new Playback(session, this.options.clock); playback.rate = rate; playback.setHidden(this.#hidden);
         this.#playback = playback;
         this.publish({recording, generation: opened.generation, error: null});
         this.#unsubscribe = playback.subscribe((frame, status, error) => {
@@ -131,5 +155,5 @@ export class LiveSession {
     if (this.state.status === 'disposed') return;
     this.stop(); this.publish({recording: null, frame: null, status: 'invalidated'});
   }
-  dispose(): void {this.stop(); this.publish({recording: null, frame: null, status: 'disposed'});}
+  dispose(): void {this.stop(); this.publish({recording: null, frame: null, status: 'disposed'}); this.#listeners.clear();}
 }

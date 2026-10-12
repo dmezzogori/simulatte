@@ -1,3 +1,5 @@
+import {pinPresentation} from './presentation';
+export {pinPresentation, freezePresentation} from './presentation';
 import {
   compare,
   type Cursor,
@@ -204,9 +206,15 @@ export class Session {
   #eventAt: Cursor | null = null;
   #time: number | null = null;
   #prepared: Position | null = null;
-  constructor(readonly recording: RecordingView) {
+  #presentation: LayoutBundle | null = null;
+  constructor(readonly recording: RecordingView, presentation: LayoutBundle | null = null) {
     this.#replay = recording.trace.replay();
+    this.setPresentation(presentation);
   }
+  setPresentation(layout: LayoutBundle | null): void {
+    this.#presentation = pinPresentation(this.recording, layout);
+  }
+  get presentation(): LayoutBundle | null {return this.#presentation;}
   setSeries(keys: readonly string[]): void {
     if (keys.length > 8) throw new RangeError("At most eight active series");
     for (const [key, series] of this.#series)
@@ -345,7 +353,7 @@ export class Session {
       crossingsComplete: crossings.crossingsComplete,
       state,
       initialState: r.trace.initialState,
-      layout: r.trace.layout,
+      layout: this.#presentation ?? r.trace.layout,
       catalog: r.catalog,
       kpis: Object.freeze(kpis),
       diagnostics: Object.freeze([
@@ -559,6 +567,14 @@ export class Playback {
         this.emit(e);
       }
     }
+  }
+  async setPresentation(layout: LayoutBundle | null): Promise<void> {
+    this.session.setPresentation(layout);
+    if (!this.#frame) return;
+    const wanted = this.#wanted;
+    const pending = this.seek(this.#frame), generation = this.#generation;
+    await pending;
+    if (wanted && generation === this.#generation && this.#status === 'paused') this.play();
   }
   async seekTime(time: number): Promise<void> {
     const range = this.session.recording.finiteRange;

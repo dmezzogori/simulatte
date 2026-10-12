@@ -99,3 +99,23 @@ it('late terminal messages and controls cannot revive a disposed or invalidated 
   await expect(session.follow()).rejects.toThrow(/disposed/);
   expect(session.state.status).toBe('disposed');
 });
+it('keeps playback controls across prefixes and detaches frame listeners', async () => {
+  const session = new LiveSession(provider, {clock});
+  session.reset(attempt, 'r');
+  session.rate = 2;
+  session.setHidden(true);
+  let frames = 0;
+  const off = session.subscribe(() => frames++);
+  session.update(prefix(1)); await session.idle();
+  expect(session.rate).toBe(2);
+  await session.seekTime(0.5);
+  expect(session.frame?.time).toBe(0.5);
+  session.update(prefix(2)); await session.idle();
+  expect(session.rate).toBe(2);
+  expect(session.frame?.time).toBe(0.5);
+  const count = frames; off();
+  await session.seekTime(1);
+  expect(frames).toBe(count);
+  expect(() => {session.rate = NaN;}).toThrow(/rate/);
+  session.dispose();
+});

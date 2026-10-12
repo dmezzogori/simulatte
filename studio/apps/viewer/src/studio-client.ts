@@ -2,21 +2,23 @@
 export interface Revision {number: number; digest: string;}
 export interface AttemptKey {request_id: string; attempt_id: string; generation: number;}
 export interface Reference {id: string; url: string; length: number; sha256: string;}
-export interface Prefix {attempt: string; generation: number; length: number; sha256: string; url: string;}
+export interface Prefix {last_cursor?: readonly [number, number] | null; attempt: string; generation: number; length: number; sha256: string; url: string;}
 export interface View {revision: Revision; key: AttemptKey; committed: boolean; layout: Reference;}
 export interface StudioState {
   revision: Revision | null;
   inputs: {options: Record<string, unknown>; issues: Record<string, unknown>} | null;
   startup: {phase: string; error: unknown};
   active: {key: AttemptKey; revision: number; status: string; details: unknown; prefix: Prefix | null} | null;
-  results: {key: AttemptKey; revision: number; created: number; trace: Prefix | null}[];
+  results: {key: AttemptKey; revision: number; origin?: Revision; created: number; trace: Prefix | null}[];
+  progress?: {attempt_id: string; body: Record<string, unknown>} | null;
+  latest_attempt?: {key: AttemptKey; revision: number; status: string; details: unknown} | null;
   metadata: Reference | null;
   view: View | null;
   last_good: View | null;
   selected_view?: View | null;
   fatal: unknown;
 }
-export type Command = 'state.get' | 'params.set' | 'run.start' | 'run.cancel' | 'layout.get' | 'layout.validate' | 'layout.write' | 'view.select';
+export type Command = 'project.rescan' | 'state.get' | 'params.set' | 'run.start' | 'run.cancel' | 'layout.get' | 'layout.validate' | 'layout.write' | 'view.select';
 export type ConnectionStatus = 'connecting' | 'synchronizing' | 'connected' | 'reconnecting' | 'authentication_required' | 'disposed';
 export interface Notification {v: 1; type: string; event_seq: number; body: unknown; revision?: Revision | null; attempt_id?: string; generation?: number;}
 interface Options {

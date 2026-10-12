@@ -16,6 +16,7 @@ MAX_QUEUE_BYTES = 4 << 20
 COMMANDS = frozenset(
     (
         "state.get",
+        "project.rescan",
         "params.set",
         "run.start",
         "run.cancel",
