@@ -224,23 +224,24 @@ the production websocket schema or package runtime.
 
 `studio_throughput.py` measures how fast the local coordinator turns replications into published runs. It
 generates the same `@model` project as `studio_execution.py` (a counter emitting `--events` domain events), prepares
-it once, then submits and awaits `--replications` requests one after the other, each with a distinct seed and the
-same parameters. Run one configuration per fresh interpreter, from an installed package or with `PYTHONPATH=src`:
+it once, then runs `--replications` replications as one experiment on the SP5 scheduler, each with a distinct seed
+and the same parameters. Run one configuration per fresh interpreter, from an installed package or with
+`PYTHONPATH=src`:
 
 ```sh
 uv run python benchmarks/studio_throughput.py --replications 32 --events 100 --worker eva --json /tmp/t100.json
 uv run python benchmarks/studio_throughput.py --replications 32 --events 20000 --worker eva --json /tmp/t20000.json
 ```
 
-`--slots` accepts 1, 2 and 4. Until the SP5 scheduler exists only `--slots 1` runs (the SP4 coordinator has one
-execution slot); 2 and 4 exit with a message. `--worker` is a free label (host name) copied into the JSON.
+`--slots` accepts 1, 2 and 4 and sets the number of local experiment slots (`SlotConfig(local=N)`). `--worker` is
+a free label (host name) copied into the JSON.
 
 After the coordinator closes, the script runs the same model, horizon and seeds through `Runner` (sequential,
 in-process, no trace) and reports the per-replication difference as the coordinator's overhead. That difference
 includes the isolated worker process, snapshot materialization, the full-level trace and its durable receipts, and
-publication. Per replication it reports submit→ready, ready→publication, store commit (the time inside `publish`,
-measured by a benchmark-only wrapper around the module function; no source change), the lag between publication and
-`wait` returning, coordinator CPU time and the coordinator's RSS high-water. CPU time of the worker is only
+publication. Per replication it reports dispatch→ready, ready→publication, store commit (the time inside `publish`,
+measured by a benchmark-only wrapper around the module function; no source change), the slot that ran it,
+coordinator CPU time and the coordinator's RSS high-water. CPU time of the worker is only
 visible once it is reaped at `close()`, so `children_cpu_per_execution` divides by replications plus the one inspection
 run of `prepare()`. Numbers are single observations from hosts that were not quiesced, not warmed-throughput claims.
 The results and their discussion are in `specs/research/2026-10-12-sp5-throughput.md`, raw JSON in

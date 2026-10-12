@@ -182,3 +182,65 @@ more on PyPy) and add a state that cancel, timeout and runtime-mismatch handling
 With two or more slots, startup of one replication overlaps the running of another, which already hides part of
 this cost. The decision should be revisited only with a measurement that splits submit to ready into spawn,
 import, snapshot, build and INITIAL, taken together with the Task 4 multi-slot runs. No spare was implemented.
+
+## 7. Task 4 re-run with the SP5 scheduler
+
+Date: 2026-10-13. Branch `feature/sp5-experiments`, working tree of Task 4 (multi-slot scheduler, uncommitted at
+measurement time; the harness is the version committed with it). Host: eva only (CPython 3.14.1, macOS, 10 cores),
+load average 2.1 to 2.6 throughout (`sp5-data/task4-run.log`). strangelove was not re-run: it needs a fresh copy of
+the working tree and virtual environments, and the plan made it optional for this step. Raw data:
+`sp5-data/throughput-eva-cpython-3.14-events{100,20000}-slots{1,2,4}-scheduler.json`.
+
+What changed in the harness: the 32 replications are now one experiment (one configuration, seeds 0..31, level
+`full`) started with `start_experiment` on `SlotConfig(local=N)` and awaited with `wait_experiment`, so `--slots 2`
+and `--slots 4` run. A replication's wall time runs from its dispatch (the scheduler's `queued` event) to `publish`
+returning; throughput runs from `start_experiment` to `wait_experiment` returning and excludes `prepare()`. Each
+cell is still one process and a single observation.
+
+```sh
+PYTHONPATH=src uv run --all-extras python benchmarks/studio_throughput.py --replications 32 \
+  --events {100,20000} --slots {1,2,4} --worker eva --json <file>
+```
+
+Replications per minute (all 32 completed in every cell, no failures; every slot ran 8, 15 to 17, or 32 of them):
+
+| Events | 1 slot | 2 slots | 4 slots |
+|---|---|---|---|
+| 100 | 67.7 | 143.1 | 285.5 |
+| 20,000 | 44.8 | 83.3 | 125.8 |
+
+Per replication, in seconds (mean, maximum in brackets):
+
+| Events, slots | Wall | Dispatch to ready | Ready to publication | Store commit | Coordinator CPU | Cores busy |
+|---|---|---|---|---|---|---|
+| 100, 1 | 0.881 | 0.453 (0.82) | 0.428 (0.65) | 0.017 (0.030) | 0.051 | 0.53 |
+| 100, 2 | 0.816 | 0.427 (0.74) | 0.389 (0.55) | 0.011 (0.039) | 0.033 | 1.00 |
+| 100, 4 | 0.780 | 0.422 (0.68) | 0.358 (0.49) | 0.010 (0.016) | 0.031 | 2.08 |
+| 20,000, 1 | 1.336 | 0.423 (0.61) | 0.913 (1.27) | 0.326 (0.357) | 0.361 | 0.67 |
+| 20,000, 2 | 1.365 | 0.486 (0.73) | 0.879 (1.14) | 0.345 (0.548) | 0.327 | 1.18 |
+| 20,000, 4 | 1.755 | 0.683 (1.40) | 1.072 (1.57) | 0.351 (0.542) | 0.334 | 1.84 |
+
+Cores busy is (coordinator CPU + worker CPU per execution) × replications per second. Coordinator RSS high-water was
+48 to 50 MiB at 100 events and 70 to 87 MiB at 20,000 events; the largest child stayed at 49 to 57 MiB.
+
+What the numbers say:
+
+- At 100 events throughput scales almost linearly with slots (×2.1 at 2, ×4.2 at 4). The one-slot figure, 67.7, is
+  above Task 1's 56.7 on the same host; Task 1 already measured a 20 to 30 % spread between batches on eva, and the
+  load here was lower (2.5 against 6 to 10), so the difference is not attributed to the scheduler.
+- At 20,000 events 2 slots give ×1.9 and 4 slots ×2.8. The per-replication wall time grows from 1.34 s to 1.76 s at
+  4 slots (dispatch to ready +0.26 s, ready to publication +0.16 s), so contention appears, but 4 slots are still
+  51 % faster than 2.
+- The store commit did not grow with slots (0.33 to 0.35 s mean at 20,000 events). Coordinator CPU per replication
+  stays at 0.33 to 0.36 s, which at 125.8 replications per minute is 0.70 of a core: the serial projection of
+  section 5 (saturation near 3 replications per second, 180 per minute, on eva at 20,000 events) is not reached at 4
+  slots.
+- Four slots keep about two cores busy on a 10-core host, which leaves room for Studio, a browser and an editor.
+
+Slot default for 0.17: revised from the proposed 2 to **4, capped at `max(1, cpu_count - 1)`**
+(`simulatte.execution.slots.default_local_slots`). Section 5 set the rule "if measured throughput at 4 slots is
+clearly above 2 at 20,000 events, raise the default"; it is (125.8 against 83.3) and the commit time did not grow.
+The cap keeps one core free on small hosts (a 4-core machine gets 3 slots, a 2-core machine 1). Limits: one host,
+one observation per cell, CPython only; strangelove (16 threads) and PyPy were not re-measured, and the
+coordinator's serial CPU will bound larger slot counts at large traces. Warm spares stay out of 0.17: dispatch to
+ready did not shrink with more slots, and section 6's reasoning is unchanged by these runs.
