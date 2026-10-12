@@ -96,8 +96,10 @@ def test_spawn_failure_refuses_execution_and_releases_guardian():
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX guardian control paths")
-@pytest.mark.parametrize("command", [b"T", b"K", b"?", b""])
-def test_guardian_control_pipe_and_status_cleanup(command):
+@pytest.mark.parametrize(
+    ("command", "early"), [(b"T", False), (b"K", False), (b"?", False), (b"", False), (b"K", True)]
+)
+def test_guardian_control_pipe_and_status_cleanup(command, early):
     import json
     import socket
     import threading
@@ -121,10 +123,13 @@ def test_guardian_control_pipe_and_status_cleanup(command):
                 {"argv": [sys.executable, "-I", "-S", "-c", "import time; time.sleep(60)"], "cwd": None}
             ).encode()
             + b"\n"
+            + (command if early else b"")
         )
         started = json.loads(stream.readline())
         assert started["type"] == "started"
-        if command:
+        if early:
+            pass
+        elif command:
             writer.write(command)
         else:
             writer.close()

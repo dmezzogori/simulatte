@@ -235,12 +235,24 @@ def _guardian(port: int, token: str | None = None, lifeline=None) -> int:
                 return
 
     try:
-        raw = lifeline.readline((256 << 10) + 1)
-        if len(raw) > 256 << 10 or not raw.endswith(b"\n"):
+        # Raw reads are unbuffered, so collect the configuration line in chunks and
+        # keep any trailing bytes: one reader owns this stream, including commands
+        # that arrive before the lifeline thread starts.
+        data = bytearray()
+        # read1 returns whatever is available; a buffered read(n) would wait for n bytes.
+        read = getattr(lifeline, "read1", lifeline.read)
+        while b"\n" not in data and len(data) <= 256 << 10:
+            chunk = read(min(65536, (256 << 10) + 1 - len(data)))
+            if not chunk:
+                break
+            data += chunk
+        raw, newline, rest = bytes(data).partition(b"\n")
+        if len(raw) >= 256 << 10 or not newline:
             raise ValueError("Invalid process configuration")
+        for byte in rest:
+            commands.put_nowait(bytes((byte,)))
         config = json.loads(raw)
         token = config.get("token", token)
-        # One reader owns this stream at a time, including any buffered commands.
         child = _launch(config["argv"], config["cwd"], config.get("env"))
         threading.Thread(target=read_lifeline, daemon=True).start()
         send({"type": "started", "token": token, "pid": child.pid})

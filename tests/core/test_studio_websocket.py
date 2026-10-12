@@ -138,3 +138,18 @@ def test_finite_float_lexemes_preserve_values_above_integer_limit():
     )
     value = message["body"]["parameters"]["scale"]
     assert type(value) is float and value == 1e20
+
+
+def test_hub_send_closes_slow_peer():
+    from types import SimpleNamespace
+    from simulatte.studio.websocket import ConnectionHub
+
+    hub = ConnectionHub(None, None, None)
+    closed = []
+
+    def put(message, key=None):
+        raise SlowClient()
+
+    peer = SimpleNamespace(outbox=SimpleNamespace(put=put), close=closed.append)
+    hub.send(peer, "state", {})
+    assert closed == [1013]

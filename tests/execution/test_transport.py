@@ -157,3 +157,29 @@ def test_failed_worker_start_preserves_bounded_stderr(tmp_path):
         transport.close()
     transport.close()
     assert b"ModuleNotFoundError" in transport.diagnostics.tail("stderr")
+
+
+def test_close_tolerates_worker_surviving_kill():
+    import subprocess
+    from types import SimpleNamespace
+
+    m = api()
+    transport = object.__new__(m.LocalTransport)
+    calls = []
+
+    def wait(timeout):
+        calls.append(timeout)
+        raise subprocess.TimeoutExpired("worker", timeout)
+
+    closed = []
+    transport.channel = SimpleNamespace(
+        send=lambda *a: None, drain=lambda t: None, close=lambda: closed.append("channel")
+    )
+    stream = SimpleNamespace(close=lambda: None)
+    transport.process = SimpleNamespace(
+        stdin=stream, stdout=stream, stderr=stream, wait=wait, kill=lambda: calls.append("kill")
+    )
+    transport._errors = SimpleNamespace(join=lambda timeout: None)
+    transport._closed = False
+    transport.close()
+    assert calls == [5, "kill", 5] and closed == ["channel"] and transport._closed

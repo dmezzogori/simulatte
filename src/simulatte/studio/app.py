@@ -322,18 +322,12 @@ class StudioServer(SessionAuth):
             for event in events:
                 kind, body, key = event["type"], event["body"], event["key"]
                 if key is None:
-                    current = co.store.current_revision()
+                    current = await asyncio.to_thread(co.store.current_revision)
                     revision = None if current is None else asdict(current)
                 else:
-                    with co.store._transaction() as db:
-                        row = db.execute(
-                            "SELECT r.number,r.digest FROM revisions r JOIN attempts a ON a.revision=r.number "
-                            "WHERE a.id=? AND a.request_id=? AND a.generation=?",
-                            (key["attempt_id"], key["request_id"], key["generation"]),
-                        ).fetchone()
-                    if row is None:
+                    revision = await asyncio.to_thread(self._attempt_revision, key)
+                    if revision is None:
                         continue
-                    revision = dict(row)
                 if kind == "trace_available":
                     body = {
                         **body,
@@ -367,8 +361,27 @@ class StudioServer(SessionAuth):
                 self.hub.notify(kind, self._body(body), revision=revision, key=key)
                 changed = changed or kind not in ("progress", "kpi", "trace_available")
             if changed and self.hub.connections:
-                self.hub.notify("state", await self.state(None))
+                await self._broadcast_state()
             await asyncio.sleep(0.05)
+
+    def _attempt_revision(self, key):
+        with self.coordinator.store._transaction() as db:
+            row = db.execute(
+                "SELECT r.number,r.digest FROM revisions r JOIN attempts a ON a.revision=r.number "
+                "WHERE a.id=? AND a.request_id=? AND a.generation=?",
+                (key["attempt_id"], key["request_id"], key["generation"]),
+            ).fetchone()
+        return None if row is None else dict(row)
+
+    async def _broadcast_state(self):
+        # A pinned selection is per peer; the shared snapshot serves everyone else.
+        shared = None
+        for peer in tuple(self.hub.connections):
+            if peer.selected_view is None:
+                shared = await self.state(None) if shared is None else shared
+                self.hub.send(peer, "state", shared)
+            else:
+                self.hub.send(peer, "state", await self.state(peer))
 
     def _range_source(self, attempt, generation):
         if re.fullmatch(r"[a-f0-9]{32}", attempt) is None or not generation.isdecimal():

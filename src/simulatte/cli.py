@@ -33,6 +33,10 @@ def main(argv: list[str] | None = None) -> int:
         from simulatte.execution.command import run as execute
 
         return execute(args)
+    if args.command == "worker":
+        from simulatte.execution.supervisor import Supervisor
+
+        return Supervisor().run_stdio()
     if not 0 <= args.port <= 65535:
         parser.error("port must be between 0 and 65535")
     try:

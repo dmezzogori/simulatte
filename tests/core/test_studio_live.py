@@ -277,6 +277,10 @@ def test_command_outcomes_view_selection_and_original_notification_revision(tmp_
                 assert send("layout.validate", {"schema_version": "1.0"}, "validate")["requires_rerun"] is False
                 assert send("view.select", {"revision": state["revision"]}, "select")["view"]["committed"]
                 assert send("state.get", {}, "selected")["state"]["selected_view"]["committed"]
+                coordinator._emit("resync", None, {})
+                while (message := socket.receive_json())["type"] != "state":
+                    pass
+                assert message["body"]["selected_view"]["committed"]
                 assert not send("view.select", {"revision": {"number": 999, "digest": "a" * 64}}, "missing")["ok"]
                 assert not send("run.start", {"parameters": {}}, "bad_run")["ok"]
                 assert not send("run.cancel", {}, "bad_cancel")["ok"]

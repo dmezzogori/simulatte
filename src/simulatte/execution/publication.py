@@ -15,7 +15,7 @@ from simulatte._wire import canonical_pack, freeze
 from simulatte.execution.durability import replace_durable, sync_directory
 from simulatte.execution.protocol import MAX_FRAGMENT
 from simulatte.execution.schema import AttemptKey, ResolvedManifest, _hash, _mapping, _plain
-from simulatte.execution.snapshot import _path as portable_path
+from simulatte.execution.snapshot import _identity, _path as portable_path
 from simulatte.execution.store import RunStore, _blob, _directory
 
 
@@ -53,10 +53,6 @@ class PublishedResult:
     path: Path
     manifest: Mapping[str, Any]
     fingerprint: Mapping[str, Any]
-
-
-def _identity(info):
-    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
 
 
 def _copy(source: Path, output, digest) -> int:

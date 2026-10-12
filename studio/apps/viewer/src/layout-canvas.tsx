@@ -55,7 +55,7 @@ export function LayoutCanvas({layer, bundle, enabled, change, onError}: {layer: 
       let delta = {x: event.point.x - active.start.x, y: event.point.y - active.start.y};
       if (Math.hypot(delta.x, delta.y) * current.camera.scale > 3) active.moved = true;
       if (!active.moved) delta = {x: 0, y: 0};
-      if (active.moved && snap && active.targets[0]) delta = snapDelta(delta, active.targets[0], asObject(asObject(basis.resolved).grid));
+      if (active.moved && snap && active.targets[0]) delta = snapDelta(delta, active.targets[0], {...asObject(asObject(bundle.resolved).grid), ...asObject(asObject(basis.resolved).grid)});
       active.delta = delta;
       if (event.phase === 'move') current.renderProjection(projection(targets, selected.current, delta));
       else {

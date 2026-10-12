@@ -16,7 +16,7 @@ from simulatte.execution.bootstrap import load_configuration
 from simulatte.execution.hashing import canonical_hash
 from simulatte.execution.references import read_document
 from simulatte.execution.schema import ExecutionRequest, ResolvedManifest, request_id, _plain
-from simulatte.execution.snapshot import _path
+from simulatte.execution.snapshot import _identity, _path
 from simulatte.layout import Layout
 from simulatte.model import get_model_spec, construct_parameters
 from simulatte.stopping import Horizon, stopping_from_dict, execute_until
@@ -67,14 +67,11 @@ def _artifacts(root, spool):
             if not stat.S_ISREG(before.st_mode) or not path.resolve().is_relative_to(root):
                 raise ValueError("Artifact must be a regular file inside artifacts_dir")
 
-            def identity(info):
-                return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
-
             digest = hashlib.sha256()
             sink = SegmentSink(spool, stream="artifact/" + relative)
             try:
                 with path.open("rb") as file:
-                    if identity(os.fstat(file.fileno())) != identity(before):
+                    if _identity(os.fstat(file.fileno())) != _identity(before):
                         raise ValueError("Artifact changed before reading")
                     while data := file.read(1 << 20):
                         spool.control.check()
@@ -82,9 +79,9 @@ def _artifacts(root, spool):
                         digest.update(data)
                         # Fixed-size segments bound disk/memory even for huge outputs.
                         sink.commit()
-                    if identity(os.fstat(file.fileno())) != identity(before):
+                    if _identity(os.fstat(file.fileno())) != _identity(before):
                         raise ValueError("Artifact changed while reading")
-                if identity(path.lstat()) != identity(before) or sink.tell() != before.st_size:
+                if _identity(path.lstat()) != _identity(before) or sink.tell() != before.st_size:
                     raise ValueError("Artifact changed after reading")
                 result.append({"path": relative, "length": sink.tell(), "sha256": digest.hexdigest()})
             finally:

@@ -266,6 +266,12 @@ class ConnectionHub:
             except (SlowClient, ProtocolError):
                 peer.close(1013)
 
+    def send(self, peer, kind, body, *, revision=None):
+        try:
+            peer.outbox.put(self.envelope(kind, body, revision=revision))
+        except (SlowClient, ProtocolError):
+            peer.close(1013)
+
     @staticmethod
     async def _message(socket):
         from starlette.websockets import WebSocketDisconnect

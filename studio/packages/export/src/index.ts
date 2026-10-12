@@ -77,8 +77,8 @@ export async function offlineHtml(
   let presentationBlock = '';
   if (pinned) {
     signal?.throwIfAborted();
-    const digest = await crypto.subtle.digest('SHA-256', await source.arrayBuffer());
-    const trace_sha256 = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    const traceDigest = await crypto.subtle.digest('SHA-256', await source.arrayBuffer());
+    const trace_sha256 = Array.from(new Uint8Array(traceDigest), byte => byte.toString(16).padStart(2, '0')).join('');
     const document = JSON.stringify({version: 1, trace_sha256, layout: pinned}).replaceAll('<', '\\u003c');
     presentationBlock = `<script id="presentation" type="application/json">${document}</script>`;
   }
