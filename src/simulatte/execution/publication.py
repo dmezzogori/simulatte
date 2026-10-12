@@ -247,6 +247,6 @@ def publish(
                 "INSERT INTO artifacts VALUES (?,?,?,?)", (key.attempt_id, item["path"], item["length"], item["sha256"])
             )
         db.execute("UPDATE attempts SET status='succeeded',updated=? WHERE id=?", (time.time(), key.attempt_id))
-        db.execute("UPDATE state SET active=NULL WHERE singleton=1")
+        db.execute("UPDATE slots SET active=NULL WHERE name=?", (row["slot"],))
     checkpoint("committed")
     return PublishedResult(key, destination, _mapping(manifest), _mapping(fingerprint))

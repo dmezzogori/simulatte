@@ -155,6 +155,13 @@ def request_id(request: ExecutionRequest) -> str:
     return canonical_hash("execution-request-v1", request.to_dict())
 
 
+def content_id(request: ExecutionRequest) -> str:
+    """Identity of what a request computes: equal requests at different revisions share it (D103)."""
+    body = request.to_dict()
+    del body["layout_revision"]
+    return canonical_hash("request-content-v1", body)
+
+
 @dataclass(frozen=True, slots=True)
 class AttemptKey:
     request_id: str

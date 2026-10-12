@@ -19,7 +19,7 @@ from starlette.routing import Route, WebSocketRoute
 from simulatte.execution.layout_files import read_layout_file, backup_layout, stage_layout
 from simulatte.execution.references import read_document
 from simulatte.execution.schema import AttemptKey, Revision, _plain
-from simulatte.execution.store import RevisionConflict, StaleAttempt, _read
+from simulatte.execution.store import INTERACTIVE, RevisionConflict, StaleAttempt, _read
 from simulatte.layout.io import parse_layout
 from simulatte.layout.layers import FileLayer
 from simulatte.layout.types import LayoutLimits
@@ -113,7 +113,7 @@ class StudioServer(SessionAuth):
                 metadata = co.inputs.captured_inputs()[1].metadata
             with co.store._transaction() as db:
                 row = db.execute(
-                    "SELECT a.* FROM attempts a JOIN state s ON s.active=a.id WHERE s.singleton=1"
+                    "SELECT a.* FROM attempts a JOIN slots s ON s.active=a.id WHERE s.name=?", (INTERACTIVE,)
                 ).fetchone()
                 active = None
                 if row is not None:
