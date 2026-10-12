@@ -577,3 +577,71 @@ fresh stores). Keep the approved request-hashing contract unchanged: do not
 remove revision fencing from `ExecutionRequest` to make a smoke assertion pass.
 The acceptance report records the normalized content comparison and the distinct
 attempt identities explicitly. Reproduction still reuses the exact stored request.
+
+## SP5 approval, 2026-10-12
+
+**Status: approved by Davide ("all as recommended"), not yet implemented.** These entries record the focused
+[SP5 design](2026-10-12-sp5-experiments-design.md) and
+[implementation plan](../plans/2026-10-12-sp5-experiments.md). Q1–Q12 of the design were answered with the
+recommended option; a builder check (fresh reviewer) raised Q11, Q12 and the clarifications folded into D105.
+Approval is not verification evidence.
+
+**D92. Experiment definitions are immutable `experiment-v1` JSON documents** with a published schema, produced
+identically by the Python API, a file and Studio; grid or explicit configurations, optional layout variants,
+replications with `base_seed`, stopping, level, KPI selection and worker names. Rejected: TOML (stdlib cannot
+write it, Studio would need a dependency); separate experiment "types" (derived from the stopping policy instead).
+
+**D93. Worker hosts are user configuration** in `~/.config/simulatte/workers.toml` (`SIMULATTE_WORKERS`
+override), referenced by name, with slots, ssh args, uv and cache paths only; credential-like keys are rejected;
+no discovery. Rejected: project-level `[tool.simulatte.workers]` (hosts are personal and must not travel in bundles).
+
+**D94. Remote supervisors run the coordinator's frozen trusted runtime** (Simulatte package plus a pure-Python
+`msgpack` copy), staged by content hash through a separate `ssh` step, on a uv-managed interpreter; uv is
+installed only by `simulatte workers setup --install-uv` after an interactive confirmation. Rejected:
+`uvx simulatte==<version>` from PyPI (impossible for unreleased versions, network-dependent supervisor).
+
+**D95. Store schema 2:** a `slots` table replaces the single active attempt; the fence compares an attempt with
+its own slot's `(active, generation)`; attempts record slot, worker and pinned revision; experiment, replication
+and replay tables; forward migration in one transaction. Retention is manual (`experiment delete`,
+`store prune`). Rejected: automatic size-capped deletion (needs cross-reference counting; no evidence yet).
+
+**D96. Replications are ordinary execution requests** with seed `base_seed + index` shared across
+configurations (common random numbers), pinned snapshots, layout variants and provisioning specs; dispatch is
+replication-major so paired statistics appear early. Rejected: completion-order pairing; per-configuration seeds.
+
+**D97. Lost attempts re-dispatch at most twice; failures never retry automatically; experiments pause on
+coordinator restart** and resume only on explicit command. Rejected: automatic resume at Studio start (runs user
+code unasked).
+
+**D98. Statistics are replication-level and pure Python:** t intervals from an inverse incomplete beta, states
+`ok`/`degenerate`/`insufficient`, paired differences by replication index with missing pairs listed, pointwise by
+default with Bonferroni as the only correction. Rejected: scipy; per-sample observations; silent one-pair intervals.
+
+**D99. The Welch moving-average plot is the only warm-up aid;** warm-up remains user-set.
+
+**D100. Replays are `full`-level requests linked `replay-of`,** preferring the original host, verified by digest,
+common KPI scalars and resolved runtime; unverified replays are labelled, never hidden, and excluded from
+side-by-side playback unless the user opts in. Side-by-side playback compares two committed full recordings on
+one clock. Rejected: three-way or live comparison in 0.17.
+
+**D101. Remote environments are keyed by the provisioning spec,** hold external dependencies only, exclude local
+packages and `simulatte`, and are immutable once published; bundles are the SP4 snapshots plus `uv.lock` and
+layout variants with a 64 MiB default cap; path dependencies outside the root are rejected; non-PyPI indexes
+warn (the host holds its own credentials). Rejected: failing on private indexes.
+
+**D102. Slot defaults and warm spares are set by the throughput benchmark** (`benchmarks/studio_throughput.py`),
+not promised in advance; `warm_spares: 0` until measured (D76 stands).
+
+**D103. Requests carry a `content_id`** (request minus `layout_revision`, domain `request-content-v1`);
+committed results are reused by content id; the experiment run id hashes content ids; `request_id` and D91 are
+unchanged. Rejected: exact-id reuse only (never reuses across CLI invocations); closure-based reuse across layout
+hashes (C5.1/B6, deferred).
+
+**D104. `*.experiment.json` and configured layout variants (`[tool.simulatte.bundle] layouts`) are non-source
+inputs,** excluded from source capture, watched as their own change class and shipped as documents, so saving an
+experiment or editing a variant does not invalidate the interactive run.
+
+**D105. Remote projects must lock `simulatte` at the coordinator's major.minor;** the provisioning spec pins one
+exact Python version (`.python-version` or the coordinator's) shared by supervisor and environment; provisioning
+has its own timeout (default 600 s) and a timeout is `provisioning_failed`, never `lost`. Windows coordinators
+keep local experiments; SSH from Windows is untested in 0.17 and Windows is never a remote host.
