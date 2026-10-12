@@ -1,0 +1,22 @@
+{
+  "action": "timeout",
+  "cancel_seconds": null,
+  "details": {
+    "code": "disk_full",
+    "message": "No durable ACK while spool quota is blocked",
+    "phase": "finalizing"
+  },
+  "implementation": "CPython",
+  "max_heartbeat_gap_seconds": 1.0915461250115186,
+  "parent_peak_rss_bytes": 47480832,
+  "pid": 45137,
+  "pid_gone": true,
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.1",
+  "saturated_heartbeats": 57,
+  "spool_peak_observed_bytes": 268435456,
+  "spool_peak_observed_files": 257,
+  "terminal": "error",
+  "withheld_ack_to_terminal_seconds": 60.451759583025705,
+  "withheld_payload_bytes": 1048576
+}

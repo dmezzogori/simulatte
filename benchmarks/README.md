@@ -186,3 +186,36 @@ calibration across multiple runner batches. The pre-0.13 results and limitations
 an API/RNG compatibility shim. It verifies both the input request hash and a lifecycle trajectory hash with
 UUIDs normalized to submission order. Use `compare.py --report-only` for these comparisons; they have no
 accepted overhead budget. The legacy version's required no-op collector callback remains part of its timing.
+
+## Studio local execution (SP4)
+
+Run each sample in a fresh interpreter, from an installed package or with
+`PYTHONPATH=src` in a checkout:
+
+```sh
+uv run python benchmarks/studio_execution.py --events 100
+uv run python benchmarks/studio_execution.py --events 20000
+uv run python benchmarks/studio_backpressure.py --action cancel
+uv run python benchmarks/studio_backpressure.py --action timeout
+uv run python benchmarks/studio_backpressure.py --action quotas
+```
+
+The cold-run harness separates snapshot/setup/inspection/ready/publication/close.
+It samples progress at 50 ms and reports OS high-water RSS; different dependency
+inventories affect cold startup, so isolated samples are not interpreter rankings.
+The backpressure harness writes a temporary 320 MiB artifact, withholds durable
+artifact ACKs while draining control, and checks real spool bounds, heartbeat
+gaps, cancellation/no-ACK timeout and execution PID disappearance. Allow at least
+60 seconds for the timeout case and sufficient temporary disk. It uses internal
+interfaces intentionally; neither script is installed as a public command. These
+harnesses currently require POSIX `resource` and PID inspection; native Windows
+containment is checked by the separate execution test lane.
+
+`node benchmarks/studio_latency.mjs /absolute/installed/python /tmp/latency.json`
+starts an installed Studio on a temporary 160-event model. It timestamps durable
+receiver returns in a benchmark-only wrapper and observes the next animation
+frame after the controller updates the displayed time. Same-host epoch clocks
+include worker→coordinator→HTTP/websocket→reader/render delay; initial bootstrap
+is excluded and Follow is explicitly enabled. It checks at least three committed
+updates, zero page errors and ≤2 seconds per observed update. This does not change
+the production websocket schema or package runtime.

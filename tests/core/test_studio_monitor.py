@@ -5,6 +5,8 @@ import threading
 
 import pytest
 
+pytest.importorskip("watchfiles")
+
 from simulatte.execution.coordinator import Coordinator
 from simulatte.execution.schema import AttemptKey
 from simulatte.studio.watcher import ProjectWatcher, InputChange

@@ -130,7 +130,8 @@ def test_errors_are_bounded_and_recovery_is_not_suppressed(tmp_path, monkeypatch
 def test_periodic_rescan_recovers_missed_native_notification(tmp_path, monkeypatch):
     import asyncio
     from types import SimpleNamespace
-    import watchfiles
+
+    watchfiles = pytest.importorskip("watchfiles")
 
     m = api()
     watcher = m.ProjectWatcher(project(tmp_path))
@@ -178,7 +179,8 @@ def test_git_index_changes_membership_and_metadata_filter(tmp_path):
 @pytest.mark.parametrize("polling", [False, True])
 def test_native_atomic_save_and_shutdown(tmp_path, monkeypatch, polling):
     import asyncio
-    import watchfiles
+
+    watchfiles = pytest.importorskip("watchfiles")
 
     m = api()
     watcher = m.ProjectWatcher(project(tmp_path), force_polling=polling)
@@ -212,7 +214,8 @@ def test_native_atomic_save_and_shutdown(tmp_path, monkeypatch, polling):
 
 def test_native_watch_error_reports_recovery_without_a_content_change(tmp_path, monkeypatch):
     import asyncio
-    import watchfiles
+
+    watchfiles = pytest.importorskip("watchfiles")
 
     m = api()
     watcher = m.ProjectWatcher(project(tmp_path), interval=0.01)
@@ -241,6 +244,7 @@ def test_native_watch_error_reports_recovery_without_a_content_change(tmp_path, 
 
 
 def test_close_during_initial_scan_drops_late_notification(tmp_path, monkeypatch):
+    pytest.importorskip("watchfiles")
     import asyncio
     import threading
 
@@ -318,7 +322,8 @@ def test_watcher_rejects_file_count_and_metadata_size_limits(tmp_path):
 @pytest.mark.parametrize("mode", ["closed", "end", "restart", "close_after_batch"])
 def test_watcher_stream_shutdown_and_stale_native_errors(tmp_path, monkeypatch, mode):
     import asyncio
-    import watchfiles
+
+    watchfiles = pytest.importorskip("watchfiles")
 
     m = api()
     spec = project(tmp_path)

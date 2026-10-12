@@ -5,7 +5,8 @@ import {
   ZipWriter,
   Uint8ArrayReader,
 } from "../packages/export/node_modules/@zip.js/zip.js/index.js";
-import { openRecording } from "@simulatte/trace";
+import { openRecording, LiveRecording, type RecordingView, type PrefixDescriptor } from "@simulatte/trace";
+import { sha256 } from "../packages/trace/node_modules/@noble/hashes/sha2.js";
 import { Session } from "@simulatte/playback";
 import { Scene } from "@simulatte/scene";
 import { exportMedia, destination } from "@simulatte/export";
@@ -64,7 +65,53 @@ async function run() {
       userAgent: navigator.userAgent,
     };
   }
-  const recording = await openRecording(bytes);
+  let recording: RecordingView;
+  let liveEvidence: Record<string, unknown> | null = null;
+  if (mode === "live") {
+    const data = new Uint8Array(await bytes.arrayBuffer());
+    const hash = sha256.create();
+    const timings: number[] = [];
+    let offset = 12, prior = 0, generation = 0, reader: LiveRecording | undefined;
+    let scanReads = 0, scanBytes = 0, cachePeak = 0, chunkPeak = 0;
+    let scanning = false;
+    const provider = (descriptor: PrefixDescriptor) => ({size: descriptor.length,
+      read: async (at: number, length: number) => {
+        if (scanning) {
+          if (at < prior) throw new Error("Live extension rescanned earlier bytes");
+          scanReads++; scanBytes += length;
+        }
+        return data.slice(at, Math.min(at + length, descriptor.length));
+      }});
+    const extend = async (end: number) => {
+      hash.update(data.subarray(prior, end));
+      const descriptor = {attempt: "a".repeat(32), generation: ++generation, length: end,
+        sha256: Array.from(hash.clone().digest(), x => x.toString(16).padStart(2, "0")).join("")};
+      const mark = performance.now();
+      scanning = true;
+      if (reader) await reader.extend(descriptor); else reader = await LiveRecording.open(descriptor, provider);
+      scanning = false;
+      prior = end;
+      const view = reader.snapshot();
+      if (view.finiteRange) {
+        const temporary = new Session(view);
+        await temporary.prepare({mode: "continuous", time: view.finiteRange[1], cursor: null});
+        temporary.dispose();
+      }
+      timings.push(performance.now() - mark);
+      cachePeak = Math.max(cachePeak, view.trace.cacheStats.estimatedBytes);
+      chunkPeak = Math.max(chunkPeak, view.trace.cacheStats.chunks);
+      if (cachePeak > 128 << 20 || chunkPeak > 4) throw new Error("Live cache exceeded bounds");
+    };
+    while (offset < data.length - 16) {
+      const type = data[offset + 4];
+      offset += 9 + new DataView(data.buffer).getUint32(offset);
+      if (type === 3 || (type === 6 && offset - prior >= 4 << 20)) await extend(offset);
+    }
+    await extend(data.length);
+    recording = reader!.snapshot();
+    liveEvidence = {generations: generation, scanReads, scanBytes, cachePeak, chunkPeak,
+      extensionAndEdgeMaxMs: Math.max(...timings), extensionAndEdgeMs: timings};
+  } else recording = await openRecording(bytes);
   const opened = performance.now() - start;
   if (mode === "video") {
     Object.defineProperty(globalThis, "showSaveFilePicker", {
@@ -166,6 +213,7 @@ async function run() {
     warmSeekP95: percentile(warm, 0.95),
     renderP95: percentile(render, 0.95),
     traceBytes: bytes.size,
+    live: liveEvidence,
     cache: recording.trace.cacheStats,
     heap: (() => {
       const m = (

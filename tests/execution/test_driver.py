@@ -349,6 +349,7 @@ def test_artifact_mutation_and_name_collisions_are_refused(tmp_path, monkeypatch
     spool = Spool(tmp_path / "spool")
     original = Path.open
     if when == "collision":
+        (root / "A").write_bytes(b"second file on case-sensitive filesystems")
         monkeypatch.setattr(driver.os, "walk", lambda *a, **kw: [(root, [], ["a", "A"])])
     else:
 

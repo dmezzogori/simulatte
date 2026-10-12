@@ -237,7 +237,7 @@ def test_superseded_source_refresh_cannot_overwrite_newer_success(tmp_path, monk
         with ThreadPoolExecutor(max_workers=1) as pool:
             old = pool.submit(owner.refresh, state.revision, auto_run=False, timeout=10)
             try:
-                assert entered.wait(5)
+                assert entered.wait(10)  # Same budget as the real preparation being fenced.
                 (spec.root / "input.txt").write_text("12")
                 newer = owner.refresh(owner.state.revision, auto_run=False, timeout=10)
             finally:

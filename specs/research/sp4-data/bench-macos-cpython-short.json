@@ -1,0 +1,23 @@
+{
+  "close_seconds": 0.09363075002329424,
+  "committed_prefix_notifications": 5,
+  "coordinator_peak_rss_bytes": 45875200,
+  "coordinator_setup_seconds": 0.13973024999722838,
+  "events": 100,
+  "heartbeat_samples": 1,
+  "implementation": "CPython",
+  "inspection_including_recapture_seconds": 0.5419475000235252,
+  "maximum_observed_heartbeat_gap_seconds": null,
+  "maximum_observed_spool_bytes": 0,
+  "maximum_observed_spool_files": 0,
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.1",
+  "ready_to_publication_seconds": 0.2229695830028504,
+  "reaped_children_peak_rss_bytes": 51806208,
+  "source_bytes": 1113,
+  "standalone_snapshot_seconds": 0.0029071669559925795,
+  "submit_to_publication_seconds": 0.932254292012658,
+  "submit_to_ready_seconds": 0.7092847090098076,
+  "total_seconds": 1.7596307499916293,
+  "trace_bytes": 53061
+}

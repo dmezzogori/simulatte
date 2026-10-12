@@ -1,0 +1,127 @@
+{
+  "browser": "156.0.8078.4",
+  "samples": [
+    {
+      "cursor": [
+        10,
+        10
+      ],
+      "milliseconds": 145.619873046875
+    },
+    {
+      "cursor": [
+        20,
+        20
+      ],
+      "milliseconds": 96.6728515625
+    },
+    {
+      "cursor": [
+        30,
+        30
+      ],
+      "milliseconds": 180.716064453125
+    },
+    {
+      "cursor": [
+        39,
+        39
+      ],
+      "milliseconds": 177.375732421875
+    },
+    {
+      "cursor": [
+        48,
+        48
+      ],
+      "milliseconds": 70.60302734375
+    },
+    {
+      "cursor": [
+        58,
+        58
+      ],
+      "milliseconds": 164.3359375
+    },
+    {
+      "cursor": [
+        69,
+        69
+      ],
+      "milliseconds": 94.010009765625
+    },
+    {
+      "cursor": [
+        78,
+        78
+      ],
+      "milliseconds": 87.82275390625
+    },
+    {
+      "cursor": [
+        88,
+        88
+      ],
+      "milliseconds": 206.59619140625
+    },
+    {
+      "cursor": [
+        98,
+        98
+      ],
+      "milliseconds": 80.684814453125
+    },
+    {
+      "cursor": [
+        108,
+        108
+      ],
+      "milliseconds": 118.367919921875
+    },
+    {
+      "cursor": [
+        119,
+        119
+      ],
+      "milliseconds": 70.298828125
+    },
+    {
+      "cursor": [
+        129,
+        129
+      ],
+      "milliseconds": 71.096923828125
+    },
+    {
+      "cursor": [
+        140,
+        140
+      ],
+      "milliseconds": 197.427978515625
+    },
+    {
+      "cursor": [
+        154,
+        154
+      ],
+      "milliseconds": 153.030029296875
+    },
+    {
+      "cursor": [
+        160,
+        160
+      ],
+      "milliseconds": 205.39208984375
+    },
+    {
+      "cursor": [
+        161,
+        160
+      ],
+      "milliseconds": 198.412109375
+    }
+  ],
+  "max_ms": 206.59619140625,
+  "errors": [],
+  "method": "Same host epoch clock: SegmentReceiver.receive return after durable commit to next animation frame after controller output update; Follow enabled; excludes initial bootstrap"
+}

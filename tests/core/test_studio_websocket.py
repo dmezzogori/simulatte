@@ -122,6 +122,10 @@ def test_malformed_unicode_overflow_numbers_and_closed_outbox():
     box.close()
     with pytest.raises(SlowClient):
         box.put({})
+
+
+def test_auth_rejects_unknown_mode():
+    pytest.importorskip("starlette")
     from simulatte.studio.auth import SessionAuth
 
     with pytest.raises(ValueError):

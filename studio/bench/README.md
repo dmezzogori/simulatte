@@ -37,3 +37,15 @@ open HTML from `file://` with networking disabled. `zip64.mjs` is a separate for
 stress test with over 65,535 entries and a >4 GiB entry. It requires substantial
 temporary disk space and is not evidence of the browser export memory budget.
 Actual Safari must be tested separately from Playwright WebKit.
+
+## SP4 committed-prefix extension
+
+Use `?mode=live` with the same fixtures and runner. The harness appends INITIAL,
+roughly 4 MiB batches ending at INDEX, and the final footer, using incremental
+SHA-256. Every extension asserts that metadata/hash reads do not revisit prior
+bytes, prepares the new edge, and checks shared four-chunk/128 MiB cache limits.
+It then runs the same seek/frame workload. `openMs` includes all extensions;
+`extensionAndEdgeMs` measures browser ingestion/preparation without network or
+server scheduling. It is not end-to-end Studio commit-to-display latency.
+Long-task observations include startup; RSS is sampled only by the macOS
+Chromium runner and is distinct from decoded cache estimates.

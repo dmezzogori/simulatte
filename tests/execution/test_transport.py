@@ -99,12 +99,16 @@ def test_control_queue_and_drain_deadline_stay_bounded():
     channel = m.FramedChannel(stream, stream)
     try:
         channel.send("hello", {})
-        with pytest.raises(BufferError):
-            for _ in range(64):
-                channel.send("artifact_fragment", {"payload_bytes": 1 << 20}, payload=b"x" * (1 << 20))
-        with pytest.raises(BufferError):
-            for _ in range(80):
-                channel.send("heartbeat", {})
+        # Freeze the writer's dequeue step while checking admission limits.
+        # A fast writer can otherwise drain small control frames into the socket
+        # before a data frame fills the kernel buffer, making this assertion race.
+        with channel._condition:
+            with pytest.raises(BufferError):
+                for _ in range(64):
+                    channel.send("artifact_fragment", {"payload_bytes": 1 << 20}, payload=b"x" * (1 << 20))
+            with pytest.raises(BufferError):
+                for _ in range(80):
+                    channel.send("heartbeat", {})
         with pytest.raises(TimeoutError):
             channel.drain(0.01)
     finally:

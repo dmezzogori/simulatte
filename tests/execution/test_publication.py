@@ -4,6 +4,7 @@ from dataclasses import asdict, replace
 import hashlib
 import importlib
 import importlib.util
+import os
 
 import pytest
 
@@ -185,7 +186,8 @@ def test_artifacts_are_assembled_and_indexed_including_empty_files(tmp_path):
 @pytest.mark.parametrize(
     "stage", ["verified", "staged", "renamed", "before_commit", "in_transaction", "committed", "rename_before_sync"]
 )
-def test_process_crash_never_adopts_an_unindexed_result(tmp_path, stage):
+@pytest.mark.parametrize("crash", ["exit", *(["sigkill"] if os.name == "posix" else [])])
+def test_process_crash_never_adopts_an_unindexed_result(tmp_path, stage, crash):
     import json
     import subprocess
     import sys
@@ -193,31 +195,34 @@ def test_process_crash_never_adopts_an_unindexed_result(tmp_path, stage):
     script = """
 from pathlib import Path
 from dataclasses import asdict
-import json,os,sys
+import json,os,signal,sys
 from tests.execution.test_publication import prepared,api
 root=Path(sys.argv[1]); stage=sys.argv[2]
+def crash():
+    if sys.argv[3] == "sigkill": os.kill(os.getpid(), signal.SIGKILL)
+    os._exit(83)
 store,key,proposal,_=prepared(root)
 (root/'key.json').write_text(json.dumps(asdict(key)))
 m=api()
 def checkpoint(at):
-    if at==stage: os._exit(83)
+    if at==stage: crash()
     if at=='before_commit' and stage=='in_transaction':
         class CrashDB:
             def __getattr__(self,name): return getattr(self.connection,name)
             def execute(self,statement,*args):
-                if statement=='COMMIT': os._exit(83)
+                if statement=='COMMIT': crash()
                 return self.connection.execute(statement,*args)
         wrapper=CrashDB(); wrapper.connection=store._db; store._db=wrapper
 if stage=='rename_before_sync':
     def move(source,destination):
-        os.replace(source,destination); os._exit(83)
+        os.replace(source,destination); crash()
     m.replace_durable=move
 m.publish(store,key,proposal,execution_exited=True,descendants_cleaned=True,checkpoint=checkpoint)
 """
     result = subprocess.run(
-        [sys.executable, "-c", script, str(tmp_path), stage], capture_output=True, text=True, timeout=15
+        [sys.executable, "-c", script, str(tmp_path), stage, crash], capture_output=True, text=True, timeout=15
     )
-    assert result.returncode == 83, result.stderr
+    assert result.returncode == (-9 if crash == "sigkill" else 83), result.stderr
     key = schema.AttemptKey(**json.loads((tmp_path / "key.json").read_text()))
     with store_api().RunStore.open(tmp_path / ".simulatte") as store:
         if stage == "committed":

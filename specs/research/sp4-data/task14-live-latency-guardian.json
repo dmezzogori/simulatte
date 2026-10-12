@@ -1,0 +1,113 @@
+{
+  "browser": "156.0.8078.4",
+  "samples": [
+    {
+      "cursor": [
+        11,
+        11
+      ],
+      "milliseconds": 107.486083984375
+    },
+    {
+      "cursor": [
+        23,
+        23
+      ],
+      "milliseconds": 34.822021484375
+    },
+    {
+      "cursor": [
+        35,
+        35
+      ],
+      "milliseconds": 98.93505859375
+    },
+    {
+      "cursor": [
+        46,
+        46
+      ],
+      "milliseconds": 78.89599609375
+    },
+    {
+      "cursor": [
+        57,
+        57
+      ],
+      "milliseconds": 123.474853515625
+    },
+    {
+      "cursor": [
+        70,
+        70
+      ],
+      "milliseconds": 85.666015625
+    },
+    {
+      "cursor": [
+        80,
+        80
+      ],
+      "milliseconds": 101.77294921875
+    },
+    {
+      "cursor": [
+        92,
+        92
+      ],
+      "milliseconds": 87.5771484375
+    },
+    {
+      "cursor": [
+        104,
+        104
+      ],
+      "milliseconds": 76.619873046875
+    },
+    {
+      "cursor": [
+        115,
+        115
+      ],
+      "milliseconds": 135.830078125
+    },
+    {
+      "cursor": [
+        126,
+        126
+      ],
+      "milliseconds": 112.994873046875
+    },
+    {
+      "cursor": [
+        139,
+        139
+      ],
+      "milliseconds": 107.867919921875
+    },
+    {
+      "cursor": [
+        151,
+        151
+      ],
+      "milliseconds": 99.522216796875
+    },
+    {
+      "cursor": [
+        160,
+        160
+      ],
+      "milliseconds": 122.97314453125
+    },
+    {
+      "cursor": [
+        161,
+        160
+      ],
+      "milliseconds": 116.2412109375
+    }
+  ],
+  "max_ms": 135.830078125,
+  "errors": [],
+  "method": "Same host epoch clock: SegmentReceiver.receive return after durable commit to next animation frame after controller output update; Follow enabled; excludes initial bootstrap"
+}

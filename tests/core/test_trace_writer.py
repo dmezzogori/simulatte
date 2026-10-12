@@ -1019,8 +1019,10 @@ def test_kpi_latency_publishes_without_close(
         rec._cond.notify_all()
         assert rec._cond.wait_for(lambda: not rec._samples and rec._pending == 0, timeout=10)
     records = _read(path)
-    assert records[-1].type == RecordType.KPI
-    assert [r.type for r in records].index(RecordType.INITIAL) < len(records) - 1
+    # Full recording may publish the same event's observer batch after its KPI.
+    # The latency contract requires the sample before close, not a last-record type.
+    types = [record.type for record in records]
+    assert types.index(RecordType.INITIAL) < types.index(RecordType.KPI)
     assert Trace.open(path).kpi_series()["shop/queue"][0][1] == 2.0
     rec.close()
 

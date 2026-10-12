@@ -1,7 +1,10 @@
 """Studio starts watching before inspection and remains usable after invalid source."""
 
 import asyncio
+import pytest
 
+
+pytest.importorskip("watchfiles")
 
 from simulatte.execution.coordinator import Coordinator
 from simulatte.studio.lifecycle import ProjectSession
