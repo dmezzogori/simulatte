@@ -8,7 +8,7 @@ import sys
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    if argv == ["_worker"]:
+    if argv in (["_worker"], ["worker", "--stdio"]):
         from simulatte.execution.supervisor import Supervisor
 
         return Supervisor().run_stdio()
@@ -18,7 +18,17 @@ def main(argv: list[str] | None = None) -> int:
     view.add_argument("trace")
     view.add_argument("--port", type=int, default=0)
     view.add_argument("--no-browser", action="store_true")
+    from simulatte.execution.command import add_arguments
+
+    run = commands.add_parser("run", help="Execute or reproduce a captured local model")
+    add_arguments(run)
+    worker = commands.add_parser("worker", help="Start a framed execution supervisor")
+    worker.add_argument("--stdio", action="store_true", required=True)
     args = parser.parse_args(argv)
+    if args.command == "run":
+        from simulatte.execution.command import run as execute
+
+        return execute(args)
     if not 0 <= args.port <= 65535:
         parser.error("port must be between 0 and 65535")
     try:

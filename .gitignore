@@ -185,3 +185,6 @@ src/simulatte/studio/static/
 
 studio/bench/dist/
 studio/.build/
+
+# Local execution snapshots, attempts and result store
+.simulatte/

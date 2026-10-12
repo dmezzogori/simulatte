@@ -32,13 +32,34 @@ def build(env, layout, params):
 """
 
 
+def runtime_evidence(tmp_path, trusted_hash):
+    from simulatte.execution.runtime import describe_runtime
+    from simulatte.execution.references import write_document
+    from simulatte.execution.hashing import canonical_hash
+
+    roots = list(dict.fromkeys(sysconfig.get_path(name) for name in ("purelib", "platlib")))
+    evidence = describe_runtime(roots)
+    requested = {
+        "facts": evidence["facts"],
+        "dependencies_hash": canonical_hash("dependencies-v1", evidence["dependencies"]),
+        "trusted_runtime_hash": trusted_hash,
+    }
+    config = {
+        "runtime_ref": write_document(tmp_path / "runtime-documents", "runtime", evidence),
+        "distribution_roots": roots,
+    }
+    return requested, config
+
+
 def run_fixture(tmp_path, model=MODEL, *, action="run"):
     project, snapshot = tmp_path / "project", tmp_path / "snapshot"
     project.mkdir()
     snapshot.mkdir()
     (snapshot / "plant.py").write_text(model)
     runtime = freeze_runtime(Path(__file__).resolve().parents[2] / "src" / "simulatte", project)
+    requested_runtime, runtime_config = runtime_evidence(tmp_path, runtime.content_hash)
     config = {
+        **runtime_config,
         "project_root": str(project),
         "snapshot_roots": [str(snapshot)],
         "external_roots": [str(runtime.root), sysconfig.get_path("purelib")],
@@ -53,7 +74,7 @@ def run_fixture(tmp_path, model=MODEL, *, action="run"):
         parameters={"n": 7},
         seed=42,
         stopping=Horizon(2).to_dict(),
-        runtime={},
+        runtime=requested_runtime,
     )
     worker = WorkerHarness()
     store = RunStore.open(tmp_path / ".simulatte")
@@ -166,6 +187,7 @@ def local_driver(tmp_path, monkeypatch, build, *, change=None, send_hook=None):
     )
     control = Control()
     spool = Spool(tmp_path / "spool", control=control)
+    requested_runtime, runtime_config = runtime_evidence(tmp_path, "f" * 64)
     request = ExecutionRequest(
         model="plant.py:build",
         source_hash="a" * 64,
@@ -175,10 +197,10 @@ def local_driver(tmp_path, monkeypatch, build, *, change=None, send_hook=None):
         parameters={"n": 7},
         seed=42,
         stopping=Horizon(2).to_dict(),
-        runtime={},
+        runtime=requested_runtime,
     )
     key = AttemptKey(request_id(request), "a" * 32, 1)
-    config = {"reference": request.model, "expected_metadata": metadata, "attempt_dir": str(tmp_path)}
+    config = {**runtime_config, "reference": request.model, "expected_metadata": metadata, "attempt_dir": str(tmp_path)}
     if change:
         request, key, config = change(request, key, config)
     messages = []
@@ -378,7 +400,7 @@ def test_driver_selected_kpis_and_finite_empty_population(tmp_path, monkeypatch)
 
         def build(env, layout, params):
             if finite:
-                Population(env, FinitePopulation(arrivals=0, safety_limit=2))
+                Population(env)
             else:
                 _desk_system(env, jobs=[(0, 1)])
 
@@ -392,3 +414,40 @@ def test_driver_selected_kpis_and_finite_empty_population(tmp_path, monkeypatch)
 
         proposal, _, _ = local_driver(root, monkeypatch, build, change=change)
         assert proposal["fingerprint"]["kpis"] == ({} if finite else {"desk/flow_time": 1})
+
+
+def test_driver_resolves_verified_metadata_and_layout_documents(tmp_path, monkeypatch):
+    from dataclasses import replace
+    from simulatte.execution.schema import AttemptKey
+    from simulatte.execution.references import write_document
+    from simulatte.layout.identity import layout_hash
+
+    def build(env, layout, params):
+        pass
+
+    def change(request, key, config):
+        layout = {"schema_version": "1.0"}
+        config["expected_metadata_ref"] = write_document(
+            tmp_path / "documents", "model-info", config.pop("expected_metadata")
+        )
+        config["layout_ref"] = write_document(tmp_path / "documents", "layout", layout)
+        request = replace(request, layout_hash=layout_hash("file", layout))
+        return request, AttemptKey(request_id(request), key.attempt_id, key.generation), config
+
+    proposal, _, _ = local_driver(tmp_path, monkeypatch, build, change=change)
+    assert proposal["resolved_manifest"]["layout"]["schema_version"] == "1.0"
+
+
+def test_execution_requires_measured_runtime_evidence_before_model_import(tmp_path, monkeypatch):
+    built = []
+
+    def build(env, layout, params):
+        built.append(True)
+
+    def omit(request, key, config):
+        config.pop("runtime_ref")
+        return request, key, config
+
+    with pytest.raises(ValueError, match="runtime evidence"):
+        local_driver(tmp_path, monkeypatch, build, change=omit)
+    assert not built

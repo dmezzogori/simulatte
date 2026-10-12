@@ -14,6 +14,7 @@ from simulatte import Environment, Provenance, TraceRecorder
 from simulatte._wire import pack, freeze
 from simulatte.execution.bootstrap import load_configuration
 from simulatte.execution.hashing import canonical_hash
+from simulatte.execution.references import read_document
 from simulatte.execution.schema import ExecutionRequest, ResolvedManifest, request_id, _plain
 from simulatte.execution.snapshot import _path
 from simulatte.layout import Layout
@@ -95,8 +96,17 @@ def execute(config, raw_request, key, control, spool, send):
     request = ExecutionRequest.from_dict(raw_request)
     if request_id(request) != key.request_id or request.model != config["reference"]:
         raise ValueError("Execution request does not match attempt/model")
+    from simulatte.execution.runtime import verify_runtime
+
+    if "runtime_ref" not in config:
+        raise ValueError("Execution requires measured runtime evidence")
+    actual_runtime, dependencies, warnings = verify_runtime(config, request.runtime)
     metadata, build, policy = load_configuration(config)
-    expected = config["expected_metadata"]
+    expected = (
+        read_document(config["expected_metadata_ref"], "model-info")
+        if "expected_metadata_ref" in config
+        else config["expected_metadata"]
+    )
     if any(_plain(metadata[name]) != _plain(expected[name]) for name in ("models", "selected")):
         raise ValueError("Model metadata changed after inspection")
     spec = get_model_spec(build)
@@ -105,19 +115,19 @@ def execute(config, raw_request, key, control, spool, send):
     root = Path(config["attempt_dir"]).resolve()
     artifacts = root / "artifacts"
     artifacts.mkdir()
-    dependencies = config.get("dependencies", {})
     env = Environment(
         seed=request.seed,
         time_unit=spec.time_unit,
         parameters=request.parameters,
         artifacts_dir=artifacts,
         provenance=Provenance(
-            model=request.model,
+            model=canonical_hash("model-v1", {"source": request.source_hash, "reference": request.model}),
             source=request.source_hash,
             inputs=request.input_hash,
             dependencies=canonical_hash("dependencies-v1", dependencies),
         ),
     )
+    env._execution_policy = stopping
     env.configure_kpis(warmup=stopping.warmup if isinstance(stopping, Horizon) else 0)
     sink = _DigestSink(spool)
     resolved = None
@@ -155,11 +165,12 @@ def execute(config, raw_request, key, control, spool, send):
         if set(request.kpis) - available:
             raise ValueError("Unknown requested KPI: " + ", ".join(sorted(set(request.kpis) - available)))
         resolved = ResolvedManifest(
-            runtime=request.runtime,
+            runtime=actual_runtime,
             dependencies=dependencies,
             imports=policy.audit(),
             layout=layout.prepare().bundle.manifest(),
             capabilities={"fresh_process": True, "ready_barrier": True},
+            warnings=warnings,
         )
         return resolved.to_dict()
 
@@ -183,7 +194,15 @@ def execute(config, raw_request, key, control, spool, send):
             resolve_execution=resolve,
             kpis=request.kpis or None,
         )
-        layout = Layout(env, file=config.get("layout_path"))
+        if "layout_ref" in config:
+            from simulatte.layout.identity import layout_hash
+
+            layer = read_document(config["layout_ref"], "layout")
+            if layout_hash("file", layer) != request.layout_hash:
+                raise ValueError("Layout document differs from requested identity")
+            layout = Layout.from_dict(env, layer)
+        else:
+            layout = Layout(env, file=config.get("layout_path"))
         env._on_ready(ready)
         with env._building():
             returned = build(env, layout, parameters)
@@ -196,6 +215,7 @@ def execute(config, raw_request, key, control, spool, send):
         recorder.close(termination=stop.reason)
         env.close()
         outputs = _artifacts(artifacts, spool)
+        verify_runtime(config, request.runtime)
         assert resolved is not None
         fingerprint = asdict(env.fingerprint())
         if request.kpis:

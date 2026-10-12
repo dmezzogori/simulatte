@@ -74,26 +74,32 @@ def inspect_model(reference: str, roots: tuple[Path, ...]) -> dict[str, Any]:
 def load_configuration(config: dict[str, Any]):
     snapshot = tuple(Path(root).resolve() for root in config["snapshot_roots"])
     external = tuple(Path(root).resolve() for root in config["external_roots"])
+    source_root = Path(config["snapshot_root"]).resolve() if "snapshot_root" in config else snapshot[0]
     # -S preserves stdlib roots even where venv sys.prefix differs across Python
     # versions. External package roots are supplied by the supervising runtime.
     standard = tuple(Path(root).resolve() for root in sys.path if root and Path(root).exists())
     sys.path[:] = [str(root) for root in (*snapshot, *external, *standard)]
     from simulatte.execution.imports import install_import_policy
 
-    policy = install_import_policy(Path(config["project_root"]), snapshot, (*external, *standard))
-    os.chdir(snapshot[0])
+    policy = install_import_policy(
+        Path(config["project_root"]),
+        snapshot,
+        (*external, *standard),
+        source_root=source_root if "snapshot_root" in config else None,
+    )
+    os.chdir(source_root)
     opened: set[str] = set()
     active = True
 
     def audit_open(event, args):
         if active and event == "open" and args and isinstance(args[0], (str, bytes)):
             path = Path(os.fsdecode(args[0])).resolve()
-            if path.is_relative_to(snapshot[0]):
-                opened.add(path.relative_to(snapshot[0]).as_posix())
+            if path.is_relative_to(source_root):
+                opened.add(path.relative_to(source_root).as_posix())
 
     sys.addaudithook(audit_open)
     try:
-        result, build = load_model(config["reference"], snapshot)
+        result, build = load_model(config["reference"], (source_root,))
         declarations = {name for model in result["models"] for name in model["inputs"]}
         if opened & declarations:
             raise ValueError("Declared data inputs must be read during build, not model import")

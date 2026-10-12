@@ -14,10 +14,23 @@ from typing import Any
 
 
 class ImportPolicy(importlib.abc.MetaPathFinder):
-    def __init__(self, project_root: Path, snapshot_roots: tuple[Path, ...], external_roots: tuple[Path, ...]):
+    def __init__(
+        self,
+        project_root: Path,
+        snapshot_roots: tuple[Path, ...],
+        external_roots: tuple[Path, ...],
+        *,
+        source_root: Path | None = None,
+    ):
         self.project_root = project_root.resolve()
         self.snapshot_roots = tuple(root.resolve() for root in snapshot_roots)
         self.external_roots = tuple(root.resolve() for root in external_roots if root.exists())
+        self.source_root = None if source_root is None else source_root.resolve()
+        if self.source_root is not None and (
+            not self.source_root.is_dir()
+            or any(not root.is_relative_to(self.source_root) for root in self.snapshot_roots)
+        ):
+            raise ValueError("Import roots must be inside the source snapshot")
         if not self.snapshot_roots or any(not root.is_dir() for root in self.snapshot_roots):
             raise ValueError("Snapshot import roots must be existing directories")
         if any(self.project_root.is_relative_to(root) for root in self.external_roots):
@@ -44,7 +57,7 @@ class ImportPolicy(importlib.abc.MetaPathFinder):
         if origin in ("built-in", "frozen"):
             return origin
         path = Path(origin).resolve()
-        for root in self.snapshot_roots:
+        for root in (self.source_root,) if self.source_root is not None else self.snapshot_roots:
             if path.is_relative_to(root):
                 return "snapshot:" + path.relative_to(root).as_posix()
         if name.partition(".")[0] in self.local_names:
@@ -74,6 +87,11 @@ class ImportPolicy(importlib.abc.MetaPathFinder):
             self._check(fullname, spec)
         return spec
 
+    def find_distributions(self, context):
+        # Preserve the stdlib's data-only distribution metadata provider. This
+        # does not restore editable finders or execute site/startup hooks.
+        return importlib.machinery.PathFinder.find_distributions(context)
+
     def audit(self) -> dict[str, str]:
         for name, module in tuple(sys.modules.items()):
             spec = getattr(module, "__spec__", None)
@@ -83,10 +101,14 @@ class ImportPolicy(importlib.abc.MetaPathFinder):
 
 
 def install_import_policy(
-    project_root: Path, snapshot_roots: tuple[Path, ...], external_roots: tuple[Path, ...]
+    project_root: Path,
+    snapshot_roots: tuple[Path, ...],
+    external_roots: tuple[Path, ...],
+    *,
+    source_root: Path | None = None,
 ) -> ImportPolicy:
     """Install only in a fresh isolated child, before any model imports."""
-    policy = ImportPolicy(project_root, snapshot_roots, external_roots)
+    policy = ImportPolicy(project_root, snapshot_roots, external_roots, source_root=source_root)
     # Never add .pth/.start/sitecustomize hooks. This explicitly replaces editable
     # finders; unsupported hook-dependent packages fail through normal imports.
     sys.path[:] = [str(root) for root in (*policy.snapshot_roots, *policy.external_roots)]

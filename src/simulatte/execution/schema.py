@@ -37,6 +37,60 @@ def _plain(value: Any) -> Any:
     return value
 
 
+def _reference(value: str, *, selected: bool) -> None:
+    if type(value) is not str:
+        raise ValueError("Model reference must be text")
+    path, separator, name = value.partition(":")
+    if (
+        (selected and not separator)
+        or (separator and not name.isidentifier())
+        or not path
+        or "\\" in path
+        or "\0" in path
+        or PurePosixPath(path).is_absolute()
+        or ".." in PurePosixPath(path).parts
+        or PurePosixPath(path).as_posix() != path
+        or not path.endswith(".py")
+    ):
+        raise ValueError("Model must be a normalized project-relative Python path with a valid selection")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class InspectionRequest:
+    model: str
+    source_hash: str
+    runtime: Mapping[str, Any]
+
+    def __post_init__(self):
+        _reference(self.model, selected=False)
+        _hash(self.source_hash)
+        object.__setattr__(self, "runtime", _mapping(self.runtime))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": 1,
+            "kind": "inspection",
+            "model": self.model,
+            "source_hash": self.source_hash,
+            "runtime": _plain(self.runtime),
+        }
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> InspectionRequest:
+        if (
+            set(data) != {"schema", "kind", "model", "source_hash", "runtime"}
+            or type(data["schema"]) is not int
+            or data["schema"] != 1
+            or data["kind"] != "inspection"
+        ):
+            raise ValueError("Unsupported inspection request schema")
+        return cls(model=data["model"], source_hash=data["source_hash"], runtime=data["runtime"])
+
+
+def inspection_id(request: InspectionRequest) -> str:
+    return canonical_hash("inspection-request-v1", request.to_dict())
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ExecutionRequest:
     model: str
@@ -54,20 +108,7 @@ class ExecutionRequest:
     def __post_init__(self):
         for value in (self.source_hash, self.input_hash, self.layout_hash):
             _hash(value)
-        path, sep, name = self.model.rpartition(":")
-        if (
-            not sep
-            or not name.isidentifier()
-            or not path
-            or "\\" in path
-            or ":" in path
-            or "\0" in path
-            or PurePosixPath(path).is_absolute()
-            or ".." in PurePosixPath(path).parts
-            or PurePosixPath(path).as_posix() != path
-            or not path.endswith(".py")
-        ):
-            raise ValueError("Model must be a normalized project-relative Python path:name")
+        _reference(self.model, selected=True)
         if type(self.layout_revision) is not int or not 0 <= self.layout_revision <= MAX_SAFE_INT:
             raise ValueError("Invalid layout revision")
         if type(self.seed) is not int or not 0 <= self.seed < 2**63:

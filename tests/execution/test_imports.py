@@ -382,3 +382,72 @@ def test_private_bootstrap_configuration_is_bounded(tmp_path, monkeypatch, damag
     finally:
         thread.join(2)
         listener.close()
+
+
+def test_model_root_is_separate_from_configured_import_roots(tmp_path):
+    import json
+    import subprocess
+
+    root = tmp_path / "project"
+    root.mkdir()
+    snapshot = tmp_path / "snapshot"
+    source = snapshot / "src"
+    source.mkdir(parents=True)
+    (source / "helper.py").write_text("VALUE=9\n")
+    (snapshot / "hidden.py").write_text("raise RuntimeError('root must not become an import path')\n")
+    (snapshot / "plant.py").write_text(
+        "from dataclasses import dataclass\nimport importlib.util\nimport helper\nimport simulatte\n"
+        "assert importlib.util.find_spec('hidden') is None\n"
+        "@dataclass(frozen=True)\nclass Params: n:int=helper.VALUE\n"
+        "@simulatte.model(params=Params,horizon=1)\ndef build(env,layout,params): pass\n"
+    )
+    config = {
+        "project_root": str(root),
+        "snapshot_root": str(snapshot),
+        "snapshot_roots": [str(source)],
+        "external_roots": [str(RUNTIME), SITE],
+        "reference": "plant.py",
+    }
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", str(RUNTIME / "simulatte/execution/bootstrap.py")],
+        input=json.dumps(config),
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    metadata = json.loads(result.stdout)
+    assert metadata["models"][0]["parameters"]["fields"][0]["default"] == 9
+    assert metadata["imports"]["helper"] == "snapshot:src/helper.py"
+
+
+def test_guarded_imports_preserve_standard_distribution_metadata(tmp_path, monkeypatch):
+    from importlib import metadata
+    from simulatte.execution.imports import install_import_policy
+
+    snapshot = tmp_path / "snapshot"
+    snapshot.mkdir()
+
+    def versions():
+        return sorted((dist.metadata["Name"], dist.version) for dist in metadata.distributions(path=[SITE]))
+
+    expected = versions()
+    assert expected
+    with monkeypatch.context() as patch:
+        patch.setattr(sys, "path", list(sys.path))
+        patch.setattr(sys, "meta_path", list(sys.meta_path))
+        patch.setattr(sys, "dont_write_bytecode", sys.dont_write_bytecode)
+        install_import_policy(tmp_path / "project", (snapshot,), (RUNTIME, Path(SITE)))
+        assert versions() == expected
+
+
+def test_explicit_source_root_cannot_contain_foreign_import_roots(tmp_path):
+    from simulatte.execution.imports import ImportPolicy
+
+    source, foreign = tmp_path / "source", tmp_path / "foreign"
+    source.mkdir()
+    foreign.mkdir()
+    with pytest.raises(ValueError, match="source snapshot"):
+        ImportPolicy(tmp_path / "working", (foreign,), (), source_root=source)
+    with pytest.raises(ValueError, match="source snapshot"):
+        ImportPolicy(tmp_path / "working", (source,), (), source_root=tmp_path / "missing")

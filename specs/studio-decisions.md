@@ -344,3 +344,35 @@ semantic fingerprints). Released Python 0.15.0 can check and verify the shared
 new fixture. KPI selection filters recorded declarations, series and scalar
 fingerprints; it never detaches collectors or changes domain accounting. Compare
 common KPI keys, as required by the existing invariance contract.
+
+**D84. Inspection and execution share fencing, but not a fabricated run identity.**
+Inspection requests contain the model reference, captured source identity and
+runtime evidence and use the `inspection-request-v1` hash domain. They have normal
+attempt generations and durable metadata receipts, but successful inspection does
+not insert a simulation result. Large metadata, request, runtime and layout maps
+travel as verified local MessagePack document references; control frames retain
+their existing bounds. A referenced document binds its kind, length and SHA-256,
+and readers reject mutation and symlink replacement. These local references are
+an SP4 transport detail; they are not an SSH protocol contract.
+
+The physical source root and configured import search roots are separate. A
+`src` project can load its selected model at the source root without implicitly
+adding that root to its import path. The guarded finder preserves the stdlib
+`find_distributions` extension for data-only installed metadata discovery (see
+[Python's primary documentation](https://docs.python.org/3.11/library/importlib.metadata.html#extending-the-search-algorithm));
+it does not restore editable finders or startup hooks. Runtime evidence includes
+actual interpreter/platform facts, normalized installed versions and RECORD
+manifest hashes and is checked in each child before model import and after the
+run. RECORD identity does not claim to hash every installed package file or
+snapshot the external environment; missing RECORD data is an explicit provenance
+warning. No dependency provisioning is introduced.
+
+The coordinator persists captured preparation independently of working project
+configuration, so reproduction can reopen after the model or pyproject is edited
+or removed. Snapshot archive and manifest directory entries must be durable before
+the preparation index is committed. A run deadline includes queueing and detached
+materialization; expiration before dispatch must not launch user code. A storage
+failure that also prevents the terminal index write is reported as an undurable
+live failure and closes admission until restart. Startup recovery owns the orphan
+transition; the running coordinator must not report a durable terminal write that
+did not happen.

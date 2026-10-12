@@ -68,29 +68,63 @@ def serve(config, connection) -> int:
                     control.cancel()
                     return
 
+        def start_sender():
+            nonlocal sender
+            from pathlib import Path
+            from simulatte.execution.spool import Spool
+            from simulatte.execution.transfer import SegmentSender
+
+            spool = Spool(Path(config["attempt_dir"]) / "spool", control=control)
+            sender = SegmentSender(spool, send)
+            sender.start()
+            return spool
+
+        def send(kind, body, **kwargs):
+            channel.send(kind, body, key=key, **kwargs)
+
         threading.Thread(target=controls, daemon=True).start()
         control.check()
         if command.type == "inspect":
             from simulatte.execution.bootstrap import inspect_configuration
 
             control.phase = "inspecting"
+            inspection = None
+            if "inspection_ref" in command.body:
+                from simulatte.execution.references import read_document
+                from simulatte.execution.schema import InspectionRequest, inspection_id
+                from simulatte.execution.runtime import verify_runtime
+
+                inspection = InspectionRequest.from_dict(read_document(command.body["inspection_ref"], "request"))
+                if inspection_id(inspection) != key.request_id or inspection.model != config["reference"]:
+                    raise ValueError("Inspection request does not match assignment")
+                verify_runtime(config, inspection.runtime)
             metadata = inspect_configuration(config)
+            if inspection is not None:
+                verify_runtime(config, inspection.runtime)
             control.check()
-            channel.send("model_info", {"metadata": metadata, "pid": os.getpid()}, key=key)
+            if config.get("metadata_artifacts", False):
+                from simulatte.execution.driver import metadata_segment
+
+                spool = start_sender()
+                reference = metadata_segment(spool, "model-info", metadata)
+                assert sender is not None
+                sender.finish()
+                sender.wait()
+                channel.send("model_info", {"metadata_ref": reference, "pid": os.getpid()}, key=key)
+            else:
+                channel.send("model_info", {"metadata": metadata, "pid": os.getpid()}, key=key)
         else:
-            from pathlib import Path
             from simulatte.execution.driver import execute
-            from simulatte.execution.spool import Spool
-            from simulatte.execution.transfer import SegmentSender
 
-            spool = Spool(Path(config["attempt_dir"]) / "spool", control=control)
+            spool = start_sender()
+            assert sender is not None
+            if "request_ref" in command.body:
+                from simulatte.execution.references import read_document
 
-            def send(kind, body, **kwargs):
-                channel.send(kind, body, key=key, **kwargs)
-
-            sender = SegmentSender(spool, send)
-            sender.start()
-            proposal = execute(config, command.body["request"], key, control, spool, send)
+                request = read_document(command.body["request_ref"], "request")
+            else:
+                request = command.body["request"]
+            proposal = execute(config, request, key, control, spool, send)
             sender.finish()
             sender.wait()
             channel.send("result", {"proposal": proposal, "pid": os.getpid()}, key=key)

@@ -540,3 +540,17 @@ def test_git_membership_inconsistency_refuses_capture(tmp_path, mode):
         shutil.rmtree(tmp_path / ".git")
     with pytest.raises(ValueError, match="conflicts|Submodule|Git source"):
         m.capture_source(spec)
+
+
+def test_project_discovery_normalizes_symlinked_parent_without_losing_model_name(tmp_path):
+    from simulatte.execution.snapshot import discover_project
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "plant.py").write_text("pass\n")
+    (real / "pyproject.toml").write_text('[tool.simulatte.bundle]\ninclude=["plant.py"]\n')
+    alias = tmp_path / "alias"
+    alias.symlink_to(real, target_is_directory=True)
+    project = discover_project(alias / "plant.py")
+    assert project.root == real.resolve()
+    assert project.model == "plant.py"

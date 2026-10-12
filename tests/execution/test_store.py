@@ -266,3 +266,17 @@ def test_failed_assignment_transaction_does_not_supersede_previous(tmp_path):
         assert store.attempt(first)["status"] == "queued"
         with store._transaction() as db:
             assert db.execute("SELECT count(*) FROM requests").fetchone()[0] == 1
+
+
+def test_recovery_removes_read_only_detached_snapshot_directories(tmp_path):
+    m = api()
+    root = tmp_path / ".simulatte"
+    with m.RunStore.open(root):
+        snapshot = root / "staging" / "orphan" / "snapshot"
+        snapshot.mkdir(parents=True)
+        path = snapshot / "plant.py"
+        path.write_text("# captured source\n")
+        path.chmod(0o444)
+        snapshot.chmod(0o555)
+    with m.RunStore.open(root):
+        assert not list((root / "staging").iterdir())

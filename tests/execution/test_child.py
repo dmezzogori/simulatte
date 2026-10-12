@@ -142,7 +142,13 @@ def test_private_run_transfers_metadata_with_ack_and_terminal_cleanup(tmp_path, 
     try:
         channel.send("hello", {})
         assert channel.receive(2).type == "hello"
-        channel.send("run", {"request": {}}, key=key)
+        if failure is None:
+            from simulatte.execution.references import write_document
+
+            body = {"request_ref": write_document(tmp_path / "documents", "request", {})}
+        else:
+            body = {"request": {}}
+        channel.send("run", body, key=key)
         transferred = 0
         while True:
             message = channel.receive(3)
@@ -182,3 +188,94 @@ def test_private_run_transfers_metadata_with_ack_and_terminal_cleanup(tmp_path, 
         stream.close()
         left.close()
         thread.join(3)
+
+
+def test_inspection_metadata_larger_than_control_frame_uses_durable_fragments(tmp_path, monkeypatch):
+    from dataclasses import asdict
+    from simulatte.execution import schema
+    from simulatte.execution.receipts import SegmentReceiver
+    from simulatte.execution.store import RunStore
+    from simulatte._wire import unpack
+
+    metadata = {"selected": "build", "models": [{"description": "x" * (2 << 20)}]}
+    monkeypatch.setattr(bootstrap, "inspect_configuration", lambda config: metadata)
+    left, right = socket.socketpair()
+    stream = left.makefile("rwb", buffering=0)
+    channel = FramedChannel(stream, stream)
+    results = []
+    thread = threading.Thread(
+        target=lambda: results.append(child.serve({"attempt_dir": str(tmp_path), "metadata_artifacts": True}, right))
+    )
+    thread.start()
+    with RunStore.open(tmp_path / "store") as store:
+        key = store.assign_inspection(
+            schema.InspectionRequest(model="plant.py", source_hash="a" * 64, runtime={}), store.create_revision({})
+        )
+        store.transition(key, "preparing")
+        receiver = SegmentReceiver(store, key)
+        try:
+            channel.send("hello", {})
+            assert channel.receive(2).type == "hello"
+            channel.send("inspect", {}, key=key)
+            while True:
+                message = channel.receive(3)
+                if message.type != "artifact_fragment":
+                    break
+                receipt = receiver.receive(
+                    _plain(message.body["segment"]), _plain(message.body["fragment_offset"]), message.payload
+                )
+                channel.send("ack", asdict(receipt), key=key)
+            assert message.type == "model_info", message.body
+            reference = _plain(message.body["metadata_ref"])
+            assert _plain(unpack(receiver.segment_path(reference["id"]).read_bytes())) == metadata
+            thread.join(3)
+            assert results == [0]
+            store.complete_inspection(key, reference, execution_exited=True, descendants_cleaned=True)
+        finally:
+            try:
+                left.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            channel.close()
+            stream.close()
+            left.close()
+            thread.join(3)
+
+
+@pytest.mark.parametrize("mismatch", [None, "identity", "reference"])
+def test_inspection_reference_is_bound_to_assignment_and_runtime(tmp_path, monkeypatch, mismatch):
+    from simulatte.execution import runtime
+    from simulatte.execution.schema import InspectionRequest, inspection_id
+    from simulatte.execution.references import write_document
+
+    request = InspectionRequest(model="plant.py:build", source_hash="a" * 64, runtime={})
+    reference = write_document(tmp_path, "request", request.to_dict())
+    checked = []
+    monkeypatch.setattr(runtime, "verify_runtime", lambda config, value: checked.append(value))
+    monkeypatch.setattr(bootstrap, "inspect_configuration", lambda config: {"selected": "build", "models": []})
+    config = {"reference": "other.py" if mismatch == "reference" else request.model}
+    left, right = socket.socketpair()
+    stream = left.makefile("rwb", buffering=0)
+    channel = FramedChannel(stream, stream)
+    results = []
+    thread = threading.Thread(target=lambda: results.append(child.serve(config, right)))
+    thread.start()
+    key = AttemptKey("b" * 64 if mismatch == "identity" else inspection_id(request), "c" * 32, 1)
+    try:
+        channel.send("hello", {})
+        assert channel.receive(2).type == "hello"
+        channel.send("inspect", {"inspection_ref": reference}, key=key)
+        message = channel.receive(2)
+        assert message.type == ("model_info" if mismatch is None else "error")
+        assert len(checked) == (2 if mismatch is None else 0)
+        thread.join(2)
+        assert results == [0 if mismatch is None else 2]
+    finally:
+        try:
+            left.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        channel.close()
+        stream.close()
+        left.close()
+        thread.join(2)

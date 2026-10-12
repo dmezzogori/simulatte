@@ -33,6 +33,7 @@ _CAPABILITIES = frozenset(
         "bounded-diagnostics",
         "ordinary-descendant-cleanup",
         "ready-barrier",
+        "metadata-artifacts",
     }
 )
 
@@ -220,7 +221,13 @@ class Supervisor:
                 self.child.cancel()
             else:
                 assert self.child.channel is not None
-                self.child.channel.send(message.type, dict(message.body), key=self.child.key)
+                try:
+                    self.child.channel.send(message.type, dict(message.body), key=self.child.key)
+                except OSError:
+                    # A receipt ACK can race with a failed child's clean EOF.
+                    # Poll/drain its terminal proposal before classifying loss;
+                    # a late control must not replace the actual child error.
+                    pass
         else:
             raise ValueError("Unsupported supervisor command")
 

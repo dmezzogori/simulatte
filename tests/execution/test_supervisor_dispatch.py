@@ -262,3 +262,19 @@ def test_required_capabilities_are_checked_before_scheduling():
     assert hello["limits"]["fragment_bytes"] == 1 << 20
     assert hello["runtime"]["python"]
     assert hello["runtime"]["simulatte_version"]
+
+
+@pytest.mark.parametrize("control", ["ack", "ready_ack"])
+@pytest.mark.parametrize("terminal,code", [("error", 2), ("result", 0)])
+def test_late_control_after_private_eof_does_not_mask_terminal_proposal(monkeypatch, control, terminal, code):
+    body = {"phase": "preparing", "message": "build refused"} if terminal == "error" else {"proposal": {}}
+    root, child, output, controls = actor(monkeypatch, [message(terminal, body)], code=code)
+
+    def closed(*args, **kwargs):
+        raise OSError("Worker channel closed")
+
+    child.channel.send = closed
+    root._command(message(control))
+    root._poll_child()
+    assert output == [(terminal, body, {"key": KEY})]
+    assert controls == [("closed",)]

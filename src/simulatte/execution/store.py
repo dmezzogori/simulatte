@@ -19,7 +19,15 @@ from typing import Any
 from simulatte._wire import canonical_pack, freeze, unpack
 from simulatte.execution.hashing import canonical_hash
 from simulatte.execution.durability import sync_directory
-from simulatte.execution.schema import AttemptKey, ExecutionRequest, Revision, request_id, _plain
+from simulatte.execution.schema import (
+    AttemptKey,
+    ExecutionRequest,
+    InspectionRequest,
+    Revision,
+    request_id,
+    inspection_id,
+    _plain,
+)
 
 
 class StoreBusy(RuntimeError):
@@ -115,6 +123,14 @@ def _remove(path: Path) -> None:
     if path.is_symlink() or not path.is_dir():
         path.unlink()
     else:
+        # Detached snapshots are deliberately read-only. Recovery owns these
+        # trees; make ordinary entries removable without following symlinks.
+        path.chmod(0o700)
+        for directory, directories, files in os.walk(path, followlinks=False):
+            for name in directories + files:
+                item = Path(directory) / name
+                if not item.is_symlink():
+                    item.chmod(0o700 if item.is_dir() else 0o600)
         shutil.rmtree(path)
 
 
@@ -218,7 +234,12 @@ class RunStore:
             return revision
 
     def assign(self, request: ExecutionRequest, revision: Revision) -> AttemptKey:
-        identity = request_id(request)
+        return self._assign(request_id(request), request.to_dict(), revision)
+
+    def assign_inspection(self, request: InspectionRequest, revision: Revision) -> AttemptKey:
+        return self._assign(inspection_id(request), request.to_dict(), revision)
+
+    def _assign(self, identity: str, body: dict, revision: Revision) -> AttemptKey:
         with self._transaction() as db:
             if revision != self._current_revision(db):
                 raise RevisionConflict("Cannot assign an obsolete revision")
@@ -227,7 +248,7 @@ class RunStore:
             now = time.time()
             if row[1] is not None:
                 db.execute("UPDATE attempts SET status='superseded',updated=? WHERE id=?", (now, row[1]))
-            db.execute("INSERT OR IGNORE INTO requests VALUES (?,?)", (identity, _blob(request.to_dict())))
+            db.execute("INSERT OR IGNORE INTO requests VALUES (?,?)", (identity, _blob(body)))
             db.execute(
                 "INSERT INTO attempts VALUES (?,?,?,?,?,?,?,?)",
                 (
@@ -301,6 +322,58 @@ class RunStore:
             if request_id(request) != identity:
                 raise ValueError("Stored execution request identity mismatch")
             return request
+
+    def inspection_request(self, identity: str) -> InspectionRequest:
+        with self._transaction() as db:
+            row = db.execute("SELECT body FROM requests WHERE id=?", (identity,)).fetchone()
+            if row is None:
+                raise KeyError(identity)
+            request = InspectionRequest.from_dict(_read(row[0]))
+            if inspection_id(request) != identity:
+                raise ValueError("Stored inspection request identity mismatch")
+            return request
+
+    def complete_inspection(
+        self,
+        key: AttemptKey,
+        reference: dict,
+        *,
+        execution_exited: bool,
+        descendants_cleaned: bool,
+        document: dict | None = None,
+    ) -> None:
+        from simulatte.execution.receipts import validate_descriptor
+
+        if not execution_exited or not descendants_cleaned:
+            raise ValueError("Inspection completion requires exit and cleanup")
+        reference = validate_descriptor(reference)
+        if reference["stream"] != "metadata/model-info" or reference["offset"] != 0:
+            raise ValueError("Invalid inspection metadata reference")
+        self.inspection_request(key.request_id)
+        if document is not None:
+            from simulatte.execution.references import read_document
+
+            read_document(document, "model-info")
+        with self._transaction() as db:
+            row = self._require_active(db, key)
+            if row["status"] != "preparing":
+                raise ValueError("Inspection is not preparing")
+            receipt = db.execute(
+                "SELECT * FROM receipts WHERE attempt=? AND id=?", (key.attempt_id, reference["id"])
+            ).fetchone()
+            if receipt is None or any(receipt[name] != value for name, value in reference.items()):
+                raise ValueError("Inspection metadata receipt mismatch")
+            if db.execute("SELECT 1 FROM uploads WHERE attempt=?", (key.attempt_id,)).fetchone():
+                raise ValueError("Inspection has incomplete metadata uploads")
+            db.execute(
+                "UPDATE attempts SET status='succeeded',updated=?,details=? WHERE id=?",
+                (
+                    time.time(),
+                    _blob({"kind": "inspection", "metadata": reference, "document": document}),
+                    key.attempt_id,
+                ),
+            )
+            db.execute("UPDATE state SET active=NULL WHERE singleton=1")
 
     def result(self, attempt_id: str):
         from simulatte.execution.publication import PublishedResult

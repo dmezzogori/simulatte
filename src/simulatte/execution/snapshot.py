@@ -28,6 +28,7 @@ from urllib.request import url2pathname
 from simulatte.execution.hashing import canonical_hash
 from simulatte._wire import pack, unpack, freeze
 from simulatte.execution.schema import _hash
+from simulatte.execution.durability import replace_durable, sync_directory
 
 _RESERVED = {".git", ".simulatte", ".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
 
@@ -130,6 +131,7 @@ def discover_project(
     model_path: str | Path, explicit_root: str | Path | None = None, *, layout: str = "layout.json"
 ) -> ProjectSpec:
     model = Path(model_path).absolute()
+    model = model.parent.resolve() / model.name
     if explicit_root is not None:
         root = Path(explicit_root).resolve()
     else:
@@ -352,7 +354,7 @@ def _publish(project: ProjectSpec, entries: tuple[Entry, ...], tree: Path, kind:
             if _digest_file(archive) != digest:
                 raise ValueError("Stored snapshot archive hash mismatch")
         else:
-            os.replace(temporary, archive)
+            replace_durable(Path(temporary), archive)
     finally:
         Path(temporary).unlink(missing_ok=True)
     manifest = archive.with_suffix(".msgpack")
@@ -365,9 +367,11 @@ def _publish(project: ProjectSpec, entries: tuple[Entry, ...], tree: Path, kind:
         stream.flush()
         os.fsync(stream.fileno())
     try:
-        os.replace(manifest_temp, manifest)
+        replace_durable(manifest_temp, manifest)
     finally:
         manifest_temp.unlink(missing_ok=True)
+    sync_directory(directory.parent)
+    sync_directory(directory.parent.parent)
     return SourceSnapshot(project, entries, archive, identity, digest)
 
 
