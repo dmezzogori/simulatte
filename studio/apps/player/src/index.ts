@@ -132,8 +132,9 @@ async function start() {
   playback.subscribe((frame, status, failure) => {
     scene.setPlaying(status === "playing");
     if (failure) error.textContent = String(failure);
-    play.textContent =
-      status === "playing" || status === "buffering" ? "Pause" : "Play";
+    const playLabel = status === "playing" || status === "buffering" ? "Pause" : "Play";
+    // Preserve the pressed text node across frames so WebKit delivers the click.
+    if (play.textContent !== playLabel) play.textContent = playLabel;
     play.disabled =
       !frame ||
       !recording.finiteRange ||

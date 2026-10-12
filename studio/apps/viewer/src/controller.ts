@@ -472,8 +472,9 @@ export class Controller {
         recording.trace.level !== "full" ||
         !recording.historyEnd ||
         !!(current && compare(current, recording.historyEnd) >= 0);
-    this.playButton.textContent =
-      status === "playing" || status === "buffering" ? "Pause" : "Play";
+    const playLabel = status === "playing" || status === "buffering" ? "Pause" : "Play";
+    // Preserve the pressed text node across frames so WebKit delivers the click.
+    if (this.playButton.textContent !== playLabel) this.playButton.textContent = playLabel;
     if (error) this.onError?.(String(error));
     if (frame && frame !== this.#frame) {
       this.#frame = frame;

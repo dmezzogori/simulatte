@@ -219,8 +219,8 @@ the supervisor, so an unresponsive model can still be cancelled. POSIX cleanup
 uses an independent guardian and process groups, including cleanup after parent
 exit; deliberately detached sessions are outside this guarantee. Windows uses
 suspended creation and Job assignment before execution, and refuses assignment
-failure. Native Windows acceptance is still pending; API unit checks are not a
-substitute for that evidence.
+failure. CI exercises native Windows Job Object containment; mocked API checks
+alone are not a substitute for native evidence.
 
 Worker trace output now uses durable segments at existing record boundaries.
 Temporary reservations and committed files share a 256 MiB / 1,024-file quota;
