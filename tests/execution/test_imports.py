@@ -317,6 +317,74 @@ def test_relative_package_model_selection_and_policy_origins(tmp_path, monkeypat
                 sys.modules.pop(name)
 
 
+@pytest.mark.parametrize(
+    ("prefix", "import_paths", "regular_packages", "filename"),
+    [
+        ("", (".",), (), "model.py"),
+        ("", (".",), ("plant",), "model.py"),
+        ("", (".",), ("plant/section",), "model.py"),
+        ("src/", ("src",), (), "model.py"),
+        ("src/", (".", "src"), (), "model.py"),
+        ("src/", (".", "src"), ("plant",), "model.py"),
+        ("src/", ("src", "."), ("plant/section",), "model.py"),
+        ("src/", (".", "src"), ("plant",), "__init__.py"),
+    ],
+)
+def test_model_relative_imports_use_declared_namespace_roots(
+    tmp_path, prefix, import_paths, regular_packages, filename
+):
+    snapshot = tmp_path / "snapshot"
+    package = snapshot / prefix / "plant"
+    section = package / "section"
+    section.mkdir(parents=True)
+    for name in regular_packages:
+        (snapshot / prefix / name / "__init__.py").write_text("")
+    (package / "outer.py").write_text("OFFSET=3\n")
+    (section / "helpers.py").write_text("VALUE=9\n")
+    (section / filename).write_text(
+        "from dataclasses import dataclass\nfrom .helpers import VALUE\nfrom ..outer import OFFSET\n"
+        "import simulatte\nassert __package__ == 'plant.section'\n"
+        "@dataclass(frozen=True)\nclass Params: n:int=VALUE+OFFSET\n"
+        "@simulatte.model(params=Params,horizon=1)\ndef build(env,layout,params): pass\n"
+    )
+    config = {
+        "project_root": str(tmp_path / "project"),
+        "snapshot_root": str(snapshot),
+        "snapshot_roots": [str(snapshot / name) for name in import_paths],
+        "external_roots": [str(RUNTIME), SITE],
+        "reference": prefix + "plant/section/" + filename,
+    }
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", str(RUNTIME / "simulatte/execution/bootstrap.py")],
+        input=json.dumps(config),
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    metadata = json.loads(result.stdout)
+    assert metadata["models"][0]["parameters"]["fields"][0]["default"] == 12
+    module_name = "plant.section" if filename == "__init__.py" else "plant.section.model"
+    assert metadata["imports"][module_name] == "snapshot:" + prefix + "plant/section/" + filename
+    assert metadata["imports"]["plant.section.helpers"] == "snapshot:" + prefix + "plant/section/helpers.py"
+
+
+@pytest.mark.parametrize("reference", ["plant.py", "examples/demo-model.py", "examples-with-dash/model.py"])
+def test_standalone_models_keep_private_module_names(tmp_path, reference, monkeypatch):
+    from simulatte.execution.bootstrap import inspect_model
+
+    path = tmp_path / reference
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "from dataclasses import dataclass\nimport simulatte\n"
+        "assert __name__ == '_simulatte_model'\n"
+        "@dataclass(frozen=True)\nclass Params: n:int=2\n"
+        "@simulatte.model(params=Params,horizon=1)\ndef build(env,layout,params): pass\n"
+    )
+    monkeypatch.setitem(sys.modules, "_simulatte_model", None)
+    assert inspect_model(reference, (tmp_path,))["selected"] == "build"
+
+
 def test_ambiguous_local_roots_and_editable_allowlist_are_rejected(tmp_path):
     from simulatte.execution.imports import ImportPolicy
 

@@ -15,23 +15,24 @@ import sys
 from typing import Any
 
 
-def load_model(reference: str, roots: tuple[Path, ...]):
+def load_model(reference: str, roots: tuple[Path, ...], *, source_root: Path | None = None):
     from simulatte.model import get_model_spec
 
+    source_root = roots[0] if source_root is None else source_root
     relative, separator, selected = reference.partition(":")
-    candidate = (roots[0] / relative).resolve()
-    if not candidate.is_relative_to(roots[0]) or candidate.suffix != ".py" or not candidate.is_file():
+    candidate = (source_root / relative).resolve()
+    if not candidate.is_relative_to(source_root) or candidate.suffix != ".py" or not candidate.is_file():
         raise ValueError("Model reference must name a Python file inside the snapshot")
-    # Give package models their normal module name for relative imports; standalone
-    # scripts receive a private stable name and can import sibling snapshot modules.
+    # Package context follows declared import roots, including namespace packages.
+    # Prefer the closest root so a configured src directory is not itself a package.
+    # Root-level scripts and paths that cannot be module names retain private names.
     module_name = "_simulatte_model"
-    parent = candidate.parent
-    parts = [candidate.stem]
-    while parent != roots[0] and (parent / "__init__.py").is_file():
-        parts.insert(0, parent.name)
-        parent = parent.parent
-    if len(parts) > 1:
-        module_name = ".".join(parts)
+    containing = [root for root in roots if candidate.is_relative_to(root)]
+    if containing:
+        import_root = max(containing, key=lambda root: len(root.parts))
+        parts = candidate.relative_to(import_root).with_suffix("").parts
+        if len(parts) > 1 and all(part.isidentifier() for part in parts):
+            module_name = ".".join(parts[:-1] if parts[-1] == "__init__" else parts)
     spec = importlib.util.spec_from_file_location(module_name, candidate)
     if spec is None or spec.loader is None:
         raise ValueError("Cannot load model file")
@@ -99,7 +100,7 @@ def load_configuration(config: dict[str, Any]):
 
     sys.addaudithook(audit_open)
     try:
-        result, build = load_model(config["reference"], (source_root,))
+        result, build = load_model(config["reference"], snapshot, source_root=source_root)
         declarations = {name for model in result["models"] for name in model["inputs"]}
         if opened & declarations:
             raise ValueError("Declared data inputs must be read during build, not model import")

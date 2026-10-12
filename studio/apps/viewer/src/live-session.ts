@@ -95,7 +95,7 @@ export class LiveSession {
         this.#live = opened;
         const recording = opened.snapshot();
         const oldPosition = this.#playback?.frame;
-        const playing = this.#playback?.status === 'playing';
+        const playing = this.#playback?.playRequested;
         const rate = this.#rate;
         this.#unsubscribe?.(); this.#playback?.dispose();
         const session = new Session(recording, this.#presentation); session.setSeries(this.#series);

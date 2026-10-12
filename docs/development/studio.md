@@ -284,13 +284,16 @@ restore that local history. Layout files retain the existing 16 MiB limit.
 
 Studio opens a verified live prefix when the worker reaches INITIAL. Playback
 starts at activation. **Follow live** moves to the newest committed simulation
-time; seeking or stepping returns to manual playback. The execution progress
-line separately reports simulation time, event count, worker liveness, stalled
+time; seeking or stepping returns to manual playback. New live prefixes preserve
+playback intent, including while a frame is loading; a manual seek stays paused.
+The execution progress line separately reports simulation time, event count,
+worker liveness, stalled
 execution and trace-storage backpressure. Run diagnostics retain a bounded tail
 and identify the originating revision and attempt.
 
 **Run history** selects one of the latest 20 committed attempts with its recorded
-layout. Selection stays pinned until **Follow live**. The current presentation
+layout, clearing any presentation edits even when that run is already open.
+Selection stays pinned until **Follow live**. The current presentation
 can change without rewriting the trace or rerunning the model. HTML, video and
 PNG exports pin the selected committed run and presentation; a later edit or
 run cannot change an open export dialog. Live export becomes available only
@@ -360,8 +363,11 @@ are rejected; in-project links are materialized as bytes. Captures are capped at
 part of input identity. The configured `layout.json` is captured separately and
 cannot also be a declared input. Use `--layout PATH` to select another layout.
 
-Imports from the project must resolve to captured files. Installed dependencies
-must be available in the selected Python environment; external editable sources
+Imports from the project must resolve to captured files. Models in regular or
+namespace packages support relative imports; their package name is relative to
+the closest enclosing `python-path` root, including a configured `src` root.
+Installed dependencies must be available in the selected Python environment;
+external editable sources
 and unverifiable loaders are refused. Adding or deleting a module can change
 input identity, including negative dependencies. The watcher combines native
 notifications with content rescans, so atomic saves and same-mtime edits matter.

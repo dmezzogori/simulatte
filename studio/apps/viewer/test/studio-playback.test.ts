@@ -53,3 +53,56 @@ it('applies a presentation-only update without reopening the trace and drops lat
   expect(controller.open).toHaveBeenCalledTimes(1);
   expect(controller.setPresentation).not.toHaveBeenCalled(); playback.dispose();
 });
+
+it('restores the recorded layout when selecting the already-open history entry', async () => {
+  vi.spyOn(HttpSource, 'open').mockImplementation(async url => ({url} as HttpSource));
+  const {controller, playback} = setup();
+  playback.update(state('a')); await flush();
+  playback.select(result('a').trace, 1, null); await flush();
+  expect(controller.setPresentation).toHaveBeenCalledWith(null);
+  expect(controller.open).toHaveBeenCalledTimes(1);
+  playback.resume(); playback.update(state('a'));
+  // Returning to live presentation must fetch and apply the overlay again.
+  await flush();
+  expect(controller.setPresentation).toHaveBeenLastCalledWith({schema_version: '1.0'});
+  playback.dispose();
+});
+it('drops a pending presentation read when history selects the recorded layout', async () => {
+  vi.spyOn(HttpSource, 'open').mockImplementation(async url => ({url} as HttpSource));
+  const {controller, client, playback} = setup();
+  playback.update(state('a')); await flush();
+  let resolve: (value: {schema_version: string}) => void = () => {};
+  client.reference.mockImplementationOnce(() => new Promise(done => {resolve = done;}));
+  const changed = state('a'); changed.view = {...view('a'), layout: ref('c')};
+  playback.update(changed);
+  playback.select(result('a').trace, 1, null); await flush();
+  resolve({schema_version: '1.0'}); await flush();
+  expect(controller.setPresentation).toHaveBeenCalledExactlyOnceWith(null);
+  playback.dispose();
+});
+it('supersedes an opening presentation when history selects the same attempt', async () => {
+  vi.spyOn(HttpSource, 'open').mockImplementation(async url => ({url} as HttpSource));
+  const {controller, client, playback} = setup();
+  let resolve: (value: {schema_version: string}) => void = () => {};
+  client.reference.mockImplementationOnce(() => new Promise(done => {resolve = done;}));
+  playback.update(state('a')); await flush();
+  playback.select(result('a').trace, 1, null); await flush();
+  resolve({schema_version: '1.0'}); await flush();
+  expect(controller.open).toHaveBeenCalledExactlyOnceWith({url: '/trace/a'}, 'Run · revision 1', null, undefined);
+  playback.dispose();
+});
+it('supersedes a controller open that has exposed its source before preparing playback', async () => {
+  vi.spyOn(HttpSource, 'open').mockImplementation(async url => ({url} as HttpSource));
+  const {controller, playback} = setup();
+  let release: () => void = () => {};
+  controller.open.mockImplementationOnce(async source => {
+    controller.source = source as null;
+    await new Promise<void>(resolve => {release = resolve;});
+  });
+  playback.update(state('a')); await flush();
+  playback.select(result('a').trace, 1, null); await flush();
+  // A second open advances the Controller's own generation and fences its old load.
+  expect(controller.open).toHaveBeenCalledTimes(2);
+  expect(controller.open).toHaveBeenLastCalledWith({url: '/trace/a'}, 'Run · revision 1', null, undefined);
+  release(); await flush(); playback.dispose();
+});

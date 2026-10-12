@@ -515,6 +515,10 @@ export class Playback {
   get status(): PlaybackStatus {
     return this.#status;
   }
+  /** Playback intent survives asynchronous frame preparation and hidden tabs. */
+  get playRequested(): boolean {
+    return this.#wanted;
+  }
   get rate(): number {
     return this.#rate;
   }

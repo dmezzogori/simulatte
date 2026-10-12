@@ -20,6 +20,10 @@ export class StudioPlayback {
   detach(): void {this.#detached = true; this.cancelPending(); this.#live = null; this.#attempt = null; this.#layout = null;}
   select(prefix: Prefix, revision: number, view: View | null): void {
     this.#detached = true;
+    // Controller.open exposes its source before playback preparation finishes.
+    // Force another open to fence that operation through the Controller as well.
+    if (this.#opening !== null) this.#attempt = null;
+    this.cancelPending();
     this.openCommitted(prefix, revision, view);
   }
   resume(): void {this.#detached = false; if (this.client.state) this.update(this.client.state);}
@@ -78,7 +82,15 @@ export class StudioPlayback {
   private openCommitted(prefix: Prefix, revision: number, view: View | null): void {
     if (this.#opening === prefix.attempt) return;
     if (this.#attempt === prefix.attempt && !this.#live && this.controller.source) {
-      this.applyView(view, this.#epoch); return;
+      if (view) this.applyView(view, this.#epoch);
+      else if (this.#layout !== null) {
+        const epoch = this.cancelPending();
+        this.#layout = null;
+        void this.controller.setPresentation(null).catch(error => {
+          if (epoch === this.#epoch) this.onError(String(error));
+        });
+      }
+      return;
     }
     const position = this.#attempt === prefix.attempt ? this.#live?.frame ?? undefined : undefined;
     const rate = this.controller.playback?.rate ?? 1;

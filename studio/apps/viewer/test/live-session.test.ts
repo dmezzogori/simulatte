@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto';
-import {expect, it} from 'vitest';
+import {expect, it, vi} from 'vitest';
+import {Session} from '@simulatte/playback';
 import {LiveSession} from '../src/live-session';
 import {buildTrace} from '../../../packages/trace/test/build';
 import type {PrefixDescriptor} from '@simulatte/trace';
@@ -118,4 +119,28 @@ it('keeps playback controls across prefixes and detaches frame listeners', async
   expect(frames).toBe(count);
   expect(() => {session.rate = NaN;}).toThrow(/rate/);
   session.dispose();
+});
+
+it.each(['play', 'seek'] as const)('preserves %s intent when a prefix arrives during frame preparation', async action => {
+  let tick: (now: number) => void = () => {};
+  const session = new LiveSession(provider, {clock: {request: callback => {tick = callback; return 1;}, cancel: () => {}}});
+  session.reset(attempt, 'r'); session.update(prefix(1)); await session.idle();
+  await session.seekTime(0);
+  const prepare = Session.prototype.prepare;
+  let release: () => void = () => {};
+  const blocked = new Promise<void>(resolve => {release = resolve;});
+  const spy = vi.spyOn(Session.prototype, 'prepare').mockImplementationOnce(async function (this: Session, ...args) {
+    await blocked;
+    return prepare.apply(this, args);
+  });
+  let seeking: Promise<void> | undefined;
+  try {
+    if (action === 'play') {session.play(); tick(0); tick(100);}
+    else seeking = session.seekTime(0.5);
+    expect(session.status).toBe('buffering');
+    session.update(prefix(2)); await session.idle();
+    expect(session.status).toBe(action === 'play' ? 'playing' : 'paused');
+  } finally {
+    release(); await seeking; session.dispose(); spy.mockRestore();
+  }
 });
