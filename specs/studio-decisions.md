@@ -408,3 +408,29 @@ A watcher or background-read permission failure pauses execution. If the index
 cannot persist invalidation, admission closes, queued work is discarded and the
 failure is explicitly marked `index_terminal_state: not_durable`. Last committed
 results remain distinct from current invalid or provisional inputs.
+
+**D87. Live reader generations share bounded caches, not mutable query metadata.**
+A committed prefix is identified by attempt, monotonic generation, byte length and
+SHA-256. Coalescing may skip notification generations, but every byte in the
+new extent is read and hashed; missing bytes or a mismatched cumulative digest
+reject the extension. Original prefix extents retain their original immutable
+byte sources. Metadata parsing starts at the previous committed boundary and
+publishes a new query view only after successful validation. Old views retain
+their catalog, bounds and KPI declarations.
+
+Use pinned `@noble/hashes` 2.0.1 for incremental SHA-256 state and cloning, with
+1 MiB digest reads. The [primary API documentation](https://github.com/paulmillr/noble-hashes/tree/2.0.1)
+and installed package source confirm incremental updates, cloned state and ESM
+subpath imports; its Node >=20.19 requirement fits the existing Node >=22 workspace.
+No full-prefix buffering or from-zero rehash is introduced. Standalone reader
+bundle verification includes this dependency and still prohibits runtime network
+and filesystem access.
+
+Generations share the existing decoded-cache bounds and a two-read byte-source
+scheduler. Each candidate's new chunks get distinct cache identities, so a
+candidate rejected during metadata validation cannot contaminate a later one.
+Previously committed chunk identities remain reusable. The live playback adapter
+retains one newest pending notification and fences both reads and frames on an
+attempt/revision change. Follow is explicit; manual seek, step and playback leave
+Follow. Terminal status is supplied by the coordinator, never inferred from a
+missing or present trace footer.

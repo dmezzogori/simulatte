@@ -165,6 +165,10 @@ importers:
         version: 3.2.7(@types/node@24.19.1)
 
   packages/trace:
+    dependencies:
+      '@noble/hashes':
+        specifier: 2.0.1
+        version: 2.0.1
     devDependencies:
       '@types/node':
         specifier: 24.19.1
@@ -442,6 +446,10 @@ packages:
     cpu: [x64]
     os: [linux]
     libc: [glibc]
+
+  '@noble/hashes@2.0.1':
+    resolution: {integrity: sha512-XlOlEbQcE9fmuXxrVTXCTlG2nlRXa9Rj3rr5Ue/+tX+nmkgbX720YHh0VR3hBF9xDvwnb8D2shVGOwNx+ulArw==}
+    engines: {node: '>= 20.19.0'}
 
   '@pixi/colord@2.9.6':
     resolution: {integrity: sha512-nezytU2pw587fQstUu1AsJZDVEynjskwOL+kibwcdxsMBFqPsFFNA7xl0ii/gXuDi6M0xj3mfRJj8pBSc2jCfA==}
@@ -1244,6 +1252,8 @@ snapshots:
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
+
+  '@noble/hashes@2.0.1': {}
 
   '@pixi/colord@2.9.6': {}
 

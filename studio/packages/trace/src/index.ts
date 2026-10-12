@@ -10,3 +10,6 @@ export type { ByteSource } from "./container";
 export { Replay, compare } from "./trace";
 
 export type { ExecutionProvenance } from "./execution";
+
+export { LiveRecording, PrefixSource, type PrefixDescriptor, type PrefixProvider } from "./live";
+export type { RecordingView } from "./recording";

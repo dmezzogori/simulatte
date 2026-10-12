@@ -28,7 +28,7 @@ it("uses the shared schema for geometry, atomic addresses, typed tombstones and 
 });
 
 it("bundles the canonical schema and opens layout metadata without runtime filesystem or network access", async () => {
-  const result = await build({ configFile: false, logLevel: "silent", build: {
+  const result = await build({ configFile: false, logLevel: "silent", ssr: {noExternal: ["@noble/hashes"]}, build: {
     ssr: fileURLToPath(new URL("../src/index.ts", import.meta.url)), write: false, minify: false,
   } });
   if (Array.isArray(result) || !("output" in result)) throw new Error("unexpected build result");

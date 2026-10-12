@@ -2,7 +2,7 @@ import {
   compare,
   type Cursor,
   type LayoutBundle,
-  type Recording,
+  type RecordingView,
   type Sample,
   type SeriesDisplay,
   type State,
@@ -106,7 +106,7 @@ class SeriesCursor {
   #finite: Sample | null = null;
   #rightFinite: Sample | null = null;
   constructor(
-    private recording: Recording,
+    private recording: RecordingView,
     private key: string,
   ) {}
   private async nextGroup(): Promise<void> {
@@ -204,7 +204,7 @@ export class Session {
   #eventAt: Cursor | null = null;
   #time: number | null = null;
   #prepared: Position | null = null;
-  constructor(readonly recording: Recording) {
+  constructor(readonly recording: RecordingView) {
     this.#replay = recording.trace.replay();
   }
   setSeries(keys: readonly string[]): void {

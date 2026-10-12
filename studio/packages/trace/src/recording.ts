@@ -139,6 +139,7 @@ export class Recording {
   #history: Cursor | null = null;
   #initialSeen = false;
   #epochs = 0;
+  #previousObserver: Cursor | null = null;
   get finiteRange(): readonly [number, number] | null {
     return this.#finite && Object.freeze([...this.#finite] as [number, number]);
   }
@@ -182,11 +183,25 @@ export class Recording {
     );
   }
   /** Index one record at a time, yielding to the browser between records. */
-  async load(signal?: AbortSignal): Promise<void> {
+  async load(signal?: AbortSignal, start = PREAMBLE_SIZE, previous?: Recording): Promise<void> {
     Object.assign(this.catalog, map(this.trace.header["catalog"]));
     Object.assign(this.kinds, map(this.trace.header["kinds"]));
-    let previousObserver: Cursor | null = null;
-    let pos = PREAMBLE_SIZE;
+    if (previous) {
+      Object.assign(this.catalog, previous.catalog);
+      Object.assign(this.kinds, previous.kinds);
+      Object.assign(this.scalars, previous.scalars);
+      Object.assign(this.seriesDisplay, previous.seriesDisplay);
+      previous.#seriesKeys.forEach(key => this.#seriesKeys.add(key));
+      this.#records = [...previous.#records];
+      this.#kpis = [...previous.#kpis];
+      this.#finite = previous.#finite && [...previous.#finite];
+      this.#history = previous.#history;
+      this.#initialSeen = previous.#initialSeen;
+      this.#epochs = previous.#epochs;
+      this.#previousObserver = previous.#previousObserver;
+    }
+    let previousObserver = this.#previousObserver;
+    let pos = start;
     const chunks = new Map(this.trace.index.map((info, i) => [info.offset, i]));
     while (pos < this.source.size) {
       signal?.throwIfAborted();
@@ -340,6 +355,7 @@ export class Recording {
       if ((this.#records.length + this.#kpis.length) % 64 === 0)
         await new Promise((resolve) => setTimeout(resolve, 0));
     }
+    this.#previousObserver = previousObserver;
     if (this.trace.endTime !== null) this.time(this.trace.endTime);
     for (const record of this.#records)
       if (
@@ -538,3 +554,6 @@ export class Recording {
     return Object.freeze(result);
   }
 }
+
+/** Query surface shared by static recordings and immutable live generations. */
+export type RecordingView = Omit<Recording, "load">;
