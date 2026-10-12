@@ -4,6 +4,8 @@ All notable changes to Simulatte are documented here.
 
 ## Unreleased
 
+## 0.16.0 — 2026-10-12
+
 - Added typed `@model` metadata, constraints and explicit horizon/finite-population
   stopping, preserving ordinary script calls and the existing `Runner`.
 - Added `simulatte run` and `simulatte studio`: immutable source/declared-input
@@ -16,7 +18,7 @@ All notable changes to Simulatte are documented here.
 - Trace container 1.3 adds optional execution provenance. Existing trace reading,
   verification, `simulatte view` and offline/media exports remain supported.
 
-### 0.16 migration (unreleased)
+### Migration
 
 - Core-only installs support `run`; install `[studio]` for the interactive server.
 - Managed models use frozen dataclass parameters and finish build before running
@@ -26,8 +28,6 @@ All notable changes to Simulatte are documented here.
   `Population`; an empty event queue alone is not completion.
 - Managed output belongs under `env.artifacts_dir`. The local `.simulatte` store
   has one coordinator owner; close Studio before headless execution in that project.
-- Native Windows, actual Safari live-edit acceptance and final CI remain release
-  checks; this entry does not announce 0.16 publication.
 
 ## 0.15.0 — 2026-10-11
 

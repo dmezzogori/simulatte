@@ -16,10 +16,9 @@ link if browser launch failed or another tab needs access. Reloading the origina
 tab works; copying its token-free address to a new tab does not grant trace access.
 Ctrl-C stops the server. A recording changed on disk must be reopened.
 
-The read-only viewer is available starting with 0.15. Its Safari MP4, export
-cancellation and standalone playback checks passed SP3 acceptance. The 0.16
-execution/editor work below is unreleased; actual Safari live-edit acceptance
-is a separate release gate.
+The read-only viewer is available starting with 0.15. Local model execution,
+parameter/layout editing and live playback are available starting with 0.16.
+See the acceptance report for platform-specific verification evidence.
 
 ## Make a recording
 
@@ -149,7 +148,7 @@ Production browser checks enforce a restrictive content security policy and test
 saved HTML with networking disabled. The acceptance evidence in `specs/research/`
 records measured workloads, limits and outstanding platform checks.
 
-## Model metadata and stopping (0.16 development)
+## Model metadata and stopping (0.16)
 
 The optional `@simulatte.model` decorator describes a build function without
 wrapping it: ordinary Python calls keep working. Use a frozen dataclass for
@@ -193,7 +192,7 @@ Arrivals exactly at a time cutoff are refused; completion exactly at the safety
 limit is accepted. Failure to drain is an error. These are model-control
 operations, not collector observations.
 
-The following managed workflow targets 0.16. Plain Python scripts and `Runner`
+The following managed workflow is available in 0.16. Plain Python scripts and `Runner`
 keep their existing execution path; adding metadata does not opt a script into
 managed execution.
 
@@ -237,9 +236,9 @@ index transaction. Recovery removes unindexed output rather than adopting it.
 Managed run and Studio use these same execution components. Each attempt gets
 a fresh execution process; the local supervisor is reused, with no warm spare.
 
-## Parameter and layout editing (0.16 development)
+## Parameter and layout editing (0.16)
 
-The development `simulatte studio MODEL.py` command serves the local editor.
+The `simulatte studio MODEL.py` command serves the local editor.
 It inspects a decorated model in a fresh process and runs once when the declared
 inputs and parameter defaults are valid. Missing required parameters open the
 form without starting a run. `simulatte run MODEL.py` uses the same execution
