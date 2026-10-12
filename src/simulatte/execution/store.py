@@ -42,6 +42,7 @@ class StaleAttempt(ValueError):
     pass
 
 
+_WINDOWS = os.name == "nt"
 _ACTIVE = ("queued", "preparing", "ready", "running", "finalizing")
 _TERMINAL = ("validation_failed", "failed", "cancelled", "lost", "superseded", "disk_full")
 _DDL = (
@@ -170,6 +171,13 @@ class RunStore:
                 raise ValueError("Store index is a symlink")
             store._db = db = sqlite3.connect(index, isolation_level=None, check_same_thread=False)
             db.row_factory = sqlite3.Row
+            if _WINDOWS:
+                # The OS owner lock already guarantees one connection. Windows
+                # can release a dead owner's locks before its SHM mapping;
+                # SQLite then fails to truncate SHM during WAL recovery. Set
+                # EXCLUSIVE before any reads to use SQLite's heap WAL index.
+                # https://sqlite.org/wal.html#use_of_wal_without_shared_memory
+                db.execute("PRAGMA locking_mode=EXCLUSIVE").fetchall()
             version = db.execute("PRAGMA user_version").fetchone()[0]
             if version not in (0, cls.schema_version):
                 raise ValueError(f"Unsupported run store schema {version}")

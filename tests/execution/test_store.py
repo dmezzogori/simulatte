@@ -3,6 +3,8 @@
 from contextlib import closing
 import importlib
 import importlib.util
+import mmap
+import shutil
 import sqlite3
 
 import pytest
@@ -24,8 +26,8 @@ def test_store_initialization_ownership_and_reopen(tmp_path):
         assert store.settings() == {"journal_mode": "wal", "synchronous": 2, "foreign_keys": 1}
         with pytest.raises(m.StoreBusy):
             m.RunStore.open(root)
-        with closing(sqlite3.connect(root / "index.sqlite")) as reader:
-            assert reader.execute("PRAGMA user_version").fetchone() == (1,)
+    with closing(sqlite3.connect(root / "index.sqlite")) as reader:
+        assert reader.execute("PRAGMA user_version").fetchone() == (1,)
     with m.RunStore.open(root):
         pass
     assert (root / "coordinator.lock").exists()
@@ -114,7 +116,8 @@ def test_actual_owner_death_releases_lock(tmp_path):
             sys.executable,
             "-c",
             "from pathlib import Path; from simulatte.execution.store import RunStore; "
-            "import sys,time; store=RunStore.open(Path(sys.argv[1])); print('ready',flush=True); time.sleep(60)",
+            "import sys,time; store=RunStore.open(Path(sys.argv[1])); "
+            "store.create_revision({'source':'committed'}); print('ready',flush=True); time.sleep(60)",
             str(root),
         ],
         stdout=subprocess.PIPE,
@@ -128,8 +131,9 @@ def test_actual_owner_death_releases_lock(tmp_path):
         process.kill()
         process.wait(5)
         try:
-            with m.RunStore.open(root):
-                pass
+            with m.RunStore.open(root) as store:
+                assert store.current_revision().number == 1
+                assert store.create_revision({"source": "after crash"}).number == 2
         except sqlite3.Error as error:
             error.add_note(
                 f"SQLite {sqlite3.sqlite_version}: {error.sqlite_errorname} ({error.sqlite_errorcode}); "
@@ -141,6 +145,32 @@ def test_actual_owner_death_releases_lock(tmp_path):
             process.kill()
         process.wait(5)
         process.stdout.close()
+
+
+def test_windows_recovery_ignores_stale_mapped_shm_and_preserves_wal(tmp_path, monkeypatch):
+    m = api()
+    source = tmp_path / "source"
+    root = tmp_path / ".simulatte"
+    root.mkdir()
+    # Simulate a crash with a stale SHM snapshot and a newer committed WAL.
+    monkeypatch.setattr(m, "_WINDOWS", False)
+    with m.RunStore.open(source) as store:
+        store.create_revision({"source": "old"})
+        stale_shm = (source / "index.sqlite-shm").read_bytes()
+        committed = store.create_revision({"source": "committed only in WAL"})
+        for name in ("index.sqlite", "index.sqlite-wal"):
+            shutil.copyfile(source / name, root / name)
+    shm = root / "index.sqlite-shm"
+    shm.write_bytes(stale_shm)
+    monkeypatch.setattr(m, "_WINDOWS", True)
+    with shm.open("r+b") as file, mmap.mmap(file.fileno(), 0) as mapping:
+        with m.RunStore.open(root) as store:
+            assert store.current_revision() == committed
+            assert store.create_revision({"source": "after recovery"}).number == committed.number + 1
+            # Recovery must use the WAL, without trusting or truncating SHM.
+            assert mapping[:] == stale_shm
+    with m.RunStore.open(root) as store:
+        assert store.current_revision().number == committed.number + 1
 
 
 def test_failed_schema_creation_rolls_back_atomically(tmp_path, monkeypatch):

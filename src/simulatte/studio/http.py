@@ -80,6 +80,29 @@ _verified = OrderedDict()
 _verified_lock = threading.Lock()
 
 
+def _open_windows_immutable(path):
+    """Keep immutable response bytes stable even when Windows defers timestamps."""
+    import ctypes as c
+    import msvcrt
+
+    api = getattr(c, "WinDLL")("kernel32", use_last_error=True)
+    api.CreateFileW.argtypes = [c.c_wchar_p, c.c_uint32, c.c_uint32, c.c_void_p, c.c_uint32, c.c_uint32, c.c_void_p]
+    api.CreateFileW.restype = c.c_void_p
+    api.CloseHandle.argtypes = [c.c_void_p]
+    api.CloseHandle.restype = c.c_int
+    # GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL.
+    # Deny concurrent writers and replacement; multiple HTTP readers may coexist.
+    handle = api.CreateFileW(str(path), 0x80000000, 1, None, 3, 0x80, None)
+    if handle == c.c_void_p(-1).value:
+        raise getattr(c, "WinError")()
+    try:
+        # Ownership transfers to the CRT descriptor, then to os.fdopen below.
+        return getattr(msvcrt, "open_osfhandle")(handle, os.O_RDONLY | getattr(os, "O_BINARY"))
+    except BaseException:
+        api.CloseHandle(handle)
+        raise
+
+
 @dataclass(frozen=True, slots=True)
 class ImmutableFile:
     path: Path
@@ -109,7 +132,7 @@ class ImmutableFile:
             raise ValueError("Immutable file is not regular or has wrong length")
         before = _identity(info)
         flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
-        fd = os.open(path, flags)
+        fd = _open_windows_immutable(path) if os.name == "nt" else os.open(path, flags)
         with os.fdopen(fd, "rb") as file:
             before = (before, os.fstat(file.fileno()).st_ctime_ns)
             self._unchanged(file, before)

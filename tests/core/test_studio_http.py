@@ -85,6 +85,14 @@ def test_range_reads_reject_midstream_replacement_and_invalid_bounds(tmp_path):
     assert len(next(stream)) == 1 << 20
     other = tmp_path / "replacement"
     other.write_bytes(data)
+    if os.name == "nt":
+        # Windows refuses replacing a file while the response holds its handle.
+        with pytest.raises(PermissionError) as denied:
+            os.replace(other, path)
+        assert denied.value.winerror in (5, 32)
+        assert b"".join(stream) == data[1 << 20 :]
+        assert path.read_bytes() == data
+        return
     os.replace(other, path)
     with pytest.raises(ValueError, match="changed"):
         next(stream)
@@ -120,6 +128,7 @@ def test_descriptor_mutation_and_short_reads_fail_closed(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("phase", ["during", "between"])
 def test_descriptor_change_time_guards_reads_and_verified_cache(tmp_path, monkeypatch, phase):
+    import errno
     import os
     from simulatte.studio import http
 
@@ -135,6 +144,19 @@ def test_descriptor_change_time_guards_reads_and_verified_cache(tmp_path, monkey
         os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
 
     if phase == "during":
+        if os.name == "nt":
+            # HTTP uses read-only sharing, so the OS denies mutation even when
+            # the held handle's timestamps would not expose it immediately.
+            with descriptor.open() as (file, _):
+                with pytest.raises(PermissionError) as denied:
+                    mutate()
+                # Python's CRT-backed open reports EACCES rather than retaining
+                # CreateFileW's original ERROR_SHARING_VIOLATION value.
+                assert denied.value.errno == errno.EACCES
+                assert file.read() == b"abc"
+            assert path.read_bytes() == b"abc"
+            path.write_bytes(b"xyz")  # Closing the response releases the sharing restriction.
+            return
         with pytest.raises(ValueError, match="during read"):
             with descriptor.open():
                 mutate()
@@ -145,6 +167,45 @@ def test_descriptor_change_time_guards_reads_and_verified_cache(tmp_path, monkey
         with pytest.raises(ValueError, match="hash mismatch"):
             with descriptor.open():
                 pass
+
+
+@pytest.mark.parametrize("failure", [None, "open", "descriptor"])
+def test_windows_immutable_handle_sharing_and_ownership(monkeypatch, failure):
+    import ctypes as c
+    import os
+    import sys
+    from types import SimpleNamespace
+    from simulatte.studio.http import _open_windows_immutable
+
+    opened, transferred, closed = [], [], []
+
+    def create(*args):
+        opened.append(args)
+        return c.c_void_p(-1).value if failure == "open" else 42
+
+    def close(handle):
+        closed.append(handle)
+        return 1
+
+    def descriptor(handle, flags):
+        transferred.append((handle, flags))
+        if failure == "descriptor":
+            raise OSError("descriptor failed")
+        return 7
+
+    api = SimpleNamespace(CreateFileW=create, CloseHandle=close)
+    monkeypatch.setattr(c, "WinDLL", lambda *a, **kw: api, raising=False)
+    monkeypatch.setattr(c, "WinError", lambda: OSError("open failed"), raising=False)
+    monkeypatch.setattr(os, "O_BINARY", 0x8000, raising=False)
+    monkeypatch.setitem(sys.modules, "msvcrt", SimpleNamespace(open_osfhandle=descriptor))
+    if failure:
+        with pytest.raises(OSError, match=failure):
+            _open_windows_immutable("immutable.segment")
+    else:
+        assert _open_windows_immutable("immutable.segment") == 7
+    assert opened == [("immutable.segment", 0x80000000, 1, None, 3, 0x80, None)]
+    assert transferred == ([] if failure == "open" else [(42, os.O_RDONLY | 0x8000)])
+    assert closed == ([42] if failure == "descriptor" else [])
 
 
 def test_verified_identity_cache_and_segment_iteration_are_bounded(tmp_path, monkeypatch):
