@@ -153,6 +153,11 @@ def test_to_dict_is_bounded_json_with_runtime_flags(store):
         {"configuration": 1, "index": 3, "status": "pending", "attempt": None},
     ]
     assert document["missing_total"] == 2
+    assert document["replications"][:2] == [
+        {"configuration": 0, "index": 0, "status": "succeeded", "attempt": attempts[0, 0]},
+        {"configuration": 1, "index": 0, "status": "succeeded", "attempt": attempts[1, 0]},
+    ]
+    assert len(document["replications"]) == document["replications_total"] == len(OUTCOMES)
     assert [item["mixed_runtime"] for item in document["configurations"]] == [False, False]
     assert document["rows"][0] == {
         "configuration": 0,
@@ -184,6 +189,7 @@ def test_missing_list_in_documents_is_bounded(store, monkeypatch):
     run, _ = build(store)
     document = ExperimentReport(store, run).to_dict()
     assert len(document["missing"]) == 1 and document["missing_total"] == 2
+    assert len(document["replications"]) == 1 and document["replications_total"] == len(OUTCOMES)
 
 
 def test_run_without_results_has_no_rows(store):

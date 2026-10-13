@@ -11,6 +11,9 @@ import subprocess
 
 import pytest
 
+# JSON schemas outside studio/ that the frontend imports.
+SCHEMAS = ("layout/schema/layout-v1.schema.json", "experiments/schema/experiment-v1.schema.json")
+
 
 @pytest.fixture
 def packaging(tmp_path):
@@ -19,9 +22,10 @@ def packaging(tmp_path):
     script.parent.mkdir(parents=True)
     shutil.copy(repository / "studio/scripts/package_assets.py", script)
     shutil.copy(repository / "studio/scripts/stamp.mjs", script.with_name("stamp.mjs"))
-    schema = tmp_path / "src/simulatte/layout/schema/layout-v1.schema.json"
-    schema.parent.mkdir(parents=True)
-    shutil.copy(repository / "src/simulatte/layout/schema/layout-v1.schema.json", schema)
+    for name in SCHEMAS:
+        schema = tmp_path / "src/simulatte" / name
+        schema.parent.mkdir(parents=True)
+        shutil.copy(repository / "src/simulatte" / name, schema)
     shutil.copy(repository / "hatch_build.py", tmp_path / "hatch_build.py")
     (tmp_path / "pyproject.toml").write_text('[project]\nversion = "0.14.0"\n')
     (tmp_path / "studio/THIRD_PARTY_NOTICES.md").write_text("notices")
@@ -110,7 +114,8 @@ def test_imported_schema_edit_rejects_stale_assets(packaging):
     assert {path.name: path.read_bytes() for path in target.iterdir()} == previous
 
 
-def test_node_and_python_fingerprints_include_imported_schema(packaging):
+@pytest.mark.parametrize("name", SCHEMAS)
+def test_node_and_python_fingerprints_include_imported_schema(packaging, name):
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node is not available")
@@ -122,7 +127,7 @@ def test_node_and_python_fingerprints_include_imported_schema(packaging):
     hook = runpy.run_path(str(root / "hatch_build.py"))
     assert before["source_fingerprint"] == hook["source_fingerprint"](root)
     previous_stamp = (dist / "build-stamp.json").read_bytes()
-    schema = root / "src/simulatte/layout/schema/layout-v1.schema.json"
+    schema = root / "src/simulatte" / name
     schema.write_text(schema.read_text() + "\n")
     result = subprocess.run([node, str(stamp_script)], capture_output=True, text=True)
     assert result.returncode != 0

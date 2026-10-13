@@ -20,12 +20,13 @@ from simulatte.execution import scheduler
 from simulatte.execution.layout_files import read_layout_file, backup_layout, stage_layout
 from simulatte.execution.references import read_document
 from simulatte.execution.schema import AttemptKey, Revision, _plain
+from simulatte.execution.snapshot import non_source_members
 from simulatte.execution.store import INTERACTIVE, RevisionConflict, StaleAttempt, _read
 from simulatte.layout.io import parse_layout
 from simulatte.layout.layers import FileLayer
 from simulatte.layout.types import LayoutLimits
 from simulatte.studio.auth import SessionAuth, response_headers
-from simulatte.studio.experiments import ExperimentCommands, parse_results_query, replays, report, run_summary
+from simulatte.studio.experiments import ExperimentCommands, parse_results_query, prefix, replays, report, run_summary
 from simulatte.studio.http import ImmutableFile, RangeSource, References, parse_range
 from simulatte.studio.lifecycle import ProjectSession
 from simulatte.studio.websocket import (
@@ -102,21 +103,7 @@ class StudioServer(SessionAuth):
             "layout": self.references.put(view.bundle.to_dict()),
         }
 
-    def _prefix(self, db, attempt):
-        row = db.execute(
-            "SELECT sequence,offset+length AS length,prefix_hash FROM receipts "
-            "WHERE attempt=? AND stream='trace' ORDER BY sequence DESC LIMIT 1",
-            (attempt,),
-        ).fetchone()
-        if row is None:
-            return None
-        return {
-            "attempt": attempt,
-            "generation": row["sequence"],
-            "length": row["length"],
-            "sha256": row["prefix_hash"],
-            "url": f"/api/prefix/{attempt}/{row['sequence']}",
-        }
+    _prefix = staticmethod(prefix)
 
     def snapshot(self, peer=None):
         co = self.coordinator
@@ -194,6 +181,13 @@ class StudioServer(SessionAuth):
             selected_view = (
                 None if selected is None else co.store.presentation_view(revision=selected, committed_only=True)
             )
+        # Outside the locks: listing reads Git membership. Watcher errors are reported on their own.
+        try:
+            members = non_source_members(co.project)
+        except (OSError, ValueError):
+            members = ()
+        state["experiment_files"] = [name for name in members if name.endswith(".experiment.json")]
+        state["model"] = co.project.model
         state["metadata"] = None if metadata is None else self.references.put(metadata)
         state["view"] = self._view(view)
         state["last_good"] = self._view(last_good)

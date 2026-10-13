@@ -70,8 +70,30 @@ def run_summary(store, run_id: str) -> dict:
     return {"run_id": run_id, "status": row["status"], "name": row["name"], "experiment_id": row["experiment"]}
 
 
+def prefix(db, attempt):
+    """The newest committed trace prefix of an attempt, served by ``api/prefix/<attempt>/<generation>``."""
+    row = db.execute(
+        "SELECT sequence,offset+length AS length,prefix_hash FROM receipts "
+        "WHERE attempt=? AND stream='trace' ORDER BY sequence DESC LIMIT 1",
+        (attempt,),
+    ).fetchone()
+    if row is None:
+        return None
+    return {
+        "attempt": attempt,
+        "generation": row["sequence"],
+        "length": row["length"],
+        "sha256": row["prefix_hash"],
+        "url": f"/api/prefix/{attempt}/{row['sequence']}",
+    }
+
+
 def report(store, run_id: str, *, level=0.95, baseline=None, bonferroni=False) -> dict:
-    """The Task 5 report document of one run; ``KeyError`` for an unknown run."""
+    """The Task 5 report document of one run; ``KeyError`` for an unknown run.
+
+    Each listed replication carries the trace of its committed result (``None`` otherwise),
+    so Studio can open it in the viewer.
+    """
     from simulatte.experiments.results import ExperimentReport
 
     if type(level) not in (int, float) or not 0 < level < 1:
@@ -80,9 +102,14 @@ def report(store, run_id: str, *, level=0.95, baseline=None, bonferroni=False) -
         raise ValueError("baseline must be a configuration label")
     if type(bonferroni) is not bool:
         raise ValueError("bonferroni must be a boolean")
-    return ExperimentReport(store, _identity(run_id, "run id")).to_dict(
+    document = ExperimentReport(store, _identity(run_id, "run id")).to_dict(
         float(level), baseline=baseline, bonferroni=bonferroni
     )
+    with store._transaction() as db:
+        for item in document["replications"]:
+            committed = item["status"] in ("succeeded", "reused") and item["attempt"] is not None
+            item["trace"] = prefix(db, item["attempt"]) if committed else None
+    return document
 
 
 def replays(db, prefix) -> list[dict]:

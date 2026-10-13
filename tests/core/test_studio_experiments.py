@@ -14,6 +14,7 @@ from simulatte.execution.slots import SlotConfig
 from simulatte.execution.snapshot import discover_project
 from simulatte.experiments import Experiment, load_experiment
 from simulatte.studio import experiments as studio_experiments
+from simulatte.studio import app as studio_app
 from simulatte.studio.app import StudioServer
 from simulatte.studio.watcher import ProjectWatcher
 from simulatte.studio.websocket import ConnectionHub, Peer
@@ -150,6 +151,10 @@ def test_define_start_progress_compare_results_and_lifecycle(tmp_path, monkeypat
                 )
                 assert defined["ok"] and defined["path"] == "sweep.experiment.json"
                 assert load_experiment(root / "sweep.experiment.json") == Experiment.from_dict(definition())
+                # The experiment file picker lists non-source experiment files; the model path prefills forms.
+                listed_files = socket.send("state.get", {}, revision=None)["state"]
+                assert listed_files["experiment_files"] == ["sweep.experiment.json"]
+                assert listed_files["model"] == "plant.py"
                 again = socket.send("experiment.define", {"path": "sweep.experiment.json", "definition": definition()})
                 assert again["error"]["code"] == "validation_failed" and "exists" in again["error"]["message"]
                 replaced = socket.send(
@@ -181,6 +186,14 @@ def test_define_start_progress_compare_results_and_lifecycle(tmp_path, monkeypat
                 row = report["rows"][0]
                 assert row["kpi"] == "cell/count" and row["estimate"]["mean"] == 8.5
                 assert report["paired"][0]["estimate"]["mean"] == 1.0
+                # Every replication is listed with its committed trace, which the prefix endpoint serves.
+                assert len(report["replications"]) == report["replications_total"] == 4
+                for item in report["replications"]:
+                    assert item["status"] == "succeeded" and item["trace"]["attempt"] == item["attempt"]
+                    assert item["trace"]["url"] == f"/api/prefix/{item['attempt']}/{item['trace']['generation']}"
+                trace = report["replications"][0]["trace"]
+                served = client.get(trace["url"], headers=headers)
+                assert served.status_code == 200 and len(served.content) == trace["length"]
                 adjusted = socket.send("comparison.get", {"run_id": run_id, "bonferroni": True, "level": 0.9})
                 # The same definition on unchanged inputs is the same run (D103), restartable by id.
                 again = socket.send("experiment.start", {"run_id": run_id})
@@ -439,6 +452,13 @@ def test_state_lists_newest_twenty_runs(tmp_path, monkeypatch):
         assert len(listed) == 20 and len({item["run_id"] for item in listed}) == 20
         assert {"run_id", "name", "status", "counts", "created", "experiment_id"} <= set(listed[0])
         assert server.snapshot()["workers"]["slots"][0]["state"] == "idle"
+
+        # An unreadable membership (here a Git conflict) lists no experiment files; the watcher reports it.
+        def conflict(project):
+            raise ValueError("Resolve Git merge conflicts before capture")
+
+        monkeypatch.setattr(studio_app, "non_source_members", conflict)
+        assert server.snapshot()["experiment_files"] == []
         with pytest.raises(ValueError, match="Wait for model metadata"):
             server.experiments("experiment.define", {"path": "a.experiment.json", "definition": definition()})
     finally:

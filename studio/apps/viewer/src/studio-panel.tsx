@@ -2,11 +2,14 @@ import {useState} from 'react';
 import {Parameters} from './parameters';
 import {RunHistory} from './run-history';
 import {LayoutEditor} from './layout-editor';
-import type {ConnectionStatus, StudioClient, StudioState, View} from './studio-client';
+import {Experiments} from './experiments';
+import type {ExperimentFeed} from './experiment-feed';
+import type {ConnectionStatus, ExperimentReport, ReplicationEntry, StudioClient, StudioState, View} from './studio-client';
 
 /** Execution controls use authoritative revisions; disconnect never owns a run. */
-export function StudioPanel({client, state, status, onError, onSelect}: {
-  client: StudioClient | null; state: StudioState | null; status: ConnectionStatus; onError(message: string): void; onSelect?(result: StudioState["results"][number], view: View | null): void;
+export function StudioPanel({client, state, status, feed, onError, onSelect, onOpenReplication}: {
+  client: StudioClient | null; state: StudioState | null; status: ConnectionStatus; feed: ExperimentFeed; onError(message: string): void; onSelect?(result: StudioState["results"][number], view: View | null): void;
+  onOpenReplication(report: ExperimentReport, replication: ReplicationEntry): void;
 }) {
   const [busy, setBusy] = useState(false);
   const act = async (cancel: boolean) => {
@@ -44,5 +47,6 @@ export function StudioPanel({client, state, status, onError, onSelect}: {
     <RunHistory state={state} select={result => onSelect?.(result, null)} />
     <Parameters client={client} state={state} status={status} />
     <LayoutEditor client={client} state={state} status={status} />
+    <Experiments client={client} state={state} status={status} feed={feed} onOpen={onOpenReplication} onError={onError} />
   </section>;
 }

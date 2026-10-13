@@ -14,7 +14,9 @@ async function files(directory) {
   return result;
 }
 const digest = createHash("sha256");
-const inputs = [join(root, "src/simulatte/layout/schema/layout-v1.schema.json"), ...await files(join(root, "studio"))];
+// JSON schemas outside studio/ that the frontend imports; hatch_build.py lists the same files.
+const schemas = ["layout/schema/layout-v1.schema.json", "experiments/schema/experiment-v1.schema.json"];
+const inputs = [...schemas.map(name => join(root, "src/simulatte", name)), ...await files(join(root, "studio"))];
 for (const path of inputs.sort()) {
   digest.update(relative(root,path).split("\\").join("/")+"\0");
   digest.update(createHash("sha256").update(await readFile(path)).digest());

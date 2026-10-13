@@ -436,3 +436,20 @@ input[type="range"] {
 .studio-progress {padding: .3rem 1rem; font-size: .8rem; max-height: 10rem; overflow: auto;}
 .studio-progress pre {white-space: pre-wrap; overflow-wrap: anywhere;}
 .layout-editor textarea {display: block; width: 100%; min-height: 10rem; font-family: monospace;}
+.studio-experiments {width: 100%;}
+.studio-experiments summary {cursor: pointer; font-weight: 600;}
+.studio-experiments table {border-collapse: collapse; margin: .4rem 0;}
+.studio-experiments th, .studio-experiments td {padding: .2rem .5rem; border-bottom: 1px solid #e1e6de; text-align: left;}
+.studio-experiments .row {display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;}
+.studio-experiments .counts {display: inline-flex; flex-wrap: wrap; gap: .4rem;}
+.studio-experiments button.link {border: none; background: none; padding: 0; text-decoration: underline; color: inherit;}
+.studio-experiments tr[aria-selected=true] {background: #e8eee5;}
+.run-details {max-height: 70vh; overflow: auto; padding: .5rem; border-top: 1px solid #ccc;}
+.explicit-row {display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; border-bottom: 1px dashed #ccc; padding: .25rem 0;}
+.experiment-form textarea {min-height: 3rem;}
+.badge {display: inline-block; margin-left: .3rem; padding: 0 .4rem; border-radius: 3px; font-size: .75rem; background: #e1e6de;}
+.badge.state-ok, .badge.run-completed {background: #d5ead9;}
+.badge.state-degenerate, .badge.mixed, .badge.run-paused {background: #f3e6c4;}
+.badge.state-insufficient, .badge.run-failed, .badge.run-cancelled {background: #f1d6d0;}
+.interval-label {font-style: italic; margin: .25rem 0;}
+.experiment-charts .chart {min-height: 220px;}

@@ -15,7 +15,7 @@ from simulatte.execution import scheduler
 from simulatte.execution.store import RunStore
 from simulatte.statistics import Estimate, Paired, bonferroni, paired, summarize
 
-# Longest ``missing`` list a rendered document carries; ``missing_total`` gives the full count.
+# Longest ``missing`` and ``replications`` lists a rendered document carries; ``*_total`` give the full counts.
 MAX_LISTED = 1000
 _SUCCESS = ("succeeded", "reused")
 
@@ -180,6 +180,12 @@ class ExperimentReport:
             "rows": [row.to_dict() for row in rows],
             "missing": [item.to_dict() for item in missing[:MAX_LISTED]],
             "missing_total": len(missing),
+            # Dispatch order with attempt ids, so a client can open any committed replication.
+            "replications": [
+                {key: item[key] for key in ("configuration", "index", "status", "attempt")}
+                for item in self._replications[:MAX_LISTED]
+            ],
+            "replications_total": len(self._replications),
         }
         if baseline is not None:
             comparisons = self.paired(baseline, level, bonferroni=bonferroni)
