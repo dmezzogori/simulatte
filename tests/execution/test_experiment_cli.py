@@ -91,7 +91,8 @@ def test_experiment_run_status_delete_and_prune_without_web(tmp_path, capsys):
                 assert db.execute("SELECT COUNT(*) FROM experiment_runs").fetchone()[0] == 0
 
 
-def test_unknown_worker_exits_2_before_scheduling(tmp_path, capsys):
+def test_unknown_worker_exits_2_before_scheduling(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("SIMULATTE_WORKERS", str(tmp_path / "none.toml"))
     spec = project(tmp_path)
     path = write_experiment(spec.root)
     command = ["experiment", "run", str(path), "--project", str(spec.root), "--workers", "local,nowhere", "--json"]

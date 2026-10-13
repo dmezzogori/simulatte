@@ -262,6 +262,37 @@ def format_check(spec: WorkerSpec, check: WorkerCheck) -> list[str]:
     return lines
 
 
+def _prune(spec: WorkerSpec, dry_run: bool) -> str:
+    """Remove blobs and environments named by no ``attempts/*/refs`` file (in-flight attempts)."""
+    remove = "" if dry_run else '  chmod -R u+w "$path" 2>/dev/null; rm -rf "$path" || exit 1\n'
+    return "".join(
+        [
+            f"cache={_remote_path(spec.cache)}\n",
+            'refs=$(cat "$cache"/attempts/*/refs 2>/dev/null)\n',
+            'for path in "$cache"/blobs/* "$cache"/envs/*; do\n',
+            '  if [ ! -e "$path" ] && [ ! -L "$path" ]; then continue; fi\n',
+            "  name=${path##*/}\n",
+            '  case "\n$refs\n" in *"\n${name%%.*}\n"*) continue ;; esac\n',
+            '  printf \'remove %s\\n\' "${path#"$cache"/}"\n',
+            remove,
+            "done\n",
+        ]
+    )
+
+
+def prune_worker(spec: WorkerSpec, *, dry_run: bool = False, ssh: SshRunner = run_ssh) -> tuple[bool, list[str], str]:
+    """One ssh call removing cached blobs and environments no running attempt references.
+
+    Attempt directories exist only while an attempt runs, so prune when no experiment uses the
+    worker. Returns ``(reachable, removed cache-relative paths, message)``.
+    """
+    code, stdout, stderr = _invoke(spec, _prune(spec, dry_run), ssh, _PROBE_TIMEOUT)
+    if code != 0:
+        return False, [], _bounded(stderr) or f"ssh exited with status {code}"
+    removed = [line[7:] for line in stdout.splitlines() if line.startswith("remove ")]
+    return True, removed, ""
+
+
 def setup_worker(
     spec: WorkerSpec,
     *,

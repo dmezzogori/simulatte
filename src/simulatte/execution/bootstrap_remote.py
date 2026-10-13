@@ -23,7 +23,7 @@ _NAME = re.compile(r"[A-Za-z0-9_.-]+")
 # The supervisor's only roots: the staged package and its supervisor-only dependency copies.
 _SUPERVISOR = (
     "import os, sys; root = sys.argv[1]; sys.path[:0] = [root, root + '/supervisor-deps']; "
-    "from simulatte.cli import main; os._exit(main(['_worker', sys.argv[2]]))"
+    "from simulatte.cli import main; os._exit(main(['_worker', *sys.argv[2:5]]))"
 )
 
 
@@ -92,7 +92,10 @@ def stage_script(cache: str, sha256: str, length: int) -> str:
 
 
 def bootstrap_script(cache: str, sha256: str, python: str, uv: str | None, worker: str, runtime_hash: str) -> str:
-    """Locate uv, require the staged runtime and ``exec`` the supervisor under ``uv run --python``."""
+    """Locate uv, require the staged runtime and ``exec`` the supervisor under ``uv run --python``.
+
+    The supervisor receives the runtime hash, the cache root (staging, environments) and uv's path.
+    """
     if type(python) is not str or not _PYTHON.fullmatch(python):
         raise ValueError("Invalid Python version request")
     if type(worker) is not str or not _NAME.fullmatch(worker):
@@ -113,6 +116,6 @@ def bootstrap_script(cache: str, sha256: str, python: str, uv: str | None, worke
         'if [ ! -f "$dir/ready" ]; then',
         f"  echo {shlex.quote('simulatte: trusted runtime ' + sha256 + ' is not staged')} >&2; exit {RUNTIME_MISSING}",
         "fi",
-        f'exec "$uvbin" {shlex.join(command)} "$dir" {shlex.quote(_sha(runtime_hash))}',
+        f'exec "$uvbin" {shlex.join(command)} "$dir" {shlex.quote(_sha(runtime_hash))} "$cache" "$uvbin"',
     ]
     return _bounded("\n".join(lines))

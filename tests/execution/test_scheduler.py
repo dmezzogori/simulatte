@@ -344,7 +344,7 @@ def test_dispatch_skips_stale_mismatched_and_unprepared_replications(tmp_path, m
             coordinator.wait_experiment(run_id, timeout=0.05)
         queue = coordinator._scheduler._runs[run_id].queue
         # A slot of another worker kind gets nothing, and the queue is unchanged.
-        assert dispatch(SimpleNamespace(slot="strangelove-1", kind="uv")) is None
+        assert dispatch(SimpleNamespace(slot="strangelove-1", kind="uv", host="strangelove")) is None
         assert sorted(queue) == [(0, 0), (1, 0), (2, 0)]
         actor = coordinator._actors["local-1"]
         job = dispatch(actor)
@@ -353,7 +353,7 @@ def test_dispatch_skips_stale_mismatched_and_unprepared_replications(tmp_path, m
         coordinator.store.set_replication_status(run_id, 0, 1, "cancelled")
         with coordinator.store._transaction() as db:
             db.execute("DELETE FROM snapshots WHERE kind='preparation'")
-        assert dispatch(SimpleNamespace(slot="local-2", kind="local")) is None
+        assert dispatch(SimpleNamespace(slot="local-2", kind="local", host=None)) is None
         states = {
             item["index"]: (item["status"], item["dispatches"]) for item in coordinator.store.replications(run_id)
         }

@@ -323,17 +323,21 @@ def test_eof_mid_fragment_marks_lost(fake_ssh, home, coordinator):  # noqa: F811
     wait_for(lambda: started[0].process.returncode is not None, timeout=10)
 
 
+REMOTE = ["metadata-artifacts", "staging-v1", "uv-provisioning-v1"]
+
+
 class Peer:
-    def __init__(self, protocol=(1, 1), failure=None):
-        self.protocol, self.failure = protocol, failure
+    def __init__(self, protocol=(1, 1), failure=None, capabilities=REMOTE, runtime=None):
+        self.protocol, self.failure, self.capabilities, self.runtime = protocol, failure, capabilities, runtime
         self.closed = False
 
     def receive(self, timeout):
         if self.failure is not None:
             raise self.failure
-        return SimpleNamespace(
-            type="hello", body={"protocol": list(self.protocol), "capabilities": ["metadata-artifacts"]}
-        )
+        body = {"protocol": list(self.protocol), "capabilities": list(self.capabilities)}
+        if self.runtime is not None:
+            body["trusted_runtime_hash"] = self.runtime
+        return SimpleNamespace(type="hello", body=body)
 
     def close(self):
         self.closed = True
@@ -344,13 +348,15 @@ class Peer:
     [
         ("local", (1, 0), True),
         ("local", (1, 1), True),
-        ("remote", (1, 1), True),
-        ("remote", (1, 0), False),
+        ("uv", (1, 1), True),
+        ("uv", (1, 0), False),
         ("local", (2, 0), False),
     ],
 )
 def test_protocol_minor_versions_by_slot_kind(coordinator, kind, protocol, accepted):
-    actor = m.SlotActor(coordinator, "w-0", lambda: Peer(protocol), kind=kind, host=None if kind == "local" else "w")
+    runtime = coordinator.runtime.content_hash
+    peer = functools.partial(Peer, protocol, runtime=runtime)
+    actor = m.SlotActor(coordinator, "w-0", peer, kind=kind, host=None if kind == "local" else "w")
     if accepted:
         assert actor._start_worker() is actor.worker
     else:
@@ -360,16 +366,60 @@ def test_protocol_minor_versions_by_slot_kind(coordinator, kind, protocol, accep
 
 @pytest.mark.parametrize("failure", [TimeoutError("hello timeout"), OSError("closed")])
 def test_handshake_loss_is_worker_lost(coordinator, failure):
-    actor = m.SlotActor(coordinator, "w-0", lambda: Peer(failure=failure), kind="remote", host="w")
+    actor = m.SlotActor(coordinator, "w-0", lambda: Peer(failure=failure), kind="uv", host="w")
     with pytest.raises(m.WorkerLost):
         actor._start_worker()
 
 
 def test_bootstrap_failures_are_not_handshake_loss(coordinator):
     failure = BootstrapError("uv_missing", "uv is missing")
-    actor = m.SlotActor(coordinator, "w-0", lambda: Peer(failure=failure), kind="remote", host="w")
+    actor = m.SlotActor(coordinator, "w-0", lambda: Peer(failure=failure), kind="uv", host="w")
     with pytest.raises(BootstrapError):
         actor._start_worker()
+
+
+def test_an_unreachable_host_at_probe_is_lost_and_other_bootstrap_failures_are_not(coordinator):
+    def factory(code):
+        def start(**kwargs):
+            raise BootstrapError(code, "ssh probe failed (exit 255)")
+
+        return start
+
+    with pytest.raises(m.WorkerLost):
+        m.SlotActor(coordinator, "w-0", factory("probe_failed"), kind="uv", host="w")._start_worker(python=PYTHON)
+    with pytest.raises(BootstrapError):
+        m.SlotActor(coordinator, "w-0", factory("staging_failed"), kind="uv", host="w")._start_worker(python=PYTHON)
+
+
+@pytest.mark.parametrize(
+    "peer,code",
+    [
+        (Peer(capabilities=["metadata-artifacts"], runtime="0" * 64), "worker_capabilities"),
+        (Peer(runtime="0" * 64), "runtime_mismatch"),
+        (Peer(), "runtime_mismatch"),
+    ],
+)
+def test_remote_hello_must_offer_staging_and_the_coordinator_runtime(coordinator, peer, code):
+    from simulatte.execution.staging import RemoteStepError
+
+    actor = m.SlotActor(coordinator, "w-0", lambda **kwargs: peer, kind="uv", host="w")
+    with pytest.raises(RemoteStepError) as caught:
+        actor._start_worker(python=PYTHON)
+    assert caught.value.code == code and caught.value.details["code"] == code
+
+
+def test_a_remote_worker_restarts_for_another_python(coordinator):
+    started = []
+
+    def factory(**kwargs):
+        started.append(kwargs)
+        return Peer(runtime=coordinator.runtime.content_hash)
+
+    actor = m.SlotActor(coordinator, "w-0", factory, kind="uv", host="w")
+    first = actor._start_worker(python="3.13.2")
+    assert actor._start_worker(python="3.13.2") is first and first.closed is False
+    assert actor._start_worker(python="3.14.1") is not first and first.closed is True
+    assert started == [{"python": "3.13.2"}, {"python": "3.14.1"}]
 
 
 def test_ssh_factory_uses_the_coordinator_runtime_and_python(coordinator, monkeypatch):
@@ -379,3 +429,64 @@ def test_ssh_factory_uses_the_coordinator_runtime_and_python(coordinator, monkey
     assert functools.partial(coordinator._transports["uv"], spec)() == "t"
     assert seen["spec"] is spec and seen["runtime"] is coordinator.runtime
     assert seen["python"] == coordinator.python
+    assert coordinator._transports["uv"](spec, python="3.12.4") == "t" and seen["python"] == "3.12.4"
+
+
+def test_remote_jobs_need_uv_requests_a_live_transport_and_the_requested_environment(coordinator, monkeypatch):
+    from simulatte.execution.schema import AttemptKey
+
+    uv = {
+        "kind": "uv",
+        "python": PYTHON,
+        "lock_hash": "1" * 64,
+        "pyproject_hash": "2" * 64,
+        "extras": [],
+        "groups": [],
+        "local_packages": [],
+        "trusted_runtime_hash": coordinator.runtime.content_hash,
+    }
+    peer = Peer(runtime=coordinator.runtime.content_hash)
+    actor = m.SlotActor(coordinator, "w-1", lambda **kwargs: peer, kind="uv", host="w", worker=worker("w"))
+    archive = SimpleNamespace(
+        archive=Path(__file__), archive_hash="3" * 64, project=SimpleNamespace(python_path=(".",))
+    )
+    document = {"path": __file__, "sha256": "4" * 64, "length": 1}
+    documents = {"layout_ref": document, "expected_metadata_ref": document}
+
+    def job(runtime):
+        key = AttemptKey("5" * 64, "6" * 32, 1)
+        snapshot = SimpleNamespace(source=archive, inputs=archive)
+        return SimpleNamespace(
+            key=key, request=request(schema, runtime=runtime), snapshot=snapshot, documents=documents, deadline=None
+        )
+
+    with pytest.raises(ValueError, match="uv requests only"):
+        actor._remote(job({"implementation": "CPython"}))
+
+    def lost(*args, **kwargs):
+        raise ConnectionError("Worker heartbeat lost")
+
+    monkeypatch.setattr(m, "stage_blob", lost)
+    with pytest.raises(m.WorkerLost, match="heartbeat"):
+        actor._remote(job(uv))
+    monkeypatch.setattr(m, "stage_blob", lambda *args, **kwargs: True)
+    monkeypatch.setattr(m, "provision", lambda *args, **kwargs: {"spec_hash": "7" * 64, "evidence_sha256": "8" * 64})
+    with pytest.raises(ValueError, match="another environment"):
+        actor._remote(job(uv))
+
+
+def test_workers_are_added_once_and_never_to_a_closed_coordinator(coordinator, tmp_path):
+    spec = WorkerSpec("w", "w", 2, (), None, "~/c", 600.0)
+    coordinator._add_workers([spec])
+    coordinator._add_workers([spec])
+    names = [name for name in coordinator._actors if name.startswith("w-")]
+    assert names == ["w-1", "w-2"] and coordinator._actors["w-2"].kind == "uv"
+    from simulatte.experiments import load_experiment
+    from tests.execution.test_scheduler import write_experiment
+
+    experiment = load_experiment(write_experiment(tmp_path))
+    with pytest.raises(ValueError, match="worker names"):
+        coordinator.start_experiment(experiment, workers=[1])
+    coordinator.close()
+    with pytest.raises(RuntimeError, match="closed"):
+        coordinator._add_workers([spec])

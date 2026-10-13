@@ -242,7 +242,7 @@ class Scheduler:
                             skipped.append((index, configuration))
                             continue
                         request = run.request(configuration, int(row["seed"]), kind)
-                        key = self.store.assign(request, run.revision, slot=actor.slot, pinned=True)
+                        key = self.store.assign(request, run.revision, slot=actor.slot, worker=actor.host, pinned=True)
                         try:
                             # Refuses another request on re-dispatch, a run that is not running and a stale key.
                             self.store.bind_replication(run_id, configuration, index, key)

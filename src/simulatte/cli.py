@@ -8,15 +8,17 @@ import sys
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    if argv in (["_worker"], ["worker", "--stdio"]) or (len(argv) == 2 and argv[0] == "_worker"):
+    if argv in (["_worker"], ["worker", "--stdio"]) or (len(argv) in (2, 4) and argv[0] == "_worker"):
         from simulatte.execution.schema import _hash
         from simulatte.execution.supervisor import Supervisor
 
-        # A remote bootstrap passes the hash of the trusted runtime it was staged from.
-        runtime = argv[1] if argv[0] == "_worker" and len(argv) == 2 else None
+        # A remote bootstrap passes the hash of the trusted runtime it was staged from, then
+        # the host's cache root and the uv binary it found.
+        runtime = argv[1] if argv[0] == "_worker" and len(argv) in (2, 4) else None
+        cache, uv = argv[2:4] if len(argv) == 4 else (None, None)
         if runtime is not None:
             _hash(runtime)
-        return Supervisor(trusted_runtime_hash=runtime).run_stdio()
+        return Supervisor(trusted_runtime_hash=runtime, cache=cache, uv=uv).run_stdio()
     parser = argparse.ArgumentParser(prog="simulatte")
     commands = parser.add_subparsers(dest="command", required=True)
     view = commands.add_parser("view", help="Open a recorded trace in the local viewer")

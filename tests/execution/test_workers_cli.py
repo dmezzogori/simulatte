@@ -384,3 +384,43 @@ def test_cli_setup_without_a_terminal_declines(configured, capsys, fake_ssh, mon
     monkeypatch.setattr("builtins.input", eof)
     code, out, _ = run_cli(capsys, "setup", "linux-nouv", "--install-uv")
     assert code == 1 and installs(fake_ssh) == []
+
+
+def test_prune_removes_unreferenced_blobs_and_environments(tmp_path, monkeypatch, fake_ssh, capsys):
+    home = tmp_path / "home"
+    cache = home / "cache dir"
+    monkeypatch.setenv("HOME", str(home))
+    path = tmp_path / "workers.toml"
+    path.write_text('[workers.here]\nhost = "local-sh"\ncache = "~/cache dir"\n[workers.down]\nhost = "down"\n')
+    monkeypatch.setenv("SIMULATTE_WORKERS", str(path))
+    used, unused = "a" * 64, "b" * 64
+    for name in (used, unused, f"{unused}.0011.part"):
+        (cache / "blobs").mkdir(parents=True, exist_ok=True)
+        (cache / "blobs" / name).write_text("x")
+        (cache / "blobs" / name).chmod(0o444)
+    for name in ("e1", "e2", "e2.build"):
+        (cache / "envs" / name / "lib").mkdir(parents=True)
+        (cache / "envs" / name / "lib" / "file").write_text("x")
+        for item in (cache / "envs" / name / "lib" / "file", cache / "envs" / name / "lib", cache / "envs" / name):
+            item.chmod(0o555 if item.is_dir() else 0o444)
+    (cache / "envs" / "e2.lock").write_text("")
+    (cache / "attempts" / "x").mkdir(parents=True)
+    (cache / "attempts" / "x" / "refs").write_text(f"{used}\ne1\n")
+    expected = [f"blobs/{unused}", f"blobs/{unused}.0011.part", "envs/e2", "envs/e2.build", "envs/e2.lock"]
+    code, out, _ = run_cli(capsys, "prune", "here", "--dry-run", "--json")
+    document = json.loads(out)
+    assert code == 0 and document["status"] == "succeeded" and document["dry_run"] is True
+    assert sorted(document["removed"]) == expected and (cache / "envs" / "e2").is_dir()
+    code, out, _ = run_cli(capsys, "prune", "here")
+    assert code == 0 and sorted(out.splitlines()) == sorted(f"removed {item}" for item in expected)
+    assert sorted(p.name for p in (cache / "blobs").iterdir()) == [used]
+    assert sorted(p.name for p in (cache / "envs").iterdir()) == ["e1"]
+    code, out, _ = run_cli(capsys, "prune", "here", "--dry-run")
+    assert (code, out.strip()) == (0, "nothing to remove")
+    code, out, err = run_cli(capsys, "prune", "down")
+    assert code == 2 and "Connection refused" in err
+    code, out, _ = run_cli(capsys, "prune", "down", "--json")
+    assert code == 2 and json.loads(out)["status"] == "unreachable"
+    from simulatte.execution.provisioning import remove_tree
+
+    remove_tree(cache)  # Read-only trees would trouble pytest's temporary-directory cleanup.

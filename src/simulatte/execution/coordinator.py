@@ -2,9 +2,11 @@
 
 Only the child imports model code. The coordinator owns immutable inputs,
 assignment fences, durable receipt credit and the result visibility point.
-Each slot (``interactive`` and ``local-<n>`` experiment slots) is one actor thread
-owning one transport; the interactive slot keeps SP4 supersession, experiment
-slots are fenced by their run's state, never by project revisions.
+Each slot (``interactive``, ``local-<n>`` experiment slots and ``<worker>-<n>`` remote
+slots) is one actor thread owning one transport; the interactive slot keeps SP4
+supersession, experiment slots are fenced by their run's state, never by project
+revisions. Remote slots stage the snapshot and documents and provision a uv
+environment before the unchanged ``run`` and publication loop.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
+import functools
 import hashlib
 import errno
 import platform
@@ -30,7 +33,7 @@ from simulatte.execution.publication import ResultProposal, publish
 from simulatte.execution.receipts import SegmentReceiver, validate_descriptor
 from simulatte.execution.replay import Verification, verify_replay
 from simulatte.execution.references import write_document, read_document
-from simulatte.execution.runtime import describe_runtime
+from simulatte.execution.runtime import describe_runtime, provisioning_spec_hash
 from simulatte.execution.schema import (
     AttemptKey,
     ExecutionRequest,
@@ -52,7 +55,8 @@ from simulatte.execution.snapshot import (
 )
 from simulatte.execution.ssh import BootstrapError, SshTransport
 from simulatte.execution.scheduler import Scheduler, report as _report, run_status as _run_status
-from simulatte.execution.slots import SlotConfig
+from simulatte.execution.slots import SlotConfig, remote_slots
+from simulatte.execution.staging import RemoteStepError, provision, stage_blob
 from simulatte.execution.store import INTERACTIVE, RunStore, StaleAttempt, RevisionConflict, _blob, _read, _remove
 from simulatte.execution.transport import LocalTransport
 from simulatte.layout.identity import layout_hash
@@ -173,12 +177,15 @@ class Coordinator:
             # The exact interpreter a remote supervisor runs on (D105); remote slots pass it to uv.
             self.python = platform.python_version()
             # One transport factory per slot kind. ``uv`` (remote) factories take the WorkerSpec.
-            self._transports = {"local": self._local_transport, "uv": self._ssh_transport}
+            self._transports: dict[str, Any] = {"local": self._local_transport, "uv": self._ssh_transport}
             self._actors = {
                 name: SlotActor(self, name, self._transports["local"]) for name in (INTERACTIVE, *self.slots.names())
             }
+            # The preflight warnings of the newest remote experiment start (``private_index:<url>`` ...).
+            self.preflight_warnings: list[str] = []
             for actor in self._actors.values():
                 actor.thread.start()
+            self._add_workers(self.slots.workers)
         except BaseException:
             self._closed = True
             self.store.close()
@@ -220,8 +227,26 @@ class Coordinator:
     def _local_transport(self):
         return LocalTransport.start(self.runtime.root, external_roots=self.distribution_roots)
 
-    def _ssh_transport(self, spec):
-        return SshTransport.start(spec, runtime=self.runtime, python=self.python)
+    def _ssh_transport(self, spec, *, python=None):
+        # D105: the supervisor runs on the provisioning spec's exact Python.
+        return SshTransport.start(spec, runtime=self.runtime, python=self.python if python is None else python)
+
+    def _add_workers(self, specs):
+        """Start ``<worker>-1`` .. ``<worker>-<slots>`` actors of kind ``uv`` for workers not present yet."""
+        with self._condition:
+            if self._closed:
+                raise RuntimeError("Coordinator is closed")
+            started = []
+            for spec in specs:
+                for name in remote_slots(spec):
+                    if name in self._actors:
+                        continue
+                    factory = functools.partial(self._transports["uv"], spec)
+                    actor = SlotActor(self, name, factory, kind="uv", host=spec.name, worker=spec)
+                    self._actors[name] = actor
+                    started.append(actor)
+            for actor in started:
+                actor.thread.start()
 
     @classmethod
     def from_store(cls, root: Path, identity: str):
@@ -472,7 +497,7 @@ class Coordinator:
                 # Never supersede a replication: an experiment slot takes one request only when idle.
                 if actor.current is not None or actor.pending is not None:
                     raise RuntimeError(f"Slot {slot} is busy")
-                key = self.store.assign(request, revision, slot=slot, pinned=True)
+                key = self.store.assign(request, revision, slot=slot, worker=actor.host, pinned=True)
             actor.pending = _Job(key, request, snapshot, documents, deadline, _preview)
             self._condition.notify_all()
         self._emit("queued", key, {} if slot == INTERACTIVE else {"slot": slot})
@@ -583,10 +608,12 @@ class Coordinator:
             raise ValueError("No committed result to replay")
         original = self.store.result(row["attempt"])
         host = row["worker"] if worker is None else None if worker == "local" else worker
-        # A slot's kind follows its worker (store slots: ``local`` without one, else ``remote``).
-        kind = "local" if host is None else "remote"
+        # A slot's kind follows its worker: ``local`` without one, else ``uv`` (remote).
+        kind = "local" if host is None else "uv"
+        with self._condition:
+            actors = list(self._actors.items())
         slots = sorted(
-            (name for name, actor in self._actors.items() if name != INTERACTIVE and actor.kind == kind),
+            (name for name, actor in actors if name != INTERACTIVE and actor.kind == kind),
             key=lambda name: self._actors[name].host != host,
         )
         if not slots and kind == "local" and not self.slots.local:
@@ -705,11 +732,13 @@ class Coordinator:
         return remaining
 
     def start_experiment(self, experiment, *, workers=None, timeout=None) -> str:
-        """Expand an experiment at a pinned preparation and dispatch it to the local slots.
+        """Expand an experiment at a pinned preparation and dispatch it to the local and remote slots.
 
-        Reuses the preparation bound through ``inputs`` when there is one, else prepares.
-        ``timeout`` bounds the preparation and each replication attempt. Replications whose
-        content already has a committed result are ``reused``. Returns the run id; the same
+        ``workers`` names ``local`` and/or workers of ``workers.toml`` (default: the file's, else
+        local); remote workers get ``<worker>-<n>`` slots and the project is preflighted once
+        (design 9). Reuses the preparation bound through ``inputs`` when there is one, else
+        prepares. ``timeout`` bounds the preparation and each replication attempt. Replications
+        whose content already has a committed result are ``reused``. Returns the run id; the same
         definition on unchanged inputs is the same run (D103).
         """
         from simulatte.experiments.definition import Experiment
@@ -720,14 +749,34 @@ class Coordinator:
         if isinstance(workers, str):
             raise ValueError("workers must be a list of worker names")
         names = tuple(experiment.workers if workers is None else workers) or ("local",)
-        unknown = sorted(set(names) - {"local"})
-        if unknown:
-            raise ValueError("Unknown workers: " + ", ".join(map(str, unknown)))
-        if not self.slots.local:
+        if any(type(name) is not str for name in names):
+            raise ValueError("workers must be a list of worker names")
+        configured = {spec.name: spec for spec in self.slots.workers}
+        remote = [name for name in dict.fromkeys(names) if name != "local"]
+        missing = [name for name in remote if name not in configured]
+        if missing:
+            from simulatte.execution.workers import load_workers, resolve_workers
+
+            configured.update((spec.name, spec) for spec in resolve_workers(missing, load_workers()))
+        if "local" in names and not self.slots.local:
             raise ValueError("No local experiment slots are configured")
         self._deadline(timeout)
+        runtimes = {}
+        if remote:
+            from simulatte.execution.preflight import preflight
+
+            checked = preflight(
+                self.project,
+                self.project.root / "uv.lock",
+                coordinator_python=self.python,
+                trusted_runtime_hash=self.runtime.content_hash,
+            )
+            self.preflight_warnings = list(checked.warnings)
+            runtimes["uv"] = checked.spec
         bound = None if self._inputs is None else self._inputs._prepared
         prepared = self.prepare(timeout=timeout) if bound is None else bound
+        if "local" in names:
+            runtimes["local"] = prepared.runtime
         project = prepared.snapshot.source.project
         layouts = {}
         for variant in experiment.layouts:
@@ -738,16 +787,16 @@ class Coordinator:
                 raise ValueError(f"Layout variant file {variant.file!r} does not exist")
             layer = _plain(captured.layer().to_dict())
             layouts[variant.label] = (layout_hash("file", layer), self._document("layout", layer))
-        expanded = expand(experiment, prepared, layouts, {"local": prepared.runtime})
+        expanded = expand(experiment, prepared, layouts, runtimes)
         template = {
             name: value
-            for name, value in expanded.requests[(0, 0, "local")].to_dict().items()
+            for name, value in expanded.requests[(0, 0, min(runtimes))].to_dict().items()
             if name not in ("layout_hash", "parameters", "seed", "runtime")
         }
         preparation = {
             "revision": asdict(prepared.revision),
             "request": template,
-            "runtimes": {"local": _plain(prepared.runtime)},
+            "runtimes": {kind: _plain(runtime) for kind, runtime in runtimes.items()},
             "documents": {name: value for name, value in _plain(prepared.documents).items() if name != "layout_ref"},
             "project": {**asdict(project), "root": str(self.project.root)},
             "workers": list(names),
@@ -764,6 +813,7 @@ class Coordinator:
             )
             # An existing run keeps its stored preparation; a paused one resumes.
             self._scheduler.activate(run_id, timeout=timeout)
+        self._add_workers([configured[name] for name in remote])
         return run_id
 
     def resume_experiment(self, run_id: str, *, timeout=None) -> None:
@@ -840,25 +890,44 @@ class SlotActor:
 
     ``_run_job`` is the SP4 worker message loop, keyed on this slot's transport. The
     interactive slot runs queued jobs; an experiment slot also asks the scheduler for
-    the next replication whenever it is idle.
+    the next replication whenever it is idle. A ``uv`` (remote) slot first stages the
+    request's archives and documents and provisions its environment on the worker.
     """
 
     def __init__(
-        self, coordinator: Coordinator, slot: str, transport_factory, *, kind: str = "local", host: str | None = None
+        self,
+        coordinator: Coordinator,
+        slot: str,
+        transport_factory,
+        *,
+        kind: str = "local",
+        host: str | None = None,
+        worker=None,
     ):
         self.coordinator = coordinator
         self.slot = slot
         self.kind = kind
         self.host = host  # The worker name recorded on attempts (``attempts.worker``); ``None`` is local.
+        self.spec = worker  # The remote slot's WorkerSpec (``provision_timeout``).
         self.transport_factory = transport_factory
         self.pending: _Job | None = None
         self.current: _Job | None = None
         self.worker: Any = None
+        self.python: str | None = None  # The Python a remote supervisor was started on.
         self.thread = threading.Thread(target=self._loop, name=f"simulatte-slot-{slot}", daemon=True)
 
-    def _start_worker(self):
+    def _start_worker(self, python: str | None = None):
+        if self.worker is not None and python is not None and python != self.python:
+            self.worker.close()  # D105: one exact Python per supervisor and environment.
+            self.worker = None
         if self.worker is None:
-            self.worker = self.transport_factory()
+            try:
+                self.worker = self.transport_factory() if python is None else self.transport_factory(python=python)
+            except BootstrapError as error:
+                if error.code == "probe_failed":  # ssh exit 255 or a probe timeout: the host is unreachable.
+                    raise WorkerLost(str(error)) from error
+                raise
+            self.python = python
             try:
                 hello = self.worker.receive(10)
             except BootstrapError:
@@ -873,7 +942,70 @@ class SlotActor:
                 or "metadata-artifacts" not in hello.body["capabilities"]
             ):
                 raise ValueError("Worker protocol/capabilities are incompatible")
+            if self.kind == "uv":
+                missing = {"staging-v1", "uv-provisioning-v1"} - set(hello.body["capabilities"])
+                if missing:
+                    message = "Worker lacks capabilities: " + ", ".join(sorted(missing))
+                    raise RemoteStepError("worker_capabilities", {"message": message})
+                if hello.body.get("trusted_runtime_hash") != self.coordinator.runtime.content_hash:
+                    raise RemoteStepError("runtime_mismatch", {"message": "Worker runs another trusted runtime"})
         return self.worker
+
+    def _remote(self, job):
+        """Stage, provision and return the ``run`` body for a ``uv`` request (design 9).
+
+        Blobs are named by SHA-256 and documents keep their D84 envelope; the worker turns
+        them into host-local paths. ``runtime_ref`` is replaced by the environment's evidence.
+        """
+        c, key, request = self.coordinator, job.key, job.request
+        runtime = request.runtime
+        if runtime.get("kind") != "uv":
+            raise ValueError("Remote slots run uv requests only")
+        worker = self._start_worker(python=runtime["python"])
+
+        def check():
+            c.store.require_active(key)  # StaleAttempt once cancelled: the transport is closed.
+
+        def notify(kind, body):
+            c._emit(kind, key, body)
+
+        steps = {"check": check, "notify": notify}
+        source, inputs = job.snapshot.source, job.snapshot.inputs
+        reference = c._document("request", request.to_dict())
+        try:
+            stage_blob(worker, "source", source.archive, source.archive_hash, key, **steps)
+            stage_blob(worker, "inputs", inputs.archive, inputs.archive_hash, key, **steps)
+            documents = {}
+            for name in ("layout_ref", "expected_metadata_ref"):
+                document = job.documents[name]
+                stage_blob(worker, "document", Path(document["path"]), document["sha256"], key, **steps)
+                documents[name] = {"sha256": document["sha256"], "length": document["length"]}
+            stage_blob(worker, "document", Path(reference["path"]), reference["sha256"], key, **steps)
+            remaining = c._remaining(job.deadline)
+            limit = self.spec.provision_timeout if self.spec is not None else 600.0
+            timeout = limit if remaining is None else min(limit, remaining)
+            environment = provision(worker, runtime, source.archive_hash, key, timeout=timeout, **steps)
+        except ConnectionError as error:
+            raise WorkerLost(str(error)) from error
+        if environment["spec_hash"] != provisioning_spec_hash(runtime):
+            raise ValueError("Worker provisioned another environment")
+        config = {
+            "reference": request.model,
+            "metadata_artifacts": True,
+            "staged_snapshot": {
+                "source_sha256": source.archive_hash,
+                "inputs_sha256": inputs.archive_hash,
+                "python_path": list(source.project.python_path),
+            },
+            "environment": {"spec_hash": environment["spec_hash"], "evidence_sha256": environment["evidence_sha256"]},
+            **documents,
+        }
+        body = {
+            "config": config,
+            "timeout": c._remaining(job.deadline),
+            "request_ref": {"sha256": reference["sha256"], "length": reference["length"]},
+        }
+        return worker, body
 
     def _run_job(self, job):
         c = self.coordinator
@@ -885,25 +1017,28 @@ class SlotActor:
             c.store.transition(key, "preparing")
             receiver = SegmentReceiver(c.store, key)
             c._remaining(job.deadline)
-            paths = materialize(job.snapshot, snapshot_path)
-            c._remaining(job.deadline)
-            worker = self._start_worker()
-            config = {
-                "project_root": str(c.project.root),
-                "snapshot_root": str(paths.root),
-                "snapshot_roots": list(map(str, paths.python_path)),
-                "external_roots": [str(c.runtime.root), *c.distribution_roots],
-                "distribution_roots": c.distribution_roots,
-                "reference": job.request.model,
-                "metadata_artifacts": True,
-                **job.documents,
-            }
             inspect = isinstance(job.request, InspectionRequest)
-            body = {
-                "config": config,
-                "timeout": c._remaining(job.deadline),
-                "inspection_ref" if inspect else "request_ref": c._document("request", job.request.to_dict()),
-            }
+            if self.kind == "uv" and not inspect:
+                worker, body = self._remote(job)
+            else:
+                paths = materialize(job.snapshot, snapshot_path)
+                c._remaining(job.deadline)
+                worker = self._start_worker()
+                config = {
+                    "project_root": str(c.project.root),
+                    "snapshot_root": str(paths.root),
+                    "snapshot_roots": list(map(str, paths.python_path)),
+                    "external_roots": [str(c.runtime.root), *c.distribution_roots],
+                    "distribution_roots": c.distribution_roots,
+                    "reference": job.request.model,
+                    "metadata_artifacts": True,
+                    **job.documents,
+                }
+                body = {
+                    "config": config,
+                    "timeout": c._remaining(job.deadline),
+                    "inspection_ref" if inspect else "request_ref": c._document("request", job.request.to_dict()),
+                }
             c.store.require_active(key)
             c._send(worker, "inspect" if inspect else "run", body, key=key)
             ready = None
@@ -942,7 +1077,7 @@ class SlotActor:
                             else "disk_full"
                             if details.get("code") == "disk_full"
                             else "failed"
-                            if details.get("code") == "timeout"
+                            if details.get("code") in ("timeout", "runtime_changed")
                             else "validation_failed"
                             if details.get("phase") in ("preparing", "inspecting", "ready")
                             else "failed"
@@ -1057,7 +1192,14 @@ class SlotActor:
         except Exception as error:
             if c._active(key):
                 status = "disk_full" if _disk_full(error) else "lost" if isinstance(error, WorkerLost) else "failed"
-                c._record_failure(key, status, {"message": str(error)[:4096]})
+                details = {"message": str(error)[:4096]}
+                if isinstance(error, RemoteStepError):
+                    # uv_missing, stage_mismatch, provisioning_failed, worker_capabilities, runtime_mismatch...
+                    details = {**error.details, "message": str(error)[:4096]}
+                    status = "disk_full" if error.code == "disk_full" else "failed"
+                elif isinstance(error, BootstrapError):
+                    details["code"] = error.code  # uv_missing, runtime_missing, runtime_hash_mismatch...
+                c._record_failure(key, status, details)
             # A receiver/preflight/protocol failure must contain the child before
             # accepting another assignment. No automatic retry of this request.
             if self.worker is not None:

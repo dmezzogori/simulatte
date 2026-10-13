@@ -133,6 +133,8 @@ def serve(config, connection) -> int:
     except BaseException as error:
         kind = "cancelled" if isinstance(error, Cancelled) else "error"
         code = "cancelled" if kind == "cancelled" else "timeout" if isinstance(error, AttemptTimeout) else "child_error"
+        if getattr(error, "code", None) == "runtime_changed":  # runtime.RuntimeChanged
+            code = "runtime_changed"
         if isinstance(error, OSError) and (
             error.errno in (errno.ENOSPC, errno.EDQUOT) or getattr(error, "code", None) == "disk_full"
         ):

@@ -12,7 +12,7 @@ import threading
 import time
 from typing import TYPE_CHECKING, Any, Protocol
 
-from simulatte.execution.protocol import FrameCodec, MAGIC, Message, encode_message
+from simulatte.execution.protocol import DATA_TYPES, FrameCodec, MAGIC, Message, encode_message
 from simulatte.execution.schema import AttemptKey
 
 if TYPE_CHECKING:
@@ -77,7 +77,7 @@ class FramedChannel:
         body = freeze(body)
         frame = encode_message(envelope(kind, body, 0, key), payload)
         size = len(frame) + 8
-        lane = int(kind in ("trace_chunk", "artifact_fragment"))
+        lane = int(kind in DATA_TYPES)
         with self._condition:
             if self._error or self._closed:
                 raise OSError("Worker channel closed") from self._error

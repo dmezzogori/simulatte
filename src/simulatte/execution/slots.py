@@ -3,13 +3,15 @@
 The coordinator always owns the ``interactive`` slot (SP4 semantics, also used by
 ``simulatte run``) and ``local-1`` .. ``local-N`` experiment slots. Each slot owns
 one transport: one supervisor and at most one execution child at a time. Remote
-``<worker>-<n>`` slots plug in through a per-kind transport factory (Tasks 8 and 9).
+``<worker>-1`` .. ``<worker>-<slots>`` slots of kind ``uv`` run over SSH (design 8, 9).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 import os
+
+from simulatte.execution.workers import WorkerSpec
 
 # A bound against configuration mistakes, not a performance limit.
 MAX_LOCAL_SLOTS = 64
@@ -28,13 +30,23 @@ def default_local_slots() -> int:
 
 @dataclass(frozen=True, slots=True)
 class SlotConfig:
-    """Number of local experiment slots; ``0`` leaves only the interactive slot."""
+    """Number of local experiment slots (``0`` leaves only the interactive slot) and remote workers."""
 
     local: int = field(default_factory=default_local_slots)
+    workers: tuple[WorkerSpec, ...] = ()
 
     def __post_init__(self):
         if type(self.local) is not int or not 0 <= self.local <= MAX_LOCAL_SLOTS:
             raise ValueError(f"Local slots must be an integer between 0 and {MAX_LOCAL_SLOTS}")
+        object.__setattr__(self, "workers", tuple(self.workers))
+        names = [spec.name for spec in self.workers if type(spec) is WorkerSpec]
+        if len(names) != len(self.workers) or len(set(names)) != len(names):
+            raise ValueError("Workers must be distinct WorkerSpec entries")
 
     def names(self) -> tuple[str, ...]:
+        """The local experiment slots."""
         return tuple(f"local-{index}" for index in range(1, self.local + 1))
+
+
+def remote_slots(spec: WorkerSpec) -> tuple[str, ...]:
+    return tuple(f"{spec.name}-{index}" for index in range(1, spec.slots + 1))

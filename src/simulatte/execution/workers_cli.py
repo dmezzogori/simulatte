@@ -1,4 +1,7 @@
-"""``simulatte workers list|check|setup``; exit 0 ready, 1 uv or cache missing, 2 unknown worker or unreachable."""
+"""``simulatte workers list|check|setup|prune``.
+
+Exit 0 ready, 1 uv or cache missing, 2 unknown worker or unreachable.
+"""
 
 from __future__ import annotations
 
@@ -12,6 +15,7 @@ from simulatte.execution.workers import (
     check_worker,
     format_check,
     load_workers,
+    prune_worker,
     resolve_workers,
     setup_worker,
 )
@@ -28,6 +32,10 @@ def add_workers_arguments(parser):
     setup.add_argument("name")
     setup.add_argument("--install-uv", action="store_true", help="Offer to install uv with the official installer")
     setup.add_argument("--json", action="store_true")
+    prune = commands.add_parser("prune", help="Remove cached blobs and environments no running attempt uses")
+    prune.add_argument("name")
+    prune.add_argument("--dry-run", action="store_true", help="List what would be removed")
+    prune.add_argument("--json", action="store_true")
 
 
 def _exit_code(check: WorkerCheck) -> int:
@@ -71,6 +79,18 @@ def workers(args) -> int:
         (spec,) = resolve_workers([args.name], configured)
     except ValueError as error:
         return _error(args, str(error))
+    if args.workers_command == "prune":
+        reachable, removed, message = prune_worker(spec, dry_run=args.dry_run)
+        if args.json:
+            status = "succeeded" if reachable else "unreachable"
+            document = {"status": status, "name": spec.name, "dry_run": args.dry_run, "removed": removed}
+            print(json.dumps({**document, **({"message": message} if message else {})}, ensure_ascii=True))
+        elif reachable:
+            verb = "would remove" if args.dry_run else "removed"
+            print("\n".join(f"{verb} {path}" for path in removed) or "nothing to remove")
+        else:
+            print(message, file=sys.stderr)
+        return 0 if reachable else 2
     if args.workers_command == "check":
         check = check_worker(spec)
         if not args.json:

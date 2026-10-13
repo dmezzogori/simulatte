@@ -382,6 +382,8 @@ def experiment(args):
                 coordinator = Coordinator(spec, reference=definition.model, slots=_slots(args))
                 workers = None if args.workers is None else [name.strip() for name in args.workers.split(",")]
                 run_id = coordinator.start_experiment(definition, workers=workers, timeout=args.timeout)
+                for warning in coordinator.preflight_warnings:  # e.g. private_index:<url> (the host's credentials)
+                    print(f"warning: {warning}", file=sys.stderr)
             else:
                 root = _store_root(args)
                 with RunStore.open(root / ".simulatte") as store:
@@ -434,6 +436,8 @@ def experiment(args):
         code, envelope = 1, {"status": error.status, "message": str(error)[:4096], "run_id": run_id}
     except (ValueError, KeyError) as error:
         code, envelope = 2, {"status": "validation_failed", "message": str(error)[:4096]}
+        if type(getattr(error, "code", None)) is str:  # PreflightError: missing_lock, incompatible_simulatte...
+            envelope["code"] = getattr(error, "code")
     except (OSError, RuntimeError, sqlite3.Error) as error:
         code, envelope = 1, {"status": "failed", "message": str(error)[:4096]}
     finally:

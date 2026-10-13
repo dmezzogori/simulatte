@@ -79,6 +79,9 @@ def load_configuration(config: dict[str, Any]):
     # -S preserves stdlib roots even where venv sys.prefix differs across Python
     # versions. External package roots are supplied by the supervising runtime.
     standard = tuple(Path(root).resolve() for root in sys.path if root and Path(root).exists())
+    # The entry already prepended the snapshot roots; they are not external. On remote hosts the
+    # project root is the snapshot root itself (design 9), which no external root may contain.
+    standard = tuple(root for root in standard if root not in snapshot)
     sys.path[:] = [str(root) for root in (*snapshot, *external, *standard)]
     from simulatte.execution.imports import install_import_policy
 
