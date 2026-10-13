@@ -3,12 +3,15 @@ import {Parameters} from './parameters';
 import {RunHistory} from './run-history';
 import {LayoutEditor} from './layout-editor';
 import {Experiments} from './experiments';
+import {ComparePanel, type ReplayNotifications} from './compare-panel';
 import type {ExperimentFeed} from './experiment-feed';
 import type {ConnectionStatus, ExperimentReport, ReplicationEntry, StudioClient, StudioState, View} from './studio-client';
 
 /** Execution controls use authoritative revisions; disconnect never owns a run. */
-export function StudioPanel({client, state, status, feed, onError, onSelect, onOpenReplication}: {
+export function StudioPanel({client, state, status, feed, headers, replays, onError, onSelect, onOpenReplication}: {
   client: StudioClient | null; state: StudioState | null; status: ConnectionStatus; feed: ExperimentFeed; onError(message: string): void; onSelect?(result: StudioState["results"][number], view: View | null): void;
+  /** Session headers for trace prefixes the Compare panel opens; `replays` carries replay_state notifications. */
+  headers: Readonly<Record<string, string>>; replays: ReplayNotifications;
   onOpenReplication(report: ExperimentReport, replication: ReplicationEntry): void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -48,5 +51,6 @@ export function StudioPanel({client, state, status, feed, onError, onSelect, onO
     <Parameters client={client} state={state} status={status} />
     <LayoutEditor client={client} state={state} status={status} />
     <Experiments client={client} state={state} status={status} feed={feed} onOpen={onOpenReplication} onError={onError} />
+    <ComparePanel client={client} state={state} status={status} headers={headers} replays={replays} onError={onError} />
   </section>;
 }

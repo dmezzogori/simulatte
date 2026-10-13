@@ -32,7 +32,7 @@ export interface WorkerPool {local: number; workers: {name: string; host: string
 export interface ReplayEntry {request_id: string; original: string; status: string; verified: boolean | null; reason: string | null; key: AttemptKey | null; trace: Prefix | null;}
 export interface Estimate {n: number; mean: number | null; sd: number | null; half_width: number | null; lower: number | null; upper: number | null; state: string; level: number;}
 export interface ConfigurationSummary {index: number; label: string; parameters: Record<string, unknown>; counts: Record<string, number>; mixed_runtime: boolean;}
-export interface ReplicationEntry {configuration: number; index: number; status: string; attempt: string | null; trace: Prefix | null;}
+export interface ReplicationEntry {configuration: number; index: number; status: string; attempt: string | null; trace: Prefix | null; request_id?: string | null;}
 /** ``comparison.get`` report: ``ExperimentReport.to_dict()`` plus the committed trace of each listed replication. */
 export interface ExperimentReport {
   run_id: string; name: string; status: string; level: number; effective_level: number; pointwise: boolean; m: number;

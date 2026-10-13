@@ -189,8 +189,10 @@ def test_define_start_progress_compare_results_and_lifecycle(tmp_path, monkeypat
                 assert report["paired"][0]["estimate"]["mean"] == 1.0
                 # Every replication is listed with its committed trace, which the prefix endpoint serves.
                 assert len(report["replications"]) == report["replications_total"] == 4
+                requests = {item["attempt"]: item["request_id"] for item in coordinator.store.replications(run_id)}
                 for item in report["replications"]:
                     assert item["status"] == "succeeded" and item["trace"]["attempt"] == item["attempt"]
+                    assert item["request_id"] == requests[item["attempt"]]
                     assert item["trace"]["url"] == f"/api/prefix/{item['attempt']}/{item['trace']['generation']}"
                 one = socket.send("comparison.get", {"run_id": run_id, "configuration": 1})["report"]
                 assert {item["configuration"] for item in one["replications"]} == {1}

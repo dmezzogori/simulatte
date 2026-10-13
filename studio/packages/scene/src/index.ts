@@ -28,6 +28,8 @@ export interface EditorPointer {
 // Viewer, editor and export scenes can coexist. Pixi's boolean destroy(true)
 // also clears global pools; only the last scene may release shared resources.
 let liveScenes = 0;
+/** Scenes constructed and not yet disposed; disposal-accounting tests read it. */
+export const liveSceneCount = (): number => liveScenes;
 export class Scene {
   constructor() {liveScenes++;}
   readonly #renderers = new Map<string, TrustedRenderer>();

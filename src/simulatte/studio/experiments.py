@@ -92,7 +92,7 @@ def report(store, run_id: str, *, level=0.95, baseline=None, bonferroni=False, c
     """The Task 5 report document of one run; ``KeyError`` for an unknown run.
 
     Each listed replication carries the trace of its committed result (``None`` otherwise),
-    so Studio can open it in the viewer.
+    so Studio can open it in the viewer, and its request id, so Studio can replay it.
     """
     from simulatte.experiments.results import ExperimentReport
 
@@ -109,6 +109,8 @@ def report(store, run_id: str, *, level=0.95, baseline=None, bonferroni=False, c
         for item in document["replications"]:
             committed = item["status"] in ("succeeded", "reused") and item["attempt"] is not None
             item["trace"] = prefix(db, item["attempt"]) if committed else None
+            row = db.execute("SELECT request_id FROM attempts WHERE id=?", (item["attempt"],)).fetchone()
+            item["request_id"] = None if row is None else row[0]
     return document
 
 
