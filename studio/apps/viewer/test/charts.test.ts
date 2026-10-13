@@ -1,6 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {MAX_OVERLAY, mergeSeries, seriesInputs} from '../src/overlay-charts';
-import {WelchModel, uniformGrid, welch} from '../src/welch';
+import {WelchModel, finitePoints, uniformGrid, welch} from '../src/welch';
+import {welchAttempts} from '../src/experiment-charts';
+import type {ExperimentReport, ReplicationEntry} from '../src/studio-client';
 
 describe('overlay chart data', () => {
   it('merges two recordings on one shared x-scale with previous-value steps inside each range', () => {
@@ -43,6 +45,24 @@ describe('Welch moving average', () => {
     expect(model.points(1).map(([, value]) => value)).toEqual([1, 1, 7, 7, 7]);
     expect(model.points(3).map(([, value]) => value)).toEqual([1, 3, 5, 7, 7]);
     expect(model.replications).toBe(2);
+  });
+  it('drops null samples so a KPI undefined before its first observation still plots', () => {
+    // A mean over zero completions is null until the first completion at t = 1.
+    const early = finitePoints([[0, 1, null], [1, 2, 4], [2, 3, null], [3, 4, 8]]);
+    expect(early).toEqual([[1, 4], [3, 8]]);
+    const model = new WelchModel([early, finitePoints([[0, 1, 2], [2, 2, 6]])], [0, 1, 2, 3]);
+    expect(model.points(1)).toEqual([[0, 2], [1, 3], [2, 5], [3, 7]]);
+  });
+  it('names the configuration and the listing cap when no committed replication is listed', () => {
+    const entry = (configuration: number, status: string, attempt: string | null): ReplicationEntry => ({configuration, index: 0, status, attempt, trace: null});
+    const report = (replications: ReplicationEntry[], total = replications.length) => ({
+      configurations: [{index: 0, label: 'n=3/base'}, {index: 1, label: 'n=4/base'}], replications, replications_total: total,
+    }) as unknown as ExperimentReport;
+    expect(welchAttempts(report([entry(1, 'succeeded', 'a'), entry(1, 'failed', 'b')]), 1)).toEqual({attempts: ['a'], total: 1});
+    expect(welchAttempts(report([entry(1, 'pending', null)]), 1))
+      .toEqual({attempts: [], total: 0, message: 'n=4/base has no listed committed replication yet'});
+    expect(welchAttempts(report([entry(1, 'pending', null)], 1500), 1))
+      .toEqual({attempts: [], total: 0, message: 'n=4/base has no committed replication among the first 1 of 1500 listed replications (the report lists at most 1000)'});
   });
   it('builds a uniform grid over the replications time span', () => {
     expect(uniformGrid([a, [[1, 1], [3, 1]]], 4)).toEqual([0, 1, 2, 3]);

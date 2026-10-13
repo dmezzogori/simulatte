@@ -15,7 +15,8 @@ export const pairedLabel = (report: ExperimentReport) =>
   label(report.pointwise, report.level, report.paired_m ?? 0, report.paired_effective_level ?? report.level);
 const Badge = ({state}: {state: string}) => <span className={`badge state-${state}`} title={state === 'degenerate'
   ? 'All replications equal: zero-width interval' : state === 'insufficient' ? 'Fewer than two replications: no interval' : undefined}>{state}</span>;
-const cells = (estimate: Estimate) => <><td>{number(estimate.mean)}</td><td>{estimate.half_width === null ? '—' : `± ${number(estimate.half_width)}`}</td></>;
+const cells = (estimate: Estimate) => <><td>{number(estimate.mean)}</td>
+  <td>{estimate.half_width === null || estimate.state === 'insufficient' ? '—' : `± ${number(estimate.half_width)}`}</td></>;
 
 /** Configuration × KPI estimates with paired differences against a chosen baseline (design 5). */
 export function ResultsTable({report, options, onOptions, busy = false}: {report: ExperimentReport; options: ResultsOptions; onOptions(options: ResultsOptions): void; busy?: boolean}) {

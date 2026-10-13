@@ -191,6 +191,16 @@ def test_define_start_progress_compare_results_and_lifecycle(tmp_path, monkeypat
                 for item in report["replications"]:
                     assert item["status"] == "succeeded" and item["trace"]["attempt"] == item["attempt"]
                     assert item["trace"]["url"] == f"/api/prefix/{item['attempt']}/{item['trace']['generation']}"
+                one = socket.send("comparison.get", {"run_id": run_id, "configuration": 1})["report"]
+                assert {item["configuration"] for item in one["replications"]} == {1}
+                assert one["replications_total"] == 2
+                assert client.get(f"/api/experiments/{run_id}/results?configuration=1", headers=headers).json() == one
+                for value in ("x", "-1", "01", "5"):
+                    query = f"/api/experiments/{run_id}/results?configuration={value}"
+                    assert client.get(query, headers=headers).status_code == 400
+                for value in (True, "1", 5):
+                    rejected = socket.send("comparison.get", {"run_id": run_id, "configuration": value})
+                    assert rejected["error"]["code"] == "validation_failed"
                 trace = report["replications"][0]["trace"]
                 served = client.get(trace["url"], headers=headers)
                 assert served.status_code == 200 and len(served.content) == trace["length"]

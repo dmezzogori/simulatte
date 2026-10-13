@@ -44,6 +44,13 @@ describe('results table', () => {
     expect(html(report)).toContain('pointwise 95 % t intervals, no multiple-comparison correction');
     expect(html(adjusted)).toContain('Bonferroni-adjusted (m = 3, effective level 0.983333)');
   });
+  it('shows no half-width for an insufficient estimate', () => {
+    const {baseline: _baseline, paired: _paired, ...plain} = report;
+    const lone: ExperimentReport = {...plain, rows: [{configuration: 0, label: 'n=3/base', kpi: 'cell/count', n_succeeded: 1, estimate: estimate(1, 4, 3, 'insufficient')}]};
+    const markup = renderToStaticMarkup(<ResultsTable report={lone} options={{...options, baseline: null}} onOptions={() => {}} />);
+    expect(markup).toContain('state-insufficient');
+    expect(markup).not.toContain('±');
+  });
   it('shows paired differences against the baseline and the missing pairs', () => {
     const markup = html(report);
     expect(markup).toContain('b − a');

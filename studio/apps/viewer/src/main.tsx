@@ -89,6 +89,7 @@ function App() {
             progress.current.dataset['attempt'] = state.active?.key.attempt_id ?? '';
             progress.current.textContent = state.progress ? JSON.stringify(state.progress.body) : '';
           }
+          experimentFeed.observe(); // Authoritative counts supersede earlier progress notifications.
           setStudioState(state);
           studioPlayback.current?.update(state);
         },
@@ -122,6 +123,7 @@ function App() {
     document.addEventListener("keydown", keyboard);
     return () => {
       studioPlayback.current?.dispose(); studioPlayback.current = null;
+      experimentFeed.dispose();
       studio.current?.dispose(); studio.current = null;
       window.removeEventListener("focus", rescan);
       document.removeEventListener("keydown", keyboard);

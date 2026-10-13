@@ -88,7 +88,7 @@ def prefix(db, attempt):
     }
 
 
-def report(store, run_id: str, *, level=0.95, baseline=None, bonferroni=False) -> dict:
+def report(store, run_id: str, *, level=0.95, baseline=None, bonferroni=False, configuration=None) -> dict:
     """The Task 5 report document of one run; ``KeyError`` for an unknown run.
 
     Each listed replication carries the trace of its committed result (``None`` otherwise),
@@ -103,7 +103,7 @@ def report(store, run_id: str, *, level=0.95, baseline=None, bonferroni=False) -
     if type(bonferroni) is not bool:
         raise ValueError("bonferroni must be a boolean")
     document = ExperimentReport(store, _identity(run_id, "run id")).to_dict(
-        float(level), baseline=baseline, bonferroni=bonferroni
+        float(level), baseline=baseline, bonferroni=bonferroni, configuration=configuration
     )
     with store._transaction() as db:
         for item in document["replications"]:
@@ -266,7 +266,7 @@ class ExperimentCommands:
         return {**self._state({**summary, "status": "deleted"}), "results": len(removed["results"])}
 
     def _comparison_get(self, body):
-        _keys(body, {"run_id"}, {"level", "baseline", "bonferroni"})
+        _keys(body, {"run_id"}, {"level", "baseline", "bonferroni", "configuration"})
         return {
             "ok": True,
             "report": report(
@@ -275,6 +275,7 @@ class ExperimentCommands:
                 level=body.get("level", 0.95),
                 baseline=body.get("baseline"),
                 bonferroni=body.get("bonferroni", False),
+                configuration=body.get("configuration"),
             ),
         }
 
@@ -402,9 +403,11 @@ class ExperimentCommands:
 
 
 def parse_results_query(query) -> dict:
-    """``level``, ``baseline`` and ``bonferroni`` of ``GET api/experiments/<run>/results``."""
-    if set(query) - {"level", "baseline", "bonferroni"} or any(len(query.getlist(name)) != 1 for name in query):
-        raise ValueError("Results accept one level, baseline and bonferroni each")
+    """``level``, ``baseline``, ``bonferroni`` and ``configuration`` of ``GET api/experiments/<run>/results``."""
+    if set(query) - {"level", "baseline", "bonferroni", "configuration"} or any(
+        len(query.getlist(name)) != 1 for name in query
+    ):
+        raise ValueError("Results accept one level, baseline, bonferroni and configuration each")
     options = {}
     if "level" in query:
         try:
@@ -419,4 +422,8 @@ def parse_results_query(query) -> dict:
         if query["bonferroni"] not in ("true", "false"):
             raise ValueError("bonferroni must be true or false")
         options["bonferroni"] = query["bonferroni"] == "true"
+    if "configuration" in query:
+        if re.fullmatch(r"0|[1-9][0-9]{0,8}", query["configuration"]) is None:
+            raise ValueError("configuration must be a configuration index")
+        options["configuration"] = int(query["configuration"])
     return options

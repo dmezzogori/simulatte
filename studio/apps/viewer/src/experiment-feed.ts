@@ -5,11 +5,12 @@ import type {Notification, Reference, WorkerPool} from './studio-client';
 export interface RunProgress {run_id: string; status: string; counts: Record<string, number>; configurations: Record<string, number>[];}
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
-/** What a render reads; a new identity per flush keeps compiler-memoized reads fresh. */
+/** What a render reads; a new identity per flush keeps compiler-memoized reads fresh.
+ * It holds only notifications newer than the latest `state` listing. */
 export class FeedSnapshot {
   constructor(readonly version: number, private readonly runs: ReadonlyMap<string, RunProgress>, readonly workers: WorkerPool | null) {}
   progress(run: string): RunProgress | undefined {return this.runs.get(run);}
-  /** The newest replication counts of a listed run: live progress when any arrived, else the listing's. */
+  /** The newest replication counts of a listed run: progress newer than the listing, else the listing's. */
   counts(run: {run_id: string; counts: Record<string, number>}): Record<string, number> {return this.runs.get(run.run_id)?.counts ?? run.counts;}
 }
 
@@ -23,6 +24,7 @@ export class ExperimentFeed {
   // Local arrival order: a socket delivers in order, but event_seq restarts on reconnect and a
   // referenced body can resolve after a newer inline one.
   #arrival = 0;
+  #listed = 0;  // Arrival of the latest state listing; anything that arrived before it is stale.
   /** `resolve` expands a body sent by HTTP reference (large runs); normally `client.reference`. */
   constructor(private readonly resolve: ((reference: Reference) => Promise<unknown>) | null = null, private readonly interval = 250) {}
   snapshot = (): FeedSnapshot => this.#snapshot;
@@ -39,7 +41,7 @@ export class ExperimentFeed {
     } else this.apply(message.type, order, body);
   }
   private apply(type: Notification['type'], seq: number, body: unknown): void {
-    if (this.#closed || !object(body)) return;
+    if (this.#closed || !object(body) || seq < this.#listed) return;
     if (type === 'workers_state') {
       if (this.#workers && this.#workers.seq > seq) return;
       this.#workers = {seq, value: body as unknown as WorkerPool};
@@ -49,6 +51,17 @@ export class ExperimentFeed {
       this.#progress.set(run, {seq, value: body as unknown as RunProgress});
     }
     if (this.#timer === null) this.#timer = setTimeout(() => this.flush(), this.interval);
+  }
+  /**
+   * An authoritative `state` arrived: it supersedes every earlier progress and worker notification.
+   * Run ids are content-derived, so a deleted, re-created or restarted run must not keep old counts.
+   */
+  observe(): void {
+    if (this.#closed) return;
+    this.#listed = ++this.#arrival;
+    this.#progress.clear(); this.#workers = null;
+    if (this.#timer !== null) clearTimeout(this.#timer);
+    this.flush();
   }
   private flush(): void {
     this.#timer = null;

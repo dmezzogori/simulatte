@@ -97,6 +97,8 @@ function RunDetails({client, run, counts, live, filter, onOpen, onError}: {clien
   const [options, setOptions] = useState<ResultsOptions>({level: 0.95, bonferroni: false, baseline: null});
   const [report, setReport] = useState<ExperimentReport | null>(null);
   const [status, setStatus] = useState(filter);
+  // A configuration filter lists that configuration's replications server-side, past the report's cap.
+  const [configuration, setConfiguration] = useState<number | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -105,13 +107,13 @@ function RunDetails({client, run, counts, live, filter, onOpen, onError}: {clien
   useEffect(() => {
     const id = ++request.current; setBusy(true);
     void client.command('comparison.get', {run_id: run.run_id, level: options.level, bonferroni: options.bonferroni,
-      ...(options.baseline === null ? {} : {baseline: options.baseline})}).then(result => {
+      ...(options.baseline === null ? {} : {baseline: options.baseline}), ...(configuration === null ? {} : {configuration})}).then(result => {
       if (id !== request.current) return;
       if (!result.ok) throw new Error(JSON.stringify(result.error));
       setReport(result.report as ExperimentReport);
     }).catch(error => {if (id === request.current) onError(String(error));}).finally(() => {if (id === request.current) setBusy(false);});
     return () => {request.current++;};
-  }, [client, run.run_id, run.status, options.level, options.bonferroni, options.baseline, refresh]);
+  }, [client, run.run_id, run.status, options.level, options.bonferroni, options.baseline, configuration, refresh]);
   if (!report) return <p>{busy ? 'Loading results…' : 'No results.'}</p>;
   const progress = live.progress(run.run_id)?.configurations;
   const replications = report.replications.filter(item => status === null || item.status === status);
@@ -125,6 +127,9 @@ function RunDetails({client, run, counts, live, filter, onOpen, onError}: {clien
       <label>Status <select value={status ?? ''} onChange={event => setStatus(event.target.value || null)}>
         <option value="">All</option>{Object.keys(counts).map(item => <option key={item} value={item}>{item}</option>)}
       </select></label>
+      <label>Configuration <select value={configuration ?? ''} disabled={busy} onChange={event => setConfiguration(event.target.value === '' ? null : Number(event.target.value))}>
+        <option value="">All</option>{report.configurations.map(item => <option key={item.index} value={item.index}>{item.label}</option>)}
+      </select></label>
       <table><thead><tr><th>Overlay</th><th>Configuration</th><th>Replication</th><th>Status</th><th /></tr></thead>
         <tbody>{replications.map(item => <tr key={`${item.configuration}\u0000${item.index}`}>
           <td><input type="checkbox" aria-label="Overlay this replication" disabled={!committed(item) || !selected.includes(item.attempt!) && selected.length >= MAX_OVERLAY}
@@ -133,7 +138,7 @@ function RunDetails({client, run, counts, live, filter, onOpen, onError}: {clien
           <td>{report.configurations[item.configuration]?.label ?? item.configuration}</td><td>{item.index}</td><td>{item.status}</td>
           <td><button disabled={!committed(item)} onClick={() => onOpen(report, item)}>Open</button></td>
         </tr>)}</tbody></table>
-      {report.replications.length < report.replications_total && <small>Showing the first {report.replications.length} of {report.replications_total} replications.</small>}
+      {report.replications.length < report.replications_total && <small>Showing the first {report.replications.length} of {report.replications_total} replications; choose a configuration to list its own.</small>}
     </details>
     <details><summary>Charts</summary><ExperimentCharts client={client} report={report} selected={chosen} /></details>
   </div>;

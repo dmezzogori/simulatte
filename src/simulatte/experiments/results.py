@@ -160,14 +160,29 @@ class ExperimentReport:
     def _level(level: float, m: int, adjust: bool) -> float:
         return bonferroni(level, max(m, 1)) if adjust else level
 
-    def to_dict(self, level: float = 0.95, *, baseline: str | None = None, bonferroni: bool = False) -> dict[str, Any]:
+    def to_dict(
+        self,
+        level: float = 0.95,
+        *,
+        baseline: str | None = None,
+        bonferroni: bool = False,
+        configuration: int | None = None,
+    ) -> dict[str, Any]:
         """The report as plain data. ``pointwise`` is False only when ``bonferroni`` adjusts the level.
 
         ``m`` and ``effective_level`` describe the table's family of intervals; a baseline adds
-        ``paired_m`` and ``paired_effective_level`` for the comparison family.
+        ``paired_m`` and ``paired_effective_level`` for the comparison family. ``configuration``
+        lists only that configuration's replications, so each one stays reachable under the cap.
         """
+        if configuration is not None and (
+            type(configuration) is not int or not 0 <= configuration < len(self._observations)
+        ):
+            raise ValueError(f"configuration must be an index below {len(self._observations)}")
         rows = self.table(level, bonferroni=bonferroni)
         missing = self.missing()
+        listed = [
+            item for item in self._replications if configuration is None or item["configuration"] == configuration
+        ]
         document: dict[str, Any] = {
             "run_id": self.run_id,
             "name": self._summary["name"],
@@ -183,9 +198,9 @@ class ExperimentReport:
             # Dispatch order with attempt ids, so a client can open any committed replication.
             "replications": [
                 {key: item[key] for key in ("configuration", "index", "status", "attempt")}
-                for item in self._replications[:MAX_LISTED]
+                for item in listed[:MAX_LISTED]
             ],
-            "replications_total": len(self._replications),
+            "replications_total": len(listed),
         }
         if baseline is not None:
             comparisons = self.paired(baseline, level, bonferroni=bonferroni)

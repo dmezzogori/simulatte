@@ -49,6 +49,13 @@ export function welch(series: readonly (readonly Point[])[], {window, grid}: {wi
   });
 }
 
+/** A replication's finite samples of `series.get` points (`[t, seq, value]`). A null (an undefined KPI,
+ * such as a mean before the first completion) contributes nothing; with previous-value sampling the
+ * replication enters the average at its first finite sample. */
+export function finitePoints(points: readonly (readonly [number, number, number | null])[]): Point[] {
+  return points.flatMap(([time, , value]) => value !== null && Number.isFinite(value) ? [[time, value] as const] : []);
+}
+
 /** `count` evenly spaced times from the earliest to the latest sample of any replication. */
 export function uniformGrid(series: readonly (readonly Point[])[], count: number): number[] {
   const times = series.flatMap(replication => replication.length ? [replication[0]![0], replication.at(-1)![0]] : []);

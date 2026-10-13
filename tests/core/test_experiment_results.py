@@ -171,6 +171,26 @@ def test_to_dict_is_bounded_json_with_runtime_flags(store):
     assert not {"paired", "paired_m", "baseline"} & set(ExperimentReport(store, run).to_dict(0.9))
 
 
+def test_replications_can_be_listed_for_one_configuration(store, monkeypatch):
+    from simulatte.experiments import results
+
+    run, attempts = build(store)
+    document = ExperimentReport(store, run).to_dict(configuration=1)
+    assert [(item["configuration"], item["index"]) for item in document["replications"]] == [
+        (1, 0),
+        (1, 1),
+        (1, 2),
+        (1, 3),
+    ]
+    assert document["replications_total"] == 4 and document["replications"][1]["attempt"] == attempts[1, 1]
+    # The cap applies after the filter, so a later configuration stays reachable.
+    monkeypatch.setattr(results, "MAX_LISTED", 1)
+    assert ExperimentReport(store, run).to_dict(configuration=1)["replications"][0]["configuration"] == 1
+    for configuration in (2, -1, True, "1"):
+        with pytest.raises(ValueError, match="configuration"):
+            ExperimentReport(store, run).to_dict(configuration=configuration)
+
+
 def test_mixed_runtime_flag_comes_from_the_scheduler_report(store):
     run, attempts = build(store, {(0, 0): {"shop/wip": 1.0}, (0, 1): {"shop/wip": 2.0}})
     with store._transaction() as db:

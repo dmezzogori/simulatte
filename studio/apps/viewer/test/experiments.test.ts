@@ -97,6 +97,31 @@ describe('experiment progress', () => {
     expect(feed.snapshot().counts(listed)).toEqual({pending: 0, succeeded: 10});
     feed.dispose();
   });
+  it('prefers a state snapshot that arrives after progress, including for a re-created run', async () => {
+    vi.useFakeTimers();
+    let release: (value: unknown) => void = () => {};
+    const resolve = vi.fn().mockImplementationOnce(() => new Promise(done => {release = done;}));
+    const feed = new ExperimentFeed(resolve as never);
+    const listed = {run_id: 'r1', counts: {pending: 10, succeeded: 0}};
+    feed.notification(progress(1, 'r1', 5)); vi.advanceTimersByTime(250);
+    expect(feed.snapshot().counts(listed)).toEqual({pending: 5, succeeded: 5});
+    // Run ids are content-derived: a deleted and re-created run is listed afresh, and the state wins.
+    const reference = {id: 'f'.repeat(64), url: '/api/references/' + 'f'.repeat(64), length: 1, sha256: 'f'.repeat(64)};
+    feed.notification({v: 1, type: 'experiment_progress', event_seq: 2, body: {ref: reference}});
+    feed.observe();
+    expect(feed.snapshot().counts(listed)).toEqual(listed.counts);
+    expect(feed.snapshot().progress('r1')).toBeUndefined();
+    // A referenced body sent before the state but resolved after it is stale.
+    release(progress(2, 'r1', 7).body); await vi.advanceTimersByTimeAsync(250);
+    expect(feed.snapshot().counts(listed)).toEqual(listed.counts);
+    feed.notification(progress(3, 'r1', 1)); vi.advanceTimersByTime(250);
+    expect(feed.snapshot().counts(listed)).toEqual({pending: 9, succeeded: 1});
+    feed.notification({v: 1, type: 'workers_state', event_seq: 4, body: {local: 1, workers: [], slots: [], error: null}}); vi.advanceTimersByTime(250);
+    expect(feed.snapshot().workers?.local).toBe(1);
+    feed.observe();
+    expect(feed.snapshot().workers).toBeNull();
+    feed.dispose();
+  });
   it('drops an older referenced progress body that resolves after a newer one', async () => {
     let release: (value: unknown) => void = () => {};
     const resolve = vi.fn().mockImplementationOnce(() => new Promise(done => {release = done;}));
