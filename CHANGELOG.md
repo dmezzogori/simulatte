@@ -15,8 +15,8 @@ All notable changes to Simulatte are documented here.
   and `insufficient` states, pointwise labelling or Bonferroni adjustment, and paired differences by
   replication index against a baseline with missing pairs listed. Reports come from
   `simulatte experiment results` and the Python `ExperimentReport`.
-- Added `simulatte replay REQUEST_ID`, which reruns a KPI-only replication at `full` level and
-  labels it `verified` or `unverified` with the first differing check (digest, KPI scalar, runtime,
+- Added `simulatte replay REQUEST_ID`, which reruns a KPI-only replication at `full` level, on the
+  original host unless `--worker` names another, and labels it `verified` or `unverified` with the first differing check (digest, KPI scalar, runtime,
   dependencies or layout).
 - Added Studio panels for experiments, results and charts: definition form, start, cancel, resume
   and delete, a configuration by KPI table with baseline and Bonferroni controls, overlaid series
@@ -32,7 +32,8 @@ All notable changes to Simulatte are documented here.
   automatically.
 - Experiments run on several local slots; the default is `min(4, max(1, cpu_count - 1))`, chosen from
   a throughput measurement, with `--local-slots` to override it. A lost replication is dispatched
-  again at most twice; a failed one is never retried; Ctrl-C pauses a run with exit 130 and an
+  again at most twice, by another slot when the worker could not be reached, and that slot backs
+  off from 15 s up to 5 minutes; a failed one is never retried; Ctrl-C pauses a run with exit 130 and an
   unchanged file returns or resumes the existing run.
 - Execution protocol 1.1 adds staging and provisioning messages. The run store moves to schema 2
   (slots, experiments, replications and replays).

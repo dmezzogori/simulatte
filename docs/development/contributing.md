@@ -22,4 +22,11 @@ Simulatte is developed on GitHub. The full workflow is in [`CONTRIBUTING.md`](ht
 
 PRs are **squash-merged into `main` by the maintainer** ([@dmezzogori](https://github.com/dmezzogori)). Contributors should not merge their own PRs or create release tags. New versions are published to PyPI by the maintainer via `v*` tags.
 
+After publishing, re-lock the remote-execution fixture against the new version; until then preflight on the new coordinator reports `incompatible_simulatte` for it:
+
+1. Bump the `simulatte==` pin in `examples/uv_project/pyproject.toml` to the released version.
+2. Run `uv lock` in `examples/uv_project/`.
+3. Run `simulatte workers check NAME` for a configured worker, then the fixture once on the workers its file names: `simulatte experiment run examples/uv_project/sweep.experiment.json`.
+4. Commit the two files as `chore(examples): lock uv_project against simulatte X.Y.Z` (for 0.17.0: `chore(examples): lock uv_project against simulatte 0.17.0`).
+
 For the complete guidelines see the [CONTRIBUTING.md](https://github.com/dmezzogori/simulatte/blob/main/CONTRIBUTING.md) file in the repository.

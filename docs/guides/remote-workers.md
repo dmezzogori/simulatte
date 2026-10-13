@@ -65,7 +65,7 @@ Remote runs need the project to be a uv project. A local check, **preflight**, r
 
 Preflight codes: `missing_lock`, `missing_simulatte_dependency`, `incompatible_simulatte`, `path_dependency_outside_root`, `python_pin_outside_requires`, `invalid_python_pin` (a `.python-version` that is not `X.Y` or `X.Y.Z`) and `bundle_too_large`. They appear as `validation_failed` with the code in the JSON envelope, and exit status 2.
 
-A project that satisfies this is one that already works with `uv sync --locked`. The repository's `examples/uv_project/` is a small example with an in-root path dependency and a `.python-version` of `3.14`. Its committed lock was created against 0.16.0, so run `uv lock` in a copy of it to pin a `simulatte` whose major.minor matches your coordinator before using it.
+A project that satisfies this is one that already works with `uv sync --locked`. The repository's `examples/uv_project/` is a small example with an in-root path dependency and a `.python-version` of `3.14`. Its committed lock was created against 0.16.0, so run `uv lock` in a copy of it to pin a `simulatte` whose major.minor matches your coordinator before using it. Change the copy's `simulatte==0.16.0` requirement in `pyproject.toml` first, because `uv lock` keeps an exact pin; with the committed lock as it is, preflight on a 0.17 coordinator reports `incompatible_simulatte`.
 
 ## What is shipped
 
