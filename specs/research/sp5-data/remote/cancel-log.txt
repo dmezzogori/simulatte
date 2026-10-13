@@ -1,0 +1,14 @@
+remote processes before SIGINT:
+2753413       6 /home/davide/.local/bin/uv run --no-project --python 3.14.0 --no-sync -- python -I -S -c impor
+2753420       6 /home/davide/.local/bin/uv run --no-project --python 3.14.0 --no-sync -- python -I -S -c impor
+2753421       6 /home/davide/.local/share/uv/python/cpython-3.14.0-linux-x86_64-gnu/bin/python3.14 -I -S -c im
+2753426       6 /home/davide/.local/share/uv/python/cpython-3.14.0-linux-x86_64-gnu/bin/python3.14 -I -S -c im
+2753435       6 /home/davide/.local/share/uv/python/cpython-3.14.0-linux-x86_64-gnu/bin/python3.14 -I -S /home
+2753436       6 /home/davide/.local/share/uv/python/cpython-3.14.0-linux-x86_64-gnu/bin/python3.14 -I -S /home
+2753437       6 /home/davide/.local/share/uv/python/cpython-3.14.0-linux-x86_64-gnu/bin/python3.14 -I -S /home
+2753441       6 /home/davide/.local/share/uv/python/cpython-3.14.0-linux-x86_64-gnu/bin/python3.14 -I -S /home
+exit 130 latency_s 0.299
+remote processes right after exit:
+none
+remote processes 2 s later:
+none

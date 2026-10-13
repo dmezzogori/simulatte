@@ -1,0 +1,15 @@
+import os, signal, subprocess, sys, time
+D = "/Users/davide/Developer/simulatte/specs/research/sp5-data/remote"
+env = {**os.environ, "SIMULATTE_WORKERS": "/tmp/sp5-workers.toml"}
+def remote():
+    out = subprocess.run(["ssh", "strangelove", "ps -eo pid,etimes,args | grep -E 'python3.14|uv run' | grep -v grep | cut -c1-110"], capture_output=True, text=True).stdout.strip()
+    return out or "none"
+with open(f"{D}/cancel-run.json", "w") as out, open(f"{D}/cancel-run.err", "w") as err:
+    p = subprocess.Popen(["/Users/davide/Developer/simulatte/.venv/bin/simulatte", "experiment", "run", "cancel.experiment.json", "--json", "--timeout", "600"], cwd="/tmp/sp5-plain", env=env, stdout=out, stderr=err)
+    time.sleep(8)
+    print("remote processes before SIGINT:\n" + remote())
+    t0 = time.monotonic(); p.send_signal(signal.SIGINT); code = p.wait(); t1 = time.monotonic()
+print(f"exit {code} latency_s {t1 - t0:.3f}")
+print("remote processes right after exit:\n" + remote())
+time.sleep(2)
+print("remote processes 2 s later:\n" + remote())

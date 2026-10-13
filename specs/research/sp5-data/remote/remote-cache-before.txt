@@ -1,0 +1,6 @@
+== strangelove
+Linux strangelove 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026 x86_64 GNU/Linux
+4,0K	/home/davide/.cache/simulatte
+== otacon
+Linux otacon 6.18.50+rpt-rpi-v8 #1 SMP PREEMPT Debian 1:6.18.50-1+rpt1 (2026-09-11) aarch64 GNU/Linux
+4.0K	/home/davide/.cache/simulatte

@@ -1,0 +1,8 @@
+worker bigboss (bigboss)
+  reachable: yes
+  platform: Darwin arm64
+  shell: /bin/zsh
+  uv: missing
+  cache: writable
+Would run on bigboss: curl -LsSf https://astral.sh/uv/install.sh | sh
+Install uv on bigboss with the official installer? [y/N] uv not installed

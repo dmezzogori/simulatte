@@ -1,0 +1,4 @@
+cpython-3.14.1-linux-aarch64-gnu    .local/share/uv/python/cpython-3.14-linux-aarch64-gnu/bin/python3.14
+cpython-3.13.5-linux-aarch64-gnu    /usr/bin/python3.13
+cpython-3.13.5-linux-aarch64-gnu    /usr/bin/python3 -> python3.13
+cpython-3.13.5-linux-aarch64-gnu    /usr/bin/python -> python3

@@ -1,0 +1,14 @@
+44679aaa67d652cf14da0d95dd653384ded0524871e6ed295ed9fb20038461f8/
+CACHEDIR.TAG
+bin
+evidence.msgpack
+lib
+lib64
+published
+pyvenv.cfg
+home = /home/davide/.local/share/uv/python/cpython-3.14.0-linux-x86_64-gnu/bin
+implementation = CPython
+uv = 0.9.5
+version_info = 3.14.0
+include-system-site-packages = false
+prompt = uv-plain-example

@@ -1,0 +1,2 @@
+{"extras": [], "groups": [], "kind": "uv", "local_packages": ["uv-plain-example"], "lock_hash": "c2ef7b96164ca527514b7220125126276fc78c5a97eb795f7015a3c95fe3a118", "pyproject_hash": "a3dbe22267b856ef9f55726cfc7ee30d1c70d0c3e0876ee19291709de9d5738c", "python": "3.14.0", "trusted_runtime_hash": "947954ae068c2bb7f413cd8557a7497abe809e8c841d3f48ed300659f16cbe3d"}
+['uv', 'sync', '--locked', '--no-install-project', '--no-install-workspace', '--no-install-package', 'simulatte', '--no-install-package', 'uv-plain-example', '--python', '3.14.0']

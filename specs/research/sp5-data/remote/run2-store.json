@@ -1,0 +1,227 @@
+{
+ "attempts": [
+  {
+   "id": "52de19b088c43367b3bafe711cf58977",
+   "request_id": "05b4fcc3773d85568c436f4df88299dfa725fd55e5d72c1c57c05aab2b48ea83",
+   "status": "succeeded",
+   "slot": "interactive",
+   "worker": null,
+   "created": 1791865168.1400561,
+   "updated": 1791865168.736769,
+   "generation": 1,
+   "duration_s": 0.597,
+   "details": {
+    "document": {
+     "length": 26249,
+     "path": "/private/tmp/sp5-plain/.simulatte/documents/a3790b2b337bfc6f928f439afebc1f06a7cc8373a23787f0fabde64eaa208c6e.msgpack",
+     "sha256": "a3790b2b337bfc6f928f439afebc1f06a7cc8373a23787f0fabde64eaa208c6e"
+    },
+    "kind": "inspection",
+    "metadata": {
+     "id": "0000000000000001-0000000000000000-0000666a-d0d7dad6d75a70a9a5bd5fbb6e6489d877452cf084775695535f21067a67d055-82891e6d6b2e7def0587962901131bbc708a59439613653f7098b2c607f58036",
+     "length": 26218,
+     "offset": 0,
+     "sequence": 1,
+     "sha256": "b9447252480407524408b2613dcaaf9d53c781fda9f8b9fae87c9029573768b7",
+     "stream": "metadata/model-info"
+    }
+   }
+  },
+  {
+   "id": "a936e03fe0e2bb2e84c6e0e4c16033c4",
+   "request_id": "4bc78bd96b8fcc06d9f40b5bfbd2b66b834d33e11457c734bd7a9b73bb7deac9",
+   "status": "succeeded",
+   "slot": "local-4",
+   "worker": null,
+   "created": 1791865168.755805,
+   "updated": 1791865170.071795,
+   "generation": 2,
+   "duration_s": 1.316,
+   "details": {}
+  },
+  {
+   "id": "580116e0693c3f41d88ace77987a3d64",
+   "request_id": "5fb7b86cb4723e251b03dfa7c3514a99a229a60d39fcf5a28f27c4d1363111a7",
+   "status": "succeeded",
+   "slot": "strangelove-1",
+   "worker": "strangelove",
+   "created": 1791865168.7587378,
+   "updated": 1791865170.544615,
+   "generation": 3,
+   "duration_s": 1.786,
+   "details": {}
+  },
+  {
+   "id": "e47df980c232a5b25c085825b614da40",
+   "request_id": "b26b2a5bdba8f9622434f7feeb1dabe14e5893a988443bad5dae3b6f2ca3876f",
+   "status": "succeeded",
+   "slot": "strangelove-2",
+   "worker": "strangelove",
+   "created": 1791865168.761874,
+   "updated": 1791865170.44765,
+   "generation": 4,
+   "duration_s": 1.686,
+   "details": {}
+  },
+  {
+   "id": "6f6a2e6a36ac9c4fa80c338b817755c1",
+   "request_id": "09da4cd2d3dfd8bac59869f80b1ea3c38f7eff08145017597add96a0091ab522",
+   "status": "succeeded",
+   "slot": "otacon-1",
+   "worker": "otacon",
+   "created": 1791865168.774085,
+   "updated": 1791865179.791504,
+   "generation": 5,
+   "duration_s": 11.017,
+   "details": {}
+  },
+  {
+   "id": "f1c978a19aee5a03c1369e6bc12ce07b",
+   "request_id": "77e7d580b9fd0d604b5c7d55fccad5a8e7268a5756538857ea013d377121c72c",
+   "status": "succeeded",
+   "slot": "local-2",
+   "worker": null,
+   "created": 1791865168.776868,
+   "updated": 1791865169.841273,
+   "generation": 6,
+   "duration_s": 1.064,
+   "details": {}
+  },
+  {
+   "id": "add4b4bccf6e221e54985fbc5d728ce9",
+   "request_id": "04eea03f2ec229de041dea766a9020e7bca878775d163d26c4732148081c2197",
+   "status": "succeeded",
+   "slot": "local-1",
+   "worker": null,
+   "created": 1791865168.781473,
+   "updated": 1791865169.839811,
+   "generation": 7,
+   "duration_s": 1.058,
+   "details": {}
+  },
+  {
+   "id": "13da9f4e1f8521e25a0066026a993a2e",
+   "request_id": "a2bff16f30ba9752f02bd622b8ca7fb2b3134f48079eba0528163db4294d3972",
+   "status": "succeeded",
+   "slot": "local-3",
+   "worker": null,
+   "created": 1791865168.784611,
+   "updated": 1791865169.807822,
+   "generation": 8,
+   "duration_s": 1.023,
+   "details": {}
+  },
+  {
+   "id": "cbbe2e7dc560a005671050952c2a8202",
+   "request_id": "911a847c0cb3e7a6b4cccd879e807a56a36546756c47971f63894ae27ae18e0d",
+   "status": "succeeded",
+   "slot": "local-3",
+   "worker": null,
+   "created": 1791865169.810276,
+   "updated": 1791865170.556534,
+   "generation": 9,
+   "duration_s": 0.746,
+   "details": {}
+  }
+ ],
+ "replications": [
+  {
+   "run": "365ec150fb250a92151e92ecf09787941da428b24b5b7484679104398ead9129",
+   "configuration": 0,
+   "idx": 0,
+   "seed": "0",
+   "worker_kind": "local",
+   "request_id": "4bc78bd96b8fcc06d9f40b5bfbd2b66b834d33e11457c734bd7a9b73bb7deac9",
+   "status": "succeeded",
+   "attempt": "a936e03fe0e2bb2e84c6e0e4c16033c4",
+   "dispatches": 1
+  },
+  {
+   "run": "365ec150fb250a92151e92ecf09787941da428b24b5b7484679104398ead9129",
+   "configuration": 1,
+   "idx": 0,
+   "seed": "0",
+   "worker_kind": "uv",
+   "request_id": "5fb7b86cb4723e251b03dfa7c3514a99a229a60d39fcf5a28f27c4d1363111a7",
+   "status": "succeeded",
+   "attempt": "580116e0693c3f41d88ace77987a3d64",
+   "dispatches": 1
+  },
+  {
+   "run": "365ec150fb250a92151e92ecf09787941da428b24b5b7484679104398ead9129",
+   "configuration": 0,
+   "idx": 1,
+   "seed": "1",
+   "worker_kind": "uv",
+   "request_id": "b26b2a5bdba8f9622434f7feeb1dabe14e5893a988443bad5dae3b6f2ca3876f",
+   "status": "succeeded",
+   "attempt": "e47df980c232a5b25c085825b614da40",
+   "dispatches": 1
+  },
+  {
+   "run": "365ec150fb250a92151e92ecf09787941da428b24b5b7484679104398ead9129",
+   "configuration": 1,
+   "idx": 1,
+   "seed": "1",
+   "worker_kind": "uv",
+   "request_id": "09da4cd2d3dfd8bac59869f80b1ea3c38f7eff08145017597add96a0091ab522",
+   "status": "succeeded",
+   "attempt": "6f6a2e6a36ac9c4fa80c338b817755c1",
+   "dispatches": 1
+  },
+  {
+   "run": "365ec150fb250a92151e92ecf09787941da428b24b5b7484679104398ead9129",
+   "configuration": 0,
+   "idx": 2,
+   "seed": "2",
+   "worker_kind": "local",
+   "request_id": "77e7d580b9fd0d604b5c7d55fccad5a8e7268a5756538857ea013d377121c72c",
+   "status": "succeeded",
+   "attempt": "f1c978a19aee5a03c1369e6bc12ce07b",
+   "dispatches": 1
+  },
+  {
+   "run": "365ec150fb250a92151e92ecf09787941da428b24b5b7484679104398ead9129",
+   "configuration": 1,
+   "idx": 2,
+   "seed": "2",
+   "worker_kind": "local",
+   "request_id": "04eea03f2ec229de041dea766a9020e7bca878775d163d26c4732148081c2197",
+   "status": "succeeded",
+   "attempt": "add4b4bccf6e221e54985fbc5d728ce9",
+   "dispatches": 1
+  },
+  {
+   "run": "365ec150fb250a92151e92ecf09787941da428b24b5b7484679104398ead9129",
+   "configuration": 0,
+   "idx": 3,
+   "seed": "3",
+   "worker_kind": "local",
+   "request_id": "a2bff16f30ba9752f02bd622b8ca7fb2b3134f48079eba0528163db4294d3972",
+   "status": "succeeded",
+   "attempt": "13da9f4e1f8521e25a0066026a993a2e",
+   "dispatches": 1
+  },
+  {
+   "run": "365ec150fb250a92151e92ecf09787941da428b24b5b7484679104398ead9129",
+   "configuration": 1,
+   "idx": 3,
+   "seed": "3",
+   "worker_kind": "local",
+   "request_id": "911a847c0cb3e7a6b4cccd879e807a56a36546756c47971f63894ae27ae18e0d",
+   "status": "succeeded",
+   "attempt": "cbbe2e7dc560a005671050952c2a8202",
+   "dispatches": 1
+  }
+ ],
+ "replays": [],
+ "runs": [
+  {
+   "id": "365ec150fb250a92151e92ecf09787941da428b24b5b7484679104398ead9129",
+   "status": "completed",
+   "created": 1791865168.7504158,
+   "updated": 1791865179.7924638,
+   "details": {}
+  }
+ ]
+}

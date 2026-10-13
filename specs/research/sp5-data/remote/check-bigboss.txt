@@ -1,0 +1,6 @@
+worker bigboss (bigboss)
+  reachable: yes
+  platform: Darwin arm64
+  shell: /bin/zsh
+  uv: missing
+  cache: writable
