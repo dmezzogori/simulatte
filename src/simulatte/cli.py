@@ -34,6 +34,9 @@ def main(argv: list[str] | None = None) -> int:
     add_experiment_arguments(commands.add_parser("experiment", help="Run and manage experiments headlessly"))
     add_replay_arguments(commands.add_parser("replay", help="Replay a committed request at full level and verify it"))
     add_store_arguments(commands.add_parser("store", help="Maintain the local run store"))
+    from simulatte.execution.workers_cli import add_workers_arguments
+
+    add_workers_arguments(commands.add_parser("workers", help="Configure and check remote workers"))
     worker = commands.add_parser("worker", help="Start a framed execution supervisor")
     worker.add_argument("--stdio", action="store_true", required=True)
     args = parser.parse_args(argv)
@@ -45,6 +48,10 @@ def main(argv: list[str] | None = None) -> int:
         from simulatte.execution import command
 
         return {"experiment": command.experiment, "replay": command.replay, "store": command.store}[args.command](args)
+    if args.command == "workers":
+        from simulatte.execution.workers_cli import workers
+
+        return workers(args)
     if args.command == "worker":
         from simulatte.execution.supervisor import Supervisor
 
