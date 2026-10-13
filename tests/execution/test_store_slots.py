@@ -551,6 +551,31 @@ def test_replay_links_round_trip(tmp_path):
             store.put_replay("e" * 64, "0" * 64)
         with pytest.raises(KeyError):
             store.replay("e" * 64)
+        # An assigned attempt makes the replay running; only that attempt records its outcome.
+        with pytest.raises(m.StaleAttempt):
+            store.set_replay(replayed, FIXTURE_ATTEMPT, "failed")
+        store.put_replay(replayed, original, attempt=FIXTURE_ATTEMPT)
+        assert store.replay(replayed)["status"] == "running"
+        for status, verified in (("succeeded", None), ("failed", True), ("running", None)):
+            with pytest.raises(ValueError, match="outcome"):
+                store.set_replay(replayed, FIXTURE_ATTEMPT, status, verified=verified)
+        with pytest.raises(KeyError):
+            store.set_replay("e" * 64, FIXTURE_ATTEMPT, "failed")
+        with pytest.raises(m.StaleAttempt):
+            store.set_replay(replayed, "f" * 32, "failed")
+        store.set_replay(replayed, FIXTURE_ATTEMPT, "succeeded", verified=False, details={"reason": "digest_mismatch"})
+        record = store.replay(replayed)
+        assert (record["status"], record["verified"], record["details"]) == (
+            "succeeded",
+            False,
+            {"reason": "digest_mismatch"},
+        )
+        with pytest.raises(m.StaleAttempt):
+            store.set_replay(replayed, FIXTURE_ATTEMPT, "failed")
+        pending = store.assign(request(schema, seed=7), store.create_revision({}))
+        store.put_replay(replayed, original, attempt=pending.attempt_id)
+        with pytest.raises(ValueError, match="committed result"):
+            store.set_replay(replayed, pending.attempt_id, "succeeded", verified=True)
 
 
 def test_prune_keeps_referenced_results_and_survives_interruption(tmp_path, monkeypatch):

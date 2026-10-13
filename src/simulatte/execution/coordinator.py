@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import hashlib
 import errno
 import sqlite3
@@ -27,6 +27,7 @@ from simulatte.execution.hashing import canonical_hash
 from simulatte.execution.layout_files import read_layout_file
 from simulatte.execution.publication import ResultProposal, publish
 from simulatte.execution.receipts import SegmentReceiver, validate_descriptor
+from simulatte.execution.replay import Verification, verify_replay
 from simulatte.execution.references import write_document, read_document
 from simulatte.execution.runtime import describe_runtime
 from simulatte.execution.schema import (
@@ -69,6 +70,12 @@ class ReproductionMismatch(ExecutionFailure):
 
 class WorkerLost(RuntimeError):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class ReplayResult:
+    key: AttemptKey  # The replay's published attempt; ``key.request_id`` is the replay request.
+    verification: Verification
 
 
 def _disk_full(error):
@@ -541,6 +548,99 @@ class Coordinator:
             raise ReproductionMismatch(key, "mismatch", {"message": "Reproduced fingerprint or artifacts differ"})
         return result
 
+    def replay(self, identity: str, *, worker: str | None = None, timeout=None) -> ReplayResult:
+        """Re-execute a committed request at ``full`` level, linked ``replay-of``, and verify it (D100).
+
+        The replay prefers the original attempt's worker (``worker`` overrides it; ``"local"``
+        is the local pool), then any slot of the same kind, and fails with
+        ``no_compatible_worker`` before scheduling when there is none. It runs on an idle
+        experiment slot at the original attempt's pinned revision, or on the interactive
+        slot when no experiment slot is configured. Unverified replays stay published.
+        """
+        self._deadline(timeout)
+        with self.store._transaction() as db:
+            # A replay's own request is the full form of its original: replaying it replays the original.
+            link = db.execute("SELECT original FROM replays WHERE request_id=?", (identity,)).fetchone()
+        identity = identity if link is None else link[0]
+        request = self.store.request(identity)
+        with self.store._transaction() as db:
+            row = db.execute(
+                "SELECT r.attempt,a.worker,v.number,v.digest FROM results r JOIN attempts a ON a.id=r.attempt "
+                "JOIN revisions v ON v.number=a.revision WHERE a.request_id=? ORDER BY r.created,r.attempt LIMIT 1",
+                (identity,),
+            ).fetchone()
+            prepared = db.execute(
+                "SELECT manifest FROM snapshots WHERE id=? AND kind='preparation'", (identity,)
+            ).fetchone()
+        if row is None:
+            raise ValueError("No committed result to replay")
+        original = self.store.result(row["attempt"])
+        host = row["worker"] if worker is None else None if worker == "local" else worker
+        # A slot's kind follows its worker (store slots: ``local`` without one, else ``remote``).
+        kind = "local" if host is None else "remote"
+        slots = sorted(
+            (name for name, actor in self._actors.items() if name != INTERACTIVE and actor.kind == kind),
+            key=lambda name: self._actors[name].host != host,
+        )
+        if not slots and kind == "local" and not self.slots.local:
+            slots = [INTERACTIVE]
+        if not slots:
+            raise ExecutionFailure(
+                None, "no_compatible_worker", {"message": f"No slot can replay on worker {host or 'local'}"}
+            )
+        if prepared is None:
+            raise ValueError("Captured preparation is unavailable for this request")
+        target = replace(request, level="full")
+        manifest = {**_read(prepared[0]), "request": target.to_dict()}
+        with self.store._transaction() as db:
+            db.execute(
+                "INSERT OR IGNORE INTO snapshots VALUES (?,?,?)", (request_id(target), "preparation", _blob(manifest))
+            )
+        snapshot, documents = self._preparation(target)
+        pinned = Revision(row["number"], row["digest"])
+        with self._condition:
+            for slot in slots:
+                revision = self.store.create_revision({"replay": identity}) if slot == INTERACTIVE else pinned
+                try:
+                    key = self._schedule(target, revision, snapshot, documents, timeout, slot=slot)
+                except RuntimeError as error:
+                    if "busy" not in str(error):
+                        raise
+                    continue
+                break
+            else:
+                raise RuntimeError("Every compatible slot is busy; replay again when one is idle")
+            # Recorded before the slot actor can take the job: the condition is still held.
+            self.store.put_replay(key.request_id, identity, attempt=key.attempt_id)
+        self._replay_state(key, identity, "running", None)
+        try:
+            result = self.wait(key, timeout=None if timeout is None else timeout + 5)
+        except BaseException as error:
+            if isinstance(error, ExecutionFailure):
+                status = error.status
+            else:
+                self.cancel(key)
+                status = "cancelled"
+            self.store.set_replay(key.request_id, key.attempt_id, status, details={"message": str(error)[:4096]})
+            self._replay_state(key, identity, status, None)
+            raise
+        from simulatte.trace import Trace
+
+        verification = verify_replay(original, result, Trace.open(result.path / "run.simtrace").verify())
+        self.store.set_replay(
+            key.request_id,
+            key.attempt_id,
+            "succeeded",
+            verified=verification.verified,
+            details={"reason": verification.reason},
+        )
+        self._replay_state(key, identity, "succeeded", verification.verified)
+        return ReplayResult(result.key, verification)
+
+    def _replay_state(self, key, original, status, verified):
+        body = {"request_id": key.request_id, "original": original, "status": status, "verified": verified}
+        self._emit("replay_state", key, body)
+
     def _active(self, key):
         if self._fatal is not None:
             return False
@@ -736,10 +836,13 @@ class SlotActor:
     the next replication whenever it is idle.
     """
 
-    def __init__(self, coordinator: Coordinator, slot: str, transport_factory, *, kind: str = "local"):
+    def __init__(
+        self, coordinator: Coordinator, slot: str, transport_factory, *, kind: str = "local", host: str | None = None
+    ):
         self.coordinator = coordinator
         self.slot = slot
         self.kind = kind
+        self.host = host  # The worker name recorded on attempts (``attempts.worker``); ``None`` is local.
         self.transport_factory = transport_factory
         self.pending: _Job | None = None
         self.current: _Job | None = None

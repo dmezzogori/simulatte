@@ -18,7 +18,12 @@ def main(argv: list[str] | None = None) -> int:
     view.add_argument("trace")
     view.add_argument("--port", type=int, default=0)
     view.add_argument("--no-browser", action="store_true")
-    from simulatte.execution.command import add_arguments, add_experiment_arguments, add_store_arguments
+    from simulatte.execution.command import (
+        add_arguments,
+        add_experiment_arguments,
+        add_replay_arguments,
+        add_store_arguments,
+    )
 
     run = commands.add_parser("run", help="Execute or reproduce a captured local model")
     add_arguments(run)
@@ -27,6 +32,7 @@ def main(argv: list[str] | None = None) -> int:
     studio.add_argument("--port", type=int, default=0)
     studio.add_argument("--no-browser", action="store_true")
     add_experiment_arguments(commands.add_parser("experiment", help="Run and manage experiments headlessly"))
+    add_replay_arguments(commands.add_parser("replay", help="Replay a committed request at full level and verify it"))
     add_store_arguments(commands.add_parser("store", help="Maintain the local run store"))
     worker = commands.add_parser("worker", help="Start a framed execution supervisor")
     worker.add_argument("--stdio", action="store_true", required=True)
@@ -35,10 +41,10 @@ def main(argv: list[str] | None = None) -> int:
         from simulatte.execution.command import run as execute
 
         return execute(args)
-    if args.command in ("experiment", "store"):
+    if args.command in ("experiment", "replay", "store"):
         from simulatte.execution import command
 
-        return command.experiment(args) if args.command == "experiment" else command.store(args)
+        return {"experiment": command.experiment, "replay": command.replay, "store": command.store}[args.command](args)
     if args.command == "worker":
         from simulatte.execution.supervisor import Supervisor
 

@@ -914,8 +914,12 @@ class RunStore:
                 (status, time.time(), None if details is None else _blob(details), run_id),
             )
 
-    def put_replay(self, request_id: str, original: str) -> None:
-        """Link a replay request to the original request it re-executes at full level."""
+    def put_replay(self, request_id: str, original: str, *, attempt: str | None = None) -> None:
+        """Link a replay request to the original request it re-executes at full level.
+
+        With ``attempt`` (the replay's assigned attempt) the replay is ``running`` and any
+        earlier outcome of the same replay request is cleared.
+        """
         with self._transaction() as db:
             if db.execute("SELECT 1 FROM requests WHERE id=?", (original,)).fetchone() is None:
                 raise KeyError(original)
@@ -924,6 +928,33 @@ class RunStore:
             )
             if db.execute("SELECT original FROM replays WHERE request_id=?", (request_id,)).fetchone()[0] != original:
                 raise ValueError("Replay is linked to another original request")
+            if attempt is not None:
+                db.execute(
+                    "UPDATE replays SET attempt=?,status='running',verified=NULL,details=? WHERE request_id=?",
+                    (attempt, _blob({}), request_id),
+                )
+
+    def set_replay(
+        self, request_id: str, attempt: str, status: str, *, verified: bool | None = None, details: dict | None = None
+    ) -> None:
+        """Record the outcome of the replay's current attempt: ``succeeded`` with a verification, or a failure."""
+        if status not in ("succeeded", *_TERMINAL) or (status == "succeeded") != (verified is not None):
+            raise ValueError("Invalid replay outcome")
+        with self._transaction() as db:
+            row = db.execute("SELECT attempt,status FROM replays WHERE request_id=?", (request_id,)).fetchone()
+            if row is None:
+                raise KeyError(request_id)
+            if row["attempt"] != attempt or row["status"] != "running":
+                raise StaleAttempt("Replay is bound to another attempt")
+            if (
+                status == "succeeded"
+                and db.execute("SELECT 1 FROM results WHERE attempt=?", (attempt,)).fetchone() is None
+            ):
+                raise ValueError("Replay success requires a committed result")
+            db.execute(
+                "UPDATE replays SET status=?,verified=?,details=? WHERE request_id=?",
+                (status, None if verified is None else int(verified), _blob(details or {}), request_id),
+            )
 
     def replay(self, request_id: str) -> dict:
         with self._transaction() as db:

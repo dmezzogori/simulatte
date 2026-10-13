@@ -207,6 +207,62 @@ def add_experiment_arguments(parser):
             action.add_argument("--timeout", type=float, help="bound on preparation and on each replication, seconds")
 
 
+def add_replay_arguments(parser):
+    parser.add_argument("request_id")
+    parser.add_argument("--project", help="project directory holding the .simulatte store")
+    parser.add_argument("--worker", help="worker to replay on (default: the original attempt's; local for local)")
+    parser.add_argument("--timeout", type=float, help="bound on the replay attempt, seconds")
+    parser.add_argument("--json", action="store_true")
+
+
+def replay(args):
+    """``simulatte replay REQUEST_ID``: exit 0 when verified, 1 when unverified or failed, 2 for usage."""
+    coordinator = None
+    envelope: dict[str, Any] = {"request_id": args.request_id}
+    try:
+        coordinator = Coordinator.from_store(Path(args.project or "."), args.request_id)
+        outcome = coordinator.replay(args.request_id, worker=args.worker, timeout=args.timeout)
+        record = coordinator.store.replay(outcome.key.request_id)
+        envelope = {
+            "status": "succeeded",
+            "request_id": outcome.key.request_id,
+            "original": record["original"],
+            "attempt_id": outcome.key.attempt_id,
+            "verified": outcome.verification.verified,
+            "reason": outcome.verification.reason,
+            "path": str(coordinator.store.result(outcome.key.attempt_id).path),
+        }
+        code = 0 if outcome.verification.verified else 1
+    except KeyboardInterrupt:
+        code, envelope = 130, {"status": "cancelled", "message": "Cancelled by user"}
+    except ExecutionFailure as error:
+        code, envelope = 1, {**envelope, "status": error.status, "message": str(error)[:4096]}
+        if error.key is not None:
+            envelope.update(request_id=error.key.request_id, attempt_id=error.key.attempt_id)
+    except (ValueError, KeyError) as error:
+        code, envelope = 2, {"status": "validation_failed", "message": str(error)[:4096]}
+    except (OSError, RuntimeError, sqlite3.Error) as error:
+        code, envelope = 1, {"status": "failed", "message": str(error)[:4096]}
+    finally:
+        if coordinator is not None:
+            try:
+                coordinator.close()
+            except (OSError, RuntimeError, sqlite3.Error) as error:
+                code, envelope = 1, {"status": "failed", "message": str(error)[:4096]}
+    if args.json:
+        print(json.dumps(_plain(envelope), ensure_ascii=True, allow_nan=False, separators=(",", ":")))
+    elif "message" in envelope:
+        print(envelope["message"], file=sys.stderr)
+    else:
+        label = "verified" if envelope["verified"] else f"unverified ({envelope['reason']})"
+        print(
+            f"{label}: replay {envelope['request_id']} of {envelope['original']} "
+            f"attempt {envelope['attempt_id']} at {envelope['path']}",
+            file=sys.stderr,
+        )
+    return code
+
+
 def add_store_arguments(parser):
     prune = parser.add_subparsers(dest="action", required=True).add_parser(
         "prune", help="Remove unreferenced results and snapshots"
