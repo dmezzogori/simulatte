@@ -16,6 +16,7 @@ from starlette.applications import Starlette
 from starlette.responses import Response, StreamingResponse
 from starlette.routing import Route, WebSocketRoute
 
+from simulatte.execution import scheduler
 from simulatte.execution.layout_files import read_layout_file, backup_layout, stage_layout
 from simulatte.execution.references import read_document
 from simulatte.execution.schema import AttemptKey, Revision, _plain
@@ -24,13 +25,25 @@ from simulatte.layout.io import parse_layout
 from simulatte.layout.layers import FileLayer
 from simulatte.layout.types import LayoutLimits
 from simulatte.studio.auth import SessionAuth, response_headers
+from simulatte.studio.experiments import ExperimentCommands, parse_results_query, replays, report, run_summary
 from simulatte.studio.http import ImmutableFile, RangeSource, References, parse_range
 from simulatte.studio.lifecycle import ProjectSession
-from simulatte.studio.websocket import CommandCache, ConnectionHub, ProtocolError, encode_message, json_values
+from simulatte.studio.websocket import (
+    EXPERIMENT_COMMANDS,
+    CommandCache,
+    ConnectionHub,
+    ProtocolError,
+    encode_message,
+    json_values,
+)
+
+# Attempt events that become the interactive ``run_state``. On other slots they only refresh ``workers_state``:
+# ``experiment_progress`` and ``replay_state`` carry replication and replay outcomes.
+_RUN_STATES = ("queued", "ready", "result", "cancelled", "failed", "lost", "disk_full", "validation_failed")
 
 
 class StudioServer(SessionAuth):
-    def __init__(self, coordinator, port, static, *, timeout=None, configure=None, watcher=None):
+    def __init__(self, coordinator, port, static, *, timeout=None, configure=None, watcher=None, workers_error=None):
         super().__init__(port, mode="studio")
         self.coordinator = coordinator
         self.static = Path(static)
@@ -40,6 +53,8 @@ class StudioServer(SessionAuth):
         self._unbound_layout = None
         self.references = References()
         self.session = ProjectSession(coordinator, timeout=timeout, configure=configure, watcher=watcher)
+        self.experiments = ExperimentCommands(coordinator, timeout=timeout, workers_error=workers_error)
+        self._run_states = {}  # The last announced status of each experiment run.
         self.commands = asyncio.Lock()
         self.http_commands = CommandCache()
         self.hub = ConnectionHub(self, self.command, self.state)
@@ -135,10 +150,14 @@ class StudioServer(SessionAuth):
                     for item in db.execute(
                         "SELECT a.*,r.created,v.digest AS revision_digest FROM results r "
                         "JOIN attempts a ON a.id=r.attempt JOIN revisions v ON v.number=a.revision "
-                        "ORDER BY a.generation DESC LIMIT 20"
+                        "WHERE a.slot=? ORDER BY a.generation DESC LIMIT 20",
+                        (INTERACTIVE,),
                     ).fetchall()
                 ]
-                latest = db.execute("SELECT * FROM attempts ORDER BY generation DESC LIMIT 1").fetchone()
+                # Experiment replications and replays have their own lists; they never become the interactive view.
+                latest = db.execute(
+                    "SELECT * FROM attempts WHERE slot=? ORDER BY generation DESC LIMIT 1", (INTERACTIVE,)
+                ).fetchone()
                 latest_attempt = (
                     None
                     if latest is None
@@ -149,6 +168,7 @@ class StudioServer(SessionAuth):
                         "details": _read(latest["details"]),
                     }
                 )
+                replay_list = replays(db, self._prefix)
             state = {
                 "revision": None if revision is None else asdict(revision),
                 "inputs": None
@@ -164,6 +184,9 @@ class StudioServer(SessionAuth):
                 and self.progress["attempt_id"] == active["key"]["attempt_id"]
                 else None,
                 "fatal": None if co._fatal is None else {"status": co._fatal.status, "details": co._fatal.details},
+                "experiments": scheduler.runs(co.store, limit=20),
+                "workers": self.experiments.workers(),
+                "replays": replay_list,
             }
             view = co.store.presentation_view(revision=revision) if revision is not None else None
             last_good = co.store.presentation_view(committed_only=True)
@@ -284,8 +307,12 @@ class StudioServer(SessionAuth):
     async def command(self, message, peer):
         # Preview is read-only and independently bounded. Do not block run.cancel
         # or another tab's revision change while a model builds its preview.
-        async with nullcontext() if message["type"] == "layout.validate" else self.commands:
+        # Experiment commands fence on run and store state, not on the project revision.
+        unlocked = message["type"] == "layout.validate" or message["type"] in EXPERIMENT_COMMANDS
+        async with nullcontext() if unlocked else self.commands:
             try:
+                if message["type"] in EXPERIMENT_COMMANDS:
+                    return self._body(await asyncio.to_thread(self.experiments, message["type"], message["body"]))
                 if message["type"] == "project.rescan":
                     body = message["body"]
                     if set(body) - {"retry"} or type(body.get("retry", False)) is not bool:
@@ -319,15 +346,50 @@ class StudioServer(SessionAuth):
         while True:
             events = co.events()
             changed = False
+            slots_changed = False
             for event in events:
                 kind, body, key = event["type"], event["body"], event["key"]
+                slot = INTERACTIVE
                 if key is None:
                     current = await asyncio.to_thread(co.store.current_revision)
                     revision = None if current is None else asdict(current)
                 else:
-                    revision = await asyncio.to_thread(self._attempt_revision, key)
-                    if revision is None:
+                    origin = await asyncio.to_thread(self._attempt_origin, key)
+                    if origin is None:
                         continue
+                    revision, slot = origin
+                if kind in ("experiment_state", "experiment_progress"):
+                    slots_changed = slots_changed or kind == "experiment_progress"
+                    state = await asyncio.to_thread(self._run_state, body)
+                    if state is not None:
+                        changed = True
+                        self.hub.notify("experiment_state", state, revision=revision)
+                    if kind == "experiment_progress":
+                        self.hub.notify(kind, self._body(body), revision=revision)
+                    continue
+                if kind == "replay_state":
+                    changed = slots_changed = True
+                    self.hub.notify(kind, body, revision=revision, key=key)
+                    continue
+                if slot != INTERACTIVE:
+                    # Replications and replays keep their live trace and KPI events for inspection;
+                    # their state and progress reach clients as experiment and replay notifications.
+                    if kind == "trace_available":
+                        body = {
+                            **body,
+                            "attempt": key["attempt_id"],
+                            "url": f"/api/prefix/{key['attempt_id']}/{body['generation']}",
+                            "slot": slot,
+                        }
+                    elif kind in ("kpi", "diagnostics", "cleanup_error"):
+                        body = {**body, "slot": slot}
+                        if kind != "kpi":
+                            body, kind = {"kind": kind, **body}, "error"
+                    else:
+                        slots_changed = slots_changed or kind in _RUN_STATES
+                        continue
+                    self.hub.notify(kind, self._body(body), revision=revision, key=key)
+                    continue
                 if kind == "trace_available":
                     body = {
                         **body,
@@ -340,16 +402,7 @@ class StudioServer(SessionAuth):
                 elif kind == "model_info":
                     metadata = await asyncio.to_thread(read_document, body["document"], "model-info")
                     body = {"metadata": self.references.put(metadata)}
-                elif kind in (
-                    "queued",
-                    "ready",
-                    "result",
-                    "cancelled",
-                    "failed",
-                    "lost",
-                    "disk_full",
-                    "validation_failed",
-                ):
+                elif kind in _RUN_STATES:
                     body = {"status": "succeeded" if kind == "result" else kind, "details": body}
                     kind = "run_state"
                 elif kind == "resync" or kind == "studio_state":
@@ -360,18 +413,39 @@ class StudioServer(SessionAuth):
                     kind = "error"
                 self.hub.notify(kind, self._body(body), revision=revision, key=key)
                 changed = changed or kind not in ("progress", "kpi", "trace_available")
+            if slots_changed and self.hub.connections:
+                workers = await asyncio.to_thread(self.experiments.workers)
+                self.hub.notify("workers_state", self._body(workers))
             if changed and self.hub.connections:
                 await self._broadcast_state()
             await asyncio.sleep(0.05)
 
-    def _attempt_revision(self, key):
+    def _run_state(self, event):
+        """The ``experiment_state`` of a command or progress event whose run status was not announced yet."""
+        run_id, status = event["run_id"], event["status"]
+        if self._run_states.get(run_id) == status:
+            return None
+        if status == "deleted":
+            self._run_states[run_id] = status
+            return event
+        try:
+            summary = run_summary(self.coordinator.store, run_id)
+        except KeyError:
+            return None  # Deleted meanwhile; the delete announces it.
+        if summary["status"] != status:
+            return None  # A newer event of this run carries the newer status.
+        self._run_states[run_id] = status
+        return summary
+
+    def _attempt_origin(self, key):
+        """The attempt's original input revision and its slot, or ``None`` for an unknown attempt."""
         with self.coordinator.store._transaction() as db:
             row = db.execute(
-                "SELECT r.number,r.digest FROM revisions r JOIN attempts a ON a.revision=r.number "
+                "SELECT r.number,r.digest,a.slot FROM revisions r JOIN attempts a ON a.revision=r.number "
                 "WHERE a.id=? AND a.request_id=? AND a.generation=?",
                 (key["attempt_id"], key["request_id"], key["generation"]),
             ).fetchone()
-        return None if row is None else dict(row)
+        return None if row is None else ({"number": row["number"], "digest": row["digest"]}, row["slot"])
 
     async def _broadcast_state(self):
         # A pinned selection is per peer; the shared snapshot serves everyone else.
@@ -456,7 +530,8 @@ class StudioServer(SessionAuth):
         path = request.path_params["path"]
         if path == "bootstrap" and request.method != "PUT":
             return self.bootstrap(request)
-        if request.url.query:
+        results = path.startswith("api/experiments/") and path.endswith("/results")
+        if request.url.query and not results:
             return response({"error": "Unknown resource"}, 404)
         if path.startswith("api/"):
             if not self.authenticated(request):
@@ -464,6 +539,17 @@ class StudioServer(SessionAuth):
             try:
                 if path == "api/state" and request.method in ("GET", "HEAD"):
                     return response(await asyncio.to_thread(self.snapshot))
+                if results and request.method in ("GET", "HEAD"):
+                    run_id = path.removeprefix("api/experiments/").removesuffix("/results")
+                    if re.fullmatch(r"[a-f0-9]{64}", run_id) is None:
+                        return response({"error": "Unknown experiment run"}, 404)
+                    options = parse_results_query(request.query_params)
+                    try:
+                        # Bounded: the report caps its listed missing replications.
+                        document = await asyncio.to_thread(report, self.coordinator.store, run_id, **options)
+                    except KeyError:
+                        return response({"error": "Unknown experiment run"}, 404)
+                    return response(document)
                 if path.startswith("api/references/") and request.method in ("GET", "HEAD"):
                     identity = path.removeprefix("api/references/")
                     data = self.references.get(identity)

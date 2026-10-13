@@ -13,6 +13,21 @@ import re
 MAX_MESSAGE = 256 << 10
 MAX_MESSAGES = 256
 MAX_QUEUE_BYTES = 4 << 20
+# Experiment commands fence on run ids and store state, not on the project revision (design 7):
+# their envelope may omit ``revision``, and a present one is validated but never compared.
+EXPERIMENT_COMMANDS = frozenset(
+    (
+        "experiment.define",
+        "experiment.start",
+        "experiment.cancel",
+        "experiment.resume",
+        "experiment.delete",
+        "comparison.get",
+        "series.get",
+        "replay.start",
+        "workers.get",
+    )
+)
 COMMANDS = frozenset(
     (
         "state.get",
@@ -24,6 +39,7 @@ COMMANDS = frozenset(
         "layout.validate",
         "layout.write",
         "view.select",
+        *EXPERIMENT_COMMANDS,
     )
 )
 
@@ -94,8 +110,10 @@ def decode_message(raw, *, auth=False):
         ):
             raise ProtocolError("Expected authentication message")
         return message
+    fenced = type(message.get("type")) is not str or message["type"] not in EXPERIMENT_COMMANDS
+    required = {"v", "type", "id", "body"} | ({"revision"} if fenced else set())
     if (
-        not {"v", "type", "id", "revision", "body"} <= message.keys()
+        not required <= message.keys()
         or message.keys() - {"v", "type", "id", "revision", "body", "attempt_id", "generation"}
         or type(message["type"]) is not str
         or message["type"] not in COMMANDS
@@ -104,7 +122,7 @@ def decode_message(raw, *, auth=False):
         or not isinstance(message["body"], dict)
     ):
         raise ProtocolError("Invalid command envelope")
-    revision = message["revision"]
+    revision = message.get("revision")
     if revision is not None and (
         not isinstance(revision, dict)
         or set(revision) != {"number", "digest"}
@@ -260,6 +278,10 @@ class ConnectionHub:
         coalesce = None
         if kind in ("progress", "kpi", "trace_available"):
             coalesce = (kind, None if key is None else key["attempt_id"], body.get("key"))
+        elif kind == "experiment_progress":
+            coalesce = (kind, body["run_id"])
+        elif kind == "workers_state":
+            coalesce = (kind,)
         for peer in tuple(self.connections):
             try:
                 peer.outbox.put(message, key=coalesce)

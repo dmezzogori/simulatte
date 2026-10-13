@@ -17,7 +17,11 @@ def test_control_json_bounds_and_envelope():
     for raw in [
         '{"v":1,"v":1}',
         json.dumps(command(v=True)),
-        json.dumps(command(type="experiment.start")),
+        json.dumps(command(type="experiment.unknown")),
+        json.dumps(command(type=["experiment.start"])),
+        json.dumps({key: value for key, value in command(type="run.start").items() if key != "revision"}),
+        json.dumps({key: value for key, value in command(type="state.get").items() if key != "revision"}),
+        json.dumps(command(type="experiment.start", revision={"number": 0, "digest": "a" * 64})),
         json.dumps(command(id="")),
         json.dumps(command(extra=True)),
         json.dumps(command(body=[])),
@@ -31,6 +35,11 @@ def test_control_json_bounds_and_envelope():
     ]:
         with pytest.raises(ProtocolError):
             decode_message(raw)
+    # Experiment commands fence on run and store state: their revision may be omitted or stale.
+    accepted = {key: value for key, value in command(type="experiment.start").items() if key != "revision"}
+    assert decode_message(json.dumps(accepted)) == accepted
+    stale = command(type="comparison.get", revision={"number": 3, "digest": "b" * 64})
+    assert decode_message(json.dumps(stale)) == stale
     assert decode_message('{"v":1,"type":"auth","secret":"x"}', auth=True)["secret"] == "x"
     with pytest.raises(ProtocolError):
         decode_message(json.dumps(command()), auth=True)

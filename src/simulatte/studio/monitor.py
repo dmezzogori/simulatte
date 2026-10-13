@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
+from pathlib import Path
 import sqlite3
 
 from simulatte.execution.coordinator import ExecutionFailure, _disk_full, selected_model
@@ -74,7 +75,20 @@ class ProjectMonitor:
         self._wake.set()
 
     def observe_experiments(self, change):
-        """Experiment files and layout variants changed; they never refresh the prepared model (D104)."""
+        """Experiment files and layout variants changed; they never refresh the prepared model (D104).
+
+        Clients are told which project-relative experiment files or layout variants changed so they can
+        refresh their lists; nothing runs. A rescan without event paths reports an empty list.
+        """
+        project = self.watcher.project
+        paths = []
+        for raw in change.paths:
+            path = Path(raw).absolute()
+            if path.is_relative_to(project.root):
+                name = path.relative_to(project.root).as_posix()
+                if name.endswith(".experiment.json") or name in project.layouts:
+                    paths.append(name)
+        self.coordinator._emit("experiments_changed", None, {"paths": sorted(set(paths))})
 
     def _pause(self, base, message):
         with self.coordinator._condition:
