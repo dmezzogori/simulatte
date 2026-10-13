@@ -35,6 +35,10 @@ def fixture_copy(tmp_path):
 
 
 def rows(root, sql):
+    """Query a closed store's index, or an open store through its own connection (Windows holds it EXCLUSIVE)."""
+    if isinstance(root, api().RunStore):
+        with root._mutex:
+            return [tuple(row) for row in root._db.execute(sql).fetchall()]
     with closing(sqlite3.connect(root / "index.sqlite")) as db:
         return db.execute(sql).fetchall()
 
@@ -130,7 +134,7 @@ def test_migration_moves_active_attempt_into_interactive_slot(tmp_path, monkeypa
             }
     with m.RunStore.open(root) as store:
         assert store.slots()["interactive"]["active"] is None
-        assert rows(root, f"SELECT status FROM attempts WHERE id='{attempt}'") == [("lost",)]
+        assert rows(store, f"SELECT status FROM attempts WHERE id='{attempt}'") == [("lost",)]
 
 
 def test_failed_migration_rolls_back_to_version_1(tmp_path, monkeypatch):
@@ -164,7 +168,7 @@ def test_migration_backfills_content_ids_for_result_reuse(tmp_path):
     m = api()
     root = fixture_copy(tmp_path)
     with m.RunStore.open(root) as store:
-        backfilled = dict(rows(root, "SELECT id,content_id FROM requests"))
+        backfilled = dict(rows(store, "SELECT id,content_id FROM requests"))
         result = store.result(FIXTURE_ATTEMPT)
         original = store.request(result.key.request_id)
         assert backfilled.pop(result.key.request_id) == schema.content_id(original)
@@ -177,7 +181,7 @@ def test_migration_backfills_content_ids_for_result_reuse(tmp_path):
         # New assignments index their content id too; uncommitted attempts are never reused.
         fresh = replace(original, seed=5, layout_revision=store.current_revision().number)
         store.assign(fresh, store.current_revision())
-        assert rows(root, f"SELECT content_id FROM requests WHERE id='{schema.request_id(fresh)}'") == [
+        assert rows(store, f"SELECT content_id FROM requests WHERE id='{schema.request_id(fresh)}'") == [
             (schema.content_id(fresh),)
         ]
         assert store.committed_by_content(schema.content_id(fresh)) is None
@@ -542,9 +546,7 @@ def test_replay_links_round_trip(tmp_path):
             "verified": None,
             "details": {},
         }
-        (inspection,) = [
-            identity for (identity,) in rows(store.root, "SELECT id FROM requests") if identity != original
-        ]
+        (inspection,) = [identity for (identity,) in rows(store, "SELECT id FROM requests") if identity != original]
         with pytest.raises(ValueError, match="original"):
             store.put_replay(replayed, inspection)
         with pytest.raises(KeyError):

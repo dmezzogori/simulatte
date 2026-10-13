@@ -284,7 +284,8 @@ def _candidates(project: ProjectSpec) -> set[str]:
             if (project.root / name).exists() or (project.root / name).is_symlink():
                 names.add(name)
     for pattern in project.include:
-        for path in project.root.glob(pattern):
+        # Before Python 3.13 a trailing "**" matches directories only; "**/*" matches files on every version.
+        for path in project.root.glob(pattern + "/*" if pattern.endswith("**") else pattern):
             if not path.is_dir():
                 names.add(path.relative_to(project.root).as_posix())
     if (project.root / "pyproject.toml").is_file():

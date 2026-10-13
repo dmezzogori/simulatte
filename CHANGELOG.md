@@ -43,6 +43,11 @@ All notable changes to Simulatte are documented here.
 - A runtime that changed after preparation now fails the attempt with `runtime_changed` (`failed`)
   instead of `validation_failed`, for local and remote runs.
 
+### Fixed
+
+- A `[tool.simulatte.bundle] include` pattern ending in `**` (for example `packages/**`) now captures
+  the files below it on Python 3.11 and 3.12, where it previously matched directories only.
+
 ### Migration
 
 - Stores migrate automatically; delete `.simulatte/` to reset. A store written by a newer version

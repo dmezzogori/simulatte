@@ -3,6 +3,8 @@
 import sys
 from unittest.mock import patch
 
+import pytest
+
 from simulatte.cli import main
 from simulatte.execution import coordinator as m
 from simulatte.execution.store import RunStore
@@ -12,6 +14,8 @@ from tests.execution.test_replay import tamper
 from tests.execution.test_scheduler import Peer, write_experiment
 
 
+# Ten CLI invocations, each freezing the runtime and starting a child: past 60 s on Windows runners.
+@pytest.mark.timeout(240)
 def test_replay_prints_verification_and_exits_by_outcome(tmp_path, capsys, monkeypatch):
     monkeypatch.setenv("SIMULATTE_WORKERS", str(tmp_path / "workers.toml"))  # No configured workers.
     spec = project(tmp_path)
