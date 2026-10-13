@@ -20,6 +20,8 @@ from simulatte.execution.workers import (
     setup_worker,
 )
 
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="The fake ssh is a POSIX executable script")
+
 FAKE = Path(__file__).with_name("fake_ssh.py")
 INSTALL_ARGV = ["sh", "-c", UV_INSTALL_COMMAND]
 

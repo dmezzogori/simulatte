@@ -21,6 +21,17 @@ from simulatte.execution.workers import (
 )
 
 
+WINDOWS_COORDINATOR_MESSAGE = "SSH workers from a Windows coordinator are untested in 0.17"
+_WINDOWS_COORDINATOR = sys.platform == "win32"
+
+
+def _noted(check: WorkerCheck) -> WorkerCheck:
+    """Add the Windows-coordinator caveat to a check result (design 8): local experiments only."""
+    if not _WINDOWS_COORDINATOR:
+        return check
+    return dataclasses.replace(check, messages=(*check.messages, WINDOWS_COORDINATOR_MESSAGE))
+
+
 def add_workers_arguments(parser):
     commands = parser.add_subparsers(dest="workers_command", required=True)
     listing = commands.add_parser("list", help="List configured workers")
@@ -92,18 +103,22 @@ def workers(args) -> int:
             print(message, file=sys.stderr)
         return 0 if reachable else 2
     if args.workers_command == "check":
-        check = check_worker(spec)
+        check = _noted(check_worker(spec))
         if not args.json:
             print("\n".join(format_check(spec, check)))
     elif args.json:
-        check = setup_worker(
-            spec,
-            install_uv=args.install_uv,
-            confirm=_stderr_confirm,
-            say=lambda line: print(line, file=sys.stderr),
+        check = _noted(
+            setup_worker(
+                spec,
+                install_uv=args.install_uv,
+                confirm=_stderr_confirm,
+                say=lambda line: print(line, file=sys.stderr),
+            )
         )
     else:
-        check = setup_worker(spec, install_uv=args.install_uv, confirm=input)
+        if _WINDOWS_COORDINATOR:
+            print(WINDOWS_COORDINATOR_MESSAGE)
+        check = _noted(setup_worker(spec, install_uv=args.install_uv, confirm=input))
     if args.json:
         print(_envelope(spec, check))
     return _exit_code(check)
