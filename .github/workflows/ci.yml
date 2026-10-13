@@ -12,7 +12,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -73,7 +73,7 @@ jobs:
   test-pypy:
     name: test (pypy-3.11)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v7
@@ -99,7 +99,7 @@ jobs:
   execution-native:
     name: local execution (${{ matrix.os }}, Python ${{ matrix.python }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -124,7 +124,36 @@ jobs:
       - name: Native process containment, worker and Studio transport
         # This lane must exercise the real Windows Job Object test, not its POSIX mocks.
         # Coverage is enforced by the full Linux matrix; retain platform-specific skips.
-        run: uv run --python ${{ matrix.python }} --extra studio pytest tests/execution tests/core/test_studio.py tests/core/test_studio_http.py tests/core/test_studio_connections.py tests/core/test_studio_websocket.py tests/core/test_studio_live.py tests/core/test_studio_lifecycle.py tests/core/test_studio_monitor.py tests/core/test_studio_watcher.py --no-cov
+        run: uv run --python ${{ matrix.python }} --extra studio pytest tests/execution tests/core/test_statistics.py tests/core/test_experiments.py tests/core/test_experiment_results.py tests/core/test_studio.py tests/core/test_studio_http.py tests/core/test_studio_connections.py tests/core/test_studio_websocket.py tests/core/test_studio_live.py tests/core/test_studio_lifecycle.py tests/core/test_studio_monitor.py tests/core/test_studio_watcher.py tests/core/test_studio_experiments.py --no-cov
+      - name: Two-slot local experiment through the CLI
+        # Local experiments are supported on every native platform; this runs the headless path end to end
+        # with two slots, then reads the statistics back from the store.
+        shell: bash
+        run: |
+          project="$RUNNER_TEMP/experiment-smoke"
+          mkdir -p "$project"
+          cp examples/studio_model.py "$project/plant.py"
+          printf '[tool.simulatte.bundle]\ninclude = ["plant.py"]\n' > "$project/pyproject.toml"
+          cat > "$project/smoke.experiment.json" <<'JSON'
+          {"schema": 1, "name": "smoke", "model": "plant.py:build", "replications": {"count": 4},
+           "configurations": {"grid": {"servers": [2, 3]}}}
+          JSON
+          uv run --python ${{ matrix.python }} --extra studio simulatte experiment run "$project/smoke.experiment.json" --local-slots 2 --json | tee "$RUNNER_TEMP/smoke.json"
+          grep -q '"status":"completed"' "$RUNNER_TEMP/smoke.json"
+          grep -q '"succeeded":8' "$RUNNER_TEMP/smoke.json"
+          run_id=$(uv run --python ${{ matrix.python }} --extra studio python -c "import json, sys; sys.stdout.write(json.load(open(sys.argv[1]))['run_id'])" "$RUNNER_TEMP/smoke.json" | tr -d '\r')
+          uv run --python ${{ matrix.python }} --extra studio simulatte experiment results "$run_id" --project "$project"
+      - name: SSH from a Windows coordinator reports itself untested
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          printf '[workers.example]\nhost = "ci-host-that-does-not-exist.invalid"\n' > "$RUNNER_TEMP/workers.toml"
+          export SIMULATTE_WORKERS="$RUNNER_TEMP/workers.toml"
+          code=0
+          output=$(uv run --python ${{ matrix.python }} --extra studio simulatte workers check example 2>&1) || code=$?
+          echo "$output"
+          test "$code" -eq 2
+          echo "$output" | grep -qF "SSH workers from a Windows coordinator are untested in 0.17"
 
   # TypeScript conformance reader (gate G2): the studio trace package reads the committed trace fixtures
   # and must reproduce the states the Python reader wrote into their expected JSON.

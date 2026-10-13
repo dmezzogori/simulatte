@@ -211,6 +211,106 @@ def test_editable_runtime_is_frozen_separately(tmp_path):
     assert len(runtime.content_hash) == 64
 
 
+def test_runtime_identity_covers_the_package_alone_and_the_archive_adds_supervisor_deps(tmp_path):
+    import hashlib
+    import tarfile
+
+    from simulatte.execution.hashing import canonical_hash
+
+    m = api()
+    package = tmp_path / "editable" / "simulatte"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("VERSION=1")
+    store = tmp_path / "project"
+    store.mkdir()
+    runtime = m.freeze_runtime(package, store)
+    entry = {
+        "path": "simulatte/__init__.py",
+        "size": 9,
+        "sha256": hashlib.sha256(b"VERSION=1").hexdigest(),
+        "executable": False,
+        "link": None,
+    }
+    # Request ids embed this hash: it must stay the package-only manifest hash.
+    assert runtime.content_hash == canonical_hash("runtime-manifest-v1", [entry])
+    assert runtime.archive_sha256 == hashlib.sha256(runtime.archive.read_bytes()).hexdigest()
+    with tarfile.open(runtime.archive) as archive:
+        members = archive.getmembers()
+    names = [member.name for member in members]
+    assert names == sorted(names) and "simulatte/__init__.py" in names
+    assert {name.split("/")[0] for name in names} == {"simulatte", "supervisor-deps"}
+    assert {"supervisor-deps/msgpack/fallback.py", "supervisor-deps/simpy/core.py"} <= set(names)
+    assert all(m.uid == m.gid == m.mtime == 0 and m.mode in (0o644, 0o755) for m in members)
+    assert {name for name, _ in runtime.supervisor_distributions} == {"msgpack", "simpy"}
+    assert m.freeze_runtime(package, store) == runtime
+
+
+def test_supervisor_deps_cache_and_self_check_failures(tmp_path, monkeypatch):
+    import subprocess
+
+    m = api()
+    package = tmp_path / "editable" / "simulatte"
+    (package / "execution").mkdir(parents=True)
+    (package / "__init__.py").write_text("VERSION=1")
+    store = tmp_path / "project"
+    store.mkdir()
+    # A package that ships the supervisor is self-checked; this one has no ``cli`` module.
+    (package / "execution" / "supervisor.py").write_text("")
+    with pytest.raises(ValueError, match="does not import in isolation"):
+        m.freeze_runtime(package, store)
+
+    def hang(args, **kwargs):
+        raise subprocess.TimeoutExpired(args, kwargs["timeout"])
+
+    monkeypatch.setattr(m.subprocess, "run", hang)
+    with pytest.raises(ValueError, match="timed out"):
+        m.freeze_runtime(package, store)
+    monkeypatch.undo()
+    (package / "execution" / "supervisor.py").unlink()
+    runtime = m.freeze_runtime(package, store)
+    tampered = runtime.supervisor_deps / "simpy" / "core.py"
+    tampered.chmod(0o644)
+    tampered.write_text("tampered")
+    with pytest.raises(ValueError, match="Supervisor dependency cache was modified"):
+        m.freeze_runtime(package, store)
+
+
+def test_supervisor_deps_must_be_installed_packages(tmp_path, monkeypatch):
+    m = api()
+    real = importlib.util.find_spec
+    monkeypatch.setattr(m.importlib.util, "find_spec", lambda name, *a: None if name == "simpy" else real(name, *a))
+    package = tmp_path / "editable" / "simulatte"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("VERSION=1")
+    (tmp_path / "project").mkdir()
+    with pytest.raises(ValueError, match="not installed as a package"):
+        m.freeze_runtime(package, tmp_path / "project")
+
+
+def test_supervisor_deps_refuse_compiled_modules(tmp_path, monkeypatch):
+    m = api()
+    fake = tmp_path / "site" / "simpy"
+    fake.mkdir(parents=True)
+    (fake / "__init__.py").write_text("")
+    (fake / "_speedups.so").write_bytes(b"\x7fELF")
+    real = importlib.util.find_spec
+
+    def find_spec(name, *args):
+        if name == "simpy":
+            return importlib.util.spec_from_file_location(
+                "simpy", fake / "__init__.py", submodule_search_locations=[str(fake)]
+            )
+        return real(name, *args)
+
+    monkeypatch.setattr(m.importlib.util, "find_spec", find_spec)
+    package = tmp_path / "editable" / "simulatte"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("VERSION=1")
+    (tmp_path / "project").mkdir()
+    with pytest.raises(ValueError, match="compiled"):
+        m.freeze_runtime(package, tmp_path / "project")
+
+
 @pytest.mark.parametrize(
     "config",
     [
@@ -612,3 +712,46 @@ def test_configuration_creation_and_removal_are_fenced_against_discovery(tmp_pat
     with pytest.raises(m.SnapshotChanged, match="configuration"):
         m.capture_source(present)
     assert m.capture_source(m.discover_project(model)).content_hash == original.content_hash
+
+
+@pytest.mark.parametrize(
+    "layouts",
+    [
+        '"layouts/wide.json"',
+        '["../wide.json"]',
+        '["layouts/*.json"]',
+        '["a.json", "a.json"]',
+        '["layouts"]',
+        '["link.json"]',
+    ],
+)
+def test_layout_variant_settings_are_validated(tmp_path, layouts):
+    m = api()
+    model = project(tmp_path)
+    (tmp_path / "layouts").mkdir()
+    (tmp_path / "link.json").symlink_to(tmp_path.parent / "outside.json")
+    (tmp_path.parent / "outside.json").write_text("{}")
+    (tmp_path / "pyproject.toml").write_text(f'[tool.simulatte.bundle]\ninclude = ["*.py"]\nlayouts = {layouts}\n')
+    with pytest.raises(ValueError, match="layouts"):
+        m.discover_project(model)
+
+
+def test_layout_variants_are_recorded_and_may_be_missing(tmp_path):
+    m = api()
+    model = project(tmp_path)
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.simulatte.bundle]\ninclude = ["*.py", "*.json"]\nlayouts = ["wide.json", "layout.json"]\n'
+    )
+    (tmp_path / "sweep.experiment.json").write_text("{}")
+    spec = m.discover_project(model)
+    assert spec.layouts == ("wide.json", "layout.json")
+    assert m.non_source_members(spec) == ("sweep.experiment.json",)
+    (tmp_path / "wide.json").write_text("{}")
+    assert m.non_source_members(spec) == ("sweep.experiment.json", "wide.json")
+    assert {entry.path for entry in m.capture_source(spec).entries} == {"plant.py", "helper.py", "pyproject.toml"}
+    assert m.discover_project(model).config_hash == spec.config_hash
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.simulatte.bundle]\ninclude = ["*.py", "*.json"]\nlayouts = ["wide.json"]\n'
+    )
+    with pytest.raises(ValueError, match="project configuration"):
+        m.capture_source(spec)

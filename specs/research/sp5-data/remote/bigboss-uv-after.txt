@@ -1,0 +1,12 @@
+uv not found
+none
+claude
+cortex
+cortex-pull
+env
+env.fish
+git-ssh-sign
+herdr-mirror
+markitdown
+mdview
+openshell

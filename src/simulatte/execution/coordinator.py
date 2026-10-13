@@ -1,17 +1,25 @@
-"""Single-slot local execution, shared by the headless CLI and Studio.
+"""Local execution over slots, shared by the headless CLI and Studio.
 
 Only the child imports model code. The coordinator owns immutable inputs,
 assignment fences, durable receipt credit and the result visibility point.
+Each slot (``interactive``, ``local-<n>`` experiment slots and ``<worker>-<n>`` remote
+slots) is one actor thread owning one transport; the interactive slot keeps SP4
+supersession, experiment slots are fenced by their run's state, never by project
+revisions. Remote slots stage the snapshot and documents and provision a uv
+environment before the unchanged ``run`` and publication loop.
 """
 
 from __future__ import annotations
 
 from collections import deque
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+import functools
 import hashlib
 import errno
+import platform
 import sqlite3
+import subprocess
 from pathlib import Path
 import sysconfig
 import tempfile
@@ -21,10 +29,12 @@ from typing import Any
 
 from simulatte._wire import canonical_pack, freeze, unpack
 from simulatte.execution.hashing import canonical_hash
+from simulatte.execution.layout_files import read_layout_file
 from simulatte.execution.publication import ResultProposal, publish
 from simulatte.execution.receipts import SegmentReceiver, validate_descriptor
+from simulatte.execution.replay import Verification, verify_replay
 from simulatte.execution.references import write_document, read_document
-from simulatte.execution.runtime import describe_runtime
+from simulatte.execution.runtime import describe_runtime, provisioning_spec_hash
 from simulatte.execution.schema import (
     AttemptKey,
     ExecutionRequest,
@@ -44,7 +54,12 @@ from simulatte.execution.snapshot import (
     load_source,
     freeze_runtime,
 )
-from simulatte.execution.store import RunStore, StaleAttempt, RevisionConflict, _blob, _read, _remove
+from simulatte.execution.bootstrap_remote import RUNTIME_MISSING, UV_MISSING
+from simulatte.execution.ssh import BootstrapError, SshTransport
+from simulatte.execution.scheduler import Scheduler, report as _report, run_status as _run_status
+from simulatte.execution.slots import SlotConfig, remote_slots
+from simulatte.execution.staging import RemoteStepError, provision, stage_blob
+from simulatte.execution.store import INTERACTIVE, RunStore, StaleAttempt, RevisionConflict, _blob, _read, _remove
 from simulatte.execution.transport import LocalTransport
 from simulatte.layout.identity import layout_hash
 from simulatte.layout.io import load_layout
@@ -63,6 +78,27 @@ class ReproductionMismatch(ExecutionFailure):
 
 class WorkerLost(RuntimeError):
     pass
+
+
+class WorkerUnreachable(WorkerLost):
+    """The probe or handshake failed: no request reached the worker, and the slot backs off."""
+
+
+def _exit_status(transport) -> int | None:
+    """The transport process's exit status once it ended (within 1 s), else ``None``."""
+    process = getattr(transport, "process", None)
+    if process is None:
+        return None
+    try:
+        return process.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        return None
+
+
+@dataclass(frozen=True, slots=True)
+class ReplayResult:
+    key: AttemptKey  # The replay's published attempt; ``key.request_id`` is the replay request.
+    verification: Verification
 
 
 def _disk_full(error):
@@ -120,12 +156,24 @@ class _Job:
     documents: dict
     deadline: float | None
     preview: dict | None = None
+    experiment: str | None = None  # The run id when the job executes a replication.
 
 
 class Coordinator:
-    def __init__(self, project: ProjectSpec, *, reference: str | None = None, _store_root=None, _runtime=None):
+    def __init__(
+        self,
+        project: ProjectSpec,
+        *,
+        reference: str | None = None,
+        slots: SlotConfig | None = None,
+        _store_root=None,
+        _runtime=None,
+    ):
         self.project = project
         self.reference = reference or project.model
+        self.slots = SlotConfig() if slots is None else slots
+        if type(self.slots) is not SlotConfig:
+            raise ValueError("slots must be a SlotConfig")
         self.store = RunStore.open(project.root / ".simulatte" if _store_root is None else _store_root)
         try:
             self.runtime = (
@@ -133,9 +181,6 @@ class Coordinator:
             )
             self.distribution_roots = list(dict.fromkeys(sysconfig.get_path(name) for name in ("purelib", "platlib")))
             self._condition = threading.Condition()
-            self._pending: _Job | None = None
-            self._current: _Job | None = None
-            self._worker = None
             self._closed = False
             self._fatal: ExecutionFailure | None = None
             self._inputs = None
@@ -145,11 +190,91 @@ class Coordinator:
             self._preview_done.set()
             self._events: deque[dict] = deque()
             self._event_bytes = 0
-            self._thread = threading.Thread(target=self._loop, name="simulatte-coordinator", daemon=True)
-            self._thread.start()
+            self._scheduler = Scheduler(self)
+            # This interpreter's version; preflight derives a remote Python request from it (D105).
+            self.python = platform.python_version()
+            # One transport factory per slot kind. ``uv`` (remote) factories take the WorkerSpec.
+            self._transports: dict[str, Any] = {"local": self._local_transport, "uv": self._ssh_transport}
+            self._actors = {
+                name: SlotActor(self, name, self._transports["local"]) for name in (INTERACTIVE, *self.slots.names())
+            }
+            # The preflight warnings of the newest remote experiment start (``private_index:<url>`` ...).
+            self.preflight_warnings: list[str] = []
+            for actor in self._actors.values():
+                actor.thread.start()
+            self._add_workers(self.slots.workers)
         except BaseException:
+            self._closed = True
             self.store.close()
             raise
+
+    # The interactive slot's actor state, under the names Studio's lifecycle uses.
+    @property
+    def _pending(self) -> _Job | None:
+        return self._actors[INTERACTIVE].pending
+
+    @_pending.setter
+    def _pending(self, job):
+        self._actors[INTERACTIVE].pending = job
+
+    @property
+    def _current(self) -> _Job | None:
+        return self._actors[INTERACTIVE].current
+
+    @_current.setter
+    def _current(self, job):
+        self._actors[INTERACTIVE].current = job
+
+    @property
+    def _worker(self):
+        return self._actors[INTERACTIVE].worker
+
+    @_worker.setter
+    def _worker(self, worker):
+        self._actors[INTERACTIVE].worker = worker
+
+    @property
+    def _thread(self):
+        return self._actors[INTERACTIVE].thread
+
+    @_thread.setter
+    def _thread(self, thread):
+        self._actors[INTERACTIVE].thread = thread
+
+    def _local_transport(self):
+        return LocalTransport.start(self.runtime.root, external_roots=self.distribution_roots)
+
+    def _ssh_transport(self, spec, *, python=None):
+        # D105: the supervisor runs on the provisioning spec's Python request, as uv sync does.
+        requested = ".".join(self.python.split(".")[:2]) if python is None else python
+        return SshTransport.start(spec, runtime=self.runtime, python=requested)
+
+    def _worker_specs(self, names):
+        """WorkerSpecs by name: this coordinator's first, then ``workers.toml`` (unknown: ``ValueError``)."""
+        configured = {spec.name: spec for spec in self.slots.workers}
+        missing = [name for name in names if name not in configured]
+        if missing:
+            from simulatte.execution.workers import load_workers, resolve_workers
+
+            configured.update((spec.name, spec) for spec in resolve_workers(missing, load_workers()))
+        return configured
+
+    def _add_workers(self, specs):
+        """Start ``<worker>-1`` .. ``<worker>-<slots>`` actors of kind ``uv`` for workers not present yet."""
+        with self._condition:
+            if self._closed:
+                raise RuntimeError("Coordinator is closed")
+            started = []
+            for spec in specs:
+                for name in remote_slots(spec):
+                    if name in self._actors:
+                        continue
+                    factory = functools.partial(self._transports["uv"], spec)
+                    actor = SlotActor(self, name, factory, kind="uv", host=spec.name, worker=spec)
+                    self._actors[name] = actor
+                    started.append(actor)
+            for actor in started:
+                actor.thread.start()
 
     @classmethod
     def from_store(cls, root: Path, identity: str):
@@ -191,6 +316,12 @@ class Coordinator:
         event = {"type": kind, "key": None if key is None else asdict(key), "body": _plain(body)}
         size = len(canonical_pack(freeze(event)))
         with self._condition:
+            if kind == "experiment_progress":
+                # Coalesce per run: only the newest counts of each run are retained.
+                for old in [item for item in self._events if item["type"] == kind]:
+                    if old["body"]["run_id"] == event["body"]["run_id"]:
+                        self._events.remove(old)
+                        self._event_bytes -= len(canonical_pack(freeze(old)))
             if len(self._events) >= 256 or self._event_bytes + size > 4 << 20:
                 self._events.clear()
                 event = {"type": "resync", "key": None, "body": {}}
@@ -271,7 +402,9 @@ class Coordinator:
             self._preview_done.clear()
         try:
             with tempfile.TemporaryDirectory(prefix="simulatte-preview-") as temporary:
-                with Coordinator(self.project, _store_root=Path(temporary), _runtime=self.runtime) as preview:
+                with Coordinator(
+                    self.project, slots=SlotConfig(local=0), _store_root=Path(temporary), _runtime=self.runtime
+                ) as preview:
                     with self._condition:
                         self._preview = preview
                     revision = preview.store.create_revision({"preview": request_id(request)})
@@ -363,9 +496,12 @@ class Coordinator:
         documents = {name: self._relocate(reference) for name, reference in manifest["documents"].items()}
         return snapshot, documents
 
-    def submit(self, request: ExecutionRequest, revision: Revision, *, timeout=None) -> AttemptKey:
+    def submit(
+        self, request: ExecutionRequest, revision: Revision, *, timeout=None, slot: str = INTERACTIVE
+    ) -> AttemptKey:
+        """Queue one request. An idle experiment slot runs it at the given (pinned) revision."""
         snapshot, documents = self._preparation(request)
-        return self._schedule(request, revision, snapshot, documents, timeout)
+        return self._schedule(request, revision, snapshot, documents, timeout, slot=slot)
 
     @staticmethod
     def _deadline(timeout):
@@ -373,26 +509,37 @@ class Coordinator:
             raise ValueError("Timeout must be positive and finite")
         return None if timeout is None else time.monotonic() + timeout
 
-    def _schedule(self, request, revision, snapshot, documents, timeout, *, _preview=None):
+    def _schedule(self, request, revision, snapshot, documents, timeout, *, _preview=None, slot=INTERACTIVE):
         deadline = self._deadline(timeout)
         with self._condition:
             if self._closed or self._fatal is not None:
                 raise RuntimeError("Coordinator is closed or has a storage failure; restart it")
-            key = (
-                self.store.assign_inspection(request, revision)
-                if isinstance(request, InspectionRequest)
-                else self.store.assign(request, revision)
-            )
-            self._pending = _Job(key, request, snapshot, documents, deadline, _preview)
+            actor = self._actors.get(slot)
+            if actor is None or (slot != INTERACTIVE and isinstance(request, InspectionRequest)):
+                raise ValueError(f"Unknown execution slot {slot!r}")
+            if isinstance(request, InspectionRequest):
+                key = self.store.assign_inspection(request, revision)
+            elif slot == INTERACTIVE:
+                key = self.store.assign(request, revision)
+            else:
+                # Never supersede a replication: an experiment slot takes one request only when idle.
+                if actor.current is not None or actor.pending is not None:
+                    raise RuntimeError(f"Slot {slot} is busy")
+                key = self.store.assign(request, revision, slot=slot, worker=actor.host, pinned=True)
+            actor.pending = _Job(key, request, snapshot, documents, deadline, _preview)
             self._condition.notify_all()
-        self._emit("queued", key, {})
+        self._emit("queued", key, {} if slot == INTERACTIVE else {"slot": slot})
         return key
 
     def cancel(self, key):
-        event, details = "cancelled", {}
+        return self._stop(key, "cancelled")
+
+    def _stop(self, key, reason, details=None):
+        """Revoke an attempt and ask its slot's child to stop; ``False`` when it was no longer active."""
+        event, details = reason, details or {}
         with self._condition:
             try:
-                self.store.revoke(key, "cancelled")
+                self.store.revoke(key, reason, details=details or None)
             except StaleAttempt:
                 return False
             except (OSError, sqlite3.Error) as error:
@@ -400,16 +547,29 @@ class Coordinator:
                 details = {"message": str(error)[:4096], "index_terminal_state": "not_durable"}
                 self._fatal = ExecutionFailure(key, event, details)
                 self._pending = None
-            if self._current is not None and self._current.key == key and self._worker is not None:
-                try:
-                    self._worker.send("cancel", {}, key=key)
-                except (OSError, BufferError):
-                    pass  # The actor will close the failed transport.
-            if self._pending is not None and self._pending.key == key:
-                self._pending = None
+            for actor in self._actors.values():
+                if actor.current is not None and actor.current.key == key and actor.worker is not None:
+                    try:
+                        actor.worker.send("cancel", {}, key=key)
+                    except (OSError, BufferError):
+                        pass  # The actor will close the failed transport.
+                if actor.pending is not None and actor.pending.key == key:
+                    actor.pending = None
             self._condition.notify_all()
         self._emit(event, key, details)
         return True
+
+    def _fail_admission(self, error):
+        """A scheduler failure leaves durable state uncertain: close admission for all slots."""
+        status = "disk_full" if _disk_full(error) else "failed"
+        details = {"message": str(error)[:4096]}
+        if isinstance(error, (OSError, sqlite3.Error)):
+            details["index_terminal_state"] = "not_durable"
+        with self._condition:
+            self._fatal = ExecutionFailure(None, status, details)
+            self._pending = None
+            self._condition.notify_all()
+        self._emit(status, None, details)
 
     def wait(self, key, *, timeout=None):
         deadline = None if timeout is None else time.monotonic() + timeout
@@ -448,17 +608,117 @@ class Coordinator:
             raise ReproductionMismatch(key, "mismatch", {"message": "Reproduced fingerprint or artifacts differ"})
         return result
 
-    def _start_worker(self):
-        if self._worker is None:
-            self._worker = LocalTransport.start(self.runtime.root, external_roots=self.distribution_roots)
-            hello = self._worker.receive(10)
-            if (
-                hello.type != "hello"
-                or tuple(hello.body["protocol"]) != (1, 0)
-                or "metadata-artifacts" not in hello.body["capabilities"]
-            ):
-                raise ValueError("Worker protocol/capabilities are incompatible")
-        return self._worker
+    def replay(self, identity: str, *, worker: str | None = None, timeout=None) -> ReplayResult:
+        """Re-execute a committed request at ``full`` level, linked ``replay-of``, and verify it (D100).
+
+        Without ``worker`` the replay runs only on the original attempt's worker (local
+        originals on local slots; a remote worker's slots are started from ``workers.toml``
+        as ``start_experiment`` does) and never moves to another host. An explicit
+        ``worker`` (``"local"`` is the local pool) is preferred, then any slot of the same
+        kind. It fails with ``no_compatible_worker`` before scheduling when no slot
+        qualifies, and raises ``RuntimeError`` when every qualifying slot is busy. It runs on an idle
+        experiment slot at the original attempt's pinned revision, or on the interactive
+        slot when no experiment slot is configured. Unverified replays stay published.
+        """
+        self._deadline(timeout)
+        with self.store._transaction() as db:
+            # A replay's own request is the full form of its original: replaying it replays the original.
+            link = db.execute("SELECT original FROM replays WHERE request_id=?", (identity,)).fetchone()
+        identity = identity if link is None else link[0]
+        request = self.store.request(identity)
+        with self.store._transaction() as db:
+            row = db.execute(
+                "SELECT r.attempt,a.worker,v.number,v.digest FROM results r JOIN attempts a ON a.id=r.attempt "
+                "JOIN revisions v ON v.number=a.revision WHERE a.request_id=? ORDER BY r.created,r.attempt LIMIT 1",
+                (identity,),
+            ).fetchone()
+            prepared = db.execute(
+                "SELECT manifest FROM snapshots WHERE id=? AND kind='preparation'", (identity,)
+            ).fetchone()
+        if row is None:
+            raise ValueError("No committed result to replay")
+        original = self.store.result(row["attempt"])
+        host = row["worker"] if worker is None else None if worker == "local" else worker
+        # A slot's kind follows its worker: ``local`` without one, else ``uv`` (remote).
+        kind = "local" if host is None else "uv"
+        if host is not None:
+            # The original (or requested) worker's slots, from workers.toml as start_experiment does.
+            try:
+                spec = self._worker_specs([host])[host]
+            except ValueError as error:
+                raise ExecutionFailure(
+                    None, "no_compatible_worker", {"message": f"Worker {host} is not configured: {error}"}
+                ) from None
+            self._add_workers([spec])
+        with self._condition:
+            actors = list(self._actors.items())
+        # Without an explicit worker, only the original host qualifies (D100): never silently elsewhere.
+        slots = sorted(
+            (
+                name
+                for name, actor in actors
+                if name != INTERACTIVE and actor.kind == kind and (worker is not None or actor.host == host)
+            ),
+            key=lambda name: self._actors[name].host != host,
+        )
+        if not slots and kind == "local" and not self.slots.local:
+            slots = [INTERACTIVE]
+        if not slots:
+            raise ExecutionFailure(
+                None, "no_compatible_worker", {"message": f"No slot can replay on worker {host or 'local'}"}
+            )
+        if prepared is None:
+            raise ValueError("Captured preparation is unavailable for this request")
+        target = replace(request, level="full")
+        manifest = {**_read(prepared[0]), "request": target.to_dict()}
+        with self.store._transaction() as db:
+            db.execute(
+                "INSERT OR IGNORE INTO snapshots VALUES (?,?,?)", (request_id(target), "preparation", _blob(manifest))
+            )
+        snapshot, documents = self._preparation(target)
+        pinned = Revision(row["number"], row["digest"])
+        with self._condition:
+            for slot in slots:
+                revision = self.store.create_revision({"replay": identity}) if slot == INTERACTIVE else pinned
+                try:
+                    key = self._schedule(target, revision, snapshot, documents, timeout, slot=slot)
+                except RuntimeError as error:
+                    if "busy" not in str(error):
+                        raise
+                    continue
+                break
+            else:
+                raise RuntimeError("Every compatible slot is busy; replay again when one is idle")
+            # Recorded before the slot actor can take the job: the condition is still held.
+            self.store.put_replay(key.request_id, identity, attempt=key.attempt_id)
+        self._replay_state(key, identity, "running", None)
+        try:
+            result = self.wait(key, timeout=None if timeout is None else timeout + 5)
+        except BaseException as error:
+            if isinstance(error, ExecutionFailure):
+                status = error.status
+            else:
+                self.cancel(key)
+                status = "cancelled"
+            self.store.set_replay(key.request_id, key.attempt_id, status, details={"message": str(error)[:4096]})
+            self._replay_state(key, identity, status, None)
+            raise
+        from simulatte.trace import Trace
+
+        verification = verify_replay(original, result, Trace.open(result.path / "run.simtrace").verify())
+        self.store.set_replay(
+            key.request_id,
+            key.attempt_id,
+            "succeeded",
+            verified=verification.verified,
+            details={"reason": verification.reason},
+        )
+        self._replay_state(key, identity, "succeeded", verification.verified)
+        return ReplayResult(result.key, verification)
+
+    def _replay_state(self, key, original, status, verified):
+        body = {"request_id": key.request_id, "original": original, "status": status, "verified": verified}
+        self._emit("replay_state", key, body)
 
     def _active(self, key):
         if self._fatal is not None:
@@ -516,44 +776,356 @@ class Coordinator:
             raise TimeoutError("Attempt deadline expired during preparation")
         return remaining
 
+    def start_experiment(self, experiment, *, workers=None, timeout=None) -> str:
+        """Expand an experiment at a pinned preparation and dispatch it to the local and remote slots.
+
+        ``workers`` names ``local`` and/or workers of ``workers.toml`` (default: the file's, else
+        local); remote workers get ``<worker>-<n>`` slots and the project is preflighted once
+        (design 9). Reuses the preparation bound through ``inputs`` when there is one, else
+        prepares. ``timeout`` bounds the preparation and each replication attempt. Replications
+        whose content already has a committed result are ``reused``. Returns the run id; the same
+        definition on unchanged inputs is the same run (D103).
+        """
+        from simulatte.experiments.definition import Experiment
+        from simulatte.experiments.expansion import expand
+
+        if type(experiment) is not Experiment:
+            raise ValueError("start_experiment needs an Experiment")
+        if isinstance(workers, str):
+            raise ValueError("workers must be a list of worker names")
+        names = tuple(experiment.workers if workers is None else workers) or ("local",)
+        if any(type(name) is not str for name in names):
+            raise ValueError("workers must be a list of worker names")
+        remote = [name for name in dict.fromkeys(names) if name != "local"]
+        self._worker_specs(remote)
+        if "local" in names and not self.slots.local:
+            raise ValueError("No local experiment slots are configured")
+        self._deadline(timeout)
+        runtimes = {}
+        if remote:
+            from simulatte.execution.preflight import preflight
+
+            checked = preflight(
+                self.project,
+                self.project.root / "uv.lock",
+                coordinator_python=self.python,
+                trusted_runtime_hash=self.runtime.content_hash,
+            )
+            self.preflight_warnings = list(checked.warnings)
+            runtimes["uv"] = checked.spec
+        bound = None if self._inputs is None else self._inputs._prepared
+        prepared = self.prepare(timeout=timeout) if bound is None else bound
+        if "local" in names:
+            runtimes["local"] = prepared.runtime
+        project = prepared.snapshot.source.project
+        layouts = {}
+        for variant in experiment.layouts:
+            if variant.file == project.layout:
+                continue
+            captured = read_layout_file(project.root, variant.file)
+            if captured.raw is None:
+                raise ValueError(f"Layout variant file {variant.file!r} does not exist")
+            layer = _plain(captured.layer().to_dict())
+            layouts[variant.label] = (layout_hash("file", layer), self._document("layout", layer))
+        expanded = expand(experiment, prepared, layouts, runtimes)
+        template = {
+            name: value
+            for name, value in expanded.requests[(0, 0, min(runtimes))].to_dict().items()
+            if name not in ("layout_hash", "parameters", "seed", "runtime")
+        }
+        preparation = {
+            "revision": asdict(prepared.revision),
+            "request": template,
+            "runtimes": {kind: _plain(runtime) for kind, runtime in runtimes.items()},
+            "documents": {name: value for name, value in _plain(prepared.documents).items() if name != "layout_ref"},
+            "project": {**asdict(project), "root": str(self.project.root)},
+            "workers": list(names),
+        }
+        with self._condition:
+            if self._closed or self._fatal is not None:
+                raise RuntimeError("Coordinator is closed or has a storage failure; restart it")
+            identity = self.store.put_experiment(experiment.to_dict())
+            run_id = self.store.create_experiment_run(
+                identity,
+                preparation,
+                [configuration.to_dict() for configuration in expanded.configurations],
+                expanded.replications,
+            )
+            # An existing run keeps its stored preparation; a paused one resumes.
+            self._activate_experiment(run_id, timeout=timeout)
+        return run_id
+
+    def _activate_experiment(self, run_id: str, *, timeout=None) -> None:
+        """Restore the run's stored worker selection before admitting its replications.
+
+        Called under the coordinator condition: missing workers leave a paused run
+        paused, and actor threads cannot dispatch until activation finishes.
+        """
+        record = self.store.experiment_run(run_id)
+        if record["status"] not in ("running", "paused"):
+            return
+        names = record["preparation"]["workers"]
+        if "local" in names and not self.slots.local:
+            raise ValueError("No local experiment slots are configured")
+        remote = [name for name in dict.fromkeys(names) if name != "local"]
+        configured = self._worker_specs(remote)
+        self._add_workers([configured[name] for name in remote])
+        self._scheduler.activate(run_id, timeout=timeout)
+
+    def resume_experiment(self, run_id: str, *, timeout=None) -> None:
+        """Dispatch a paused run's pending replications again (explicit only, D97)."""
+        self._deadline(timeout)
+        with self._condition:
+            if self._closed or self._fatal is not None:
+                raise RuntimeError("Coordinator is closed or has a storage failure; restart it")
+            status = _run_status(self.store, run_id)
+            if status != "paused":
+                raise ValueError(f"Only a paused experiment can resume; this one is {status}")
+            self._activate_experiment(run_id, timeout=timeout)
+
+    def cancel_experiment(self, run_id: str) -> None:
+        """Cancel active attempts through attempt cancellation, then every pending replication."""
+        self._scheduler.cancel(run_id)
+
+    def wait_experiment(self, run_id: str, timeout=None) -> dict:
+        """Wait until the run is no longer running here; returns counts per state and configuration."""
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while _run_status(self.store, run_id) == "running" and run_id in self._scheduler._runs:
+            if self._fatal is not None:
+                raise ExecutionFailure(None, self._fatal.status, self._fatal.details)
+            if deadline is not None and time.monotonic() >= deadline:
+                raise TimeoutError("Waiting for experiment timed out")
+            with self._condition:
+                self._condition.wait(0.05)
+        return _report(self.store, run_id)
+
+    def delete_experiment(self, run_id: str) -> dict:
+        """Remove a run that is not running, and the results only it referenced."""
+        with self._condition:
+            return self.store.delete_experiment_run(run_id)
+
+    def close(self):
+        with self._condition:
+            if not self._closed:
+                for actor in self._actors.values():
+                    for job in (actor.current, actor.pending):
+                        if job is None:
+                            continue
+                        if job.experiment is None:
+                            self.cancel(job.key)
+                        elif self._stop(job.key, "lost", {"message": "Coordinator closed"}) and self._fatal is None:
+                            # Not a failure: the replication is pending again, without spending a dispatch.
+                            try:
+                                self._scheduler.release(job.key)
+                            except (OSError, sqlite3.Error):
+                                pass  # Recovery treats it as lost at the next open (counted).
+                try:
+                    self._scheduler.pause()
+                except (OSError, sqlite3.Error):
+                    pass  # Recovery pauses the runs at the next open.
+                self._closed = True
+                self._condition.notify_all()
+        deadline = time.monotonic() + 10
+        for actor in self._actors.values():
+            actor.thread.join(max(0.0, deadline - time.monotonic()))
+        if any(actor.thread.is_alive() for actor in self._actors.values()):
+            raise RuntimeError("Coordinator shutdown did not finish")
+        if not self._preview_done.wait(10):
+            raise RuntimeError("Layout preview shutdown did not finish")
+        self.store.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+
+class SlotActor:
+    """One execution slot: a thread owning one transport and at most one attempt at a time.
+
+    ``_run_job`` is the SP4 worker message loop, keyed on this slot's transport. The
+    interactive slot runs queued jobs; an experiment slot also asks the scheduler for
+    the next replication whenever it is idle. A ``uv`` (remote) slot first stages the
+    request's archives and documents and provisions its environment on the worker.
+
+    A slot whose worker is unreachable (probe or handshake failure) waits before asking
+    the scheduler again: ``BACKOFF`` seconds first, doubling up to the cap, reset by the
+    next successful hello. Explicitly scheduled jobs and ``close()`` are not delayed.
+    """
+
+    BACKOFF = (15.0, 300.0)  # First delay and cap, in seconds.
+
+    def __init__(
+        self,
+        coordinator: Coordinator,
+        slot: str,
+        transport_factory,
+        *,
+        kind: str = "local",
+        host: str | None = None,
+        worker=None,
+    ):
+        self.coordinator = coordinator
+        self.slot = slot
+        self.kind = kind
+        self.host = host  # The worker name recorded on attempts (``attempts.worker``); ``None`` is local.
+        self.spec = worker  # The remote slot's WorkerSpec (``provision_timeout``).
+        self.transport_factory = transport_factory
+        self.pending: _Job | None = None
+        self.current: _Job | None = None
+        self.worker: Any = None
+        self.python: str | None = None  # The Python a remote supervisor was started on.
+        self.backoff = 0.0  # The last backoff delay; 0 once a hello succeeds.
+        self.backoff_until = 0.0  # The time.monotonic() before which the slot takes no replication.
+        self.backoff_reason: str | None = None
+        self._unreachable: str | None = None  # Set when the last job ended in WorkerUnreachable.
+        self._reached = False  # Whether the last job's request was sent to the worker.
+        self.thread = threading.Thread(target=self._loop, name=f"simulatte-slot-{slot}", daemon=True)
+
+    def _start_worker(self, python: str | None = None):
+        if self.worker is not None and python is not None and python != self.python:
+            self.worker.close()  # D105: one Python request per supervisor and environment.
+            self.worker = None
+        if self.worker is None:
+            try:
+                self.worker = self.transport_factory() if python is None else self.transport_factory(python=python)
+            except BootstrapError as error:
+                if error.code == "probe_failed":  # ssh exit 255 or a probe timeout: the host is unreachable.
+                    raise WorkerUnreachable(str(error)) from error
+                raise
+            self.python = python
+            try:
+                hello = self.worker.receive(10)
+            except BootstrapError:
+                raise
+            except OSError as error:  # Includes the 10 s pre-handshake budget (TimeoutError).
+                code = _exit_status(self.worker) if self.kind == "uv" else None
+                if code is not None and code != 255:
+                    # The remote command ended before hello: a permanent bootstrap failure, not loss.
+                    reason = {UV_MISSING: "uv_missing", RUNTIME_MISSING: "runtime_missing"}.get(
+                        code, "bootstrap_failed"
+                    )
+                    raise BootstrapError(reason, f"Remote bootstrap exited with status {code}: {error}") from error
+                raise WorkerUnreachable("Worker handshake failed") from error
+            # Protocol 1.0 supervisors predate remote staging; they serve local slots only.
+            accepted = ((1, 0), (1, 1)) if self.kind == "local" else ((1, 1),)
+            if (
+                hello.type != "hello"
+                or tuple(hello.body["protocol"]) not in accepted
+                or "metadata-artifacts" not in hello.body["capabilities"]
+            ):
+                raise ValueError("Worker protocol/capabilities are incompatible")
+            if self.kind == "uv":
+                missing = {"staging-v1", "uv-provisioning-v1"} - set(hello.body["capabilities"])
+                if missing:
+                    message = "Worker lacks capabilities: " + ", ".join(sorted(missing))
+                    raise RemoteStepError("worker_capabilities", {"message": message})
+                if hello.body.get("trusted_runtime_hash") != self.coordinator.runtime.content_hash:
+                    raise RemoteStepError("runtime_mismatch", {"message": "Worker runs another trusted runtime"})
+            self.backoff = self.backoff_until = 0.0  # The worker answered: no more backoff.
+        return self.worker
+
+    def _remote(self, job):
+        """Stage, provision and return the ``run`` body for a ``uv`` request (design 9).
+
+        Blobs are named by SHA-256 and documents keep their D84 envelope; the worker turns
+        them into host-local paths. ``runtime_ref`` is replaced by the environment's evidence.
+        """
+        c, key, request = self.coordinator, job.key, job.request
+        runtime = request.runtime
+        if runtime.get("kind") != "uv":
+            raise ValueError("Remote slots run uv requests only")
+        worker = self._start_worker(python=runtime["python"])
+
+        def check():
+            c.store.require_active(key)  # StaleAttempt once cancelled: the transport is closed.
+
+        def notify(kind, body):
+            c._emit(kind, key, body)
+
+        steps = {"check": check, "notify": notify}
+        source, inputs = job.snapshot.source, job.snapshot.inputs
+        reference = c._document("request", request.to_dict())
+        try:
+            stage_blob(worker, "source", source.archive, source.archive_hash, key, **steps)
+            stage_blob(worker, "inputs", inputs.archive, inputs.archive_hash, key, **steps)
+            documents = {}
+            for name in ("layout_ref", "expected_metadata_ref"):
+                document = job.documents[name]
+                stage_blob(worker, "document", Path(document["path"]), document["sha256"], key, **steps)
+                documents[name] = {"sha256": document["sha256"], "length": document["length"]}
+            stage_blob(worker, "document", Path(reference["path"]), reference["sha256"], key, **steps)
+            remaining = c._remaining(job.deadline)
+            limit = self.spec.provision_timeout if self.spec is not None else 600.0
+            timeout = limit if remaining is None else min(limit, remaining)
+            environment = provision(worker, runtime, source.archive_hash, key, timeout=timeout, **steps)
+        except ConnectionError as error:
+            raise WorkerLost(str(error)) from error
+        if environment["spec_hash"] != provisioning_spec_hash(runtime):
+            raise ValueError("Worker provisioned another environment")
+        config = {
+            "reference": request.model,
+            "metadata_artifacts": True,
+            "staged_snapshot": {
+                "source_sha256": source.archive_hash,
+                "inputs_sha256": inputs.archive_hash,
+                "python_path": list(source.project.python_path),
+            },
+            "environment": {"spec_hash": environment["spec_hash"], "evidence_sha256": environment["evidence_sha256"]},
+            **documents,
+        }
+        body = {
+            "config": config,
+            "timeout": c._remaining(job.deadline),
+            "request_ref": {"sha256": reference["sha256"], "length": reference["length"]},
+        }
+        return worker, body
+
     def _run_job(self, job):
+        c = self.coordinator
         key = job.key
         receiver = None
-        snapshot_path = self.store.root / "staging" / key.attempt_id / "snapshot"
+        snapshot_path = c.store.root / "staging" / key.attempt_id / "snapshot"
+        self._reached = False
         try:
-            self.store.require_active(key)
-            self.store.transition(key, "preparing")
-            receiver = SegmentReceiver(self.store, key)
-            self._remaining(job.deadline)
-            paths = materialize(job.snapshot, snapshot_path)
-            self._remaining(job.deadline)
-            worker = self._start_worker()
-            config = {
-                "project_root": str(self.project.root),
-                "snapshot_root": str(paths.root),
-                "snapshot_roots": list(map(str, paths.python_path)),
-                "external_roots": [str(self.runtime.root), *self.distribution_roots],
-                "distribution_roots": self.distribution_roots,
-                "reference": job.request.model,
-                "metadata_artifacts": True,
-                **job.documents,
-            }
+            c.store.require_active(key)
+            c.store.transition(key, "preparing")
+            receiver = SegmentReceiver(c.store, key)
+            c._remaining(job.deadline)
             inspect = isinstance(job.request, InspectionRequest)
-            body = {
-                "config": config,
-                "timeout": self._remaining(job.deadline),
-                "inspection_ref" if inspect else "request_ref": self._document("request", job.request.to_dict()),
-            }
-            self.store.require_active(key)
-            self._send(worker, "inspect" if inspect else "run", body, key=key)
+            if self.kind == "uv" and not inspect:
+                worker, body = self._remote(job)
+            else:
+                paths = materialize(job.snapshot, snapshot_path)
+                c._remaining(job.deadline)
+                worker = self._start_worker()
+                config = {
+                    "project_root": str(c.project.root),
+                    "snapshot_root": str(paths.root),
+                    "snapshot_roots": list(map(str, paths.python_path)),
+                    "external_roots": [str(c.runtime.root), *c.distribution_roots],
+                    "distribution_roots": c.distribution_roots,
+                    "reference": job.request.model,
+                    "metadata_artifacts": True,
+                    **job.documents,
+                }
+                body = {
+                    "config": config,
+                    "timeout": c._remaining(job.deadline),
+                    "inspection_ref" if inspect else "request_ref": c._document("request", job.request.to_dict()),
+                }
+            c.store.require_active(key)
+            self._reached = True  # From here a result may exist: a re-dispatch keeps this request.
+            c._send(worker, "inspect" if inspect else "run", body, key=key)
             ready = None
             last_cursor = None
             cancelled = False
             acknowledged = False
             while True:
-                active = self._active(key)
+                active = c._active(key)
                 if not active and not cancelled:
-                    self._send(worker, "cancel", {}, key=key)
+                    c._send(worker, "cancel", {}, key=key)
                     cancelled = True
                 try:
                     message = worker.receive(0.1)
@@ -582,12 +1154,12 @@ class Coordinator:
                             else "disk_full"
                             if details.get("code") == "disk_full"
                             else "failed"
-                            if details.get("code") == "timeout"
+                            if details.get("code") in ("timeout", "runtime_changed")
                             else "validation_failed"
                             if details.get("phase") in ("preparing", "inspecting", "ready")
                             else "failed"
                         )
-                        self._record_failure(key, status, details)
+                        c._record_failure(key, status, details)
                     return
                 if not active:
                     if message.type in ("result", "model_info"):
@@ -597,7 +1169,7 @@ class Coordinator:
                     receipt = receiver.receive(
                         _plain(message.body["segment"]), _plain(message.body["fragment_offset"]), message.payload
                     )
-                    self._send(worker, "ack", asdict(receipt), key=key)
+                    c._send(worker, "ack", asdict(receipt), key=key)
                     if receipt.segment_complete and message.type == "trace_chunk":
                         prefix = receiver.prefix()
                         assert prefix is not None
@@ -609,7 +1181,7 @@ class Coordinator:
                                 first=message.body["segment"]["offset"] == 0,
                                 previous=last_cursor,
                             )
-                        self._emit(
+                        c._emit(
                             "trace_available",
                             key,
                             {
@@ -626,39 +1198,39 @@ class Coordinator:
                 elif message.type == "model_info":
                     if not inspect:
                         raise ValueError("Unexpected inspection result")
-                    metadata = self._metadata(receiver, message.body["metadata_ref"], "model-info")
+                    metadata = c._metadata(receiver, message.body["metadata_ref"], "model-info")
                     selected_model(metadata)
-                    document = self._document("model-info", metadata)
-                    self.store.complete_inspection(
+                    document = c._document("model-info", metadata)
+                    c.store.complete_inspection(
                         key,
                         _plain(message.body["metadata_ref"]),
                         execution_exited=True,
                         descendants_cleaned=True,
                         document=document,
                     )
-                    self._emit("model_info", key, {"document": document})
+                    c._emit("model_info", key, {"document": document})
                     return
                 elif message.type == "result":
                     if inspect or not acknowledged or job.preview is not None:
                         raise ValueError("Result before acknowledged readiness or from a preview")
-                    data = self._metadata(receiver, message.body["proposal"], "result-proposal")
+                    data = c._metadata(receiver, message.body["proposal"], "result-proposal")
                     if data.pop("schema") != 1:
                         raise ValueError("Unknown result proposal schema")
                     resolved = data.pop("resolved_manifest")
                     if resolved.pop("schema") != 1:
                         raise ValueError("Unknown resolved manifest schema")
                     proposal = ResultProposal(**data, resolved_manifest=ResolvedManifest(**resolved))
-                    self.store.transition(key, "finalizing")
-                    result = publish(self.store, key, proposal, execution_exited=True, descendants_cleaned=True)
-                    self._emit("result", key, {"attempt_id": result.key.attempt_id})
+                    c.store.transition(key, "finalizing")
+                    result = publish(c.store, key, proposal, execution_exited=True, descendants_cleaned=True)
+                    c._emit("result", key, {"attempt_id": result.key.attempt_id})
                     return
                 elif message.type in ("heartbeat", "diagnostics", "kpi"):
-                    self._emit(message.type, key, message.body)
+                    c._emit(message.type, key, message.body)
                 else:
                     raise ValueError("Unsupported worker notification")
                 if ready is not None and not acknowledged:
                     try:
-                        resolved = self._metadata(receiver, ready["resolved"], "resolved-manifest")
+                        resolved = c._metadata(receiver, ready["resolved"], "resolved-manifest")
                     except KeyError:
                         continue
                     prefix = receiver.prefix()
@@ -675,89 +1247,126 @@ class Coordinator:
                         or execution["header"]["request_id"] != key.request_id
                     ):
                         raise ValueError("Ready metadata differs from durable INITIAL")
-                    self.store.transition(key, "ready")
+                    c.store.transition(key, "ready")
                     if job.preview is not None:
                         if trace.layout is None or not trace.layout.reusable:
                             raise ValueError("Preview requires a resolved layout")
                         job.preview["bundle"] = trace.layout
-                        self._send(worker, "cancel", {}, key=key)
+                        c._send(worker, "cancel", {}, key=key)
                         cancelled = acknowledged = True
                         continue
-                    if trace.layout is not None and trace.layout.reusable:
-                        self.store.bind_ready_view(key, trace.layout)
-                    self.store.transition(key, "running")
-                    self._send(worker, "ready_ack", {}, key=key)
+                    # Presentation views belong to the interactive slot (experiment attempts are pinned).
+                    if self.slot == INTERACTIVE and trace.layout is not None and trace.layout.reusable:
+                        c.store.bind_ready_view(key, trace.layout)
+                    c.store.transition(key, "running")
+                    c._send(worker, "ready_ack", {}, key=key)
                     acknowledged = True
-                    self._emit("ready", key, ready)
+                    c._emit("ready", key, ready)
         except StaleAttempt:
-            if self._worker is not None:
-                self._worker.close()
-                self._worker = None
+            if self.worker is not None:
+                self.worker.close()
+                self.worker = None
         except Exception as error:
-            if self._active(key):
+            if isinstance(error, WorkerUnreachable):
+                self._unreachable = str(error)[:4096]
+            if c._active(key):
                 status = "disk_full" if _disk_full(error) else "lost" if isinstance(error, WorkerLost) else "failed"
-                self._record_failure(key, status, {"message": str(error)[:4096]})
+                details = {"message": str(error)[:4096]}
+                if isinstance(error, RemoteStepError):
+                    # uv_missing, stage_mismatch, provisioning_failed, worker_capabilities, runtime_mismatch...
+                    details = {**error.details, "message": str(error)[:4096]}
+                    status = "disk_full" if error.code == "disk_full" else "failed"
+                elif isinstance(error, BootstrapError):
+                    details["code"] = error.code  # uv_missing, runtime_missing, bootstrap_failed...
+                diagnostics = getattr(self.worker, "diagnostics", None)
+                if self.kind == "uv" and diagnostics is not None:
+                    tail = diagnostics.tail("stderr")[-4096:].decode("utf-8", errors="replace").strip()
+                    if tail:
+                        details["stderr"] = tail  # The remote host's own words, bounded.
+                c._record_failure(key, status, details)
             # A receiver/preflight/protocol failure must contain the child before
             # accepting another assignment. No automatic retry of this request.
-            if self._worker is not None:
-                self._worker.close()
-                self._worker = None
+            if self.worker is not None:
+                self.worker.close()
+                self.worker = None
         finally:
             if snapshot_path.exists():
                 try:
                     _remove(snapshot_path)
                 except OSError as error:
-                    self._emit("cleanup_error", key, {"message": str(error)[:4096]})
-            with self._condition:
-                self._condition.notify_all()
+                    c._emit("cleanup_error", key, {"message": str(error)[:4096]})
+            with c._condition:
+                c._condition.notify_all()
+
+    def _next(self):
+        try:
+            return self.coordinator._scheduler.next(self)
+        except Exception as error:
+            self.coordinator._fail_admission(error)
+            return None
+
+    def _finish(self, job):
+        try:
+            self.coordinator._scheduler.on_terminal(
+                job.key, self.coordinator.store.attempt(job.key)["status"], reached=self._reached
+            )
+        except Exception as error:
+            self.coordinator._fail_admission(error)
+
+    def _back_off(self):
+        """Delay the next ``_next()`` after an unreachable worker and announce it (``slot_state``)."""
+        c = self.coordinator
+        first, cap = self.BACKOFF
+        reason, self._unreachable = self._unreachable, None
+        with c._condition:
+            self.backoff = first if not self.backoff else min(2 * self.backoff, cap)
+            self.backoff_until = time.monotonic() + self.backoff
+            self.backoff_reason = reason
+        if self.slot != INTERACTIVE:
+            # ``until`` is the seconds remaining: monotonic deadlines mean nothing to other processes.
+            c._emit(
+                "slot_state", None, {"slot": self.slot, "status": "backoff", "until": self.backoff, "reason": reason}
+            )
 
     def _loop(self):
+        c = self.coordinator
         try:
             while True:
-                with self._condition:
-                    if self._closed and self._pending is None:
+                with c._condition:
+                    if c._closed and self.pending is None:
                         return
-                    job, self._pending = self._pending, None
-                    self._current = job
+                    job, self.pending = self.pending, None
+                    if (
+                        job is None
+                        and self.slot != INTERACTIVE
+                        and not c._closed
+                        and c._fatal is None
+                        and time.monotonic() >= self.backoff_until
+                    ):
+                        job = self._next()
+                    self.current = job
                 if job is not None:
                     self._run_job(job)
-                    with self._condition:
-                        self._current = None
-                elif self._worker is not None:
+                    with c._condition:
+                        self.current = None
+                    if job.experiment is not None:
+                        self._finish(job)
+                    if self._unreachable is not None:
+                        self._back_off()
+                elif self.worker is not None:
                     try:
-                        self._worker.receive(0.1)  # Drain idle heartbeats; never grow a retained idle queue.
+                        self.worker.receive(0.1)  # Drain idle heartbeats; never grow a retained idle queue.
                     except TimeoutError:
-                        if time.monotonic() - self._worker.channel.last_heartbeat >= 5:
-                            self._worker.close()
-                            self._worker = None
+                        if time.monotonic() - self.worker.channel.last_heartbeat >= 5:
+                            self.worker.close()
+                            self.worker = None
                     except OSError:
-                        self._worker.close()
-                        self._worker = None
+                        self.worker.close()
+                        self.worker = None
                 else:
-                    with self._condition:
-                        self._condition.wait(0.1)
+                    with c._condition:
+                        c._condition.wait(0.1)
         finally:
-            if self._worker is not None:
-                self._worker.close()
-                self._worker = None
-
-    def close(self):
-        with self._condition:
-            if not self._closed:
-                for job in (self._current, self._pending):
-                    if job is not None:
-                        self.cancel(job.key)
-                self._closed = True
-                self._condition.notify_all()
-        self._thread.join(10)
-        if self._thread.is_alive():
-            raise RuntimeError("Coordinator shutdown did not finish")
-        if not self._preview_done.wait(10):
-            raise RuntimeError("Layout preview shutdown did not finish")
-        self.store.close()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        self.close()
+            if self.worker is not None:
+                self.worker.close()
+                self.worker = None

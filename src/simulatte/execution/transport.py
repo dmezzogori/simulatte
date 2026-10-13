@@ -10,9 +10,13 @@ from __future__ import annotations
 from collections import deque
 import threading
 import time
+from typing import TYPE_CHECKING, Any, Protocol
 
-from simulatte.execution.protocol import FrameCodec, MAGIC, Message, encode_message
+from simulatte.execution.protocol import DATA_TYPES, FrameCodec, MAGIC, Message, encode_message
 from simulatte.execution.schema import AttemptKey
+
+if TYPE_CHECKING:
+    from simulatte.execution.diagnostics import Diagnostics
 
 
 def envelope(kind, body, sequence, key: AttemptKey | None):
@@ -50,6 +54,12 @@ class FramedChannel:
             thread.start()
 
     @property
+    def error(self) -> BaseException | None:
+        """The first reader/writer failure (EOF, protocol violation, pipe error), if any."""
+        with self._condition:
+            return self._error
+
+    @property
     def pending_bytes(self):
         with self._condition:
             return sum(self._sizes)
@@ -67,7 +77,7 @@ class FramedChannel:
         body = freeze(body)
         frame = encode_message(envelope(kind, body, 0, key), payload)
         size = len(frame) + 8
-        lane = int(kind in ("trace_chunk", "artifact_fragment"))
+        lane = int(kind in DATA_TYPES)
         with self._condition:
             if self._error or self._closed:
                 raise OSError("Worker channel closed") from self._error
@@ -166,8 +176,21 @@ class FramedChannel:
             thread.join(timeout=0.2)
 
 
-class LocalTransport:
-    """Trusted supervisor process; its imports use only the frozen runtime roots."""
+class Transport(Protocol):
+    """A coordinator-side supervisor session: framed channel, bounded diagnostics, owned process."""
+
+    channel: FramedChannel
+    diagnostics: Diagnostics
+
+    def send(self, kind: str, body: Any, **kwargs: Any) -> None: ...
+
+    def receive(self, timeout: float = 5) -> Message: ...
+
+    def close(self) -> None: ...
+
+
+class _PipeTransport:
+    """A supervisor process speaking the framed protocol on its stdin/stdout pipes."""
 
     def __init__(self, process, channel):
         self.process, self.channel = process, channel
@@ -185,6 +208,62 @@ class LocalTransport:
         self._errors = threading.Thread(target=drain_errors, daemon=True)
         self._errors.start()
         self._closed = False
+
+    def send(self, kind, body, **kwargs):
+        self.channel.send(kind, body, **kwargs)
+
+    def receive(self, timeout=5):
+        remaining = (5 if self.channel.handshake_complete else 10) - (time.monotonic() - self.channel.last_heartbeat)
+        if remaining <= 0:
+            raise TimeoutError("Worker heartbeat lost")
+        try:
+            return self.channel.receive(min(timeout, remaining))
+        except OSError as error:
+            if isinstance(error, TimeoutError):
+                raise
+            raise self._closed_error() from error
+
+    def _closed_error(self) -> OSError:
+        detail = self.diagnostics.tail("stderr")[-4096:].decode("utf-8", errors="replace")
+        return OSError("Worker channel closed: " + detail)
+
+    def _stop(self):
+        """Reap a process that did not exit within 5 s of shutdown and stdin EOF."""
+        import subprocess
+
+        self.process.kill()
+        try:
+            self.process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            # A worker stuck past SIGKILL must not take the coordinator loop down with it.
+            pass
+
+    def close(self):
+        if self._closed:
+            return
+        import subprocess
+
+        try:
+            try:
+                self.channel.send("shutdown", {})
+                self.channel.drain(0.2)
+            except (OSError, TimeoutError, BufferError):
+                pass
+            self.process.stdin.close()
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._stop()
+        finally:
+            self._closed = True
+            self.channel.close()
+            self.process.stdout.close()
+            self._errors.join(timeout=0.2)
+            self.process.stderr.close()
+
+
+class LocalTransport(_PipeTransport):
+    """Trusted supervisor process; its imports use only the frozen runtime roots."""
 
     @classmethod
     def start(cls, runtime, *, external_roots=()):
@@ -207,46 +286,3 @@ class LocalTransport:
         channel = FramedChannel(process.stdout, process.stdin)
         channel.send("hello", {"protocol": [1, 0]})
         return cls(process, channel)
-
-    def send(self, kind, body, **kwargs):
-        self.channel.send(kind, body, **kwargs)
-
-    def receive(self, timeout=5):
-        remaining = (5 if self.channel.handshake_complete else 10) - (time.monotonic() - self.channel.last_heartbeat)
-        if remaining <= 0:
-            raise TimeoutError("Worker heartbeat lost")
-        try:
-            return self.channel.receive(min(timeout, remaining))
-        except OSError as error:
-            if isinstance(error, TimeoutError):
-                raise
-            detail = self.diagnostics.tail("stderr")[-4096:].decode("utf-8", errors="replace")
-            raise OSError("Worker channel closed: " + detail) from error
-
-    def close(self):
-        if self._closed:
-            return
-        import subprocess
-
-        try:
-            try:
-                self.channel.send("shutdown", {})
-                self.channel.drain(0.2)
-            except (OSError, TimeoutError, BufferError):
-                pass
-            self.process.stdin.close()
-            try:
-                self.process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
-                try:
-                    self.process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    # A worker stuck past SIGKILL must not take the coordinator loop down with it.
-                    pass
-        finally:
-            self._closed = True
-            self.channel.close()
-            self.process.stdout.close()
-            self._errors.join(timeout=0.2)
-            self.process.stderr.close()

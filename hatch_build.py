@@ -9,10 +9,14 @@ from pathlib import Path
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 
+# JSON schemas outside studio/ that the frontend imports; studio/scripts/stamp.mjs lists the same files.
+SCHEMAS = ("layout/schema/layout-v1.schema.json", "experiments/schema/experiment-v1.schema.json")
+
+
 def source_fingerprint(root: Path) -> str:
     digest = hashlib.sha256()
     excluded = {"node_modules", "dist", "test-results", "playwright-report", ".vite", ".build"}
-    inputs = [root / "src/simulatte/layout/schema/layout-v1.schema.json", *(root / "studio").rglob("*")]
+    inputs = [*(root / "src/simulatte" / name for name in SCHEMAS), *(root / "studio").rglob("*")]
     for path in sorted(inputs, key=lambda p: p.as_posix()):
         relative = path.relative_to(root)
         if path.is_file() and not excluded.intersection(relative.parts):

@@ -1,4 +1,8 @@
-"""Worker protocol 1.0: bounded MessagePack control plus opaque fragments."""
+"""Worker protocol 1.x: bounded MessagePack control plus opaque fragments.
+
+1.1 adds remote staging (``stage``, ``stage_fragment``, ``staged``) and uv provisioning
+(``provision``, ``provisioned``) for the ``staging-v1`` and ``uv-provisioning-v1`` capabilities.
+"""
 
 from __future__ import annotations
 
@@ -36,8 +40,15 @@ _TYPES = frozenset(
         "error",
         "shutdown",
         "bye",
+        "stage",
+        "stage_fragment",
+        "staged",
+        "provision",
+        "provisioned",
     )
 )
+# Messages that carry a raw payload; they travel on the bounded data lane.
+DATA_TYPES = frozenset(("trace_chunk", "artifact_fragment", "stage_fragment"))
 _FIELDS = frozenset(("v", "type", "seq", "request_id", "attempt_id", "generation", "body"))
 
 
@@ -87,9 +98,9 @@ def _validate(envelope: Mapping[str, Any], payload: bytes) -> FrozenMap:
         raise ValueError("Worker body must be a map")
     if len(payload) > MAX_FRAGMENT:
         raise ValueError("Worker fragment exceeds limit")
-    if payload and envelope["type"] not in ("artifact_fragment", "trace_chunk"):
+    if payload and envelope["type"] not in DATA_TYPES:
         raise ValueError("Binary payload is forbidden for this message")
-    if envelope["type"] in ("artifact_fragment", "trace_chunk"):
+    if envelope["type"] in DATA_TYPES:
         if type(body.get("payload_bytes")) is not int or body["payload_bytes"] != len(payload):
             raise ValueError("Fragment length mismatch")
     result = freeze(dict(envelope))

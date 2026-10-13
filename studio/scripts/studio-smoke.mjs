@@ -238,6 +238,33 @@ try {
   await expect(offlinePage.locator('output')).toContainText('t = 0');
   assert.deepEqual(offlineRequests, []); await offlineContext.close();
   await page.getByText('Parameters', {exact: true}).click();
+  stage = 'side-by-side compare';
+  // Needs two committed interactive results; the runs above normally leave three or more.
+  const committed = await page.evaluate(async () => (await (await fetch('/api/state', {
+    headers: {'X-Simulatte-Session': sessionStorage.getItem('simulatte-session')},
+  })).json()).results.filter(result => result.trace).length);
+  let compared = false;
+  if (committed >= 2) {
+    await page.locator('.scene-host canvas').evaluate(canvas => canvas.setAttribute('data-main', '1'));
+    await page.getByText('Compare', {exact: true}).click();
+    await page.getByLabel('Side A recording').selectOption({index: 1});
+    await page.getByLabel('Side B recording').selectOption({index: 2});
+    await expect(page.locator('.compare-scene canvas')).toHaveCount(2, {timeout: 20000});
+    const sideTimes = () => page.evaluate(() => ['A', 'B'].map(side =>
+      Number(document.querySelector(`output[aria-label="Side ${side} time"]`)?.dataset.time)));
+    await page.getByRole('button', {name: 'Play both', exact: true}).click();
+    await page.waitForTimeout(1000);
+    const [a, b] = await sideTimes();
+    assert.ok(Math.abs(a - b) <= 1 / 30, `compare sides drifted: ${a} vs ${b}`);
+    await page.getByRole('button', {name: 'Pause both', exact: true}).click({delay: 100});
+    await expect.poll(async () => new Set(await sideTimes()).size).toBe(1);
+    await page.getByLabel('Compare time').fill('1');
+    await expect.poll(sideTimes).toEqual([1, 1]);
+    await page.getByRole('button', {name: 'Close compare', exact: true}).click();
+    await expect(page.locator('.compare-scene')).toHaveCount(0);
+    await expect(page.locator('.scene-host canvas[data-main="1"]')).toHaveCount(1);
+    compared = true;
+  } else console.log(`Compare stage skipped: ${committed} committed result(s), two required.`);
   stage = 'source schema conflict';
   await writeFile(join(root, 'plant.py'), model.replace('delay: float = 0.05', 'delay: int = 1'));
   await expect(page.getByRole('button', {name: 'Keep edits on new revision'})).toBeVisible({timeout: 20000});
@@ -253,7 +280,7 @@ try {
   await expect(delay).toHaveValue('0.02');
   await expect(page.getByRole('button', {name: 'Apply and run'})).toBeDisabled();
   assert.equal(errors, 0);
-  console.log(JSON.stringify({browser: browserName, studioCLI: true, bootstrap: true, automaticRun: !required, requiredParameterReview: required, reload: true, manualRun: true, parameterApply: true, parameterConflict: true, layoutEditing: true, layoutUndoRedo: true, canvasKeyboardMove: true, canvasDrag: true, sourceSchemaConflict: true, physicalPreview: true, stableLaneVertices: true, presentationWithoutRun: true, pinnedExportDialog: true, presentationOfflineHtml: true, errors}));
+  console.log(JSON.stringify({browser: browserName, studioCLI: true, bootstrap: true, automaticRun: !required, requiredParameterReview: required, reload: true, manualRun: true, parameterApply: true, parameterConflict: true, layoutEditing: true, layoutUndoRedo: true, canvasKeyboardMove: true, canvasDrag: true, sourceSchemaConflict: true, physicalPreview: true, stableLaneVertices: true, presentationWithoutRun: true, pinnedExportDialog: true, presentationOfflineHtml: true, compare: compared, errors}));
 } catch (error) {
   console.error(`Studio smoke failed during ${stage}.`);
   if (previewOutcome) console.error(JSON.stringify(previewOutcome));

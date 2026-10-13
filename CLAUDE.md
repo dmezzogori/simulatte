@@ -45,6 +45,16 @@ simulatte/
 │   ├── router.py           # Job routing logic
 │   ├── dispatching_rules/  # Dispatching rule implementations
 │   ├── runner.py           # Multi-simulation execution
+│   ├── statistics.py       # Replication-level t intervals, Bonferroni, paired differences, Welch averaging (pure Python)
+│   ├── experiments/        # experiment-v1 definitions and JSON schema, expansion, run(), per-run reports (results.py)
+│   ├── execution/          # Managed execution: coordinator, store, supervisor, child; SP5 adds the pieces below
+│   │   ├── scheduler.py, slots.py            # Experiment dispatch over K slots; local slot default
+│   │   ├── ssh.py, bootstrap_remote.py       # SSH transport and POSIX bootstrap scripts for remote hosts
+│   │   ├── staging.py, provisioning.py       # Hash-verified staging and uv environment provisioning (coordinator and host sides)
+│   │   ├── preflight.py                      # Local checks before a project runs remotely
+│   │   ├── replay.py                         # Full-level replay verification
+│   │   └── workers.py, workers_cli.py        # workers.toml and `simulatte workers list|check|setup|prune`
+│   ├── studio/             # Optional Studio server; experiments.py holds the experiment, comparison and replay commands
 │   ├── builders.py         # Factory functions for system setup
 │   ├── distributions.py    # Statistical distributions
 │   ├── typing.py           # Shared type definitions
@@ -54,11 +64,12 @@ simulatte/
 │   │   └── slar_limit.py   # SLAR-Limit policy
 │   ├── intralogistics/     # Warehouse, AGV fleet, material transport (graph, pathfinding, traffic, fleet coordinator, metrics, policies)
 │   └── experimental/       # Unstable modules (gymnasium wrapper)
-├── studio/                 # TypeScript workspace: @simulatte/trace conformance reader (pnpm)
+├── studio/                 # TypeScript workspace (pnpm): trace reader, playback, scene, export, viewer app (experiments, results, compare panels) and offline player
 ├── benchmarks/             # Overhead benchmarks against simulatte 0.12.0 (CI bench job)
 ├── examples/               # Runnable example scripts (intralogistics_simple, _intermediate, _advanced)
 ├── tests/
 │   ├── core/               # Tests for stable modules
+│   ├── execution/          # Tests for managed execution, experiments' scheduler, workers (fake ssh and uv are POSIX-only)
 │   ├── intralogistics/     # Tests for intralogistics modules
 │   └── experimental/       # Tests for experimental modules
 ├── docs/                   # Website sources (simulatte.dev), built with Zensical
@@ -78,6 +89,8 @@ Simulatte is a discrete-event simulation framework for production planning and c
 **Events and entities** (`events.py`, `entities.py`): every state change is a typed event (`DomainEvent` with deltas, `ObserverEvent` for logs and KPI samples) registered with `@event_type` and emitted behind `if env.wants(Cls): env.emit(Cls(...))`; event construction must call no user code. Components are entities with ids (`job-<n>`, `server-<n>` or `name=`, builder names `wc-<i>`, `shopfloor`, `router`, `psp` plus `prefix=`). Observers never change results (see `tests/core/test_invariance.py`).
 
 **Trace** (`src/simulatte/trace/`): `TraceRecorder` writes a run to a chunked, checksummed file (levels `full` and `kpi`); `Trace` reads, seeks (`state_at`), verifies (`verify`) and checks (`check`) it. `studio/packages/trace` is the TypeScript reader.
+
+**Experiments and remote workers** (`experiments/`, `execution/`, `statistics.py`): an experiment (`*.experiment.json`, the `simulatte.experiments` API or a Studio form) expands configurations x replications into ordinary execution requests, seed `base_seed + i` shared across configurations. The coordinator owns K slots (`interactive`, `local-<n>`, `<worker>-<n>`), each with one transport; the scheduler dispatches replication-major, re-dispatches `lost` attempts at most twice and never retries `failed`. Results are replication-level scalars; `statistics.py` and `experiments/results.py` produce t intervals (pointwise, or Bonferroni per family) and paired differences by replication index. `simulatte replay` reruns a request at `full` level and labels it `verified` or `unverified`. Remote workers are POSIX hosts named in the user-level `workers.toml` (no credentials), reached over system `ssh`; the project must be a uv project, `preflight.py` checks it locally, `staging.py` ships hash-verified bundles and `provisioning.py` builds immutable cached environments with `uv sync --locked`. uv is installed only by a confirmed `workers setup --install-uv`. The store (`execution/store.py`, schema 2) holds slots, experiments, replications and replays; retention is manual (`experiment delete`, `store prune`).
 
 **ShopFloor** (`src/simulatte/shopfloor.py`): Central orchestrator managing job flow through the simulation. Tracks WIP, coordinates routing, attaches an `EMACollector` as `shopfloor.metrics` (`default_metrics=False` to opt out). Extensible via:
 - `OperationHook`: Sync or generator-based hooks for before/after operations
@@ -135,7 +148,7 @@ Unstable APIs, subject to change:
 
 GitHub Actions workflows live in `.github/workflows/`:
 
-- **ci.yml**: CPython 3.11/3.12/3.13/3.14/3.15, plus a PyPy 3.11 core/intralogistics compatibility lane; lint and type checks run on CPython 3.14. A `trace-ts` job tests the TypeScript trace reader and a `bench` job gates the no-subscriber overhead against `simulatte==0.12.0`.
+- **ci.yml**: CPython 3.11/3.12/3.13/3.14/3.15, plus a PyPy 3.11 compatibility lane (core, execution, intralogistics, layout); lint and type checks run on CPython 3.14. An `execution-native` lane runs the execution, statistics, experiment and Studio tests on macOS and Windows, a two-slot local experiment through the CLI, and on Windows asserts that `workers check` reports SSH workers as untested (the fake-ssh, staging and provisioning tests are POSIX-only and skip on Windows). A `trace-ts` job tests the TypeScript workspace, browser specs and packaged wheel, and a `bench` job gates the no-subscriber overhead against `simulatte==0.12.0`.
 - **docs.yml**: Builds and deploys documentation to GitHub Pages on push to `main`.
 - **publish.yml**: Publishes to PyPI via trusted publishing when a `v*` tag is pushed.
 

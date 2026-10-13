@@ -1,0 +1,12 @@
+[workers.strangelove]
+host = "strangelove"
+slots = 2
+
+[workers.otacon]
+host = "otacon"
+slots = 1
+provision_timeout = 1800
+
+[workers.bigboss]
+host = "bigboss"
+slots = 1

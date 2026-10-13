@@ -11,7 +11,7 @@ from simulatte.execution.coordinator import ExecutionFailure, selected_model, _d
 from simulatte.execution.references import read_document
 from simulatte.execution.schema import Revision
 from simulatte.execution.snapshot import discover_project
-from simulatte.execution.store import RevisionConflict, _read
+from simulatte.execution.store import INTERACTIVE, RevisionConflict, _read
 from simulatte.studio.monitor import ProjectMonitor
 from simulatte.studio.watcher import ProjectWatcher, InputChange
 
@@ -71,6 +71,8 @@ class ProjectSession:
             with self.coordinator._condition:
                 self.monitor._ingest(change)
             return
+        if change.state is not None and change.changed == {"experiments"}:
+            return  # Non-source inputs (D104) never restart preparation.
         self._epoch += 1
         base = self._pause(change)
         if base is None:
@@ -89,7 +91,9 @@ class ProjectSession:
         """A completed inspection may precede a declared-input capture failure."""
         with self.coordinator.store._transaction() as db:
             rows = db.execute(
-                "SELECT details FROM attempts WHERE status='succeeded' ORDER BY generation DESC LIMIT 16"
+                # Inspections run on the interactive slot; replications must not crowd them out.
+                "SELECT details FROM attempts WHERE status='succeeded' AND slot=? ORDER BY generation DESC LIMIT 16",
+                (INTERACTIVE,),
             ).fetchall()
         for row in rows:
             details = _read(row[0])

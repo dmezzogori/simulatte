@@ -18,7 +18,9 @@ Ctrl-C stops the server. A recording changed on disk must be reopened.
 
 The read-only viewer is available starting with 0.15. Local model execution,
 parameter/layout editing and live playback are available starting with 0.16.
-See the acceptance report for platform-specific verification evidence.
+Experiments, statistical comparisons, replays, side-by-side playback and remote
+workers are available starting with 0.17. See the acceptance report for
+platform-specific verification evidence.
 
 ## Make a recording
 
@@ -422,10 +424,117 @@ editor can still race the final check/rename interval; recoverable backups make
 that filesystem limitation explicit. Closing Studio cancels owned work and
 cleans descendants before releasing the store owner lock.
 
-SP4 is local single-run execution/editing. Experiments, statistical comparisons
-and SSH workers remain outside this release.
+0.16 is local single-run execution and editing. Experiments, statistical
+comparisons and SSH workers arrive in 0.17 and are described below.
 
 Request ids include the captured layout revision. Identical model bytes and
 parameters reached through different revision histories can therefore have
 different request ids, while producing the same semantic fingerprint. An exact
 reproduction retains the stored request identity and creates a new attempt.
+
+## Experiments and comparisons (0.17)
+
+Studio runs the experiments described in the [experiments guide](../guides/experiments.md)
+next to the interactive model. The panels below are part of `simulatte studio MODEL.py`;
+they need the `[studio]` extra and a decorated model. Experiments run on their own
+slots. They fence on the run id and the store, not on the project revision, so editing
+parameters, the layout or the source supersedes the interactive run but never a running
+experiment. Experiment and comparison commands do not hold the Studio mutation lock.
+
+### Experiments
+
+Open **Experiments**. The list shows the newest 20 runs with their state
+(`running`, `paused`, `completed`, `failed`, `cancelled`) and replication counts per
+state; selecting a count filters the replication list. Choose an `*.experiment.json`
+file and **Start**, or open **New experiment** to fill the form: name, file, model,
+replication count and base seed, a grid (comma-separated values per parameter) or an
+explicit list of configurations, layout variants (`label=file` per line), stopping
+policy, recording level, KPI keys and workers. The form validates against the model's
+parameter schema and saves the file inside the project, refusing to replace an existing
+file unless **Replace an existing file** is checked. Only files that are part of the
+captured project (Git-tracked or matched by `[tool.simulatte.bundle] include`) are
+listed after a reload; `include = ["*.experiment.json"]` keeps new files listed.
+
+Each run has **Cancel** (running or paused), **Resume** (paused), **Start again**
+(finished; the same definition on unchanged inputs returns the existing run) and
+**Delete**. **Worker pool** shows the local slot count, the configured remote workers
+(name, host and slot count only, never credentials) and the state of each slot.
+
+### Results and charts
+
+Selecting a run shows the configuration by KPI table: replications, mean, half-width,
+interval bounds and state (`ok`, `degenerate`, `insufficient`). Set the confidence level,
+tick **Bonferroni**, and pick a **Baseline** to add paired differences (configuration
+minus baseline, paired by replication index). The table says "pointwise 95 % t
+intervals, no multiple-comparison correction" or "Bonferroni-adjusted (m = ..., effective
+level ...)", and the paired differences carry their own label because they are a
+separate family. A **mixed runtime** badge marks configurations whose replications
+resolved different dependency sets. **Missing pairs** lists replications without a
+result and the unpaired indices of each comparison. An insufficient row shows no
+half-width.
+
+**Replications** lists replications by configuration and status. **Open** loads a
+committed replication in the normal viewer. **Charts** overlays one KPI series from up
+to eight selected recordings on a shared time axis, and draws a Welch plot for one
+configuration and KPI: the replications are averaged on a 500-point grid and smoothed
+with a centred moving average whose odd window you choose (5 by default, at most 64
+replications). The warm-up remains your setting.
+
+### Replays and compare playback
+
+A KPI-only replication has no events to play. **Compare**, a section of the Studio
+panel, offers two recordings at a time, chosen from interactive results, committed
+replications of a chosen run, and replays. Picking a KPI-only recording shows **Replay
+at full level**, which starts a replay and follows its status. A replay is labelled
+**verified replay**, or **unverified replay: <reason>** (`digest_mismatch`,
+`kpi_mismatch:<key>`, `runtime_mismatch`, `dependencies_mismatch`, `layout_mismatch` or
+`trace_unverified`). Unverified replays are hidden from the pickers, with a count, until
+**Include unverified replays** is on; once shown they are never hidden or restyled.
+
+Both sides advance on one clock. **Play both** and **Pause both**, previous and next event,
+speed and the seek slider act on both sides. Seeking either side seeks both; a shorter
+recording holds its last time; a hidden tab pauses both and they resume together. Each
+side has its own time and up to eight KPI tiles. Compare uses its own scenes, so closing
+it leaves the main viewer, its time and its WebGL context untouched. Three-way or live
+comparison is not offered.
+
+### Protocol
+
+The WebSocket envelope version is unchanged. New commands: `experiment.define`,
+`experiment.start`, `experiment.cancel`, `experiment.resume`, `experiment.delete`,
+`comparison.get`, `series.get`, `replay.start` and `workers.get`. New notifications:
+`experiment_state`, `experiment_progress` (coalesced per run), `replay_state` and
+`workers_state`. `state.get` adds `experiments` (the newest 20 runs), `workers` and
+`replays`. `GET api/experiments/<run>/results` returns the bounded report under the
+same authentication, with `level`, `baseline`, `bonferroni` and `configuration` query
+parameters. The report lists at most 1,000 replications and 1,000 missing entries;
+`series.get` takes up to eight recordings and four KPI keys. Layout variants are
+project files, so there is no upload route.
+
+### Browser and Safari verification
+
+The compare and experiment panels are exercised with Playwright on Chromium and WebKit
+(11 of 11 specs each, macOS) and on Firefox (10 of 11 on Linux; the failing spec is the
+pre-existing MP4 export through OPFS, which also fails on the previous commit). Firefox
+on macOS cannot launch Playwright's profile. The real-Studio smoke script passes the
+compare stage on Chromium and WebKit. Actual Safari has **not** yet been run for compare
+playback. Before release, check in Safari with Studio holding two committed full
+results and one KPI-only experiment replication:
+
+1. Open the Compare section. Pick two full recordings: both side scenes draw, and the
+   main viewer's scene, time and transport are unchanged.
+2. Play both for a few seconds: both side times advance together, the KPI tiles update,
+   and the main viewer stays paused.
+3. Pause both: the side times are equal. Drag the compare slider and use previous and
+   next event: both sides move to the same time. Past the shorter recording's end, it
+   holds its last time.
+4. Change speed while playing: both continue together. Switch to another tab and back:
+   both pause and resume together.
+5. Pick the KPI-only replication: "Replay at full level" appears and there is no scene.
+   Start it: the status follows the replay. A verified replay opens on that side with
+   "verified replay". An unverified one shows "unverified replay: <reason>" and is not
+   opened until "Include unverified replays" is on.
+6. Close Compare: both compare canvases disappear. The main viewer still plays, seeks
+   and steps, with no WebGL context loss, page errors or console errors (Web Inspector).
+7. Reopen Compare and close it twice more: no growth in canvases or errors, and the main
+   viewer still renders.

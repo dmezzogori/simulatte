@@ -11,13 +11,16 @@ from typing import Any
 from dataclasses import dataclass
 import fnmatch
 import hashlib
+import importlib.machinery
 import importlib.metadata
+import importlib.util
 import json
 import os
 from pathlib import Path, PurePosixPath
 import shutil
 import stat
 import subprocess
+import sys
 import tarfile
 import tempfile
 import tomllib
@@ -46,6 +49,7 @@ class ProjectSpec:
     max_bytes: int = 1 << 30
     max_files: int = 100_000
     config_hash: str | None = None
+    layouts: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +169,7 @@ def discover_project(
     )
     if not git and not patterns["include"]:
         raise ValueError("Non-Git projects require bundle.include")
+    layouts = _layout_variants(root, bundle.get("layouts", []))
     roots = bundle.get("python-path", [".", *(["src"] if (root / "src").is_dir() else [])])
     if not isinstance(roots, list) or not roots:
         raise ValueError("bundle.python-path must be a nonempty list")
@@ -188,7 +193,27 @@ def discover_project(
         git,
         **limits,
         config_hash=config_hash,
+        layouts=layouts,
     )
+
+
+def _layout_variants(root: Path, values) -> tuple[str, ...]:
+    """Layout variants are non-source inputs (D104): in-root regular files, possibly not yet written."""
+    if not isinstance(values, list):
+        raise ValueError("bundle.layouts must be a list")
+    names = []
+    for item in values:
+        try:
+            name = _path(item)
+        except ValueError as error:
+            raise ValueError(f"Invalid bundle.layouts entry: {error}") from None
+        path = root / name
+        if not path.resolve().is_relative_to(root) or (path.exists() and not path.is_file()):
+            raise ValueError("bundle.layouts entries must be regular files inside the project root")
+        if name in names:
+            raise ValueError("Duplicate bundle.layouts entry")
+        names.append(name)
+    return tuple(names)
 
 
 def _configuration_hash(pyproject_hash):
@@ -242,7 +267,7 @@ def local_package_roots(root: Path, config: Mapping, distributions=None) -> tupl
     return tuple(sorted(roots))
 
 
-def _members(project: ProjectSpec) -> tuple[str, ...]:
+def _candidates(project: ProjectSpec) -> set[str]:
     names = set()
     if project.git:
         raw = _git(project.root, "ls-files", "-z", "--stage", "--", ".")
@@ -259,20 +284,44 @@ def _members(project: ProjectSpec) -> tuple[str, ...]:
             if (project.root / name).exists() or (project.root / name).is_symlink():
                 names.add(name)
     for pattern in project.include:
-        for path in project.root.glob(pattern):
+        # Before Python 3.13 a trailing "**" matches directories only; "**/*" matches files on every version.
+        for path in project.root.glob(pattern + "/*" if pattern.endswith("**") else pattern):
             if not path.is_dir():
                 names.add(path.relative_to(project.root).as_posix())
     if (project.root / "pyproject.toml").is_file():
         names.add("pyproject.toml")
-    names = {
+    return {
         name
         for name in names
         if not set(PurePosixPath(name).parts) & _RESERVED
         and name != project.layout
         and not any(fnmatch.fnmatchcase(name, pattern) for pattern in project.exclude)
     }
+
+
+def _non_source(project: ProjectSpec, name: str) -> bool:
+    return name.endswith(".experiment.json") or name in project.layouts
+
+
+def _members(project: ProjectSpec) -> tuple[str, ...]:
+    names = {name for name in _candidates(project) if not _non_source(project, name)}
     if project.model not in names:
         raise ValueError("Selected model is missing from source membership")
+    _validate_names(names)
+    return tuple(sorted(names, key=lambda n: n.encode("utf-8")))
+
+
+def non_source_members(project: ProjectSpec) -> tuple[str, ...]:
+    """Experiment files in membership and existing layout variants: shipped as documents, never source."""
+    names = {name for name in _candidates(project) if _non_source(project, name)}
+    names.update(
+        name
+        for name in project.layouts
+        if name != project.layout
+        and (project.root / name).is_file()
+        and not set(PurePosixPath(name).parts) & _RESERVED
+        and not any(fnmatch.fnmatchcase(name, pattern) for pattern in project.exclude)
+    )
     _validate_names(names)
     return tuple(sorted(names, key=lambda n: n.encode("utf-8")))
 
@@ -345,6 +394,23 @@ def _digest_file(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def _write_tar(path: Path, members) -> str:
+    """Normalized PAX archive (given order, uid/gid 0, mtime 0, 0644/0755); returns its SHA-256."""
+    with tarfile.open(path, "w", format=tarfile.PAX_FORMAT) as target:
+        for entry, source in members:
+            info = tarfile.TarInfo(entry.path)
+            info.size = entry.size
+            info.mode = 0o755 if entry.executable else 0o644
+            info.mtime = 0
+            info.uid = info.gid = 0
+            info.uname = info.gname = ""
+            with source.open("rb") as content:
+                target.addfile(info, content)
+    with open(path, "r+b") as stream:
+        os.fsync(stream.fileno())
+    return _digest_file(path)
+
+
 def _publish(project: ProjectSpec, entries: tuple[Entry, ...], tree: Path, kind: str) -> SourceSnapshot:
     identity = canonical_hash(f"{kind}-manifest-v1", [entry.to_dict() for entry in entries])
     directory = project.root / ".simulatte" / "snapshots" / identity
@@ -353,19 +419,7 @@ def _publish(project: ProjectSpec, entries: tuple[Entry, ...], tree: Path, kind:
     fd, temporary = tempfile.mkstemp(dir=directory, suffix=".tmp")
     os.close(fd)
     try:
-        with tarfile.open(temporary, "w", format=tarfile.PAX_FORMAT) as target:
-            for entry in entries:
-                info = tarfile.TarInfo(entry.path)
-                info.size = entry.size
-                info.mode = 0o755 if entry.executable else 0o644
-                info.mtime = 0
-                info.uid = info.gid = 0
-                info.uname = info.gname = ""
-                with (tree / entry.path).open("rb") as content:
-                    target.addfile(info, content)
-        with open(temporary, "r+b") as stream:
-            os.fsync(stream.fileno())
-        digest = _digest_file(Path(temporary))
+        digest = _write_tar(Path(temporary), [(entry, tree / entry.path) for entry in entries])
         if archive.exists():
             if _digest_file(archive) != digest:
                 raise ValueError("Stored snapshot archive hash mismatch")
@@ -552,8 +606,141 @@ def load_source(project: ProjectSpec, identity: str, *, kind: str = "source") ->
 
 @dataclass(frozen=True, slots=True)
 class RuntimeSnapshot:
+    """The frozen trusted package (``root``, identity ``content_hash``) and its remote archive form.
+
+    ``supervisor_deps`` holds pure-Python copies of the supervisor's third-party imports. It is a
+    supervisor-only import root: execution children never receive it, so models run on the
+    project's own locked dependencies. ``archive`` (``simulatte/`` plus ``supervisor-deps/``) is
+    what remote hosts stage under ``<cache>/runtime/<archive_sha256>``.
+    """
+
     root: Path
     content_hash: str
+    archive: Path
+    archive_sha256: str
+    supervisor_deps: Path
+    supervisor_distributions: tuple[tuple[str, str], ...]
+
+
+# The remote supervisor's third-party import closure. msgpack's C accelerator is optional; its
+# fallback is the supported remote form. Any other compiled module makes the runtime unshippable.
+_SUPERVISOR_DISTRIBUTIONS = ("msgpack", "simpy")
+_OPTIONAL_EXTENSIONS = {"msgpack": "_cmsgpack"}
+_SELF_CHECK = """import sys
+root, deps = sys.argv[1:3]
+sys.path[:0] = [root, deps]
+import msgpack, simpy, simulatte.cli, simulatte.execution.supervisor
+assert msgpack.Packer.__module__ == "msgpack.fallback", "msgpack C extension in the frozen runtime"
+for module, origin in ((msgpack, deps), (simpy, deps), (simulatte.cli, root)):
+    assert module.__file__.startswith(origin), module.__file__
+"""
+_COMPILED = (*importlib.machinery.EXTENSION_SUFFIXES, ".so", ".pyd", ".dylib")
+
+
+def _supervisor_members(name: str) -> tuple[str, list[tuple[str, Path, str]]]:
+    """``(version, [(destination, root, source)])`` for one pure-Python supervisor dependency."""
+    spec = importlib.util.find_spec(name)
+    if spec is None or not spec.submodule_search_locations:
+        raise ValueError(f"Supervisor dependency {name} is not installed as a package")
+    package = Path(next(iter(spec.submodule_search_locations))).resolve()
+    members = []
+    for path in sorted(package.rglob("*")):
+        if path.is_dir() or "__pycache__" in path.parts:
+            continue
+        relative = path.relative_to(package.parent).as_posix()
+        if path.name.endswith(_COMPILED):
+            optional = _OPTIONAL_EXTENSIONS.get(name)
+            if optional is not None and path.name.startswith(optional + "."):
+                continue
+            raise ValueError(f"Supervisor dependency {name} has a compiled module: {relative}")
+        if path.suffix == ".py":
+            members.append((relative, package.parent, relative))
+    distribution = importlib.metadata.distribution(name)
+    version = distribution.version
+    root = Path(str(distribution.locate_file(""))).resolve()
+    licenses = {}
+    for file in distribution.files or ():
+        parts = file.parts
+        if parts[0].endswith(".dist-info") and (
+            "licenses" in parts or file.name.upper().startswith(("LICENSE", "COPYING"))
+        ):
+            licenses.setdefault(f"{name}-{version}.licenses/{file.name}", file.as_posix())
+    members += [(destination, root, source) for destination, source in licenses.items()]
+    return version, members
+
+
+def _freeze_supervisor_deps(tools: Path) -> tuple[Path, tuple[tuple[str, str], ...], list[Entry]]:
+    with tempfile.TemporaryDirectory(dir=tools, prefix="deps-") as temporary:
+        tree = Path(temporary) / "tree"
+        entries = []
+        distributions = []
+        for name in _SUPERVISOR_DISTRIBUTIONS:
+            version, members = _supervisor_members(name)
+            distributions.append((name, version))
+            for destination, root, source in members:
+                copied = _copy(root, source, tree / destination, 1 << 30)
+                entries.append(Entry(destination, copied.size, copied.sha256, False))
+        entries.sort(key=lambda entry: entry.path)
+        _validate_names([entry.path for entry in entries])
+        identity = canonical_hash(
+            "supervisor-deps-v1",
+            {"distributions": distributions, "entries": [entry.to_dict() for entry in entries]},
+        )
+        # Content-addressed apart from the package tree: upgrading the environment's msgpack or
+        # simpy yields a new directory instead of rewriting a published one.
+        destination = tools / "supervisor-deps" / identity
+        if not destination.exists():
+            destination.parent.mkdir(exist_ok=True)
+            for path in tree.rglob("*"):
+                if path.is_file():
+                    path.chmod(0o444)
+            os.replace(tree, destination)
+        else:
+            for entry in entries:
+                if _copy(destination, entry.path, None, 1 << 30) != entry:
+                    raise ValueError("Supervisor dependency cache was modified")
+    return destination, tuple(distributions), entries
+
+
+def _runtime_archive(tools: Path, root: Path, entries, deps: Path, deps_entries) -> tuple[Path, str]:
+    members = [(entry, root / entry.path) for entry in entries]
+    members += [
+        (Entry("supervisor-deps/" + entry.path, entry.size, entry.sha256, False), deps / entry.path)
+        for entry in deps_entries
+    ]
+    members.sort(key=lambda member: member[0].path)
+    directory = tools / "runtime"
+    directory.mkdir(exist_ok=True)
+    fd, temporary = tempfile.mkstemp(dir=directory, suffix=".tmp")
+    os.close(fd)
+    try:
+        digest = _write_tar(Path(temporary), members)
+        archive = directory / f"{digest}.tar"
+        if not archive.exists():
+            replace_durable(Path(temporary), archive)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+    return archive, digest
+
+
+def _check_supervisor(root: Path, deps: Path, marker: Path) -> None:
+    """Import the supervisor in an isolated child from the two frozen roots alone, once per archive."""
+    if marker.exists():
+        return
+    try:
+        done = subprocess.run(
+            [sys.executable, "-I", "-S", "-c", _SELF_CHECK, str(root), str(deps)],
+            capture_output=True,
+            stdin=subprocess.DEVNULL,
+            timeout=10,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ValueError("Frozen supervisor runtime self-check timed out") from error
+    if done.returncode != 0:
+        detail = done.stderr[-4096:].decode("utf-8", errors="replace")
+        raise ValueError("Frozen supervisor runtime does not import in isolation: " + detail)
+    marker.touch()
 
 
 def freeze_runtime(package: Path, project_root: Path) -> RuntimeSnapshot:
@@ -600,4 +787,9 @@ def freeze_runtime(package: Path, project_root: Path) -> RuntimeSnapshot:
         for entry in entries:
             if _copy(destination, entry.path, None, project.max_bytes) != entry:
                 raise ValueError("Trusted runtime cache was modified")
-    return RuntimeSnapshot(destination, captured.content_hash)
+    tools = destination.parent
+    deps, distributions, deps_entries = _freeze_supervisor_deps(tools)
+    archive, archive_sha256 = _runtime_archive(tools, destination, entries, deps, deps_entries)
+    if (package / "execution" / "supervisor.py").is_file():
+        _check_supervisor(destination, deps, archive.with_suffix(".verified"))
+    return RuntimeSnapshot(destination, captured.content_hash, archive, archive_sha256, deps, distributions)

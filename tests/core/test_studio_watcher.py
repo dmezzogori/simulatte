@@ -378,3 +378,42 @@ def test_captured_baseline_does_not_swallow_edits_during_inspection(tmp_path):
     change = watcher.check()
     assert change.changed == frozenset({"inputs"})
     assert change.state.input_hash != snapshot.inputs.content_hash
+
+
+def test_experiment_files_and_layout_variants_form_their_own_change_class(tmp_path):
+    m = api()
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.simulatte.bundle]\ninclude=["plant.py", "*.experiment.json"]\nlayouts=["layouts/wide.json"]\n'
+    )
+    (tmp_path / "plant.py").write_text("original")
+    (tmp_path / "sweep.experiment.json").write_text("{}")
+    (tmp_path / "layouts").mkdir()
+    (tmp_path / "layouts/wide.json").write_text("{}")
+    watcher = m.ProjectWatcher(discover_project(tmp_path / "plant.py", tmp_path))
+    initial = watcher.check()
+    assert "experiments" in initial.changed
+    for path in ("sweep.experiment.json", "layouts/wide.json"):
+        (tmp_path / path).write_text('{"edited": true}')
+        change = watcher.check()
+        assert change.changed == {"experiments"}
+        assert change.state.source_hash == initial.state.source_hash
+    (tmp_path / "layouts/wide.json").unlink()
+    assert watcher.check().changed == {"experiments"}
+    assert watcher.check() is None
+
+
+def test_captured_baseline_keeps_the_observed_experiment_state(tmp_path):
+    from dataclasses import replace
+
+    m = api()
+    spec = project(tmp_path)
+    watcher = m.ProjectWatcher(spec)
+    observed = watcher.check().state
+    assert observed.experiments_hash is not None
+    unknown = replace(observed, experiments_hash=None)
+    assert unknown == observed
+    watcher.configure(inputs=(), baseline=unknown)
+    assert watcher._last.experiments_hash == observed.experiments_hash
+    fresh = m.ProjectWatcher(spec, baseline=unknown)
+    assert fresh.check() is None
+    assert fresh._last.experiments_hash == observed.experiments_hash

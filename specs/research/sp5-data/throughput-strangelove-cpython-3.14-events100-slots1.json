@@ -1,0 +1,357 @@
+{
+  "children_cpu_per_execution": 0.46705548484848486,
+  "children_cpu_seconds_total": 15.412831,
+  "completed_replications": 32,
+  "coordinator_cpu_per_replication": 0.04646675,
+  "coordinator_peak_rss_bytes": 42176512,
+  "coordinator_wall_per_replication": 0.6975768066877208,
+  "coordinator_wall_per_replication_excluding_first": 0.6961768293873437,
+  "cpu_count": 16,
+  "events": 100,
+  "failure": null,
+  "first_replication": {
+    "ready_to_publication": 0.1828354869503528,
+    "seed": 0,
+    "store_commit": 0.01665865897666663,
+    "submit_to_ready": 0.5549498039763421,
+    "wait_return_lag": 0.0031908120727166533,
+    "wall": 0.7409761029994115
+  },
+  "implementation": "CPython",
+  "machine": "x86_64",
+  "overhead_per_replication": 0.6972218432274531,
+  "overhead_per_replication_excluding_first": 0.695821865927076,
+  "phases": {
+    "close_seconds": 0.01029846293386072,
+    "coordinator_loop_cpu_seconds": 1.486936,
+    "loop_seconds": 22.340690350043587,
+    "prepare_seconds": 0.5518403530586511
+  },
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+  "python": "3.14.0",
+  "ready_to_publication": {
+    "max": 0.22529073106124997,
+    "mean": 0.19425977871651412,
+    "median": 0.19079885445535183,
+    "min": 0.16076355206314474
+  },
+  "reaped_children_peak_rss_bytes": 43782144,
+  "replications": 32,
+  "replications_per_minute": 85.94183840859931,
+  "replications_per_minute_excluding_first": 86.18499994146858,
+  "runner_replications_per_minute": 169031.48271864688,
+  "runner_samples": [
+    0.002824260969646275,
+    0.00033762201201170683,
+    0.000289132003672421,
+    0.0002828818978741765,
+    0.00027099205181002617,
+    0.0002634720876812935,
+    0.0002584710018709302,
+    0.00027224200312048197,
+    0.00026500201784074306,
+    0.000264171976596117,
+    0.00025815190747380257,
+    0.0005151539808139205,
+    0.0002652419498190284,
+    0.0002578309504315257,
+    0.0002732919529080391,
+    0.00025689194444566965,
+    0.00025499192997813225,
+    0.0002725620288401842,
+    0.0002618319122120738,
+    0.00025863200426101685,
+    0.0002607720671221614,
+    0.0002694810973480344,
+    0.00025679206009954214,
+    0.0002553920494392514,
+    0.0002549419878050685,
+    0.0002650920068845153,
+    0.00027356192003935575,
+    0.0002676720032468438,
+    0.0002692820271477103,
+    0.00026785198133438826,
+    0.000260690925642848,
+    0.00025447201915085316
+  ],
+  "runner_wall_per_replication": 0.00035496346026775427,
+  "runner_wall_per_replication_median": 0.0002650470123626292,
+  "samples": [
+    {
+      "ready_to_publication": 0.1828354869503528,
+      "seed": 0,
+      "store_commit": 0.01665865897666663,
+      "submit_to_ready": 0.5549498039763421,
+      "wait_return_lag": 0.0031908120727166533,
+      "wall": 0.7409761029994115
+    },
+    {
+      "ready_to_publication": 0.20366007497068495,
+      "seed": 1,
+      "store_commit": 0.015690651955083013,
+      "submit_to_ready": 0.5106229489902034,
+      "wait_return_lag": 0.002674698014743626,
+      "wall": 0.716957721975632
+    },
+    {
+      "ready_to_publication": 0.18285097694024444,
+      "seed": 2,
+      "store_commit": 0.015684190904721618,
+      "submit_to_ready": 0.505483804969117,
+      "wait_return_lag": 0.0025582780363038182,
+      "wall": 0.6908930599456653
+    },
+    {
+      "ready_to_publication": 0.18237328296527267,
+      "seed": 3,
+      "store_commit": 0.015596400015056133,
+      "submit_to_ready": 0.49794858205132186,
+      "wait_return_lag": 0.0025858189910650253,
+      "wall": 0.6829076840076596
+    },
+    {
+      "ready_to_publication": 0.18196018098387867,
+      "seed": 4,
+      "store_commit": 0.015987863996997476,
+      "submit_to_ready": 0.4885602850699797,
+      "wait_return_lag": 0.0025854279519990087,
+      "wall": 0.6731058940058574
+    },
+    {
+      "ready_to_publication": 0.1862053918885067,
+      "seed": 5,
+      "store_commit": 0.018865483929403126,
+      "submit_to_ready": 0.4816195670282468,
+      "wait_return_lag": 0.0026544290594756603,
+      "wall": 0.6704793879762292
+    },
+    {
+      "ready_to_publication": 0.18386237393133342,
+      "seed": 6,
+      "store_commit": 0.01709853101056069,
+      "submit_to_ready": 0.49210926005616784,
+      "wait_return_lag": 0.0028582600643858314,
+      "wall": 0.6788298940518871
+    },
+    {
+      "ready_to_publication": 0.18193309102207422,
+      "seed": 7,
+      "store_commit": 0.015368849039077759,
+      "submit_to_ready": 0.490491152042523,
+      "wait_return_lag": 0.002541267895139754,
+      "wall": 0.674965510959737
+    },
+    {
+      "ready_to_publication": 0.18199644202832133,
+      "seed": 8,
+      "store_commit": 0.015390918939374387,
+      "submit_to_ready": 0.5134010629262775,
+      "wait_return_lag": 0.0025819980073720217,
+      "wall": 0.6979795029619709
+    },
+    {
+      "ready_to_publication": 0.18250814592465758,
+      "seed": 9,
+      "store_commit": 0.015507559990510345,
+      "submit_to_ready": 0.5166747950715944,
+      "wait_return_lag": 0.002530768048018217,
+      "wall": 0.7017137090442702
+    },
+    {
+      "ready_to_publication": 0.22520628792699426,
+      "seed": 10,
+      "store_commit": 0.015607340959832072,
+      "submit_to_ready": 0.49216231401078403,
+      "wait_return_lag": 0.0013040300691500306,
+      "wall": 0.7186726320069283
+    },
+    {
+      "ready_to_publication": 0.2249341660644859,
+      "seed": 11,
+      "store_commit": 0.015447960002347827,
+      "submit_to_ready": 0.49357173196040094,
+      "wait_return_lag": 0.0025835379492491484,
+      "wall": 0.721089435974136
+    },
+    {
+      "ready_to_publication": 0.20371856598649174,
+      "seed": 12,
+      "store_commit": 0.01544750900939107,
+      "submit_to_ready": 0.5134968139464036,
+      "wait_return_lag": 0.0025945290690287948,
+      "wall": 0.7198099090019241
+    },
+    {
+      "ready_to_publication": 0.20329776301514357,
+      "seed": 13,
+      "store_commit": 0.015601921011693776,
+      "submit_to_ready": 0.515307257999666,
+      "wait_return_lag": 0.0026513689663261175,
+      "wall": 0.7212563899811357
+    },
+    {
+      "ready_to_publication": 0.20004960999358445,
+      "seed": 14,
+      "store_commit": 0.011857145000249147,
+      "submit_to_ready": 0.4821889440063387,
+      "wait_return_lag": 0.0027378490194678307,
+      "wall": 0.684976403019391
+    },
+    {
+      "ready_to_publication": 0.16081677202600986,
+      "seed": 15,
+      "store_commit": 0.015650041052140296,
+      "submit_to_ready": 0.5107023259624839,
+      "wait_return_lag": 0.0013234990183264017,
+      "wall": 0.6728425970068201
+    },
+    {
+      "ready_to_publication": 0.22521398903336376,
+      "seed": 16,
+      "store_commit": 0.015234058955684304,
+      "submit_to_ready": 0.49464817997068167,
+      "wait_return_lag": 0.002667919034138322,
+      "wall": 0.7225300880381837
+    },
+    {
+      "ready_to_publication": 0.20439564203843474,
+      "seed": 17,
+      "store_commit": 0.015691982000134885,
+      "submit_to_ready": 0.5092437049606815,
+      "wait_return_lag": 0.001325758988969028,
+      "wall": 0.7149651059880853
+    },
+    {
+      "ready_to_publication": 0.18360472400672734,
+      "seed": 18,
+      "store_commit": 0.016930280020460486,
+      "submit_to_ready": 0.41640869609545916,
+      "wait_return_lag": 0.002885750960558653,
+      "wall": 0.6028991710627452
+    },
+    {
+      "ready_to_publication": 0.18189133203122765,
+      "seed": 19,
+      "store_commit": 0.01580704201478511,
+      "submit_to_ready": 0.49350620491895825,
+      "wait_return_lag": 0.002726459060795605,
+      "wall": 0.6781239960109815
+    },
+    {
+      "ready_to_publication": 0.16076355206314474,
+      "seed": 20,
+      "store_commit": 0.01567333098500967,
+      "submit_to_ready": 0.5062122449744493,
+      "wait_return_lag": 0.002744709956459701,
+      "wall": 0.6697205069940537
+    },
+    {
+      "ready_to_publication": 0.19539231702219695,
+      "seed": 21,
+      "store_commit": 0.029322567977942526,
+      "submit_to_ready": 0.4819737139623612,
+      "wait_return_lag": 0.0026011490263044834,
+      "wall": 0.6799671800108626
+    },
+    {
+      "ready_to_publication": 0.20267715002410114,
+      "seed": 22,
+      "store_commit": 0.01558567094616592,
+      "submit_to_ready": 0.5128485430032015,
+      "wait_return_lag": 0.0028715099906548858,
+      "wall": 0.7183972030179575
+    },
+    {
+      "ready_to_publication": 0.2037948580691591,
+      "seed": 23,
+      "store_commit": 0.015564231085591018,
+      "submit_to_ready": 0.5142399549949914,
+      "wait_return_lag": 0.0026228579226881266,
+      "wall": 0.7206576709868386
+    },
+    {
+      "ready_to_publication": 0.20346323703415692,
+      "seed": 24,
+      "store_commit": 0.015422438969835639,
+      "submit_to_ready": 0.5133840859634802,
+      "wait_return_lag": 0.0026719090528786182,
+      "wall": 0.7195192320505157
+    },
+    {
+      "ready_to_publication": 0.17463240190409124,
+      "seed": 25,
+      "store_commit": 0.009650468942709267,
+      "submit_to_ready": 0.506076377001591,
+      "wait_return_lag": 0.0016257410170510411,
+      "wall": 0.6823345199227333
+    },
+    {
+      "ready_to_publication": 0.18233289499767125,
+      "seed": 26,
+      "store_commit": 0.015484909992665052,
+      "submit_to_ready": 0.517490966944024,
+      "wait_return_lag": 0.002976801013574004,
+      "wall": 0.7028006629552692
+    },
+    {
+      "ready_to_publication": 0.2033925639698282,
+      "seed": 27,
+      "store_commit": 0.015505719929933548,
+      "submit_to_ready": 0.514778518001549,
+      "wait_return_lag": 0.0028001100290566683,
+      "wall": 0.7209711920004338
+    },
+    {
+      "ready_to_publication": 0.17287963803391904,
+      "seed": 28,
+      "store_commit": 0.007879706099629402,
+      "submit_to_ready": 0.5106725400546566,
+      "wait_return_lag": 0.0026443189708516,
+      "wall": 0.6861964970594272
+    },
+    {
+      "ready_to_publication": 0.22475890791974962,
+      "seed": 29,
+      "store_commit": 0.015403959900140762,
+      "submit_to_ready": 0.49069004703778774,
+      "wait_return_lag": 0.0026144090807065368,
+      "wall": 0.7180633640382439
+    },
+    {
+      "ready_to_publication": 0.22529073106124997,
+      "seed": 30,
+      "store_commit": 0.015387499006465077,
+      "submit_to_ready": 0.4909699000418186,
+      "wait_return_lag": 0.002581647946499288,
+      "wall": 0.7188422790495679
+    },
+    {
+      "ready_to_publication": 0.20362036710139364,
+      "seed": 31,
+      "store_commit": 0.015530640026554465,
+      "submit_to_ready": 0.4927733138902113,
+      "wait_return_lag": 0.002619628910906613,
+      "wall": 0.6990133099025115
+    }
+  ],
+  "slots": 1,
+  "store_commit": {
+    "max": 0.029322567977942526,
+    "mean": 0.01567298539521289,
+    "median": 0.015574951015878469,
+    "min": 0.007879706099629402
+  },
+  "submit_to_ready": {
+    "max": 0.5549498039763421,
+    "mean": 0.5007877388088673,
+    "median": 0.505780090985354,
+    "min": 0.41640869609545916
+  },
+  "wait_return_lag": {
+    "max": 0.0031908120727166533,
+    "mean": 0.00252928916233941,
+    "median": 0.0026212434167973697,
+    "min": 0.0013040300691500306
+  },
+  "worker": "strangelove"
+}

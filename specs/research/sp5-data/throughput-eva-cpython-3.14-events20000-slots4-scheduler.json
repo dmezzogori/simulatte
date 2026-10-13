@@ -1,0 +1,378 @@
+{
+  "children_cpu_per_execution": 0.5459077575757575,
+  "children_cpu_seconds_total": 18.014955999999998,
+  "completed_replications": 32,
+  "coordinator_cpu_per_replication": 0.33402325000000005,
+  "coordinator_peak_rss_bytes": 82608128,
+  "coordinator_wall_per_replication": 1.754983986944353,
+  "cpu_count": 10,
+  "events": 20000,
+  "failures": [],
+  "implementation": "CPython",
+  "load_average": [
+    2.3466796875,
+    2.4296875,
+    2.521484375
+  ],
+  "machine": "arm64",
+  "overhead_per_replication": 1.7399565819723648,
+  "phases": {
+    "close_seconds": 0.2729055419913493,
+    "coordinator_loop_cpu_seconds": 10.688744000000002,
+    "loop_seconds": 15.265594708034769,
+    "prepare_seconds": 0.6884005420142785,
+    "run_status": "completed"
+  },
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.1",
+  "ready_to_publication": {
+    "max": 1.5676006670109928,
+    "mean": 1.0719992734138941,
+    "median": 1.0617552290204912,
+    "min": 0.6257752910023555
+  },
+  "reaped_children_peak_rss_bytes": 58458112,
+  "replications": 32,
+  "replications_per_minute": 125.77302337192555,
+  "runner_replications_per_minute": 3992.70533480947,
+  "runner_samples": [
+    0.019928542023990303,
+    0.015021708037238568,
+    0.014756832970306277,
+    0.014640250010415912,
+    0.01956041599623859,
+    0.016063916962593794,
+    0.014761917002033442,
+    0.014669833006337285,
+    0.014647917007096112,
+    0.014637582993600518,
+    0.014650541997980326,
+    0.014697042002808303,
+    0.014565667021088302,
+    0.014675457961857319,
+    0.014737999998033047,
+    0.01472104201093316,
+    0.014655917009804398,
+    0.014625250012613833,
+    0.014600333000998944,
+    0.014666875009424984,
+    0.014655707986094058,
+    0.014607000048272312,
+    0.01466141699347645,
+    0.014583958021830767,
+    0.014571917010471225,
+    0.0146077920217067,
+    0.014720624953042716,
+    0.014670458040200174,
+    0.014614083978813142,
+    0.014629542012698948,
+    0.014634958002716303,
+    0.014634457998909056
+  ],
+  "runner_wall_per_replication": 0.01502740497198829,
+  "runner_wall_per_replication_median": 0.014655812497949228,
+  "samples": [
+    {
+      "dispatched": 0.012111624993849546,
+      "ready_to_publication": 1.5676006670109928,
+      "seed": 0,
+      "slot": "local-1",
+      "store_commit": 0.31541441701119766,
+      "submit_to_ready": 0.5872349580167793,
+      "wall": 2.154835625027772
+    },
+    {
+      "dispatched": 0.014907625038176775,
+      "ready_to_publication": 1.2677875839872286,
+      "seed": 1,
+      "slot": "local-2",
+      "store_commit": 0.3214491669787094,
+      "submit_to_ready": 0.5732749159797095,
+      "wall": 1.841062499966938
+    },
+    {
+      "dispatched": 0.021409665991086513,
+      "ready_to_publication": 1.0423713339841925,
+      "seed": 2,
+      "slot": "local-3",
+      "store_commit": 0.4515424169949256,
+      "submit_to_ready": 0.47648075001779944,
+      "wall": 1.518852084001992
+    },
+    {
+      "dispatched": 0.02714212500723079,
+      "ready_to_publication": 0.6257752910023555,
+      "seed": 3,
+      "slot": "local-4",
+      "store_commit": 0.3081525830202736,
+      "submit_to_ready": 0.5780791250290349,
+      "wall": 1.2038544160313904
+    },
+    {
+      "dispatched": 1.3364386660396121,
+      "ready_to_publication": 0.7371131670079194,
+      "seed": 4,
+      "slot": "local-4",
+      "store_commit": 0.316988583013881,
+      "submit_to_ready": 0.8482399999629706,
+      "wall": 1.58535316697089
+    },
+    {
+      "dispatched": 1.6490404159994796,
+      "ready_to_publication": 1.0470144170103595,
+      "seed": 5,
+      "slot": "local-3",
+      "store_commit": 0.3087079169927165,
+      "submit_to_ready": 0.5860928749898449,
+      "wall": 1.6331072920002043
+    },
+    {
+      "dispatched": 1.8590857079834677,
+      "ready_to_publication": 1.116596165986266,
+      "seed": 6,
+      "slot": "local-2",
+      "store_commit": 0.3123786249780096,
+      "submit_to_ready": 1.0583151670289226,
+      "wall": 2.1749113330151886
+    },
+    {
+      "dispatched": 2.17015345802065,
+      "ready_to_publication": 0.9819331670296378,
+      "seed": 7,
+      "slot": "local-1",
+      "store_commit": 0.31533287500496954,
+      "submit_to_ready": 0.43892733298707753,
+      "wall": 1.4208605000167154
+    },
+    {
+      "dispatched": 2.924475290987175,
+      "ready_to_publication": 0.8698984580114484,
+      "seed": 8,
+      "slot": "local-4",
+      "store_commit": 0.3069587910431437,
+      "submit_to_ready": 0.6770101670408621,
+      "wall": 1.5469086250523105
+    },
+    {
+      "dispatched": 3.3927719999919645,
+      "ready_to_publication": 1.5479548330185935,
+      "seed": 9,
+      "slot": "local-3",
+      "store_commit": 0.522877957962919,
+      "submit_to_ready": 0.6697064579930156,
+      "wall": 2.217661291011609
+    },
+    {
+      "dispatched": 3.5951221249997616,
+      "ready_to_publication": 0.810418417036999,
+      "seed": 10,
+      "slot": "local-1",
+      "store_commit": 0.31265166704542935,
+      "submit_to_ready": 0.46328283299226314,
+      "wall": 1.2737012500292622
+    },
+    {
+      "dispatched": 4.038444625039119,
+      "ready_to_publication": 0.8442187090404332,
+      "seed": 11,
+      "slot": "local-2",
+      "store_commit": 0.3616936249891296,
+      "submit_to_ready": 0.45954641595017165,
+      "wall": 1.3037651249906048
+    },
+    {
+      "dispatched": 4.475257624988444,
+      "ready_to_publication": 1.3196720829582773,
+      "seed": 12,
+      "slot": "local-4",
+      "store_commit": 0.30276208295254037,
+      "submit_to_ready": 0.4204885830404237,
+      "wall": 1.740160665998701
+    },
+    {
+      "dispatched": 4.874178833037149,
+      "ready_to_publication": 0.8933982080197893,
+      "seed": 13,
+      "slot": "local-1",
+      "store_commit": 0.31134654104243964,
+      "submit_to_ready": 0.7545834999764338,
+      "wall": 1.6479817079962231
+    },
+    {
+      "dispatched": 5.604782540991437,
+      "ready_to_publication": 1.0935060830088332,
+      "seed": 14,
+      "slot": "local-2",
+      "store_commit": 0.5415745829814114,
+      "submit_to_ready": 0.9180076670018025,
+      "wall": 2.0115137500106357
+    },
+    {
+      "dispatched": 5.613822415994946,
+      "ready_to_publication": 0.7723954169778153,
+      "seed": 15,
+      "slot": "local-3",
+      "store_commit": 0.3331180840032175,
+      "submit_to_ready": 0.9170457920408808,
+      "wall": 1.689441209018696
+    },
+    {
+      "dispatched": 6.222297166008502,
+      "ready_to_publication": 0.8064073750283569,
+      "seed": 16,
+      "slot": "local-4",
+      "store_commit": 0.3237305840011686,
+      "submit_to_ready": 1.4026379589922726,
+      "wall": 2.2090453340206295
+    },
+    {
+      "dispatched": 6.525568541022949,
+      "ready_to_publication": 1.121680208016187,
+      "seed": 17,
+      "slot": "local-1",
+      "store_commit": 0.41102037503151223,
+      "submit_to_ready": 1.0862685419851914,
+      "wall": 2.2079487500013784
+    },
+    {
+      "dispatched": 7.609108916018158,
+      "ready_to_publication": 1.076496041030623,
+      "seed": 18,
+      "slot": "local-3",
+      "store_commit": 0.30836066603660583,
+      "submit_to_ready": 0.48184795898851007,
+      "wall": 1.558344000019133
+    },
+    {
+      "dispatched": 7.619608375011012,
+      "ready_to_publication": 0.908193375042174,
+      "seed": 19,
+      "slot": "local-2",
+      "store_commit": 0.3182695420109667,
+      "submit_to_ready": 1.1169737079762854,
+      "wall": 2.0251670830184594
+    },
+    {
+      "dispatched": 8.534769457997754,
+      "ready_to_publication": 1.2053342079743743,
+      "seed": 20,
+      "slot": "local-4",
+      "store_commit": 0.4333844580105506,
+      "submit_to_ready": 0.6642416670219973,
+      "wall": 1.8695758749963716
+    },
+    {
+      "dispatched": 8.738608415995259,
+      "ready_to_publication": 0.9097146250423975,
+      "seed": 21,
+      "slot": "local-1",
+      "store_commit": 0.3195393750211224,
+      "submit_to_ready": 0.45166920899646357,
+      "wall": 1.361383834038861
+    },
+    {
+      "dispatched": 9.170688999991398,
+      "ready_to_publication": 1.143659082998056,
+      "seed": 22,
+      "slot": "local-3",
+      "store_commit": 0.31330387498019263,
+      "submit_to_ready": 0.49506445799488574,
+      "wall": 1.6387235409929417
+    },
+    {
+      "dispatched": 9.647857290983666,
+      "ready_to_publication": 0.967260624980554,
+      "seed": 23,
+      "slot": "local-2",
+      "store_commit": 0.29963354096980765,
+      "submit_to_ready": 0.7699593750294298,
+      "wall": 1.7372200000099838
+    },
+    {
+      "dispatched": 10.294736166018993,
+      "ready_to_publication": 1.2028469580109231,
+      "seed": 24,
+      "slot": "local-1",
+      "store_commit": 0.3116820830036886,
+      "submit_to_ready": 0.5418245419859886,
+      "wall": 1.7446714999969117
+    },
+    {
+      "dispatched": 10.408908875018824,
+      "ready_to_publication": 1.5119973749970086,
+      "seed": 25,
+      "slot": "local-4",
+      "store_commit": 0.5070210000267252,
+      "submit_to_ready": 0.418239958002232,
+      "wall": 1.9302373329992406
+    },
+    {
+      "dispatched": 10.813509625033475,
+      "ready_to_publication": 1.5280792500125244,
+      "seed": 26,
+      "slot": "local-3",
+      "store_commit": 0.3075312079745345,
+      "submit_to_ready": 0.5993977079633623,
+      "wall": 2.1274769579758868
+    },
+    {
+      "dispatched": 11.401506333029829,
+      "ready_to_publication": 0.9689575000084005,
+      "seed": 27,
+      "slot": "local-2",
+      "store_commit": 0.3106499999994412,
+      "submit_to_ready": 0.9472157079726458,
+      "wall": 1.9161732079810463
+    },
+    {
+      "dispatched": 12.332896833017003,
+      "ready_to_publication": 1.1725086250226013,
+      "seed": 28,
+      "slot": "local-1",
+      "store_commit": 0.5062251250492409,
+      "submit_to_ready": 0.6234334170003422,
+      "wall": 1.7959420420229435
+    },
+    {
+      "dispatched": 12.343673125025816,
+      "ready_to_publication": 0.8654081669519655,
+      "seed": 29,
+      "slot": "local-4",
+      "store_commit": 0.32484291697619483,
+      "submit_to_ready": 0.6191374160116538,
+      "wall": 1.4845455829636194
+    },
+    {
+      "dispatched": 12.944085708004422,
+      "ready_to_publication": 1.2774038329953328,
+      "seed": 30,
+      "slot": "local-3",
+      "store_commit": 0.298591208003927,
+      "submit_to_ready": 0.39920204202644527,
+      "wall": 1.676605875021778
+    },
+    {
+      "dispatched": 13.32293516601203,
+      "ready_to_publication": 1.1003755000419915,
+      "seed": 31,
+      "slot": "local-2",
+      "store_commit": 0.30534662504214793,
+      "submit_to_ready": 0.8120806249789894,
+      "wall": 1.9124561250209808
+    }
+  ],
+  "slots": 4,
+  "store_commit": {
+    "max": 0.5415745829814114,
+    "mean": 0.35131507806727313,
+    "median": 0.3153736460080836,
+    "min": 0.298591208003927
+  },
+  "submit_to_ready": {
+    "max": 1.4026379589922726,
+    "mean": 0.682984713530459,
+    "median": 0.6092675619875081,
+    "min": 0.39920204202644527
+  },
+  "worker": "eva"
+}

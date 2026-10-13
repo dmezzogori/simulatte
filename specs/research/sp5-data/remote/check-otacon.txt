@@ -1,0 +1,6 @@
+worker otacon (otacon)
+  reachable: yes
+  platform: Linux aarch64
+  shell: /bin/bash
+  uv: 0.12.16
+  cache: writable

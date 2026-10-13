@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import math
 import platform
@@ -36,23 +37,28 @@ _CAPABILITIES = frozenset(
         "metadata-artifacts",
     }
 )
+# Advertised only by supervisors with a remote cache (``_worker <hash> <cache> <uv>``).
+_REMOTE_CAPABILITIES = frozenset({"staging-v1", "uv-provisioning-v1"})
 
 
-def worker_hello():
-    return {
-        "protocol": [1, 0],
+def worker_hello(trusted_runtime_hash=None, *, remote=False):
+    hello = {
+        "protocol": [1, 1],
         "platform": sys.platform,
         "runtime": {
             "python": platform.python_version(),
             "implementation": platform.python_implementation(),
             "simulatte_version": _simulatte_version(),
         },
-        "capabilities": sorted(_CAPABILITIES),
+        "capabilities": sorted(_CAPABILITIES | (_REMOTE_CAPABILITIES if remote else frozenset())),
         "limits": {"frame_bytes": MAX_FRAME, "envelope_bytes": MAX_ENVELOPE, "fragment_bytes": MAX_FRAGMENT},
         "cleanup": "job" if sys.platform == "win32" else "guardian-process-group",
         "warm_spares": 0,
         "slots": 1,
     }
+    if trusted_runtime_hash is not None:
+        hello["trusted_runtime_hash"] = trusted_runtime_hash
+    return hello
 
 
 def _key(message):
@@ -61,7 +67,7 @@ def _key(message):
 
 
 class ChildProcess:
-    def __init__(self, command):
+    def __init__(self, command, *, cache=None):
         self.key = _key(command)
         self.started = time.monotonic()
         self.cancel_at = None
@@ -80,6 +86,8 @@ class ChildProcess:
         self.stream = None
         self.pumps = []
         self.attempt_dir = None
+        self.remote_dir = None  # ``<cache>/attempts/<attempt>`` of a staged run, removed on close.
+        self.cleanup_failed = False
         timeout = command.body.get("timeout")
         if timeout is not None and (type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0):
             raise ValueError("Attempt timeout must be positive and finite")
@@ -92,9 +100,14 @@ class ChildProcess:
         listener.listen(1)
         listener.settimeout(10)
         token = secrets.token_hex(32)
+        body = command.body
         try:
+            if "staged_snapshot" in body["config"]:
+                if cache is None:
+                    raise ValueError("This worker has no staging cache")
+                body, self.remote_dir = cache.attempt(self.key.attempt_id, body)
             self.attempt_dir = tempfile.TemporaryDirectory(prefix="simulatte-attempt-")
-            configuration = _plain(command.body["config"])
+            configuration = _plain(body["config"])
             configuration["attempt_dir"] = self.attempt_dir.name
             config = json.dumps(configuration, allow_nan=False).encode()
             if len(config) > 256 << 10:
@@ -129,7 +142,7 @@ class ChildProcess:
             self.stream = self.connection.makefile("rwb", buffering=0)
             self.channel = FramedChannel(self.stream, self.stream)
             self.channel.send("hello", {"protocol": [1, 0]})
-            self.channel.send(command.type, dict(command.body), key=self.key)
+            self.channel.send(command.type, dict(body), key=self.key)
         except BaseException:
             self.close()
             raise
@@ -186,13 +199,116 @@ class ChildProcess:
             thread.join(timeout=0.2)
         if self.attempt_dir is not None:
             self.attempt_dir.cleanup()
+        if self.remote_dir is not None:
+            from simulatte.execution.provisioning import remove_tree
+
+            try:
+                remove_tree(self.remote_dir)
+            except OSError as error:
+                # Cleanup never replaces the attempt's terminal message; ``workers prune`` can retry.
+                self.diagnostics.append("stderr", f"simulatte: attempt cleanup failed: {error}\n".encode())
+                self.cleanup_failed = True
+            self.remote_dir = None
 
 
 class Supervisor:
-    def __init__(self, channel=None):
+    def __init__(self, channel=None, *, trusted_runtime_hash=None, cache=None, uv=None):
         self.channel = channel
+        self.trusted_runtime_hash = trusted_runtime_hash
         self.child = None
         self._last_diagnostic = 0.0
+        self.cache = None
+        if cache is not None:
+            from simulatte.execution.provisioning import RemoteCache
+
+            # The staged runtime this supervisor runs from; children get it without supervisor-deps.
+            runtime_root = Path(__file__).resolve().parents[2]
+            self.cache = RemoteCache(cache, runtime_root=runtime_root, trusted_runtime_hash=trusted_runtime_hash, uv=uv)
+        self.capabilities = _CAPABILITIES | (_REMOTE_CAPABILITIES if self.cache is not None else frozenset())
+        self.upload = None  # ``(key, BlobUpload)`` while a blob is being staged.
+        self.provisioning = None  # The thread running ``uv sync`` for one attempt.
+        self.step = None  # ``(key, phase)`` of a staging/provisioning step, reported by heartbeats.
+
+    def _reply(self, kind, body, key):
+        assert self.channel is not None
+        try:
+            self.channel.send(kind, body, key=key)
+        except (OSError, BufferError):
+            pass  # The coordinator lost the channel; it classifies the attempt itself.
+
+    def _stage(self, message):
+        from simulatte.execution.provisioning import RemoteError
+
+        key = _key(message)
+        try:
+            if self.cache is None:
+                raise RemoteError("staging_unavailable", "This worker has no staging cache")
+            if self.child is not None or self.upload is not None:
+                raise RemoteError("worker_busy", "One staging or execution step is active")
+            upload = self.cache.blobs.begin(message.body)
+        except RemoteError as error:
+            self._reply("error", error.body(), key)
+            return
+        except (OSError, ValueError) as error:
+            self._reply("error", {"code": "staging_failed", "message": str(error)[:4096]}, key)
+            return
+        if upload is None:
+            self._reply("staged", {"sha256": message.body["sha256"], "cached": True}, key)
+            return
+        self.upload, self.step = (key, upload), (key, "staging")
+        self._reply("ack", {"sha256": upload.sha256, "received": 0}, key)
+
+    def _fragment(self, message):
+        from simulatte.execution.provisioning import RemoteError
+
+        key = _key(message)
+        if self.upload is None or self.upload[0] != key or message.body.get("sha256") != self.upload[1].sha256:
+            return  # Fragments still in flight after a failed upload; the attempt already failed.
+        upload = self.upload[1]
+        try:
+            done = upload.write(message.body["fragment_offset"], message.payload)
+        except RemoteError as error:
+            self.upload = self.step = None
+            self._reply("error", error.body(), key)
+            return
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            upload.discard()
+            self.upload = self.step = None
+            full = isinstance(error, OSError) and error.errno in (errno.ENOSPC, errno.EDQUOT)
+            self._reply("error", {"code": "disk_full" if full else "staging_failed", "message": str(error)[:4096]}, key)
+            return
+        self._reply("ack", {"sha256": upload.sha256, "received": upload.received}, key)
+        if done:
+            self.upload = self.step = None
+            self._reply("staged", {"sha256": upload.sha256, "cached": False}, key)
+
+    def _provision(self, message):
+        from simulatte.execution.provisioning import RemoteError
+
+        key = _key(message)
+        if self.cache is None:
+            self._reply("error", {"code": "staging_unavailable", "message": "This worker has no cache"}, key)
+            return
+        if self.child is not None or self.upload is not None or self.provisioning is not None:
+            self._reply("error", {"code": "worker_busy", "message": "One staging or execution step is active"}, key)
+            return
+        cache, body = self.cache, _plain(message.body)
+
+        def build():
+            try:
+                blob = cache.blobs.require(body["source_sha256"])
+                reply = "provisioned", cache.provisioner.provision(body["spec"], blob, timeout=body["timeout"])
+            except RemoteError as error:
+                reply = "error", error.body()
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                reply = "error", {"code": "provisioning_failed", "reason": "error", "message": str(error)[:4096]}
+            self.step = self.provisioning = None
+            self._reply(*reply, key)
+
+        self.step = (key, "provisioning")
+        # uv runs off the command loop: shutdown and stdin EOF still stop it (``abort``).
+        self.provisioning = threading.Thread(target=build, name="simulatte-provision", daemon=True)
+        self.provisioning.start()
 
     def _command(self, message):
         assert self.channel is not None
@@ -200,7 +316,7 @@ class Supervisor:
             required = message.body.get("required_capabilities", ())
             if not isinstance(required, (list, tuple)) or any(not isinstance(item, str) for item in required):
                 raise ValueError("Invalid required capabilities")
-            if set(required) - _CAPABILITIES:
+            if set(required) - self.capabilities:
                 raise ValueError("Unsupported required worker capabilities")
             return
         if message.type in ("inspect", "run"):
@@ -211,9 +327,15 @@ class Supervisor:
                 )
                 return
             try:
-                self.child = ChildProcess(message)
+                self.child = ChildProcess(message, cache=self.cache)
             except (OSError, ValueError, KeyError, TypeError) as error:
                 self.channel.send("error", {"code": "preparation_failed", "message": str(error)[:4096]}, key=key)
+        elif message.type == "stage":
+            self._stage(message)
+        elif message.type == "stage_fragment":
+            self._fragment(message)
+        elif message.type == "provision":
+            self._provision(message)
         elif message.type in ("cancel", "ready_ack", "ack"):
             if self.child is None or _key(message) != self.child.key:
                 return
@@ -289,6 +411,8 @@ class Supervisor:
         if child.exit_code is not None and channel_lost and child.pending is None:
             child.close()
             self.child = None
+            if getattr(child, "cleanup_failed", False):  # Test doubles of a child carry no flag.
+                self.channel.send("diagnostics", child.diagnostics.take(), key=child.key)
             if child.cancel_at is not None:
                 kind = "error" if child.timeout or child.failure else "cancelled"
                 body = {
@@ -307,7 +431,7 @@ class Supervisor:
                 getattr(sys.stdin.buffer, "raw", sys.stdin.buffer),
                 getattr(sys.stdout.buffer, "raw", sys.stdout.buffer),
             )
-        self.channel.send("hello", worker_hello())
+        self.channel.send("hello", worker_hello(self.trusted_runtime_hash, remote=self.cache is not None))
         # Heartbeats live outside the event loop as child creation can involve OS
         # work. No child Python execution can hold this interpreter's GIL.
         stopped = threading.Event()
@@ -315,13 +439,15 @@ class Supervisor:
         def heartbeat():
             assert self.channel is not None
             while not stopped.wait(1):
-                child = self.child
+                child, step = self.child, self.step
+                if child is not None:
+                    body, key = child.progress.heartbeat(), child.key
+                elif step is not None:
+                    body, key = {"phase": step[1]}, step[0]
+                else:
+                    body, key = {"phase": "idle"}, None
                 try:
-                    self.channel.send(
-                        "heartbeat",
-                        child.progress.heartbeat() if child else {"phase": "idle"},
-                        key=child.key if child else None,
-                    )
+                    self.channel.send("heartbeat", body, key=key)
                 except (OSError, BufferError):
                     return
 
@@ -353,6 +479,13 @@ class Supervisor:
             if self.child is not None:
                 self.child.close()
                 self.child = None
+            if self.cache is not None:
+                self.cache.provisioner.abort()
+                if self.upload is not None:
+                    self.upload[1].discard()
+                provisioning = self.provisioning
+                if provisioning is not None:
+                    provisioning.join(5)
             try:
                 self.channel.send("bye", {})
                 self.channel.drain(0.2)

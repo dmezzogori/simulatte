@@ -10,6 +10,9 @@ import { Controller } from "./controller";
 import {StudioClient, type StudioState, type ConnectionStatus} from "./studio-client";
 import {StudioPlayback} from "./studio-playback";
 import {StudioPanel} from "./studio-panel";
+import {ExperimentFeed} from "./experiment-feed";
+import {openReplication} from "./experiments";
+import {ReplayNotifications} from "./compare-panel";
 import "dockview/dist/styles/dockview.css";
 import "uplot/dist/uPlot.min.css";
 import "./style.css";
@@ -20,6 +23,16 @@ function App() {
   const studio = useRef<StudioClient | null>(null);
   const studioPlayback = useRef<StudioPlayback | null>(null);
   const [studioState, setStudioState] = useState<StudioState | null>(null);
+  // Experiment progress is kept outside React and re-rendered at most every 250 ms.
+  const [experimentFeed] = useState(() => new ExperimentFeed(reference => studio.current
+    ? studio.current.reference(reference) : Promise.reject(new Error("Studio is not connected"))));
+  const [replayNotifications] = useState(() => new ReplayNotifications());
+  const [studioHeaders] = useState<Readonly<Record<string, string>>>(() => {
+    try {
+      const secret = sessionStorage.getItem("simulatte-session");
+      return secret ? {"X-Simulatte-Session": secret} : {};
+    } catch {return {};}
+  });
   const progress = useRef<HTMLOutputElement>(null);
   const diagnostics = useRef<HTMLPreElement>(null);
   const [connection, setConnection] = useState<ConnectionStatus>("connecting");
@@ -67,6 +80,8 @@ function App() {
         onStatus: setConnection,
         onError: error => setError(String(error)),
         onNotification: message => {
+          experimentFeed.notification(message);
+          replayNotifications.notification(message);
           studioPlayback.current?.notification(message);
           if (message.attempt_id && message.attempt_id !== client.state?.active?.key.attempt_id) return;
           if (message.type === 'progress' && progress.current) {
@@ -83,6 +98,7 @@ function App() {
             progress.current.dataset['attempt'] = state.active?.key.attempt_id ?? '';
             progress.current.textContent = state.progress ? JSON.stringify(state.progress.body) : '';
           }
+          experimentFeed.observe(); // Authoritative counts supersede earlier progress notifications.
           setStudioState(state);
           studioPlayback.current?.update(state);
         },
@@ -116,6 +132,7 @@ function App() {
     document.addEventListener("keydown", keyboard);
     return () => {
       studioPlayback.current?.dispose(); studioPlayback.current = null;
+      experimentFeed.dispose();
       studio.current?.dispose(); studio.current = null;
       window.removeEventListener("focus", rescan);
       document.removeEventListener("keydown", keyboard);
@@ -227,7 +244,8 @@ function App() {
           </button>
         </nav>
       </header>
-      {studioMode && <StudioPanel client={studio.current} state={studioState} status={connection} onError={setError} onSelect={(result, view) => {if (result.trace) studioPlayback.current?.select(result.trace, result.revision, view);}} />}
+      {studioMode && <StudioPanel client={studio.current} state={studioState} status={connection} onError={setError} onSelect={(result, view) => {if (result.trace) studioPlayback.current?.select(result.trace, result.revision, view);}}
+        feed={experimentFeed} headers={studioHeaders} replays={replayNotifications} onOpenReplication={(report, replication) => {openReplication(studioPlayback.current, report, replication);}} />}
       {studioMode && <aside className="studio-progress"><output ref={progress} aria-label="Execution progress" /><details><summary>Run diagnostics (latest 64 KiB)</summary><pre ref={diagnostics} /></details></aside>}
       {error && (
         <div role="alert" className="error">

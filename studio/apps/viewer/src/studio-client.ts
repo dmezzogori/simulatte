@@ -17,10 +17,41 @@ export interface StudioState {
   last_good: View | null;
   selected_view?: View | null;
   fatal: unknown;
+  experiments?: ExperimentRun[];
+  /** Project-relative ``*.experiment.json`` files of the non-source membership, sorted. */
+  experiment_files?: string[];
+  /** Project-relative path of the configured model file; with ``metadata.selected`` it forms the model reference. */
+  model?: string;
+  workers?: WorkerPool;
+  replays?: ReplayEntry[];
 }
-export type Command = 'project.rescan' | 'state.get' | 'params.set' | 'run.start' | 'run.cancel' | 'layout.get' | 'layout.validate' | 'layout.write' | 'view.select';
+/** Newest experiment runs (at most 20) with replication counts per state. */
+export interface ExperimentRun {run_id: string; experiment_id: string; name: string; status: string; created: number; counts: Record<string, number>;}
+export interface WorkerSlot {name: string; kind: string; worker: string | null; state: string; attempt: string | null; last_status: string | null; last_code: string | null;}
+export interface WorkerPool {local: number; workers: {name: string; host: string; slots: number}[]; slots: WorkerSlot[]; error: string | null;}
+export interface ReplayEntry {request_id: string; original: string; status: string; verified: boolean | null; reason: string | null; key: AttemptKey | null; trace: Prefix | null;}
+export interface Estimate {n: number; mean: number | null; sd: number | null; half_width: number | null; lower: number | null; upper: number | null; state: string; level: number;}
+export interface ConfigurationSummary {index: number; label: string; parameters: Record<string, unknown>; counts: Record<string, number>; mixed_runtime: boolean;}
+export interface ReplicationEntry {configuration: number; index: number; status: string; attempt: string | null; trace: Prefix | null; request_id?: string | null;}
+/** ``comparison.get`` report: ``ExperimentReport.to_dict()`` plus the committed trace of each listed replication. */
+export interface ExperimentReport {
+  run_id: string; name: string; status: string; level: number; effective_level: number; pointwise: boolean; m: number;
+  configurations: ConfigurationSummary[];
+  rows: {configuration: number; label: string; kpi: string; n_succeeded: number; estimate: Estimate}[];
+  missing: {configuration: number; index: number; status: string; attempt: string | null}[]; missing_total: number;
+  replications: ReplicationEntry[]; replications_total: number;
+  baseline?: string; paired_m?: number; paired_effective_level?: number;
+  paired?: {configuration: number; label: string; kpi: string; n: number; estimate: Estimate; missing: number[]}[];
+}
+/** One recording of a ``series.get`` response; points are ``[t, seq, value]``, bounded per key. */
+export interface SeriesEntry {attempt: string; series: Record<string, {points: [number, number, number | null][]; truncated: boolean}>;}
+/** Experiment commands fence on run ids and store state; their revision may be omitted. */
+export type ExperimentCommand = 'experiment.define' | 'experiment.start' | 'experiment.cancel' | 'experiment.resume' | 'experiment.delete' | 'comparison.get' | 'series.get' | 'replay.start' | 'workers.get';
+export type Command = 'project.rescan' | 'state.get' | 'params.set' | 'run.start' | 'run.cancel' | 'layout.get' | 'layout.validate' | 'layout.write' | 'view.select' | ExperimentCommand;
+export type NotificationType = 'state' | 'model_info' | 'revision_changed' | 'run_state' | 'progress' | 'trace_available' | 'kpi' | 'layout_resolved' | 'validation' | 'inputs_changed' | 'invalidated' | 'error'
+  | 'experiment_state' | 'experiment_progress' | 'replay_state' | 'workers_state' | 'experiments_changed';
 export type ConnectionStatus = 'connecting' | 'synchronizing' | 'connected' | 'reconnecting' | 'authentication_required' | 'disposed';
-export interface Notification {v: 1; type: string; event_seq: number; body: unknown; revision?: Revision | null; attempt_id?: string; generation?: number;}
+export interface Notification {v: 1; type: NotificationType; event_seq: number; body: unknown; revision?: Revision | null; attempt_id?: string; generation?: number;}
 interface Options {
   origin?: string;
   socket?: (url: string) => WebSocket;

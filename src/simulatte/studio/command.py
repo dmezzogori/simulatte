@@ -12,7 +12,9 @@ from uvicorn.protocols.websockets.websockets_impl import WebSocketProtocol
 
 from simulatte.execution.command import _stopping
 from simulatte.execution.coordinator import Coordinator, selected_model
+from simulatte.execution.slots import SlotConfig
 from simulatte.execution.snapshot import discover_project
+from simulatte.execution.workers import load_workers
 from simulatte.model import ParameterSchema, parse_parameters
 from simulatte.studio.app import StudioServer
 from simulatte.studio.server import assets
@@ -70,9 +72,20 @@ def serve_studio(args):
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", args.port))
         sock.listen(128)
-        with Coordinator(spec, reference=reference) as coordinator:
+        # Default local experiment slots plus the configured workers; a malformed workers.toml
+        # is reported in state.get rather than stopping Studio. Remote slots connect only when used.
+        try:
+            workers, workers_error = tuple(load_workers().values()), None
+        except ValueError as error:
+            workers, workers_error = (), str(error)[:4096]
+        with Coordinator(spec, reference=reference, slots=SlotConfig(workers=workers)) as coordinator:
             studio = StudioServer(
-                coordinator, sock.getsockname()[1], static, timeout=args.timeout, configure=configure(args)
+                coordinator,
+                sock.getsockname()[1],
+                static,
+                timeout=args.timeout,
+                configure=configure(args),
+                workers_error=workers_error,
             )
             print(f"Simulatte Studio: {studio.origin}\nCtrl-C to stop. Enter link for a fresh one-time browser link.")
             link = studio.link()

@@ -1,0 +1,17 @@
+== without packages/shopkit/pyproject.toml
+Using CPython 3.14.0
+Creating virtual environment at: env
+error: Failed to generate package metadata for `shopkit==0.1.0 @ directory+packages/shopkit`
+  Caused by: /tmp/sp5-repro/packages/shopkit does not appear to be a Python project, as neither `pyproject.toml` nor `setup.py` are present in the directory
+exit 2
+== with packages/shopkit/pyproject.toml only
+Resolved 8 packages in 0.89ms
+warning: Failed to hardlink files; falling back to full copy. This may lead to degraded performance.
+         If the cache and target directories are on different filesystems, hardlinking may not be supported.
+         If this is intentional, set `export UV_LINK_MODE=copy` or use `--link-mode=copy` to suppress this warning.
+exit 0
+Installed 4 packages in 7ms
+ + msgpack==1.2.3
+ + simpy==4.1.2
+ + tabulate==0.10.0
+ + tqdm==4.70.1

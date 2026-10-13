@@ -1,0 +1,21 @@
+"""Read-only dump of a Simulatte store: attempts, replications, replays as JSON (details decoded from msgpack)."""
+import json, sqlite3, sys
+import msgpack
+
+db = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
+db.row_factory = sqlite3.Row
+def dec(b):
+    try:
+        return msgpack.unpackb(b, raw=False, strict_map_key=False)
+    except Exception:
+        return b.hex()[:80]
+out = {}
+out["attempts"] = [
+    {**{k: r[k] for k in ("id", "request_id", "status", "slot", "worker", "created", "updated", "generation")},
+     "duration_s": round(r["updated"] - r["created"], 3), "details": dec(r["details"])}
+    for r in db.execute("select * from attempts order by created")
+]
+out["replications"] = [dict(r) for r in db.execute("select * from replications order by run, idx, configuration")]
+out["replays"] = [{**{k: r[k] for k in ("request_id", "original", "attempt", "status", "verified")}, "details": dec(r["details"])} for r in db.execute("select * from replays")]
+out["runs"] = [{**{k: r[k] for k in ("id", "status", "created", "updated")}, "details": dec(r["details"])} for r in db.execute("select * from experiment_runs")]
+print(json.dumps(out, indent=1, default=str))

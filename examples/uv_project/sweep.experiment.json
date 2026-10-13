@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "name": "servers-sweep",
+  "model": "plant.py:build",
+  "replications": {"count": 4, "base_seed": 0},
+  "configurations": {"grid": {"servers": [3, 5]}},
+  "stopping": null,
+  "level": "kpi",
+  "kpis": [],
+  "workers": ["local", "strangelove", "otacon"]
+}

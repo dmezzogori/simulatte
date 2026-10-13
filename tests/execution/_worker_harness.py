@@ -8,13 +8,13 @@ from simulatte.execution.transport import FramedChannel
 
 
 class WorkerHarness:
-    def __init__(self):
+    def __init__(self, **supervisor):
         self.left, self.right = socket.socketpair()
         self.local = self.left.makefile("rwb", buffering=0)
         self.remote = self.right.makefile("rwb", buffering=0)
         self.channel = FramedChannel(self.local, self.local)
         self.worker_channel = FramedChannel(self.remote, self.remote)
-        self.worker = Supervisor(self.worker_channel)
+        self.worker = Supervisor(self.worker_channel, **supervisor)
         self.thread = threading.Thread(target=self.worker.run_stdio)
         self.thread.start()
         self.channel.send("hello", {})

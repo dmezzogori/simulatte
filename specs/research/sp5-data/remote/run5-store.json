@@ -1,0 +1,550 @@
+{
+ "attempts": [
+  {
+   "id": "853bf08c1deb60d31ecdb45526e42173",
+   "request_id": "309c10461e951326d0b18d61dcf89cc66038bd771f98d80a5a92666f33b469c2",
+   "status": "succeeded",
+   "slot": "interactive",
+   "worker": null,
+   "created": 1791865085.3653362,
+   "updated": 1791865086.013134,
+   "generation": 1,
+   "duration_s": 0.648,
+   "details": {
+    "document": {
+     "length": 28137,
+     "path": "/Users/davide/Developer/simulatte/examples/uv_project/.simulatte/documents/1b07b9c8b2376dbe779485e5300910e2c2786e7267303ff1d71ec7cb7f1481bc.msgpack",
+     "sha256": "1b07b9c8b2376dbe779485e5300910e2c2786e7267303ff1d71ec7cb7f1481bc"
+    },
+    "kind": "inspection",
+    "metadata": {
+     "id": "0000000000000001-0000000000000000-00006dca-d0d7dad6d75a70a9a5bd5fbb6e6489d877452cf084775695535f21067a67d055-a0220348f2fb41baab572a5b73f39cb879f87805c328c078554af409b0be3043",
+     "length": 28106,
+     "offset": 0,
+     "sequence": 1,
+     "sha256": "585b8463f6e09773b2fd5df13b18a77c4f0d3b2b24368fd137d11151146ecb53",
+     "stream": "metadata/model-info"
+    }
+   }
+  },
+  {
+   "id": "5c8263527cb30213d6fab5618d812903",
+   "request_id": "5525f225831f8aa1840e1432765d09270177d68a031c809c0eda15fdc1389b67",
+   "status": "succeeded",
+   "slot": "local-2",
+   "worker": null,
+   "created": 1791865086.038296,
+   "updated": 1791865087.448676,
+   "generation": 2,
+   "duration_s": 1.41,
+   "details": {}
+  },
+  {
+   "id": "78db6e212adbba8d5bda7730363b77f2",
+   "request_id": "7c56db27b732760c7450603346ece2f1b18ff744d6d6b56539ba93e076b15c33",
+   "status": "lost",
+   "slot": "strangelove-1",
+   "worker": "strangelove",
+   "created": 1791865086.0412009,
+   "updated": 1791865087.216896,
+   "generation": 3,
+   "duration_s": 1.176,
+   "details": {
+    "message": "Worker handshake failed"
+   }
+  },
+  {
+   "id": "7176c070834e5c5eb4ffc47f9aace363",
+   "request_id": "0059f48701f413aeef8263da9f549bb1d4271d23a20465f9ea1e75eb289f7c2d",
+   "status": "lost",
+   "slot": "strangelove-2",
+   "worker": "strangelove",
+   "created": 1791865086.049942,
+   "updated": 1791865087.273692,
+   "generation": 4,
+   "duration_s": 1.224,
+   "details": {
+    "message": "Worker handshake failed"
+   }
+  },
+  {
+   "id": "19fc459d694bb5c3182afc6a49da59ab",
+   "request_id": "6978ebbb717791cdec1e0b908657e4b4f00542bc4210a2d6f68d74723f2f2284",
+   "status": "failed",
+   "slot": "otacon-1",
+   "worker": "otacon",
+   "created": 1791865086.055552,
+   "updated": 1791865094.637116,
+   "generation": 5,
+   "duration_s": 8.582,
+   "details": {
+    "code": "provisioning_failed",
+    "message": "uv sync exited with 2",
+    "reason": "uv_failed",
+    "stderr": "Using CPython 3.14.1\nCreating virtual environment at: /home/davide/.cache/simulatte/envs/67a82c386b577957a660dd5080a8975c3d19c222161626513ade9c659c694944\nerror: Failed to generate package metadata for `shopkit==0.1.0 @ directory+packages/shopkit`\n  cause: Distribution not found at: file:///home/davide/.cache/simulatte/envs/67a82c386b577957a660dd5080a8975c3d19c222161626513ade9c659c694944.build/packages/shopkit\n"
+   }
+  },
+  {
+   "id": "09aa61b316088edaebbc586196301c73",
+   "request_id": "90cc8f455bc8ff9776544b73d7713355daafd02427704709e481d1ec4b359366",
+   "status": "succeeded",
+   "slot": "local-4",
+   "worker": null,
+   "created": 1791865086.065281,
+   "updated": 1791865087.564172,
+   "generation": 6,
+   "duration_s": 1.499,
+   "details": {}
+  },
+  {
+   "id": "b79d470d1517e84748f87852ce61174c",
+   "request_id": "df13827779ef8ca037501cf24939ba353763c87bd053b499d976c3a18b371635",
+   "status": "succeeded",
+   "slot": "local-3",
+   "worker": null,
+   "created": 1791865086.0681238,
+   "updated": 1791865087.510101,
+   "generation": 7,
+   "duration_s": 1.442,
+   "details": {}
+  },
+  {
+   "id": "8a74ae713baf558347c7e6482f37ca3a",
+   "request_id": "2eac1f3b6c2a403df2469648c8b7e124d7bd90222b26dce51c296a4234738dab",
+   "status": "succeeded",
+   "slot": "local-1",
+   "worker": null,
+   "created": 1791865086.071069,
+   "updated": 1791865087.4008052,
+   "generation": 8,
+   "duration_s": 1.33,
+   "details": {}
+  },
+  {
+   "id": "7a4261a9819a61f439ee444dd70deda3",
+   "request_id": "7c56db27b732760c7450603346ece2f1b18ff744d6d6b56539ba93e076b15c33",
+   "status": "lost",
+   "slot": "strangelove-1",
+   "worker": "strangelove",
+   "created": 1791865087.2183528,
+   "updated": 1791865087.886645,
+   "generation": 9,
+   "duration_s": 0.668,
+   "details": {
+    "message": "Worker handshake failed"
+   }
+  },
+  {
+   "id": "9dd76dbadae63c803227f1d467c93f0d",
+   "request_id": "0059f48701f413aeef8263da9f549bb1d4271d23a20465f9ea1e75eb289f7c2d",
+   "status": "lost",
+   "slot": "strangelove-2",
+   "worker": "strangelove",
+   "created": 1791865087.2750342,
+   "updated": 1791865087.972037,
+   "generation": 10,
+   "duration_s": 0.697,
+   "details": {
+    "message": "Worker handshake failed"
+   }
+  },
+  {
+   "id": "9636c4d32775b86566ded5648de78dcd",
+   "request_id": "5f0977cd0c8e423181e0e1ab6c5746838434c8334e8455e729489ce7beeb7d17",
+   "status": "succeeded",
+   "slot": "local-1",
+   "worker": null,
+   "created": 1791865087.435966,
+   "updated": 1791865088.301321,
+   "generation": 11,
+   "duration_s": 0.865,
+   "details": {}
+  },
+  {
+   "id": "b5b469468983b2d8eee2aa2a0ac7c8c2",
+   "request_id": "7c56db27b732760c7450603346ece2f1b18ff744d6d6b56539ba93e076b15c33",
+   "status": "lost",
+   "slot": "strangelove-1",
+   "worker": "strangelove",
+   "created": 1791865087.887645,
+   "updated": 1791865088.488289,
+   "generation": 12,
+   "duration_s": 0.601,
+   "details": {
+    "message": "Worker handshake failed"
+   }
+  },
+  {
+   "id": "3fd925a68922c713fd97a32bd49151e3",
+   "request_id": "0059f48701f413aeef8263da9f549bb1d4271d23a20465f9ea1e75eb289f7c2d",
+   "status": "lost",
+   "slot": "strangelove-2",
+   "worker": "strangelove",
+   "created": 1791865087.974923,
+   "updated": 1791865088.598795,
+   "generation": 13,
+   "duration_s": 0.624,
+   "details": {
+    "message": "Worker handshake failed"
+   }
+  },
+  {
+   "id": "56aeff3cb32496f7df8978e3a18d473e",
+   "request_id": "309c10461e951326d0b18d61dcf89cc66038bd771f98d80a5a92666f33b469c2",
+   "status": "succeeded",
+   "slot": "interactive",
+   "worker": null,
+   "created": 1791865571.880814,
+   "updated": 1791865572.5958662,
+   "generation": 14,
+   "duration_s": 0.715,
+   "details": {
+    "document": {
+     "length": 28137,
+     "path": "/Users/davide/Developer/simulatte/examples/uv_project/.simulatte/documents/1b07b9c8b2376dbe779485e5300910e2c2786e7267303ff1d71ec7cb7f1481bc.msgpack",
+     "sha256": "1b07b9c8b2376dbe779485e5300910e2c2786e7267303ff1d71ec7cb7f1481bc"
+    },
+    "kind": "inspection",
+    "metadata": {
+     "id": "0000000000000001-0000000000000000-00006dca-d0d7dad6d75a70a9a5bd5fbb6e6489d877452cf084775695535f21067a67d055-dfd7195786ab15120033b1c82d28e002e52d402b1c2ec4ddf7fb090af7f3da6f",
+     "length": 28106,
+     "offset": 0,
+     "sequence": 1,
+     "sha256": "585b8463f6e09773b2fd5df13b18a77c4f0d3b2b24368fd137d11151146ecb53",
+     "stream": "metadata/model-info"
+    }
+   }
+  },
+  {
+   "id": "d8397ddb8eaee0851418d89496b35db5",
+   "request_id": "c4976a1bf29bcb817c6ccde67deae038f044a6fd9fa57d6f857cbb683f5fd726",
+   "status": "failed",
+   "slot": "strangelove-1",
+   "worker": "strangelove",
+   "created": 1791865572.613203,
+   "updated": 1791865573.624426,
+   "generation": 15,
+   "duration_s": 1.011,
+   "details": {
+    "code": "provisioning_failed",
+    "message": "uv sync exited with 2",
+    "reason": "uv_failed",
+    "stderr": "Using CPython 3.14.0\nCreating virtual environment at: /home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937\nerror: Failed to generate package metadata for `shopkit==0.1.0 @ directory+packages/shopkit`\n  Caused by: Distribution not found at: file:///home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937.build/packages/shopkit\n"
+   }
+  },
+  {
+   "id": "5b88116cfbf0be2940f9042ba2210671",
+   "request_id": "e966cb2a3a973b277af90d818388c868638d9cfd470da62a923e460aeb2068b1",
+   "status": "failed",
+   "slot": "strangelove-2",
+   "worker": "strangelove",
+   "created": 1791865572.618411,
+   "updated": 1791865573.7323542,
+   "generation": 16,
+   "duration_s": 1.114,
+   "details": {
+    "code": "provisioning_failed",
+    "message": "uv sync exited with 2",
+    "reason": "uv_failed",
+    "stderr": "Using CPython 3.14.0\nCreating virtual environment at: /home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937\nerror: Failed to generate package metadata for `shopkit==0.1.0 @ directory+packages/shopkit`\n  Caused by: Distribution not found at: file:///home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937.build/packages/shopkit\n"
+   }
+  },
+  {
+   "id": "e7ea2d753e5263c30b76bfe8f879108a",
+   "request_id": "a77e0fb6868acc9bd9341b2c8ba3fbd26f16aaa479d3367dca82473b31b86340",
+   "status": "failed",
+   "slot": "strangelove-1",
+   "worker": "strangelove",
+   "created": 1791865573.645838,
+   "updated": 1791865574.539531,
+   "generation": 17,
+   "duration_s": 0.894,
+   "details": {
+    "code": "provisioning_failed",
+    "message": "uv sync exited with 2",
+    "reason": "uv_failed",
+    "stderr": "Using CPython 3.14.0\nCreating virtual environment at: /home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937\nerror: Failed to generate package metadata for `shopkit==0.1.0 @ directory+packages/shopkit`\n  Caused by: Distribution not found at: file:///home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937.build/packages/shopkit\n"
+   }
+  },
+  {
+   "id": "a62b3f6b897e8330cc448d1146d88692",
+   "request_id": "5e7ff14279248a9b073d1b0a67e1b63261f4eb5db1d901078c359a936d8199fa",
+   "status": "failed",
+   "slot": "strangelove-2",
+   "worker": "strangelove",
+   "created": 1791865573.748429,
+   "updated": 1791865574.611511,
+   "generation": 18,
+   "duration_s": 0.863,
+   "details": {
+    "code": "provisioning_failed",
+    "message": "uv sync exited with 2",
+    "reason": "uv_failed",
+    "stderr": "Using CPython 3.14.0\nCreating virtual environment at: /home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937\nerror: Failed to generate package metadata for `shopkit==0.1.0 @ directory+packages/shopkit`\n  Caused by: Distribution not found at: file:///home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937.build/packages/shopkit\n"
+   }
+  },
+  {
+   "id": "cd86767b46671e9ea777865771e1b9db",
+   "request_id": "079e87b2eab2a270b28f9a921bee22a8946248e56a604be03b7802fd00971c64",
+   "status": "failed",
+   "slot": "strangelove-1",
+   "worker": "strangelove",
+   "created": 1791865574.5711548,
+   "updated": 1791865575.51902,
+   "generation": 19,
+   "duration_s": 0.948,
+   "details": {
+    "code": "provisioning_failed",
+    "message": "uv sync exited with 2",
+    "reason": "uv_failed",
+    "stderr": "Using CPython 3.14.0\nCreating virtual environment at: /home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937\nerror: Failed to generate package metadata for `shopkit==0.1.0 @ directory+packages/shopkit`\n  Caused by: Distribution not found at: file:///home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937.build/packages/shopkit\n"
+   }
+  },
+  {
+   "id": "04c6733292328987b6661c601666d767",
+   "request_id": "c94fe0d5a7e84419cb582145ccf8035f2836ea94fc9d4fe899e56524d7783720",
+   "status": "failed",
+   "slot": "strangelove-2",
+   "worker": "strangelove",
+   "created": 1791865574.639483,
+   "updated": 1791865575.62557,
+   "generation": 20,
+   "duration_s": 0.986,
+   "details": {
+    "code": "provisioning_failed",
+    "message": "uv sync exited with 2",
+    "reason": "uv_failed",
+    "stderr": "Using CPython 3.14.0\nCreating virtual environment at: /home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937\nerror: Failed to generate package metadata for `shopkit==0.1.0 @ directory+packages/shopkit`\n  Caused by: Distribution not found at: file:///home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937.build/packages/shopkit\n"
+   }
+  },
+  {
+   "id": "e3f374d82e18f38e6a3dfbb145990507",
+   "request_id": "4dda433d02eec5859394295ce6f13268cf43a36e7fd891b3a3656fa6ee3b6b47",
+   "status": "failed",
+   "slot": "strangelove-1",
+   "worker": "strangelove",
+   "created": 1791865575.550802,
+   "updated": 1791865576.4584398,
+   "generation": 21,
+   "duration_s": 0.908,
+   "details": {
+    "code": "provisioning_failed",
+    "message": "uv sync exited with 2",
+    "reason": "uv_failed",
+    "stderr": "Using CPython 3.14.0\nCreating virtual environment at: /home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937\nerror: Failed to generate package metadata for `shopkit==0.1.0 @ directory+packages/shopkit`\n  Caused by: Distribution not found at: file:///home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937.build/packages/shopkit\n"
+   }
+  },
+  {
+   "id": "962f7f75e722b858d55c20f0114cc01a",
+   "request_id": "7f34535b90ca68b960afc519e49b5acb26dcb31844a645174c6848909a0f77ee",
+   "status": "failed",
+   "slot": "strangelove-2",
+   "worker": "strangelove",
+   "created": 1791865575.643067,
+   "updated": 1791865576.5163252,
+   "generation": 22,
+   "duration_s": 0.873,
+   "details": {
+    "code": "provisioning_failed",
+    "message": "uv sync exited with 2",
+    "reason": "uv_failed",
+    "stderr": "Using CPython 3.14.0\nCreating virtual environment at: /home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937\nerror: Failed to generate package metadata for `shopkit==0.1.0 @ directory+packages/shopkit`\n  Caused by: Distribution not found at: file:///home/davide/.cache/simulatte/envs/3192fe86305b583ec7863d4b619f49ae72646c6b078baa5aaa745aa28677d937.build/packages/shopkit\n"
+   }
+  }
+ ],
+ "replications": [
+  {
+   "run": "5af31d75c88fd27dc837a6bcfa85344ab466096e3d0357bf2627178d3add6d77",
+   "configuration": 0,
+   "idx": 0,
+   "seed": "0",
+   "worker_kind": "uv",
+   "request_id": "c4976a1bf29bcb817c6ccde67deae038f044a6fd9fa57d6f857cbb683f5fd726",
+   "status": "failed",
+   "attempt": "d8397ddb8eaee0851418d89496b35db5",
+   "dispatches": 1
+  },
+  {
+   "run": "5af31d75c88fd27dc837a6bcfa85344ab466096e3d0357bf2627178d3add6d77",
+   "configuration": 1,
+   "idx": 0,
+   "seed": "0",
+   "worker_kind": "uv",
+   "request_id": "e966cb2a3a973b277af90d818388c868638d9cfd470da62a923e460aeb2068b1",
+   "status": "failed",
+   "attempt": "5b88116cfbf0be2940f9042ba2210671",
+   "dispatches": 1
+  },
+  {
+   "run": "5af31d75c88fd27dc837a6bcfa85344ab466096e3d0357bf2627178d3add6d77",
+   "configuration": 0,
+   "idx": 1,
+   "seed": "1",
+   "worker_kind": "uv",
+   "request_id": "a77e0fb6868acc9bd9341b2c8ba3fbd26f16aaa479d3367dca82473b31b86340",
+   "status": "failed",
+   "attempt": "e7ea2d753e5263c30b76bfe8f879108a",
+   "dispatches": 1
+  },
+  {
+   "run": "5af31d75c88fd27dc837a6bcfa85344ab466096e3d0357bf2627178d3add6d77",
+   "configuration": 1,
+   "idx": 1,
+   "seed": "1",
+   "worker_kind": "uv",
+   "request_id": "5e7ff14279248a9b073d1b0a67e1b63261f4eb5db1d901078c359a936d8199fa",
+   "status": "failed",
+   "attempt": "a62b3f6b897e8330cc448d1146d88692",
+   "dispatches": 1
+  },
+  {
+   "run": "5af31d75c88fd27dc837a6bcfa85344ab466096e3d0357bf2627178d3add6d77",
+   "configuration": 0,
+   "idx": 2,
+   "seed": "2",
+   "worker_kind": "uv",
+   "request_id": "079e87b2eab2a270b28f9a921bee22a8946248e56a604be03b7802fd00971c64",
+   "status": "failed",
+   "attempt": "cd86767b46671e9ea777865771e1b9db",
+   "dispatches": 1
+  },
+  {
+   "run": "5af31d75c88fd27dc837a6bcfa85344ab466096e3d0357bf2627178d3add6d77",
+   "configuration": 1,
+   "idx": 2,
+   "seed": "2",
+   "worker_kind": "uv",
+   "request_id": "c94fe0d5a7e84419cb582145ccf8035f2836ea94fc9d4fe899e56524d7783720",
+   "status": "failed",
+   "attempt": "04c6733292328987b6661c601666d767",
+   "dispatches": 1
+  },
+  {
+   "run": "5af31d75c88fd27dc837a6bcfa85344ab466096e3d0357bf2627178d3add6d77",
+   "configuration": 0,
+   "idx": 3,
+   "seed": "3",
+   "worker_kind": "uv",
+   "request_id": "4dda433d02eec5859394295ce6f13268cf43a36e7fd891b3a3656fa6ee3b6b47",
+   "status": "failed",
+   "attempt": "e3f374d82e18f38e6a3dfbb145990507",
+   "dispatches": 1
+  },
+  {
+   "run": "5af31d75c88fd27dc837a6bcfa85344ab466096e3d0357bf2627178d3add6d77",
+   "configuration": 1,
+   "idx": 3,
+   "seed": "3",
+   "worker_kind": "uv",
+   "request_id": "7f34535b90ca68b960afc519e49b5acb26dcb31844a645174c6848909a0f77ee",
+   "status": "failed",
+   "attempt": "962f7f75e722b858d55c20f0114cc01a",
+   "dispatches": 1
+  },
+  {
+   "run": "cd46ddf8119b63f9e150e831691de020ac3bddc9fda3351b6df2fb4bfd448bec",
+   "configuration": 0,
+   "idx": 0,
+   "seed": "0",
+   "worker_kind": "local",
+   "request_id": "5525f225831f8aa1840e1432765d09270177d68a031c809c0eda15fdc1389b67",
+   "status": "succeeded",
+   "attempt": "5c8263527cb30213d6fab5618d812903",
+   "dispatches": 1
+  },
+  {
+   "run": "cd46ddf8119b63f9e150e831691de020ac3bddc9fda3351b6df2fb4bfd448bec",
+   "configuration": 1,
+   "idx": 0,
+   "seed": "0",
+   "worker_kind": "uv",
+   "request_id": "7c56db27b732760c7450603346ece2f1b18ff744d6d6b56539ba93e076b15c33",
+   "status": "lost",
+   "attempt": "b5b469468983b2d8eee2aa2a0ac7c8c2",
+   "dispatches": 3
+  },
+  {
+   "run": "cd46ddf8119b63f9e150e831691de020ac3bddc9fda3351b6df2fb4bfd448bec",
+   "configuration": 0,
+   "idx": 1,
+   "seed": "1",
+   "worker_kind": "uv",
+   "request_id": "0059f48701f413aeef8263da9f549bb1d4271d23a20465f9ea1e75eb289f7c2d",
+   "status": "lost",
+   "attempt": "3fd925a68922c713fd97a32bd49151e3",
+   "dispatches": 3
+  },
+  {
+   "run": "cd46ddf8119b63f9e150e831691de020ac3bddc9fda3351b6df2fb4bfd448bec",
+   "configuration": 1,
+   "idx": 1,
+   "seed": "1",
+   "worker_kind": "uv",
+   "request_id": "6978ebbb717791cdec1e0b908657e4b4f00542bc4210a2d6f68d74723f2f2284",
+   "status": "failed",
+   "attempt": "19fc459d694bb5c3182afc6a49da59ab",
+   "dispatches": 1
+  },
+  {
+   "run": "cd46ddf8119b63f9e150e831691de020ac3bddc9fda3351b6df2fb4bfd448bec",
+   "configuration": 0,
+   "idx": 2,
+   "seed": "2",
+   "worker_kind": "local",
+   "request_id": "90cc8f455bc8ff9776544b73d7713355daafd02427704709e481d1ec4b359366",
+   "status": "succeeded",
+   "attempt": "09aa61b316088edaebbc586196301c73",
+   "dispatches": 1
+  },
+  {
+   "run": "cd46ddf8119b63f9e150e831691de020ac3bddc9fda3351b6df2fb4bfd448bec",
+   "configuration": 1,
+   "idx": 2,
+   "seed": "2",
+   "worker_kind": "local",
+   "request_id": "df13827779ef8ca037501cf24939ba353763c87bd053b499d976c3a18b371635",
+   "status": "succeeded",
+   "attempt": "b79d470d1517e84748f87852ce61174c",
+   "dispatches": 1
+  },
+  {
+   "run": "cd46ddf8119b63f9e150e831691de020ac3bddc9fda3351b6df2fb4bfd448bec",
+   "configuration": 0,
+   "idx": 3,
+   "seed": "3",
+   "worker_kind": "local",
+   "request_id": "2eac1f3b6c2a403df2469648c8b7e124d7bd90222b26dce51c296a4234738dab",
+   "status": "succeeded",
+   "attempt": "8a74ae713baf558347c7e6482f37ca3a",
+   "dispatches": 1
+  },
+  {
+   "run": "cd46ddf8119b63f9e150e831691de020ac3bddc9fda3351b6df2fb4bfd448bec",
+   "configuration": 1,
+   "idx": 3,
+   "seed": "3",
+   "worker_kind": "local",
+   "request_id": "5f0977cd0c8e423181e0e1ab6c5746838434c8334e8455e729489ce7beeb7d17",
+   "status": "succeeded",
+   "attempt": "9636c4d32775b86566ded5648de78dcd",
+   "dispatches": 1
+  }
+ ],
+ "replays": [],
+ "runs": [
+  {
+   "id": "cd46ddf8119b63f9e150e831691de020ac3bddc9fda3351b6df2fb4bfd448bec",
+   "status": "completed",
+   "created": 1791865086.032404,
+   "updated": 1791865094.685877,
+   "details": {}
+  },
+  {
+   "id": "5af31d75c88fd27dc837a6bcfa85344ab466096e3d0357bf2627178d3add6d77",
+   "status": "failed",
+   "created": 1791865572.608493,
+   "updated": 1791865576.5623791,
+   "details": {}
+  }
+ ]
+}

@@ -1,0 +1,20 @@
+"""Drive Coordinator.replay for a remote request by starting the worker actors first (the CLI does not)."""
+import json, sys, time
+from pathlib import Path
+from simulatte.execution.coordinator import Coordinator
+from simulatte.execution.workers import load_workers, resolve_workers
+
+root, request_id, worker = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+c = Coordinator.from_store(root, request_id)
+try:
+    c._add_workers(resolve_workers([worker], load_workers()))
+    t = time.monotonic()
+    try:
+        out = c.replay(request_id, worker=worker, timeout=300)
+        print(json.dumps({"worker": worker, "verified": out.verification.verified, "reason": out.verification.reason,
+                          "seconds": round(time.monotonic() - t, 2), "attempt": out.key.attempt_id}))
+    except Exception as e:
+        print(json.dumps({"worker": worker, "error": type(e).__name__, "status": getattr(e, "status", None), "message": str(e)[:600],
+                          "seconds": round(time.monotonic() - t, 2)}))
+finally:
+    c.close()

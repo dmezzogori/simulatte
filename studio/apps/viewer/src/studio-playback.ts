@@ -18,13 +18,14 @@ export class StudioPlayback {
   get live(): LiveSession | null {return this.#live;}
   /** Opening a local file or explicitly selecting history suspends automatic switching. */
   detach(): void {this.#detached = true; this.cancelPending(); this.#live = null; this.#attempt = null; this.#layout = null;}
-  select(prefix: Prefix, revision: number, view: View | null): void {
+  /** Opens a committed result pinned until Follow live; `label` names a result outside the run history. */
+  select(prefix: Prefix, revision: number, view: View | null, label?: string): void {
     this.#detached = true;
     // Controller.open exposes its source before playback preparation finishes.
     // Force another open to fence that operation through the Controller as well.
     if (this.#opening !== null) this.#attempt = null;
     this.cancelPending();
-    this.openCommitted(prefix, revision, view);
+    this.openCommitted(prefix, revision, view, label);
   }
   resume(): void {this.#detached = false; if (this.client.state) this.update(this.client.state);}
   private cancelPending(): number {this.#abort?.abort(); this.#abort = null; this.#opening = null; return ++this.#epoch;}
@@ -79,7 +80,7 @@ export class StudioPlayback {
       await this.controller.setPresentation(layout as LayoutBundle);
     }).catch(error => {if (epoch === this.#epoch && hash === this.#layout) {this.#layout = null; this.onError(String(error));}});
   }
-  private openCommitted(prefix: Prefix, revision: number, view: View | null): void {
+  private openCommitted(prefix: Prefix, revision: number, view: View | null, label = `Run · revision ${revision}`): void {
     if (this.#opening === prefix.attempt) return;
     if (this.#attempt === prefix.attempt && !this.#live && this.controller.source) {
       if (view) this.applyView(view, this.#epoch);
@@ -102,7 +103,7 @@ export class StudioPlayback {
     ]).then(async ([source, layout]) => {
       if (epoch !== this.#epoch) return;
       this.#attempt = prefix.attempt; this.#live = null; this.#layout = view?.layout.sha256 ?? null;
-      await this.controller.open(source, `Run · revision ${revision}`, layout as LayoutBundle | null, position);
+      await this.controller.open(source, label, layout as LayoutBundle | null, position);
       if (epoch === this.#epoch && this.controller.playback) this.controller.playback.rate = rate;
     }).catch(error => {if (epoch === this.#epoch) this.onError(String(error));})
       .finally(() => {if (epoch === this.#epoch) this.#opening = null;});

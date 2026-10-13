@@ -89,6 +89,7 @@ def test_studio_serving_lifecycle_and_terminal_link(tmp_path, monkeypatch, capsy
 
     monkeypatch.setattr(command.uvicorn, "Server", Server)
     monkeypatch.setattr(command, "threading", SimpleNamespace(Thread=Thread))
+    monkeypatch.setenv("SIMULATTE_WORKERS", str(tmp_path / "missing-workers.toml"))
     command.serve_studio(args)
     assert len(seen) == 1
     assert "Simulatte Studio:" in capsys.readouterr().out
@@ -114,3 +115,35 @@ def test_studio_cli_dispatch_and_startup_errors(monkeypatch, capsys):
     monkeypatch.setattr(command, "serve_studio", fail)
     assert main(["studio", "plant.py"]) == 2
     assert "invalid project" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("text", ['[workers.box]\nhost = "box"\nslots = 2\n', "[workers.box\nhost = "])
+def test_studio_slots_use_configured_workers_and_report_a_malformed_file(tmp_path, monkeypatch, text):
+    from simulatte.execution.slots import default_local_slots
+    from simulatte.studio import command
+    from tests.execution.test_coordinator import project
+
+    spec = project(tmp_path)
+    (tmp_path / "workers.toml").write_text(text)
+    monkeypatch.setenv("SIMULATTE_WORKERS", str(tmp_path / "workers.toml"))
+    monkeypatch.setattr(command, "assets", lambda: tmp_path)
+    seen = []
+
+    class Stop(Exception):
+        pass
+
+    def studio(coordinator, port, static, **options):
+        seen.append((coordinator.slots, options["workers_error"]))
+        raise Stop
+
+    monkeypatch.setattr(command, "StudioServer", studio)
+    args = arguments(str(spec.root / "plant.py"), "--project", str(spec.root))
+    args.port = 0
+    with pytest.raises(Stop):
+        command.serve_studio(args)
+    ((slots, error),) = seen
+    assert slots.local == default_local_slots()
+    if text.endswith("slots = 2\n"):
+        assert [(spec.name, spec.slots) for spec in slots.workers] == [("box", 2)] and error is None
+    else:
+        assert slots.workers == () and error.startswith("Malformed workers file")

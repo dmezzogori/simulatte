@@ -2,7 +2,61 @@
 
 All notable changes to Simulatte are documented here.
 
-## Unreleased
+## 0.17.0 — 2026-10-13
+
+- Added experiments: `*.experiment.json` files (schema `experiment-v1`), the
+  `simulatte.experiments` Python API (`Experiment`, `Grid`, `Explicit`, `run`) and
+  `simulatte experiment run|status|results|cancel|resume|delete`. A grid or explicit list of
+  configurations, optional layout variants and N replications run as ordinary managed executions;
+  replication i uses seed `base_seed + i` in every configuration for common random numbers, and the
+  experiment type (steady state, terminating horizon, terminating finite population) follows the
+  stopping policy.
+- Added replication-level statistics in pure Python: Student t intervals with `ok`, `degenerate`
+  and `insufficient` states, pointwise labelling or Bonferroni adjustment, and paired differences by
+  replication index against a baseline with missing pairs listed. Reports come from
+  `simulatte experiment results` and the Python `ExperimentReport`.
+- Added `simulatte replay REQUEST_ID`, which reruns a KPI-only replication at `full` level, on the
+  original host unless `--worker` names another, and labels it `verified` or `unverified` with the first differing check (digest, KPI scalar, runtime,
+  dependencies or layout).
+- Added Studio panels for experiments, results and charts: definition form, start, cancel, resume
+  and delete, a configuration by KPI table with baseline and Bonferroni controls, overlaid series
+  from up to eight recordings and a Welch warm-up plot. Warm-up stays user-set.
+- Added side-by-side compare playback of two full recordings on one clock, with a "Replay at full
+  level" action and a verified or unverified replay badge.
+- Added remote workers over SSH: user-level `workers.toml` (no credentials accepted),
+  `simulatte workers list|check|setup|prune`, projects provisioned from `uv.lock` into immutable
+  cached environments, hash-verified staging with a 64 MiB default bundle cap, and uv installed
+  only by a confirmed `workers setup --install-uv`. Hosts must be POSIX; Windows is never a remote
+  host and SSH from a Windows coordinator is untested.
+- Added `simulatte store prune [--dry-run]` and `simulatte experiment delete`; nothing is deleted
+  automatically.
+- Experiments run on several local slots; the default is `min(4, max(1, cpu_count - 1))`, chosen from
+  a throughput measurement, with `--local-slots` to override it. A lost replication is dispatched
+  again at most twice, by another slot when the worker could not be reached, and that slot backs
+  off from 15 s up to 5 minutes; a failed one is never retried; Ctrl-C pauses a run with exit 130 and an
+  unchanged file returns or resumes the existing run.
+- Execution protocol 1.1 adds staging and provisioning messages. The run store moves to schema 2
+  (slots, experiments, replications and replays).
+
+### Changed
+
+- A runtime that changed after preparation now fails the attempt with `runtime_changed` (`failed`)
+  instead of `validation_failed`, for local and remote runs.
+
+### Fixed
+
+- A `[tool.simulatte.bundle] include` pattern ending in `**` (for example `packages/**`) now captures
+  the files below it on Python 3.11 and 3.12, where it previously matched directories only.
+
+### Migration
+
+- Stores migrate automatically; delete `.simulatte/` to reset. A store written by a newer version
+  is still refused.
+- Remote runs need a uv project with `uv.lock` that pins `simulatte` at the coordinator's
+  major.minor, path dependencies inside the project root, and uv on the host. Private indexes warn:
+  the host needs its own credentials.
+- `*.experiment.json` files and layout files listed in `[tool.simulatte.bundle] layouts` are no longer
+  part of the captured model source.
 
 ## 0.16.0 — 2026-10-12
 

@@ -1,0 +1,2 @@
+{"worker": "strangelove", "verified": true, "reason": null, "seconds": 1.76, "attempt": "52e4503c7450284b7a73d9f443f9d5f6"}
+{"worker": "otacon", "verified": false, "reason": "runtime_mismatch", "seconds": 4.46, "attempt": "06781d93aa1262941e8b5f17beed931c"}

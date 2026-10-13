@@ -1,0 +1,357 @@
+{
+  "children_cpu_per_execution": 0.4836760303030303,
+  "children_cpu_seconds_total": 15.961309,
+  "completed_replications": 32,
+  "coordinator_cpu_per_replication": 0.04154812499999999,
+  "coordinator_peak_rss_bytes": 45285376,
+  "coordinator_wall_per_replication": 1.057113604098049,
+  "coordinator_wall_per_replication_excluding_first": 1.0564406975191236,
+  "cpu_count": 10,
+  "events": 100,
+  "failure": null,
+  "first_replication": {
+    "ready_to_publication": 0.31770470895571634,
+    "seed": 0,
+    "store_commit": 0.01015595899662003,
+    "submit_to_ready": 0.7587355830473825,
+    "wait_return_lag": 0.0015334160416387022,
+    "wall": 1.0779737080447376
+  },
+  "implementation": "CPython",
+  "machine": "arm64",
+  "overhead_per_replication": 1.056667526034289,
+  "overhead_per_replication_excluding_first": 1.0559946194553635,
+  "phases": {
+    "close_seconds": 0.01265616697492078,
+    "coordinator_loop_cpu_seconds": 1.3295399999999997,
+    "loop_seconds": 33.84676266700262,
+    "prepare_seconds": 0.7297081659780815
+  },
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.1",
+  "ready_to_publication": {
+    "max": 0.5945930000161752,
+    "mean": 0.4100986444755108,
+    "median": 0.37775252101710066,
+    "min": 0.24385920801432803
+  },
+  "reaped_children_peak_rss_bytes": 55967744,
+  "replications": 32,
+  "replications_per_minute": 56.72625234175845,
+  "replications_per_minute_excluding_first": 56.794479937113444,
+  "runner_replications_per_minute": 134505.60535133607,
+  "runner_samples": [
+    0.009384042001329362,
+    0.0003499999875202775,
+    0.0003071250393986702,
+    0.00022504100343212485,
+    0.00016183400293812156,
+    0.00014000001829117537,
+    0.00012083299225196242,
+    0.00012149999383836985,
+    0.0001391659607179463,
+    0.00014187500346451998,
+    0.00012329104356467724,
+    0.00013654096983373165,
+    0.0001379579771310091,
+    0.0001284580212086439,
+    0.00012291601160541177,
+    0.00012224999954923987,
+    0.00011795799946412444,
+    0.00011329096741974354,
+    0.00019533297745510936,
+    0.00023145898012444377,
+    0.00017041596584022045,
+    0.00014125002780929208,
+    0.0001403330243192613,
+    0.0002446669968776405,
+    0.00016970897559076548,
+    0.00013191701145842671,
+    0.0001235000090673566,
+    0.00012862501898780465,
+    0.00013804202899336815,
+    0.00012854201486334205,
+    0.00011583400191739202,
+    0.00012079201405867934
+  ],
+  "runner_wall_per_replication": 0.0004460780637600692,
+  "runner_wall_per_replication_median": 0.00013800000306218863,
+  "samples": [
+    {
+      "ready_to_publication": 0.31770470895571634,
+      "seed": 0,
+      "store_commit": 0.01015595899662003,
+      "submit_to_ready": 0.7587355830473825,
+      "wait_return_lag": 0.0015334160416387022,
+      "wall": 1.0779737080447376
+    },
+    {
+      "ready_to_publication": 0.44932691601570696,
+      "seed": 1,
+      "store_commit": 0.01035254099406302,
+      "submit_to_ready": 0.44434325001202524,
+      "wait_return_lag": 0.0013991669984534383,
+      "wall": 0.8950693330261856
+    },
+    {
+      "ready_to_publication": 0.38272108300589025,
+      "seed": 2,
+      "store_commit": 0.011459457979071885,
+      "submit_to_ready": 0.7017782499897294,
+      "wait_return_lag": 0.0013832499971613288,
+      "wall": 1.085882582992781
+    },
+    {
+      "ready_to_publication": 0.325966666045133,
+      "seed": 3,
+      "store_commit": 0.009941374999471009,
+      "submit_to_ready": 0.7617249169852585,
+      "wait_return_lag": 0.001405833987519145,
+      "wall": 1.0890974170179106
+    },
+    {
+      "ready_to_publication": 0.5945930000161752,
+      "seed": 4,
+      "store_commit": 0.009892083995509893,
+      "submit_to_ready": 0.6840133339865133,
+      "wait_return_lag": 0.0015005830209702253,
+      "wall": 1.2801069170236588
+    },
+    {
+      "ready_to_publication": 0.46666766703128815,
+      "seed": 5,
+      "store_commit": 0.011478375003207475,
+      "submit_to_ready": 0.7118773749680258,
+      "wait_return_lag": 0.001905374985653907,
+      "wall": 1.1804504169849679
+    },
+    {
+      "ready_to_publication": 0.36722566705429927,
+      "seed": 6,
+      "store_commit": 0.010061292035970837,
+      "submit_to_ready": 0.6479617499862798,
+      "wait_return_lag": 0.0011712919804267585,
+      "wall": 1.0163587090210058
+    },
+    {
+      "ready_to_publication": 0.4394166659913026,
+      "seed": 7,
+      "store_commit": 0.010456707968842238,
+      "submit_to_ready": 0.7098749169963412,
+      "wait_return_lag": 0.0013735000393353403,
+      "wall": 1.1506650830269791
+    },
+    {
+      "ready_to_publication": 0.5347581660025753,
+      "seed": 8,
+      "store_commit": 0.02240883297054097,
+      "submit_to_ready": 0.3972154589719139,
+      "wait_return_lag": 0.0014896250213496387,
+      "wall": 0.9334632499958389
+    },
+    {
+      "ready_to_publication": 0.3727839590283111,
+      "seed": 9,
+      "store_commit": 0.011241542000789195,
+      "submit_to_ready": 0.5346118750167079,
+      "wait_return_lag": 0.0012826249585486948,
+      "wall": 0.9086784590035677
+    },
+    {
+      "ready_to_publication": 0.5365406660130247,
+      "seed": 10,
+      "store_commit": 0.010239208000712097,
+      "submit_to_ready": 0.609612833999563,
+      "wait_return_lag": 0.0016252920031547546,
+      "wall": 1.1477787920157425
+    },
+    {
+      "ready_to_publication": 0.24385920801432803,
+      "seed": 11,
+      "store_commit": 0.011733999999705702,
+      "submit_to_ready": 0.6434978749603033,
+      "wait_return_lag": 0.0019396250136196613,
+      "wall": 0.889296707988251
+    },
+    {
+      "ready_to_publication": 0.3519880420062691,
+      "seed": 12,
+      "store_commit": 0.015901208040304482,
+      "submit_to_ready": 0.6830059160129167,
+      "wait_return_lag": 0.001608916965778917,
+      "wall": 1.0366028749849647
+    },
+    {
+      "ready_to_publication": 0.35138958296738565,
+      "seed": 13,
+      "store_commit": 0.011288916983176023,
+      "submit_to_ready": 1.2554722090135328,
+      "wait_return_lag": 0.001460583007428795,
+      "wall": 1.6083223749883473
+    },
+    {
+      "ready_to_publication": 0.36600725003518164,
+      "seed": 14,
+      "store_commit": 0.009625500009860843,
+      "submit_to_ready": 0.6379667079891078,
+      "wait_return_lag": 0.00144379201810807,
+      "wall": 1.0054177500423975
+    },
+    {
+      "ready_to_publication": 0.44115037500159815,
+      "seed": 15,
+      "store_commit": 0.010561125003732741,
+      "submit_to_ready": 0.4035091249970719,
+      "wait_return_lag": 0.0012160829501226544,
+      "wall": 0.8458755829487927
+    },
+    {
+      "ready_to_publication": 0.3078587499912828,
+      "seed": 16,
+      "store_commit": 0.010466874984558672,
+      "submit_to_ready": 0.7302717919810675,
+      "wait_return_lag": 0.0030530410003848374,
+      "wall": 1.0411835829727352
+    },
+    {
+      "ready_to_publication": 0.502362999948673,
+      "seed": 17,
+      "store_commit": 0.010260458977427334,
+      "submit_to_ready": 0.7751028750208206,
+      "wait_return_lag": 0.0013375000562518835,
+      "wall": 1.2788033750257455
+    },
+    {
+      "ready_to_publication": 0.31108137499541044,
+      "seed": 18,
+      "store_commit": 0.0089082500198856,
+      "submit_to_ready": 0.660828499996569,
+      "wait_return_lag": 0.0012102909968234599,
+      "wall": 0.9731201659888029
+    },
+    {
+      "ready_to_publication": 0.4304903750307858,
+      "seed": 19,
+      "store_commit": 0.013949582993518561,
+      "submit_to_ready": 0.6769043329986744,
+      "wait_return_lag": 0.0017083329730667174,
+      "wall": 1.1091030410025269
+    },
+    {
+      "ready_to_publication": 0.3590522080194205,
+      "seed": 20,
+      "store_commit": 0.01020491699455306,
+      "submit_to_ready": 0.5544382919906639,
+      "wait_return_lag": 0.0012843330041505396,
+      "wall": 0.9147748330142349
+    },
+    {
+      "ready_to_publication": 0.3559407920110971,
+      "seed": 21,
+      "store_commit": 0.012597457971423864,
+      "submit_to_ready": 0.7135517079732381,
+      "wait_return_lag": 0.0016437500016763806,
+      "wall": 1.0711362499860115
+    },
+    {
+      "ready_to_publication": 0.3516885419958271,
+      "seed": 22,
+      "store_commit": 0.010495249996893108,
+      "submit_to_ready": 0.5727815830032341,
+      "wait_return_lag": 0.0013709160266444087,
+      "wall": 0.9258410410257056
+    },
+    {
+      "ready_to_publication": 0.4229133329936303,
+      "seed": 23,
+      "store_commit": 0.016011541010811925,
+      "submit_to_ready": 0.8141473329742439,
+      "wait_return_lag": 0.001535042014438659,
+      "wall": 1.2385957079823129
+    },
+    {
+      "ready_to_publication": 0.5182185409939848,
+      "seed": 24,
+      "store_commit": 0.011980999959632754,
+      "submit_to_ready": 0.6798309999867342,
+      "wait_return_lag": 0.00288758403621614,
+      "wall": 1.2009371250169352
+    },
+    {
+      "ready_to_publication": 0.44244579202495515,
+      "seed": 25,
+      "store_commit": 0.021611542033497244,
+      "submit_to_ready": 0.5957900829962455,
+      "wait_return_lag": 0.0015107080107554793,
+      "wall": 1.039746583031956
+    },
+    {
+      "ready_to_publication": 0.37195716600399464,
+      "seed": 26,
+      "store_commit": 0.010803083016071469,
+      "submit_to_ready": 0.6639444589964114,
+      "wait_return_lag": 0.0015856249956414104,
+      "wall": 1.0374872499960475
+    },
+    {
+      "ready_to_publication": 0.4700921250041574,
+      "seed": 27,
+      "store_commit": 0.010621500026900321,
+      "submit_to_ready": 0.4327867919928394,
+      "wait_return_lag": 0.0013773749815300107,
+      "wall": 0.9042562919785269
+    },
+    {
+      "ready_to_publication": 0.3609237920027226,
+      "seed": 28,
+      "store_commit": 0.010032541991677135,
+      "submit_to_ready": 0.6864719580044039,
+      "wait_return_lag": 0.0014526669983752072,
+      "wall": 1.0488484170055017
+    },
+    {
+      "ready_to_publication": 0.5588650419958867,
+      "seed": 29,
+      "store_commit": 0.010552541993092746,
+      "submit_to_ready": 0.4236740830237977,
+      "wait_return_lag": 0.0013723329757340252,
+      "wall": 0.9839114579954185
+    },
+    {
+      "ready_to_publication": 0.5221146669937298,
+      "seed": 30,
+      "store_commit": 0.010332624951843172,
+      "submit_to_ready": 0.7023108749999665,
+      "wait_return_lag": 0.0013666250160895288,
+      "wall": 1.2257921670097858
+    },
+    {
+      "ready_to_publication": 0.2950515000266023,
+      "seed": 31,
+      "store_commit": 0.01041612500557676,
+      "submit_to_ready": 0.38643829099601135,
+      "wait_return_lag": 0.001568291976582259,
+      "wall": 0.6830580829991959
+    }
+  ],
+  "slots": 1,
+  "store_commit": {
+    "max": 0.02240883297054097,
+    "mean": 0.011751356778404443,
+    "median": 0.010523895994992927,
+    "min": 0.0089082500198856
+  },
+  "submit_to_ready": {
+    "max": 1.2554722090135328,
+    "mean": 0.6454523541833623,
+    "median": 0.6704243959975429,
+    "min": 0.38643829099601135
+  },
+  "wait_return_lag": {
+    "max": 0.0030530410003848374,
+    "mean": 0.001562605439175968,
+    "median": 0.0014566250029020011,
+    "min": 0.0011712919804267585
+  },
+  "worker": "eva"
+}

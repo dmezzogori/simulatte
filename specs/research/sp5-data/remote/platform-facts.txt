@@ -1,0 +1,9 @@
+eva: Darwin eva.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:22:49 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T6000 arm64
+uv: uv 0.13.0 (Homebrew 2026-10-09 aarch64-apple-darwin)
+python (uv run): Python 3.14.1
+simulatte branch: 8d0a7a6
+strangelove: Linux strangelove 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026 x86_64 GNU/Linux
+otacon: Linux otacon 6.18.50+rpt-rpi-v8 #1 SMP PREEMPT Debian 1:6.18.50-1+rpt1 (2026-09-11) aarch64 GNU/Linux
+bigboss: Darwin bigboss.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:05:48 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T6041 arm64
+strangelove uv: uv 0.9.5
+otacon uv: uv 0.12.16 (aarch64-unknown-linux-gnu)

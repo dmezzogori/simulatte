@@ -1,0 +1,6 @@
+worker strangelove (strangelove)
+  reachable: yes
+  platform: Linux x86_64
+  shell: /bin/bash
+  uv: 0.9.5
+  cache: writable

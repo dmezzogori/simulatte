@@ -1,0 +1,2 @@
+# Committed run store fixtures are byte-exact; never convert line endings.
+tests/fixtures/stores/v1/** -text
