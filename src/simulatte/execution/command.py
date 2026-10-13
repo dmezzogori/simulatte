@@ -192,6 +192,11 @@ def add_experiment_arguments(parser):
         ("delete", "Delete a run"),
     ):
         actions.add_parser(name, help=text).add_argument("run_id")
+    results = actions.add_parser("results", help="Show per-configuration intervals and paired comparisons")
+    results.add_argument("run_id")
+    results.add_argument("--level", type=float, default=0.95, help="confidence level (default: 0.95)")
+    results.add_argument("--baseline", help="configuration label to compare the others against, paired by replication")
+    results.add_argument("--bonferroni", action="store_true", help="adjust the level for the number of intervals shown")
     for name, action in actions.choices.items():
         action.add_argument("--project", help="project directory holding the .simulatte store")
         action.add_argument("--json", action="store_true")
@@ -240,6 +245,54 @@ def _table(report):
     return "\n".join(lines)
 
 
+def _results_text(document):
+    from tabulate import tabulate
+
+    def number(value):
+        return "-" if value is None else f"{value:.6g}"
+
+    def cells(item):
+        estimate = item["estimate"]
+        return [
+            estimate["n"],
+            *(number(estimate[name]) for name in ("mean", "half_width", "lower", "upper")),
+            estimate["state"],
+        ]
+
+    percent = f"{document['effective_level'] * 100:.4g} %"
+    if document["pointwise"]:
+        label = f"pointwise {percent} t intervals"
+    else:
+        label = (
+            f"Bonferroni-adjusted t intervals, {document['level'] * 100:.4g} % family level "
+            f"({percent} each, {document['m']} intervals)"
+        )
+    interval = ["n", "mean", "half-width", "lower", "upper", "state"]
+    lines = [f"{document['name']} {document['run_id']} {document['status']}", label]
+    rows = [[item["label"], item["kpi"], item["n_succeeded"], *cells(item)] for item in document["rows"]]
+    lines.append(tabulate(rows, ["configuration", "kpi", "succeeded", *interval], tablefmt="simple"))
+    if "paired" in document:
+        percent = f"{document['paired_effective_level'] * 100:.4g} %"
+        kind = "pointwise" if document["pointwise"] else f"Bonferroni-adjusted ({document['paired_m']} comparisons)"
+        lines += [
+            "",
+            f"paired differences, configuration - {document['baseline']}: {kind} {percent} t intervals",
+        ]
+        rows = [
+            [item["label"], item["kpi"], *cells(item), ",".join(map(str, item["missing"]))]
+            for item in document["paired"]
+        ]
+        lines.append(tabulate(rows, ["configuration", "kpi", *interval, "missing"], tablefmt="simple"))
+    if document["missing"]:
+        lines += ["", f"replications without a result ({document['missing_total']}):"]
+        rows = [
+            [item["configuration"], item["index"], item["status"], item["attempt"] or "-"]
+            for item in document["missing"]
+        ]
+        lines.append(tabulate(rows, ["configuration", "index", "status", "attempt"], tablefmt="simple"))
+    return "\n".join(lines)
+
+
 def _emit_result(args, code, envelope, text):
     if args.json:
         print(json.dumps(_plain(envelope), ensure_ascii=True, allow_nan=False, separators=(",", ":")))
@@ -251,7 +304,7 @@ def _emit_result(args, code, envelope, text):
 
 
 def experiment(args):
-    """``simulatte experiment run|status|cancel|resume|delete``; exit codes as ``simulatte run``."""
+    """``simulatte experiment run|status|results|cancel|resume|delete``; exit codes as ``simulatte run``."""
     from simulatte.execution import scheduler
     from simulatte.execution.snapshot import ProjectSpec
     from simulatte.execution.store import RunStore
@@ -294,6 +347,13 @@ def experiment(args):
                 elif args.action == "status":
                     envelope = scheduler.report(store, args.run_id)
                     text = _table(envelope)
+                elif args.action == "results":
+                    from simulatte.experiments.results import ExperimentReport
+
+                    envelope = ExperimentReport(store, args.run_id).to_dict(
+                        args.level, baseline=args.baseline, bonferroni=args.bonferroni
+                    )
+                    text = _results_text(envelope)
                 elif args.action == "cancel":
                     # The store was just recovered: no replication of a paused run is dispatched.
                     scheduler.cancel_run(store, args.run_id)

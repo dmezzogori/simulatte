@@ -7,7 +7,7 @@ from unittest.mock import patch
 from simulatte.cli import main
 from simulatte.execution import coordinator as m
 from simulatte.execution.slots import SlotConfig
-from simulatte.execution.store import RunStore
+from simulatte.execution.store import RunStore, _blob
 from simulatte.experiments import load_experiment
 from tests.execution.test_coordinator import project
 from tests.execution.test_scheduler import SLOW, attempts, until, write_experiment
@@ -39,6 +39,31 @@ def test_experiment_run_status_delete_and_prune_without_web(tmp_path, capsys):
         assert listed["run_id"] == run_id and listed["status"] == "completed"
         assert main(["experiment", "status", run_id, "--project", root]) == 0
         assert "n=3/base" in capsys.readouterr().out
+        # The tiny model reports no KPIs: the table is empty. Then store scalars by hand: n=3 and n=4 differ by 1.
+        assert main(["experiment", "results", run_id, "--project", root, "--json"]) == 0
+        assert envelope(capsys)["rows"] == []
+        with RunStore.open(spec.root / ".simulatte") as store:
+            items = store.replications(run_id)
+            with store._transaction() as db:
+                for item in items:
+                    value = item["index"] * 2.5 + item["configuration"]
+                    db.execute("INSERT INTO kpis VALUES (?,?,?)", (item["attempt"], "shop/wip", _blob(value)))
+        assert main(["experiment", "results", run_id, "--project", root, "--baseline", "n=3/base"]) == 0
+        table = capsys.readouterr().out
+        assert "pointwise 95 % t intervals" in table and "paired differences, configuration - n=3/base" in table
+        assert main(["experiment", "results", run_id, "--project", root, "--json"] + ["--baseline", "n=3/base"]) == 0
+        report = envelope(capsys)
+        assert report["pointwise"] is True and report["rows"][0]["estimate"]["state"] == "ok"
+        assert (
+            report["paired"][0]["estimate"]["mean"] == 1.0 and report["paired"][0]["estimate"]["state"] == "degenerate"
+        )
+        assert main(["experiment", "results", run_id, "--project", root, "--bonferroni", "--level", "0.9"]) == 0
+        assert "Bonferroni-adjusted t intervals, 90 % family level (95 % each, 2 intervals)" in capsys.readouterr().out
+        for extra in (["--baseline", "nowhere"], ["--level", "1.5"]):
+            assert main(["experiment", "results", run_id, "--project", root, "--json", *extra]) == 2
+            assert envelope(capsys)["status"] == "validation_failed"
+        assert main(["experiment", "results", "0" * 64, "--project", root]) == 2
+        assert "0" * 64 in capsys.readouterr().err
         assert main(["experiment", "cancel", run_id, "--project", root, "--json"]) == 2
         assert envelope(capsys)["status"] == "validation_failed"
         assert main(["experiment", "resume", run_id, "--project", root, "--json"]) == 2

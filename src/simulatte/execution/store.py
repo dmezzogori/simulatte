@@ -789,6 +789,19 @@ class RunStore:
             for row in rows
         ]
 
+    def replication_kpis(self, run_id: str) -> dict[tuple[int, int], dict[str, Any]]:
+        """KPI scalars of the succeeded and reused replications, by ``(configuration, index)``."""
+        with self._transaction() as db:
+            rows = db.execute(
+                "SELECT r.configuration,r.idx,k.name,k.value FROM replications r "
+                "JOIN kpis k ON k.attempt=r.attempt WHERE r.run=? AND r.status IN ('succeeded','reused')",
+                (run_id,),
+            ).fetchall()
+        scalars: dict[tuple[int, int], dict[str, Any]] = {}
+        for configuration, index, name, value in rows:
+            scalars.setdefault((configuration, index), {})[name] = _read(value)
+        return scalars
+
     def _replication(self, db, run_id, configuration, index):
         row = db.execute(
             "SELECT * FROM replications WHERE run=? AND configuration=? AND idx=?", (run_id, configuration, index)
