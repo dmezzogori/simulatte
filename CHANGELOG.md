@@ -2,7 +2,7 @@
 
 All notable changes to Simulatte are documented here.
 
-## Unreleased
+## 0.17.0 — 2026-10-13
 
 - Added experiments: `*.experiment.json` files (schema `experiment-v1`), the
   `simulatte.experiments` Python API (`Experiment`, `Grid`, `Explicit`, `run`) and
