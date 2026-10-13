@@ -141,7 +141,7 @@ jobs:
           uv run --python ${{ matrix.python }} --extra studio simulatte experiment run "$project/smoke.experiment.json" --local-slots 2 --json | tee "$RUNNER_TEMP/smoke.json"
           grep -q '"status":"completed"' "$RUNNER_TEMP/smoke.json"
           grep -q '"succeeded":8' "$RUNNER_TEMP/smoke.json"
-          run_id=$(uv run --python ${{ matrix.python }} --extra studio python -c "import json, sys; print(json.load(open(sys.argv[1]))['run_id'])" "$RUNNER_TEMP/smoke.json")
+          run_id=$(uv run --python ${{ matrix.python }} --extra studio python -c "import json, sys; sys.stdout.write(json.load(open(sys.argv[1]))['run_id'])" "$RUNNER_TEMP/smoke.json" | tr -d '\r')
           uv run --python ${{ matrix.python }} --extra studio simulatte experiment results "$run_id" --project "$project"
       - name: SSH from a Windows coordinator reports itself untested
         if: runner.os == 'Windows'

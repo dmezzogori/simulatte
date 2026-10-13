@@ -814,7 +814,8 @@ class RunStore:
         """Record that the slot's active attempt ``key`` executes this pending replication.
 
         The first dispatch binds the replication to its request (and so to one worker
-        kind); later dispatches must reuse that request so results pair with it.
+        kind); later dispatches must reuse that request so results pair with it, unless
+        the replication was unbound because its lost attempt never reached a worker.
         """
         with self._transaction() as db:
             run = db.execute("SELECT status FROM experiment_runs WHERE id=?", (run_id,)).fetchone()
@@ -849,6 +850,7 @@ class RunStore:
         *,
         attempt: str | None = None,
         orderly: bool = False,
+        unbind: bool = False,
     ) -> None:
         """Apply one replication transition of design section 4.3.
 
@@ -857,11 +859,15 @@ class RunStore:
         is the coordinator's own shutdown: a dispatched replication returns to
         ``pending`` and its dispatch is given back, so pausing never spends the D97
         worker-loss budget (crash recovery still counts the dispatch as lost).
+        ``unbind`` re-queues a ``lost`` replication whose attempt never reached a worker:
+        its request and worker kind are cleared so the next dispatch may use any kind.
         """
         if status not in _REPLICATION:
             raise ValueError("Invalid replication status")
         if orderly and (status != "pending" or attempt is None):
             raise ValueError("An orderly pause returns one bound replication to pending")
+        if unbind and (status != "pending" or orderly):
+            raise ValueError("Only a lost replication returning to pending is unbound")
         with self._transaction() as db:
             row = self._replication(db, run_id, configuration, index)
             allowed = ("pending",) if orderly and row["status"] == "dispatched" else _REPLICATION[row["status"]]
@@ -878,6 +884,12 @@ class RunStore:
                 raise ValueError("Replication success requires a committed result")
             if status == "pending" and not orderly and row["dispatches"] >= MAX_DISPATCHES:
                 raise ValueError("Replication exhausted its dispatch bound")
+            if unbind:  # The transition table admits pending only from lost here.
+                db.execute(
+                    "UPDATE replications SET request_id=NULL,worker_kind=NULL "
+                    "WHERE run=? AND configuration=? AND idx=?",
+                    (run_id, configuration, index),
+                )
             db.execute(
                 "UPDATE replications SET status=?,attempt=?,dispatches=dispatches-? "
                 "WHERE run=? AND configuration=? AND idx=?",
@@ -1058,15 +1070,21 @@ class RunStore:
     def recover(self) -> None:
         """Only called by the exclusive owner before scheduling work.
 
-        Active attempts in every slot become lost. Running experiments pause (D97);
-        replications left dispatched take their attempt's outcome, and lost ones are
-        queued again within the dispatch bound without counting a new dispatch.
+        Active attempts in every slot become lost, and so do the replays running them.
+        Running experiments pause (D97); replications left dispatched take their attempt's
+        outcome, and lost ones are queued again within the dispatch bound without
+        counting a new dispatch.
         """
         with self._transaction() as db:
             db.execute(
                 "UPDATE attempts SET status='lost',updated=? WHERE status IN (?,?,?,?,?)", (time.time(), *_ACTIVE)
             )
             db.execute("UPDATE slots SET active=NULL")
+            db.execute(
+                """UPDATE replays SET status='lost',details=? WHERE status='running'
+                AND attempt IN (SELECT id FROM attempts WHERE status='lost')""",
+                (_blob({"message": "The coordinator stopped before the replay finished"}),),
+            )
             db.execute(
                 """UPDATE replications SET status=COALESCE((SELECT CASE
                     WHEN a.status='succeeded' AND EXISTS(SELECT 1 FROM results r WHERE r.attempt=a.id) THEN 'succeeded'

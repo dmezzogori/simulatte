@@ -16,6 +16,7 @@ import re
 import stat
 import tempfile
 import threading
+import time
 
 from simulatte.execution.coordinator import ExecutionFailure
 from simulatte.execution.durability import replace_durable, sync_directory
@@ -392,6 +393,12 @@ class ExperimentCommands:
         co = self.coordinator
         with co._condition:
             actors = [(name, actor.kind, actor.host, actor.spec) for name, actor in co._actors.items()]
+            now = time.monotonic()
+            backoff = {
+                name: {"until": actor.backoff_until - now, "reason": actor.backoff_reason}
+                for name, actor in co._actors.items()
+                if actor.backoff_until > now
+            }
         specs = {spec.name: spec for spec in co.slots.workers}
         specs.update((spec.name, spec) for _, _, _, spec in actors if spec is not None)
         with co.store._transaction() as db:
@@ -409,15 +416,18 @@ class ExperimentCommands:
             row = rows.get(name)
             last = None if row is None else row["status"]
             details = {} if row is None or row["details"] is None else _read(row["details"])
+            idle = row is None or row["active"] is None
             slots.append(
                 {
                     "name": name,
                     "kind": kind,
                     "worker": host,
-                    "state": "idle" if row is None or row["active"] is None else last,
+                    # ``backoff``: idle because the worker was unreachable; ``until`` is seconds remaining.
+                    "state": ("backoff" if name in backoff else "idle") if idle else last,
                     "attempt": None if row is None else row["active"],
                     "last_status": last,
                     "last_code": details.get("code") if isinstance(details, dict) else None,
+                    "backoff": backoff.get(name),
                 }
             )
         return {

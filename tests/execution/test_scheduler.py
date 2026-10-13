@@ -11,6 +11,7 @@ from simulatte.execution import coordinator as m
 from simulatte.execution.schema import AttemptKey
 from simulatte.execution.slots import SlotConfig
 from simulatte.execution.store import StaleAttempt, _blob, _read
+from simulatte.execution.workers import WorkerSpec
 from simulatte.experiments import load_experiment
 from tests.execution.test_coordinator import MODEL, project
 
@@ -217,6 +218,111 @@ def test_lost_redispatch_fences_old_attempt_and_stops_after_two(tmp_path, monkey
         assert len(peers) == 3 and all(peer.ran and peer.closed for peer in peers)
 
 
+class Unreachable:
+    """A remote transport whose hello never arrives: the handshake fails before any request is sent."""
+
+    channel = SimpleNamespace(last_heartbeat=0.0)
+
+    def receive(self, timeout):
+        raise TimeoutError()
+
+    def close(self):
+        pass
+
+
+DEAD = WorkerSpec("dead", "dead.invalid", 1, (), None, "~/cache", 600.0)
+
+
+def unreachable_remote(monkeypatch):
+    """Give remote runs a uv runtime without a lock, and a ``uv`` transport whose hello always fails.
+
+    Patched before the coordinator exists: its configured workers' slots start with it.
+    """
+    from simulatte.execution import preflight
+
+    uv = {
+        "kind": "uv",
+        "python": "3.14",
+        "lock_hash": "1" * 64,
+        "pyproject_hash": "2" * 64,
+        "extras": [],
+        "groups": [],
+        "local_packages": [],
+    }
+
+    def checked(*args, trusted_runtime_hash, **kwargs):
+        return SimpleNamespace(spec={**uv, "trusted_runtime_hash": trusted_runtime_hash}, warnings=())
+
+    monkeypatch.setattr(preflight, "preflight", checked)
+    hellos = []
+
+    def start(coordinator, spec, *, python=None):
+        hellos.append(time.monotonic())
+        return Unreachable()
+
+    monkeypatch.setattr(m.Coordinator, "_ssh_transport", start)
+    return hellos
+
+
+def test_unreachable_remote_backs_off_and_its_replications_run_locally(tmp_path, monkeypatch):
+    spec = project(tmp_path)
+    path = write_experiment(spec.root, replications={"count": 2}, configurations={"grid": {"n": [3]}})
+    monkeypatch.setattr(m.SlotActor, "BACKOFF", (60.0, 300.0))  # A single remote attempt within this test.
+    hellos = unreachable_remote(monkeypatch)
+    with m.Coordinator(spec, slots=SlotConfig(local=1, workers=(DEAD,))) as coordinator:
+        local = coordinator._actors["local-1"]
+        dispatch = local._next
+        # The local slot waits for the first remote failure, so the remote slot is tried first.
+        monkeypatch.setattr(local, "_next", lambda: dispatch() if hellos else None)
+        local.backoff = 7.0  # Reset by the local slot's next successful hello.
+        run_id = coordinator.start_experiment(load_experiment(path), workers=["local", "dead"])
+        report = coordinator.wait_experiment(run_id, timeout=60)
+        assert report["status"] == "completed" and report["counts"]["succeeded"] == 2
+        assert len(hellos) == 1 and local.backoff == 0.0
+        assert [row["status"] for row in attempts(coordinator.store, prefix="dead-")] == ["lost"]
+        replications = coordinator.store.replications(run_id)
+        # The lost remote attempt never reached a worker: that replication was unbound and ran locally.
+        assert sorted(item["dispatches"] for item in replications) == [1, 2]
+        for item in replications:
+            assert item["worker_kind"] == "local"
+            assert coordinator.store.attempt(coordinator.store.result(item["attempt"]).key)["slot"] == "local-1"
+        (event,) = [event for event in coordinator.events() if event["type"] == "slot_state"]
+        assert event["body"] == {
+            "slot": "dead-1",
+            "status": "backoff",
+            "until": 60.0,
+            "reason": "Worker handshake failed",
+        }
+        dead = coordinator._actors["dead-1"]
+        assert dead.backoff_until > time.monotonic() and dead.backoff_reason == "Worker handshake failed"
+        closing = time.monotonic()
+    assert time.monotonic() - closing < 5  # close() does not wait for the backoff.
+
+
+def test_unreachable_remote_waits_with_exponential_backoff(tmp_path, monkeypatch):
+    spec = project(tmp_path)
+    path = write_experiment(spec.root, replications={"count": 1}, configurations={"grid": {"n": [3]}})
+    monkeypatch.setattr(m.SlotActor, "BACKOFF", (0.2, 0.3))
+    hellos = unreachable_remote(monkeypatch)
+    with m.Coordinator(spec, slots=SlotConfig(local=0, workers=(DEAD,))) as coordinator:
+        run_id = coordinator.start_experiment(load_experiment(path), workers=["dead"])
+        report = coordinator.wait_experiment(run_id, timeout=30)
+        # Without another slot the replication spends its D97 bound and the run fails, not hangs.
+        assert report["status"] == "failed" and report["counts"]["lost"] == 1
+        (replication,) = coordinator.store.replications(run_id)
+        assert replication["dispatches"] == 3 and len(hellos) == 3
+        assert hellos[1] - hellos[0] >= 0.2 and hellos[2] - hellos[1] >= 0.3  # 0.2 s, then doubled to the cap.
+        delays = [event["body"]["until"] for event in coordinator.events() if event["type"] == "slot_state"]
+        assert delays == [0.2, 0.3, 0.3]
+
+
+def test_unbinding_applies_to_lost_replications_returning_to_pending(tmp_path):
+    spec = project(tmp_path)
+    with m.Coordinator(spec, slots=SlotConfig(local=0)) as coordinator:
+        with pytest.raises(ValueError, match="unbound"):
+            coordinator.store.set_replication_status("0" * 64, 0, 0, "cancelled", unbind=True)
+
+
 def test_model_failure_is_terminal_and_not_redispatched(tmp_path):
     from simulatte.experiments import run
 
@@ -399,7 +505,7 @@ def test_failed_status_update_closes_admission(tmp_path, monkeypatch):
         coordinator.inputs.bind(coordinator.prepare(timeout=10))
         monkeypatch.setattr(m.LocalTransport, "start", lambda *args, **kwargs: Peer())
 
-        def broken(key, status):
+        def broken(key, status, **kwargs):
             raise ValueError("status update failed")
 
         monkeypatch.setattr(coordinator._scheduler, "on_terminal", broken)

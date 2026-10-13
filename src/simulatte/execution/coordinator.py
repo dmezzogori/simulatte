@@ -80,6 +80,10 @@ class WorkerLost(RuntimeError):
     pass
 
 
+class WorkerUnreachable(WorkerLost):
+    """The probe or handshake failed: no request reached the worker, and the slot backs off."""
+
+
 def _exit_status(transport) -> int | None:
     """The transport process's exit status once it ended (within 1 s), else ``None``."""
     process = getattr(transport, "process", None)
@@ -607,10 +611,12 @@ class Coordinator:
     def replay(self, identity: str, *, worker: str | None = None, timeout=None) -> ReplayResult:
         """Re-execute a committed request at ``full`` level, linked ``replay-of``, and verify it (D100).
 
-        The replay prefers the original attempt's worker (``worker`` overrides it; ``"local"``
-        is the local pool; a remote worker's slots are started from ``workers.toml`` as
-        ``start_experiment`` does), then any slot of the same kind, and fails with
-        ``no_compatible_worker`` before scheduling when there is none. It runs on an idle
+        Without ``worker`` the replay runs only on the original attempt's worker (local
+        originals on local slots; a remote worker's slots are started from ``workers.toml``
+        as ``start_experiment`` does) and never moves to another host. An explicit
+        ``worker`` (``"local"`` is the local pool) is preferred, then any slot of the same
+        kind. It fails with ``no_compatible_worker`` before scheduling when no slot
+        qualifies, and raises ``RuntimeError`` when every qualifying slot is busy. It runs on an idle
         experiment slot at the original attempt's pinned revision, or on the interactive
         slot when no experiment slot is configured. Unverified replays stay published.
         """
@@ -646,8 +652,13 @@ class Coordinator:
             self._add_workers([spec])
         with self._condition:
             actors = list(self._actors.items())
+        # Without an explicit worker, only the original host qualifies (D100): never silently elsewhere.
         slots = sorted(
-            (name for name, actor in actors if name != INTERACTIVE and actor.kind == kind),
+            (
+                name
+                for name, actor in actors
+                if name != INTERACTIVE and actor.kind == kind and (worker is not None or actor.host == host)
+            ),
             key=lambda name: self._actors[name].host != host,
         )
         if not slots and kind == "local" and not self.slots.local:
@@ -921,7 +932,13 @@ class SlotActor:
     interactive slot runs queued jobs; an experiment slot also asks the scheduler for
     the next replication whenever it is idle. A ``uv`` (remote) slot first stages the
     request's archives and documents and provisions its environment on the worker.
+
+    A slot whose worker is unreachable (probe or handshake failure) waits before asking
+    the scheduler again: ``BACKOFF`` seconds first, doubling up to the cap, reset by the
+    next successful hello. Explicitly scheduled jobs and ``close()`` are not delayed.
     """
+
+    BACKOFF = (15.0, 300.0)  # First delay and cap, in seconds.
 
     def __init__(
         self,
@@ -943,6 +960,11 @@ class SlotActor:
         self.current: _Job | None = None
         self.worker: Any = None
         self.python: str | None = None  # The Python a remote supervisor was started on.
+        self.backoff = 0.0  # The last backoff delay; 0 once a hello succeeds.
+        self.backoff_until = 0.0  # The time.monotonic() before which the slot takes no replication.
+        self.backoff_reason: str | None = None
+        self._unreachable: str | None = None  # Set when the last job ended in WorkerUnreachable.
+        self._reached = False  # Whether the last job's request was sent to the worker.
         self.thread = threading.Thread(target=self._loop, name=f"simulatte-slot-{slot}", daemon=True)
 
     def _start_worker(self, python: str | None = None):
@@ -954,7 +976,7 @@ class SlotActor:
                 self.worker = self.transport_factory() if python is None else self.transport_factory(python=python)
             except BootstrapError as error:
                 if error.code == "probe_failed":  # ssh exit 255 or a probe timeout: the host is unreachable.
-                    raise WorkerLost(str(error)) from error
+                    raise WorkerUnreachable(str(error)) from error
                 raise
             self.python = python
             try:
@@ -969,7 +991,7 @@ class SlotActor:
                         code, "bootstrap_failed"
                     )
                     raise BootstrapError(reason, f"Remote bootstrap exited with status {code}: {error}") from error
-                raise WorkerLost("Worker handshake failed") from error
+                raise WorkerUnreachable("Worker handshake failed") from error
             # Protocol 1.0 supervisors predate remote staging; they serve local slots only.
             accepted = ((1, 0), (1, 1)) if self.kind == "local" else ((1, 1),)
             if (
@@ -985,6 +1007,7 @@ class SlotActor:
                     raise RemoteStepError("worker_capabilities", {"message": message})
                 if hello.body.get("trusted_runtime_hash") != self.coordinator.runtime.content_hash:
                     raise RemoteStepError("runtime_mismatch", {"message": "Worker runs another trusted runtime"})
+            self.backoff = self.backoff_until = 0.0  # The worker answered: no more backoff.
         return self.worker
 
     def _remote(self, job):
@@ -1048,6 +1071,7 @@ class SlotActor:
         key = job.key
         receiver = None
         snapshot_path = c.store.root / "staging" / key.attempt_id / "snapshot"
+        self._reached = False
         try:
             c.store.require_active(key)
             c.store.transition(key, "preparing")
@@ -1076,6 +1100,7 @@ class SlotActor:
                     "inspection_ref" if inspect else "request_ref": c._document("request", job.request.to_dict()),
                 }
             c.store.require_active(key)
+            self._reached = True  # From here a result may exist: a re-dispatch keeps this request.
             c._send(worker, "inspect" if inspect else "run", body, key=key)
             ready = None
             last_cursor = None
@@ -1226,6 +1251,8 @@ class SlotActor:
                 self.worker.close()
                 self.worker = None
         except Exception as error:
+            if isinstance(error, WorkerUnreachable):
+                self._unreachable = str(error)[:4096]
             if c._active(key):
                 status = "disk_full" if _disk_full(error) else "lost" if isinstance(error, WorkerLost) else "failed"
                 details = {"message": str(error)[:4096]}
@@ -1264,9 +1291,26 @@ class SlotActor:
 
     def _finish(self, job):
         try:
-            self.coordinator._scheduler.on_terminal(job.key, self.coordinator.store.attempt(job.key)["status"])
+            self.coordinator._scheduler.on_terminal(
+                job.key, self.coordinator.store.attempt(job.key)["status"], reached=self._reached
+            )
         except Exception as error:
             self.coordinator._fail_admission(error)
+
+    def _back_off(self):
+        """Delay the next ``_next()`` after an unreachable worker and announce it (``slot_state``)."""
+        c = self.coordinator
+        first, cap = self.BACKOFF
+        reason, self._unreachable = self._unreachable, None
+        with c._condition:
+            self.backoff = first if not self.backoff else min(2 * self.backoff, cap)
+            self.backoff_until = time.monotonic() + self.backoff
+            self.backoff_reason = reason
+        if self.slot != INTERACTIVE:
+            # ``until`` is the seconds remaining: monotonic deadlines mean nothing to other processes.
+            c._emit(
+                "slot_state", None, {"slot": self.slot, "status": "backoff", "until": self.backoff, "reason": reason}
+            )
 
     def _loop(self):
         c = self.coordinator
@@ -1276,7 +1320,13 @@ class SlotActor:
                     if c._closed and self.pending is None:
                         return
                     job, self.pending = self.pending, None
-                    if job is None and self.slot != INTERACTIVE and not c._closed and c._fatal is None:
+                    if (
+                        job is None
+                        and self.slot != INTERACTIVE
+                        and not c._closed
+                        and c._fatal is None
+                        and time.monotonic() >= self.backoff_until
+                    ):
                         job = self._next()
                     self.current = job
                 if job is not None:
@@ -1285,6 +1335,8 @@ class SlotActor:
                         self.current = None
                     if job.experiment is not None:
                         self._finish(job)
+                    if self._unreachable is not None:
+                        self._back_off()
                 elif self.worker is not None:
                     try:
                         self.worker.receive(0.1)  # Drain idle heartbeats; never grow a retained idle queue.

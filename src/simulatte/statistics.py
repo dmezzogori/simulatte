@@ -105,8 +105,8 @@ def t_quantile(p: float, df: int) -> float:
 class Estimate:
     """Mean and t interval of replication-level values.
 
-    ``state`` is ``ok`` (n >= 2, sd > 0), ``degenerate`` (n >= 2, sd = 0: a zero-width
-    interval) or ``insufficient`` (n < 2: the single value or nothing, no interval).
+    ``state`` is ``ok`` (n >= 2, sd > 0), ``degenerate`` (n >= 2, all values equal: a
+    zero-width interval) or ``insufficient`` (n < 2: the single value or nothing, no interval).
     """
 
     n: int
@@ -138,10 +138,11 @@ def summarize(values: Iterable[float], *, level: float = 0.95) -> Estimate:
     n = len(data)
     if n < 2:
         return Estimate(n, data[0] if data else None, None, None, None, None, "insufficient", level)
+    if min(data) == max(data):
+        # Identical values: rounding in the mean would otherwise leave a ~1e-16 sd and an ``ok`` interval.
+        return Estimate(n, data[0], 0.0, 0.0, data[0], data[0], "degenerate", level)
     mean = math.fsum(data) / n
     sd = math.sqrt(math.fsum((value - mean) ** 2 for value in data) / (n - 1))
-    if sd == 0.0:
-        return Estimate(n, mean, 0.0, 0.0, mean, mean, "degenerate", level)
     half_width = t_quantile(1.0 - (1.0 - level) / 2.0, n - 1) * sd / math.sqrt(n)
     return Estimate(n, mean, sd, half_width, mean - half_width, mean + half_width, "ok", level)
 

@@ -58,6 +58,11 @@ def test_summarize_states():
     assert (degenerate.state, degenerate.n, degenerate.mean, degenerate.sd) == ("degenerate", 2, 3.0, 0.0)
     assert (degenerate.half_width, degenerate.lower, degenerate.upper) == (0.0, 3.0, 3.0)
 
+    # Equal values whose mean rounds away from them are still degenerate, not a ~1e-16 interval.
+    repeated = summarize([0.1] * 3)
+    assert (repeated.state, repeated.mean, repeated.sd, repeated.half_width) == ("degenerate", 0.1, 0.0, 0.0)
+    assert summarize([0.1, 0.1, 0.1000001]).state == "ok"
+
     single = summarize([3.0])
     assert (single.state, single.n, single.mean) == ("insufficient", 1, 3.0)
     assert (single.sd, single.half_width, single.lower, single.upper) == (None, None, None, None)

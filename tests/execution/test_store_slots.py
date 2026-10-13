@@ -578,6 +578,28 @@ def test_replay_links_round_trip(tmp_path):
             store.set_replay(replayed, pending.attempt_id, "succeeded", verified=True)
 
 
+def test_recovery_marks_running_replays_of_lost_attempts_lost(tmp_path):
+    m = api()
+    root = fixture_copy(tmp_path)
+    with m.RunStore.open(root) as store:
+        original = store.result(FIXTURE_ATTEMPT).key.request_id
+        revision = store.create_revision({})
+        running = store.assign(request(schema, seed=11), revision, slot="local-1")
+        advance(store, running)
+        store.put_replay(running.request_id, original, attempt=running.attempt_id)  # in flight at the crash
+        done = store.assign(request(schema, seed=12), revision, slot="local-2")
+        advance(store, done, "finalizing")
+        commit(store, done, 1.0)
+        store.put_replay(done.request_id, original, attempt=done.attempt_id)
+        store.set_replay(done.request_id, done.attempt_id, "succeeded", verified=True)
+    with m.RunStore.open(root) as store:
+        lost = store.replay(running.request_id)
+        assert lost["status"] == "lost" and lost["attempt"] == running.attempt_id
+        assert lost["details"]["message"].startswith("The coordinator stopped")
+        kept = store.replay(done.request_id)
+        assert (kept["status"], kept["verified"], kept["details"]) == ("succeeded", True, {})
+
+
 def test_prune_keeps_referenced_results_and_survives_interruption(tmp_path, monkeypatch):
     m = api()
     root = fixture_copy(tmp_path)

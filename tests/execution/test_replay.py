@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -205,6 +206,39 @@ def test_no_compatible_worker_and_uncommitted_requests_fail_before_scheduling(tm
             db.execute("DELETE FROM snapshots WHERE id=? AND kind='preparation'", (identity,))
         with pytest.raises(ValueError, match="preparation is unavailable"):
             coordinator.replay(identity)
+
+
+def test_replay_stays_on_the_original_host_when_its_slots_are_busy(tmp_path, monkeypatch):
+    spec = project(tmp_path)
+    with m.Coordinator(spec, slots=SlotConfig(local=1)) as coordinator:
+        original = kpi_original(coordinator, n=3)
+        with coordinator.store._transaction() as db:
+            db.execute("UPDATE attempts SET worker='alpha' WHERE id=?", (original.key.attempt_id,))
+        tried = []
+
+        def busy(*args, slot, **kwargs):
+            tried.append(slot)
+            raise RuntimeError(f"Slot {slot} is busy")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(coordinator, "_worker_specs", lambda names: {name: object() for name in names})
+            patch.setattr(coordinator, "_add_workers", lambda specs: None)
+            for name, host in (("alpha-1", "alpha"), ("beta-1", "beta")):
+                patch.setitem(coordinator._actors, name, SimpleNamespace(kind="uv", host=host))
+            patch.setattr(coordinator, "_schedule", busy)
+            # Host beta is idle, but the replay of an alpha original never moves there (D100).
+            with pytest.raises(RuntimeError, match="Every compatible slot is busy"):
+                coordinator.replay(original.key.request_id)
+            assert tried == ["alpha-1"]
+            # Only beta configured: no compatible worker, naming the original host.
+            patch.delitem(coordinator._actors, "alpha-1")
+            with pytest.raises(m.ExecutionFailure, match="alpha") as failure:
+                coordinator.replay(original.key.request_id)
+            assert failure.value.status == "no_compatible_worker" and tried == ["alpha-1"]
+            # An explicit worker keeps the fallback to any slot of its kind.
+            with pytest.raises(RuntimeError, match="busy"):
+                coordinator.replay(original.key.request_id, worker="alpha")
+            assert tried == ["alpha-1", "beta-1"]
 
 
 def test_replay_without_experiment_slots_uses_the_interactive_slot_and_cancels_on_interrupt(tmp_path, monkeypatch):

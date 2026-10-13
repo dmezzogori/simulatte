@@ -417,6 +417,17 @@ def test_unknown_worker_replay_series_and_interactive_filtering(tmp_path, monkey
                 )
                 assert failed["body"]["request_id"] == replay["request_id"] and failed["body"]["verified"] is None
                 assert socket.until(lambda message: message["type"] == "workers_state")["body"]["slots"]
+                # A slot backing off from an unreachable worker refreshes workers_state with its reason.
+                local = coordinator._actors["local-1"]
+                local.backoff_until, local.backoff_reason = time.monotonic() + 60, "Worker handshake failed"
+                coordinator._emit("slot_state", None, {"slot": "local-1", "status": "backoff", "until": 60.0})
+                backoff = socket.until(
+                    lambda message: (
+                        message["type"] == "workers_state" and message["body"]["slots"][0]["state"] == "backoff"
+                    )
+                )["body"]["slots"][0]["backoff"]
+                assert 0 < backoff["until"] <= 60 and backoff["reason"] == "Worker handshake failed"
+                local.backoff_until = 0.0
                 replays = wait_state(client, headers, lambda value: bool(value["replays"]))["replays"]
                 assert replays[0]["request_id"] == replay["request_id"] and replays[0]["verified"] is True
                 assert replays[0]["trace"]["url"].startswith("/api/prefix/")

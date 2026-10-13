@@ -270,8 +270,13 @@ class Scheduler:
                         heapq.heappush(run.queue, item)
             return None
 
-    def on_terminal(self, key: AttemptKey, status: str) -> None:
-        """Apply an attempt's terminal status to the replication it is still bound to."""
+    def on_terminal(self, key: AttemptKey, status: str, *, reached: bool = True) -> None:
+        """Apply an attempt's terminal status to the replication it is still bound to.
+
+        ``reached`` is false when the attempt was lost before its request was sent: the
+        re-queued replication is then unbound from that request and its worker kind, so
+        a slot of another kind may take it (the dispatch still counts).
+        """
         coordinator = self.coordinator
         with coordinator._condition:
             with self.store._transaction() as db:
@@ -295,7 +300,7 @@ class Scheduler:
             self.store.set_replication_status(run_id, configuration, index, target, attempt=key.attempt_id)
             # D97: a lost attempt is dispatched again, with the same request, at most twice.
             if target == "lost" and row["dispatches"] < MAX_DISPATCHES and run_id in self._runs:
-                self.store.set_replication_status(run_id, configuration, index, "pending")
+                self.store.set_replication_status(run_id, configuration, index, "pending", unbind=not reached)
                 heapq.heappush(self._runs[run_id].queue, (index, configuration))
                 coordinator._condition.notify_all()
             self._settle(run_id)
