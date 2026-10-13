@@ -428,7 +428,7 @@ def test_ssh_factory_uses_the_coordinator_runtime_and_python(coordinator, monkey
     spec = worker("w")
     assert functools.partial(coordinator._transports["uv"], spec)() == "t"
     assert seen["spec"] is spec and seen["runtime"] is coordinator.runtime
-    assert seen["python"] == coordinator.python
+    assert seen["python"] == ".".join(coordinator.python.split(".")[:2])  # A portable X.Y request (D105).
     assert coordinator._transports["uv"](spec, python="3.12.4") == "t" and seen["python"] == "3.12.4"
 
 
@@ -490,3 +490,46 @@ def test_workers_are_added_once_and_never_to_a_closed_coordinator(coordinator, t
     coordinator.close()
     with pytest.raises(RuntimeError, match="closed"):
         coordinator._add_workers([spec])
+
+
+UV_SPEC = {
+    "kind": "uv",
+    "python": "3.14",
+    "lock_hash": "1" * 64,
+    "pyproject_hash": "2" * 64,
+    "extras": [],
+    "groups": [],
+    "local_packages": [],
+}
+
+
+@pytest.mark.parametrize(
+    "host,status,code,words",
+    [
+        ("uv-missing", "failed", "uv_missing", "uv is missing"),
+        ("runtime-missing", "failed", "runtime_missing", "not staged"),
+        ("bootstrap-fail", "failed", "bootstrap_failed", "No interpreter found"),
+        ("banner-hang", "lost", None, None),  # Banner on stdout, then silence: transport loss.
+    ],
+)
+def test_bootstrap_failures_on_uv_slots_are_classified_with_the_remote_stderr(
+    fake_ssh,  # noqa: F811
+    home,
+    coordinator,
+    host,
+    status,
+    code,
+    words,
+):
+    coordinator._add_workers([worker(host)])
+    uv = request(schema, runtime={**UV_SPEC, "trusted_runtime_hash": coordinator.runtime.content_hash})
+    revision = coordinator.store.create_revision({})
+    key = coordinator._schedule(uv, revision, None, {}, None, slot=f"{host}-1")
+    with pytest.raises(m.ExecutionFailure) as caught:
+        coordinator.wait(key, timeout=30)
+    failure = caught.value
+    assert failure.status == status and failure.details.get("code") == code
+    (event,) = [event for event in coordinator.events() if event["type"] == status]
+    assert event["body"] == failure.details  # The attempt details and the failure event carry the same tail.
+    if words is not None:
+        assert words in failure.details["stderr"] and len(failure.details["stderr"]) <= 4096

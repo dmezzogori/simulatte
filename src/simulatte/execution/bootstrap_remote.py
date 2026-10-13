@@ -94,6 +94,8 @@ def stage_script(cache: str, sha256: str, length: int) -> str:
 def bootstrap_script(cache: str, sha256: str, python: str, uv: str | None, worker: str, runtime_hash: str) -> str:
     """Locate uv, require the staged runtime and ``exec`` the supervisor under ``uv run --python``.
 
+    ``python`` is the provisioning spec's request (``X.Y`` or ``X.Y.Z``), the same string
+    ``uv sync --python`` gets, so supervisor and environment share one interpreter on the host.
     The supervisor receives the runtime hash, the cache root (staging, environments) and uv's path.
     """
     if type(python) is not str or not _PYTHON.fullmatch(python):

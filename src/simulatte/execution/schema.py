@@ -38,7 +38,7 @@ def _texts(value: Any) -> bool:
 
 
 def _runtime(value: Any) -> FrozenMap:
-    """``kind: "uv"`` is a remote provisioning spec (design section 9) and must be exact.
+    """``kind: "uv"`` is a remote provisioning spec (design section 9); its fields are strict.
 
     Every other mapping is the 0.16 runtime, kept as is so stored request ids do not
     move; 0.16 traces (the conformance fixtures) carry their own ``kind`` values.

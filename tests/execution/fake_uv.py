@@ -1,7 +1,7 @@
 """Stand-in for ``uv`` in tests; copied to ``<bin>/uv`` (a PATH entry) by the ``fake_uv`` helpers.
 
 ``uv run ... -- python ARGS`` execs the current interpreter with ARGS (the remote supervisor).
-``uv sync ...`` appends its argv, cwd, the files in cwd and ``UV_PROJECT_ENVIRONMENT`` to
+``uv sync ...`` appends its argv, cwd, the files below cwd and ``UV_PROJECT_ENVIRONMENT`` to
 ``uv.jsonl`` next to this script and builds a fake environment there. ``fake-uv.json`` next to the
 script selects the behaviour of ``sync``:
 
@@ -35,7 +35,7 @@ with (here / "uv.jsonl").open("a", encoding="utf-8") as log:
     record = {
         "argv": args,
         "cwd": os.getcwd(),
-        "files": sorted(os.listdir(".")),
+        "files": sorted(path.as_posix() for path in Path(".").rglob("*") if path.is_file()),
         "environment": str(target),
         "env": {name: value for name, value in os.environ.items() if name.startswith("UV")},
     }

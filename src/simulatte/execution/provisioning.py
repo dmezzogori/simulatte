@@ -11,8 +11,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import contextlib
+import fnmatch
 import hashlib
 import os
+import posixpath
 from pathlib import Path
 import secrets
 import shutil
@@ -22,6 +24,7 @@ import subprocess
 import tarfile
 import threading
 import time
+import tomllib
 from typing import Any
 
 from simulatte._wire import canonical_pack, freeze
@@ -78,8 +81,24 @@ def _read_only(path: Path, *, include_root: bool = True) -> None:
 def extract_archive(archive: Path, destination: Path, *, only: frozenset[str] | None = None) -> set[str]:
     """Extract a hash-verified snapshot archive: portable regular-file members, each once.
 
-    ``only`` restricts extraction to these member names. Returns the extracted names.
+    ``only`` restricts extraction to these member names. Returns the extracted names. A
+    malformed archive is a ``ValueError``, never an unhandled ``tarfile`` error.
     """
+    try:
+        return _extract(archive, destination, only)
+    except tarfile.TarError as error:
+        raise ValueError(f"Invalid staged archive: {error}") from error
+
+
+def archive_names(archive: Path) -> set[str]:
+    try:
+        with tarfile.open(archive, "r:") as members:
+            return set(members.getnames())
+    except tarfile.TarError as error:
+        raise ValueError(f"Invalid staged archive: {error}") from error
+
+
+def _extract(archive: Path, destination: Path, only: frozenset[str] | None) -> set[str]:
     seen: set[str] = set()
     folded: set[str] = set()
     with tarfile.open(archive, "r:") as members:
@@ -176,6 +195,53 @@ def _site_packages(environment: Path) -> Path:
     if len(found) != 1:
         raise RemoteError("provisioning_failed", "Provisioned environment has no single site-packages", reason="layout")
     return found[0]
+
+
+def _local_packages(spec, lock: Path, members: set[str]) -> tuple[set[str], set[str]]:
+    """Archive names of each local package's ``pyproject.toml`` (or ``path`` archive file)."""
+    from simulatte.execution.preflight import LOCAL_SOURCES, normalize
+
+    try:
+        data = tomllib.loads(lock.read_text(encoding="utf-8"))
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
+        raise RemoteError("provisioning_failed", f"Staged uv.lock is malformed: {error}", reason="project") from None
+    local = set(spec["local_packages"])
+    projects, files = set(), set()
+    for package in data.get("package", []):
+        source = package.get("source", {})
+        if normalize(str(package.get("name", ""))) not in local or not isinstance(source, Mapping):
+            continue
+        for kind in LOCAL_SOURCES:
+            if kind not in source:
+                continue
+            root = posixpath.normpath(str(source[kind]))
+            name = "pyproject.toml" if root == "." else f"{root}/pyproject.toml"
+            if name in members:
+                projects.add(name)
+            elif kind == "path" and root in members:
+                files.add(root)
+    return projects, files
+
+
+def _referenced(build: Path, name: str, members: set[str]) -> set[str]:
+    """Readme and license files the local ``pyproject.toml`` ``name`` refers to, when in the snapshot."""
+    try:
+        project = tomllib.loads((build / name).read_text(encoding="utf-8")).get("project", {})
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
+        raise RemoteError("provisioning_failed", f"Malformed {name}: {error}", reason="project") from None
+    base = posixpath.dirname(name)
+    files = []
+    for field in ("readme", "license"):
+        value = project.get(field)
+        if isinstance(value, str) and field == "readme":
+            files.append(value)
+        elif isinstance(value, Mapping) and isinstance(value.get("file"), str):
+            files.append(value["file"])
+    found = {posixpath.normpath(posixpath.join(base, item)) for item in files} & members
+    for pattern in project.get("license-files", []):
+        if isinstance(pattern, str):
+            found |= {item for item in members if fnmatch.fnmatchcase(item, posixpath.join(base, pattern))}
+    return found
 
 
 class Provisioner:
@@ -275,13 +341,25 @@ class Provisioner:
 
     @staticmethod
     def _project(spec, source_blob: Path, build: Path) -> None:
-        names = extract_archive(source_blob, build, only=frozenset(("pyproject.toml", "uv.lock")))
-        if names != {"pyproject.toml", "uv.lock"}:
+        """Materialize what ``uv sync --locked`` reads: the project files and local package metadata.
+
+        The root ``pyproject.toml``, ``uv.lock`` and ``.python-version``, then each local package's
+        ``pyproject.toml`` (uv validates the lock against it) and the readme and license files it
+        references. Local package sources are never materialized here: they are not installed.
+        """
+        names = extract_archive(source_blob, build, only=frozenset(("pyproject.toml", "uv.lock", ".python-version")))
+        if not {"pyproject.toml", "uv.lock"} <= names:
             raise RemoteError("provisioning_failed", "Staged source lacks pyproject.toml or uv.lock", reason="project")
         for name, field in (("pyproject.toml", "pyproject_hash"), ("uv.lock", "lock_hash")):
             with (build / name).open("rb") as stream:
                 if hashlib.file_digest(stream, "sha256").hexdigest() != spec[field]:
                     raise RemoteError("provisioning_failed", f"Staged {name} differs from the spec", reason="project")
+        members = archive_names(source_blob)
+        projects, files = _local_packages(spec, build / "uv.lock", members)
+        extract_archive(source_blob, build, only=frozenset(projects - names))
+        for project in projects:
+            files |= _referenced(build, project, members)
+        extract_archive(source_blob, build, only=frozenset(files - names - projects))
 
     @staticmethod
     def argv(uv: str, spec: Mapping[str, Any]) -> list[str]:
@@ -330,7 +408,8 @@ class Provisioner:
             while process.poll() is None:
                 if time.monotonic() >= deadline or self._aborted.is_set():
                     timed_out = not self._aborted.is_set()
-                    os.killpg(process.pid, signal.SIGKILL)
+                    with contextlib.suppress(OSError):  # ``abort`` may have killed the group already.
+                        os.killpg(process.pid, signal.SIGKILL)
                     process.wait()
                 time.sleep(0.05)
         finally:

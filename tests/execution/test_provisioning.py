@@ -20,7 +20,14 @@ import time
 import pytest
 
 from simulatte.execution import coordinator as m, staging
-from simulatte.execution.provisioning import Provisioner, RemoteCache, RemoteError, extract_archive, remove_tree
+from simulatte.execution.provisioning import (
+    Provisioner,
+    RemoteCache,
+    RemoteError,
+    archive_names,
+    extract_archive,
+    remove_tree,
+)
 from simulatte.execution.references import write_document
 from simulatte.execution.runtime import RuntimeChanged, provisioning_spec_hash, verify_runtime
 from simulatte.execution.slots import SlotConfig
@@ -40,6 +47,11 @@ PYTHON = "3.14.1"
 HASH = "c" * 64
 PYPROJECT = b'[project]\nname = "plant"\nversion = "0.1.0"\nrequires-python = ">=3.11"\n'
 LOCK = lock_text(("simulatte", _simulatte_version(), PYPI), ("plant", "0.1.0", '{ virtual = "." }')).encode()
+SHOP_LOCK = lock_text(
+    ("simulatte", _simulatte_version(), PYPI),
+    ("plant", "0.1.0", '{ virtual = "." }'),
+    ("shopkit", "0.1.0", '{ directory = "packages/shopkit" }'),
+).encode()
 
 
 def install_uv(directory: Path, **mode) -> Path:
@@ -339,10 +351,17 @@ def remote(fake_ssh, tmp_path, monkeypatch):  # noqa: F811
     configure()
     monkeypatch.setenv("SIMULATTE_WORKERS", str(workers))
     root = tmp_path / "project"
-    root.mkdir()
-    (root / "pyproject.toml").write_bytes(PYPROJECT + b'[tool.simulatte.bundle]\ninclude = ["plant.py", "uv.lock"]\n')
-    (root / "uv.lock").write_bytes(LOCK)
-    (root / "plant.py").write_text(MODEL)
+    (root / "packages" / "shopkit" / "src" / "shopkit").mkdir(parents=True)
+    (root / "packages" / "shopkit" / "pyproject.toml").write_text('[project]\nname = "shopkit"\nversion = "0.1.0"\n')
+    (root / "packages" / "shopkit" / "src" / "shopkit" / "__init__.py").write_text("OFFSET = 0\n")
+    (root / "pyproject.toml").write_bytes(
+        PYPROJECT + b'[tool.uv.sources]\nshopkit = { path = "packages/shopkit" }\n'
+        b'[tool.simulatte.bundle]\ninclude = ["plant.py", "uv.lock", "packages/**"]\n'
+    )
+    (root / "uv.lock").write_bytes(SHOP_LOCK)
+    (root / "plant.py").write_text(
+        "import shopkit  # A local path dependency, loaded from the snapshot (D47).\n" + MODEL
+    )
     (root / "input.txt").write_text("5")
     return discover_project(root / "plant.py", root), home / "cache", fake_ssh, configure
 
@@ -363,7 +382,9 @@ def test_remote_kind_replications_publish_through_the_unchanged_path(remote, mon
         report = coordinator.wait_experiment(run_id, timeout=50)
         assert report["status"] == "completed" and report["counts"]["succeeded"] == 2
         runtime = coordinator.store.experiment_run(run_id)["preparation"]["runtimes"]
-        assert set(runtime) == {"uv"} and runtime["uv"]["python"] == coordinator.python
+        # No .python-version: the coordinator's X.Y, so each host's uv picks an available patch (D105).
+        assert set(runtime) == {"uv"} and runtime["uv"]["python"] == ".".join(coordinator.python.split(".")[:2])
+        assert runtime["uv"]["local_packages"] == ["plant", "shopkit"]
         identity = provisioning_spec_hash(runtime["uv"])
         replications = coordinator.store.replications(run_id)
         for item in replications:
@@ -376,6 +397,8 @@ def test_remote_kind_replications_publish_through_the_unchanged_path(remote, mon
             assert attempt["slot"] == "fake-1" and attempt["worker"] == "fake"
         assert coordinator.store.slots()["fake-1"] == {**coordinator.store.slots()["fake-1"], "kind": "remote"}
     (call,) = uv_calls(tools)  # The second replication reuses the published environment.
+    assert call["files"] == ["packages/shopkit/pyproject.toml", "pyproject.toml", "uv.lock"]
+    assert call["argv"][6:10] == ["--no-install-package", "plant", "--no-install-package", "shopkit"]
     assert call["argv"][:7] == ["sync", "--locked", "--no-install-project", "--no-install-workspace"] + [
         "--no-install-package",
         "simulatte",
@@ -396,6 +419,14 @@ def test_remote_kind_replications_publish_through_the_unchanged_path(remote, mon
     ]
     # The second replication ships only its own request document.
     assert [cached for attempt, _, cached in staged if attempt == second] == [True, True, True, True, False]
+    # A fresh coordinator (no remote slots yet) replays a uv result on its original worker (D100).
+    with m.Coordinator(project, slots=SlotConfig(local=0)) as coordinator:
+        replayed = coordinator.replay(replications[0]["request_id"], timeout=40)
+        assert replayed.verification.verified is True, replayed.verification.reason
+        assert coordinator.store.attempt(replayed.key)["slot"] == "fake-1"
+        with pytest.raises(m.ExecutionFailure) as caught:
+            coordinator.replay(replications[0]["request_id"], worker="ghost")
+        assert caught.value.status == "no_compatible_worker" and "ghost" in str(caught.value)
 
 
 def test_provisioning_timeout_fails_the_replication_without_redispatch(remote):
@@ -479,6 +510,14 @@ def test_supervisor_provisions_off_the_command_loop_and_materializes_staged_runs
         answer = dict(message.body)
         harness.send("provision", {"spec": wanted, "source_sha256": "9" * 64, "timeout": 30}, key=key)
         assert reply(harness).body["code"] == "staging_failed"
+        garbage = tmp_path / "garbage.tar"
+        garbage.write_bytes(b"\x00not a tar" * 10)
+        garbage_sha = hashlib.sha256(garbage.read_bytes()).hexdigest()
+        staging.stage_blob(harness, "source", garbage, garbage_sha, key)
+        other = {**wanted, "extras": ["fresh"]}  # An unpublished spec: the build reads the bad blob.
+        harness.send("provision", {"spec": other, "source_sha256": garbage_sha, "timeout": 30}, key=key)
+        message = reply(harness)
+        assert message.body["code"] == "provisioning_failed" and "Invalid staged archive" in message.body["message"]
         harness.send("provision", {"spec": {"kind": "uv"}, "source_sha256": source_sha, "timeout": 30}, key=key)
         assert reply(harness).body["code"] == "provisioning_failed"
         config = {
@@ -584,3 +623,104 @@ def test_slot_config_accepts_distinct_worker_specs():
     for workers in (("w",), (worker, worker)):
         with pytest.raises(ValueError, match="distinct WorkerSpec"):
             SlotConfig(local=0, workers=workers)  # ty: ignore[invalid-argument-type]
+
+
+def test_local_package_metadata_is_materialized_but_never_their_sources(tmp_path, tools):
+    lock = lock_text(
+        ("simulatte", _simulatte_version(), PYPI),
+        ("plant", "0.1.0", '{ editable = "." }'),
+        ("shopkit", "0.1.0", '{ directory = "packages/shopkit" }'),
+        ("tool", "0.2.0", '{ editable = "./packages/tool/" }'),
+        ("wheel", "1.0", '{ path = "dist/wheel-1.0-py3-none-any.whl" }'),
+        ("unused", "1.0", '{ directory = "packages/unused" }'),
+        ("outside", "1.0", '{ directory = "../outside" }'),
+    ).encode()
+    root = PYPROJECT + b'readme = "README.md"\n'
+    files = {
+        "pyproject.toml": root,
+        "uv.lock": lock,
+        ".python-version": b"3.14\n",
+        "README.md": b"root",
+        "plant.py": b"x = 1\n",
+        "packages/shopkit/pyproject.toml": (
+            b'[project]\nname = "shopkit"\nreadme = { file = "docs/README.rst" }\nlicense-files = ["LICEN[CS]E*", 7]\n'
+        ),
+        "packages/shopkit/docs/README.rst": b"r",
+        "packages/shopkit/LICENSE.txt": b"l",
+        "packages/shopkit/NOTICE": b"n",
+        "packages/shopkit/src/shopkit/__init__.py": b"",
+        "packages/tool/pyproject.toml": (
+            b'[project]\nname = "tool"\nlicense = { file = "COPYING" }\nreadme = "MISSING.md"\n'
+        ),
+        "packages/tool/COPYING": b"c",
+        "packages/tool/tool.py": b"",
+        "packages/unused/pyproject.toml": b'[project]\nname = "unused"\n',
+        "dist/wheel-1.0-py3-none-any.whl": b"wheel",
+    }
+    blob = archive(tmp_path / "source.tar", files)
+    uv = install_uv(tools, site="dir")
+    wanted = spec(
+        lock_hash=hashlib.sha256(lock).hexdigest(),
+        pyproject_hash=hashlib.sha256(root).hexdigest(),
+        local_packages=["outside", "plant", "shopkit", "tool", "wheel"],
+    )
+    Provisioner(tmp_path / "cache", uv=str(uv)).provision(wanted, blob, timeout=30)
+    (call,) = uv_calls(tools)
+    assert call["files"] == [
+        ".python-version",
+        "README.md",
+        "dist/wheel-1.0-py3-none-any.whl",
+        "packages/shopkit/LICENSE.txt",
+        "packages/shopkit/docs/README.rst",
+        "packages/shopkit/pyproject.toml",
+        "packages/tool/COPYING",
+        "packages/tool/pyproject.toml",
+        "pyproject.toml",
+        "uv.lock",
+    ]
+    assert call["argv"].count("--no-install-package") == 6  # simulatte and every local package stay uninstalled
+
+
+@pytest.mark.parametrize("member", ["uv.lock", "packages/shopkit/pyproject.toml"])
+def test_malformed_lock_or_local_pyproject_is_provisioning_failed(tmp_path, tools, member):
+    lock = lock_text(
+        ("simulatte", _simulatte_version(), PYPI), ("shopkit", "0.1.0", '{ directory = "packages/shopkit" }')
+    )
+    files = {"pyproject.toml": PYPROJECT, "uv.lock": lock.encode(), "packages/shopkit/pyproject.toml": b"[project]\n"}
+    files[member] = b"this is = = not toml"
+    wanted = spec(lock_hash=hashlib.sha256(files["uv.lock"]).hexdigest(), local_packages=["shopkit"])
+    with pytest.raises(RemoteError) as caught:
+        Provisioner(tmp_path / "cache", uv=str(install_uv(tools))).provision(
+            wanted, archive(tmp_path / "source.tar", files), timeout=30
+        )
+    assert caught.value.code == "provisioning_failed" and caught.value.details["reason"] == "project"
+    assert uv_calls(tools) == []
+
+
+def test_a_bad_staged_tar_is_an_error_not_a_wedge(tmp_path, tools):
+    garbage = tmp_path / "garbage.tar"
+    garbage.write_bytes(b"\x00not a tar" * 100)
+    with pytest.raises(ValueError, match="Invalid staged archive"):
+        Provisioner(tmp_path / "cache", uv=str(install_uv(tools))).provision(spec(), garbage, timeout=30)
+    with pytest.raises(ValueError, match="Invalid staged archive"):
+        extract_archive(garbage, tmp_path / "out")
+    with pytest.raises(ValueError, match="Invalid staged archive"):
+        archive_names(garbage)
+
+
+def test_attempt_cleanup_failure_never_raises(tmp_path, monkeypatch):
+    from simulatte.execution import provisioning, supervisor
+
+    child = supervisor.ChildProcess.__new__(supervisor.ChildProcess)
+    for name in ("process", "connection", "channel", "stream", "attempt_dir"):
+        setattr(child, name, None)
+    child.pumps, child.diagnostics, child.cleanup_failed = [], supervisor.Diagnostics(), False
+    child.remote_dir = tmp_path
+
+    def refuse(path):
+        raise PermissionError("read-only cache")
+
+    monkeypatch.setattr(provisioning, "remove_tree", refuse)
+    child.close()
+    assert child.cleanup_failed and child.remote_dir is None
+    assert b"attempt cleanup failed: read-only cache" in child.diagnostics.tail("stderr")

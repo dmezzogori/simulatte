@@ -64,12 +64,12 @@ def test_spec_pins_the_lock_python_and_local_packages(tmp_path):
     assert result.warnings == []
     assert result.spec == {
         "kind": "uv",
-        "python": "3.14.1",
+        "python": "3.14",  # The coordinator's X.Y: each host's uv picks an available patch.
         "lock_hash": hashlib.sha256((spec.root / "uv.lock").read_bytes()).hexdigest(),
         "pyproject_hash": hashlib.sha256((spec.root / "pyproject.toml").read_bytes()).hexdigest(),
         "extras": [],
         "groups": [],
-        "local_packages": ["plant-project", "tools-pkg"],
+        "local_packages": ["plant-project", "tools-pkg", "wheel"],
         "trusted_runtime_hash": HASH,
     }
     _runtime(result.spec)  # An exact ExecutionRequest uv runtime.
@@ -112,7 +112,7 @@ def test_locked_simulatte_must_match_the_coordinator_major_minor(tmp_path):
 def test_python_version_pin_against_requires_python(tmp_path):
     spec = project(tmp_path, requires=">=3.12,<4")
     pin = spec.root / ".python-version"
-    for text, expected in (("3.12.4\n", "3.12.4"), ("# pinned\n3.14\n", "3.14.1"), ("3.13", "3.13")):
+    for text, expected in (("3.12.4\n", "3.12.4"), ("# pinned\n3.14\n", "3.14"), ("3.13", "3.13")):
         pin.write_text(text)
         assert check(spec).spec["python"] == expected
     pin.write_text("3.11.9\n")
@@ -125,17 +125,17 @@ def test_python_version_pin_against_requires_python(tmp_path):
         unparsed = project(tmp_path / f"unparsed{len(requires)}", requires=requires)
         assert check(unparsed).warnings == ["requires_python_unparsed"]
     unpinned = project(tmp_path / "unpinned", requires=None)
-    assert check(unpinned).warnings == [] and check(unpinned, coordinator_python="2.7.18").spec["python"] == "2.7.18"
+    assert check(unpinned).warnings == [] and check(unpinned, coordinator_python="2.7.18").spec["python"] == "2.7"
 
 
 @pytest.mark.parametrize(
     "requires,accepted",
-    [(">=3.14", True), ("<3.14", False), ("<=3.14", False), ("==3.14.1", True), ("!=3.14.1", False), (">3.13", True)],
+    [(">=3.14", True), ("<3.14", False), ("<=3.13", False), ("==3.14", True), ("!=3.14", False), (">3.13", True)],
 )
 def test_requires_python_simple_forms(tmp_path, requires, accepted):
     spec = project(tmp_path, requires=requires)
     if accepted:
-        assert check(spec).spec["python"] == "3.14.1"
+        assert check(spec).spec["python"] == "3.14"
     else:
         assert code(spec) == "python_pin_outside_requires"
 

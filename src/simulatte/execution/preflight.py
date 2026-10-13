@@ -18,7 +18,8 @@ from simulatte.execution.snapshot import ProjectSpec, _members, non_source_membe
 
 DEFAULT_CAP = 64 << 20
 _PYPI = "https://pypi.org/simple"
-_LOCAL_SOURCES = ("editable", "directory", "virtual")
+# Lock sources resolved inside the project root: local packages, never installed remotely (D47).
+LOCAL_SOURCES = ("editable", "directory", "virtual", "path")
 _VERSION = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")
 _CLAUSE = re.compile(r"(>=|<=|==|!=|>|<)\s*(\d+(?:\.\d+){0,2})")
 
@@ -39,7 +40,7 @@ class Preflight:
     warnings: list[str] = field(default_factory=list)
 
 
-def _normalize(name: str) -> str:
+def normalize(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
@@ -78,18 +79,17 @@ def _satisfies(version: str, requires: str) -> bool | None:
 
 
 def _python(root: Path, coordinator_python: str) -> str:
-    """The exact pin: ``.python-version`` (``X.Y`` completed only when it is the coordinator's)."""
+    """The Python request: ``.python-version`` as given (``X.Y`` or ``X.Y.Z``), else the coordinator's
+    ``X.Y``. A bare ``X.Y`` lets each host's uv pick an available patch (a coordinator's exact patch
+    is often not in a host's uv inventory); the resolved version is recorded as evidence."""
     path = root / ".python-version"
     if not path.is_file():
-        return coordinator_python
+        return ".".join(coordinator_python.split(".")[:2])
     lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()]
     pins = [line for line in lines if line and not line.startswith("#")]
     if not pins or _VERSION.fullmatch(pins[0]) is None:
         raise PreflightError("invalid_python_pin", ".python-version must pin a version such as 3.12 or 3.12.4")
-    pin = pins[0]
-    if pin.count(".") == 1 and coordinator_python.split(".")[:2] == pin.split("."):
-        return coordinator_python
-    return pin  # A bare X.Y other than the coordinator's: uv resolves its latest patch on the host.
+    return pins[0]
 
 
 def _bundle_bytes(project: ProjectSpec) -> int:
@@ -128,7 +128,7 @@ def preflight(
     local_packages = []
     base = lock_path.resolve().parent
     for package in lock.get("package", []):
-        name = _normalize(str(package.get("name", "")))
+        name = normalize(str(package.get("name", "")))
         source = package.get("source", {})
         if name == "simulatte":
             locked = str(package.get("version", ""))
@@ -136,7 +136,7 @@ def preflight(
             registry = str(source["registry"])
             if registry.rstrip("/") != _PYPI:
                 warnings.append(f"private_index:{registry}")
-        for kind in (*_LOCAL_SOURCES, "path"):
+        for kind in LOCAL_SOURCES:
             if kind not in source:
                 continue
             target = (base / os.fsdecode(source[kind])).resolve()
@@ -144,8 +144,7 @@ def preflight(
                 raise PreflightError(
                     "path_dependency_outside_root", f"Locked package {name} resolves outside the project root: {target}"
                 )
-            if kind in _LOCAL_SOURCES:
-                local_packages.append(name)
+            local_packages.append(name)
     if locked is None:
         raise PreflightError("missing_simulatte_dependency", "uv.lock does not contain simulatte")
     if simulatte_version is None:

@@ -19,6 +19,7 @@ import hashlib
 import errno
 import platform
 import sqlite3
+import subprocess
 from pathlib import Path
 import sysconfig
 import tempfile
@@ -53,6 +54,7 @@ from simulatte.execution.snapshot import (
     load_source,
     freeze_runtime,
 )
+from simulatte.execution.bootstrap_remote import RUNTIME_MISSING, UV_MISSING
 from simulatte.execution.ssh import BootstrapError, SshTransport
 from simulatte.execution.scheduler import Scheduler, report as _report, run_status as _run_status
 from simulatte.execution.slots import SlotConfig, remote_slots
@@ -76,6 +78,17 @@ class ReproductionMismatch(ExecutionFailure):
 
 class WorkerLost(RuntimeError):
     pass
+
+
+def _exit_status(transport) -> int | None:
+    """The transport process's exit status once it ended (within 1 s), else ``None``."""
+    process = getattr(transport, "process", None)
+    if process is None:
+        return None
+    try:
+        return process.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,7 +187,7 @@ class Coordinator:
             self._events: deque[dict] = deque()
             self._event_bytes = 0
             self._scheduler = Scheduler(self)
-            # The exact interpreter a remote supervisor runs on (D105); remote slots pass it to uv.
+            # This interpreter's version; preflight derives a remote Python request from it (D105).
             self.python = platform.python_version()
             # One transport factory per slot kind. ``uv`` (remote) factories take the WorkerSpec.
             self._transports: dict[str, Any] = {"local": self._local_transport, "uv": self._ssh_transport}
@@ -228,8 +241,19 @@ class Coordinator:
         return LocalTransport.start(self.runtime.root, external_roots=self.distribution_roots)
 
     def _ssh_transport(self, spec, *, python=None):
-        # D105: the supervisor runs on the provisioning spec's exact Python.
-        return SshTransport.start(spec, runtime=self.runtime, python=self.python if python is None else python)
+        # D105: the supervisor runs on the provisioning spec's Python request, as uv sync does.
+        requested = ".".join(self.python.split(".")[:2]) if python is None else python
+        return SshTransport.start(spec, runtime=self.runtime, python=requested)
+
+    def _worker_specs(self, names):
+        """WorkerSpecs by name: this coordinator's first, then ``workers.toml`` (unknown: ``ValueError``)."""
+        configured = {spec.name: spec for spec in self.slots.workers}
+        missing = [name for name in names if name not in configured]
+        if missing:
+            from simulatte.execution.workers import load_workers, resolve_workers
+
+            configured.update((spec.name, spec) for spec in resolve_workers(missing, load_workers()))
+        return configured
 
     def _add_workers(self, specs):
         """Start ``<worker>-1`` .. ``<worker>-<slots>`` actors of kind ``uv`` for workers not present yet."""
@@ -584,7 +608,8 @@ class Coordinator:
         """Re-execute a committed request at ``full`` level, linked ``replay-of``, and verify it (D100).
 
         The replay prefers the original attempt's worker (``worker`` overrides it; ``"local"``
-        is the local pool), then any slot of the same kind, and fails with
+        is the local pool; a remote worker's slots are started from ``workers.toml`` as
+        ``start_experiment`` does), then any slot of the same kind, and fails with
         ``no_compatible_worker`` before scheduling when there is none. It runs on an idle
         experiment slot at the original attempt's pinned revision, or on the interactive
         slot when no experiment slot is configured. Unverified replays stay published.
@@ -610,6 +635,15 @@ class Coordinator:
         host = row["worker"] if worker is None else None if worker == "local" else worker
         # A slot's kind follows its worker: ``local`` without one, else ``uv`` (remote).
         kind = "local" if host is None else "uv"
+        if host is not None:
+            # The original (or requested) worker's slots, from workers.toml as start_experiment does.
+            try:
+                spec = self._worker_specs([host])[host]
+            except ValueError as error:
+                raise ExecutionFailure(
+                    None, "no_compatible_worker", {"message": f"Worker {host} is not configured: {error}"}
+                ) from None
+            self._add_workers([spec])
         with self._condition:
             actors = list(self._actors.items())
         slots = sorted(
@@ -751,13 +785,8 @@ class Coordinator:
         names = tuple(experiment.workers if workers is None else workers) or ("local",)
         if any(type(name) is not str for name in names):
             raise ValueError("workers must be a list of worker names")
-        configured = {spec.name: spec for spec in self.slots.workers}
         remote = [name for name in dict.fromkeys(names) if name != "local"]
-        missing = [name for name in remote if name not in configured]
-        if missing:
-            from simulatte.execution.workers import load_workers, resolve_workers
-
-            configured.update((spec.name, spec) for spec in resolve_workers(missing, load_workers()))
+        configured = self._worker_specs(remote)
         if "local" in names and not self.slots.local:
             raise ValueError("No local experiment slots are configured")
         self._deadline(timeout)
@@ -918,7 +947,7 @@ class SlotActor:
 
     def _start_worker(self, python: str | None = None):
         if self.worker is not None and python is not None and python != self.python:
-            self.worker.close()  # D105: one exact Python per supervisor and environment.
+            self.worker.close()  # D105: one Python request per supervisor and environment.
             self.worker = None
         if self.worker is None:
             try:
@@ -933,6 +962,13 @@ class SlotActor:
             except BootstrapError:
                 raise
             except OSError as error:  # Includes the 10 s pre-handshake budget (TimeoutError).
+                code = _exit_status(self.worker) if self.kind == "uv" else None
+                if code is not None and code != 255:
+                    # The remote command ended before hello: a permanent bootstrap failure, not loss.
+                    reason = {UV_MISSING: "uv_missing", RUNTIME_MISSING: "runtime_missing"}.get(
+                        code, "bootstrap_failed"
+                    )
+                    raise BootstrapError(reason, f"Remote bootstrap exited with status {code}: {error}") from error
                 raise WorkerLost("Worker handshake failed") from error
             # Protocol 1.0 supervisors predate remote staging; they serve local slots only.
             accepted = ((1, 0), (1, 1)) if self.kind == "local" else ((1, 1),)
@@ -1198,7 +1234,12 @@ class SlotActor:
                     details = {**error.details, "message": str(error)[:4096]}
                     status = "disk_full" if error.code == "disk_full" else "failed"
                 elif isinstance(error, BootstrapError):
-                    details["code"] = error.code  # uv_missing, runtime_missing, runtime_hash_mismatch...
+                    details["code"] = error.code  # uv_missing, runtime_missing, bootstrap_failed...
+                diagnostics = getattr(self.worker, "diagnostics", None)
+                if self.kind == "uv" and diagnostics is not None:
+                    tail = diagnostics.tail("stderr")[-4096:].decode("utf-8", errors="replace").strip()
+                    if tail:
+                        details["stderr"] = tail  # The remote host's own words, bounded.
                 c._record_failure(key, status, details)
             # A receiver/preflight/protocol failure must contain the child before
             # accepting another assignment. No automatic retry of this request.

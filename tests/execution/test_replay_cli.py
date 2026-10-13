@@ -12,7 +12,8 @@ from tests.execution.test_replay import tamper
 from tests.execution.test_scheduler import Peer, write_experiment
 
 
-def test_replay_prints_verification_and_exits_by_outcome(tmp_path, capsys):
+def test_replay_prints_verification_and_exits_by_outcome(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("SIMULATTE_WORKERS", str(tmp_path / "workers.toml"))  # No configured workers.
     spec = project(tmp_path)
     path = write_experiment(spec.root, replications={"count": 1}, configurations={"grid": {"n": [3]}})
     root = str(spec.root)
@@ -55,7 +56,7 @@ def test_replay_prints_verification_and_exits_by_outcome(tmp_path, capsys):
         assert main(["replay", identity, "--project", root, "--worker", "strangelove", "--json"]) == 1
         assert envelope(capsys)["status"] == "no_compatible_worker"
         assert main(["replay", identity, "--project", root, "--worker", "strangelove"]) == 1
-        assert capsys.readouterr().err == "No slot can replay on worker strangelove\n"
+        assert capsys.readouterr().err.startswith("Worker strangelove is not configured: Unknown worker")
         # A failed replay names its attempt; an interrupt cancels; other failures exit 1.
         with patch.object(m.LocalTransport, "start", lambda *args, **kwargs: Peer()):
             assert main(["replay", identity, "--project", root, "--json"]) == 1

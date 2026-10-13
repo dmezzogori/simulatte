@@ -70,7 +70,8 @@ def verify_runtime(config, requested):
     RECORD hashes identify distribution manifests; they are not a claim to have
     snapshotted or rehashed every external dependency file. For a ``uv`` request the
     evidence is the provisioned environment's own, and the frozen runtime hash and the
-    exact Python pin are checked too; the resolved runtime then carries the spec hash
+    requested Python (``X.Y`` matches any patch, ``X.Y.Z`` only itself) are checked too; the
+    environment evidence itself records the resolved version. The resolved runtime carries the spec hash
     with the actual facts, so replay verification and ``mixed_runtime`` compare them.
     """
     expected = read_document(config["runtime_ref"], "runtime")

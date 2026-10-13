@@ -87,6 +87,7 @@ class ChildProcess:
         self.pumps = []
         self.attempt_dir = None
         self.remote_dir = None  # ``<cache>/attempts/<attempt>`` of a staged run, removed on close.
+        self.cleanup_failed = False
         timeout = command.body.get("timeout")
         if timeout is not None and (type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0):
             raise ValueError("Attempt timeout must be positive and finite")
@@ -201,7 +202,12 @@ class ChildProcess:
         if self.remote_dir is not None:
             from simulatte.execution.provisioning import remove_tree
 
-            remove_tree(self.remote_dir)
+            try:
+                remove_tree(self.remote_dir)
+            except OSError as error:
+                # Cleanup never replaces the attempt's terminal message; ``workers prune`` can retry.
+                self.diagnostics.append("stderr", f"simulatte: attempt cleanup failed: {error}\n".encode())
+                self.cleanup_failed = True
             self.remote_dir = None
 
 
@@ -405,6 +411,8 @@ class Supervisor:
         if child.exit_code is not None and channel_lost and child.pending is None:
             child.close()
             self.child = None
+            if getattr(child, "cleanup_failed", False):  # Test doubles of a child carry no flag.
+                self.channel.send("diagnostics", child.diagnostics.take(), key=child.key)
             if child.cancel_at is not None:
                 kind = "error" if child.timeout or child.failure else "cancelled"
                 body = {

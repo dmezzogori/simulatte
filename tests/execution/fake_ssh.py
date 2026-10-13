@@ -7,8 +7,8 @@ next to this script. No network is touched.
 Transport scenarios are selected by these destinations: ``local-sh`` runs the remote
 command with the local ``/bin/sh`` (probe, stage and bootstrap scripts for real);
 ``banner-hello``, ``banner-hang``, ``eof-mid-fragment``, ``stderr-flood``, ``noise-overflow``,
-``uv-missing`` and ``runtime-missing`` simulate a supervisor session and report the runtime as
-already staged.
+``uv-missing``, ``runtime-missing`` and ``bootstrap-fail`` (exit 1 after an error on stderr)
+simulate a supervisor session and report the runtime as already staged.
 """
 
 import json
@@ -31,9 +31,12 @@ with (here / "calls.jsonl").open("a", encoding="utf-8") as log:
 SESSIONS = ("banner-hello", "banner-hang", "eof-mid-fragment", "stderr-flood", "noise-overflow")
 if host == "local-sh":
     os.execv("/bin/sh", ["sh", "-c", remote[-1]])
-if host in (*SESSIONS, "uv-missing", "runtime-missing"):
+if host in (*SESSIONS, "uv-missing", "runtime-missing", "bootstrap-fail"):
     if remote[-1].startswith("test -f"):
         sys.exit(0)  # the trusted runtime is reported as staged
+    if host == "bootstrap-fail":
+        sys.stderr.write("error: No interpreter found for Python 3.14.1 in managed installations\n")
+        sys.exit(1)
     if host == "uv-missing":
         sys.stderr.write("simulatte: uv is missing; run: simulatte workers setup uv-missing --install-uv\n")
         sys.exit(3)
