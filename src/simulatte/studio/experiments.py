@@ -21,7 +21,7 @@ from simulatte.execution.coordinator import ExecutionFailure
 from simulatte.execution.durability import replace_durable, sync_directory
 from simulatte.execution.layout_files import _path, read_layout_file
 from simulatte.execution.schema import _plain, request_id
-from simulatte.execution.store import INTERACTIVE, _read
+from simulatte.execution.store import _ACTIVE, INTERACTIVE, _read
 from simulatte.layout.identity import layout_hash
 
 # 8 recordings x 4 keys x 100 000 points (about 30 bytes each) stay below the 128 MiB HTTP reference cap.
@@ -145,6 +145,9 @@ class ExperimentCommands:
         self.coordinator = coordinator
         self.timeout = timeout
         self.workers_error = workers_error
+        # Replay requests whose thread has not finished; a repeated start returns the running replay.
+        self._replaying: set[str] = set()
+        self._replaying_lock = threading.Lock()
 
     def __call__(self, kind: str, body: dict) -> dict:
         return getattr(self, "_" + kind.replace(".", "_"))(body)
@@ -323,10 +326,30 @@ class ExperimentCommands:
         replay = request_id(replace(store.request(original), level="full"))
         if committed is None:
             raise ValueError("No committed result to replay")
-        threading.Thread(
-            target=self._replay, args=(original, replay, worker), name="simulatte-studio-replay", daemon=True
-        ).start()
-        return {"ok": True, "request_id": replay, "original": original}
+        outcome = {"ok": True, "request_id": replay, "original": original}
+        with self._replaying_lock:
+            if replay in self._replaying or self._running(replay):
+                return outcome
+            self._replaying.add(replay)
+        try:
+            threading.Thread(
+                target=self._replay, args=(original, replay, worker), name="simulatte-studio-replay", daemon=True
+            ).start()
+        except BaseException:
+            with self._replaying_lock:
+                self._replaying.discard(replay)
+            raise
+        return outcome
+
+    def _running(self, replay) -> bool:
+        """Whether the replay's row is ``running`` on a live attempt (possibly started by another owner)."""
+        with self.store._transaction() as db:
+            row = db.execute(
+                "SELECT 1 FROM replays p JOIN attempts a ON a.id=p.attempt WHERE p.request_id=? AND p.status='running' "
+                f"AND a.status IN ({','.join('?' * len(_ACTIVE))})",
+                (replay, *_ACTIVE),
+            ).fetchone()
+        return row is not None
 
     def _replay(self, original, replay, worker):
         co = self.coordinator
@@ -354,6 +377,9 @@ class ExperimentCommands:
                     co._emit("replay_state", None, {**body, "message": str(error)[:4096]})
             except Exception:
                 pass  # The coordinator closed meanwhile; there is nobody left to tell.
+        finally:
+            with self._replaying_lock:
+                self._replaying.discard(replay)
 
     def _workers_get(self, body):
         _keys(body, set())

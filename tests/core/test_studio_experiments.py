@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import threading
 import time
 
 import pytest
@@ -63,17 +64,17 @@ def definition(name="sweep", **changes):
     }
 
 
-def setup(tmp_path, monkeypatch, *, watch=False):
+def setup(tmp_path, monkeypatch, *, watch=False, local=1, model=KPI_MODEL):
     monkeypatch.setenv("SIMULATTE_WORKERS", str(tmp_path / "missing-workers.toml"))
     root = tmp_path / "project"
     root.mkdir()
     (root / "pyproject.toml").write_text(
         '[tool.simulatte.bundle]\ninclude = ["plant.py", "*.experiment.json"]\nlayouts = ["variant.json"]\n'
     )
-    (root / "plant.py").write_text(KPI_MODEL)
+    (root / "plant.py").write_text(model)
     (root / "input.txt").write_text("5")
     spec = discover_project(root / "plant.py", root)
-    coordinator = Coordinator(spec, slots=SlotConfig(local=1))
+    coordinator = Coordinator(spec, slots=SlotConfig(local=local))
     static = tmp_path / "static"
     static.mkdir()
     (static / "index.html").write_text("Studio shell")
@@ -445,6 +446,75 @@ def test_unknown_worker_replay_series_and_interactive_filtering(tmp_path, monkey
                     assert socket.send("series.get", body)["error"]["code"] == "validation_failed"
             finally:
                 socket.close()
+    finally:
+        coordinator.close()
+
+
+def test_duplicate_replay_start_returns_the_running_replay(tmp_path, monkeypatch):
+    # Two idle slots: without the guard a second start would schedule a second attempt. The
+    # one-second run keeps the replay's attempt live while the repeated starts arrive.
+    slow = KPI_MODEL.replace("delay: float = 0.0", "delay: float = 1.0")
+    coordinator, server = setup(tmp_path, monkeypatch, local=2, model=slow)
+    try:
+        with TestClient(server.app, base_url=server.origin) as client:
+            headers = auth(server, client)
+            original = wait_state(client, headers, lambda value: bool(value["results"]))["results"][0]["key"]
+            release = threading.Event()
+            wait = coordinator.wait
+
+            def held(key, **options):
+                release.wait(20)
+                return wait(key, **options)
+
+            monkeypatch.setattr(coordinator, "wait", held)
+            body = {"request_id": original["request_id"]}
+
+            def attempts():
+                with coordinator.store._transaction() as db:
+                    query = "SELECT COUNT(*) FROM attempts WHERE request_id=?"
+                    return db.execute(query, (original["request_id"],)).fetchone()[0]
+
+            # The interactive original is already full, so its replay shares its request id.
+            before = attempts()
+            first = server.experiments("replay.start", body)
+            replay = first["request_id"]
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline:
+                try:
+                    if coordinator.store.replay(replay)["status"] == "running":
+                        break
+                except KeyError:
+                    pass
+                time.sleep(0.02)
+            assert coordinator.store.replay(replay)["status"] == "running"
+            second = server.experiments("replay.start", body)
+            # Another command owner has no in-flight entry; the running replay row still guards it.
+            third = studio_experiments.ExperimentCommands(coordinator)("replay.start", {"request_id": replay})
+            assert first == second == third == {"ok": True, "request_id": replay, "original": original["request_id"]}
+            release.set()
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline and (
+                coordinator.store.replay(replay)["status"] == "running" or server.experiments._replaying
+            ):
+                time.sleep(0.02)
+            assert coordinator.store.replay(replay)["status"] == "succeeded"
+            assert not server.experiments._replaying
+            with coordinator.store._transaction() as db:
+                rows = db.execute("SELECT request_id FROM replays").fetchall()
+            assert [row[0] for row in rows] == [replay] and attempts() == before + 1
+
+            class Unstartable:
+                def __init__(self, **options):
+                    pass
+
+                def start(self):
+                    raise RuntimeError("can't start new thread")
+
+            # A replay that never started leaves no in-flight entry behind.
+            monkeypatch.setattr(studio_experiments.threading, "Thread", Unstartable)
+            with pytest.raises(RuntimeError, match="start new thread"):
+                server.experiments("replay.start", body)
+            assert not server.experiments._replaying
     finally:
         coordinator.close()
 
