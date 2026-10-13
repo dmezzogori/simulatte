@@ -312,7 +312,14 @@ def test_unreachable_remote_waits_with_exponential_backoff(tmp_path, monkeypatch
         (replication,) = coordinator.store.replications(run_id)
         assert replication["dispatches"] == 3 and len(hellos) == 3
         assert hellos[1] - hellos[0] >= 0.2 and hellos[2] - hellos[1] >= 0.3  # 0.2 s, then doubled to the cap.
-        delays = [event["body"]["until"] for event in coordinator.events() if event["type"] == "slot_state"]
+        # The actor backs off after it finishes the job, so the last announcement can follow the run's end.
+        delays = []
+
+        def announced():
+            delays.extend(event["body"]["until"] for event in coordinator.events() if event["type"] == "slot_state")
+            return len(delays) >= 3
+
+        until(announced, timeout=5)
         assert delays == [0.2, 0.3, 0.3]
 
 
