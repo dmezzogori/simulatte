@@ -440,6 +440,78 @@ def idle(coordinator, monkeypatch):
     return lambda actor: Scheduler.next(coordinator._scheduler, actor)
 
 
+def test_dispatch_respects_selected_remote_workers(tmp_path, monkeypatch):
+    spec = project(tmp_path)
+    path = write_experiment(spec.root)
+    unreachable_remote(monkeypatch)
+    other = WorkerSpec("other", "other.invalid", 1, (), None, "~/cache", 600.0)
+    with m.Coordinator(spec, slots=SlotConfig(local=0, workers=(DEAD, other))) as coordinator:
+        dispatch = idle(coordinator, monkeypatch)
+        run_id = coordinator.start_experiment(load_experiment(path), workers=["dead"])
+        assert dispatch(coordinator._actors["other-1"]) is None
+        assert not attempts(coordinator.store, prefix="other-")
+        job = dispatch(coordinator._actors["dead-1"])
+        assert job.experiment == run_id
+        assert coordinator.store.attempt(job.key)["worker"] == "dead"
+        coordinator.cancel_experiment(run_id)
+
+
+@pytest.mark.parametrize("activation", ["resume", "start"])
+def test_restart_restores_persisted_remote_workers(tmp_path, monkeypatch, activation):
+    spec = project(tmp_path)
+    definition = load_experiment(write_experiment(spec.root))
+    unreachable_remote(monkeypatch)
+    workers = tmp_path / "workers.toml"
+    workers.write_text('[workers.dead]\nhost = "dead.invalid"\n[workers.other]\nhost = "other.invalid"\n')
+    monkeypatch.setenv("SIMULATTE_WORKERS", str(workers))
+    with m.Coordinator(spec, slots=SlotConfig(local=0)) as coordinator:
+        idle(coordinator, monkeypatch)
+        run_id = coordinator.start_experiment(definition, workers=["dead"])
+    with m.Coordinator(spec, slots=SlotConfig(local=0)) as coordinator:
+        dispatch = idle(coordinator, monkeypatch)
+        if activation == "resume":
+            coordinator.resume_experiment(run_id)
+        else:
+            assert coordinator.start_experiment(definition, workers=["other"]) == run_id
+        assert set(coordinator._actors) == {"interactive", "dead-1"}
+        assert coordinator.store.experiment_run(run_id)["preparation"]["workers"] == ["dead"]
+        job = dispatch(coordinator._actors["dead-1"])
+        assert job.experiment == run_id
+        coordinator.cancel_experiment(run_id)
+
+
+@pytest.mark.parametrize("activation", ["resume", "start"])
+def test_restart_refuses_missing_persisted_remote_worker(tmp_path, monkeypatch, activation):
+    spec = project(tmp_path)
+    definition = load_experiment(write_experiment(spec.root))
+    unreachable_remote(monkeypatch)
+    workers = tmp_path / "workers.toml"
+    workers.write_text('[workers.other]\nhost = "other.invalid"\n')
+    monkeypatch.setenv("SIMULATTE_WORKERS", str(workers))
+    with m.Coordinator(spec, slots=SlotConfig(local=0, workers=(DEAD,))) as coordinator:
+        idle(coordinator, monkeypatch)
+        run_id = coordinator.start_experiment(definition, workers=["dead"])
+    with m.Coordinator(spec, slots=SlotConfig(local=0)) as coordinator:
+        with pytest.raises(ValueError, match="Unknown worker 'dead'"):
+            if activation == "resume":
+                coordinator.resume_experiment(run_id)
+            else:
+                coordinator.start_experiment(definition, workers=["other"])
+        assert coordinator.store.experiment_run(run_id)["status"] == "paused"
+        assert run_id not in coordinator._scheduler._runs
+
+
+def test_resume_refuses_missing_local_slots(tmp_path, monkeypatch):
+    spec = project(tmp_path)
+    with m.Coordinator(spec, slots=SlotConfig(local=1)) as coordinator:
+        idle(coordinator, monkeypatch)
+        run_id = coordinator.start_experiment(load_experiment(write_experiment(spec.root)))
+    with m.Coordinator(spec, slots=SlotConfig(local=0)) as coordinator:
+        with pytest.raises(ValueError, match="No local experiment slots"):
+            coordinator.resume_experiment(run_id)
+        assert coordinator.store.experiment_run(run_id)["status"] == "paused"
+
+
 def test_dispatch_skips_stale_mismatched_and_unprepared_replications(tmp_path, monkeypatch):
     spec = project(tmp_path)
     path = write_experiment(spec.root, replications={"count": 3}, configurations={"grid": {"n": [3]}})

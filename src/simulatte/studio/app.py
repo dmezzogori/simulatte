@@ -359,7 +359,7 @@ class StudioServer(SessionAuth):
                         changed = True
                         self.hub.notify("experiment_state", state, revision=revision)
                     if kind == "experiment_progress":
-                        self.hub.notify(kind, self._body(body), revision=revision)
+                        self.hub.notify(kind, self._body(body), revision=revision, run_id=body["run_id"])
                     continue
                 if kind == "slot_state":  # A slot backing off from an unreachable worker.
                     slots_changed = True

@@ -163,6 +163,8 @@ simulatte experiment delete RUN_ID
 
 `experiment run` and `experiment resume` accept `--local-slots N` and `--timeout S`; every `experiment` command accepts `--project DIR` and `--json`.
 
+Resuming restores the run's saved worker selection. Its remote worker names must still exist in `workers.toml`; a missing worker is reported before the run resumes. Configured workers outside that selection do not execute its replications.
+
 ### Local slots
 
 A coordinator runs experiments on several local slots, each owning one worker process and running one replication at a time. The default is `min(4, max(1, cpu_count - 1))`, and `--local-slots` overrides it. The default comes from a throughput measurement; the figures are single observations, not a promise.

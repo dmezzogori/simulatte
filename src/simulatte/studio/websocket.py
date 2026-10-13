@@ -268,7 +268,7 @@ class ConnectionHub:
         self.event_seq += 1
         return {"v": 1, "type": kind, "event_seq": self.event_seq, "body": body, **fields}
 
-    def notify(self, kind, body, *, revision=None, key=None):
+    def notify(self, kind, body, *, revision=None, key=None, run_id=None):
         message = self.envelope(
             kind,
             body,
@@ -279,7 +279,8 @@ class ConnectionHub:
         if kind in ("progress", "kpi", "trace_available"):
             coalesce = (kind, None if key is None else key["attempt_id"], body.get("key"))
         elif kind == "experiment_progress":
-            coalesce = (kind, body["run_id"])
+            # A large progress body is an HTTP reference; keep its run identity outside it.
+            coalesce = (kind, body["run_id"] if run_id is None else run_id)
         elif kind == "workers_state":
             coalesce = (kind,)
         for peer in tuple(self.connections):

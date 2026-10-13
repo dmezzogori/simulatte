@@ -55,27 +55,39 @@ def _numbers(text: str) -> tuple[int, ...]:
 
 
 def _satisfies(version: str, requires: str) -> bool | None:
-    """``None`` when ``requires`` uses a form other than comma-separated simple comparisons."""
+    """Whether the request admits a compatible patch; exact pins admit only themselves.
+
+    ``None`` when ``requires`` uses a form other than comma-separated simple comparisons.
+    """
     clauses = [clause.strip() for clause in requires.split(",") if clause.strip()]
     if not clauses:
         return None
-    actual = _numbers(version)
-    verdict = True
+    bounds = []
     for clause in clauses:
         match = _CLAUSE.fullmatch(clause)
         if match is None:
             return None
-        operator, bound = match.group(1), _numbers(match.group(2))
-        ok = {
-            ">=": actual >= bound,
-            ">": actual > bound,
-            "<=": actual <= bound,
-            "<": actual < bound,
-            "==": actual == bound,
-            "!=": actual != bound,
-        }[operator]
-        verdict = verdict and ok
-    return verdict
+        bounds.append((match.group(1), _numbers(match.group(2))))
+    candidates = {_numbers(version)}
+    if len(version.split(".")) == 2:
+        prefix = _numbers(version)[:2]
+        # Comparisons change only at a bound or immediately after it. Testing
+        # those patches plus zero covers every interval without enumerating it.
+        for _, bound in bounds:
+            if bound[:2] == prefix:
+                candidates.update((bound, (*prefix, bound[2] + 1)))
+    return any(all(_compare(actual, operator, bound) for operator, bound in bounds) for actual in candidates)
+
+
+def _compare(actual: tuple[int, ...], operator: str, bound: tuple[int, ...]) -> bool:
+    return {
+        ">=": actual >= bound,
+        ">": actual > bound,
+        "<=": actual <= bound,
+        "<": actual < bound,
+        "==": actual == bound,
+        "!=": actual != bound,
+    }[operator]
 
 
 def _python(root: Path, coordinator_python: str) -> str:

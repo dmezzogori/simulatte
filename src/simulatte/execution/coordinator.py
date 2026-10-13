@@ -797,7 +797,7 @@ class Coordinator:
         if any(type(name) is not str for name in names):
             raise ValueError("workers must be a list of worker names")
         remote = [name for name in dict.fromkeys(names) if name != "local"]
-        configured = self._worker_specs(remote)
+        self._worker_specs(remote)
         if "local" in names and not self.slots.local:
             raise ValueError("No local experiment slots are configured")
         self._deadline(timeout)
@@ -852,9 +852,25 @@ class Coordinator:
                 expanded.replications,
             )
             # An existing run keeps its stored preparation; a paused one resumes.
-            self._scheduler.activate(run_id, timeout=timeout)
-        self._add_workers([configured[name] for name in remote])
+            self._activate_experiment(run_id, timeout=timeout)
         return run_id
+
+    def _activate_experiment(self, run_id: str, *, timeout=None) -> None:
+        """Restore the run's stored worker selection before admitting its replications.
+
+        Called under the coordinator condition: missing workers leave a paused run
+        paused, and actor threads cannot dispatch until activation finishes.
+        """
+        record = self.store.experiment_run(run_id)
+        if record["status"] not in ("running", "paused"):
+            return
+        names = record["preparation"]["workers"]
+        if "local" in names and not self.slots.local:
+            raise ValueError("No local experiment slots are configured")
+        remote = [name for name in dict.fromkeys(names) if name != "local"]
+        configured = self._worker_specs(remote)
+        self._add_workers([configured[name] for name in remote])
+        self._scheduler.activate(run_id, timeout=timeout)
 
     def resume_experiment(self, run_id: str, *, timeout=None) -> None:
         """Dispatch a paused run's pending replications again (explicit only, D97)."""
@@ -865,7 +881,7 @@ class Coordinator:
             status = _run_status(self.store, run_id)
             if status != "paused":
                 raise ValueError(f"Only a paused experiment can resume; this one is {status}")
-            self._scheduler.activate(run_id, timeout=timeout)
+            self._activate_experiment(run_id, timeout=timeout)
 
     def cancel_experiment(self, run_id: str) -> None:
         """Cancel active attempts through attempt cancellation, then every pending replication."""

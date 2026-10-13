@@ -4,6 +4,7 @@ import asyncio
 import json
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -579,3 +580,60 @@ def test_experiment_notifications_coalesce_per_run_and_workers_state():
         ("experiment_state", {"run_id": "a", "status": "running"}),
         ("experiment_state", {"run_id": "a", "status": "completed"}),
     ]
+
+
+def test_large_experiment_progress_keeps_pump_alive_and_coalesces_per_run(monkeypatch):
+    from simulatte.execution.scheduler import REPLICATION_STATES
+    from simulatte.studio.http import References
+
+    async def run():
+        events = []
+        for run_id, done in (("a", 1), ("b", 1), ("a", 2)):
+            events.append(
+                {
+                    "type": "experiment_progress",
+                    "key": None,
+                    "body": {
+                        "run_id": run_id,
+                        "status": "running",
+                        "counts": {"succeeded": done},
+                        "configurations": [dict.fromkeys(REPLICATION_STATES, 0) for _ in range(2000)],
+                    },
+                }
+            )
+        batches = [events]
+        server = object.__new__(StudioServer)
+        server.references = References()
+        server.coordinator = SimpleNamespace(
+            events=lambda: batches.pop(0) if batches else [],
+            store=SimpleNamespace(current_revision=lambda: None),
+        )
+        monkeypatch.setattr(server, "experiments", SimpleNamespace(workers=lambda: {"slots": []}), raising=False)
+        monkeypatch.setattr(server, "_run_state", lambda body: None)  # Already-announced run status.
+        server.hub = ConnectionHub(None, None, None)
+        peer = Peer(None)
+        server.hub.connections.add(peer)
+        pumping = asyncio.create_task(server._pump())
+        try:
+            # Wait for the whole event batch so the outbox can coalesce repeated runs.
+            for _ in range(100):
+                if peer.outbox.count == 3 or pumping.done():
+                    break
+                await asyncio.sleep(0.01)
+            assert not pumping.done()
+            messages = [json.loads(await peer.outbox.get()) for _ in range(peer.outbox.count)]
+            assert [item["type"] for item in messages] == [
+                "experiment_progress",
+                "experiment_progress",
+                "workers_state",
+            ]
+            documents = [json.loads(server.references.get(item["body"]["ref"]["id"])) for item in messages[:2]]
+            assert [(item["run_id"], item["counts"]) for item in documents] == [
+                ("b", {"succeeded": 1}),
+                ("a", {"succeeded": 2}),
+            ]
+        finally:
+            pumping.cancel()
+            await asyncio.gather(pumping, return_exceptions=True)
+
+    asyncio.run(run())

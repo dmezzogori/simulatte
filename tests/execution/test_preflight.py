@@ -130,7 +130,7 @@ def test_python_version_pin_against_requires_python(tmp_path):
 
 @pytest.mark.parametrize(
     "requires,accepted",
-    [(">=3.14", True), ("<3.14", False), ("<=3.13", False), ("==3.14", True), ("!=3.14", False), (">3.13", True)],
+    [(">=3.14", True), ("<3.14", False), ("<=3.13", False), ("==3.14", True), ("!=3.14", True), (">3.13", True)],
 )
 def test_requires_python_simple_forms(tmp_path, requires, accepted):
     spec = project(tmp_path, requires=requires)
@@ -138,6 +138,39 @@ def test_requires_python_simple_forms(tmp_path, requires, accepted):
         assert check(spec).spec["python"] == "3.14"
     else:
         assert code(spec) == "python_pin_outside_requires"
+
+
+@pytest.mark.parametrize("pin", [None, "3.14", "3.14.1"])
+def test_python_patch_minimum_accepts_compatible_requests(tmp_path, pin):
+    spec = project(tmp_path, requires=">=3.14.1,<3.15")
+    if pin is not None:
+        (spec.root / ".python-version").write_text(pin)
+    assert check(spec).spec["python"] == (pin or "3.14")
+
+
+@pytest.mark.parametrize(
+    "requires,accepted",
+    [
+        (">=3.14.1,<3.14.3,!=3.14.1", True),
+        (">3.14.1,<=3.14.2", True),
+        ("==3.14.7", True),
+        (">=3.14.1,<3.14.2,!=3.14.1", False),
+        (">3.14.1,<3.14.2", False),
+        (">=3.15", False),
+    ],
+)
+def test_minor_python_request_requires_at_least_one_compatible_patch(tmp_path, requires, accepted):
+    spec = project(tmp_path, requires=requires)
+    if accepted:
+        assert check(spec).spec["python"] == "3.14"
+    else:
+        assert code(spec) == "python_pin_outside_requires"
+
+
+def test_exact_python_patch_is_not_widened(tmp_path):
+    spec = project(tmp_path, requires=">=3.14.1")
+    (spec.root / ".python-version").write_text("3.14.0")
+    assert code(spec) == "python_pin_outside_requires"
 
 
 def test_bundle_over_the_cap(tmp_path):

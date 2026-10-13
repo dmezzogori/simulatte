@@ -111,6 +111,8 @@ function CompareView({client, state, connected, headers, replays, onError, onClo
   const [includeUnverified, setIncludeUnverified] = useState(false);
   const [run, setRun] = useState('');
   const [report, setReport] = useState<ExperimentReport | null>(null);
+  const selectedRun = state?.experiments?.find(item => item.run_id === run);
+  const runProgress = JSON.stringify([selectedRun?.status, selectedRun?.counts]);
   const [levels, setLevels] = useState<Readonly<Record<string, string>>>({});
   const setSide = (index: Side, value: SideState) => setSides(current => index === 0 ? [value, current[1]] : [current[0], value]);
   const transport = () => {
@@ -160,7 +162,7 @@ function CompareView({client, state, connected, headers, replays, onError, onClo
       setReport(result.report as ExperimentReport);
     }).catch(error => {if (current) onError(String(error));});
     return () => {current = false;};
-  }, [client, run]);
+  }, [client, run, runProgress]);
   const clear = (index: Side) => {
     requests.current[index]++;
     compare.current?.close(index);

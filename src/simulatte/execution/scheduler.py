@@ -128,6 +128,7 @@ class _Run:
     runtimes: dict[str, Any]
     documents: dict[str, Any]
     project: dict[str, Any]
+    workers: tuple[str, ...]
     configurations: list[dict[str, Any]]
     timeout: float | None
     queue: list[tuple[int, int]]
@@ -142,6 +143,7 @@ class _Run:
             preparation["runtimes"],
             preparation["documents"],
             preparation["project"],
+            tuple(preparation["workers"]),
             record["configurations"],
             timeout,
             [],
@@ -229,6 +231,8 @@ class Scheduler:
         coordinator = self.coordinator
         with coordinator._condition:
             for run_id, run in list(self._runs.items()):
+                if (actor.host or "local") not in run.workers:
+                    continue
                 skipped = []
                 try:
                     while run.queue:

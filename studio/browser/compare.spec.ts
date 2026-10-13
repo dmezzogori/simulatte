@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { ExperimentReport, ExperimentRun } from "../apps/viewer/src/studio-client";
 
 // Studio mode against `vite preview`: a mocked control socket announces three committed results whose
 // prefixes serve the fixture recordings through the authenticated range protocol of HttpSource.
@@ -37,8 +38,11 @@ const state = {
   workers: { local: 1, workers: [], slots: [], error: null },
 };
 
-async function studio(page: Page): Promise<{ errors: string[]; sessions: (string | undefined)[] }> {
+async function studio(page: Page, experiment?: {run: ExperimentRun; report: ExperimentReport}) {
   const errors: string[] = [], sessions: (string | undefined)[] = [];
+  const currentState = {...state, experiments: experiment ? [experiment.run] : []};
+  let publish = () => {};
+  let comparisons = 0;
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -49,11 +53,15 @@ async function studio(page: Page): Promise<{ errors: string[]; sessions: (string
   }, secret);
   let sequence = 0;
   await page.routeWebSocket(/\/ws$/, (socket) => {
+    publish = () => socket.send(JSON.stringify({v: 1, type: "state", event_seq: ++sequence, body: currentState}));
     socket.onMessage((raw) => {
       const message = JSON.parse(String(raw));
       if (message.type === "auth") {
         expect(message.secret).toBe(secret);
-        socket.send(JSON.stringify({ v: 1, type: "state", event_seq: ++sequence, body: state }));
+        publish();
+      } else if (message.type === "comparison.get" && experiment) {
+        comparisons++;
+        socket.send(JSON.stringify({v: 1, type: "response", id: message.id, body: {ok: true, report: experiment.report}}));
       } else if (message.type === "replay.start") {
         expect(message.body).toEqual({ request_id: "c".repeat(64) });
         const notify = (type: string, body: unknown) => socket.send(JSON.stringify({ v: 1, type, event_seq: ++sequence, body }));
@@ -63,7 +71,7 @@ async function studio(page: Page): Promise<{ errors: string[]; sessions: (string
         notify("state", { ...state, replays: [{ ...replayed, status: "succeeded", verified: false, reason: "fingerprint digest", trace: prefix("e") }] });
         notify("replay_state", { request_id: replayed.request_id, original: replayed.original, status: "succeeded", verified: false });
       } else
-        socket.send(JSON.stringify({ v: 1, type: "response", id: message.id, body: message.type === "state.get" ? { ok: true, state } : { ok: true } }));
+        socket.send(JSON.stringify({ v: 1, type: "response", id: message.id, body: message.type === "state.get" ? { ok: true, state: currentState } : { ok: true } }));
     });
   });
   await page.route(/\/api\/prefix\//, async (route) => {
@@ -80,12 +88,41 @@ async function studio(page: Page): Promise<{ errors: string[]; sessions: (string
       body: data.subarray(start!, end! + 1),
     });
   });
-  return { errors, sessions };
+  return { errors, sessions, publish: () => publish(), comparisons: () => comparisons };
 }
 const times = (page: Page) =>
   page.evaluate(() =>
     ["A", "B"].map((side) => Number(document.querySelector<HTMLOutputElement>(`output[aria-label="Side ${side} time"]`)?.dataset["time"])),
   );
+
+test("compare refreshes committed replications when the selected experiment completes", async ({page}) => {
+  const run: ExperimentRun = {run_id: "f".repeat(64), experiment_id: "d".repeat(64), name: "Live sweep",
+    status: "running", created: 0, counts: {pending: 1}};
+  const report: ExperimentReport = {run_id: run.run_id, name: run.name, status: "running", level: 0.95,
+    effective_level: 0.95, pointwise: true, m: 0, rows: [], missing: [], missing_total: 1,
+    configurations: [{index: 0, label: "defaults/base", parameters: {}, counts: {pending: 1}, mixed_runtime: false}],
+    replications: [{configuration: 0, index: 0, status: "pending", attempt: null, trace: null}], replications_total: 1};
+  const {errors, publish, comparisons} = await studio(page, {run, report});
+  await page.goto("/");
+  await expect(page.locator(".studio-controls > div [role=status]")).toHaveText("connected");
+  await page.getByText("Compare", {exact: true}).click();
+  await page.getByLabel("Experiment run").selectOption(run.run_id);
+  await expect.poll(comparisons).toBe(1);
+  const replications = page.getByLabel("Side A recording").locator('optgroup[label="Experiment replications"] option');
+  await expect(replications).toHaveCount(0);
+
+  run.status = report.status = "completed";
+  run.counts = report.configurations[0]!.counts = {succeeded: 1};
+  report.missing_total = 0;
+  report.replications = [{configuration: 0, index: 0, status: "succeeded", attempt: attempt("e"),
+    request_id: "e".repeat(64), trace: prefix("e")}];
+  publish();
+  await expect(replications).toHaveCount(1);
+  await expect(replications).toHaveText("Live sweep · defaults/base · replication 0");
+  await page.getByLabel("Side A recording").selectOption(attempt("e"));
+  await expect(page.locator('.compare-scene[data-side="A"] canvas')).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
 
 test("two committed recordings play in lockstep and closing the compare view keeps the main viewer", async ({ page }) => {
   const { errors, sessions } = await studio(page);
