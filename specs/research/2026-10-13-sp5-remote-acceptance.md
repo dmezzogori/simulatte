@@ -131,3 +131,58 @@ Observations, not defects: the runtime is staged on a host before the missing-uv
 - Remote replay from the CLI after D4.
 - Experiment run with `full` level on a remote host and the Studio surfaces were out of scope for this task.
 - Not tested: password or agent prompts (BatchMode), Windows hosts (out of scope), teban (excluded by instruction).
+
+## Re-run after ff9072b
+
+Fix commit `ff9072b` (provisioning of local packages, portable Python pins, bootstrap failures surfaced, remote slots in `simulatte replay`). Same hosts and temporary worker file as above. The fixture `examples/uv_project/.python-version` was changed to `3.14` (bare minor, per the ruling); nothing else in the fixture changed, and its `uv.lock` was not regenerated. Raw data: `specs/research/sp5-data/remote/rerun/`. The fixture store was new (the earlier one had been moved away), so no replication was `reused`. Because `ff9072b` changed the frozen runtime, its hash changed (`55883482…`), so the runtime archive (4 485 120 bytes), the source blob and the environment were all staged and provisioned afresh on both hosts; bundle sizes are unchanged from the first run (source 40 960, inputs 10 240).
+
+### Step 2 again: committed fixture, `--workers local,strangelove,otacon --timeout 1800`
+
+Run `794614c6…`: `completed`, 8/8 succeeded (4 per configuration), no lost or failed, every replication `dispatches` 1, 6.0 s wall, `mixed_runtime: true` on both configurations (`run6.json`, `run6-store.json`). Placement and attempt durations:
+
+| Slot | Replications (configuration, index) | Attempt duration, s |
+| --- | --- | --- |
+| local-1..4 | (0,0) (0,2) (1,2) (0,3) (1,3) | 1.3 to 1.5, last 0.84 |
+| strangelove-2 | (1,0) | 2.36 |
+| strangelove-1 | (1,1) | 2.32 |
+| otacon-1 | (0,1) | 5.99 |
+
+The preflight spec for the remote requests is `python: "3.14"`, `local_packages: ["shopkit", "uv-project-example"]`. The `uv sync` argv (from `Provisioner.argv` on that stored spec; it is still not recorded in the store): `uv sync --locked --no-install-project --no-install-workspace --no-install-package simulatte --no-install-package shopkit --no-install-package uv-project-example --python 3.14`.
+
+Resolved Python in the provisioned environments (`env-evidence.txt`, `env-after.txt`): strangelove CPython 3.14.0 (uv 0.9.5 picked its managed 3.14.0 over the system 3.14.4), otacon CPython 3.14.1 (uv 0.12.16); eva runs 3.14.1. simpy 4.1.2, msgpack 1.2.3, tabulate 0.10.0, tqdm 4.70.1 on both hosts. The hosts therefore differ in patch version and architecture, which `mixed_runtime` reports.
+
+Staging and provisioning, first against later replications. A follow-up run `6ce06664…` (`run7-store.json`, strangelove and otacon only, new seeds, 12 replications, caches warm, 7.4 s) gives the steady figures:
+
+| Host | Cold first attempt (this run), s | Warm first attempt, s | Later attempts, s |
+| --- | --- | --- | --- |
+| strangelove (2 slots) | 2.36 / 2.32 | 1.67 / 1.67 | 0.70 to 0.84 |
+| otacon (1 slot) | 5.99 | 4.27 | 3.09 |
+
+Cold minus warm is the staging and provisioning cost of the first attempt: about 0.65 s on strangelove and 1.7 s on otacon (including re-staging the 4.5 MB runtime). The first attempt of a slot minus later attempts is the ssh and supervisor start (about 1.0 s on strangelove, 1.2 s on otacon). Throughput when warm: strangelove 10 replications in about 4.4 s (about 2.3 per second on 2 slots), otacon 2 replications in 7.4 s (about 0.33 per second per slot).
+
+### Step 3 again: replay through the CLI
+
+(`replay-*.json`)
+
+- `simulatte replay <strangelove request> --json`: exit 0, `verified: true`, 2.2 s (replay ran on strangelove, full level, trace verified, digest, KPIs, runtime facts, dependencies and layout match).
+- `simulatte replay <same> --worker otacon --json`: exit 1, `verified: false`, `reason: runtime_mismatch`, 5.0 s. This matches design section 6: an explicit worker overrides the preference and the replay is published as `unverified` with the first differing field (architecture and Python patch differ; the digest and KPI scalars matched).
+- `simulatte replay <otacon request> --json`: exit 0, verified.
+- `simulatte replay <strangelove request> --worker local --json` (extra probe): exit 1, `{"status":"failed","message":"Installed runtime changed after preparation"}`. The request is a `uv`-kind request and no local slot has an identical runtime; section 6 asks for `no_compatible_worker` or an explicit `unverified` outcome, not an opaque failure. See D5.
+
+### D3 exercised
+
+`experiment run` with `workers: ["bigboss"]`, one configuration, one replication (`bigboss-run.json`, `bigboss-store.json`; the existing temporary `[workers.bigboss]` entry was used): exit 1 in 2.1 s, replication `failed`, `dispatches` 1, no retry, attempt details `code: uv_missing` with `stderr: "simulatte: uv is missing; run: simulatte workers setup bigboss --install-uv"`. `which uv` on bigboss is still `none`.
+
+The same path with an unavailable interpreter (extra, `pin3141-*`): with `.python-version` temporarily `3.14.1` and `--workers strangelove`, the replication failed once (`dispatches` 1) with `code: bootstrap_failed`, `Remote bootstrap exited with status 2`, and the stderr tail `error: No interpreter found for Python 3.14.1 in virtual environments, managed installations, or search path`. The pin was restored to `3.14` afterwards.
+
+### Defect status
+
+| Defect | Status |
+| --- | --- |
+| D1 path dependency breaks provisioning | Fixed and verified: the committed fixture (with `shopkit`) provisions on strangelove and otacon |
+| D2 exact patch pin unavailable on a worker | Fixed and verified: the fixture pins `3.14`, which resolves to 3.14.0 on strangelove and 3.14.1 on otacon |
+| D3 bootstrap error hidden and retried | Fixed and verified for `uv_missing` (bigboss) and `bootstrap_failed` (unavailable Python): one dispatch, stderr tail in the attempt. `runtime_missing` was not exercised |
+| D4 remote replay from the CLI | Fixed and verified: strangelove `verified`, otacon forced `unverified (runtime_mismatch)` |
+| D5 (new, minor) `replay --worker local` of a remote request | Open: fails with `Installed runtime changed after preparation` instead of `no_compatible_worker` or `unverified`. Reproduction: with a completed run on strangelove, `simulatte replay <strangelove request id> --worker local --json` (exit 1) |
+
+Still true from the first run: the runtime is staged on a host before the uv check (a refused host keeps the 4.5 MB `runtime` directory), the store keeps no staging or provisioning timestamps and no `uv sync` argv, and the open gates listed above (all-cold empty-host timing, the 1 800 s provisioning timeout under load, `full` level on a remote host) were not exercised.

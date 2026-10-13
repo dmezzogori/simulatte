@@ -1,0 +1,18 @@
+-- strangelove
+076f45faf0aa99deca2e50d468459f4fbf3f18b4619677f36319cb901d2eeb00/
+home = /home/davide/.local/share/uv/python/cpython-3.14-linux-x86_64-gnu/bin
+uv = 0.9.5
+version_info = 3.14.0
+44679aaa67d652cf14da0d95dd653384ded0524871e6ed295ed9fb20038461f8/
+home = /home/davide/.local/share/uv/python/cpython-3.14.0-linux-x86_64-gnu/bin
+uv = 0.9.5
+version_info = 3.14.0
+-- otacon
+076f45faf0aa99deca2e50d468459f4fbf3f18b4619677f36319cb901d2eeb00/
+home = /home/davide/.local/share/uv/python/cpython-3.14-linux-aarch64-gnu/bin
+uv = 0.12.16
+version_info = 3.14
+44679aaa67d652cf14da0d95dd653384ded0524871e6ed295ed9fb20038461f8/
+home = /home/davide/.local/share/uv/python/cpython-3.14.0-linux-aarch64-gnu/bin
+uv = 0.12.16
+version_info = 3.14.0
