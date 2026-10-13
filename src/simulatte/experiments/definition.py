@@ -93,9 +93,14 @@ class Replications:
 
 @dataclass(frozen=True, slots=True)
 class Grid:
-    """Cartesian product of parameter values in declaration order."""
+    """Cartesian product of parameter values, over parameter names in sorted order.
 
-    # A mapping of names to value lists, kept as ``((name, values), ...)`` in declaration order.
+    Canonical hashing sorts mapping keys, so declaration order cannot be part of the
+    identity; sorting names makes configuration order and labels a function of it.
+    Each parameter's values keep their listed order.
+    """
+
+    # A mapping of names to value lists, kept as ``((name, values), ...)`` sorted by name.
     parameters: Any
 
     def __post_init__(self):
@@ -114,7 +119,7 @@ class Grid:
             raise ValueError("Grid parameters must be unique")
         if len(result) > MAX_GRID_PARAMETERS:
             raise ValueError("Grid exceeds 64 parameters")
-        object.__setattr__(self, "parameters", tuple(result))
+        object.__setattr__(self, "parameters", tuple(sorted(result, key=lambda pair: pair[0])))
 
     @property
     def size(self) -> int:

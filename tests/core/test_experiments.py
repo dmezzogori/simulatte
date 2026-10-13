@@ -114,7 +114,7 @@ def expand(m, experiment, base, layouts=None, kinds=None):
     )
 
 
-def test_grid_order_and_labels_follow_declaration_order(tmp_path):
+def test_grid_order_and_labels_follow_sorted_parameter_names(tmp_path):
     m = api()
     experiment = m.Experiment.from_dict(definition())
     run = expand(m, experiment, prepared(tmp_path))
@@ -132,9 +132,16 @@ def test_grid_order_and_labels_follow_declaration_order(tmp_path):
         "rule": "FIFO",
     }
     reordered = m.Experiment.from_dict(definition(configurations={"grid": {"wip_norm": [10, 20], "servers": [2, 3]}}))
-    assert [c.label for c in expand(m, reordered, prepared(tmp_path)).configurations][:2] == [
-        "wip_norm=10,servers=2/base",
-        "wip_norm=10,servers=3/base",
+    assert reordered == experiment and reordered.to_dict() == experiment.to_dict()
+    again = expand(m, reordered, prepared(tmp_path))
+    assert again.configurations == run.configurations
+    assert [(c.index, c.label) for c in again.configurations] == [(c.index, c.label) for c in run.configurations]
+    assert (again.experiment_id, again.run_id, again.replications) == (run.experiment_id, run.run_id, run.replications)
+    assert again.requests == run.requests
+    values = m.Experiment.from_dict(definition(configurations={"grid": {"wip_norm": [20, 10], "servers": [2, 3]}}))
+    assert [c.label for c in expand(m, values, prepared(tmp_path)).configurations][:2] == [
+        "servers=2,wip_norm=20/base",
+        "servers=2,wip_norm=10/base",
     ]
 
 
