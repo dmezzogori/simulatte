@@ -3,6 +3,7 @@
 from dataclasses import replace
 import json
 import math
+from typing import Any
 
 import pytest
 
@@ -186,7 +187,8 @@ def test_replications_can_be_listed_for_one_configuration(store, monkeypatch):
     # The cap applies after the filter, so a later configuration stays reachable.
     monkeypatch.setattr(results, "MAX_LISTED", 1)
     assert ExperimentReport(store, run).to_dict(configuration=1)["replications"][0]["configuration"] == 1
-    for configuration in (2, -1, True, "1"):
+    invalid: tuple[Any, ...] = (2, -1, True, "1")
+    for configuration in invalid:
         with pytest.raises(ValueError, match="configuration"):
             ExperimentReport(store, run).to_dict(configuration=configuration)
 
