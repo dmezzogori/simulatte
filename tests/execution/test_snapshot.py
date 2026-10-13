@@ -211,6 +211,106 @@ def test_editable_runtime_is_frozen_separately(tmp_path):
     assert len(runtime.content_hash) == 64
 
 
+def test_runtime_identity_covers_the_package_alone_and_the_archive_adds_supervisor_deps(tmp_path):
+    import hashlib
+    import tarfile
+
+    from simulatte.execution.hashing import canonical_hash
+
+    m = api()
+    package = tmp_path / "editable" / "simulatte"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("VERSION=1")
+    store = tmp_path / "project"
+    store.mkdir()
+    runtime = m.freeze_runtime(package, store)
+    entry = {
+        "path": "simulatte/__init__.py",
+        "size": 9,
+        "sha256": hashlib.sha256(b"VERSION=1").hexdigest(),
+        "executable": False,
+        "link": None,
+    }
+    # Request ids embed this hash: it must stay the package-only manifest hash.
+    assert runtime.content_hash == canonical_hash("runtime-manifest-v1", [entry])
+    assert runtime.archive_sha256 == hashlib.sha256(runtime.archive.read_bytes()).hexdigest()
+    with tarfile.open(runtime.archive) as archive:
+        members = archive.getmembers()
+    names = [member.name for member in members]
+    assert names == sorted(names) and "simulatte/__init__.py" in names
+    assert {name.split("/")[0] for name in names} == {"simulatte", "supervisor-deps"}
+    assert {"supervisor-deps/msgpack/fallback.py", "supervisor-deps/simpy/core.py"} <= set(names)
+    assert all(m.uid == m.gid == m.mtime == 0 and m.mode in (0o644, 0o755) for m in members)
+    assert {name for name, _ in runtime.supervisor_distributions} == {"msgpack", "simpy"}
+    assert m.freeze_runtime(package, store) == runtime
+
+
+def test_supervisor_deps_cache_and_self_check_failures(tmp_path, monkeypatch):
+    import subprocess
+
+    m = api()
+    package = tmp_path / "editable" / "simulatte"
+    (package / "execution").mkdir(parents=True)
+    (package / "__init__.py").write_text("VERSION=1")
+    store = tmp_path / "project"
+    store.mkdir()
+    # A package that ships the supervisor is self-checked; this one has no ``cli`` module.
+    (package / "execution" / "supervisor.py").write_text("")
+    with pytest.raises(ValueError, match="does not import in isolation"):
+        m.freeze_runtime(package, store)
+
+    def hang(args, **kwargs):
+        raise subprocess.TimeoutExpired(args, kwargs["timeout"])
+
+    monkeypatch.setattr(m.subprocess, "run", hang)
+    with pytest.raises(ValueError, match="timed out"):
+        m.freeze_runtime(package, store)
+    monkeypatch.undo()
+    (package / "execution" / "supervisor.py").unlink()
+    runtime = m.freeze_runtime(package, store)
+    tampered = runtime.supervisor_deps / "simpy" / "core.py"
+    tampered.chmod(0o644)
+    tampered.write_text("tampered")
+    with pytest.raises(ValueError, match="Supervisor dependency cache was modified"):
+        m.freeze_runtime(package, store)
+
+
+def test_supervisor_deps_must_be_installed_packages(tmp_path, monkeypatch):
+    m = api()
+    real = importlib.util.find_spec
+    monkeypatch.setattr(m.importlib.util, "find_spec", lambda name, *a: None if name == "simpy" else real(name, *a))
+    package = tmp_path / "editable" / "simulatte"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("VERSION=1")
+    (tmp_path / "project").mkdir()
+    with pytest.raises(ValueError, match="not installed as a package"):
+        m.freeze_runtime(package, tmp_path / "project")
+
+
+def test_supervisor_deps_refuse_compiled_modules(tmp_path, monkeypatch):
+    m = api()
+    fake = tmp_path / "site" / "simpy"
+    fake.mkdir(parents=True)
+    (fake / "__init__.py").write_text("")
+    (fake / "_speedups.so").write_bytes(b"\x7fELF")
+    real = importlib.util.find_spec
+
+    def find_spec(name, *args):
+        if name == "simpy":
+            return importlib.util.spec_from_file_location(
+                "simpy", fake / "__init__.py", submodule_search_locations=[str(fake)]
+            )
+        return real(name, *args)
+
+    monkeypatch.setattr(m.importlib.util, "find_spec", find_spec)
+    package = tmp_path / "editable" / "simulatte"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("VERSION=1")
+    (tmp_path / "project").mkdir()
+    with pytest.raises(ValueError, match="compiled"):
+        m.freeze_runtime(package, tmp_path / "project")
+
+
 @pytest.mark.parametrize(
     "config",
     [

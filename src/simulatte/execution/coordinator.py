@@ -14,6 +14,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
 import hashlib
 import errno
+import platform
 import sqlite3
 from pathlib import Path
 import sysconfig
@@ -49,6 +50,7 @@ from simulatte.execution.snapshot import (
     load_source,
     freeze_runtime,
 )
+from simulatte.execution.ssh import BootstrapError, SshTransport
 from simulatte.execution.scheduler import Scheduler, report as _report, run_status as _run_status
 from simulatte.execution.slots import SlotConfig
 from simulatte.execution.store import INTERACTIVE, RunStore, StaleAttempt, RevisionConflict, _blob, _read, _remove
@@ -168,8 +170,10 @@ class Coordinator:
             self._events: deque[dict] = deque()
             self._event_bytes = 0
             self._scheduler = Scheduler(self)
-            # One transport factory per slot kind; remote kinds plug in here.
-            self._transports = {"local": self._local_transport}
+            # The exact interpreter a remote supervisor runs on (D105); remote slots pass it to uv.
+            self.python = platform.python_version()
+            # One transport factory per slot kind. ``uv`` (remote) factories take the WorkerSpec.
+            self._transports = {"local": self._local_transport, "uv": self._ssh_transport}
             self._actors = {
                 name: SlotActor(self, name, self._transports["local"]) for name in (INTERACTIVE, *self.slots.names())
             }
@@ -215,6 +219,9 @@ class Coordinator:
 
     def _local_transport(self):
         return LocalTransport.start(self.runtime.root, external_roots=self.distribution_roots)
+
+    def _ssh_transport(self, spec):
+        return SshTransport.start(spec, runtime=self.runtime, python=self.python)
 
     @classmethod
     def from_store(cls, root: Path, identity: str):
@@ -852,10 +859,17 @@ class SlotActor:
     def _start_worker(self):
         if self.worker is None:
             self.worker = self.transport_factory()
-            hello = self.worker.receive(10)
+            try:
+                hello = self.worker.receive(10)
+            except BootstrapError:
+                raise
+            except OSError as error:  # Includes the 10 s pre-handshake budget (TimeoutError).
+                raise WorkerLost("Worker handshake failed") from error
+            # Protocol 1.0 supervisors predate remote staging; they serve local slots only.
+            accepted = ((1, 0), (1, 1)) if self.kind == "local" else ((1, 1),)
             if (
                 hello.type != "hello"
-                or tuple(hello.body["protocol"]) != (1, 0)
+                or tuple(hello.body["protocol"]) not in accepted
                 or "metadata-artifacts" not in hello.body["capabilities"]
             ):
                 raise ValueError("Worker protocol/capabilities are incompatible")

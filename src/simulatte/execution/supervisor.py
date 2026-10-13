@@ -38,9 +38,9 @@ _CAPABILITIES = frozenset(
 )
 
 
-def worker_hello():
-    return {
-        "protocol": [1, 0],
+def worker_hello(trusted_runtime_hash=None):
+    hello = {
+        "protocol": [1, 1],
         "platform": sys.platform,
         "runtime": {
             "python": platform.python_version(),
@@ -53,6 +53,9 @@ def worker_hello():
         "warm_spares": 0,
         "slots": 1,
     }
+    if trusted_runtime_hash is not None:
+        hello["trusted_runtime_hash"] = trusted_runtime_hash
+    return hello
 
 
 def _key(message):
@@ -189,8 +192,9 @@ class ChildProcess:
 
 
 class Supervisor:
-    def __init__(self, channel=None):
+    def __init__(self, channel=None, *, trusted_runtime_hash=None):
         self.channel = channel
+        self.trusted_runtime_hash = trusted_runtime_hash
         self.child = None
         self._last_diagnostic = 0.0
 
@@ -307,7 +311,7 @@ class Supervisor:
                 getattr(sys.stdin.buffer, "raw", sys.stdin.buffer),
                 getattr(sys.stdout.buffer, "raw", sys.stdout.buffer),
             )
-        self.channel.send("hello", worker_hello())
+        self.channel.send("hello", worker_hello(self.trusted_runtime_hash))
         # Heartbeats live outside the event loop as child creation can involve OS
         # work. No child Python execution can hold this interpreter's GIL.
         stopped = threading.Event()

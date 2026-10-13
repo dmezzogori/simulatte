@@ -8,10 +8,15 @@ import sys
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    if argv in (["_worker"], ["worker", "--stdio"]):
+    if argv in (["_worker"], ["worker", "--stdio"]) or (len(argv) == 2 and argv[0] == "_worker"):
+        from simulatte.execution.schema import _hash
         from simulatte.execution.supervisor import Supervisor
 
-        return Supervisor().run_stdio()
+        # A remote bootstrap passes the hash of the trusted runtime it was staged from.
+        runtime = argv[1] if argv[0] == "_worker" and len(argv) == 2 else None
+        if runtime is not None:
+            _hash(runtime)
+        return Supervisor(trusted_runtime_hash=runtime).run_stdio()
     parser = argparse.ArgumentParser(prog="simulatte")
     commands = parser.add_subparsers(dest="command", required=True)
     view = commands.add_parser("view", help="Open a recorded trace in the local viewer")
