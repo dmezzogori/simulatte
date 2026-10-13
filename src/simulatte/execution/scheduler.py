@@ -301,6 +301,22 @@ class Scheduler:
             self._settle(run_id)
             self._progress(run_id)
 
+    def release(self, key: AttemptKey) -> None:
+        """The coordinator's orderly close stopped ``key``: its replication waits for resume.
+
+        The replication returns to ``pending`` without spending a dispatch (D97 counts
+        worker losses, not pauses); ``on_terminal`` then finds it no longer dispatched.
+        """
+        with self.coordinator._condition:
+            with self.store._transaction() as db:
+                row = db.execute(
+                    "SELECT run,configuration,idx,status FROM replications WHERE attempt=?", (key.attempt_id,)
+                ).fetchone()
+            if row is not None and row["status"] == "dispatched":
+                self.store.set_replication_status(
+                    row["run"], row["configuration"], row["idx"], "pending", attempt=key.attempt_id, orderly=True
+                )
+
     def cancel(self, run_id: str) -> None:
         coordinator = self.coordinator
         with coordinator._condition:

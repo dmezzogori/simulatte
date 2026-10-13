@@ -841,18 +841,31 @@ class RunStore:
             )
 
     def set_replication_status(
-        self, run_id: str, configuration: int, index: int, status: str, *, attempt: str | None = None
+        self,
+        run_id: str,
+        configuration: int,
+        index: int,
+        status: str,
+        *,
+        attempt: str | None = None,
+        orderly: bool = False,
     ) -> None:
         """Apply one replication transition of design section 4.3.
 
         ``attempt`` fences terminal updates to the replication's bound attempt; for
-        ``reused`` it names the committed attempt whose result is reused.
+        ``reused`` it names the committed attempt whose result is reused. ``orderly``
+        is the coordinator's own shutdown: a dispatched replication returns to
+        ``pending`` and its dispatch is given back, so pausing never spends the D97
+        worker-loss budget (crash recovery still counts the dispatch as lost).
         """
         if status not in _REPLICATION:
             raise ValueError("Invalid replication status")
+        if orderly and (status != "pending" or attempt is None):
+            raise ValueError("An orderly pause returns one bound replication to pending")
         with self._transaction() as db:
             row = self._replication(db, run_id, configuration, index)
-            if status not in _REPLICATION[row["status"]]:
+            allowed = ("pending",) if orderly and row["status"] == "dispatched" else _REPLICATION[row["status"]]
+            if status not in allowed:
                 raise ValueError("Invalid replication transition")
             bound = row["attempt"]
             if status == "reused":
@@ -863,11 +876,12 @@ class RunStore:
                 bound is None or db.execute("SELECT 1 FROM results WHERE attempt=?", (bound,)).fetchone() is None
             ):
                 raise ValueError("Replication success requires a committed result")
-            if status == "pending" and row["dispatches"] >= MAX_DISPATCHES:
+            if status == "pending" and not orderly and row["dispatches"] >= MAX_DISPATCHES:
                 raise ValueError("Replication exhausted its dispatch bound")
             db.execute(
-                "UPDATE replications SET status=?,attempt=? WHERE run=? AND configuration=? AND idx=?",
-                (status, bound, run_id, configuration, index),
+                "UPDATE replications SET status=?,attempt=?,dispatches=dispatches-? "
+                "WHERE run=? AND configuration=? AND idx=?",
+                (status, bound, int(orderly), run_id, configuration, index),
             )
 
     def set_run_status(self, run_id: str, status: str, details: dict | None = None) -> None:

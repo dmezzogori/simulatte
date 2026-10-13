@@ -401,6 +401,18 @@ def test_replication_status_transitions_are_checked(tmp_path):
         )
         with pytest.raises(ValueError, match="pending"):
             store.bind_replication(run, 0, 0, first)
+        # Only the coordinator's orderly close returns a dispatched replication to pending, giving the dispatch back.
+        with pytest.raises(ValueError, match="transition"):
+            store.set_replication_status(run, 0, 0, "pending", attempt=first.attempt_id)
+        for status, attempt in (("cancelled", first.attempt_id), ("pending", None)):
+            with pytest.raises(ValueError, match="orderly"):
+                store.set_replication_status(run, 0, 0, status, attempt=attempt, orderly=True)
+        store.set_replication_status(run, 0, 0, "pending", attempt=first.attempt_id, orderly=True)
+        assert [(item["status"], item["dispatches"]) for item in store.replications(run)][:1] == [("pending", 0)]
+        with pytest.raises(ValueError, match="transition"):
+            store.set_replication_status(run, 0, 0, "pending", attempt=first.attempt_id, orderly=True)
+        first = store.assign(requested, revision, slot="local-1", pinned=True)
+        store.bind_replication(run, 0, 0, first)
         with pytest.raises(ValueError, match="result"):
             store.set_replication_status(run, 0, 0, "succeeded")
         store.set_replication_status(run, 0, 0, "lost", attempt=first.attempt_id)

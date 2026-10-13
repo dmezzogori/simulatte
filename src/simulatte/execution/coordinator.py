@@ -700,9 +700,12 @@ class Coordinator:
                             continue
                         if job.experiment is None:
                             self.cancel(job.key)
-                        else:
-                            # Not a failure: the replication is queued again when its run resumes.
-                            self._stop(job.key, "lost", {"message": "Coordinator closed"})
+                        elif self._stop(job.key, "lost", {"message": "Coordinator closed"}) and self._fatal is None:
+                            # Not a failure: the replication is pending again, without spending a dispatch.
+                            try:
+                                self._scheduler.release(job.key)
+                            except (OSError, sqlite3.Error):
+                                pass  # Recovery treats it as lost at the next open (counted).
                 try:
                     self._scheduler.pause()
                 except (OSError, sqlite3.Error):

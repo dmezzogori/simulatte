@@ -271,9 +271,59 @@ def test_restart_pauses_run_and_resume_finishes_it(tmp_path):
         coordinator.resume_experiment(run_id)
         report = coordinator.wait_experiment(run_id, timeout=60)
         assert report["status"] == "completed" and report["counts"]["succeeded"] == 3
-        # The replication interrupted by the shutdown ran again; its first attempt is lost, not failed.
-        assert max(item["dispatches"] for item in coordinator.store.replications(run_id)) == 2
+        # The replication interrupted by the shutdown ran again; its first attempt is lost, not failed,
+        # and the orderly close did not spend a dispatch of the D97 worker-loss budget.
+        assert max(item["dispatches"] for item in coordinator.store.replications(run_id)) == 1
         assert "lost" in {row["status"] for row in attempts(coordinator.store)}
+
+
+def test_orderly_close_returns_in_flight_replication_to_pending_without_spending_a_dispatch(tmp_path, monkeypatch):
+    spec = project(tmp_path, SLOW)
+    path = write_experiment(spec.root, replications={"count": 1}, configurations={"grid": {"n": [1]}})
+
+    def in_flight(coordinator, run_id, dispatches=1):
+        until(lambda: [row["status"] for row in attempts(coordinator.store)][-1:] == ["running"])
+        (replication,) = coordinator.store.replications(run_id)
+        assert (replication["status"], replication["dispatches"]) == ("dispatched", dispatches)
+
+    def paused(run_id, dispatches):
+        with m.RunStore.open(spec.root / ".simulatte") as store:
+            assert store.experiment_run(run_id)["status"] == "paused"
+            (replication,) = store.replications(run_id)
+            assert (replication["status"], replication["dispatches"]) == ("pending", dispatches)
+
+    with m.Coordinator(spec, slots=SlotConfig(local=1)) as coordinator:
+        run_id = coordinator.start_experiment(load_experiment(path))
+        in_flight(coordinator, run_id)
+    paused(run_id, 0)
+    for _ in range(2):
+        with m.Coordinator(spec, slots=SlotConfig(local=1)) as coordinator:
+            coordinator.resume_experiment(run_id)
+            in_flight(coordinator, run_id)
+        paused(run_id, 0)
+    # Three open/close cycles: every attempt ended lost (attempt bookkeeping), no dispatch was spent.
+    with m.RunStore.open(spec.root / ".simulatte") as store:
+        assert [row["status"] for row in attempts(store)] == ["lost", "lost", "lost"]
+    # A transport EOF still counts: the first dispatch is lost, the second one is in flight.
+    real = m.LocalTransport.start
+    peers = []
+
+    def start(*args, **kwargs):
+        if peers:
+            return real(*args, **kwargs)
+        peers.append(Peer())
+        return peers[0]
+
+    monkeypatch.setattr(m.LocalTransport, "start", start)
+    with m.Coordinator(spec, slots=SlotConfig(local=1)) as coordinator:
+        coordinator.resume_experiment(run_id)
+        in_flight(coordinator, run_id, dispatches=2)
+    paused(run_id, 1)
+    with m.Coordinator(spec, slots=SlotConfig(local=1)) as coordinator:
+        coordinator.resume_experiment(run_id)
+        in_flight(coordinator, run_id, dispatches=2)
+        coordinator.cancel_experiment(run_id)
+        assert coordinator.wait_experiment(run_id, timeout=10)["status"] == "cancelled"
 
 
 def idle(coordinator, monkeypatch):
