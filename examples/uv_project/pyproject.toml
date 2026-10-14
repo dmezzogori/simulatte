@@ -3,7 +3,7 @@ name = "uv-project-example"
 version = "0.1.0"
 description = "Remote-execution fixture: a decorated model with an in-root path dependency."
 requires-python = ">=3.11"
-dependencies = ["simulatte==0.16.0", "shopkit"]
+dependencies = ["simulatte==0.17.0", "shopkit"]
 
 [tool.uv.sources]
 shopkit = { path = "packages/shopkit" }

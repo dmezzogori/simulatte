@@ -115,7 +115,7 @@ wheels = [
 
 [[package]]
 name = "simulatte"
-version = "0.16.0"
+version = "0.17.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "msgpack" },
@@ -123,9 +123,9 @@ dependencies = [
     { name = "tabulate" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/30/7a/dd84da9cee3aabce4d1ac9fb1061465122f0e0bf7603ab4fa29b5e22c04a/simulatte-0.16.0.tar.gz", hash = "sha256:7d6e25c30fb2f930a553fb4e1fb4028f0404cda8af632673a80e01e05e7267d6", size = 1176932, upload-time = "2026-10-12T20:11:30.701Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/63/1e/3b16626f8e1ffb56f15abbacc907db94974cf2bda2563ca9a6643ac987d3/simulatte-0.17.0.tar.gz", hash = "sha256:f5a0770a659880d2e05ee287807de0518c081537e4057cf210029cf9fd777443", size = 1268260, upload-time = "2026-10-13T21:47:02.481Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/42/87/e9edf869816c9a21293f7169b27bca7f364badf198a1264aba48b4e5c4b0/simulatte-0.16.0-py3-none-any.whl", hash = "sha256:f25ad55bb813c3cefaab80d8ed6ac6f1dd48061dff090b61b7207f7f319b8061", size = 1189662, upload-time = "2026-10-12T20:11:29.206Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/08/58c1c75d999553697ce4d0cd5c3a1d6d29f54a9275129531455d4d34c571/simulatte-0.17.0-py3-none-any.whl", hash = "sha256:916d0f0eccf71f331841c06734ac72984e6d676f418894b2776c46d5ee041883", size = 1287941, upload-time = "2026-10-13T21:47:00.659Z" },
 ]
 
 [[package]]
@@ -161,5 +161,5 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "shopkit", directory = "packages/shopkit" },
-    { name = "simulatte", specifier = "==0.16.0" },
+    { name = "simulatte", specifier = "==0.17.0" },
 ]
