@@ -1,0 +1,79 @@
+{
+  "matrix_cases": 384,
+  "repeat_cases": 16,
+  "matrix_samples": 1152,
+  "repeat_samples": 80,
+  "fresh_memory_probes": 400,
+  "exact_cartesian_coverage": true,
+  "all_trajectory_and_record_fingerprints_match": true,
+  "counters_checked": true,
+  "production_diff_empty": true,
+  "engine_diff_since_measurement_empty": true,
+  "optimization_iterations": 1,
+  "repeat_relative_median_change": {
+    "cpython-reference-50000-0.95-spt-none-builtin": -0.003449042023332738,
+    "cpython-native-50000-0.95-spt-none-builtin": 0.006297091504492869,
+    "cpython-reference-50000-0.95-spt-none-python": 0.0040277923358778,
+    "cpython-native-50000-0.95-spt-none-python": 2.6189084394001583e-05,
+    "cpython-reference-50000-0.95-spt-record-builtin": 0.009088911237930652,
+    "cpython-native-50000-0.95-spt-record-builtin": -0.006656854248173638,
+    "cpython-reference-50000-0.95-spt-record-python": -0.0019461086384405801,
+    "cpython-native-50000-0.95-spt-record-python": 0.006141046468023603,
+    "pypy-reference-50000-0.95-spt-none-builtin": -0.0012741848418311719,
+    "pypy-native-50000-0.95-spt-none-builtin": 0.0005205179778602353,
+    "pypy-reference-50000-0.95-spt-none-python": 0.003321678515525006,
+    "pypy-native-50000-0.95-spt-none-python": 0.0033123123173706137,
+    "pypy-reference-50000-0.95-spt-record-builtin": -0.00022003605029874418,
+    "pypy-native-50000-0.95-spt-record-builtin": -0.0005063331515501313,
+    "pypy-reference-50000-0.95-spt-record-python": -0.00232594494282623,
+    "pypy-native-50000-0.95-spt-record-python": 0.023148983046072713
+  },
+  "maximum_absolute_repeat_change": 0.023148983046072713,
+  "checks": {
+    "prototype_cpython": {
+      "command": ".venv/bin/python -m pytest -o addopts= prototypes/native_engine/tests -q",
+      "exit_code": 0,
+      "passed": 81
+    },
+    "prototype_pypy": {
+      "command": "prototypes/native_engine/.build/pypy-env/bin/python -m pytest -o addopts= prototypes/native_engine/tests -q",
+      "exit_code": 0,
+      "passed": 81,
+      "warnings": "two missing pytest-timeout configuration warnings"
+    },
+    "production_suite": {
+      "command": "uv run --all-extras pytest",
+      "exit_code": 0,
+      "passed": 3414,
+      "skipped": 1,
+      "coverage_percent": 99.05,
+      "required_coverage_percent": 99,
+      "warnings": "three dependency deprecations"
+    },
+    "asan_ubsan": {
+      "command": ".venv/bin/python -m prototypes.native_engine.build --sanitize && prototypes/native_engine/.build/native_sanitizer prototypes/native_engine/.build/sanitizer-trace.bin",
+      "exit_code": 0,
+      "randomized_lifecycles": 120,
+      "jobs_per_randomized_workload": 1024,
+      "allocation_fault_injection": true,
+      "dedicated_leak_detector": false
+    },
+    "clang_static_analysis": {
+      "exit_code": 0,
+      "diagnostics": 0
+    },
+    "ruff_check": {
+      "exit_code": 0
+    },
+    "ruff_format_check": {
+      "exit_code": 0
+    },
+    "git_diff_check": {
+      "exit_code": 0
+    },
+    "local_markdown_links": {
+      "missing": 0
+    },
+    "independent_review": "C lifetime/recording/error review and Python semantics/benchmark/report review completed; absolute-arrival bug repaired, counts/hashes/numbers audited"
+  }
+}

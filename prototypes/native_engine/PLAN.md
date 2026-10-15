@@ -19,21 +19,21 @@ Spec: [CONTRACT.md](CONTRACT.md). All implementation files stay below this direc
 
 ## Tasks
 
-- [ ] 1. Write failing hand-derived/reference tests; implement model.py, recording.py and reference.py.
+- [x] 1. Write failing hand-derived/reference tests; implement model.py, recording.py and reference.py.
   Reference test: three jobs of duration3/2/1 arriving0/1/1 on one server. FIFO starts0/3/5,
   SPT starts0/4/3; both complete6. Validate invalid inputs and exact cross-route ties.
   Run `.venv/bin/python -m pytest -o addopts='' prototypes/native_engine/tests -q`; commit green core.
-- [ ] 2. Implement current-Simulatte baseline.py with observation-only wrappers and real core classes;
+- [x] 2. Implement current-Simulatte baseline.py with observation-only wrappers and real core classes;
   test exact trajectories/records against reference on tied and random workloads; add grant-time hook path.
-- [ ] 3. Delegate C core, native.py binding, build.py and native sanitizer harness to a bounded implementer.
+- [x] 3. Delegate C core, native.py binding, build.py and native sanitizer harness to a bounded implementer.
   Consume model.Workload and common Runner API from contract. Native tests first; require standalone
   ASan/UBSan plus Python parity/errors. Reviewer checks semantics, allocation and error paths; integrate fixes.
-- [ ] 4. Add independent validation.py, deterministic workload generation and benchmark driver. Test decoder
+- [x] 4. Add independent validation.py, deterministic workload generation and benchmark driver. Test decoder
   corruption/lifecycle failures, fingerprint mismatch detection and real small benchmark subprocess execution.
   Obtain correct equivalent baselines before measuring optimizations. Preserve raw JSON and input/source hashes.
-- [ ] 5. Investigate baseline profiles; perform zero to three documented measured optimization iterations.
+- [x] 5. Investigate baseline profiles; perform zero to three documented measured optimization iterations.
   Add optimized Python/PyPy comparison, full 5k/50k matrix, separate memory measurements and reproducibility checks.
-- [ ] 6. Whole-branch review and appropriate regression checks; document implementation, measurements,
+- [x] 6. Whole-branch review and appropriate regression checks; document implementation, measurements,
   risks/gaps, and evidence-backed recommendation. Verify production unchanged; commit; checkpoint Cortex.
 
 ## Rulings and progress

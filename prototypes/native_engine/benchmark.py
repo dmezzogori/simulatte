@@ -154,7 +154,8 @@ def matrix(args):
     completed = {row["case"] for row in rows}
     interpreters = [("cpython", sys.executable, args.backends)]
     if args.pypy:
-        interpreters.append(("pypy", str(args.pypy.resolve()), args.pypy_backends))
+        # Keep a venv executable's lexical path: resolving its symlink loses pyvenv.cfg.
+        interpreters.append(("pypy", str(args.pypy.absolute()), args.pypy_backends))
     for label, executable, backends in interpreters:
         for jobs, load, policy, mode, hook, backend in itertools.product(
             args.jobs, args.loads, args.policies, args.modes, args.hooks, backends

@@ -29,7 +29,9 @@ Use `CC` to choose a compiler. Compilation is a separate setup step, not the per
 
 ## Reproduce the measurements
 
-Generate inputs once on CPython; the exact JSON files are reused by every interpreter and backend:
+Generate inputs once on CPython; the exact JSON files are reused by every interpreter and backend.
+Use CPython 3.14.3 to reproduce the historical input hashes (`uv sync --python 3.14.3 --dev --all-extras`);
+later standard-library sampling implementations could generate different routes from the same seed:
 
 ```sh
 .venv/bin/python -m prototypes.native_engine.workloads
@@ -58,7 +60,8 @@ peak RSS and a cold lifecycle timing. Cases run serially; do not run builds, tes
 them. An interrupted run can resume into its existing output if source hashes match. Use a new file after
 source changes. The completed raw evidence is `results/final-matrix.jsonl`; CSV gives per-case medians.
 
-Generation/parsing, imports and input validation are outside timing. Model lowering/build, run, detached
+Generation/parsing, imports and common input-model validation are outside timing. Native boundary
+revalidation remains inside its constructor. Model lowering/build, run, detached
 Python extraction and close are inside. Close includes explicit cyclic garbage collection. Recording flushes
 at successful run completion; close releases the file. Writes are buffered OS writes, without fsync or
 durability guarantees. All modes collect trajectories, including `none`. Memory is absolute process peak
@@ -77,7 +80,7 @@ from prototypes.native_engine.model import Job, Workload, spt_hook
 from prototypes.native_engine.native import NativeRunner
 
 workload = Workload(10, (Job(0, (0, 4), (2, 1), 8),))
-runner = NativeRunner(workload, policy='spt', mode='kpi')
+runner = NativeRunner(workload, policy="spt", mode="kpi")
 try:
     runner.run()
     result = runner.result()
