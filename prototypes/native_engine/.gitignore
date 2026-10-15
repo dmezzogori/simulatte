@@ -1,0 +1,8 @@
+.build/
+.inputs/
+.runs/
+*.so
+*.dylib
+*.dll
+*.nevt
+__pycache__/
