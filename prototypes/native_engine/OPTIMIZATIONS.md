@@ -26,3 +26,11 @@ No C algorithm, binding or observation optimization is included in this iteratio
 
 Final measured effects and stopping rationale are in the research report. No second or third iteration
 is required by the goal: the budget is a ceiling, not a performance target to pursue indefinitely.
+
+## Correctness repair (not an optimization iteration)
+
+Independent review found the baseline feeder could round absolute arrivals when reconstructing them
+through relative timeouts (`.2 + (.9 - .2) != .9`), and could split tied batches. Added a red-then-green
+regression and schedule absolute normal-priority SimPy events in the feeder. Processing/resources remain
+unchanged. The partially completed full matrix was discarded and restarted after the fix. The earlier pilot
+passed exact fingerprints for its generated inputs; keep it as historical baseline evidence only.

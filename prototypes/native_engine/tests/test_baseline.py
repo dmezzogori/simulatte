@@ -7,6 +7,7 @@ import pytest
 from prototypes.native_engine.baseline import SimulatteRunner
 from prototypes.native_engine.model import Job, Workload, fifo_hook, spt_hook
 from prototypes.native_engine.reference import ReferenceRunner
+from prototypes.native_engine.native import NativeRunner
 
 
 @pytest.mark.parametrize("policy,hook", [("fifo", None), ("spt", None), ("fifo", fifo_hook), ("spt", spt_hook)])
@@ -60,3 +61,19 @@ def test_baseline_does_not_replace_current_processing_model():
     runner.run()
     assert runner.result()["completed"] == 0
     runner.close()
+
+
+def test_absolute_fractional_arrivals_do_not_round_or_split_batches(tmp_path):
+    workload = Workload(2, (Job(0.2, (0,), (0.1,), 2), Job(0.9, (1,), (0.1,), 2), Job(0.9, (0,), (0.1,), 2)))
+    results, traces = [], []
+    for backend in (ReferenceRunner, SimulatteRunner, NativeRunner):
+        path = tmp_path / backend.__name__
+        runner = backend(workload, mode="record", trace_path=path)
+        runner.run()
+        result = runner.result()
+        runner.close()
+        result.pop("events")
+        results.append(result)
+        traces.append(path.read_bytes())
+    assert results[0] == results[1] == results[2]
+    assert traces[0] == traces[1] == traces[2]

@@ -3,7 +3,7 @@
   "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
   "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin27.0.0\nThread model: posix\nInstalledDir: /Library/Developer/CommandLineTools/usr/bin\n",
   "hardware": "Apple M4 Pro\n12\n51539607552\n",
-  "source_sha256": "93889ae63b2daf9d1a4c39bfbc3874fbd5752342229f56d87a0a2c71cd5b874e",
+  "source_sha256": "ff1470320239a5fdaabcf81f1420b54414dbd05dc24b5812047334f0aca999bb",
   "library_sha256": "89380f98357cbd339581eb712d6e555c64f5b1844788ba4c1714909052c08783",
   "inputs": {
     "jobs-5000-load-0.5.json": "9f62297959c8e889140aac6ed469c24f989132f9fcb73e0aa897dbcd22b65e9d",

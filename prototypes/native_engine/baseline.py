@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import heapq
 import math
+
+from simpy.events import NORMAL
 
 from simulatte import Environment
 from simulatte.dispatching_rules import first_come_first_served, shortest_processing_time
@@ -81,9 +84,15 @@ class SimulatteRunner:
 
     def _feed(self):
         for index, source in enumerate(self.workload.jobs):
-            delay = source.arrival - self.env.now
-            if delay:
-                yield self.env.timeout(delay)
+            if source.arrival > self.env.now:
+                # Input timestamps are absolute binary64 values. now + (at - now)
+                # can differ from at by one ulp, even splitting an equal-time batch.
+                # Use the normal SimPy event priority and insertion counter directly;
+                # resource/process scheduling remains the actual current runtime.
+                arrival = self.env.event()
+                arrival._ok, arrival._value = True, None
+                heapq.heappush(self.env._queue, (source.arrival, NORMAL, next(self.env._eid), arrival))
+                yield arrival
             self.observations.arrival(self.env.now, index)
             job = _ObservedJob(
                 env=self.env,

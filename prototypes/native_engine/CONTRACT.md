@@ -41,6 +41,8 @@ FIFO/SPT runs with tied integer times. Durable prototype tests repeat this evide
 adapter must retain actual Environment, Server, ShopFloor.main, ProductionJob and Server.process_job, adding
 only observation wrappers and, for hook runs, an explicit grant-time batch policy adapter. Noop current
 SimPy signals are unobserved; arbitrary subscribers are outside this contract.
+The input feeder schedules absolute arrival timestamps with normal SimPy event priority and sequence,
+avoiding binary64 rounding from reconstructing them as `now + (arrival - now)`.
 
 ## Common Python interface
 
