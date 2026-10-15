@@ -1,0 +1,58 @@
+{
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin27.0.0\nThread model: posix\nInstalledDir: /Library/Developer/CommandLineTools/usr/bin\n",
+  "hardware": "Apple M4 Pro\n12\n51539607552\n",
+  "source_sha256": "93889ae63b2daf9d1a4c39bfbc3874fbd5752342229f56d87a0a2c71cd5b874e",
+  "library_sha256": "89380f98357cbd339581eb712d6e555c64f5b1844788ba4c1714909052c08783",
+  "inputs": {
+    "jobs-5000-load-0.5.json": "9f62297959c8e889140aac6ed469c24f989132f9fcb73e0aa897dbcd22b65e9d",
+    "jobs-5000-load-0.95.json": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+    "jobs-50000-load-0.5.json": "04bbd870a60f47b2980d30cd5641421b6d88709b4a4a922693b6defed05c8017",
+    "jobs-50000-load-0.95.json": "2e45f12f28e425c4614aff714ceb35902bb64ced1b1878dde82e5b086926565b"
+  },
+  "production_base": "d3e17e6845e75163be34d583eac4417ee5d67290",
+  "baseline_commit": "c08b066",
+  "matrix": {
+    "jobs": [
+      5000,
+      50000
+    ],
+    "load": [
+      0.5,
+      0.95
+    ],
+    "policy": [
+      "fifo",
+      "spt"
+    ],
+    "mode": [
+      "none",
+      "kpi",
+      "record"
+    ],
+    "hook": [
+      "builtin",
+      "python"
+    ],
+    "backends": [
+      "simulatte",
+      "reference",
+      "tuned",
+      "native"
+    ],
+    "interpreters": [
+      "CPython3.14.3",
+      "PyPy3.11.15-7.3.22"
+    ],
+    "warmups": {
+      "CPython": 1,
+      "PyPy": 7
+    },
+    "repeats": 3,
+    "memory": "separate fresh child, one run, ru_maxrss bytes, before validation",
+    "gc": "enabled; explicit collection before build and after close inside close time",
+    "timing": "perf_counter; no concurrent benchmark/test work"
+  },
+  "dependencies": "anyio==4.15.1\nattrs==26.1.0\ncertifi==2026.7.22\ncfgv==3.5.0\nclick==8.5.0\ncloudpickle==3.1.2\ncontourpy==1.4.0\ncoverage==7.16.2\ncycler==0.12.1\ndeepmerge==3.0.1\ndistlib==0.4.3\nfarama-notifications==0.0.6\nfilelock==4.0.12\nfonttools==4.66.1\nghp-import==2.1.0\ngriffelib==2.3.2\ngymnasium==1.4.0\nh11==0.16.0\nhatchling==1.32.4\nhttpcore==1.0.9\nhttpx==0.28.1\nidentify==2.6.20\nidna==3.20\niniconfig==2.3.1\njinja2==3.1.6\njsonschema==4.26.0\njsonschema-specifications==2025.9.1\nkiwisolver==1.5.1\nmarkdown==3.11\nmarkupsafe==3.0.4\nmatplotlib==3.11.2\nmergedeep==1.3.4\nmkdocs==1.6.1\nmkdocs-autorefs==1.4.4\nmkdocs-get-deps==0.2.2\nmkdocstrings==1.0.6\nmkdocstrings-python==2.0.9\nmsgpack==1.2.3\nnodeenv==1.11.0\nnumpy==2.5.3\npackaging==26.3\npathspec==1.1.1\npillow==12.3.0\nplatformdirs==4.12.3\npluggy==1.6.0\npre-commit==4.6.2\npygments==2.21.0\npymdown-extensions==12.1\npyparsing==3.3.3\npytest==9.1.1\npytest-cov==7.1.0\npytest-timeout==2.4.0\npython-dateutil==2.9.0.post0\npython-discovery==1.6.1\npyyaml==6.0.3\npyyaml-env-tag==1.1\nreferencing==0.37.0\nrpds-py==2026.9.1\nruff==0.16.10\nsimpy==4.1.2\n-e file:///Users/davide/.codex/worktrees/aee0/simulatte\nsix==1.17.0\nstarlette==1.7.0\ntabulate==0.10.0\ntomli==2.4.1\ntomlkit==0.15.1\ntqdm==4.70.1\ntrove-classifiers==2026.9.21.13\nty==0.0.85\ntyping-extensions==4.16.0\nuvicorn==0.54.0\nvirtualenv==21.14.5\nwatchdog==6.0.0\nwatchfiles==1.3.0\nwebsockets==17.2\nzensical==0.0.68\n"
+}
