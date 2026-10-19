@@ -968,7 +968,7 @@ class RunStore:
             changed = db.execute(
                 "UPDATE replays SET attempt=NULL,status='failed',verified=NULL,details=? "
                 "WHERE request_id=? AND attempt IS ? AND status!='running'",
-                (_blob(details), request_id, previous_attempt),
+                (_blob({**details, "_operation_updated_at": time.time()}), request_id, previous_attempt),
             )
             return changed.rowcount == 1
 
@@ -1000,7 +1000,9 @@ class RunStore:
         if row is None:
             raise KeyError(request_id)
         verified = row["verified"]
-        return {**dict(row), "verified": None if verified is None else bool(verified), "details": _read(row["details"])}
+        details = _read(row["details"])
+        details.pop("_operation_updated_at", None)
+        return {**dict(row), "verified": None if verified is None else bool(verified), "details": details}
 
     @staticmethod
     def _unreferenced(db, candidates=None) -> list[str]:

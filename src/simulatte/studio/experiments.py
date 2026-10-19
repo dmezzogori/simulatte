@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import json
+import heapq
 import math
 import os
 from pathlib import Path, PurePosixPath
@@ -117,10 +118,17 @@ def report(store, run_id: str, *, level=0.95, baseline=None, bonferroni=False, c
 
 def replays(db, prefix) -> list[dict]:
     """The newest replays, with the committed trace of each succeeded one."""
-    rows = db.execute(
-        "SELECT p.*,a.generation FROM replays p LEFT JOIN attempts a ON a.id=p.attempt "
-        f"ORDER BY a.created DESC,p.request_id LIMIT {MAX_LISTED}"
-    ).fetchall()
+    # A preflight failure has no attempt. Its durable operation time must outrank
+    # older attempted work, including when retrying an old replay request. Legacy
+    # rows retain their attempt-time ordering. Scan the data-only cursor with a
+    # bounded heap: neither snapshot payload nor retained rows grow with history.
+    rows = heapq.nsmallest(
+        MAX_LISTED,
+        db.execute(
+            "SELECT p.*,a.generation,a.created FROM replays p LEFT JOIN attempts a ON a.id=p.attempt"
+        ),
+        key=lambda row: (-_read(row["details"]).get("_operation_updated_at", row["created"] or 0), row["request_id"]),
+    )
     listed = []
     for row in rows:
         details = _read(row["details"])
