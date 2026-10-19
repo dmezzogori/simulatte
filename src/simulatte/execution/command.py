@@ -18,7 +18,7 @@ from simulatte.stopping import Horizon, FinitePopulation, stopping_from_dict
 
 
 def add_arguments(parser, *, headless=True):
-    parser.add_argument("model", **({"nargs": "?"} if headless else {}))
+    parser.add_argument("model", nargs="?")
     parser.add_argument("--project")
     parser.add_argument("--layout", default="layout.json")
     parser.add_argument("--param", action="append", default=[])

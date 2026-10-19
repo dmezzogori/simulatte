@@ -17,6 +17,8 @@ class StoreReader:
 
     @classmethod
     def open(cls, root: Path):
+        if root.is_symlink():
+            raise ValueError("Run store must not be a symlink")
         root = root.resolve()
         path = root / "index.sqlite"
         if path.is_symlink() or not path.is_file():
@@ -75,7 +77,7 @@ class StoreReader:
         _path(name)
         if not any(item["path"] == name for item in self.artifacts(attempt_id)):
             raise KeyError(name)
-        root = self.result(attempt_id).path
+        root = self.result(attempt_id).path / "artifacts"
         target = root / name
         if not target.resolve().is_relative_to(root.resolve()) or target.is_symlink():
             raise ValueError("Artifact escapes saved result")
@@ -83,3 +85,21 @@ class StoreReader:
 
     def close(self):
         self._db.close()
+
+    def generations(self):
+        if self.version < 3:
+            return ()
+        return tuple(
+            {**dict(row), "evidence": _read(row["evidence"])}
+            for row in self._db.execute("SELECT * FROM environment_generations")
+        )
+
+    def _transaction(self):
+        from contextlib import nullcontext
+
+        return nullcontext(self._db)
+
+    def _require_active(self, db, key):
+        from simulatte.execution.store import StaleAttempt
+
+        raise StaleAttempt("Recovery exposes committed results only")

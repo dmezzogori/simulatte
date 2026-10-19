@@ -1,0 +1,212 @@
+"""Setup and recovery are usable without importing or running project models."""
+
+import importlib
+import importlib.util
+import json
+from pathlib import Path
+import shutil
+import sqlite3
+import sys
+
+import pytest
+from starlette.testclient import TestClient
+
+from simulatte.projects import StudioTarget, install_starter, starter_files, load_workspace
+from simulatte.execution.store import RunStore, _blob, _read
+from simulatte.projects.environments import EnvironmentPool
+
+
+def api():
+    assert importlib.util.find_spec("simulatte.projects.service"), "project service missing"
+    return importlib.import_module("simulatte.projects.service")
+
+
+def test_open_and_setup_are_explicit_and_never_run(tmp_path):
+    service = api().ProjectService.open(StudioTarget(tmp_path, None))
+    try:
+        assert service.state()["phase"] == "setup"
+        assert service.coordinator is None
+        preview = service.configure({"starter": "production"})
+        assert not (tmp_path / "pyproject.toml").exists()
+        assert "models/production.py" in preview["files"]
+        service.configure({"apply": preview["preview_id"]})
+        assert load_workspace(tmp_path).models[0].name == "Production"
+        assert service.coordinator is None
+        assert service.state()["history"] == []
+        assert service.store._db.execute("SELECT COUNT(*) FROM attempts").fetchone()[0] == 0
+    finally:
+        service.close()
+    with RunStore.open(tmp_path / ".simulatte"):
+        pass
+
+
+def test_recovery_viewer_never_imports_project(tmp_path):
+    m = api()
+    install_starter(tmp_path, starter_files("production"))
+    (tmp_path / "models/production.py").write_text('raise AssertionError("must never import")')
+    shutil.copytree(Path(__file__).parents[1] / "fixtures/stores/project-v2", tmp_path / ".simulatte")
+    with RunStore.open(tmp_path / ".simulatte") as store:
+        pool = EnvironmentPool(tmp_path, store)
+        generation = pool.use_existing(Path(sys.executable))
+        evidence = _read(
+            store._db.execute("SELECT evidence FROM environment_generations WHERE id=?", (generation.id,)).fetchone()[0]
+        )
+        evidence["spec"]["interpreter"] = str(tmp_path / "missing-python")
+        with store._transaction() as db:
+            db.execute(
+                "UPDATE environment_generations SET evidence=?,state='selected' WHERE id=?",
+                (_blob(evidence), generation.id),
+            )
+    before = (tmp_path / ".simulatte/index.sqlite").read_bytes()
+    service = m.ProjectService.open(StudioTarget(tmp_path, None))
+    try:
+        state = service.state()
+        assert state["read_only"] and state["phase"] == "recovery"
+        assert state["history"] and service.coordinator is None
+        item = state["history"][0]
+        assert service.reader.result(item["id"]).path.joinpath("run.simtrace").is_file()
+        assert service.reader.artifacts(item["id"])
+        with pytest.raises(ValueError, match="read-only"):
+            service.configure({"starter": "logistics"})
+    finally:
+        service.close()
+    assert (tmp_path / ".simulatte/index.sqlite").read_bytes() == before
+
+
+def test_unknown_store_and_locked_writer_are_actionable(tmp_path):
+    m = api()
+    with RunStore.open(tmp_path / ".simulatte"):
+        service = m.ProjectService.open(StudioTarget(tmp_path, None))
+        try:
+            assert service.state()["read_only"]
+            assert "coordinator" in service.state()["error"]
+        finally:
+            service.close()
+    with sqlite3.connect(tmp_path / ".simulatte/index.sqlite") as db:
+        db.execute("PRAGMA user_version=4")
+    before = (tmp_path / ".simulatte/index.sqlite").read_bytes()
+    service = m.ProjectService.open(StudioTarget(tmp_path, None))
+    try:
+        assert "schema 4" in service.state()["error"]
+        assert service.coordinator is None
+    finally:
+        service.close()
+    assert (tmp_path / ".simulatte/index.sqlite").read_bytes() == before
+
+
+def test_setup_http_auth_origin_and_idempotent_commands(tmp_path):
+    service = api().ProjectService.open(StudioTarget(tmp_path, None))
+    from simulatte.studio.project_commands import ProjectServer
+
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "index.html").write_text("<main>Studio</main>")
+    (static / "manifest.json").write_text(json.dumps({"assets": {"index.html": "unused"}}))
+    server = ProjectServer(service, 8123, static)
+    with TestClient(server.app, base_url=server.origin) as client:
+        assert client.get("/api/state").status_code == 403
+        assert client.get(server.link()).status_code == 200
+        headers = {"X-Simulatte-Session": server.secret}
+        assert client.get("/api/state", headers=headers).json()["project"]["phase"] == "setup"
+        assert client.get("/api/state", headers={**headers, "Origin": "https://example.com"}).status_code == 403
+        response = client.get("/", headers=headers)
+        assert "default-src 'none'" in response.headers["content-security-policy"]
+        with client.websocket_connect(
+            server.origin.replace("http:", "ws:") + "/ws", headers={"Origin": server.origin}
+        ) as socket:
+            socket.send_json({"v": 1, "type": "auth", "secret": server.secret})
+            while socket.receive_json()["type"] != "state":
+                pass
+            message = {"v": 1, "type": "project.configure", "id": "preview", "body": {"starter": "production"}}
+            socket.send_json(message)
+            result = socket.receive_json()
+            while result["type"] != "response":
+                result = socket.receive_json()
+            socket.send_json(message)
+            repeated = socket.receive_json()
+            while repeated["type"] != "response":
+                repeated = socket.receive_json()
+            assert result["body"]["preview_id"] == repeated["body"]["preview_id"]
+            assert not (tmp_path / "pyproject.toml").exists()
+
+
+def test_runtime_probe_rejects_missing_studio_and_bad_assets(tmp_path, monkeypatch):
+    api()
+    from simulatte.projects import bootstrap
+    from types import SimpleNamespace
+
+    for payload in (
+        {"protocol": 999, "assets": True, "studio": True},
+        {"protocol": 1, "assets": False, "studio": True},
+        {"protocol": 1, "assets": True, "studio": False},
+    ):
+        monkeypatch.setattr(
+            bootstrap.subprocess,
+            "run",
+            lambda *a, **kw: SimpleNamespace(returncode=0, stdout=json.dumps(payload), stderr=""),
+        )
+        with pytest.raises(ValueError, match="runtime|Studio|assets|protocol"):
+            bootstrap.validate_runtime(Path(sys.executable))
+
+
+def test_recovery_saved_run_and_artifact_ranges(tmp_path):
+    from simulatte.studio.project_commands import ProjectServer
+
+    shutil.copytree(Path(__file__).parents[1] / "fixtures/stores/project-v2", tmp_path / ".simulatte")
+    service = api().ProjectService.open(StudioTarget(tmp_path, None), read_only=True)
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "manifest.json").write_text('{"assets":{}}')
+    server = ProjectServer(service, 8123, static)
+    attempt = service.state()["history"][0]["id"]
+    details = server._command({"type": "run.get", "body": {"attempt_id": attempt}}, None)
+    assert details["ok"] and details["run"]["trace"]
+    assert details["run"]["artifacts"][0]["path"] == "answer.txt"
+    with TestClient(server.app, base_url=server.origin) as client:
+        client.get(server.link())
+        url = f"/api/artifacts/{attempt}/answer.txt"
+        headers = {"X-Simulatte-Session": server.secret, "Range": "bytes=0-1"}
+        result = client.get(url, headers=headers)
+        assert result.status_code == 206 and result.content == b"8"
+        assert result.headers["content-range"] == "bytes 0-0/1"
+        assert client.head(url, headers=headers).content == b""
+        assert client.get(url).status_code == 403
+
+
+def test_launcher_handoff_failure_keeps_recovery_and_cli_flags(tmp_path, monkeypatch):
+    from simulatte.projects import bootstrap
+    from simulatte.studio import command
+
+    target = StudioTarget(tmp_path, "plant.py:build")
+    monkeypatch.setattr(bootstrap, "selected_interpreter", lambda target: tmp_path / "python")
+    monkeypatch.setattr(bootstrap, "validate_runtime", lambda path: {})
+    seen = []
+
+    def failed(*args, **kwargs):
+        seen.append(kwargs["flags"])
+        raise ValueError("handoff failed")
+
+    monkeypatch.setattr(bootstrap, "handoff", failed)
+
+    def serve(service, **kwargs):
+        assert service.read_only and "handoff failed" in service.error
+        assert service.coordinator is None
+
+    monkeypatch.setattr(command, "serve_project", serve)
+    def initial(prepared):
+        return {}
+    initial.flags = {"seed": 55}
+    bootstrap.launch_project(target, port=0, no_browser=True, configure=initial)
+    assert seen == [{"seed": 55}]
+
+
+def test_cancelled_setup_has_no_coordinator_or_attempt(tmp_path, monkeypatch):
+    install_starter(tmp_path, starter_files("production"))
+    service = api().ProjectService.open(StudioTarget(tmp_path, None))
+    seen = []
+    monkeypatch.setattr(service.environments, "cancel", lambda: seen.append(True))
+    try:
+        assert service.prepare_environment({"cancel": True})["ok"]
+        assert seen == [True] and service.coordinator is None and not service.state()["history"]
+    finally:
+        service.close()

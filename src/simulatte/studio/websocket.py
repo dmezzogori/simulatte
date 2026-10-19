@@ -28,6 +28,20 @@ EXPERIMENT_COMMANDS = frozenset(
         "workers.get",
     )
 )
+PROJECT_COMMANDS = frozenset(
+    (
+        "project.get",
+        "project.configure",
+        "model.prepare",
+        "environment.prepare",
+        "environment.select",
+        "history.get",
+        "run.get",
+        "history.annotate",
+        "run.stop_and_run",
+        "model.auto",
+    )
+)
 COMMANDS = frozenset(
     (
         "state.get",
@@ -40,6 +54,7 @@ COMMANDS = frozenset(
         "layout.write",
         "view.select",
         *EXPERIMENT_COMMANDS,
+        *PROJECT_COMMANDS,
     )
 )
 
@@ -110,7 +125,7 @@ def decode_message(raw, *, auth=False):
         ):
             raise ProtocolError("Expected authentication message")
         return message
-    fenced = type(message.get("type")) is not str or message["type"] not in EXPERIMENT_COMMANDS
+    fenced = type(message.get("type")) is not str or message["type"] not in EXPERIMENT_COMMANDS | PROJECT_COMMANDS
     required = {"v", "type", "id", "body"} | ({"revision"} if fenced else set())
     if (
         not required <= message.keys()

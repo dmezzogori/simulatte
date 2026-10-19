@@ -120,30 +120,35 @@ def test_studio_cli_dispatch_and_startup_errors(monkeypatch, capsys):
 @pytest.mark.parametrize("text", ['[workers.box]\nhost = "box"\nslots = 2\n', "[workers.box\nhost = "])
 def test_studio_slots_use_configured_workers_and_report_a_malformed_file(tmp_path, monkeypatch, text):
     from simulatte.execution.slots import default_local_slots
-    from simulatte.studio import command
-    from tests.execution.test_coordinator import project
+    from simulatte.projects.service import ProjectService
+    from simulatte.projects import StudioTarget, install_starter, starter_files
+    from simulatte.execution.coordinator import Coordinator
+    from simulatte.execution.slots import SlotConfig
 
-    spec = project(tmp_path)
+    install_starter(tmp_path, starter_files("production"))
     (tmp_path / "workers.toml").write_text(text)
     monkeypatch.setenv("SIMULATTE_WORKERS", str(tmp_path / "workers.toml"))
-    monkeypatch.setattr(command, "assets", lambda: tmp_path)
-    seen = []
 
-    class Stop(Exception):
-        pass
+    class DeferredCoordinator:
+        def __init__(self):
+            self.slots = SlotConfig()
 
-    def studio(coordinator, port, static, **options):
-        seen.append((coordinator.slots, options["workers_error"]))
-        raise Stop
+        def _add_workers(self, workers):
+            self.slots = SlotConfig(workers=workers)
 
-    monkeypatch.setattr(command, "StudioServer", studio)
-    args = arguments(str(spec.root / "plant.py"), "--project", str(spec.root))
-    args.port = 0
-    with pytest.raises(Stop):
-        command.serve_studio(args)
-    ((slots, error),) = seen
-    assert slots.local == default_local_slots()
-    if text.endswith("slots = 2\n"):
-        assert [(spec.name, spec.slots) for spec in slots.workers] == [("box", 2)] and error is None
-    else:
-        assert slots.workers == () and error.startswith("Malformed workers file")
+        def close(self):
+            pass
+
+    monkeypatch.setattr(Coordinator, "for_workspace", lambda *a, **kw: DeferredCoordinator())
+    service = ProjectService.open(StudioTarget(tmp_path, None))
+    try:
+        assert service.coordinator is None
+        coordinator = service.ensure_coordinator()
+        slots, error = coordinator.slots, service.error
+        assert slots.local == default_local_slots()
+        if text.endswith("slots = 2\n"):
+            assert [(spec.name, spec.slots) for spec in slots.workers] == [("box", 2)] and error is None
+        else:
+            assert slots.workers == () and error.startswith("Malformed workers file")
+    finally:
+        service.close()

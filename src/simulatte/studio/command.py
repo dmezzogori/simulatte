@@ -11,12 +11,8 @@ import uvicorn
 from uvicorn.protocols.websockets.websockets_impl import WebSocketProtocol
 
 from simulatte.execution.command import _stopping
-from simulatte.execution.coordinator import Coordinator, selected_model
-from simulatte.execution.slots import SlotConfig
-from simulatte.execution.snapshot import discover_project
-from simulatte.execution.workers import load_workers
+from simulatte.execution.coordinator import selected_model
 from simulatte.model import ParameterSchema, parse_parameters
-from simulatte.studio.app import StudioServer
 from simulatte.studio.server import assets
 
 
@@ -41,6 +37,7 @@ def configure(args):
             "kpis": args.kpi,
         }
 
+    setattr(initial, "flags", vars(args))
     return initial
 
 
@@ -64,41 +61,39 @@ def server_config(app):
 
 
 def serve_studio(args):
+    from pathlib import Path
+    from simulatte.projects import resolve_target, StudioTarget
+    from simulatte.projects.bootstrap import launch_project
+
+    target = resolve_target(args.model, cwd=Path.cwd())
+    if args.project is not None:
+        root = Path(args.project).resolve()
+        if not target.root.is_relative_to(root):
+            raise ValueError("Model target escapes explicit project root")
+        target = StudioTarget(root, target.legacy_reference)
+    launch_project(target, port=args.port, no_browser=args.no_browser, configure=configure(args))
+
+
+def serve_project(service, *, port, no_browser):
+    from simulatte.studio.project_commands import ProjectServer
+
     static = assets()
-    path, separator, name = args.model.rpartition(":")
-    selected = bool(separator and path.endswith(".py"))
-    spec = discover_project(path if selected else args.model, args.project, layout=args.layout)
-    reference = spec.model + (":" + name if selected else "")
     with socket.socket() as sock:
-        sock.bind(("127.0.0.1", args.port))
+        sock.bind(("127.0.0.1", port))
         sock.listen(128)
-        # Default local experiment slots plus the configured workers; a malformed workers.toml
-        # is reported in state.get rather than stopping Studio. Remote slots connect only when used.
-        try:
-            workers, workers_error = tuple(load_workers().values()), None
-        except ValueError as error:
-            workers, workers_error = (), str(error)[:4096]
-        with Coordinator(spec, reference=reference, slots=SlotConfig(workers=workers)) as coordinator:
-            studio = StudioServer(
-                coordinator,
-                sock.getsockname()[1],
-                static,
-                timeout=args.timeout,
-                configure=configure(args),
-                workers_error=workers_error,
-            )
-            print(f"Simulatte Studio: {studio.origin}\nCtrl-C to stop. Enter link for a fresh one-time browser link.")
-            link = studio.link()
-            if args.no_browser:
-                print(link, flush=True)
-            elif not webbrowser.open(link):
-                print("Browser could not open. Enter link below, or restart with --no-browser.", flush=True)
+        studio = ProjectServer(service, sock.getsockname()[1], static)
+        server = uvicorn.Server(server_config(studio.app))
+        studio.on_restart = lambda: setattr(server, "should_exit", True)
+        print(f"Simulatte Studio: {studio.origin}\nCtrl-C to stop. Enter link for a fresh one-time browser link.")
+        link = studio.link()
+        if no_browser or not webbrowser.open(link):
+            print(link, flush=True)
 
-            def terminal():
-                for line in sys.stdin:
-                    if line.strip() == "link":
-                        print(studio.link(), flush=True)
+        def terminal():
+            for line in sys.stdin:
+                if line.strip() == "link":
+                    print(studio.link(), flush=True)
 
-            if sys.stdin.isatty():
-                threading.Thread(target=terminal, daemon=True).start()
-            uvicorn.Server(server_config(studio.app)).run(sockets=[sock])
+        if sys.stdin.isatty():
+            threading.Thread(target=terminal, daemon=True).start()
+        server.run(sockets=[sock])

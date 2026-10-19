@@ -34,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
 
     run = commands.add_parser("run", help="Execute or reproduce a captured local model")
     add_arguments(run)
-    studio = commands.add_parser("studio", help="Run and edit a local model in Studio")
+    studio = commands.add_parser("studio", help="Open a project folder in Studio (default: current folder)")
     add_arguments(studio, headless=False)
     studio.add_argument("--port", type=int, default=0)
     studio.add_argument("--no-browser", action="store_true")
@@ -44,8 +44,10 @@ def main(argv: list[str] | None = None) -> int:
     from simulatte.execution.workers_cli import add_workers_arguments
 
     add_workers_arguments(commands.add_parser("workers", help="Configure and check remote workers"))
-    worker = commands.add_parser("worker", help="Start a framed execution supervisor")
+    worker = commands.add_parser("worker", help=argparse.SUPPRESS)
     worker.add_argument("--stdio", action="store_true", required=True)
+    commands._choices_actions = [action for action in commands._choices_actions if action.dest != "worker"]
+    commands.metavar = "{studio,run,experiment,view,replay,store,workers}"
     args = parser.parse_args(argv)
     if args.command == "run":
         from simulatte.execution.command import run as execute

@@ -311,7 +311,12 @@ class Coordinator:
         from simulatte.execution.admission import Admission
 
         with self._condition:
-            if self.contexts[model_id].revision != revision:
+            context = self.contexts[model_id]
+            if (
+                context.revision != revision
+                or request.layout_revision != revision.number
+                or request.model != context.reference
+            ):
                 return Admission("stale")
             if self._owner() != owner:
                 return Admission("busy", owner=self._owner())
