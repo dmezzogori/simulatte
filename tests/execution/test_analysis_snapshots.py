@@ -227,8 +227,14 @@ def test_dataset_requirements_and_changed_evidence_rejected(setup):
             "missing", "report.py:run", "a" * 64, ParameterSchema(()), (DatasetRequirement("jobs", ("family",)),)
         )
     )
-    with pytest.raises(ValueError, match="insufficient"):
+    with pytest.raises(ValueError, match="insufficient") as refused:
         admit(analysis, absent, preview)
+    assert f"0 of 1 replications valid, 1 required; replication 0 (attempt {attempt}) lacks fields: family" in str(
+        refused.value
+    )
+    assert refused.value.details["unavailable"] == [
+        {"index": 0, "attempt": attempt, "missing_fields": ["family"], "reason": "fields not retained"}
+    ]
     with store._transaction() as db:
         db.execute("UPDATE kpis SET value=? WHERE attempt=?", (_blob(4), attempt))
     with pytest.raises(ValueError, match="fresh preview"):
@@ -290,8 +296,10 @@ def test_user_policy_applies_to_dataset_valid_inputs(setup, policy):
 
     store, analysis, _ = setup
     run, _ = build(store, {(0, i): "pending" for i in range(2)})
+    attempts = []
     for i in range(2):
         attempt = publish(store, run, 0, i, 3)
+        attempts.append(attempt)
         root = store.root / "results" / attempt
         # Both results have jobs, but only one retained the required lateness field.
         field = "lateness" if i == 0 else "duration"
@@ -323,8 +331,25 @@ def test_user_policy_applies_to_dataset_valid_inputs(setup, policy):
     snapshot = analysis.snapshot(preview.snapshot_hash)
     assert len(snapshot["replications"]) == 2
     assert snapshot["replications"][1]["datasets"]["jobs"]["manifest"]["schema"]["fields"][0]["name"] == "duration"
-    with pytest.raises(ValueError, match="insufficient input for dataset jobs"):
+    with pytest.raises(ValueError, match="insufficient input for dataset jobs") as refused:
         admit(analysis, definition, preview)
+    # The refusal names the counts and the fields each invalid replication lacks.
+    assert (
+        f"1 of 2 replications valid, 2 required; replication 1 (attempt {attempts[1]}) lacks fields: lateness"
+        in str(refused.value)
+    )
+    assert refused.value.details == {
+        "dataset": "jobs",
+        "run": run,
+        "configuration": 0,
+        "valid": 1,
+        "replications": 2,
+        "required": 2,
+        "require_complete": "require_complete" in policy,
+        "unavailable": [
+            {"index": 1, "attempt": attempts[1], "missing_fields": ["lateness"], "reason": "fields not retained"}
+        ],
+    }
     # The relaxed policy can use one valid replication; no evidence is silently removed.
     relaxed = admit(analysis, definition, analysis.preview(Selection(experiment_run_ids=(run,), configurations=(0,))))
     assert len(analysis.snapshot(relaxed.snapshot_hash)["replications"]) == 2
@@ -465,3 +490,131 @@ def test_referenced_analysis_is_kept_and_annotations_are_bounded(setup):
         assert db.execute("SELECT COUNT(*) FROM analysis_annotations").fetchone()[0] == 0
     with pytest.raises(KeyError):
         analysis.execution(execution.id)
+
+
+def test_measurement_failure_reaches_admission_refusal(setup, monkeypatch):
+    import json
+    from simulatte.analysis import store as module
+    from simulatte.analysis.definition import DatasetRequirement
+
+    store, analysis, _ = setup
+    run, _ = build(store, {(0, i): "pending" for i in range(3)})
+    failed, bare = publish(store, run, 0, 0, 3), publish(store, run, 0, 1, 4)
+    root = store.root / "results" / failed / "artifacts"
+    root.mkdir(exist_ok=True)
+    paths = dataset(root, "jobs")
+    # A manifest beside the failure record does not make the failed measurement valid.
+    (root / "datasets/jobs/failure.json").write_text(json.dumps({"failure": "jobs: RuntimeError: boom"}))
+    index(store, failed, {path: {} for path in [*paths, "datasets/jobs/failure.json"]})
+    preview = analysis.preview(Selection(experiment_run_ids=(run,)))
+    first = analysis.snapshot(preview.snapshot_hash)["replications"][0]
+    assert first["available"] and "jobs" not in first["datasets"]
+    assert first["dataset_failures"] == {"jobs": "jobs: RuntimeError: boom"}
+    definition = analysis.put_definition(
+        AnalysisDefinition(
+            "jobs", "report.py:run", "a" * 64, ParameterSchema(()), (DatasetRequirement("jobs", ("lateness",)),)
+        )
+    )
+    with pytest.raises(ValueError, match="insufficient input for dataset jobs") as refused:
+        admit(analysis, definition, preview)
+    assert str(refused.value).endswith(
+        f"0 of 3 replications valid, 1 required; replication 0 (attempt {failed}): jobs: RuntimeError: boom; "
+        f"replication 1 (attempt {bare}): dataset unavailable; replication 2: pending"
+    )
+    assert [(r["index"], r["missing_fields"], r["reason"]) for r in refused.value.details["unavailable"]] == [
+        (0, ["lateness"], "jobs: RuntimeError: boom"),
+        (1, ["lateness"], "dataset unavailable"),
+        (2, ["lateness"], "pending"),
+    ]
+    # Long refusals list a bounded prefix in the message; details keep every replication.
+    monkeypatch.setattr(module, "LISTED_REPLICATIONS", 2)
+    with pytest.raises(ValueError, match="dataset unavailable; 1 more$") as refused:
+        admit(analysis, definition, preview)
+    assert len(refused.value.details["unavailable"]) == 3
+
+
+@pytest.mark.parametrize("tamper", ["extra", "missing"])
+def test_malformed_dataset_manifest_marks_only_its_replication_unavailable(setup, tamper):
+    import json
+
+    store, analysis, definition = setup
+    run, _ = build(store, {(0, i): "pending" for i in range(2)})
+    bad = publish(store, run, 0, 0, 3)
+    publish(store, run, 0, 1, 4)
+    root = store.root / "results" / bad / "artifacts"
+    root.mkdir(exist_ok=True)
+    paths = dataset(root, "jobs")
+    manifest = root / "datasets/jobs/manifest.json"
+    body = json.loads(manifest.read_text())
+    if tamper == "extra":
+        body["chunks"][0]["extra"] = 1
+    else:
+        del body["schema"]["name"]
+    manifest.write_text(json.dumps(body))
+    index(store, bad, {path: {} for path in paths})
+    preview = analysis.preview(Selection(experiment_run_ids=(run,)))
+    assert (preview.available, preview.missing) == (1, 1)
+    assert analysis.snapshot(preview.snapshot_hash)["replications"][0]["reason"] == "invalid dataset manifest"
+
+
+def test_delete_and_cancel_remove_output_tree_and_control_file(setup):
+    store, analysis, definition = setup
+    run, _ = build(store, {(0, 0): "pending"})
+    attempt = publish(store, run, 0, 0, 3)
+    preview = analysis.preview(Selection(run_ids=(attempt,)))
+    first, second = admit(analysis, definition, preview), admit(analysis, definition, preview)
+    control = store.root / "analysis-control"
+    (control / (first.id + ".cancel")).touch()
+    analysis.cancel(first.id)
+    assert not (control / (first.id + ".cancel")).exists()
+    # A planted symlink is removed without following it; a missing file is ignored.
+    outside = store.root.parent / "outside"
+    outside.write_text("keep")
+    (control / (second.id + ".cancel")).symlink_to(outside)
+    output = store.root / "analysis-results" / second.id
+    output.mkdir()
+    (output / "number.json").write_text("{}")
+    analysis.cancel(second.id)
+    assert outside.read_text() == "keep"
+    (control / (second.id + ".cancel")).touch()
+    analysis.delete(second.id)
+    assert not output.exists() and not (control / (second.id + ".cancel")).exists()
+    analysis.delete(first.id)
+    assert list(control.iterdir()) == []
+
+
+def test_prune_removes_unadmitted_previews_and_keeps_admitted_snapshots(setup):
+    store, analysis, definition = setup
+    run, _ = build(store, {(0, i): "pending" for i in range(2)})
+    attempt = publish(store, run, 0, 0, 3)
+    unadmitted = analysis.preview(Selection(experiment_run_ids=(run,)))
+    admitted = analysis.preview(Selection(run_ids=(attempt,)))
+    execution = admit(analysis, definition, admitted)
+    assert store.prune(dry_run=True) == {"results": [], "snapshots": []}
+    with store._transaction() as db:
+        assert {r[0] for r in db.execute("SELECT id FROM analysis_previews")} == {unadmitted.id, admitted.id}
+    store.prune()
+    with store._transaction() as db:
+        assert [r[0] for r in db.execute("SELECT id FROM analysis_previews")] == [admitted.id]
+    with pytest.raises(KeyError):
+        analysis.snapshot(unadmitted.snapshot_hash)
+    with pytest.raises(KeyError):
+        admit(analysis, definition, unadmitted)
+    assert analysis.snapshot(execution.snapshot_hash)["replications"][0]["attempt"] == attempt
+    assert analysis.rerun(execution.id).snapshot_hash == execution.snapshot_hash
+
+
+def test_failure_published_after_snapshot_is_changed_evidence(setup):
+    import json
+
+    store, analysis, definition = setup
+    run, _ = build(store, {(0, 0): "pending"})
+    attempt = publish(store, run, 0, 0, 3)
+    preview = analysis.preview(Selection(run_ids=(attempt,)))
+    assert "dataset_failures" not in analysis.snapshot(preview.snapshot_hash)["replications"][0]
+    root = store.root / "results" / attempt / "artifacts"
+    (root / "datasets/jobs").mkdir(parents=True)
+    (root / "datasets/jobs/failure.json").write_text(json.dumps({"failure": "jobs: RuntimeError: late"}))
+    index(store, attempt, {"datasets/jobs/failure.json": {}})
+    with pytest.raises(ValueError, match="Evidence changed"):
+        admit(analysis, definition, preview)

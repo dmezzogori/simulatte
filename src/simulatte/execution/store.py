@@ -1045,6 +1045,7 @@ class RunStore:
         live preparation that has not created a request yet (the CLI opens the store alone).
         The index transaction commits first; directories are removed afterwards, so an
         interrupted prune leaves only unindexed directories that ``recover`` removes.
+        Analysis previews no execution admitted are removed with their unused input snapshots.
         """
         with self._transaction() as db:
             attempts = self._unreferenced(db)
@@ -1067,6 +1068,14 @@ class RunStore:
             )
             if not dry_run:
                 self._drop_results(db, attempts)
+                db.execute(
+                    "DELETE FROM analysis_previews WHERE snapshot NOT IN (SELECT snapshot FROM analysis_executions)"
+                )
+                db.execute(
+                    """DELETE FROM analysis_input_snapshots WHERE id NOT IN (SELECT snapshot FROM analysis_executions)
+                    AND id NOT IN (SELECT snapshot FROM analysis_previews)
+                    AND id NOT IN (SELECT target_id FROM "references" WHERE target_kind='analysis-snapshot')"""
+                )
         if not dry_run:
             self._remove_results(attempts)
             for name in snapshots:
@@ -1138,6 +1147,8 @@ class RunStore:
             # late publication is rejected by the lost attempt/cleared slot fences.
             # Keep captured experiment preparation and all durable reference kinds.
             db.execute("DELETE FROM \"references\" WHERE owner_kind='environment-owner'")
+            # A writer that crashed inside prepare_analysis left its temporary source reference.
+            db.execute("DELETE FROM \"references\" WHERE owner_kind='analysis-inspection'")
             db.execute(
                 """UPDATE replications SET status='pending' WHERE status='lost' AND dispatches<?
                 AND run IN (SELECT id FROM experiment_runs WHERE status='paused')""",
@@ -1147,6 +1158,9 @@ class RunStore:
             indexed = {row[0] for row in db.execute("SELECT attempt FROM results")}
             analysis_indexed = {row[0] for row in db.execute("SELECT execution FROM analysis_outputs")}
         for path in (self.root / "analysis-staging").iterdir():
+            _remove(path)
+        # Cancellation requests addressed the dead writer's executions, now lost.
+        for path in (self.root / "analysis-control").iterdir():
             _remove(path)
         for path in (self.root / "analysis-results").iterdir():
             if path.name not in analysis_indexed:

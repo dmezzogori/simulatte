@@ -72,7 +72,7 @@ def test_analysis_cli_insufficient_explicit_inputs_and_unknown_registration(proj
     code, failed = invoke(capsys, root, "run", "total", "--experiment", run, "--require-complete")
     assert code == 2 and "insufficient" in failed["message"]
     code, failed = invoke(capsys, root, "run", "missing", "--run", attempt)
-    assert code == 2 and "Unknown analysis" in failed["message"]
+    assert code == 2 and "Unknown analysis" in failed["message"] and "details" not in failed
     code, failed = invoke(capsys, root, "run", "total")
     assert code == 2 and "explicit" in failed["message"]
 
@@ -310,3 +310,38 @@ def test_operational_failure_and_text_output(tmp_path, capsys):
     assert captured.out == "" and captured.err.strip()
     assert main(["analysis", "show", "a", "--project", str(tmp_path)]) == 2
     assert "No readable run store index" in capsys.readouterr().err
+
+
+def test_dataset_refusal_envelope_carries_structured_details(project, capsys):
+    from simulatte.analysis import codec
+
+    root, run, attempt = project
+    (root / "report.py").write_text("""from simulatte.analysis import DatasetRequirement, analysis
+from simulatte.model import ParameterSchema
+@analysis(parameters=ParameterSchema(()), requires=(DatasetRequirement('jobs', ('lateness',)),))
+def analyze(context, parameters):
+    pass
+""")
+    code, failed = invoke(capsys, root, "run", "total", "--run", attempt)
+    assert code == 2 and failed["status"] == "validation_failed"
+    assert failed["message"].endswith(
+        f"0 of 1 replications valid, 1 required; replication 0 (attempt {attempt}): dataset unavailable"
+    )
+    details = codec.from_json(failed["details"])
+    assert (details["dataset"], details["run"], details["valid"], details["required"]) == ("jobs", attempt, 0, 1)
+    assert [(r["attempt"], list(r["missing_fields"])) for r in details["unavailable"]] == [(attempt, ["lateness"])]
+
+
+def test_request_cancel_does_not_acknowledge_finalizing(project):
+    from simulatte.analysis.command import request_cancel
+
+    root, run, attempt = project
+    identity = waiting(root, attempt)
+    store = root / ".simulatte"
+    with RunStore.open(store) as owner:
+        with owner._transaction() as db:
+            db.execute("UPDATE analysis_executions SET state='finalizing' WHERE id=?", (identity,))
+        # The runner no longer polls the control file once publication has started.
+        current = request_cancel(store, identity)
+    assert current["execution"]["state"] == "finalizing" and "cancellation_requested" not in current
+    assert not (store / "analysis-control" / (identity + ".cancel")).exists()

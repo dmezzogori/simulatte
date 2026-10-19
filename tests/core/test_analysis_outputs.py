@@ -243,6 +243,10 @@ def test_figure_adapter_refuses_invalid_names_objects_and_overwrites(tmp_path):
     detached = type("Detached", (), {"__module__": "matplotlib.fake", "figure": None})()
     with pytest.raises(ValueError, match="figure or axes"):
         save_figure(detached, tmp_path, name="detached")
+    # seaborn.objects.Plot exposes neither .figure nor get_figure().
+    plot = type("Plot", (), {"__module__": "seaborn._core.plot"})()
+    with pytest.raises(ValueError, match="figure or axes"):
+        save_figure(plot, tmp_path, name="objects")
     first = save_figure(MatplotlibFigure(), tmp_path / "figures", name="plot.svg")
     assert first.kind == "svg" and first.payload.is_file()
     with pytest.raises(ValueError, match="already exists"):
