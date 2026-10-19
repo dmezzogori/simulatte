@@ -13,6 +13,9 @@ test("installed project: starter, managed generation, explicit run and reopen", 
   const fixture = new ProjectFixture();
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
   try {
     await fixture.setup();
     await page.goto(await fixture.launch());
@@ -227,6 +230,9 @@ test("two models keep drafts and explicit busy ownership across navigation", asy
   const fixture = new ProjectFixture();
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
   try {
     await fixture.setup();
     const model = (delay: number) =>

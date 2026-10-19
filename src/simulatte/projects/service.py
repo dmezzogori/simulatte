@@ -169,7 +169,13 @@ class ProjectService:
                 self.workspace.id if self.workspace is not None else str(uuid4()),
                 tuple(models),
                 () if self.workspace is None else self.workspace.analyses,
-                body.get("default_model"),
+                body.get(
+                    "default_model",
+                    next(
+                        (m.key for m in models if self.workspace is not None and m.key == self.workspace.default_model),
+                        None,
+                    ),
+                ),
             )
             edit = preview_config(self.root, definition)
             if "include" in body:
@@ -246,9 +252,13 @@ class ProjectService:
                 self.error = str(error)
         return self.coordinator
 
+    @property
+    def timeout(self):
+        return getattr(self.initial_options, "flags", {}).get("timeout")
+
     def prepare_model(self, model_id):
         co = self.ensure_coordinator()
-        prepared = co.prepare_model(model_id, timeout=30)
+        prepared = co.prepare_model(model_id, timeout=30 if self.timeout is None else self.timeout)
         owner = co.inputs_for(model_id)
         initial = self.initial_options(prepared) if owner.state is None and self.initial_options is not None else None
         owner.bind(prepared, initial=initial)
@@ -319,6 +329,9 @@ class ProjectService:
                 "environment": None if selected is None else self._generation_state(selected),
                 "preparation_progress": "" if self.environments is None else self.environments.progress,
                 "legacy_reference": self._legacy_reference(),
+                "legacy_layout": getattr(self.initial_options, "flags", {}).get("layout", "layout.json")
+                if self.target.legacy_reference is not None
+                else None,
             }
 
     def _legacy_reference(self):

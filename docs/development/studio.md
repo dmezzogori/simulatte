@@ -1,5 +1,9 @@
 # Studio: local execution and recorded simulations
 
+For the project workspace and first-run tutorial, start with [Studio](../studio/index.md),
+[projects](../studio/projects.md) and [environments](../studio/environments.md).
+This page retains recording, layout and development reference links.
+
 Studio opens a `.simtrace` recording without running the model. Install the optional
 server dependencies and open a recording:
 
@@ -126,9 +130,9 @@ pnpm --dir studio typecheck
 pnpm --dir studio test
 pnpm --dir studio build
 pnpm --dir studio exec playwright install chromium firefox webkit
-pnpm --dir studio test:browser
 uv run python studio/scripts/package_assets.py
 uv build
+pnpm --dir studio test:browser
 ```
 
 Editable Python installs need no frontend build for simulation use. The view
@@ -240,16 +244,15 @@ a fresh execution process; the local supervisor is reused, with no warm spare.
 
 ## Parameter and layout editing (0.16)
 
-The `simulatte studio MODEL.py` command serves the local editor.
-It inspects a decorated model in a fresh process and runs once when the declared
-inputs and parameter defaults are valid. Missing required parameters open the
-form without starting a run. `simulatte run MODEL.py` uses the same execution
+The `simulatte studio [PATH]` command opens the project workspace. Legacy
+`MODEL.py[:entrypoint]` launches offer registration. Opening never imports a model
+or starts a simulation. Choose **Prepare model**, then explicitly **Run**.
+Missing required parameters remain form issues until supplied. `simulatte run MODEL.py` uses the same execution
 inputs for a single headless run; ordinary scripts and the read-only `view`
 command remain available.
 
-Open **Parameters** to edit typed values, the decimal seed, stopping policy,
-recording level and KPI keys. Typing does not start a run. **Apply and run**
-submits one revision. When another tab or a source edit changes the inputs,
+On the model page, edit typed values, the decimal seed, stopping policy,
+recording level and KPI keys. Typing does not start a run. **Run** submits one revision. When another tab or a source edit changes the inputs,
 review the new revision before keeping your draft or reloading authoritative
 values. Removed fields and incompatible types stay visible as validation issues.
 An empty required string must be supplied explicitly.
@@ -265,8 +268,9 @@ segments automatically.
 Physical changes use a fresh disposable preparation process and stop at the
 ready barrier, without stepping the simulation or publishing a run. Validation
 does not write the working file or replace an active run. **Apply layout** saves
-through the revision check and atomic replacement: physical changes run again;
-presentation-only changes update the view association. A failed validation
+through the revision check and atomic replacement. In the project workspace,
+physical changes wait for an explicit **Run**; presentation-only changes update
+the view association. A failed validation
 retains the draft and the prior view.
 
 **Reset** removes a file override and inherits the code or automatic value.
@@ -292,9 +296,9 @@ worker liveness, stalled
 execution and trace-storage backpressure. Run diagnostics retain a bounded tail
 and identify the originating revision and attempt.
 
-**Run history** selects one of the latest 20 committed attempts with its recorded
-layout, clearing any presentation edits even when that run is already open.
-Selection stays pinned until **Follow live**. The current presentation
+**Runs** pages through saved attempts and opens each with its recorded layout.
+Selecting a model or another history row never starts a simulation. The run page
+stays on the chosen attempt as other work completes. The current presentation
 can change without rewriting the trace or rerunning the model. HTML, video and
 PNG exports pin the selected committed run and presentation; a later edit or
 run cannot change an open export dialog. Live export becomes available only

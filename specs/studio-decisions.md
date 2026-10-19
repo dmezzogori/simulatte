@@ -645,3 +645,33 @@ experiment or editing a variant does not invalidate the interactive run.
 exact Python version (`.python-version` or the coordinator's) shared by supervisor and environment; provisioning
 has its own timeout (default 600 s) and a timeout is `provisioning_failed`, never `lost`. Windows coordinators
 keep local experiments; SSH from Windows is untested in 0.17 and Windows is never a remote host.
+
+
+## Studio project experience amendment, 2026-10-19
+
+Approved design: [revision 2](2026-10-19-studio-project-experience-design.md),
+implemented incrementally through the [P1 plan](../plans/2026-10-19-studio-p1-projects.md).
+These amendments supersede prior automatic-start/disposable-store assumptions;
+historical decisions above remain as the record of their original scope.
+
+- Studio opens the current or named folder, creating an absent folder. Legacy
+  `MODEL.py[:entrypoint]` remains a registration path. Opening never runs a model.
+- A single project coordinator/store owns multiple immutable model contexts.
+  Inspection uses a separate child slot. Selection does not fence a running job;
+  interactive replacement requires explicit busy-owner admission.
+- Project/model UUIDs associate history without rewriting old request/result IDs.
+  Schema 3 backs up older stores before migration and preserves unassigned legacy
+  evidence when an association cannot be proven.
+- Runtime generations are immutable and owned by active work. Dependency preparation
+  and lockfile changes are explicit; activation hands off writer ownership. Broken
+  runtimes retain read-only saved-work viewing without importing project code.
+- `.simulatte/` includes durable history/evidence. No blanket safe-to-delete advice
+  applies. Cleanup must respect retained references and active environment owners.
+- Sidebar A is the sole project navigation surface. Numerical/table-first work,
+  saved analyses and selected-recording presentations remain governed by later
+  packages; P1 retains existing recording/export and experiment functionality.
+
+Davide accepted the actual P1 UI direction and requested moderately denser controls.
+That adjustment is implemented without reducing font sizes or losing visible labels.
+Verification and remaining platform/review gates are recorded in the
+[P1 acceptance report](research/2026-10-19-studio-p1-acceptance.md).

@@ -81,11 +81,13 @@ class SessionAuth:
             )
         nonce = secrets.token_urlsafe(24)
         headers["Content-Security-Policy"] = (
-            f"default-src 'none'; script-src 'nonce-{nonce}'; "
+            f"default-src 'none'; img-src data:; script-src 'nonce-{nonce}'; "
             "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
         )
         body = (
-            f'<!doctype html><meta charset="utf-8"><title>Simulatte</title><p id="message">Opening Simulatte…</p>'
+            '<!doctype html><meta charset="utf-8"><title>Simulatte</title>'
+            '<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E">'
+            '<p id="message">Opening Simulatte…</p>'
             f'<script nonce="{nonce}">try {{const key={json.dumps(self.secret)};'
             'sessionStorage.setItem("simulatte-session",key);'
             f'sessionStorage.setItem("simulatte-mode",{json.dumps(self.mode)});'

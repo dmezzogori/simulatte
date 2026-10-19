@@ -121,9 +121,11 @@ Schema 3 adds `project_meta`, `models` (including tombstones), `model_revisions`
 
 **Files:** Create `docs/studio/{index,projects,environments}.md`, update `docs/development/studio.md`, `zensical.toml`, `README.md`, and `specs/studio-decisions.md` with approved amendments; create `specs/research/2026-10-19-studio-p1-acceptance.md` when evidence exists. Link the global design to the superseding project-first/explicit-run contracts without rewriting historical decisions.
 
-- [ ] Document installed-package commands, non-Git membership, model registration, saved history, environment update/recovery and busy-slot behavior. Keep old deep links with short redirects/navigation pointers. Replace affected “safe to delete .simulatte” advice now; do not wait for P4.
+- [x] Document installed-package commands, non-Git membership, model registration, saved history, environment update/recovery and busy-slot behavior. Keep old deep links with short redirects/navigation pointers. Replace affected “safe to delete .simulatte” advice now; do not wait for P4.
 - [ ] Run the shared package gate and installed-wheel tutorial on bigboss. Record schema migration, legacy CLI, two-model ownership, broken-environment recovery and remote-worker regression evidence. Preserve supported headless and bare-Python paths.
 - [ ] Review actual UI/screenshots and failures with Davide, resolve P1 defects, and commit `docs(studio): document and verify project workflows`. P1 is complete only with evidence for product scenarios 1–4 and the P1 portions of 10–11.
+
+T7 candidate evidence: full Python gate 3515 passed, 1 skipped, 99.02%; TypeScript 441 passed; browser 45 passed. Davide accepted the compact screenshots in eva Safari (“saw them. ok.”). Native copied-project reconstruction remains **OPEN P1-R1**: generated script paths, local-wheel direct URL and uv cache timestamp change raw RECORD identity. Strict refusal and old identities are preserved. Independent reviewer/coordinator ruling is required; this is not an accepted deviation or P1 completion. See [acceptance evidence](../specs/research/2026-10-19-studio-p1-acceptance.md).
 
 ## Primary implementation references
 
