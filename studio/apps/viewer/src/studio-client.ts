@@ -54,12 +54,12 @@ export type Command = ProjectCommand | 'project.rescan' | 'state.get' | 'params.
 export type NotificationType = 'state' | 'model_info' | 'revision_changed' | 'run_state' | 'progress' | 'trace_available' | 'kpi' | 'layout_resolved' | 'validation' | 'inputs_changed' | 'invalidated' | 'error'
   | 'experiment_state' | 'experiment_progress' | 'replay_state' | 'workers_state' | 'experiments_changed';
 export type ConnectionStatus = 'connecting' | 'synchronizing' | 'connected' | 'reconnecting' | 'authentication_required' | 'disposed';
-export interface Notification {v: 1; type: NotificationType; event_seq: number; body: unknown; revision?: Revision | null; attempt_id?: string; generation?: number;}
+export interface Notification {v: 1; type: NotificationType; event_seq: number; body: unknown; revision?: Revision | null; attempt_id?: string; generation?: number; arrival?: number;}
 interface Options {
   origin?: string;
   socket?: (url: string) => WebSocket;
   fetch?: typeof fetch;
-  onState?: (state: StudioState) => void;
+  onState?: (state: StudioState, arrival: number) => void;
   onStatus?: (status: ConnectionStatus) => void;
   onNotification?: (message: Notification) => void;
   onError?: (error: unknown) => void;
@@ -95,26 +95,28 @@ function serialize(value: unknown, limit = MAX_MESSAGE): string {
 }
 export class StudioClient {
   state: StudioState | null = null;
+  stateArrival = 0; // Client-local receipt order, monotonic across socket epochs.
   status: ConnectionStatus = 'connecting';
   readonly origin: string;
   #socket: WebSocket | null = null;
   #epoch = 0;
   #sequence = 0;
+  #arrival = 0;
   #pending = new Map<string, Pending>();
   #retry: ReturnType<typeof setTimeout> | null = null;
   #delay = 1000;
   #abort = new AbortController();
-  #statePending: unknown = undefined;
+  #statePending: {body: unknown; arrival: number} | undefined;
   #stateReading = false;
   #notifications = new Set<(message: Notification) => void>();
-  #states = new Set<(state: StudioState) => void>();
+  #states = new Set<(state: StudioState, arrival: number) => void>();
   constructor(private readonly secret: string, private readonly options: Options = {}) {
     this.origin = options.origin ?? location.origin;
   }
   subscribeNotifications(listener: (message: Notification) => void): () => void {
     this.#notifications.add(listener); return () => {this.#notifications.delete(listener);};
   }
-  subscribeState(listener: (state: StudioState) => void): () => void {
+  subscribeState(listener: (state: StudioState, arrival: number) => void): () => void {
     this.#states.add(listener); return () => {this.#states.delete(listener);};
   }
   private statusChanged(status: ConnectionStatus): void {this.status = status; this.options.onStatus?.(status);}
@@ -157,12 +159,16 @@ export class StudioClient {
         if (!Number.isSafeInteger(message.event_seq) || (message.event_seq as number) < 1) throw new Error('Invalid notification sequence');
         if ((message.event_seq as number) <= this.#sequence) return;
         this.#sequence = message.event_seq as number;
+        // Reserve receipt order before any HTTP body decoding. Wire event_seq may
+        // restart after reconnect; this counter belongs to the client lifetime.
+        const arrival = ++this.#arrival;
         if (message.type === 'state') {
-          this.#statePending = message.body;
+          this.#statePending = {body: message.body, arrival};
           if (!this.#stateReading) void this.readState(socket, epoch);
         } else {
-          this.options.onNotification?.(message as unknown as Notification);
-          for(const listener of [...this.#notifications]) listener(message as unknown as Notification);
+          const notification = {...message, arrival} as unknown as Notification;
+          this.options.onNotification?.(notification);
+          for(const listener of [...this.#notifications]) listener(notification);
         }
       } catch (error) {this.options.onError?.(error); socket.close(1002);}
     };
@@ -206,14 +212,15 @@ export class StudioClient {
     try {
       while (this.#statePending !== undefined && this.current(socket, epoch)) {
         const next = this.#statePending; this.#statePending = undefined;
-        const state = await this.expand(next, this.#abort.signal);
+        const state = await this.expand(next.body, this.#abort.signal);
         if (!this.current(socket, epoch)) return;
         if (this.#statePending !== undefined) continue;
         if (!object(state) || !('revision' in state) || !Array.isArray(state.results) || !object(state.startup)) throw new Error('Invalid Studio state');
         if (state.project !== undefined) validateProjectState(state.project);
         this.state = state as unknown as StudioState;
-        this.#delay = 1000; this.statusChanged('connected'); this.options.onState?.(this.state);
-        for(const listener of [...this.#states]) listener(this.state);
+        this.stateArrival = next.arrival;
+        this.#delay = 1000; this.statusChanged('connected'); this.options.onState?.(this.state, next.arrival);
+        for(const listener of [...this.#states]) listener(this.state, next.arrival);
       }
     } catch (error) {
       if (this.current(socket, epoch)) {this.options.onError?.(error); socket.close(1012);}
@@ -272,7 +279,7 @@ export class StudioClient {
     if (!result.ok) throw new Error('Studio resynchronization failed');
     // The server also broadcasts authoritative changes. Never replay a mutation here.
     const socket = this.#socket;
-    if (socket && sequence === this.#sequence) {this.#statePending = result.state; if (!this.#stateReading) await this.readState(socket, this.#epoch);}
+    if (socket && sequence === this.#sequence) {this.#statePending = {body: result.state, arrival: ++this.#arrival}; if (!this.#stateReading) await this.readState(socket, this.#epoch);}
   }
   async writeLayout(layer: Record<string, unknown>, revision: Revision, signal?: AbortSignal, modelId?: string): Promise<Record<string, unknown>> {
     return this.layoutCommand(false, layer, revision, signal, modelId);

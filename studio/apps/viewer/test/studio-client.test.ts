@@ -183,3 +183,35 @@ it('routes notifications and reconnect state only to mounted subscribers', async
   expect(notifications).toEqual(['replay_state']);
   client.dispose(); vi.useRealTimers();
 });
+
+for(const host of ['callback', 'subscription']) {
+  it(`preserves state arrival order across referenced decoding and reconnect (${host})`, async () => {
+    const {ReplayNotifications} = await import('../src/compare-panel');
+    const feed = new ReplayNotifications();
+    const row = {request_id:'r',original:'o',status:'succeeded',verified:false,reason:'old digest',key:null,trace:null};
+    const bytes = new TextEncoder().encode(JSON.stringify({...state,replays:[row]}));
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)), n=>n.toString(16).padStart(2,'0')).join('');
+    let finish!: (response:Response)=>void;
+    const sockets: Socket[] = [];
+    const observe = (value: import('../src/studio-client').StudioState, arrival?:number) => feed.observe(value.replays ?? [], arrival);
+    const client = new StudioClient('secret', {origin:'http://127.0.0.1:8000',
+      socket:()=>{const socket=new Socket();sockets.push(socket);return socket as unknown as WebSocket;},
+      fetch:()=>new Promise(resolve=>{finish=resolve;}),
+      ...(host==='callback'?{onState:observe,onNotification:message=>feed.notification(message)}:{}),
+    });
+    if(host==='subscription') {client.subscribeState(observe);client.subscribeNotifications(message=>feed.notification(message));}
+    try {
+      client.connect(); const first=sockets[0]!;first.open();
+      first.message({v:1,type:'state',event_seq:40,body:{ref:{id:hash,sha256:hash,length:bytes.length,url:`/api/references/${hash}`}}});
+      first.message({v:1,type:'replay_state',event_seq:41,body:{request_id:'r',original:'o',status:'running',verified:null}});
+      expect(feed.latest('r')?.status).toBe('running');
+      finish(new Response(bytes));
+      await vi.waitFor(()=>expect(client.state?.replays?.[0]?.status).toBe('succeeded'));
+      expect(feed.latest('r')?.status).toBe('running');
+      first.close(1008);client.connect();const next=sockets[1]!;next.open();
+      next.message({v:1,type:'state',event_seq:1,body:{...state,replays:[row]}});
+      await vi.waitFor(()=>expect(feed.latest('r')?.status).toBe('succeeded'));
+      expect(feed.latest('r')?.message).toBe('old digest');
+    } finally {client.dispose();feed.dispose();}
+  });
+}

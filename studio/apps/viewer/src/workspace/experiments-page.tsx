@@ -27,10 +27,10 @@ export function ExperimentsPage({
   );
   const [replays] = useState(() => new ReplayNotifications(ref => client.reference(ref)));
   useEffect(() => {
-    const reconcile = (value: StudioState) => {feed.observe(); replays.observe(value.replays ?? []);};
+    const reconcile = (value: StudioState, arrival: number) => {feed.observe(arrival); replays.observe(value.replays ?? [], arrival);};
     const unnotify = client.subscribeNotifications(message => {feed.notification(message); replays.notification(message);});
     const unstate = client.subscribeState(reconcile);
-    if(client.state) reconcile(client.state);
+    if(client.state) reconcile(client.state, client.stateArrival);
     return () => {unnotify(); unstate(); feed.dispose(); replays.dispose();};
   }, [client, feed, replays]);
   const scoped = useMemo(

@@ -147,3 +147,16 @@ describe('replication selection', () => {
     expect(select).toHaveBeenCalledTimes(1);
   });
 });
+
+it('keeps progress newer than a delayed state listing using transport receipt order', () => {
+  const feed = new ExperimentFeed();
+  feed.notification({v:1,type:'experiment_progress',event_seq:2,arrival:20,body:{run_id:'r1',status:'running',counts:{succeeded:7},configurations:[]}});
+  feed.notification({v:1,type:'workers_state',event_seq:3,arrival:21,body:{local:2,workers:[],slots:[],error:null}});
+  feed.observe(19);
+  expect(feed.snapshot().progress('r1')?.counts.succeeded).toBe(7);
+  expect(feed.snapshot().workers?.local).toBe(2);
+  feed.observe(22);
+  expect(feed.snapshot().progress('r1')).toBeUndefined();
+  expect(feed.snapshot().workers).toBeNull();
+  feed.dispose();
+});

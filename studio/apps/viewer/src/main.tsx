@@ -95,13 +95,13 @@ function App() {
             diagnostics.current.textContent = ((diagnostics.current.textContent ?? '') + '\n' + text).slice(-16384);
           }
         },
-        onState: state => {
+        onState: (state, arrival) => {
           if (client.state?.active?.key.attempt_id !== progress.current?.dataset['attempt'] && progress.current) {
             progress.current.dataset['attempt'] = state.active?.key.attempt_id ?? '';
             progress.current.textContent = state.progress ? JSON.stringify(state.progress.body) : '';
           }
-          experimentFeed.observe(); // Authoritative counts supersede earlier progress notifications.
-          replayNotifications.observe(state.replays ?? []);
+          experimentFeed.observe(arrival); // Authoritative counts supersede earlier progress notifications.
+          replayNotifications.observe(state.replays ?? [], arrival);
           setStudioState(state);
           studioPlayback.current?.update(state);
         },
