@@ -41,5 +41,12 @@ class ModelContext:
             return None
         return self.coordinator.admit_run(self.registration.id, request, revision, auto_session=self.auto_session)
 
+    @property
+    def _inputs(self):
+        return self.inputs
+
+    def start_experiment(self, experiment, **kwargs):
+        return self.coordinator.start_experiment(experiment, model_id=self.registration.id, **kwargs)
+
     def _emit(self, kind, key, body):
         self.coordinator._emit(kind, key, {**body, "model_id": self.registration.id})

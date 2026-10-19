@@ -195,3 +195,16 @@ def test_experiment_captures_model_and_environment_ownership(tmp_path):
         assert preparation["model_id"] == a
         assert len(ProjectStore(store).history(a, after=None).items) == 2
         wait_until(lambda: not c.environments.owners(generation.id))
+
+
+def test_stale_stop_and_run_does_not_cancel_current_owner(tmp_path):
+    workspace = project(tmp_path, hanging=True)
+    a, b = [m.id for m in workspace.models]
+    with RunStore.open(tmp_path / ".simulatte") as store, coordinator(workspace, store) as c:
+        pa = c.prepare_model(a, timeout=10)
+        first = c.admit_run(a, c.make_request(pa), pa.revision)
+        pb = c.prepare_model(b, timeout=10)
+        old = c.make_request(pb)
+        state = c.inputs_for(b).bind(pb)
+        assert c.stop_and_run(first.key, b, old, state.revision).status == "stale"
+        assert store.attempt(first.key)["status"] in ("queued", "preparing", "ready", "running")

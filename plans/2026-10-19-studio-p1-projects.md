@@ -99,11 +99,11 @@ Schema 3 adds `project_meta`, `models` (including tombstones), `model_revisions`
 
 **Interfaces:** `ProjectService.open(target: StudioTarget, *, read_only: bool = False) -> ProjectService` owns the store, environment pool and optional coordinator; `state() -> dict`, `close()`. Setup works without a selected model/coordinator. `launch_project(target: StudioTarget, *, port: int, no_browser: bool) -> None` starts launcher setup/recovery or hands off to the matching selected runtime with a one-use local handshake; the new process validates protocol/assets/runtime capability before taking writer ownership. Never run two writers during handoff. Add `project.get`, `project.configure`, `model.prepare`, `environment.prepare`, `environment.select`; carry `model_id` and expected model revision on model commands. Existing authenticated envelopes, idempotent command IDs, limits and reconnect resync remain.
 
-- [ ] Test no-argument/path/legacy CLI calls and applicable flags. Hide the internal worker command from normal help while keeping the internal entrypoints. Invalid flags/schema errors precede simulation admission.
-- [ ] Test `test_recovery_viewer_never_imports_project` with a project module that raises on import and an unusable project interpreter. History, supported traces and generic saved artifacts remain readable using launcher assets; mutation/execute endpoints reject. Unknown store version is explained without migration.
-- [ ] Test missing Studio in the selected environment, cancelled setup, mismatched server/assets, handoff failure and locked store: all produce actionable states without fallback execution in the wrong interpreter. Reuse HTTP auth/origin/CSP/range tests for setup/recovery routes.
-- [ ] Run `uv run --all-extras pytest tests/core/test_cli.py tests/core/test_studio_command.py tests/core/test_studio_project_commands.py tests/core/test_studio_http.py tests/core/test_studio_websocket.py --no-cov` red/green.
-- [ ] Commit `feat(studio): open projects with setup and recovery flows`.
+- [x] Test no-argument/path/legacy CLI calls and applicable flags. Hide the internal worker command from normal help while keeping the internal entrypoints. Invalid flags/schema errors precede simulation admission.
+- [x] Test `test_recovery_viewer_never_imports_project` with a project module that raises on import and an unusable project interpreter. History, supported traces and generic saved artifacts remain readable using launcher assets; mutation/execute endpoints reject. Unknown store version is explained without migration.
+- [ ] Test missing Studio in the selected environment, cancelled setup, mismatched server/assets, handoff failure and locked store: all produce actionable states without fallback execution in the wrong interpreter. Reuse HTTP auth/origin/CSP/range tests for setup/recovery routes. Probe rejection, cancellation, failed handoff and locked store covered; successful installed-process handoff remains T6/package evidence.
+- [x] Run `uv run --all-extras pytest tests/core/test_cli.py tests/core/test_studio_command.py tests/core/test_studio_project_commands.py tests/core/test_studio_http.py tests/core/test_studio_websocket.py --no-cov` red/green.
+- [x] Commit `feat(studio): open projects with setup and recovery flows`.
 
 ## Task 6: Focused shell and first usable vertical slice
 

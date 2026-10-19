@@ -28,3 +28,17 @@ def test_help_without_optional_libraries():
     with patch.dict(sys.modules, {"starlette": None, "uvicorn": None}), pytest.raises(SystemExit) as result:
         main(["--help"])
     assert result.value.code == 0
+
+
+def test_studio_directory_cli_and_hidden_worker(monkeypatch, capsys):
+    from simulatte.studio import command
+
+    calls = []
+    monkeypatch.setattr(command, "serve_studio", lambda args: calls.append(args))
+    assert main(["studio", "--no-browser"]) == 0
+    assert calls[-1].model is None
+    assert main(["studio", "nested/project"]) == 0
+    assert calls[-1].model == "nested/project"
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    assert "framed execution supervisor" not in capsys.readouterr().out
