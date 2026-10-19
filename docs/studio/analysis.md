@@ -63,7 +63,11 @@ Keyboard interruption also cancels and cleans up the child.
 The selected project environment is used when present. Without a selected
 generation, the current interpreter is captured as an existing environment;
 analysis does not silently install packages or change environments. Missing
-optional dependencies appear in bounded inspection/execution diagnostics.
+optional dependencies appear in bounded inspection/execution diagnostics. The
+inspection and execution children import `simulatte.analysis.child` from that
+environment, so it must provide a Simulatte release with the analysis API; a
+project pinned to an older release fails at inspection with a module-not-found
+diagnostic rather than a capability message.
 
 ## Frozen snapshots and Python API
 
@@ -140,7 +144,11 @@ helpers retain `show=True` by default and return their figure. Matplotlib and
 Seaborn capture PNG/SVG. Plotly stores data-only figure JSON, never executable
 HTML: `renderer.name="plotly.js"` and `renderer.version` identify the bundled
 JavaScript renderer; `metadata.adapter_version` identifies the Python producer.
-Browser display requires a compatible renderer, supplied by the viewer integration.
+`figure.json` is stored in the tagged analytical JSON form (`$record`, `$int64`
+and `$float64` wrappers); a consumer untags it with
+`simulatte.analysis.codec.from_json` before handing it to plotly.js and treats
+Plotly text fields as untrusted content. Browser display requires a compatible
+renderer, supplied by the viewer integration.
 
 Success requires verified artifacts, clean child/descendant cleanup, durable
 rename and one index visibility transaction. Exceptions, disk failures,

@@ -285,7 +285,8 @@ class AnalysisStore:
         if not body["available"] or selection.require_complete and body["partial"]:
             raise ValueError("insufficient input: snapshot is incomplete or empty")
         groups = {(c["run"], c["index"]) for c in body["configurations"]}
-        for group in groups:
+        # Sorted so the first refusal is reproducible across processes (set order is hash-seeded).
+        for group in sorted(groups):
             rows = [r for r in body["replications"] if (r["run"], r["configuration"]) == group]
             if sum(r["available"] for r in rows) < selection.min_replications:
                 raise ValueError("insufficient replication count")

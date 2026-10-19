@@ -506,7 +506,8 @@ def test_measurement_failure_reaches_admission_refusal(setup, monkeypatch):
     # A manifest beside the failure record does not make the failed measurement valid.
     (root / "datasets/jobs/failure.json").write_text(json.dumps({"failure": "jobs: RuntimeError: boom"}))
     index(store, failed, {path: {} for path in [*paths, "datasets/jobs/failure.json"]})
-    preview = analysis.preview(Selection(experiment_run_ids=(run,)))
+    # The fixture's configuration 1 has no replications; select the populated one only.
+    preview = analysis.preview(Selection(experiment_run_ids=(run,), configurations=(0,)))
     first = analysis.snapshot(preview.snapshot_hash)["replications"][0]
     assert first["available"] and "jobs" not in first["datasets"]
     assert first["dataset_failures"] == {"jobs": "jobs: RuntimeError: boom"}
@@ -531,6 +532,10 @@ def test_measurement_failure_reaches_admission_refusal(setup, monkeypatch):
     with pytest.raises(ValueError, match="dataset unavailable; 1 more$") as refused:
         admit(analysis, definition, preview)
     assert len(refused.value.details["unavailable"]) == 3
+    # With the empty configuration 1 selected too, groups are checked in sorted order.
+    with pytest.raises(ValueError, match="in configuration 0 of run") as refused:
+        admit(analysis, definition, analysis.preview(Selection(experiment_run_ids=(run,))))
+    assert refused.value.details["configuration"] == 0
 
 
 @pytest.mark.parametrize("tamper", ["extra", "missing"])
