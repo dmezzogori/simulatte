@@ -258,3 +258,70 @@ def test_observation_failures_timing_and_attachments():
             c.attach(env)
         with pytest.raises(TypeError):
             env.configure_measurements(None)
+
+
+def test_population_dict_and_reserved_membership_field():
+    a = api()
+    assert a.Population("late", bool, "completion", fields=("x",)).to_dict() == {
+        "name": "late",
+        "observed_at": "completion",
+        "fields": ["x"],
+    }
+    schema = a.DatasetSchema("jobs", (a.Field("populations", {"list": "string"}),))
+    with pytest.raises(ValueError, match="reserved"):
+        a.ObservationCollector(schema, fields={}, populations=(a.Population("x", bool),))
+
+
+def test_select_measurements_is_data_only_and_hashes_the_plan():
+    from simulatte.analysis.measurements import select_measurements
+
+    a = api()
+    plan = a.MeasurementPlan("numbers", (a.DatasetSchema("jobs", (a.Field("x", "int64"),)),))
+    selected = select_measurements(plan, {"limit": 2**60})
+    assert selected == {
+        "schema": 1,
+        "plan": "numbers",
+        "selection": {"$record": {"limit": {"$int64": str(2**60)}}},
+        "definition_hash": a.definition_hash(plan),
+    }
+    assert select_measurements(plan)["selection"] == {"$record": {}}
+
+
+def test_persisted_collector_failure_writes_marker_instead_of_manifest(tmp_path):
+    a = api()
+    schema = a.DatasetSchema("rows", (a.Field("x", "int64"),))
+    with Environment(seed=1) as env:
+        env.configure_measurements(a.MeasurementPlan("rows", (schema,)), output_dir=tmp_path)
+        c = a.ObservationCollector(schema, fields={}).attach(env)
+        c.record(None, observed_at="observation", values={"x": 1})
+        c.record(None, observed_at="observation", values={"x": 2**63})
+        c.finish()
+        c.finish()
+    root = tmp_path / "datasets/rows"
+    assert "int64" in json.loads((root / "failure.json").read_text())["failure"]
+    assert not (root / "manifest.json").exists()
+
+
+def test_persisted_collector_reports_finalization_failure(tmp_path):
+    a = api()
+    schema = a.DatasetSchema("rows", (a.Field("x", "int64"),))
+    with Environment(seed=1) as env:
+        env.configure_measurements(a.MeasurementPlan("rows", (schema,)), output_dir=tmp_path)
+        c = a.ObservationCollector(schema, fields={}).attach(env)
+        c.record(None, observed_at="observation", values={"x": 1})
+        (tmp_path / "datasets/rows/manifest.json").write_text("occupied")
+    assert "FileExistsError" in c.failure
+    assert json.loads((tmp_path / "datasets/rows/failure.json").read_text()) == {"failure": c.failure}
+
+
+def test_field_type_nesting_and_record_keys_are_bounded():
+    a = api()
+    dtype = "int64"
+    for _ in range(32):
+        dtype = {"list": dtype}
+    a.Field("deep", dtype)  # 32 levels is the documented maximum
+    with pytest.raises(ValueError, match="nesting"):
+        a.Field("too_deep", {"list": dtype})
+    for record in ({"": "int64"}, {2: "int64"}):
+        with pytest.raises(ValueError, match="type"):
+            a.Field("x", {"record": record})
