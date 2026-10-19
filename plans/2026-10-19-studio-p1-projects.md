@@ -63,11 +63,11 @@ Schema 3 adds `project_meta`, `models` (including tombstones), `model_revisions`
 
 **Interfaces:** `ProjectStore(store: RunStore)` exposes `register(workspace)`, `associate_attempt(key: AttemptKey, model_id: str)`, `history(model_id: str | None, *, after: str | None, limit: int = 50) -> HistoryPage`, `annotate(attempt_id: str, *, name: str, text: str, important: bool)` and `link(owner_kind, owner_id, target_kind, target_id)`. `HistoryPage(items: tuple[dict, ...], next_cursor: str | None)` is data-only. `StoreReader.open(root: Path) -> StoreReader` never migrates/writes and supports read-only history/result/artifact queries; close it explicitly. Backup uses SQLite's backup API under exclusive writer ownership before migration, with a manifest of prior schema/version; fail without touching the original on backup failure.
 
-- [ ] Test schema 1→2→3 and 2→3 preserve requests, attempts, results and view identities; schema 4 refuses write-open. Test backup failure and interrupted migration. Test reading schema 2 with `StoreReader` does not change bytes or create a writer.
-- [ ] Test `test_model_identity_survives_rename_removal_and_copy`: rename key/label, remove registration, copy quiescent project and register a different UUID at the old key; `history(old_id)` still returns the original attempt. Ambiguous legacy source/entrypoint matches remain unassigned; explicit association never rewrites original provenance.
-- [ ] Test annotations round-trip and `important`/references block prune. Test cursor pagination is stable while new runs arrive; do not use OFFSET over a changing history.
-- [ ] Run `uv run --all-extras pytest tests/execution/test_project_store.py tests/execution/test_store.py tests/execution/test_store_slots.py --no-cov` red, implement migration/reader/reference checks, then rerun green.
-- [ ] Commit `feat(store): preserve project model history and migrate with backup`.
+- [x] Test schema 1→2→3 and 2→3 preserve requests, attempts, results and view identities; schema 4 refuses write-open. Test backup failure and interrupted migration. Test reading schema 2 with `StoreReader` does not change bytes or create a writer.
+- [x] Test `test_model_identity_survives_rename_removal_and_copy`: rename key/label, remove registration, copy quiescent project and register a different UUID at the old key; `history(old_id)` still returns the original attempt. Ambiguous legacy source/entrypoint matches remain unassigned; explicit association never rewrites original provenance.
+- [x] Test annotations round-trip and `important`/references block prune. Test cursor pagination is stable while new runs arrive; do not use OFFSET over a changing history.
+- [x] Run `uv run --all-extras pytest tests/execution/test_project_store.py tests/execution/test_store.py tests/execution/test_store_slots.py --no-cov` red, implement migration/reader/reference checks, then rerun green.
+- [x] Commit `feat(store): preserve project model history and migrate with backup`.
 
 ## Task 3: Immutable local environment generations
 
