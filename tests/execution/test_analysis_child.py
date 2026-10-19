@@ -433,3 +433,25 @@ def test_publish_commits_and_refuses_changed_or_superseded_executions(tmp_path, 
         "finalizing",
     )
     assert os.listdir(exists.root / "analysis-results/execution") == []
+
+
+def test_context_rows_skip_available_replications_without_datasets(tmp_path):
+    ctx = AnalysisContext(
+        {"replications": [replication(0)], "available": 1, "planned": 1, "partial": False},
+        input_dir=tmp_path / "inputs",
+        output_dir=tmp_path / "outputs",
+    )
+    assert list(ctx.rows("jobs")) == []
+
+
+def test_child_input_document_has_its_own_bound(tmp_path, monkeypatch):
+    from simulatte.analysis.context import write_input
+
+    large = {"padding": "x" * (5 << 20)}
+    with pytest.raises(ValueError, match="exceeds 4 MiB"):
+        write_data(tmp_path / "document.json", large)
+    write_input(tmp_path / "config.json", large)
+    assert codec.loads((tmp_path / "config.json").read_bytes()) == large
+    monkeypatch.setattr(context_module, "MAX_INPUT_DOCUMENT_BYTES", 8)
+    with pytest.raises(ValueError, match="input document exceeds 64 MiB"):
+        write_input(tmp_path / "small.json", large)

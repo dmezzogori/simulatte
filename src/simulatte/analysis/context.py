@@ -15,6 +15,8 @@ from .types import Observation, identifier
 MAX_OUTPUT_BYTES = 1 << 30
 MAX_OUTPUT_FILES = 100_000
 MAX_MANIFEST_BYTES = 4 << 20
+# The parent writes the child's input document; analysis code never produces it.
+MAX_INPUT_DOCUMENT_BYTES = 64 << 20
 
 
 def artifact(path: Path, root: Path):
@@ -35,6 +37,17 @@ def write_data(path, data):
     raw = codec.dumps(data)
     if len(raw) > MAX_MANIFEST_BYTES:
         raise ValueError("Analytical document exceeds 4 MiB; use a streaming Table")
+    _write(path, raw)
+
+
+def write_input(path, data):
+    raw = codec.dumps(data)
+    if len(raw) > MAX_INPUT_DOCUMENT_BYTES:
+        raise ValueError("Analysis input document exceeds 64 MiB; select fewer replications")
+    _write(path, raw)
+
+
+def _write(path, raw):
     with path.open("xb") as stream:
         stream.write(raw)
         stream.flush()
@@ -77,9 +90,9 @@ class AnalysisContext:
     def rows(self, dataset: str):
         identifier(dataset)
         for row in self.inputs["replications"]:
-            if not row["available"] or dataset not in row["datasets"]:
+            captured = row.get("datasets", {}).get(dataset)
+            if not row["available"] or captured is None:
                 continue
-            captured = row["datasets"][dataset]
             manifest = DatasetManifest.from_dict(captured["manifest"])
             if not self._requirements.get(dataset, set()) <= {f.name for f in manifest.schema.fields}:
                 continue

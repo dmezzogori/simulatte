@@ -101,8 +101,14 @@ by several saved analyses remains protected until its final owner is removed.
 
 `context.rows(name)` streams verified dataset rows; `context.scalars()` returns
 replication-level scalar copies with run/configuration/index/seed/attempt identity.
-`context.inputs` exposes copied read-only snapshot metadata. Saved execution never
-queries current experiment results. Within-run rows are not replications.
+`context.inputs` exposes copied read-only snapshot metadata: the selection,
+experiments, configurations and counts, and for every replication its
+run/configuration/index/seed/attempt/request identities, status and reason,
+scalars, dataset manifests and artifact descriptors. Resolved manifests, requests
+and fingerprints are not passed to the analysis; they remain in the store under
+the snapshot hash recorded as `input_snapshot` in the output provenance. Saved
+execution never queries current experiment results. Within-run rows are not
+replications.
 
 `summarize_population` is a pooled descriptive table with separate finite sample,
 missing and non-finite counts. Empty samples have missing means, not zeros. It
@@ -117,7 +123,8 @@ Table iterators are spooled immediately. Names are unique portable identifiers.
 Outputs retain units, population and statistical metadata; images/specifications
 can be read without installing plotting packages. Limits are 1 GiB total output,
 100,000 files and 4 MiB per metadata document. Larger numerical data belongs in a
-streaming Table. Analytical input/control documents also use the 4 MiB bound.
+streaming Table. Captured dataset manifests also use the 4 MiB bound; the input
+document the runner writes for the analysis process is limited to 64 MiB.
 
 Optional figures:
 

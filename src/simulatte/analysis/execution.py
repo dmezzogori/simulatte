@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 import os
 from pathlib import Path
 import threading
@@ -12,9 +13,33 @@ from simulatte.execution.snapshot import ProjectSpec, load_source, _extract
 from simulatte.execution.store import _remove
 from simulatte.projects.environments import EnvironmentPool
 from . import codec
-from .context import write_data
+from .context import write_input
 from .publication import publish
 from .store import AnalysisStore
+
+# What the child reads per replication; resolved manifests, requests and fingerprints
+# stay in the store under the snapshot hash recorded in the output provenance.
+CHILD_FIELDS = (
+    "run",
+    "configuration",
+    "index",
+    "seed",
+    "status",
+    "reason",
+    "attempt",
+    "available",
+    "request_id",
+    "scalars",
+    "datasets",
+    "artifacts",
+)
+
+
+def child_inputs(snapshot):
+    return {
+        **snapshot,
+        "replications": [{k: row[k] for k in CHILD_FIELDS if k in row} for row in snapshot["replications"]],
+    }
 
 
 class AnalysisRunner:
@@ -39,7 +64,13 @@ class AnalysisRunner:
                 return
             if self.analysis.execution(execution_id).state != "waiting":
                 raise ValueError("Only a waiting execution can be submitted")
-            self._futures[execution_id] = self._executor.submit(self._run, execution_id)
+            future = self._executor.submit(self._run, execution_id)
+            self._futures[execution_id] = future
+            future.add_done_callback(lambda _: self._finished(execution_id))
+
+    def _finished(self, execution_id):
+        with self._lock:
+            self._futures.pop(execution_id, None)
 
     def cancel(self, execution_id):
         result = self.analysis.cancel(execution_id)
@@ -63,6 +94,19 @@ class AnalysisRunner:
                     "UPDATE analysis_executions SET state=? WHERE id=? AND state=?", (after, identity, before)
                 ).rowcount
                 == 1
+            )
+
+    def _record(self, identity, details, *, failed=False):
+        """Merge ``details``; ``failed`` also fails a running or finalizing execution."""
+        with self.store._transaction() as db:
+            state, saved = db.execute(
+                "SELECT state,details FROM analysis_executions WHERE id=?", (identity,)
+            ).fetchone()
+            if failed and state not in ("running", "finalizing"):
+                return
+            db.execute(
+                "UPDATE analysis_executions SET state=?,details=? WHERE id=?",
+                ("failed" if failed else state, codec.dumps({**codec.loads(saved), **details}), identity),
             )
 
     def _source(self, definition, destination):
@@ -117,11 +161,16 @@ class AnalysisRunner:
             path.chmod(0o555)
         destination.chmod(0o555)
 
+    def _control_path(self, identity):
+        return self.store.root / "analysis-control" / (identity + ".cancel")
+
     def _control(self, identity):
-        path = self.store.root / "analysis-control" / (identity + ".cancel")
-        if path.exists() and not path.is_symlink():
+        path = self._control_path(identity)
+        # Only a regular file requests cancellation; links and directories are absent.
+        if path.is_file() and not path.is_symlink():
+            # The store also discards the request while cancelling.
             self.analysis.cancel(identity)
-            path.unlink()
+            path.unlink(missing_ok=True)
 
     def _run(self, identity):
         directory = self.store.root / "analysis-staging" / identity
@@ -158,7 +207,7 @@ class AnalysisRunner:
                 "python_path": project.python_path,
                 "project_root": str(project.root),
                 "entrypoint": definition["entrypoint"],
-                "inputs": snapshot,
+                "inputs": child_inputs(snapshot),
                 "input_dir": str(directory / "inputs"),
                 "output": str(directory / "output"),
                 "execution_id": identity,
@@ -166,7 +215,7 @@ class AnalysisRunner:
                 "requirements": definition["requirements"],
                 "provenance": provenance,
             }
-            write_data(directory / "config.json", config)
+            write_input(directory / "config.json", config)
             child = ContainedProcess.start(
                 [str(generation.interpreter), "-I", "-m", "simulatte.analysis.child", str(directory / "config.json")],
                 cwd=directory,
@@ -200,7 +249,13 @@ class AnalysisRunner:
                 except TimeoutError:
                     pass
             # Descendant cleanup is part of success, not a finally-only best effort.
-            child.close()
+            try:
+                child.close()
+            except (OSError, TimeoutError) as error:
+                # Recorded in every state; cancellation only keeps the failure below
+                # from changing the state.
+                self._record(identity, {"cleanup_error": str(error)[-8192:]})
+                raise
             for thread in drains:
                 thread.join(5)
             if child.returncode != 0 or cancelled_at is not None:
@@ -211,12 +266,7 @@ class AnalysisRunner:
             if self._transition(identity, "running", "finalizing"):
                 publish(self.store, identity, directory / "output", provenance)
         except Exception as error:
-            with self.store._transaction() as db:
-                db.execute(
-                    "UPDATE analysis_executions SET state='failed',details=? WHERE id=? "
-                    "AND state IN ('running','finalizing')",
-                    (codec.dumps({"message": str(error)[-8192:]}), identity),
-                )
+            self._record(identity, {"message": str(error)[-8192:]}, failed=True)
         finally:
             try:
                 if child is not None:
@@ -224,11 +274,7 @@ class AnalysisRunner:
             except (OSError, TimeoutError) as error:
                 # Cleanup failure is recorded even for cancellation; it must not
                 # escape wait() or turn already-cancelled work into success.
-                with self.store._transaction() as db:
-                    db.execute(
-                        "UPDATE analysis_executions SET details=? WHERE id=?",
-                        (codec.dumps({"cleanup_error": str(error)[-8192:]}), identity),
-                    )
+                self._record(identity, {"cleanup_error": str(error)[-8192:]})
             finally:
                 for thread in drains:
                     thread.join(5)
@@ -238,6 +284,10 @@ class AnalysisRunner:
                     self.environments.release("analysis-" + identity)
                 if directory.exists():
                     _remove(directory)
+                # Any request left at a terminal transition is stale; the store may
+                # discard it concurrently.
+                with suppress(FileNotFoundError):
+                    _remove(self._control_path(identity))
                 # A rename preceding an index failure is not success.
                 with self.store._transaction() as db:
                     indexed = db.execute("SELECT 1 FROM analysis_outputs WHERE execution=?", (identity,)).fetchone()
@@ -250,9 +300,13 @@ class AnalysisRunner:
             if self._closed:
                 return
             self._closed = True
-            identities = list(self._futures)
+            identities = [identity for identity, future in self._futures.items() if not future.done()]
         for identity in identities:
-            self.cancel(identity)
+            try:
+                self.cancel(identity)
+            except KeyError:
+                # Deleted once terminal; its future only has cleanup left.
+                pass
         self._executor.shutdown(wait=True)
         with self.store._mutex:
             self.store._analysis_runner = None
