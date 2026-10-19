@@ -134,7 +134,7 @@ class AnalysisContext:
             write_data(directory / "distribution.json", {"summary": output.summary, "dataset_ref": output.dataset_ref})
         elif isinstance(output, Figure) and output.kind == "plotly":
             kind, renderer = "figure", output.renderer
-            if not renderer or renderer.get("name") != "plotly" or not renderer.get("version"):
+            if not renderer or renderer.get("name") != "plotly.js" or not renderer.get("version"):
                 raise ValueError("Plotly figure needs renderer name/version")
             write_data(directory / "figure.json", output.payload)
         elif isinstance(output, Image) or isinstance(output, Figure) and output.kind in ("png", "svg"):
