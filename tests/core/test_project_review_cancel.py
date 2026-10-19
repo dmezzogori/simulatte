@@ -69,3 +69,47 @@ def test_pending_authenticated_socket_preparation_is_cancelled_by_same_tab(tmp_p
         pool.cancel()
         service.close()
         client.close()
+
+
+def test_cancel_validation_and_parallel_prepare_leave_current_operation_owned(tmp_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    import pytest
+
+    install_starter(tmp_path, starter_files("production"))
+    service = ProjectService.open(StudioTarget(tmp_path, None))
+    server = server_for(service)
+    client = TestClient(server.app, base_url=server.origin)
+    client.get(server.link())
+    headers = {"Origin": server.origin, "X-Simulatte-Session": server.secret}
+    entered, release = threading.Event(), threading.Event()
+
+    def held(*args, **kwargs):
+        entered.set()
+        assert release.wait(10)
+        raise ValueError("prepared operation stopped")
+
+    monkeypatch.setattr(service.environments, "prepare", held)
+    try:
+        assert client.put("/api/environment/cancel/valid", headers=headers, content=b"unexpected").status_code == 413
+        bad = client.put("/api/environment/cancel/invalid!", headers=headers)
+        assert bad.status_code == 400 and "operation id" in bad.json()["error"]["message"]
+        with pytest.raises(ValueError, match="operation id"):
+            service.prepare_environment({"operation_id": []})
+        with ThreadPoolExecutor(1) as executor:
+            first = executor.submit(service.prepare_environment, {"operation_id": "owned"})
+            assert entered.wait(10)
+            try:
+                with pytest.raises(ValueError, match="busy"):
+                    service.prepare_environment({"operation_id": "other"})
+                assert service._preparation_id == "owned"
+                assert client.put("/api/environment/cancel/other", headers=headers).status_code == 200
+                assert not service.environments._cancelled.is_set()
+            finally:
+                release.set()
+            with pytest.raises(ValueError, match="stopped"):
+                first.result(10)
+        assert service._preparation_id is None
+    finally:
+        release.set()
+        service.close()
+        client.close()
