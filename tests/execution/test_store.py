@@ -317,3 +317,27 @@ def test_recovery_removes_read_only_detached_snapshot_directories(tmp_path):
         snapshot.chmod(0o555)
     with m.RunStore.open(root):
         assert not list((root / "staging").iterdir())
+
+
+def test_recovery_clears_analysis_control_files_and_inspection_references(tmp_path):
+    m = api()
+    root = tmp_path / ".simulatte"
+    with m.RunStore.open(root) as store:
+        (root / "analysis-control" / "stale.cancel").touch()
+        (root / "snapshots" / ("7" * 64)).mkdir()
+        with store._transaction() as db:
+            # A writer that crashed inside prepare_analysis left its temporary reference.
+            db.executemany(
+                'INSERT INTO "references" VALUES (?,?,?,?)',
+                [
+                    ("analysis-inspection", "analysis-inspection-1", "snapshot", "7" * 64),
+                    ("analysis-definition", "definition", "snapshot", "8" * 64),
+                ],
+            )
+    with m.RunStore.open(root) as store:
+        assert list((root / "analysis-control").iterdir()) == []
+        with store._transaction() as db:
+            assert [tuple(r) for r in db.execute('SELECT owner_kind,target_id FROM "references"')] == [
+                ("analysis-definition", "8" * 64)
+            ]
+        assert store.prune() == {"results": [], "snapshots": ["7" * 64]}

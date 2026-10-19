@@ -9,13 +9,25 @@ import time
 from uuid import uuid4
 
 from simulatte.execution.project_store import require_reference
-from simulatte.execution.store import RunStore, _read
+from simulatte.execution.store import RunStore, _read, _remove
 from simulatte.model import ParameterSchema, validate_parameters
 from . import codec
 from .datasets import DatasetManifest
 from .definition import AnalysisDefinition
 from .selection import Selection
 from .types import Observation
+
+
+# Replications named in an admission refusal message; details keep all of them.
+LISTED_REPLICATIONS = 10
+
+
+class InsufficientInput(ValueError):
+    """Admission refusal with the per-dataset evidence that explains it."""
+
+    def __init__(self, message: str, details: dict):
+        super().__init__(message)
+        self.details = details
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,7 +114,7 @@ class AnalysisStore:
         root = self.store.root / "results" / attempt
         if not root.is_dir() or root.is_symlink():
             raise ValueError("Evidence files removed; select a fresh preview")
-        artifacts, datasets = [], {}
+        artifacts, datasets, failures = [], {}, {}
         for item in db.execute("SELECT path,length,sha256 FROM artifacts WHERE attempt=? ORDER BY path", (attempt,)):
             descriptor = dict(item)
             relative = PurePosixPath(item["path"])
@@ -118,16 +130,22 @@ class AnalysisStore:
             if not path.is_file() or path.stat().st_size != item["length"]:
                 raise ValueError("Evidence files removed; select a fresh preview")
             artifacts.append(descriptor)
-            if relative.name == "manifest.json" and "datasets" in relative.parts:
+            if relative.name in ("manifest.json", "failure.json") and "datasets" in relative.parts:
                 if item["length"] > 4 << 20:
                     raise ValueError("Dataset manifest exceeds 4 MiB")
                 raw = path.read_bytes()
                 if hashlib.sha256(raw).hexdigest() != item["sha256"]:
                     raise ValueError("Dataset manifest changed; select a fresh preview")
+                if relative.name == "failure.json":
+                    # A published failure record invalidates the dataset, even beside a manifest.
+                    failures[relative.parent.name] = str(json.loads(raw)["failure"])[:4096]
+                    continue
                 manifest = DatasetManifest.from_dict(json.loads(raw))
                 if manifest.schema.name in datasets:
                     raise ValueError("Duplicate dataset name")
                 datasets[manifest.schema.name] = {"path": str(relative.parent), "manifest": manifest.to_dict()}
+        for name in failures:
+            datasets.pop(name, None)
         indexed = {a["path"]: a for a in artifacts}
         for dataset in datasets.values():
             for chunk in dataset["manifest"]["chunks"]:
@@ -141,6 +159,7 @@ class AnalysisStore:
             "fingerprint": _read(row["fingerprint"]),
             "artifacts": artifacts,
             "datasets": datasets,
+            **({"dataset_failures": failures} if failures else {}),
             "scalars": {
                 r["name"]: _read(r["value"])
                 for r in db.execute("SELECT name,value FROM kpis WHERE attempt=? ORDER BY name", (attempt,))
@@ -244,6 +263,8 @@ class AnalysisStore:
                 evidence = self._result(db, attempt)
             except ValueError as error:
                 result["reason"] = str(error)
+            except (TypeError, KeyError):
+                result["reason"] = "invalid dataset manifest"
             else:
                 result.update(evidence, available=True, reason=None)
         return result
@@ -269,20 +290,33 @@ class AnalysisStore:
             if sum(r["available"] for r in rows) < selection.min_replications:
                 raise ValueError("insufficient replication count")
             for requirement in definition["requirements"]:
-                valid = [
-                    r
-                    for r in rows
-                    if r["available"]
-                    and requirement["dataset"] in r["datasets"]
-                    and set(requirement["fields"])
-                    <= {f["name"] for f in r["datasets"][requirement["dataset"]]["manifest"]["schema"]["fields"]}
-                ]
-                if (
-                    len(valid) < max(1, requirement["min_replications"], selection.min_replications)
-                    or (requirement["require_complete"] or selection.require_complete)
-                    and len(valid) != len(rows)
-                ):
-                    raise ValueError(f"insufficient input for dataset {requirement['dataset']}")
+                name, fields = requirement["dataset"], set(requirement["fields"])
+                unavailable = []
+                for r in rows:
+                    captured = r["datasets"].get(name) if r["available"] else None
+                    missing = (
+                        sorted(fields - {f["name"] for f in captured["manifest"]["schema"]["fields"]})
+                        if captured
+                        else sorted(fields)
+                    )
+                    if captured and not missing:
+                        continue
+                    if not r["available"]:
+                        reason = r["reason"]
+                    elif captured is None:
+                        reason = r.get("dataset_failures", {}).get(name, "dataset unavailable")
+                    else:
+                        reason = "fields not retained"
+                    unavailable.append(
+                        {"index": r["index"], "attempt": r["attempt"], "missing_fields": missing, "reason": reason}
+                    )
+                valid = len(rows) - len(unavailable)
+                complete = bool(requirement["require_complete"] or selection.require_complete)
+                required = max(1, requirement["min_replications"], selection.min_replications)
+                if complete:
+                    required = max(required, len(rows))
+                if valid < required:
+                    raise _insufficient(name, group, valid, len(rows), required, complete, unavailable)
         references = [
             ("analysis-snapshot", snapshot_hash),
             ("analysis-definition", definition_id),
@@ -300,7 +334,7 @@ class AnalysisStore:
                 references.append(("attempt", r["attempt"]))
             if r["available"]:
                 current = self._result(db, r["attempt"])
-                if codec.identity(current) != codec.identity({key: r[key] for key in current}):
+                if codec.identity(current) != codec.identity({key: r.get(key) for key in current}):
                     raise ValueError("Evidence changed; select a fresh preview")
                 references.extend((("result", r["attempt"]), ("request", r["request_id"])))
         identity = str(uuid4())
@@ -326,6 +360,12 @@ class AnalysisStore:
     def execution(self, identity):
         with self.store._transaction() as db:
             return self._execution(db, identity)
+
+    def _discard(self, directory, name):
+        # Never follows a planted symlink; a missing entry is already discarded.
+        path = self.store.root / directory / name
+        if path.exists() or path.is_symlink():
+            _remove(path)
 
     @staticmethod
     def _execution(db, identity):
@@ -356,6 +396,7 @@ class AnalysisStore:
                 "AND state IN ('waiting','running','finalizing')",
                 (identity,),
             )
+        self._discard("analysis-control", identity + ".cancel")
         return self.execution(identity)
 
     def delete(self, identity):
@@ -371,6 +412,9 @@ class AnalysisStore:
             db.execute("DELETE FROM analysis_annotations WHERE execution=?", (identity,))
             db.execute("DELETE FROM analysis_outputs WHERE execution=?", (identity,))
             db.execute("DELETE FROM analysis_executions WHERE id=?", (identity,))
+        # The index commits first; an interrupted removal leaves an unindexed tree for recover().
+        self._discard("analysis-results", identity)
+        self._discard("analysis-control", identity + ".cancel")
 
     def annotate(self, identity, text):
         if not isinstance(text, str) or len(text) > 65536:
@@ -383,3 +427,35 @@ class AnalysisStore:
                 (revision, identity, codec.dumps({"text": text}), time.time()),
             )
         return revision
+
+
+def _insufficient(name, group, valid, total, required, complete, unavailable):
+    run, configuration = group
+    entries = [
+        f"replication {item['index']}"
+        + ("" if item["attempt"] is None else f" (attempt {item['attempt']})")
+        + (
+            f" lacks fields: {', '.join(item['missing_fields'])}"
+            if item["reason"] == "fields not retained"
+            else f": {item['reason']}"
+        )
+        for item in unavailable
+    ]
+    listed = entries[:LISTED_REPLICATIONS]
+    if len(entries) > len(listed):
+        listed.append(f"{len(entries) - len(listed)} more")
+    message = (
+        f"insufficient input for dataset {name} in configuration {configuration} of run {run}: "
+        f"{valid} of {total} replications valid, {required} required; " + "; ".join(listed)
+    )
+    details = {
+        "dataset": name,
+        "run": run,
+        "configuration": configuration,
+        "valid": valid,
+        "replications": total,
+        "required": required,
+        "require_complete": complete,
+        "unavailable": unavailable,
+    }
+    return InsufficientInput(message, details)

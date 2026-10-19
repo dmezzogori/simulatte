@@ -177,7 +177,8 @@ def request_cancel(root, identity):
     if str(UUID(identity)) != identity:
         raise ValueError("Invalid execution UUID")
     current = _read(root, identity)
-    if current["execution"]["state"] not in ("waiting", "running", "finalizing"):
+    # Publication has started in finalizing; the runner no longer polls the control file.
+    if current["execution"]["state"] not in ("waiting", "running"):
         return current
     path = root / "analysis-control" / (identity + ".cancel")
     if path.is_symlink():
@@ -255,6 +256,9 @@ def command(args):
             envelope = _read(root, item.id)
     except (ValueError, KeyError, ImportError) as error:
         code, envelope = 2, {"status": "validation_failed", "message": str(error)[-8192:]}
+        details = getattr(error, "details", None)
+        if details is not None:
+            envelope["details"] = codec.to_json(details)
     except (OSError, RuntimeError, sqlite3.Error, TimeoutError) as error:
         code, envelope = 1, {"status": "failed", "message": str(error)[-8192:]}
     if args.json:

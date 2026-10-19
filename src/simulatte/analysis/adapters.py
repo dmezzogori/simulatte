@@ -36,7 +36,7 @@ def save_figure(figure: object, output_dir: Path, *, name: str) -> Figure:
         from matplotlib.figure import Figure as MatplotlibFigure
 
         if not isinstance(figure, MatplotlibFigure):
-            figure = figure.figure if hasattr(figure, "figure") else figure.get_figure()
+            figure = figure.figure if hasattr(figure, "figure") else getattr(figure, "get_figure", lambda: None)()
         if not isinstance(figure, MatplotlibFigure):
             raise ValueError("Matplotlib/Seaborn adapter needs a figure or axes object")
         output_dir = Path(output_dir)
