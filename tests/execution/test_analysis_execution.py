@@ -1,5 +1,6 @@
 """Analysis child isolation and durable output visibility."""
 
+from pathlib import Path
 import sys
 import threading
 
@@ -18,30 +19,34 @@ from tests.core.test_experiment_results import build
 from tests.execution.test_analysis_snapshots import publish
 
 
-@pytest.fixture
-def prepared(tmp_path):
-    root = tmp_path / "project"
-    root.mkdir()
-    script = root / "report.py"
-    script.write_text("""from simulatte.analysis.outputs import Number
+def admit_total(root, store, environments, run):
+    """Admit the captured ``total`` report over every replication of ``run``."""
+    (root / "report.py").write_text("""from simulatte.analysis.outputs import Number
 
 def analyze(context, parameters):
     context.emit('total', Number(sum(row['scalars']['lateness'] for row in context.scalars())))
 """)
+    generation = environments.use_existing(sys.executable)
+    analysis = AnalysisStore(store)
+    source = capture_source(ProjectSpec(root, "report.py", "layout.json", ("report.py",), (), (".",), False))
+    definition = analysis.put_definition(
+        AnalysisDefinition("total", "report.py:analyze", source.content_hash, ParameterSchema(()), ()),
+        source=source,
+    )
+    preview = analysis.preview(Selection(experiment_run_ids=(run,)))
+    return analysis, analysis.admit(preview.id, definition_id=definition, parameters={}, generation_id=generation.id)
+
+
+@pytest.fixture
+def prepared(tmp_path):
+    root = tmp_path / "project"
+    root.mkdir()
     with RunStore.open(root / ".simulatte") as store:
         store.create_revision({})
         run, _ = build(store, {(0, 0): "pending"})
         publish(store, run, 0, 0, 3)
         environments = EnvironmentPool(root, store)
-        generation = environments.use_existing(sys.executable)
-        analysis = AnalysisStore(store)
-        source = capture_source(ProjectSpec(root, "report.py", "layout.json", ("report.py",), (), (".",), False))
-        definition = analysis.put_definition(
-            AnalysisDefinition("total", "report.py:analyze", source.content_hash, ParameterSchema(()), ()),
-            source=source,
-        )
-        preview = analysis.preview(Selection(experiment_run_ids=(run,)))
-        execution = analysis.admit(preview.id, definition_id=definition, parameters={}, generation_id=generation.id)
+        analysis, execution = admit_total(root, store, environments, run)
         yield root, store, analysis, environments, execution
 
 
@@ -287,6 +292,7 @@ def analyze(context, parameters):
         assert runner.wait(item.id).state == "cancelled"
     with pytest.raises(KeyError):
         analysis.output(item.id)
+    assert "cleanup_error" not in details(store, item.id)
 
 
 def test_real_publisher_dataset_admission_and_child_execution(tmp_path):
@@ -479,8 +485,33 @@ def test_cleanup_failure_is_recorded_after_failed_run(prepared, monkeypatch):
     with AnalysisRunner(store, environments=environments) as runner:
         runner.submit(execution.id)
         assert runner.wait(execution.id).state == "failed"
-    assert details(store, execution.id) == {"cleanup_error": "descendant cleanup failed"}
+    # The cleanup error joins the failure message instead of replacing it.
+    assert details(store, execution.id) == {
+        "message": "descendant cleanup failed",
+        "cleanup_error": "descendant cleanup failed",
+    }
     assert environments.owners(execution.generation_id) == ()
+
+
+def test_primary_cleanup_failure_is_recorded_for_cancelled_execution(prepared, monkeypatch):
+    from simulatte.execution.process import ContainedProcess
+
+    root, store, analysis, environments, execution = prepared
+    close = ContainedProcess.close
+
+    def cancelled_then_failed(process):
+        # A real second close() is a no-op once the first one ran.
+        if process._closed:
+            return
+        close(process)
+        analysis.cancel(execution.id)
+        raise OSError("descendant cleanup failed")
+
+    monkeypatch.setattr(ContainedProcess, "close", cancelled_then_failed)
+    with AnalysisRunner(store, environments=environments) as runner:
+        runner.submit(execution.id)
+        assert runner.wait(execution.id).state == "cancelled"
+    assert details(store, execution.id) == {"cleanup_error": "descendant cleanup failed"}
 
 
 def test_unindexed_output_after_publication_failure_is_removed(prepared, monkeypatch):
@@ -529,3 +560,199 @@ def test_cancel_after_clean_child_exit_never_finalizes_partial_snapshot(prepared
     with pytest.raises(KeyError):
         analysis.output(item.id)
     assert not (store.root / "analysis-results" / item.id).exists()
+
+
+def test_experiment_scale_snapshot_reaches_the_child_without_resolved_manifests(tmp_path, monkeypatch):
+    from simulatte.execution import schema
+    from simulatte.execution.process import ContainedProcess
+    from simulatte.execution.store import _blob
+    from tests.core.test_experiment_results import seeded
+    from tests.execution.test_store_slots import DEFINITION
+
+    root = tmp_path / "project"
+    root.mkdir()
+    documents = []
+    start = ContainedProcess.start
+
+    def measured(argv, **kwargs):
+        config = Path(argv[-1]).read_bytes()
+        documents.append((len(config), codec.loads(config)["inputs"]))
+        return start(argv, **kwargs)
+
+    monkeypatch.setattr(ContainedProcess, "start", measured)
+    with RunStore.open(root / ".simulatte") as store:
+        store.create_revision({})
+        configurations = [
+            {"label": f"x={x}", "parameters": {"x": float(x)}, "layout_hash": "c" * 64, "layout_ref": None}
+            for x in range(3)
+        ]
+        replications = [
+            {"configuration": c, "index": i, "seed": i, "content_ids": [schema.content_id(seeded(c, i))]}
+            for c in range(3)
+            for i in range(24)
+        ]
+        run = store.create_experiment_run(store.put_experiment(DEFINITION), {}, configurations, replications)
+        for c in range(3):
+            for i in range(24):
+                publish(store, run, c, i, 1)
+        # The example model resolves to about 90 KB of manifest per replication.
+        with store._transaction() as db:
+            db.execute("UPDATE results SET manifest=?", (_blob({"resolved": "x" * 90_000}),))
+        environments = EnvironmentPool(root, store)
+        analysis, execution = admit_total(root, store, environments, run)
+        snapshot = analysis.snapshot(execution.snapshot_hash)
+        assert snapshot["available"] == 72 and len(codec.dumps(snapshot)) > 6 << 20
+        with AnalysisRunner(store, environments=environments) as runner:
+            runner.submit(execution.id)
+            assert runner.wait(execution.id).state == "succeeded", details(store, execution.id)
+        value = codec.loads((store.root / "analysis-results" / execution.id / "total/number.json").read_bytes())
+        assert value["value"] == 72
+        assert analysis.output(execution.id)["provenance"]["input_snapshot"] == execution.snapshot_hash
+    [(size, inputs)] = documents
+    assert size < 1 << 20
+    assert len(inputs["replications"]) == 72
+    assert not any({"manifest", "request", "fingerprint"} & set(row) for row in inputs["replications"])
+    assert all(row["scalars"] == {"lateness": 1} and row["request_id"] for row in inputs["replications"])
+
+
+def test_runner_close_after_deleting_finished_execution(prepared):
+    root, store, analysis, environments, execution = prepared
+    runner = AnalysisRunner(store, environments=environments)
+    runner.submit(execution.id)
+    assert runner.wait(execution.id).state == "succeeded"
+    analysis.delete(execution.id)
+    runner.close()
+    assert runner._futures == {}
+    # The slot is released for a new runner.
+    with AnalysisRunner(store, environments=environments):
+        pass
+
+
+def test_runner_close_tolerates_execution_deleted_while_finishing(prepared, monkeypatch):
+    root, store, analysis, environments, execution = prepared
+    runner = AnalysisRunner(store, environments=environments)
+    deleted, cancelling = threading.Event(), threading.Event()
+    release, cancel = environments.release, runner.analysis.cancel
+
+    def recorded(identity):
+        cancelling.set()
+        return cancel(identity)
+
+    def deleted_before_release(owner):
+        # The execution is terminal but its future is not done yet.
+        analysis.delete(execution.id)
+        deleted.set()
+        assert cancelling.wait(10)
+        release(owner)
+
+    monkeypatch.setattr(runner.analysis, "cancel", recorded)
+    monkeypatch.setattr(environments, "release", deleted_before_release)
+    runner.submit(execution.id)
+    assert deleted.wait(10)
+    runner.close()
+    assert cancelling.is_set() and store._analysis_runner is None
+    assert environments.owners(execution.generation_id) == ()
+
+
+def test_service_close_after_deleting_finished_analysis_closes_the_store(tmp_path):
+    from simulatte.projects import StudioTarget
+    from simulatte.projects.service import ProjectService
+
+    service = ProjectService.open(StudioTarget(tmp_path, None))
+    store = service.store
+    store.create_revision({})
+    run, _ = build(store, {(0, 0): "pending"})
+    publish(store, run, 0, 0, 3)
+    analysis, execution = admit_total(tmp_path, store, service.environments, run)
+    runner = service.analyses()
+    assert service.analyses() is runner
+    runner.submit(execution.id)
+    assert runner.wait(execution.id).state == "succeeded"
+    analysis.delete(execution.id)
+    service.close()
+    assert store._analysis_runner is None and store._closed
+
+
+def test_service_close_closes_every_component_after_a_failure(tmp_path):
+    from types import SimpleNamespace
+    from simulatte.projects import StudioTarget
+    from simulatte.projects.service import ProjectService
+
+    service = ProjectService.open(StudioTarget(tmp_path, None))
+    store, closed = service.store, []
+
+    def component(name, error=None):
+        def close():
+            closed.append(name)
+            if error is not None:
+                raise error
+
+        return SimpleNamespace(close=close)
+
+    service.analysis_runner = component("runner", RuntimeError("runner close failed"))
+    service.coordinator = component("coordinator")
+    service.reader = component("reader")
+    with pytest.raises(RuntimeError, match="runner close failed"):
+        service.close()
+    assert closed == ["runner", "coordinator", "reader"] and store._closed
+
+
+@pytest.mark.parametrize("entry", ["directory", "dangling symlink", "symlink to file"])
+def test_non_regular_control_entry_is_not_a_request_and_is_removed(prepared, entry):
+    import os
+
+    root, store, analysis, environments, execution = prepared
+    control = store.root / "analysis-control" / (execution.id + ".cancel")
+    target = root / "elsewhere"
+    if entry == "directory":
+        control.mkdir()
+    else:
+        if entry == "symlink to file":
+            target.touch()
+        control.symlink_to(target)
+    with AnalysisRunner(store, environments=environments) as runner:
+        runner.submit(execution.id)
+        assert runner.wait(execution.id).state == "succeeded"
+    assert not os.path.lexists(control)
+    assert target.exists() == (entry == "symlink to file")
+
+
+def test_control_file_while_running_terminates_the_child(prepared):
+    import time
+
+    root, store, analysis, environments, original = prepared
+    marker = root / "terminated"
+    (root / "report.py").write_text(f"""import pathlib, signal, time
+from simulatte.analysis.outputs import Number
+
+def analyze(context, parameters):
+    def terminated(*args):
+        pathlib.Path({str(marker)!r}).touch()
+        raise SystemExit(0)
+    signal.signal(signal.SIGTERM, terminated)
+    context.emit('ready', Number(1))
+    while True:
+        time.sleep(.01)
+""")
+    source = capture_source(ProjectSpec(root, "report.py", "layout.json", ("report.py",), (), (".",), False))
+    definition = analysis.put_definition(
+        AnalysisDefinition("control", "report.py:analyze", source.content_hash, ParameterSchema(()), ()),
+        source=source,
+    )
+    item = analysis.admit(
+        analysis.refresh(original.id).id, definition_id=definition, parameters={}, generation_id=original.generation_id
+    )
+    control = store.root / "analysis-control" / (item.id + ".cancel")
+    with AnalysisRunner(store, environments=environments) as runner:
+        runner.submit(item.id)
+        ready = store.root / "analysis-staging" / item.id / "output/ready/number.json"
+        deadline = time.monotonic() + 10
+        while not ready.exists():
+            assert time.monotonic() < deadline
+            threading.Event().wait(0.01)
+        # The store discards the control file while cancelling; the loop still terminates the child.
+        control.touch()
+        assert runner.wait(item.id, timeout=15).state == "cancelled"
+    assert marker.exists()
+    assert not control.exists()
+    assert details(store, item.id) == {}

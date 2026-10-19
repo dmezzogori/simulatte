@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
+from contextlib import ExitStack
 from dataclasses import asdict
 from pathlib import Path
 import re
@@ -412,11 +413,8 @@ class ProjectService:
             if self._closed:
                 return
             self._closed = True
-            if self.analysis_runner is not None:
-                self.analysis_runner.close()
-            if self.coordinator is not None:
-                self.coordinator.close()
-            if self.reader is not None:
-                self.reader.close()
-            if self.store is not None:
-                self.store.close()
+            # Callbacks run in reverse: runner, coordinator, reader, store; a failure skips none.
+            with ExitStack() as stack:
+                for component in (self.store, self.reader, self.coordinator, self.analysis_runner):
+                    if component is not None:
+                        stack.callback(component.close)
