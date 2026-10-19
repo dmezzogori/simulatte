@@ -1144,6 +1144,12 @@ class RunStore:
                     FROM attempts a WHERE a.id=replications.attempt),'lost') WHERE status='dispatched'"""
             )
             db.execute("UPDATE experiment_runs SET status='paused',updated=? WHERE status='running'", (time.time(),))
+            # The exclusive writer has fenced all prior attempts and paused dispatch.
+            # These leases belong to that dead coordinator, not to saved provenance.
+            # Contained children lose their parent-liveness channel on writer death;
+            # late publication is rejected by the lost attempt/cleared slot fences.
+            # Keep captured experiment preparation and all durable reference kinds.
+            db.execute('DELETE FROM "references" WHERE owner_kind=\'environment-owner\'')
             db.execute(
                 """UPDATE replications SET status='pending' WHERE status='lost' AND dispatches<?
                 AND run IN (SELECT id FROM experiment_runs WHERE status='paused')""",
