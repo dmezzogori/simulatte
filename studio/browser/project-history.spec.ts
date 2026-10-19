@@ -32,6 +32,9 @@ with RunStore.open(root/'.simulatte') as store:
       if(message.body?.run?.id === id) responses++;
     }));
     await page.goto(await fixture.launch());
+    // Wait for bootstrap's location.replace before changing the fragment.
+    // WebKit can otherwise cancel that pending navigation and stay on bootstrap.
+    await page.waitForURL(url => url.pathname === '/');
     await page.evaluate(id => {location.hash = '#/run/' + id;}, id);
     await expect(page.getByLabel('Run name', {exact:true})).toHaveValue('Keep this study');
     await expect(page.getByLabel('Notes', {exact:true})).toHaveValue('Original note');
@@ -45,6 +48,9 @@ with RunStore.open(root/'.simulatte') as store:
     await fixture.stop();
     await writeFile(join(fixture.root,'pyproject.toml'), 'invalid toml !!!');
     await page.goto(await fixture.launch());
+    // Wait for bootstrap's location.replace before changing the fragment.
+    // WebKit can otherwise cancel that pending navigation and stay on bootstrap.
+    await page.waitForURL(url => url.pathname === '/');
     await page.evaluate(id => {location.hash = '#/run/' + id;}, id);
     await expect(page.getByLabel('Run name', {exact:true})).toHaveValue('Keep this study');
     await expect(page.getByLabel('Notes', {exact:true})).toHaveValue('Edited note');
