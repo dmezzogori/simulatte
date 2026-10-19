@@ -756,3 +756,42 @@ def analyze(context, parameters):
     assert marker.exists()
     assert not control.exists()
     assert details(store, item.id) == {}
+
+
+def test_cancel_then_delete_while_terminating_finishes_cleanly(prepared, monkeypatch):
+    root, store, analysis, environments, original = prepared
+    (root / "report.py").write_text("""import time
+
+def analyze(context, parameters):
+    while True:
+        time.sleep(.01)
+""")
+    source = capture_source(ProjectSpec(root, "report.py", "layout.json", ("report.py",), (), (".",), False))
+    definition = analysis.put_definition(
+        AnalysisDefinition("deleted", "report.py:analyze", source.content_hash, ParameterSchema(()), ()), source=source
+    )
+    item = analysis.admit(
+        analysis.refresh(original.id).id, definition_id=definition, parameters={}, generation_id=original.generation_id
+    )
+    deleted = threading.Event()
+    with AnalysisRunner(store, environments=environments) as runner:
+        execution = runner.analysis.execution
+
+        def deleted_while_running(identity):
+            # Delete only checks the saved state, so a cancelled execution goes while its child still runs.
+            if identity in runner._processes and not deleted.is_set():
+                analysis.cancel(identity)
+                analysis.delete(identity)
+                deleted.set()
+            return execution(identity)
+
+        monkeypatch.setattr(runner.analysis, "execution", deleted_while_running)
+        runner.submit(item.id)
+        future = runner._futures[item.id]
+        assert future.exception(timeout=15) is None
+        assert deleted.is_set()
+        # A deleted execution is unknown to wait(), like any other identity.
+        with pytest.raises(KeyError):
+            runner.wait(item.id)
+    assert not (store.root / "analysis-staging" / item.id).exists()
+    assert environments.owners(original.generation_id) == ()

@@ -99,11 +99,11 @@ class AnalysisRunner:
     def _record(self, identity, details, *, failed=False):
         """Merge ``details``; ``failed`` also fails a running or finalizing execution."""
         with self.store._transaction() as db:
-            state, saved = db.execute(
-                "SELECT state,details FROM analysis_executions WHERE id=?", (identity,)
-            ).fetchone()
-            if failed and state not in ("running", "finalizing"):
+            row = db.execute("SELECT state,details FROM analysis_executions WHERE id=?", (identity,)).fetchone()
+            # A cancelled execution may be deleted while its child is still being stopped.
+            if row is None or failed and row[0] not in ("running", "finalizing"):
                 return
+            state, saved = row
             db.execute(
                 "UPDATE analysis_executions SET state=?,details=? WHERE id=?",
                 ("failed" if failed else state, codec.dumps({**codec.loads(saved), **details}), identity),
