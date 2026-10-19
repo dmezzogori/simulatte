@@ -8,14 +8,13 @@ copied data. Failures disable the measurement, leaving simulation results intact
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
-import hashlib
+from dataclasses import dataclass, field, replace
 import json
 from pathlib import Path
 from typing import Any, Self
 
 from simulatte.kpi import Collector
-from .types import DatasetSchema, Observation, Value, copied, identifier, plain
+from .types import DatasetSchema, Field, Observation, Value, copied, identifier, plain
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,9 +65,9 @@ class MeasurementPlan:
 
 
 def definition_hash(plan: MeasurementPlan) -> str:
-    return hashlib.sha256(
-        json.dumps(plan.to_dict(), sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
-    ).hexdigest()
+    from .codec import identity
+
+    return identity(plan.to_dict())
 
 
 class ObservationCollector(Collector):
@@ -89,6 +88,8 @@ class ObservationCollector(Collector):
         self.fields = dict(fields)
         self.populations = populations
         known = {f.name for f in schema.fields}
+        if populations and "populations" in known:
+            raise ValueError("populations is reserved for retained membership labels")
         if set(fields) - known or any(not callable(f) for f in fields.values()):
             raise ValueError("Invalid or undeclared field extractor")
         if len({p.name for p in populations}) != len(populations):
@@ -105,6 +106,8 @@ class ObservationCollector(Collector):
         self._disabled = False
         self.failure: str | None = None
         self.output_dir: Path | None = None
+        self._writer = None
+        self._finished = False
 
     def attach(self, env) -> Self:
         if self._env is not None:
@@ -115,6 +118,15 @@ class ObservationCollector(Collector):
             self._disabled = True
             return self
         self.output_dir = env.measurements_output_dir
+        if self.output_dir is not None:
+            from .datasets import DatasetWriter
+
+            persisted_schema = (
+                replace(self.schema, fields=(*self.schema.fields, Field("populations", {"list": "string"})))
+                if self.populations
+                else self.schema
+            )
+            self._writer = DatasetWriter(self.output_dir / "datasets" / self.schema.name, persisted_schema)
         if self.subscribes:
             self._subscription = env.bus.subscribe(self.on_event, self.subscribes)
         env._collectors.append(self)
@@ -122,7 +134,7 @@ class ObservationCollector(Collector):
         return self
 
     def record(self, entity: object, *, observed_at: str, values: Mapping[str, Value]) -> None:
-        if self._disabled or self.failure is not None or observed_at != self.schema.observation:
+        if self._finished or self._disabled or self.failure is not None or observed_at != self.schema.observation:
             return
         try:
             data = dict(values)
@@ -138,6 +150,9 @@ class ObservationCollector(Collector):
                     raise ValueError(f"{population.name}: predicate must return bool")
                 if selected:
                     memberships.append(population.name)
+            if self._writer is not None:
+                self._writer.append({**row, "populations": memberships} if self.populations else row)
+                return
             if self._rows is None:
                 self._rows, self._memberships = [], []
             self._rows.append(row)
@@ -145,6 +160,21 @@ class ObservationCollector(Collector):
             self._memberships.append(tuple(memberships))
         except Exception as error:
             self.failure = f"{self.schema.name}: {type(error).__name__}: {error}"[:4096]
+
+    def finish(self) -> None:
+        if self._finished:
+            return
+        self._finished = True
+        if self._writer is not None:
+            if self.failure is None:
+                self._writer.window = {"start": self.env.warmup, "end": float(self.env.now)}
+                try:
+                    self._writer.finish()
+                except Exception as error:
+                    self.failure = f"{self.schema.name}: {type(error).__name__}: {error}"[:4096]
+            if self.failure is not None:
+                # Failed measurements are explicit, never a valid partial dataset.
+                (self._writer.root / "failure.json").write_text(json.dumps({"failure": self.failure}))
 
     @property
     def rows(self) -> tuple[Observation, ...]:
@@ -156,3 +186,15 @@ class ObservationCollector(Collector):
 
     def scalars(self) -> dict[str, float]:
         return {}
+
+
+def select_measurements(plan: MeasurementPlan, selection: Mapping[str, Value] | None = None) -> dict[str, Any]:
+    """Capture an exact data-only selection; callable implementations belong to source identity."""
+    from .codec import to_json
+
+    return {
+        "schema": 1,
+        "plan": plan.name,
+        "selection": to_json(selection or {}),
+        "definition_hash": definition_hash(plan),
+    }

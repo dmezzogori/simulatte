@@ -537,3 +537,14 @@ def test_versioned_local_installation_runtime_stays_on_local_slots(tmp_path):
     assert all(item.runtime["kind"] == "local-installation-v1" for item in run.requests.values())
     with pytest.raises(ValueError, match="different kind"):
         expand(m, m.Experiment.from_dict(definition()), base, kinds={"uv": local})
+
+
+def test_measurement_selection_is_preserved_by_definition_and_schema():
+    from simulatte.analysis import MeasurementPlan
+    from simulatte.analysis.measurements import select_measurements
+
+    selected = select_measurements(MeasurementPlan("off", ()), {"limit": 2**60})
+    definition = api().Experiment.from_dict({**DESIGN_EXAMPLE, "measurements": selected})
+    assert definition.to_dict()["measurements"] == selected
+    Draft202012Validator(schema_document()).validate(definition.to_dict())
+    assert api().experiment_id(definition) != api().experiment_id(DESIGN_EXAMPLE)

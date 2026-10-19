@@ -16,7 +16,7 @@ from typing import Any, Literal, TypeVar
 
 from simulatte._wire import MAX_SAFE_INT
 from simulatte.execution.hashing import canonical_hash
-from simulatte.execution.schema import _reference
+from simulatte.execution.schema import _reference, _plain, measurement_selection
 from simulatte.execution.snapshot import _path
 from simulatte.stopping import FinitePopulation, Horizon, stopping_from_dict
 
@@ -29,7 +29,19 @@ MAX_FILE_BYTES = 16 << 20
 
 _NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 _SEED = re.compile(r"0|[1-9][0-9]{0,18}")
-_KEYS = {"schema", "name", "model", "replications", "configurations", "layouts", "stopping", "level", "kpis", "workers"}
+_KEYS = {
+    "schema",
+    "name",
+    "model",
+    "replications",
+    "configurations",
+    "layouts",
+    "stopping",
+    "level",
+    "kpis",
+    "workers",
+    "measurements",
+}
 _REQUIRED = {"schema", "name", "model", "replications", "configurations"}
 
 
@@ -218,8 +230,11 @@ class Experiment:
     level: str = "kpi"
     kpis: tuple[str, ...] = ()
     workers: tuple[str, ...] = ()
+    measurements: Mapping[str, Any] | None = None
 
     def __post_init__(self):
+        if self.measurements is not None:
+            object.__setattr__(self, "measurements", measurement_selection(self.measurements))
         _text(self.name, "Experiment name")
         _reference(self.model, selected=False)
         if type(self.replications) is not Replications:
@@ -264,6 +279,7 @@ class Experiment:
             "level": self.level,
             "kpis": list(self.kpis),
             "workers": list(self.workers),
+            **({"measurements": _plain(self.measurements)} if self.measurements is not None else {}),
         }
 
     @classmethod
@@ -293,6 +309,7 @@ class Experiment:
             level=data.get("level", "kpi"),
             kpis=data.get("kpis", ()),
             workers=data.get("workers", ()),
+            measurements=data.get("measurements"),
         )
 
 

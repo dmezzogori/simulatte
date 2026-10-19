@@ -126,6 +126,20 @@ def execute(config, raw_request, key, control, spool, send):
             dependencies=canonical_hash("dependencies-v1", dependencies),
         ),
     )
+    from simulatte.analysis.measurements import MeasurementPlan
+
+    measurements = None
+    env.configure_measurements(MeasurementPlan("disabled", ()))
+    if request.measurements is not None:
+        from simulatte.analysis.codec import from_json, to_json
+        from simulatte.analysis.measurements import definition_hash
+
+        plan = next((p for p in spec.measurement_plans if p.name == request.measurements["plan"]), None)
+        if plan is None or definition_hash(plan) != request.measurements["definition_hash"]:
+            raise ValueError("Selected measurement declaration differs from captured model")
+        env.configure_measurements(plan)
+        env.measurement_selection = from_json(_plain(request.measurements["selection"]))
+        measurements = to_json({"declaration": plan.to_dict(), "selection": env.measurement_selection})
     env._execution_policy = stopping
     env.configure_kpis(warmup=stopping.warmup if isinstance(stopping, Horizon) else 0)
     sink = _DigestSink(spool)
@@ -170,6 +184,7 @@ def execute(config, raw_request, key, control, spool, send):
             layout=layout.prepare().bundle.manifest(),
             capabilities={"fresh_process": True, "ready_barrier": True},
             warnings=warnings,
+            measurements=measurements,
         )
         return resolved.to_dict()
 

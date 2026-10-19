@@ -158,6 +158,7 @@ def expand(
                     stopping=stopping,
                     level=experiment.level,
                     kpis=experiment.kpis,
+                    measurements=experiment.measurements,
                     runtime=runtime,
                 )
                 requests[(configuration.index, index, kind)] = request

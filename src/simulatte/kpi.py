@@ -384,6 +384,9 @@ class Collector:
     def on_event(self, event: Event) -> None:
         """Handle a subscribed event of this scope; the default ignores it."""
 
+    def finish(self) -> None:
+        """Finalize optional retained observations; ordinary KPI collectors need no work."""
+
     def on_activate(self) -> None:
         """Build window-dependent state; the default does nothing.
 

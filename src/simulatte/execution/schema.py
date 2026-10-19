@@ -117,6 +117,25 @@ def inspection_id(request: InspectionRequest) -> str:
     return canonical_hash("inspection-request-v1", request.to_dict())
 
 
+def measurement_selection(value: Any) -> FrozenMap:
+    from simulatte.analysis.codec import from_json
+    from simulatte.analysis.types import identifier
+
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != {"schema", "plan", "selection", "definition_hash"}
+        or type(value["schema"]) is not int
+        or value["schema"] != 1
+    ):
+        raise ValueError("Invalid measurement selection")
+    identifier(value["plan"])
+    _hash(value["definition_hash"])
+    decoded = from_json(_plain(value["selection"]))
+    if not isinstance(decoded, Mapping):
+        raise ValueError("Measurement selection must be a record")
+    return _mapping(value)
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ExecutionRequest:
     model: str
@@ -129,6 +148,7 @@ class ExecutionRequest:
     stopping: Mapping[str, Any]
     level: str = "full"
     kpis: tuple[str, ...] = ()
+    measurements: Mapping[str, Any] | None = None
     runtime: Mapping[str, Any]
 
     def __post_init__(self):
@@ -159,14 +179,24 @@ class ExecutionRequest:
         object.__setattr__(self, "parameters", params)
         object.__setattr__(self, "stopping", _mapping(stopping_from_dict(self.stopping).to_dict()))
         object.__setattr__(self, "runtime", _runtime(self.runtime))
+        if self.measurements is not None:
+            object.__setattr__(self, "measurements", measurement_selection(self.measurements))
 
     def to_dict(self) -> dict[str, Any]:
-        return {"schema": 1, **{f.name: _plain(getattr(self, f.name)) for f in fields(self)}, "seed": str(self.seed)}
+        return {
+            "schema": 1,
+            **{
+                f.name: _plain(getattr(self, f.name))
+                for f in fields(self)
+                if f.name != "measurements" or self.measurements is not None
+            },
+            "seed": str(self.seed),
+        }
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ExecutionRequest:
         if (
-            set(data) != {"schema", *(f.name for f in fields(cls))}
+            set(data) - {"measurements"} != {"schema", *(f.name for f in fields(cls) if f.name != "measurements")}
             or type(data["schema"]) is not int
             or data["schema"] != 1
         ):
@@ -221,6 +251,7 @@ class ResolvedManifest:
     layout: Mapping[str, Any]
     capabilities: Mapping[str, Any]
     warnings: tuple[str, ...] = ()
+    measurements: Mapping[str, Any] | None = None
 
     def __post_init__(self):
         for name in ("runtime", "dependencies", "imports", "layout", "capabilities"):
@@ -228,6 +259,15 @@ class ResolvedManifest:
         if any(type(item) is not str for item in self.warnings):
             raise ValueError("Manifest warnings must be text")
         object.__setattr__(self, "warnings", tuple(self.warnings))
+        if self.measurements is not None:
+            object.__setattr__(self, "measurements", _mapping(self.measurements))
 
     def to_dict(self) -> dict[str, Any]:
-        return {"schema": 1, **{f.name: _plain(getattr(self, f.name)) for f in fields(self)}}
+        return {
+            "schema": 1,
+            **{
+                f.name: _plain(getattr(self, f.name))
+                for f in fields(self)
+                if f.name != "measurements" or self.measurements is not None
+            },
+        }

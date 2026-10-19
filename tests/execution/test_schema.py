@@ -216,3 +216,23 @@ def test_uv_runtime_requires_exactly_the_provisioning_spec():
     ):
         with pytest.raises(ValueError, match="runtime"):
             m.ExecutionRequest.from_dict(LOCAL_0_16 | {"runtime": runtime})
+
+
+def test_optional_measurements_preserve_legacy_and_change_selected_identity():
+    m = api()
+    from simulatte.analysis import MeasurementPlan, DatasetSchema, Field
+    from simulatte.analysis.measurements import select_measurements
+
+    legacy = request(m)
+    assert "measurements" not in legacy.to_dict()
+    assert m.request_id(replace(legacy, measurements=None)) == m.request_id(legacy)
+    plan = MeasurementPlan("jobs", (DatasetSchema("jobs", (Field("x", "int64"),)),))
+    chosen = replace(legacy, measurements=select_measurements(plan, {"threshold": 2}))
+    assert m.request_id(chosen) != m.request_id(legacy)
+    assert m.ExecutionRequest.from_dict(chosen.to_dict()) == chosen
+    assert m.request_id(replace(chosen, measurements=select_measurements(plan, {"threshold": 3}))) != m.request_id(
+        chosen
+    )
+    for value in ({}, {"schema": 2}, {"schema": 1, "plan": "jobs", "selection": {}, "definition_hash": "bad"}):
+        with pytest.raises(ValueError):
+            replace(legacy, measurements=value)
