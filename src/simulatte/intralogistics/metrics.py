@@ -226,7 +226,7 @@ class FleetTimeSeries(Collector):
         levels = {sku.id: float(container.level) for sku, container in warehouse.inventory.items()}
         self.inventory_ts.setdefault(warehouse.id, []).append((t, levels))
 
-    def plot_fleet_utilization(self) -> None:  # pragma: no cover
+    def plot_fleet_utilization(self, *, show: bool = True):  # pragma: no cover
         """Step plot of the fleet utilization over time (nothing without data)."""
         import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
@@ -238,9 +238,12 @@ class FleetTimeSeries(Collector):
         plt.xlabel("Time")
         plt.ylabel("Fleet Utilization")
         plt.title("Fleet Utilization Over Time")
-        plt.show()
+        figure = plt.gcf()
+        if show:
+            plt.show()
+        return figure
 
-    def plot_pending_orders(self) -> None:  # pragma: no cover
+    def plot_pending_orders(self, *, show: bool = True):  # pragma: no cover
         """Step plot of the pending orders over time (nothing without data)."""
         import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
@@ -252,9 +255,12 @@ class FleetTimeSeries(Collector):
         plt.xlabel("Time")
         plt.ylabel("Pending Orders")
         plt.title("Pending Orders Over Time")
-        plt.show()
+        figure = plt.gcf()
+        if show:
+            plt.show()
+        return figure
 
-    def plot_throughput(self) -> None:  # pragma: no cover
+    def plot_throughput(self, *, show: bool = True):  # pragma: no cover
         """Step plot of the cumulative delivered orders over time."""
         import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
@@ -264,9 +270,12 @@ class FleetTimeSeries(Collector):
         plt.xlabel("Time")
         plt.ylabel("Cumulative Completed")
         plt.title("Throughput Over Time")
-        plt.show()
+        figure = plt.gcf()
+        if show:
+            plt.show()
+        return figure
 
-    def plot_inventory(self) -> None:  # pragma: no cover
+    def plot_inventory(self, *, show: bool = True):  # pragma: no cover
         """Step plot of each warehouse's inventory per SKU over time (nothing without data)."""
         import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
@@ -284,7 +293,10 @@ class FleetTimeSeries(Collector):
         plt.ylabel("Inventory Level")
         plt.title("Inventory Levels Over Time")
         plt.legend()
-        plt.show()
+        figure = plt.gcf()
+        if show:
+            plt.show()
+        return figure
 
 
 # ---------------------------------------------------------------------------------------------------------

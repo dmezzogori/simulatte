@@ -38,6 +38,8 @@ simulatte = "simulatte.cli:main"
 
 [project.optional-dependencies]
 plot = ["matplotlib>=3.7.2"]
+analysis-plotly = ["plotly>=5"]
+analysis-seaborn = ["seaborn>=0.13"]
 rl = ["gymnasium>=1.0.0"]
 studio = [
     "tomlkit>=0.13.2",
@@ -46,7 +48,7 @@ studio = [
     "watchfiles>=1.1",
     "websockets>=15",
 ]
-all = ["simulatte[plot,rl,studio]"]
+all = ["simulatte[plot,rl,studio,analysis-plotly,analysis-seaborn]"]
 
 [build-system]
 requires = ["hatchling"]
