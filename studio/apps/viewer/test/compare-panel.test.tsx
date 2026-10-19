@@ -97,3 +97,14 @@ it('ignores a late referenced body after a newer inline replay notification', as
   expect(feed.latest('r')?.status).toBe('failed');
   feed.dispose();
 });
+
+it('authoritative replay snapshots complete missed events but a newer running event supersedes them', () => {
+  const feed = new ReplayNotifications();
+  const row = replay('e', false, 'digest mismatch');
+  feed.notification({v:1,type:'replay_state',event_seq:1,body:{request_id:row.request_id,status:'running',verified:null}});
+  feed.observe([row]);
+  expect(feed.latest(row.request_id)).toMatchObject({status:'succeeded',verified:false,message:'digest mismatch'});
+  feed.notification({v:1,type:'replay_state',event_seq:3,body:{request_id:row.request_id,status:'running',verified:null}});
+  expect(feed.latest(row.request_id)?.status).toBe('running');
+  feed.dispose();
+});

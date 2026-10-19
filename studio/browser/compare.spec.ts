@@ -38,7 +38,7 @@ const state = {
   workers: { local: 1, workers: [], slots: [], error: null },
 };
 
-async function studio(page: Page, experiment?: {run: ExperimentRun; report: ExperimentReport}) {
+async function studio(page: Page, experiment?: {run: ExperimentRun; report: ExperimentReport}, delivery = "event") {
   const errors: string[] = [], sessions: (string | undefined)[] = [];
   const currentState = {...state, experiments: experiment ? [experiment.run] : []};
   let publish = () => {};
@@ -65,11 +65,13 @@ async function studio(page: Page, experiment?: {run: ExperimentRun; report: Expe
       } else if (message.type === "replay.start") {
         expect(message.body).toEqual({ request_id: "c".repeat(64) });
         const notify = (type: string, body: unknown) => socket.send(JSON.stringify({ v: 1, type, event_seq: ++sequence, body }));
-        socket.send(JSON.stringify({ v: 1, type: "response", id: message.id, body: { ok: true, request_id: replayed.request_id, original: replayed.original } }));
+        const reply = () => socket.send(JSON.stringify({ v: 1, type: "response", id: message.id, body: { ok: true, request_id: replayed.request_id, original: replayed.original } }));
+        if(delivery !== "snapshot-before-response") reply();
         notify("replay_state", { request_id: replayed.request_id, original: replayed.original, status: "running", verified: null });
         // The replay publishes but fails verification: the state lists it, unverified.
         notify("state", { ...state, replays: [{ ...replayed, status: "succeeded", verified: false, reason: "fingerprint digest", trace: prefix("e") }] });
-        notify("replay_state", { request_id: replayed.request_id, original: replayed.original, status: "succeeded", verified: false });
+        if(delivery === "event") notify("replay_state", { request_id: replayed.request_id, original: replayed.original, status: "succeeded", verified: false });
+        if(delivery === "snapshot-before-response") reply();
       } else
         socket.send(JSON.stringify({ v: 1, type: "response", id: message.id, body: message.type === "state.get" ? { ok: true, state: currentState } : { ok: true } }));
     });
@@ -203,3 +205,18 @@ test("two committed recordings play in lockstep and closing the compare view kee
   expect(new Set(sessions)).toEqual(new Set([secret]));
   expect(errors).toEqual([]);
 });
+
+for(const delivery of ["snapshot", "snapshot-before-response"]) {
+  test(`compare recovers a missed replay terminal notification (${delivery})`, async ({page}) => {
+    const {errors} = await studio(page, undefined, delivery);
+    await page.goto("/");
+    await page.getByText("Compare", {exact:true}).click();
+    await page.getByLabel("Side A recording").selectOption(attempt("c"));
+    await page.getByRole("button", {name:"Replay at full level",exact:true}).click();
+    await expect(page.getByText("unverified replay: fingerprint digest").first()).toBeVisible();
+    await expect(page.getByText("Replay running at full level…")).toHaveCount(0);
+    await page.getByLabel("Include unverified replays").check();
+    await expect(page.locator('.compare-scene[data-side="A"] canvas')).toHaveCount(1);
+    expect(errors).toEqual([]);
+  });
+}

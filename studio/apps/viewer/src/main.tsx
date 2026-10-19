@@ -27,7 +27,8 @@ function App() {
   // Experiment progress is kept outside React and re-rendered at most every 250 ms.
   const [experimentFeed] = useState(() => new ExperimentFeed(reference => studio.current
     ? studio.current.reference(reference) : Promise.reject(new Error("Studio is not connected"))));
-  const [replayNotifications] = useState(() => new ReplayNotifications());
+  const [replayNotifications] = useState(() => new ReplayNotifications(reference => studio.current
+    ? studio.current.reference(reference) : Promise.reject(new Error("Studio is not connected"))));
   const [studioHeaders] = useState<Readonly<Record<string, string>>>(() => {
     try {
       const secret = sessionStorage.getItem("simulatte-session");
@@ -100,6 +101,7 @@ function App() {
             progress.current.textContent = state.progress ? JSON.stringify(state.progress.body) : '';
           }
           experimentFeed.observe(); // Authoritative counts supersede earlier progress notifications.
+          replayNotifications.observe(state.replays ?? []);
           setStudioState(state);
           studioPlayback.current?.update(state);
         },
@@ -134,6 +136,7 @@ function App() {
     return () => {
       studioPlayback.current?.dispose(); studioPlayback.current = null;
       experimentFeed.dispose();
+      replayNotifications.dispose();
       studio.current?.dispose(); studio.current = null;
       window.removeEventListener("focus", rescan);
       document.removeEventListener("keydown", keyboard);

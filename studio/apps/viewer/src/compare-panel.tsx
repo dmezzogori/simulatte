@@ -248,7 +248,10 @@ function CompareView({client, state, connected, headers, replays, onError, onClo
       if (side.phase !== 'replaying') return;
       const row = state?.replays?.find(item => item.request_id === side.replay);
       if (!row) return;
-      if(row.status !== 'succeeded' || !row.trace || side.status !== 'succeeded') return;
+      // Hosts reconcile snapshots into the ordered feed before rendering. A newer
+      // running notification must still fence an older succeeded snapshot, while
+      // a reconnect snapshot can finish a side that missed its terminal event.
+      if(row.status !== 'succeeded' || !row.trace || replays.latest(row.request_id)?.status !== 'succeeded') return;
       const entry = listed.entries.find(item => item.kind === 'replay' && item.request_id === row.request_id);
       if (entry) pick(index as Side, entry);
       else if (side.status !== 'succeeded' || side.verified !== row.verified || side.reason !== row.reason)
