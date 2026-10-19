@@ -247,7 +247,7 @@ jobs:
       - name: Installed Studio execution, editing and presentation export
         run: |
           for browser in chromium firefox webkit; do
-            node studio/scripts/studio-smoke.mjs "$RUNNER_TEMP/studio-wheel/bin/simulatte" "$browser" required
+            node studio/scripts/studio-smoke.mjs "$RUNNER_TEMP/studio-wheel/bin/simulatte" "$browser"
           done
 
       - name: Upload Studio assets

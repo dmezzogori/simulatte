@@ -326,3 +326,36 @@ reader for the hello. The harness now completes the actual handshake before
 publishing the reused worker. Product admission was not relaxed. Exact-interpreter
 regression failed before the fix and the environment suite then passed10 tests;
 Ruff and `ty check src` pass. Native-4 is the latest R1 portability proof.
+
+## Bounded independent-review fix pass
+
+The initial review ruled **NOT READY**. These are implemented fixes awaiting
+independent recheck, not reviewer closure or P2 authorization.
+
+| Finding | Candidate implementation | Focused evidence |
+| --- | --- | --- |
+| R2 | `95f60a7`: serialize lazy coordinator publication with configuration/close | Authenticated two-socket race, close/config races; `review-r2-green.log`,23 passed |
+| R3 | `a196bab`: exclusive recovery clears dead transient attempt/experiment leases after fencing; durable references retained | `review-r3-green.log`,50 passed |
+| R8 | `4c4d558`: pending activation fences admission atomically; admitted owners finish or activation reports busy | `review-r8-green.log`,27 passed |
+| R9 | `98ae34c`: inspection slot excluded from replay selection and execution admission | Saturated native experiments plus uncached inspection; `review-r9-green.log`,15 passed |
+| R4 | `a705f3a`: authenticated dedicated cancellation path interrupts preparation from the same tab; bounded/idempotent operation IDs | `review-r4-green.log`,17 passed; installed same-tab native cancellation passed |
+| R5/R6 | `ee57e92`: authoritative annotation loading/save and data-only saved experiment queries on reopen/recovery | `review-r5-green.log`,11 passed; `review-r6-green.log`,39 passed; installed history/recovery2 passed |
+| R7 | `254f50b`: mounted notification subscriptions, referenced bodies, terminal/reconnect reconciliation and durable preflight failure | `review-r7-python-final.log`,14 passed; targeted viewer26 passed; installed replay-failure/reconnect and live cancellation2 passed |
+| R1 | `ddab7ad`: versioned portable new-generation identity with legacy strictness preserved | Native-4 and compatibility evidence above; further Windows parser negatives28 passed |
+| M1 | Real explicit-run workspace smoke journeys and updated installed wrapper/CI invocation | `review-m1-browser-4.log`,2 passed Chromium; full cross-engine gate follows |
+
+M1 covers required-string refusal and explicit empty-string selection, second-tab
+parameter conflicts and source-schema conflicts with dirty edits retained, physical
+layout preview/apply/undo/redo, keyboard movement, actual canvas drag, lane vertex
+insert/remove, and no implicit run on Save. Presentation-only edits preserve run
+count; first-frame PNG hashes prove an already-open export stays pinned while a
+new dialog reflects the new presentation. HTML export carries that presentation
+and opens offline with zero external requests. Two actual recordings compare on
+one synchronized clock through play/pause/seek. Tests use the freshly installed
+workspace and real authenticated transport. Initial harness selector and malformed
+layout-fixture diagnostics are retained; no product behavior was weakened.
+
+The accidental broader `ty check` invocation included unrelated examples/tests;
+its diagnostic remains in `review-r7-ty.log`. The approved gate is exclusively
+`uv run --all-extras ty check src`, which passed. No unrelated typing cleanup.
+All original review artifacts under `/tmp/studio-p1-review/` remain unchanged.
