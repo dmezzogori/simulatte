@@ -253,8 +253,8 @@ class AnalysisStore:
                     <= {f["name"] for f in r["datasets"][requirement["dataset"]]["manifest"]["schema"]["fields"]}
                 ]
                 if (
-                    len(valid) < max(1, requirement["min_replications"])
-                    or requirement["require_complete"]
+                    len(valid) < max(1, requirement["min_replications"], selection.min_replications)
+                    or (requirement["require_complete"] or selection.require_complete)
                     and len(valid) != len(rows)
                 ):
                     raise ValueError(f"insufficient input for dataset {requirement['dataset']}")
