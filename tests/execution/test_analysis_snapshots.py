@@ -274,3 +274,47 @@ def test_readers_refuse_unknown_schema(tmp_path):
         db.execute("PRAGMA user_version=5")
     with pytest.raises(ValueError, match="Unsupported"):
         StoreReader.open(root)
+
+
+@pytest.mark.parametrize("policy", [{"min_replications": 2}, {"require_complete": True}])
+def test_user_policy_applies_to_dataset_valid_inputs(setup, policy):
+    import hashlib
+    from simulatte.analysis.datasets import DatasetWriter
+    from simulatte.analysis.definition import DatasetRequirement
+    from simulatte.analysis.types import DatasetSchema, Field
+
+    store, analysis, _ = setup
+    run, _ = build(store, {(0, i): "pending" for i in range(2)})
+    for i in range(2):
+        attempt = publish(store, run, 0, i, 3)
+        root = store.root / "results" / attempt
+        # Both results have jobs, but only one retained the required lateness field.
+        field = "lateness" if i == 0 else "duration"
+        writer = DatasetWriter(
+            root / "artifacts" / "datasets" / "jobs", DatasetSchema("jobs", (Field(field, "float64"),))
+        )
+        writer.append({field: 1.5})
+        writer.finish()
+        with store._transaction() as db:
+            for path in (root / "artifacts").rglob("*"):
+                if path.is_file():
+                    raw = path.read_bytes()
+                    db.execute(
+                        "INSERT INTO artifacts VALUES (?,?,?,?)",
+                        (attempt, path.relative_to(root).as_posix(), len(raw), hashlib.sha256(raw).hexdigest()),
+                    )
+    definition = analysis.put_definition(
+        AnalysisDefinition(
+            "jobs", "report.py:run", "a" * 64, ParameterSchema(()), (DatasetRequirement("jobs", ("lateness",)),)
+        )
+    )
+    preview = analysis.preview(Selection(experiment_run_ids=(run,), configurations=(0,), **policy))
+    assert preview.available == preview.planned == 2
+    snapshot = analysis.snapshot(preview.snapshot_hash)
+    assert len(snapshot["replications"]) == 2
+    assert snapshot["replications"][1]["datasets"]["jobs"]["manifest"]["schema"]["fields"][0]["name"] == "duration"
+    with pytest.raises(ValueError, match="insufficient input for dataset jobs"):
+        admit(analysis, definition, preview)
+    # The relaxed policy can use one valid replication; no evidence is silently removed.
+    relaxed = admit(analysis, definition, analysis.preview(Selection(experiment_run_ids=(run,), configurations=(0,))))
+    assert len(analysis.snapshot(relaxed.snapshot_hash)["replications"]) == 2
