@@ -432,8 +432,11 @@ def test_unknown_worker_replay_series_and_interactive_filtering(tmp_path, monkey
                 assert 0 < backoff["until"] <= 60 and backoff["reason"] == "Worker handshake failed"
                 local.backoff_until = 0.0
                 replays = wait_state(client, headers, lambda value: bool(value["replays"]))["replays"]
-                assert replays[0]["request_id"] == replay["request_id"] and replays[0]["verified"] is True
-                assert replays[0]["trace"]["url"].startswith("/api/prefix/")
+                assert replays[0]["request_id"] == replay["request_id"] and replays[0]["verified"] is None
+                assert replays[0]["status"] == "failed" and replays[0]["trace"] is None
+                assert "nowhere" in replays[0]["reason"]
+                # The earlier successful result remains stored; the latest replay operation failed preflight.
+                assert coordinator.store.result(verified["attempt_id"])
                 current = client.get("/api/state", headers=headers).json()
                 assert [item["key"] for item in current["results"]] == [interactive]
 

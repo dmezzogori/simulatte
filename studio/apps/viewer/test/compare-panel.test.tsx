@@ -71,3 +71,29 @@ it('routes replay_state notifications to subscribers', () => {
   replays.notification({v: 1, type: 'replay_state', event_seq: 4, body: {request_id: 'e'.repeat(64), original: 'c'.repeat(64), status: 'failed', verified: null}});
   expect(seen).toHaveBeenCalledTimes(1);
 });
+
+it('resolves replay references, retains early failure and supersedes it on reconnect state', async () => {
+  let resolve!: (value: unknown) => void;
+  const feed = new ReplayNotifications(() => new Promise(done => {resolve=done;}));
+  const updates: string[] = [];
+  const unsubscribe = feed.subscribe(value => updates.push(value.status));
+  const id='a'.repeat(64);
+  feed.notification({v:1,type:'replay_state',event_seq:2,body:{ref:{id:'x'}}});
+  feed.observe([{request_id:id,original:'b'.repeat(64),status:'failed',reason:'Captured preparation unavailable',verified:null,key:null,trace:null}]);
+  resolve({request_id:id,original:'b'.repeat(64),status:'running',verified:null});
+  await Promise.resolve(); await Promise.resolve();
+  expect(feed.latest(id)?.status).toBe('failed');
+  expect(updates).toEqual(['failed']);
+  unsubscribe(); feed.dispose();
+});
+
+it('ignores a late referenced body after a newer inline replay notification', async () => {
+  let resolve!: (value: unknown) => void;
+  const feed = new ReplayNotifications(() => new Promise(done => {resolve=done;}));
+  feed.notification({v:1,type:'replay_state',event_seq:1,body:{ref:{id:'x'}}});
+  feed.notification({v:1,type:'replay_state',event_seq:2,body:{request_id:'r',status:'failed'}});
+  resolve({request_id:'r',status:'running'});
+  await Promise.resolve();
+  expect(feed.latest('r')?.status).toBe('failed');
+  feed.dispose();
+});

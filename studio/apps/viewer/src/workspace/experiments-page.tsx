@@ -25,8 +25,14 @@ export function ExperimentsPage({
   const [feed] = useState(
     () => new ExperimentFeed((ref) => client.reference(ref)),
   );
-  const [replays] = useState(() => new ReplayNotifications());
-  useEffect(() => () => feed.dispose(), [feed]);
+  const [replays] = useState(() => new ReplayNotifications(ref => client.reference(ref)));
+  useEffect(() => {
+    const reconcile = (value: StudioState) => {feed.observe(); replays.observe(value.replays ?? []);};
+    const unnotify = client.subscribeNotifications(message => {feed.notification(message); replays.notification(message);});
+    const unstate = client.subscribeState(reconcile);
+    if(client.state) reconcile(client.state);
+    return () => {unnotify(); unstate(); feed.dispose(); replays.dispose();};
+  }, [client, feed, replays]);
   const scoped = useMemo(
     () =>
       new Proxy(client, {

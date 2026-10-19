@@ -74,7 +74,9 @@ export function RecordingPane({
       setError,
     );
     bridge.current = b;
+    const unsubscribe = client.subscribeNotifications(message => b.notification(message));
     return () => {
+      unsubscribe();
       abort.current?.abort();
       b.dispose();
       c.dispose();
