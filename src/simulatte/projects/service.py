@@ -218,6 +218,7 @@ class ProjectService:
             if identity not in self._cancelled_preparations:
                 self._cancelled_preparations.append(identity)
             if self._preparation_id == identity:
+                assert self.environments is not None
                 self.environments.cancel()
         return {"ok": True}
 

@@ -94,6 +94,26 @@ class StoreReader:
             for row in self._db.execute("SELECT * FROM environment_generations")
         )
 
+    def experiment(self, experiment_id: str):
+        from simulatte.execution.experiment_reads import experiment
+
+        return experiment(self, experiment_id)
+
+    def experiment_run(self, run_id: str):
+        from simulatte.execution.experiment_reads import experiment_run
+
+        return experiment_run(self, run_id)
+
+    def replications(self, run_id: str, *, status: str | None = None):
+        from simulatte.execution.experiment_reads import replications
+
+        return replications(self, run_id, status=status)
+
+    def replication_kpis(self, run_id: str):
+        from simulatte.execution.experiment_reads import replication_kpis
+
+        return replication_kpis(self, run_id)
+
     def _transaction(self):
         from contextlib import nullcontext
 
