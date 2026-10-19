@@ -47,8 +47,6 @@ def test_environment_preview_selection_busy_and_restart(service, monkeypatch):
     first = service.prepare_environment({})["generation"]
     assert service.select_environment({"id": first["id"]})["status"] == "restart_required"
     assert service.restart_generation is None
-    service.select_environment({"id": first["id"], "restart": True})
-    assert service.restart_generation == first["id"]
     pool.activate(first["id"])
     pool.acquire(first["id"], "run")
     (service.root / "uv.lock").write_text("version=3\n")
@@ -58,6 +56,8 @@ def test_environment_preview_selection_busy_and_restart(service, monkeypatch):
     existing = service.prepare_environment({"existing": sys.executable})["generation"]
     assert service.select_environment({"id": existing["id"]})["status"] == "selected"
     assert service.prepare_environment({"cancel": True})["ok"]
+    service.select_environment({"id": first["id"], "restart": True})
+    assert service.restart_generation == first["id"]
 
 
 def test_configuration_preserves_context_only_for_same_entrypoint(service):

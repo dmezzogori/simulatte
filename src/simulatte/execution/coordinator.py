@@ -193,6 +193,7 @@ class Coordinator:
             self.distribution_roots = list(dict.fromkeys(sysconfig.get_path(name) for name in ("purelib", "platlib")))
             self._condition = threading.Condition()
             self._closed = False
+            self._admission_paused = False
             self._fatal: ExecutionFailure | None = None
             self._inputs = None
             self._preview = None
@@ -250,6 +251,25 @@ class Coordinator:
         except BaseException:
             coordinator.close()
             raise
+
+    def pause_admission(self):
+        """Fence all new work for an environment handoff, only while fully idle."""
+        with self._condition:
+            if self._scheduler._runs or any(
+                a.current is not None or a.pending is not None for a in self._actors.values()
+            ):
+                return False
+            self._admission_paused = True
+            return True
+
+    def resume_admission(self):
+        with self._condition:
+            self._admission_paused = False
+
+    def _check_admission(self):
+        # Caller holds the coordinator condition, also used by environment handoff.
+        if self._admission_paused:
+            raise RuntimeError("Project restart is pending; new work is unavailable")
 
     def prepare_model(self, model_id, *, timeout=None):
         with self._inspection_lock:
@@ -671,6 +691,7 @@ class Coordinator:
         with self._condition:
             if self._closed or self._fatal is not None:
                 raise RuntimeError("Coordinator is closed or has a storage failure; restart it")
+            self._check_admission()
             actor = self._actors.get(slot)
             if actor is None or (slot not in (INTERACTIVE, "inspection") and isinstance(request, InspectionRequest)):
                 raise ValueError(f"Unknown execution slot {slot!r}")
@@ -1023,6 +1044,7 @@ class Coordinator:
         with self._condition:
             if self._closed or self._fatal is not None:
                 raise RuntimeError("Coordinator is closed or has a storage failure; restart it")
+            self._check_admission()
             identity = self.store.put_experiment(experiment.to_dict())
             run_id = self.store.create_experiment_run(
                 identity,
@@ -1040,6 +1062,7 @@ class Coordinator:
         Called under the coordinator condition: missing workers leave a paused run
         paused, and actor threads cannot dispatch until activation finishes.
         """
+        self._check_admission()
         record = self.store.experiment_run(run_id)
         if record["status"] not in ("running", "paused"):
             return

@@ -164,3 +164,82 @@ def test_initialization_is_serialized_with_lifecycle_changes(tmp_path, monkeypat
         for co in made:
             co.close()
         service.close()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="native alternate venv interpreter path is POSIX")
+def test_restart_fences_late_authenticated_admission_and_direct_context_work(tmp_path):
+    service, workspace = ready_service(tmp_path)
+    server = server_for(service)
+    pool = service.environments
+    target = pool.use_existing(Path(sys.executable).with_name("python3"))
+    model = workspace.models[0].id
+    service.prepare_model(model)
+    co = service.coordinator
+    state = co.inputs_for(model).state
+    until(lambda: not pool.owners(pool.selected.id))
+    client = TestClient(server.app, base_url=server.origin)
+    client.get(server.link())
+    try:
+        with (
+            client.websocket_connect(
+                server.origin.replace("http:", "ws:") + "/ws", headers={"Origin": server.origin}
+            ) as a,
+            client.websocket_connect(
+                server.origin.replace("http:", "ws:") + "/ws", headers={"Origin": server.origin}
+            ) as b,
+        ):
+            authenticate(a, server)
+            authenticate(b, server)
+            a.send_json(
+                {"v": 1, "type": "environment.select", "id": "restart", "body": {"id": target.id, "restart": True}}
+            )
+            assert response(a, "restart")["status"] == "restart_required"
+            b.send_json(
+                {
+                    "v": 1,
+                    "type": "run.start",
+                    "id": "late",
+                    "revision": asdict(state.revision),
+                    "body": {"model_id": model},
+                }
+            )
+            reply = response(b, "late")
+            assert not reply["ok"] and "restart" in reply["error"]["message"].lower()
+            with pytest.raises(RuntimeError, match="restart"):
+                co.admit_run(model, state.request, state.revision)
+            assert co._owner() is None
+    finally:
+        service.close()
+        client.close()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="native alternate venv interpreter path is POSIX")
+def test_environment_change_cannot_cancel_work_admitted_during_validation(tmp_path, monkeypatch):
+    from simulatte.projects import bootstrap
+
+    service, workspace = ready_service(tmp_path)
+    pool = service.environments
+    target = pool.use_existing(Path(sys.executable).with_name("python3"))
+    model = workspace.models[0].id
+    service.prepare_model(model)
+    co = service.coordinator
+    state = co.inputs_for(model).state
+    until(lambda: not pool.owners(pool.selected.id))
+    admitted = []
+    validate = bootstrap.validate_runtime
+
+    def concurrent_admission(interpreter):
+        result = validate(interpreter)
+        admitted.append(co.admit_run(model, state.request, state.revision))
+        return result
+
+    monkeypatch.setattr(bootstrap, "validate_runtime", concurrent_admission)
+    try:
+        assert service.select_environment({"id": target.id, "restart": True})["status"] == "busy"
+        assert admitted[0].status == "started"
+        assert service.restart_generation is None
+        assert co._owner() == admitted[0].key
+        assert service.store.attempt(admitted[0].key)["status"] not in ("cancelled", "superseded")
+        co.cancel(admitted[0].key)  # Only the explicit test-owner stop cancels it.
+    finally:
+        service.close()

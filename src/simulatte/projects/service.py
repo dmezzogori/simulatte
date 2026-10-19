@@ -107,6 +107,8 @@ class ProjectService:
     def _writable(self):
         if self._closed:
             raise ValueError("Project is closed")
+        if self.restart_generation is not None:
+            raise ValueError("Project restart is pending; new work is unavailable")
         if self.read_only or self.store is None:
             raise ValueError("Project is read-only; repair the environment or close the other coordinator first")
 
@@ -223,23 +225,31 @@ class ProjectService:
         return {"ok": True, "generation": self._generation_state(generation)}
 
     def select_environment(self, body):
-        self._writable()
-        assert self.store is not None and self.environments is not None
-        generation = self.environments.get(body["id"])
-        from simulatte.projects.bootstrap import validate_runtime
+        with self._lock:
+            self._writable()
+            assert self.store is not None and self.environments is not None
+            generation = self.environments.get(body["id"])
+            from simulatte.projects.bootstrap import validate_runtime
 
-        validate_runtime(generation.interpreter)
-        outcome = self.environments.select(generation.id)
-        if outcome == "busy":
-            return {"ok": True, "status": "busy"}
-        if generation.interpreter.absolute() == Path(sys.executable).absolute():
-            self.environments.activate(generation.id)
-            self._generation = generation.id
-            return {"ok": True, "status": "selected"}
-        if body.get("restart"):
-            self.restart_generation = generation.id
-            self.restart_interpreter = generation.interpreter
-        return {"ok": True, "status": "restart_required", "generation": generation.id}
+            validate_runtime(generation.interpreter)
+            co = self.coordinator
+            if co is not None and not co.pause_admission():
+                return {"ok": True, "status": "busy"}
+            try:
+                outcome = self.environments.select(generation.id)
+                if outcome == "busy":
+                    return {"ok": True, "status": "busy"}
+                if generation.interpreter.absolute() == Path(sys.executable).absolute():
+                    self.environments.activate(generation.id)
+                    self._generation = generation.id
+                    return {"ok": True, "status": "selected"}
+                if body.get("restart"):
+                    self.restart_generation = generation.id
+                    self.restart_interpreter = generation.interpreter
+                return {"ok": True, "status": "restart_required", "generation": generation.id}
+            finally:
+                if co is not None and self.restart_generation is None:
+                    co.resume_admission()
 
     def ensure_coordinator(self):
         # Construction, publication, configuration and close share lifecycle ownership.
