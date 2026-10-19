@@ -76,11 +76,11 @@ Snapshot/output manifests use a canonical tagged numeric representation for exac
 
 **Interfaces:** `JobOutcomeCollector(*, fields, populations, membership_at: Literal["arrival", "completion"] = "completion")` and `AgvDurationCollector(*, fields, populations, membership_at: Literal["interval_start"] = "interval_start")` attach through the ordinary collector API. Job rows carry job ID, arrival/completion/due times, lateness, inclusion/censoring and declared attributes. AGV rows carry AGV ID, state, start/end/duration and declared attributes; close/clip intervals to the observation window, recording classification changes at declared observation boundaries. Per-state aggregate-only mode must label unsupported posthoc temporal predicates.
 
-- [ ] Hand-computed fixtures assert all-job and subset lateness counts/distributions, warm-up/censored jobs, overlapping and empty subsets. Observe family at arrival versus completion and verify the difference is intentional.
-- [ ] AGV fixtures assert different mean-of-fractions and ratio-of-duration results for unequal observation durations; exact boundary changes, zero-duration windows and capabilities represented by retained lists are covered. No averaging of per-vehicle fractions under the wrong label.
-- [ ] Compare baseline, numerical-only and full-recorded runs for identical semantic digest/shared KPIs and RNG trajectories. A new predicate succeeds on retained combined attributes; absent historical attributes return an explicit insufficiency result.
-- [ ] Run `uv run --all-extras pytest tests/core/test_population_collectors.py tests/intralogistics/test_population_metrics.py tests/core/test_invariance.py --no-cov` red/green and the existing overhead benchmark at the package gate.
-- [ ] Commit `feat(analysis): add production and fleet population measurements`.
+- [x] Hand-computed fixtures assert all-job and subset lateness counts/distributions, warm-up/censored jobs, overlapping and empty subsets. Observe family at arrival versus completion and verify the difference is intentional.
+- [x] AGV fixtures assert different mean-of-fractions and ratio-of-duration results for unequal observation durations; exact boundary changes, zero-duration windows and capabilities represented by retained lists are covered. No averaging of per-vehicle fractions under the wrong label.
+- [x] Compare baseline, numerical-only and full-recorded runs for identical semantic digest/shared KPIs and RNG trajectories. A new predicate succeeds on retained combined attributes; absent historical attributes return an explicit insufficiency result.
+- [x] Run `uv run --all-extras pytest tests/core/test_population_collectors.py tests/intralogistics/test_population_metrics.py tests/core/test_invariance.py --no-cov` red/green and the existing overhead benchmark at the package gate.
+- [x] Commit `feat(analysis): add production and fleet population measurements`.
 
 ## Task 4: Frozen input snapshots and retention transactions
 

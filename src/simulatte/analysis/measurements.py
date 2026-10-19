@@ -167,7 +167,11 @@ class ObservationCollector(Collector):
         self._finished = True
         if self._writer is not None:
             if self.failure is None:
-                self._writer.window = {"start": self.env.warmup, "end": float(self.env.now)}
+                self._writer.window = {
+                    "start": self.env.warmup,
+                    "end": float(self.env.now),
+                    "limitations": list(getattr(self, "limitations", ())),
+                }
                 try:
                     self._writer.finish()
                 except Exception as error:
