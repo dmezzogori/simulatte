@@ -1,0 +1,35 @@
+[project]
+name = "simulatte-numerical-study"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["simulatte"]
+
+[tool.simulatte.project]
+schema = 1
+id = "c09b902b-ccad-4d13-887b-693356b32f23"
+default_model = "production"
+
+[tool.simulatte.models.production]
+id = "a531d303-cf9d-4d6e-a992-56e31eea256d"
+name = "Production outcomes"
+entrypoint = "models/production.py:build"
+layout = "layouts/production.json"
+
+[tool.simulatte.models.logistics]
+id = "839bfc13-0d9a-455f-9fa9-08615ad6fb8b"
+name = "Fleet durations"
+entrypoint = "models/logistics.py:build"
+layout = "layouts/logistics.json"
+
+[tool.simulatte.analyses.lateness]
+id = "e64ca951-1b69-47a0-b1c5-7cfb91d90755"
+name = "Lateness by family"
+entrypoint = "analysis/reports.py:lateness"
+
+[tool.simulatte.analyses.utilization]
+id = "093f63ba-8f3b-496c-a2a4-f8a6d6a39123"
+name = "Fleet utilization"
+entrypoint = "analysis/reports.py:utilization"
+
+[tool.simulatte.bundle]
+include = ["models/*.py", "analysis/*.py", "data/*.json", "layouts/*.json"]
