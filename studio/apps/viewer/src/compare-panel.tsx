@@ -251,7 +251,7 @@ function CompareView({client, state, connected, headers, replays, onError, onClo
       if(row.status !== 'succeeded' || !row.trace || side.status !== 'succeeded') return;
       const entry = listed.entries.find(item => item.kind === 'replay' && item.request_id === row.request_id);
       if (entry) pick(index as Side, entry);
-      else if (side.status !== 'succeeded' || side.verified !== row.verified)
+      else if (side.status !== 'succeeded' || side.verified !== row.verified || side.reason !== row.reason)
         setSide(index as Side, {...side, status: 'succeeded', verified: row.verified, reason: row.reason});
     });
   }, [state?.replays, includeUnverified, sides]);

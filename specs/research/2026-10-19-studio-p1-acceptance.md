@@ -359,3 +359,30 @@ The accidental broader `ty check` invocation included unrelated examples/tests;
 its diagnostic remains in `review-r7-ty.log`. The approved gate is exclusively
 `uv run --all-extras ty check src`, which passed. No unrelated typing cleanup.
 All original review artifacts under `/tmp/studio-p1-review/` remain unchanged.
+
+### Additional package-gate findings (retained, then corrected)
+
+The first refreshed browser gate reported **61 passed,5 failed**. The three-engine
+legacy compare journey exposed a missing unverified-replay reason after early
+terminal notifications; the component now reconciles the authoritative reason even
+when status/verification already match. Firefox/WebKit M1 exported before the other
+tab's asynchronous presentation update reached the current viewer; the harness now
+waits for its actual rendered scene to change. Old-dialog PNG pinning remains an
+exact hash assertion. Diagnostics are retained in `review-gate-browser.log` and
+`review-gate-errors/`.
+
+The initial refreshed Python gate was interrupted after **1914 passed,1 failed**
+(`review-gate-python.log`); it is not a complete coverage result. The failure was
+the changed-probe fixture omitting interpreter facts now required to select the
+captured exact interpreter. It now changes dependency evidence while retaining
+valid interpreter facts, still exercising strict reconstruction refusal.
+
+Checking uv's actual console/GUI launcher bases and pinned editpe0.2.4 writer
+revealed that appending `.pedata` preserves the base SizeOfInitializedData header.
+The parser had incorrectly required the new section total. Actual upstream binary
+fixtures reproduced both failures (`review-r1-actual-pe-red.log`); the parser now
+validates the preserved value against retained base sections and retains it exact.
+Unrelated original resources, code, body and mode are preserved. Parser/environment
+regressions: **47 passed** (`review-r1-actual-pe-green.log`). Fixture source, license
+and SHA-256 are in `tests/fixtures/launchers/README.md`. This does not claim native
+Windows execution; that remains a CI obligation.

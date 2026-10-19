@@ -172,6 +172,8 @@ test('workspace presentation-only save pins export and comparison shares one clo
     await returnModel(page);
     await page.getByLabel('Seed',{exact:true}).fill('12');
     const second=await run(page);
+    const scene=page.locator('.ws-recording .scene-host canvas');
+    const initialScene=await scene.screenshot();
     await page.getByRole('button',{name:'Export video / PNG',exact:true}).click();
     const dialog=page.getByRole('dialog',{name:'Export recording'});
     await expect(dialog).toBeVisible();
@@ -208,6 +210,9 @@ test('workspace presentation-only save pins export and comparison shares one clo
     expect(await count(page)).toBe(2);
     expect(await png('pinned-after')).toBe(pinnedBefore);
     await dialog.getByRole('button',{name:'Close',exact:true}).click();
+    // The other tab's save reaches this mounted viewer asynchronously; wait for
+    // its actual rendered label before asking for a new presentation export.
+    await expect.poll(async()=>!(await scene.screenshot()).equals(initialScene)).toBe(true);
     const waiting=page.waitForEvent('download');
     await page.getByRole('button',{name:'Export HTML',exact:true}).click();
     const htmlPath=join(fixture.root,'presentation.html');await(await waiting).saveAs(htmlPath);
