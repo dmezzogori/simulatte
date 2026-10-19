@@ -1818,6 +1818,7 @@ all = [
     { name = "gymnasium" },
     { name = "matplotlib" },
     { name = "starlette" },
+    { name = "tomlkit" },
     { name = "uvicorn" },
     { name = "watchfiles" },
     { name = "websockets" },
@@ -1830,6 +1831,7 @@ rl = [
 ]
 studio = [
     { name = "starlette" },
+    { name = "tomlkit" },
     { name = "uvicorn" },
     { name = "watchfiles" },
     { name = "websockets" },
@@ -1860,6 +1862,7 @@ requires-dist = [
     { name = "simulatte", extras = ["plot", "rl", "studio"], marker = "extra == 'all'" },
     { name = "starlette", marker = "extra == 'studio'", specifier = ">=0.48" },
     { name = "tabulate", specifier = ">=0.9.0" },
+    { name = "tomlkit", marker = "extra == 'studio'", specifier = ">=0.13.2" },
     { name = "tqdm", specifier = ">=4.67.1" },
     { name = "uvicorn", marker = "extra == 'studio'", specifier = ">=0.35" },
     { name = "watchfiles", marker = "extra == 'studio'", specifier = ">=1.1" },

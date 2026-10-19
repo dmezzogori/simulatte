@@ -169,7 +169,19 @@ def discover_project(
     )
     if not git and not patterns["include"]:
         raise ValueError("Non-Git projects require bundle.include")
-    layouts = _layout_variants(root, bundle.get("layouts", []))
+    registered_layouts = [
+        item["layout"]
+        for item in config.get("tool", {}).get("simulatte", {}).get("models", {}).values()
+        if "layout" in item
+    ]
+    layouts = tuple(
+        dict.fromkeys(
+            (
+                *_layout_variants(root, bundle.get("layouts", [])),
+                *_layout_variants(root, list(dict.fromkeys(registered_layouts))),
+            )
+        )
+    )
     roots = bundle.get("python-path", [".", *(["src"] if (root / "src").is_dir() else [])])
     if not isinstance(roots, list) or not roots:
         raise ValueError("bundle.python-path must be a nonempty list")

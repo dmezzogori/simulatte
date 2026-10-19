@@ -45,17 +45,17 @@ Schema 3 adds `project_meta`, `models` (including tombstones), `model_revisions`
 
 **Interfaces:** `resolve_target(value: str | None, *, cwd: Path) -> StudioTarget`; `load_workspace(root: Path) -> WorkspaceDefinition | None`; `preview_config(root: Path, definition: WorkspaceDefinition) -> ConfigEdit` and `apply_config(edit: ConfigEdit) -> None`, where `ConfigEdit(path, original_sha256: str | None, proposed_bytes: bytes)` is frozen. `starter_files(kind: Literal["production", "logistics"]) -> dict[str, bytes]`; `install_starter(root: Path, files: Mapping[str, bytes]) -> None` refuses existing target files and rolls back only files it created on failure. Reuse current runnable domain examples without requiring Studio inside model code.
 
-- [ ] Add tests: no argument resolves cwd; missing nested folder is created; existing directory ending `.py` opens as a directory; existing `MODEL.py:alternate` preserves the reference; missing explicit entrypoint source raises and creates nothing; unsupported regular files fail. Resolve symlinks consistently with existing root containment checks.
-- [ ] Add configuration tests for duplicate UUID/default errors, preservation of unrelated TOML/comments and stale digest. Pin the core assertions:
+- [x] Add tests: no argument resolves cwd; missing nested folder is created; existing directory ending `.py` opens as a directory; existing `MODEL.py:alternate` preserves the reference; missing explicit entrypoint source raises and creates nothing; unsupported regular files fail. Resolve symlinks consistently with existing root containment checks.
+- [x] Add configuration tests for duplicate UUID/default errors, preservation of unrelated TOML/comments and stale digest. Pin the core assertions:
   ```python
   assert resolve_target(None, cwd=tmp_path).root == tmp_path
   assert load_workspace(project).models[0].id == original_model_id
   assert unrelated_toml_before == unrelated_toml_after
   ```
   `project` fixtures in `test_projects.py` create both Git and explicit non-Git bundle variants; no model import is needed.
-- [ ] Run `uv run --all-extras pytest tests/core/test_projects.py tests/execution/test_snapshot.py --no-cov` and confirm new cases fail before implementing the contracts. Preserve explicit capture rules and ensure project history/cache files are excluded.
-- [ ] Implement the modules; rerun the same tests to pass. Add a runnable tiny starter for each domain with explicit source/input/layout declarations.
-- [ ] Commit `feat(studio): define persistent projects and resolve launch targets`.
+- [x] Run `uv run --all-extras pytest tests/core/test_projects.py tests/execution/test_snapshot.py --no-cov` and confirm new cases fail before implementing the contracts. Preserve explicit capture rules and ensure project history/cache files are excluded.
+- [x] Implement the modules; rerun the same tests to pass. Add a runnable tiny starter for each domain with explicit source/input/layout declarations.
+- [x] Commit `feat(studio): define persistent projects and resolve launch targets`.
 
 ## Task 2: Store schema 3, model history and read-only access
 
