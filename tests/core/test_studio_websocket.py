@@ -162,3 +162,13 @@ def test_hub_send_closes_slow_peer():
     peer = SimpleNamespace(outbox=SimpleNamespace(put=put), close=closed.append)
     hub.send(peer, "state", {})
     assert closed == [1013]
+
+
+def test_analysis_commands_are_project_commands_without_revision():
+    from simulatte.studio.websocket import PROJECT_COMMANDS
+
+    for name in ("list", "get", "preview", "admit", "cancel", "rerun", "refresh", "annotate"):
+        assert "analysis." + name in PROJECT_COMMANDS
+        message = {"v": 1, "type": "analysis." + name, "id": "c1", "body": {}}
+        assert decode_message(json.dumps(message)) == message
+        assert decode_message(json.dumps({**message, "revision": None})) == {**message, "revision": None}

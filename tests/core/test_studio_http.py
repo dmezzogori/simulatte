@@ -222,3 +222,14 @@ def test_verified_identity_cache_and_segment_iteration_are_bounded(tmp_path, mon
     source = RangeSource(files, 3)
     assert b"".join(source.chunks(1, 1)) == b"\x01"
     assert len(cache) == 1024 and ("old", 0) not in cache
+
+
+def test_app_policy_only_gains_sandboxed_frames():
+    from simulatte.studio.auth import CSP, response_headers
+
+    assert CSP == (
+        "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; "
+        "object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; frame-src 'self'"
+    )
+    assert response_headers()["Content-Security-Policy"] == CSP

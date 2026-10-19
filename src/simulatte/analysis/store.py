@@ -429,6 +429,166 @@ class AnalysisStore:
             )
         return revision
 
+    def check(self, preview_id: str, *, definition_id: str, parameters, generation_id: str) -> None:
+        """Apply every admission rule to a preview without admitting it.
+
+        Raises ``InsufficientInput`` for unmet completeness or replication requirements (the
+        generic refusals gain the snapshot counts as details) and ``ValueError``/``KeyError``
+        otherwise. The admission transaction is always rolled back.
+        """
+
+        class Rollback(Exception):
+            pass
+
+        try:
+            with self.store._transaction() as db:
+                row = db.execute("SELECT snapshot FROM analysis_previews WHERE id=?", (preview_id,)).fetchone()
+                if row is None:
+                    raise KeyError(preview_id)
+                try:
+                    self._admit(db, row[0], definition_id, parameters, generation_id)
+                except InsufficientInput:
+                    raise
+                except ValueError as error:
+                    if not str(error).startswith("insufficient"):
+                        raise
+                    body = self._body(db, "analysis_input_snapshots", row[0])
+                    raise InsufficientInput(
+                        str(error),
+                        {
+                            "available": body["available"],
+                            "planned": body["planned"],
+                            "partial": body["partial"],
+                            "require_complete": body["selection"]["require_complete"],
+                            "min_replications": body["selection"]["min_replications"],
+                        },
+                    ) from error
+                raise Rollback
+        except Rollback:
+            pass
+
+    def rename(self, identity, name):
+        """Record the display name of an execution in its details; diagnostics merge beside it."""
+        analysis_name(name)
+        with self.store._transaction() as db:
+            row = db.execute("SELECT details FROM analysis_executions WHERE id=?", (identity,)).fetchone()
+            if row is None:
+                raise KeyError(identity)
+            db.execute(
+                "UPDATE analysis_executions SET details=? WHERE id=?",
+                (codec.dumps({**codec.loads(row[0]), "name": name}), identity),
+            )
+
+    # Read-only views: they also work on a ``StoreReader`` (no writer, schema 4).
+    _SUMMARY = (
+        "SELECT e.rowid AS position,e.id,e.definition,d.name AS registration,e.snapshot,e.state,e.created,"
+        "json_extract(CAST(e.details AS TEXT),'$.\"$record\".name') AS name,"
+        "json_extract(CAST(s.body AS TEXT),'$.\"$record\".available') AS available,"
+        "json_extract(CAST(s.body AS TEXT),'$.\"$record\".planned') AS planned,"
+        "json_extract(CAST(s.body AS TEXT),'$.\"$record\".partial') AS partial,"
+        "json_extract(CAST(s.body AS TEXT),'$.\"$record\".selection') AS selection "
+        "FROM analysis_executions e JOIN analysis_definitions d ON d.id=e.definition "
+        "JOIN analysis_input_snapshots s ON s.id=e.snapshot"
+    )
+
+    @staticmethod
+    def _summary(row):
+        return {
+            "id": row["id"],
+            "definition_id": row["definition"],
+            "registration_id": row["registration"],
+            "name": row["name"],
+            "state": row["state"],
+            "created": row["created"],
+            "snapshot_hash": row["snapshot"],
+            "available": row["available"],
+            "planned": row["planned"],
+            "partial": bool(row["partial"]),
+        }
+
+    @staticmethod
+    def _annotations(db, identity):
+        return [
+            {"revision": r[0], "text": codec.loads(r[1])["text"], "ts": r[2]}
+            for r in db.execute(
+                "SELECT id,body,created FROM analysis_annotations WHERE execution=? ORDER BY created,rowid",
+                (identity,),
+            )
+        ]
+
+    def list(self, cursor: str | None = None, limit: int = 50) -> dict:
+        """Newest admissions first; the cursor is the last row position, stable as executions arrive."""
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("Analysis list limit must be between 1 and 100")
+        if cursor is not None and (type(cursor) is not str or not cursor.isdecimal() or str(int(cursor)) != cursor):
+            raise ValueError("Invalid analysis cursor")
+        if getattr(self.store, "version", 4) < 4:
+            return {"items": [], "next_cursor": None}
+        with self.store._transaction() as db:
+            rows = db.execute(
+                self._SUMMARY + (" WHERE e.rowid<?" if cursor is not None else "") + " ORDER BY e.rowid DESC LIMIT ?",
+                (*(() if cursor is None else (int(cursor),)), limit + 1),
+            ).fetchall()
+            items = []
+            for row in rows[:limit]:
+                item = self._summary(row)
+                annotations = self._annotations(db, row["id"])
+                if annotations:
+                    item["annotation"] = annotations[-1]["text"]
+                items.append(item)
+        return {"items": items, "next_cursor": str(rows[limit - 1]["position"]) if len(rows) > limit else None}
+
+    def get(self, identity) -> dict:
+        """One execution with its definition, snapshot counts, diagnostics, output manifest and annotations."""
+        if getattr(self.store, "version", 4) < 4:
+            raise KeyError(identity)
+        with self.store._transaction() as db:
+            row = db.execute(self._SUMMARY + " WHERE e.id=?", (identity,)).fetchone()
+            if row is None:
+                raise KeyError(identity)
+            extra = db.execute(
+                "SELECT generation,parameters,details FROM analysis_executions WHERE id=?", (identity,)
+            ).fetchone()
+            definition = self._body(db, "analysis_definitions", row["definition"])
+            output = db.execute("SELECT manifest FROM analysis_outputs WHERE execution=?", (identity,)).fetchone()
+            summary = self._summary(row)
+            return {
+                "execution": {
+                    "id": identity,
+                    "definition_id": row["definition"],
+                    "snapshot_hash": row["snapshot"],
+                    "generation_id": extra["generation"],
+                    "state": row["state"],
+                    "created": row["created"],
+                    "name": row["name"],
+                    "parameters": codec.loads(extra["parameters"]),
+                },
+                "definition": {
+                    "id": row["definition"],
+                    "registration_id": definition["id"],
+                    "entrypoint": definition["entrypoint"],
+                    "parameters": definition["parameters"],
+                    "requirements": definition["requirements"],
+                },
+                "snapshot": {
+                    "hash": row["snapshot"],
+                    "available": summary["available"],
+                    "planned": summary["planned"],
+                    "missing": summary["planned"] - summary["available"],
+                    "partial": summary["partial"],
+                    "selection": codec.loads(row["selection"]),
+                },
+                "details": codec.loads(extra["details"]),
+                "output": None if output is None else codec.loads(output[0]),
+                "annotations": self._annotations(db, identity),
+            }
+
+
+def analysis_name(name):
+    if not isinstance(name, str) or not name.strip() or len(name) > 200:
+        raise ValueError("Analysis name must be non-empty text of at most 200 characters")
+    return name
+
 
 def _insufficient(name, group, valid, total, required, complete, unavailable):
     run, configuration = group

@@ -341,3 +341,20 @@ def test_recovery_clears_analysis_control_files_and_inspection_references(tmp_pa
                 ("analysis-definition", "8" * 64)
             ]
         assert store.prune() == {"results": [], "snapshots": ["7" * 64]}
+
+
+def test_prune_removes_derived_table_indexes_and_recovery_keeps_them(tmp_path):
+    m = api()
+    root = tmp_path / ".simulatte"
+    with m.RunStore.open(root) as store:
+        index = root / "analysis-cache" / ("a" * 64) / (("b" * 64) + ".sqlite")
+        index.parent.mkdir(parents=True)
+        index.write_bytes(b"derived")
+    with m.RunStore.open(root) as store:
+        assert index.read_bytes() == b"derived"
+        assert store.prune(dry_run=True) == {"results": [], "snapshots": []}
+        assert index.exists()
+        assert store.prune() == {"results": [], "snapshots": []}
+        assert not (root / "analysis-cache").exists()
+        # Nothing to remove is not an error.
+        assert store.prune() == {"results": [], "snapshots": []}

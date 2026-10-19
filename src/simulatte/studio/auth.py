@@ -12,7 +12,15 @@ from starlette.responses import HTMLResponse, Response
 CSP = (
     "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
     "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; "
-    "object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    "object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; frame-src 'self'"
+)
+# Saved analysis files: never a document with script, styles or subresources, even when navigated to.
+ARTIFACT_CSP = "sandbox; default-src 'none'"
+# The packaged figure frame runs only the local renderer and receives data by message, never by network;
+# only the Studio document may embed it.
+FRAME_CSP = (
+    "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; "
+    "frame-ancestors 'self'"
 )
 
 
@@ -22,6 +30,16 @@ def response_headers():
         "Referrer-Policy": "no-referrer",
         "X-Content-Type-Options": "nosniff",
         "Content-Security-Policy": CSP,
+    }
+
+
+def artifact_headers(media_type):
+    """An isolated download: declared type, no sniffing, attachment, sandboxed if opened directly."""
+    return {
+        **response_headers(),
+        "Content-Type": media_type,
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": ARTIFACT_CSP,
     }
 
 

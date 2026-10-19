@@ -40,6 +40,15 @@ PROJECT_COMMANDS = frozenset(
         "history.annotate",
         "run.stop_and_run",
         "model.auto",
+        # Analysis commands fence on execution and preview identities, not the model revision.
+        "analysis.list",
+        "analysis.get",
+        "analysis.preview",
+        "analysis.admit",
+        "analysis.cancel",
+        "analysis.rerun",
+        "analysis.refresh",
+        "analysis.annotate",
     )
 )
 COMMANDS = frozenset(
