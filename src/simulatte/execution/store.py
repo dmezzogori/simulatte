@@ -17,6 +17,7 @@ import threading
 import time
 from typing import Any
 
+from simulatte.execution.store_migrations import SCHEMA_3, migrate_2
 from simulatte._wire import canonical_pack, freeze, unpack
 from simulatte.execution.hashing import canonical_hash
 from simulatte.execution.durability import sync_directory
@@ -149,7 +150,9 @@ def _migrate_1(db) -> None:
             )
 
 
-_MIGRATIONS = {1: _migrate_1}
+
+_MIGRATIONS = {1: _migrate_1, 2: migrate_2}
+_DDL = (*_DDL, *SCHEMA_3)
 
 
 def experiment_run_id(experiment_id: str, content_ids) -> str:
@@ -219,7 +222,7 @@ def _remove(path: Path) -> None:
 
 
 class RunStore:
-    schema_version = 2
+    schema_version = 3
 
     def __init__(self, root: Path):
         self.root = Path(root).absolute()
@@ -264,6 +267,10 @@ class RunStore:
             version = db.execute("PRAGMA user_version").fetchone()[0]
             if version not in (0, *_MIGRATIONS, cls.schema_version):
                 raise ValueError(f"Unsupported run store schema {version}")
+            if version and version != cls.schema_version:
+                from simulatte.execution.store_migrations import backup_store
+
+                backup_store(db, store.root, version)
             db.execute("PRAGMA foreign_keys=ON")
             # This PRAGMA returns a row. Consume it before BEGIN/COMMIT;
             # PyPy need not finalize a discarded cursor immediately.
@@ -979,6 +986,9 @@ class RunStore:
     @staticmethod
     def _unreferenced(db, candidates=None) -> list[str]:
         """Results referenced by no replication, replay, view or the newest 20 interactive results."""
+        from simulatte.execution.project_store import protected_results
+
+        protected = protected_results(db)
         return [
             row[0]
             for row in db.execute(
@@ -992,7 +1002,7 @@ class RunStore:
                 ORDER BY r.attempt""",
                 (INTERACTIVE,),
             )
-            if candidates is None or row[0] in candidates
+            if row[0] not in protected and (candidates is None or row[0] in candidates)
         ]
 
     def _drop_results(self, db, attempts) -> None:
@@ -1025,6 +1035,9 @@ class RunStore:
             for body in bodies:
                 referenced.update(body.get(name) for name in ("source_hash", "input_hash"))
                 referenced.add(body["runtime"].get("trusted_runtime_hash"))
+            referenced.update(
+                row[0] for row in db.execute("SELECT target_id FROM \"references\" WHERE target_kind='snapshot'")
+            )
             snapshots = sorted(
                 path.name
                 for path in (self.root / "snapshots").iterdir()

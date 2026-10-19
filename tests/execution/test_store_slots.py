@@ -49,11 +49,11 @@ def layout(root):
         tables = [row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
         return {
             table: (
-                db.execute(f"PRAGMA table_xinfo({table})").fetchall(),
-                db.execute(f"PRAGMA foreign_key_list({table})").fetchall(),
+                db.execute(f"PRAGMA table_xinfo('{table}')").fetchall(),
+                db.execute(f"PRAGMA foreign_key_list('{table}')").fetchall(),
                 sorted(
                     (index[1], index[2], tuple(column[2] for column in db.execute(f"PRAGMA index_info({index[1]})")))
-                    for index in db.execute(f"PRAGMA index_list({table})")
+                    for index in db.execute(f"PRAGMA index_list('{table}')")
                 ),
             )
             for table in tables
@@ -90,7 +90,7 @@ def test_migration_of_v1_fixture_keeps_requests_attempts_result_and_view(tmp_pat
     views = rows(root, "SELECT * FROM views")
     (generation,) = rows(root, "SELECT generation FROM state")[0]
     with m.RunStore.open(root) as store:
-        assert store.schema_version == 2
+        assert store.schema_version == 3
         result = store.result(FIXTURE_ATTEMPT)
         assert result.path.is_dir() and (result.path / "run.simtrace").is_file()
         view = store.presentation_view(committed_only=True)
@@ -99,7 +99,7 @@ def test_migration_of_v1_fixture_keeps_requests_attempts_result_and_view(tmp_pat
         assert store.slots() == {
             "interactive": {"kind": "local", "worker": None, "active": None, "generation": generation}
         }
-    assert rows(root, "PRAGMA user_version") == [(2,)]
+    assert rows(root, "PRAGMA user_version") == [(3,)]
     assert rows(root, "SELECT id,body FROM requests ORDER BY id") == requests
     assert rows(root, "SELECT * FROM attempts ORDER BY id") == [(*row, "interactive", None) for row in attempts]
     assert rows(root, "SELECT * FROM views") == views
@@ -158,10 +158,10 @@ def test_migration_refuses_newer_schema(tmp_path):
     with m.RunStore.open(root):
         pass
     with closing(sqlite3.connect(root / "index.sqlite")) as db:
-        db.execute("PRAGMA user_version=3")
-    with pytest.raises(ValueError, match="Unsupported run store schema 3"):
+        db.execute("PRAGMA user_version=4")
+    with pytest.raises(ValueError, match="Unsupported run store schema 4"):
         m.RunStore.open(root)
-    assert rows(root, "PRAGMA user_version") == [(3,)]
+    assert rows(root, "PRAGMA user_version") == [(4,)]
 
 
 def test_migration_backfills_content_ids_for_result_reuse(tmp_path):
