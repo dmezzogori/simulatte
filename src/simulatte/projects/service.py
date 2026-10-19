@@ -105,6 +105,8 @@ class ProjectService:
         return service
 
     def _writable(self):
+        if self._closed:
+            raise ValueError("Project is closed")
         if self.read_only or self.store is None:
             raise ValueError("Project is read-only; repair the environment or close the other coordinator first")
 
@@ -116,9 +118,9 @@ class ProjectService:
         return {"ok": True, "preview_id": token, **display}
 
     def configure(self, body):
-        self._writable()
-        assert self.store is not None and self.environments is not None
         with self._lock:
+            self._writable()
+            assert self.store is not None and self.environments is not None
             if "apply" in body:
                 kind, value = self._previews.pop(body["apply"])
                 if kind == "starter":
@@ -240,17 +242,25 @@ class ProjectService:
         return {"ok": True, "status": "restart_required", "generation": generation.id}
 
     def ensure_coordinator(self):
-        self._writable()
-        assert self.store is not None and self.environments is not None
-        if self.coordinator is None:
-            self.coordinator = Coordinator.for_workspace(self.root, store=self.store, environments=self.environments)
-            from simulatte.execution.workers import load_workers
+        # Construction, publication, configuration and close share lifecycle ownership.
+        # Never publish a partially configured coordinator to another connection.
+        with self._lock:
+            self._writable()
+            assert self.store is not None and self.environments is not None
+            if self.coordinator is None:
+                coordinator = Coordinator.for_workspace(self.root, store=self.store, environments=self.environments)
+                from simulatte.execution.workers import load_workers
 
-            try:
-                self.coordinator._add_workers(tuple(load_workers().values()))
-            except ValueError as error:
-                self.error = str(error)
-        return self.coordinator
+                try:
+                    try:
+                        coordinator._add_workers(tuple(load_workers().values()))
+                    except ValueError as error:
+                        self.error = str(error)
+                except BaseException:
+                    coordinator.close()
+                    raise
+                self.coordinator = coordinator
+            return self.coordinator
 
     @property
     def timeout(self):
@@ -344,12 +354,13 @@ class ProjectService:
         return str(Path(path).relative_to(self.root).as_posix()) + ":" + name
 
     def close(self):
-        if self._closed:
-            return
-        self._closed = True
-        if self.coordinator is not None:
-            self.coordinator.close()
-        if self.reader is not None:
-            self.reader.close()
-        if self.store is not None:
-            self.store.close()
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            if self.coordinator is not None:
+                self.coordinator.close()
+            if self.reader is not None:
+                self.reader.close()
+            if self.store is not None:
+                self.store.close()
