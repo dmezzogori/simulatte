@@ -106,7 +106,7 @@ class AnalysisStore:
         for item in db.execute("SELECT path,length,sha256 FROM artifacts WHERE attempt=? ORDER BY path", (attempt,)):
             descriptor = dict(item)
             relative = PurePosixPath(item["path"])
-            path = root.joinpath(*relative.parts)
+            path = (root / "artifacts").joinpath(*relative.parts)
             if (
                 relative.is_absolute()
                 or ".." in relative.parts

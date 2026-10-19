@@ -64,6 +64,8 @@ nav = [
     { "First run" = "studio/index.md" },
     { "Projects and history" = "studio/projects.md" },
     { "Environments and recovery" = "studio/environments.md" },
+    { "Numerical measurements" = "studio/measurements.md" },
+    { "Reproducible analysis" = "studio/analysis.md" },
     { "Recording reference" = "development/studio.md" },
   ]},
   { "Development" = [

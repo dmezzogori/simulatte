@@ -201,7 +201,12 @@ def test_dataset_requirements_and_changed_evidence_rejected(setup):
                 raw = path.read_bytes()
                 db.execute(
                     "INSERT INTO artifacts VALUES (?,?,?,?)",
-                    (attempt, path.relative_to(root).as_posix(), len(raw), hashlib.sha256(raw).hexdigest()),
+                    (
+                        attempt,
+                        path.relative_to(root / "artifacts").as_posix(),
+                        len(raw),
+                        hashlib.sha256(raw).hexdigest(),
+                    ),
                 )
     definition = analysis.put_definition(
         AnalysisDefinition(
@@ -301,7 +306,12 @@ def test_user_policy_applies_to_dataset_valid_inputs(setup, policy):
                     raw = path.read_bytes()
                     db.execute(
                         "INSERT INTO artifacts VALUES (?,?,?,?)",
-                        (attempt, path.relative_to(root).as_posix(), len(raw), hashlib.sha256(raw).hexdigest()),
+                        (
+                            attempt,
+                            path.relative_to(root / "artifacts").as_posix(),
+                            len(raw),
+                            hashlib.sha256(raw).hexdigest(),
+                        ),
                     )
     definition = analysis.put_definition(
         AnalysisDefinition(
