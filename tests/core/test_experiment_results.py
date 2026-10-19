@@ -221,3 +221,35 @@ def test_run_without_results_has_no_rows(store):
     document = report.to_dict()
     assert document["m"] == 0 and document["effective_level"] == 0.95
     assert len(document["missing"]) == 2
+
+
+def test_snapshot_report_marks_unavailable_successes_without_a_store():
+    def item(configuration, index, status, available, scalars):
+        return {
+            "run": "r1",
+            "configuration": configuration,
+            "index": index,
+            "status": status,
+            "attempt": None,
+            "available": available,
+            "scalars": scalars,
+        }
+
+    snapshot = {
+        "selection": {"experiment_run_ids": ["r1"], "run_ids": []},
+        "experiments": [{"name": "demo"}],
+        "partial": True,
+        "configurations": [{"run": "r1", "index": 3, "label": "x=1/base"}],
+        "replications": [
+            item(3, 0, "succeeded", True, {"shop/wip": 10.0}),
+            item(3, 1, "succeeded", True, {"shop/wip": 12.0}),
+            item(3, 2, "succeeded", False, {}),
+            item(3, 3, "pending", False, {}),
+        ],
+    }
+    report = ExperimentReport.from_snapshot(snapshot)
+    assert report.run_id == "r1" and report.status == "partial"
+    (row,) = report.table(0.95)
+    assert (row.configuration, row.n_succeeded, row.estimate.n, row.estimate.mean) == (0, 2, 2, 11.0)
+    assert [(x.index, x.status) for x in report.missing()] == [(2, "unavailable"), (3, "pending")]
+    assert snapshot["replications"][2]["status"] == "succeeded"

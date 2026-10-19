@@ -295,3 +295,20 @@ def test_metadata_rejects_invalid_declarations_and_accepts_typed_stops():
     schema = m.parameter_schema(m.get_model_spec(m.model(params=Q, horizon=1)(lambda: None)))
     with pytest.raises(ValueError):
         m.validate_parameters(schema, {"x": "a" * 65537})
+
+
+def test_measurement_plans_are_validated_and_recorded():
+    from simulatte.analysis import DatasetSchema, Field, MeasurementPlan
+
+    m = api()
+
+    @dataclass(frozen=True)
+    class P:
+        count: int = 3
+
+    plan = MeasurementPlan("jobs", (DatasetSchema("jobs", (Field("x", "int64"),)),))
+    build = m.model(params=P, horizon=1, measurement_plans=(plan,))(lambda e, layout, p: None)
+    assert m.get_model_spec(build).measurement_plans == (plan,)
+    for plans in ([plan], ("jobs",), (plan, plan)):
+        with pytest.raises(ValueError, match="measurement plan"):
+            m.model(params=P, horizon=1, measurement_plans=plans)(lambda e, layout, p: None)
