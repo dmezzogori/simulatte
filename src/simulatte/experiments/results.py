@@ -91,6 +91,9 @@ class ExperimentReport:
         self._summary = scheduler.report(store, run_id)
         self._replications = store.replications(run_id)
         scalars = store.replication_kpis(run_id)
+        self._initialize(scalars)
+
+    def _initialize(self, scalars):
         self._kpis = sorted({name for values in scalars.values() for name in values})
         # observations[configuration][kpi][index]: a KPI a replication did not report is simply absent.
         self._observations: list[dict[str, dict[int, float]]] = [{} for _ in self._summary["configurations"]]
@@ -101,6 +104,31 @@ class ExperimentReport:
         self._succeeded = [0] * len(self._observations)
         for item in self._replications:
             self._succeeded[item["configuration"]] += item["status"] in _SUCCESS
+
+    @classmethod
+    def from_snapshot(cls, snapshot):
+        """Report only the admitted scalar copies; this path never opens a store."""
+        result = cls.__new__(cls)
+        configs = snapshot["configurations"]
+        indices = {(c["run"], c["index"]): i for i, c in enumerate(configs)}
+        result.run_id = ",".join(snapshot["selection"]["experiment_run_ids"] or snapshot["selection"]["run_ids"])
+        result._summary = {
+            "name": ", ".join(e["name"] for e in snapshot["experiments"]) or "Selected runs",
+            "status": "partial" if snapshot["partial"] else "completed",
+            "configurations": [{**dict(c), "index": i} for i, c in enumerate(configs)],
+        }
+        result._replications = []
+        scalars = {}
+        for item in snapshot["replications"]:
+            configuration = indices[item["run"], item["configuration"]]
+            copied = {**dict(item), "configuration": configuration}
+            if item["available"]:
+                scalars[configuration, item["index"]] = item["scalars"]
+            elif item["status"] in _SUCCESS:
+                copied["status"] = "unavailable"
+            result._replications.append(copied)
+        result._initialize(scalars)
+        return result
 
     @property
     def status(self) -> str:

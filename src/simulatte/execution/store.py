@@ -17,7 +17,7 @@ import threading
 import time
 from typing import Any
 
-from simulatte.execution.store_migrations import SCHEMA_3, migrate_2
+from simulatte.execution.store_migrations import SCHEMA_3, SCHEMA_4, migrate_2, migrate_3
 from simulatte._wire import canonical_pack, freeze, unpack
 from simulatte.execution.hashing import canonical_hash
 from simulatte.execution.durability import sync_directory
@@ -150,8 +150,8 @@ def _migrate_1(db) -> None:
             )
 
 
-_MIGRATIONS = {1: _migrate_1, 2: migrate_2}
-_DDL = (*_DDL, *SCHEMA_3)
+_MIGRATIONS = {1: _migrate_1, 2: migrate_2, 3: migrate_3}
+_DDL = (*_DDL, *SCHEMA_3, *SCHEMA_4)
 
 
 def experiment_run_id(experiment_id: str, content_ids) -> str:
@@ -221,7 +221,7 @@ def _remove(path: Path) -> None:
 
 
 class RunStore:
-    schema_version = 3
+    schema_version = 4
 
     def __init__(self, root: Path):
         self.root = Path(root).absolute()
@@ -1084,6 +1084,10 @@ class RunStore:
                 raise KeyError(run_id)
             if row["status"] == "running":
                 raise ValueError("Experiment run is running; cancel it before deleting")
+            if db.execute(
+                'SELECT 1 FROM "references" WHERE target_kind=? AND target_id=?', ("experiment", run_id)
+            ).fetchone():
+                raise ValueError("Experiment is referenced by saved analysis; delete that owner first")
             owned = {
                 item[0]
                 for item in db.execute(
@@ -1138,6 +1142,7 @@ class RunStore:
                 AND run IN (SELECT id FROM experiment_runs WHERE status='paused')""",
                 (MAX_DISPATCHES,),
             )
+            db.execute("UPDATE analysis_executions SET state='lost' WHERE state IN ('waiting','running','finalizing')")
             indexed = {row[0] for row in db.execute("SELECT attempt FROM results")}
         for path in (self.root / "staging").iterdir():
             _remove(path)

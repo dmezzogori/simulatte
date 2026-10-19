@@ -68,3 +68,32 @@ def backup_store(db: sqlite3.Connection, root: Path, version: int) -> Path:
     except BaseException:
         shutil.rmtree(target)
         raise
+
+
+SCHEMA_4 = (
+    """CREATE TABLE analysis_definitions (id TEXT PRIMARY KEY, name TEXT NOT NULL, body BLOB NOT NULL)""",
+    """CREATE TABLE analysis_input_snapshots (id TEXT PRIMARY KEY, body BLOB NOT NULL)""",
+    """CREATE TABLE analysis_previews (id TEXT PRIMARY KEY,
+        snapshot TEXT NOT NULL REFERENCES analysis_input_snapshots(id))""",
+    """CREATE TABLE analysis_executions (id TEXT PRIMARY KEY,
+        definition TEXT NOT NULL REFERENCES analysis_definitions(id),
+        snapshot TEXT NOT NULL REFERENCES analysis_input_snapshots(id),
+        generation TEXT NOT NULL REFERENCES environment_generations(id), parameters BLOB NOT NULL,
+        state TEXT NOT NULL CHECK(state IN ('waiting','running','finalizing','succeeded','failed','cancelled','lost')),
+        details BLOB NOT NULL, created REAL NOT NULL)""",
+    """CREATE TABLE analysis_outputs (execution TEXT PRIMARY KEY REFERENCES analysis_executions(id),
+        manifest BLOB NOT NULL)""",
+    """CREATE TABLE analysis_annotations (id TEXT PRIMARY KEY,
+        execution TEXT NOT NULL REFERENCES analysis_executions(id),
+        body BLOB NOT NULL, created REAL NOT NULL)""",
+    *tuple(
+        f"CREATE TRIGGER {table}_immutable BEFORE UPDATE ON {table} "
+        "BEGIN SELECT RAISE(ABORT, 'immutable analysis record'); END"
+        for table in ("analysis_definitions", "analysis_input_snapshots", "analysis_outputs", "analysis_annotations")
+    ),
+)
+
+
+def migrate_3(db):
+    for statement in SCHEMA_4:
+        db.execute(statement)
