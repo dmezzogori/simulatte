@@ -141,7 +141,8 @@ class ContainedProcess:
         if self.returncode is None:
             result = self._receive(timeout)
             if result.get("type") != "exit" or type(result.get("code")) is not int:
-                raise OSError("Invalid child exit status")
+                # Keep the guardian's own error text: it names the failing cleanup call.
+                raise OSError("Invalid child exit status: " + str(result.get("error", result))[:2048])
             self.returncode = result["code"]
         try:
             self._guardian.wait(timeout=max(0, deadline - time.monotonic()))
@@ -179,6 +180,14 @@ def _signal_group(pid: int, signum: int) -> None:
     try:
         os.killpg(pid, signum)
     except ProcessLookupError:
+        pass
+    except PermissionError:
+        # macOS reports EPERM, not ESRCH, for a group that still exists but
+        # has no signalable member: typically a leader that exited but is
+        # not reaped yet. A repeated terminate/kill around the child's exit
+        # must not crash the guardian; the next poll() reaps the zombie.
+        # An unsignalable live descendant would need another uid, which the
+        # trusted-Python contract already excludes.
         pass
 
 
@@ -234,6 +243,7 @@ def _guardian(port: int, token: str | None = None, lifeline=None) -> int:
                 lost.set()
                 return
 
+    record: dict | None = None
     try:
         # Raw reads are unbuffered, so collect the configuration line in chunks and
         # keep any trailing bytes: one reader owns this stream, including commands
@@ -269,27 +279,30 @@ def _guardian(port: int, token: str | None = None, lifeline=None) -> int:
                 child.kill()
             else:
                 lost.set()
-        # Do this even for successful parent exit: descendants may hold pipes or
-        # continue computation after a model has returned.
-        code = child.returncode
-        child.kill()
-        child.wait()
-        child.close()
-        child = None
-        send({"type": "exit", "code": code})
-        return 0
-    except (OSError, ValueError, KeyError, TypeError) as error:
-        try:
-            send({"type": "error", "token": token, "error": str(error)[:2048]})
-        except OSError:
-            pass
-        return 2
+        record = {"type": "exit", "code": child.returncode}
+    except Exception as error:
+        record = {"type": "error", "token": token, "error": str(error)[:2048]}
     finally:
+        # Descendants are reaped on every path, even a successful parent exit:
+        # they may hold pipes or continue computation after a model has returned.
         if child is not None:
-            child.kill()
-            child.wait()
-            child.close()
+            try:
+                child.kill()
+                child.wait()
+                child.close()
+            except Exception as error:
+                # The supervisor is waiting for exactly one record. A cleanup
+                # failure is reported in it instead of a traceback that would
+                # skip the status socket close and leave the exit code undefined.
+                failure = "Descendant cleanup failed: " + str(error)
+                record = {"type": "error", "token": token, "error": failure[:2048]}
+        if record is not None:
+            try:
+                send(record)
+            except OSError:
+                pass
         channel.close()
+    return 0 if record is not None and record["type"] == "exit" else 2
 
 
 if __name__ == "__main__":

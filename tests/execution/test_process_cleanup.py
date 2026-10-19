@@ -194,6 +194,129 @@ def test_guardian_failure_still_cleans_known_child_group():
             pass
 
 
+def test_signal_group_tolerates_unsignalable_group(monkeypatch):
+    m = api()
+
+    def unsignalable(pid, signum):
+        raise PermissionError(1, "Operation not permitted")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(m.os, "killpg", unsignalable)
+        m._signal_group(12345, signal.SIGKILL)
+    if sys.platform != "darwin":
+        return
+    # XNU killpg returns EPERM for an existing group whose only member is a zombie.
+    sleeper = [sys.executable, "-I", "-S", "-c", "import time; time.sleep(60)"]
+    leader = subprocess.Popen(sleeper, start_new_session=True)
+    try:
+        os.kill(leader.pid, signal.SIGKILL)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            stat = subprocess.run(["ps", "-o", "stat=", "-p", str(leader.pid)], capture_output=True, text=True)
+            if stat.stdout.strip().startswith("Z"):
+                break
+            time.sleep(0.01)
+        with pytest.raises(PermissionError):
+            os.killpg(leader.pid, signal.SIGTERM)
+        m._signal_group(leader.pid, signal.SIGTERM)
+    finally:
+        leader.wait(timeout=5)
+    m._signal_group(leader.pid, signal.SIGKILL)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX group/guardian integration")
+def test_repeated_terminate_around_child_exit_keeps_guardian_status(tmp_path):
+    # AnalysisRunner sends one T from cancel() and another from its loop; the
+    # second may reach the guardian after the child exited but before poll()
+    # reaped it. The guardian must still report the exit status and exit 0.
+    m = api()
+    for attempt in range(5):
+        marker = tmp_path / f"ready-{attempt}"
+        script = (
+            "import signal,sys,time\nfrom pathlib import Path\n"
+            "signal.signal(signal.SIGTERM, lambda *a: sys.exit(0))\n"
+            f"Path({str(marker)!r}).write_text('ready')\n"
+            "while True: time.sleep(0.01)\n"
+        )
+        process = m.ContainedProcess.start([sys.executable, "-I", "-S", "-c", script])
+        try:
+            deadline = time.monotonic() + 5
+            while not marker.exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            process.terminate()
+            time.sleep(0.01 * attempt)
+            process.terminate()
+            # The child exits 0 from its handler, or by SIGTERM when the second
+            # signal lands after finalization restored the default disposition.
+            # Either way the guardian must report an exit record and exit 0.
+            assert process.wait(timeout=5) in (0, -signal.SIGTERM)
+            process.close()
+            assert process._guardian.returncode == 0
+        finally:
+            process.close()
+
+
+def test_guardian_cleanup_failure_is_reported_with_deterministic_exit(monkeypatch):
+    import json
+    import socket
+    import threading
+
+    m = api()
+
+    class Lifeline:
+        # Delivers the configuration line, then blocks like an open parent pipe.
+        def __init__(self, data):
+            self.data, self.closed = data, threading.Event()
+
+        def read(self, size=-1):
+            if self.data:
+                size = len(self.data) if size is None or size < 0 else size
+                chunk, self.data = self.data[:size], self.data[size:]
+                return chunk
+            self.closed.wait()
+            return b""
+
+    launch = m._launch
+
+    def failing_launch(argv, cwd, env=None):
+        process = launch(argv, cwd, env)
+
+        def kill():
+            raise OSError("injected cleanup failure")
+
+        process.kill = kill
+        return process
+
+    monkeypatch.setattr(m, "_launch", failing_launch)
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    listener.settimeout(5)
+    config = {"argv": [sys.executable, "-I", "-S", "-c", "pass"], "cwd": None}
+    lifeline = Lifeline(json.dumps(config).encode() + b"\n")
+    outcome = []
+    thread = threading.Thread(target=lambda: outcome.append(m._guardian(listener.getsockname()[1], "token", lifeline)))
+    thread.start()
+    connection, _ = listener.accept()
+    try:
+        with connection.makefile("rb") as stream:
+            assert json.loads(stream.readline())["type"] == "started"
+            # The child exited 0, but a failing post-exit cleanup is not a clean exit.
+            result = json.loads(stream.readline())
+            assert result["type"] == "error"
+            assert result["error"].startswith("Descendant cleanup failed: ")
+            assert "injected cleanup failure" in result["error"]
+            # The guardian closes the status socket itself rather than dying with a traceback.
+            assert stream.readline() == b""
+        thread.join(5)
+        assert outcome == [2]
+    finally:
+        lifeline.closed.set()
+        thread.join(5)
+        connection.close()
+        listener.close()
+
+
 @pytest.mark.parametrize("raw", [b"[]\n", b"x" * 9000, b""])
 def test_guardian_status_parser_refuses_corruption(raw):
     import io
