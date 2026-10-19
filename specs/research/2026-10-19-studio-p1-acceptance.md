@@ -2,9 +2,14 @@
 
 Date: 2026-10-19. Host: bigboss, macOS, Python 3.14.3, uv 0.13.1,
 Node 24.13.0. Branch: `feature/studio-projects`, isolated worktree
-`.worktrees/studio-project-experience`. Baseline `a80ece3`; implementation T1–T6
-through `1378cfd`. T7 is a package-review candidate with an OPEN native reconstruction issue.
-This is not a P1 completion claim, independent review or release approval.
+`.worktrees/studio-project-experience`. Baseline `a80ece3`; original reviewed
+candidate `dfc63ae`; revised product/test candidate `6ccac36` (signed). T1–T7 and
+R1–R9/M1 fixes are implemented and all code findings are independently closed.
+The reviewer conditionally approves the code; coordinator package acceptance
+remains pending.
+This is not a P1 completion claim or P2/release authorization. The final section
+records the revised checks and exact tested heads. Earlier sections retain the
+initial failed-candidate evidence and decisions as history.
 
 ## Implemented scope
 
@@ -15,7 +20,7 @@ model inspection and explicit interactive admission; launcher handoff and recove
 workspace setup, model forms, runs, existing experiment/recording adapters.
 P2 analysis and saved presentation work has not started.
 
-## Evidence recorded so far
+## Initial implementation evidence (historical)
 
 | Check | Actual result |
 | --- | --- |
@@ -74,7 +79,7 @@ padding were reduced moderately, with approximately 34px desktop controls and
 unchanged legible font sizes/focus styles. Refreshed compact screenshots were
 inspected; Davide then viewed the compact gallery in eva Safari and explicitly replied “saw them. ok.” Actual-UI acceptance is satisfied. This is screenshot review, not native Safari execution testing.
 
-## Package checks
+## Initial package checks (historical)
 
 All paths below are relative to
 `.superpowers/sdd/2026-10-19-studio-p1-projects/`. Full logs are retained, including
@@ -128,10 +133,11 @@ uv provisioning and installed launcher handoff also passed in browser workflows.
   product scheduling or bypassing owner checks. Its subsequent reconstruction
   failure is a product portability issue, not a harness failure.
 
-### OPEN P1-R1: native reconstruction changes installation metadata
+### Initial blocking P1-R1 finding: native reconstruction changes installation metadata
 
-**Requires an explicit independent reviewer/coordinator ruling. Not an accepted
-deviation.** Spec §4.3, scenarios 3 and 10, and P1 T3 require reconstruction success
+**The original review ruled this blocking, not an accepted deviation.** The
+subsequent versioned implementation and native proofs are recorded below; legacy
+identities and strict refusal remain unchanged. Spec §4.3, scenarios 3 and 10, and P1 T3 require reconstruction success
 when available. The isolated reconstruction tests use deterministic probes; their
 success does not establish native installation portability.
 
@@ -188,7 +194,7 @@ read-only recovery even with a deliberately broken model. That is **history
 portability evidence only**; native historical reconstruction remains unavailable
 in this case and the installed tutorial is not recorded as passing.
 
-## Measured no-subscriber overhead
+## Initial measured no-subscriber overhead (historical)
 
 `gate-overhead.sh` runs the existing benchmark runner with `--mode none --warmup 1
 --repeat 5 --processes 3`, separately for `jobshop10-u90-5k.json` and
@@ -209,7 +215,7 @@ IQRs and commands are in `gate-overhead.log`, `overhead.md`, and
 `{base,stripped,head}-none-{u90,u95}.json`. These are macOS measurements, not CI
 measurements on every supported interpreter.
 
-## Implementation rulings and review focus
+## Initial implementation rulings and review focus (historical)
 
 The complete plan-specific ledger is retained through review in `progress.md`.
 Necessary choices beyond the named file list were:
@@ -256,11 +262,13 @@ Necessary choices beyond the named file list were:
 - Do not invoke task completion/ledger cleanup while P1-R1 is open. This latest
   explicit instruction supersedes automatic task-done/final-review skill steps.
 
-## Remaining gate status
+## Original gate disposition (historical)
 
-Measured overhead passed on both CI workloads; independent package review is
-pending the coordinator. P1-R1 remains OPEN, T7's integration
-acceptance checkboxes remain unchecked, and P1 is not declared complete.
+At the original candidate, measured overhead passed both CI workloads but P1-R1
+remained open. Independent review subsequently ruled NOT READY and assigned
+R1–R9/M1. T7's combined integration/review acceptance checkboxes were unchecked at that
+checkpoint. Completed local implementation/gate items are now checked separately
+from outstanding coordinator acceptance and platform obligations.
 
 Native Windows/Linux/PyPy, actual Safari and native Firefox application acceptance
 are not established by these macOS Playwright runs. Existing CI lanes remain
@@ -325,7 +333,7 @@ proof-harness failure: manually starting an idle actor's worker raced its heartb
 reader for the hello. The harness now completes the actual handshake before
 publishing the reused worker. Product admission was not relaxed. Exact-interpreter
 regression failed before the fix and the environment suite then passed10 tests;
-Ruff and `ty check src` pass. Native-4 is the latest R1 portability proof.
+Ruff and `ty check src` pass. Native-4 was the latest R1 portability proof at that checkpoint; the final section records later rebuilt-wheel proofs.
 
 ## Bounded independent-review fix pass
 
@@ -386,3 +394,143 @@ Unrelated original resources, code, body and mode are preserved. Parser/environm
 regressions: **47 passed** (`review-r1-actual-pe-green.log`). Fixture source, license
 and SHA-256 are in `tests/fixtures/launchers/README.md`. This does not claim native
 Windows execution; that remains a CI obligation.
+
+## Revised candidate and exact gate evidence
+
+Product/test head: **`6ccac36f9ab60e88f80cdcbba4ec7a98ea950672`**, signed.
+Review-fix range: `dfc63ae..6ccac36`; original implementation baseline: `a80ece3`.
+Final independent delta review closes all R1–R9/M1 code findings. Coordinator
+package acceptance remains pending. The ledger stays in `.superpowers/sdd/2026-10-19-studio-p1-projects/progress.md` through
+review/fixes. No P2 work has started.
+
+The final review follow-ups are separate signed commits:
+
+| Commit | Bounded change | Failure-to-pass evidence |
+| --- | --- | --- |
+| `6a67d16` | Wait for bootstrap redirect before bookmark fragment mutation | Browser 2: 65 passed/1 failed; WebKit repetition:4 failed/1 passed, then 5 passed; browser 3: 66 passed |
+| `c02e59d` | Latest unscheduled replay failure participates in bounded reconnect history | Own ordering regression failed; 10 targeted Python tests passed |
+| `4800864` | Both comparison hosts reconcile authoritative replay state and referenced notifications | Two missing-terminal regressions failed; 9 browser cases passed across 3 engines, including actual installed reconnect |
+| `0788c8e` | Cancellation validation/concurrency, coordinator cleanup/retry, admission restoration and installation handoff guards | 18 targeted Python tests passed; full Python coverage below |
+| `6ccac36` | Carry receipt order through delayed state decoding and reconnect epochs into both hosts' feeds | Two transport regressions failed; both browser inline controls passed and both referenced cases failed before correction; 18 focused cases passed across 3 engines |
+
+A preflight replay failure stores an operational timestamp in its mutable outcome
+row. Public error details, captured requests and old results remain unchanged.
+The newest 20 replay rows are selected with a bounded heap; legacy rows fall back
+to attempt time. This keeps memory/payload bounded and avoids changing schema 3,
+at the cost of a linear data-only history scan.
+
+`StudioClient` assigns a local monotonically increasing arrival number before
+asynchronous reference decoding. Unlike wire sequence numbers, it does not reset
+on reconnect. State callbacks, mounted subscriptions and both replay/experiment
+feeds preserve this receipt order. An older decoded state cannot replace a newer
+running event; a newer reconnect snapshot can complete a missed terminal event.
+The existing socket-epoch check still discards a body decoded after its socket
+closed. There is no server protocol change.
+
+Full Python at **`0788c8e`**: **3606 passed, 1 skipped, 99.03%**, unchanged 99% branch
+coverage gate passed (`review-gate-python-3.log`). The preceding run's 3597 passed,
+1 skipped and 98.94% failed gate remain in `review-gate-python-2.log`. Meaningful
+missing branches were added without exclusions or threshold changes. Only
+frontend code/tests changed after 0788c8e; coordinator explicitly accepted retaining
+this Python gate. After rebuilding, 43 bootstrap/source/packaging tests passed
+(`review-gate-assets-5.log`). The mistyped earlier test path collected 0 tests and
+is retained in `review-gate-assets-4.log`.
+
+At **`6ccac36`**, TS **449 passed**, typecheck passed, Ruff and `ty check src`
+passed. Assets rebuilt and 14 files packaged and wheel/sdist built successfully.
+Logs: `review-gate-ts-{test,typecheck}-4.log`, `review-gate-{ruff,ty}-4.log`,
+`review-gate-build-4.log`, `review-gate-wheel-4.log`. The frontend-only change has
+no documentation build impact; clean Zensical build passed at 0788c8e in
+`review-gate-docs-3.log`. An initial added progress test used a helper outside its
+scope; its failure is retained in `review-r7-arrival-unit-2.log` and was corrected
+in the test. The earlier accidental whole-repository typing diagnostic remains
+outside the approved `ty check src` gate.
+
+The rebuilt wheel's standalone viewer smoke passed authenticated bootstrap/ranges,
+reload, HTML export and offline playback with zero external requests/page errors
+(`review-gate-installed-viewer-3.log`). Native reconstruction proof 7 passed with
+that wheel (`review-r1-native-7.log`, `reconstruction-v2-native-7/`): original and
+copied execution, verified replay, two-configuration experiment, console/GUI
+entrypoints, changed payload/entrypoint-body refusal, and rejection by an incapable
+reused worker before model import. Original request/captured evidence and current
+selection are preserved across reconstruction. This proves new-format native
+macOS reconstruction; legacy captures retain their exact old IDs and strict
+verifier, with no silent old/new bridge.
+
+Proof 7 preserves `original-raw-probe.json`, `rebuilt-raw-probe.json`, original/rebuilt
+base64 raw files, `raw-metadata-differences.json` and `identity-comparison.json`.
+Exact interpreter facts and canonical installation evidence match. Raw RECORD
+hashes differ for idna, review-entry, simulatte, tabulate, tqdm, uvicorn, watchfiles
+and websockets; versions match. The 21 differing raw files comprise generated
+launcher selectors and their RECORD hash/size entries, plus the two retained local
+wheels' temporary `direct_url.json` locations and recognized `uv_cache.json`
+timestamps. Raw evidence is retained separately. Local artifacts normalize only
+through verified captured source/content bindings, never suffix/basename matching.
+
+Native Windows reconstruction is implemented as a CI exercise with actual uv
+console/GUI base fixtures and tampering/parser checks, but no native Windows run
+has been observed in this session. Linux/PyPy CI and actual Safari/native Firefox
+application checks also remain unclaimed. Davide's accepted eva Safari screenshot
+gallery is actual-UI acceptance, not those platform gates.
+
+### Independent code review closure
+
+The independent reviewer accepted the complete eight-file frontend delta at
+`6ccac36`, with no new Critical, Important or Minor finding. The preserved original
+delayed-reference reproduction and inline control both passed (**2 tests**,
+`/tmp/studio-p1-arrival-recheck/browser.log`); focused client/experiment/comparison
+units passed (**30 tests**, `unit.log` alongside). Original R7a/R7b remain closed;
+prior R1–R6/R8–R9/M1 dispositions are retained, not freshly re-reviewed in this
+delta. Coordinator independently read these logs and confirmed all code findings
+closed. Exact conditional verdict:
+
+> Code verdict: accepted bounded fix, no remaining reviewer code blocker to P2. Proceed only once coordinator closes final current-candidate browser and installed-package gates. This is not merge authorization.
+
+Reviewer checkpoint:
+`/Users/davide/.local/state/cortex/fallback/20261019T182053-studio-p1-arrival-d5a3d5b9-46f4-449e-b145-12319878429c.md`.
+Original review/probe artifacts remain unchanged. This records code approval;
+P1 package acceptance and any next assignment remain coordinator-owned.
+
+### Final browser and installed-workspace gates
+
+At `6ccac36`, `PLAYWRIGHT_BROWSERS_PATH=…/browsers pnpm --dir studio exec playwright test`
+passed **87 tests**, Chromium/Firefox/WebKit, 4.5 minutes
+(`review-gate-browser-5.log`). The freshly installed wheel's explicit wrapper
+`node studio/scripts/studio-smoke.mjs …/review-wheel-ordering/bin/simulatte chromium`
+passed **11 tests**, 55.9 seconds (`review-gate-installed-workspace.log`). These
+cover the real workspace adapters, saved history/recovery, notifications/reconnect,
+first run, two-model ownership and same-tab preparation cancellation. Required
+viewport screenshots were regenerated. No product changes followed `6ccac36`.
+
+### Final quiet no-subscriber overhead gate
+
+After browser/installed gates finished, `zsh …/review-gate-overhead.sh` exited 0
+against the installed `6ccac36` wheel. CPython 3.14.3, `none` mode, one warmup,
+five measurements in each of three processes per workload/baseline:
+
+| Baseline | u90 overhead | u95 overhead | Unchanged limit | Result |
+| --- | --- | --- | --- | --- |
+| Released 0.12.0 | −25.6% | −24.2% | +5.0% (3.0% budget + 2.0% noise) | passed |
+| 0.12.0 with debug calls stripped | +7.3% | +7.5% | +8.5% (6.5% budget + 2.0% noise) | passed |
+
+Logs and raw measurements: `review-gate-overhead.log`, `review-overhead.md`,
+`review-{base,stripped,head}-none-{u90,u95}.json`. Historical measurements remain
+unchanged. No threshold, exclusion or benchmark workload was relaxed.
+
+### Handoff status
+
+All requested local gates pass, and all R1–R9/M1 code findings are independently
+closed. The final documentation commit changes only this acceptance report and
+the two plans; the preserved plan-specific ledger is reconciled as well. Completed
+P1 tasks/prerequisites are checked. Overall P1 acceptance remains with the
+coordinator, and explicit unobserved platform/CI obligations remain open. No P2
+ownership, merge, push or release is implied. All commits to date are signed;
+no signing fallback or global configuration change was needed.
+
+During the final handoff the refreshed Cortex brief reported availability. Two
+previously unsent implementer checkpoints returned **applied**, publication pending:
+`session-2c0b178b-b017-41f5-a069-4a8ab6648204` and
+`session-f38e0201-46d2-4702-9745-13b573f70a21`. Their local source records were
+archived in `cortex-applied-fallbacks/` before removing the applied unsent copies.
+The final post-commit checkpoint uses the coordinator-requested local fallback;
+its path and final commit are reported in the handoff and retained ledger.
