@@ -2,7 +2,7 @@
 import {HttpSource, type LayoutBundle} from '@simulatte/trace';
 import {LiveSession} from './live-session';
 import type {Controller} from './controller';
-import type {StudioClient, StudioState, Notification, Prefix, View} from './studio-client';
+import type {StudioClient, StudioState, Notification, Prefix, Reference, View} from './studio-client';
 
 export class StudioPlayback {
   #epoch = 0;
@@ -32,6 +32,11 @@ export class StudioPlayback {
   update(state: StudioState): void {
     if (this.#closed || this.#detached) return;
     const active = state.active;
+    const terminal = active?.key.attempt_id === this.#attempt ? active : state.latest_attempt;
+    if(this.#live && terminal?.key.attempt_id === this.#attempt && ['failed','lost','disk_full','validation_failed','cancelled'].includes(terminal.status)) {
+      this.#live.terminal(terminal.status === 'cancelled' ? 'cancelled' : 'failed');
+      return;
+    }
     if (active && ['ready', 'running', 'finalizing'].includes(active.status) && active.prefix) {
       if (this.#attempt !== active.key.attempt_id || !this.#live) {
         this.cancelPending();
@@ -61,6 +66,14 @@ export class StudioPlayback {
   }
   notification(message: Notification): void {
     if (this.#closed || this.#detached || !this.#live || message.attempt_id !== this.#attempt) return;
+    const body = message.body as {ref?: Reference} | null;
+    if(body?.ref) {
+      const epoch = this.#epoch;
+      void this.client.reference(body.ref).then(value => {
+        if(epoch === this.#epoch) this.notification({...message,body:value});
+      }).catch(error => {if(epoch === this.#epoch && !this.#closed) this.onError(String(error));});
+      return;
+    }
     if (message.type === 'trace_available') {
       const prefix = message.body as Prefix;
       if (prefix.attempt === this.#attempt) this.#live.update(prefix);

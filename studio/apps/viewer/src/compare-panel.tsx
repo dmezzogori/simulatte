@@ -2,7 +2,7 @@
  * the selections; frames update the time outputs, KPI tiles and transport imperatively. */
 import {useEffect, useRef, useState, type RefObject} from 'react';
 import {ComparePlayback, CompareRefused, type CompareRefusal, type Side} from './compare-playback';
-import type {ConnectionStatus, ExperimentReport, Notification, Prefix, StudioClient, StudioState} from './studio-client';
+import type {ConnectionStatus, ExperimentReport, Notification, Reference, ReplayEntry, Prefix, StudioClient, StudioState} from './studio-client';
 
 /** A committed recording either side can open. */
 export interface CompareEntry {
@@ -29,14 +29,39 @@ const object = (value: unknown): value is Record<string, unknown> => value !== n
 /** `replay_state` notifications for the Compare panel; the app routes every notification here. */
 export class ReplayNotifications {
   readonly #listeners = new Set<(state: ReplayState) => void>();
+  readonly #latest = new Map<string, ReplayState>();
+  readonly #orders = new Map<string, number>();
+  #order = 0;
+  #observed = 0;
+  #closed = false;
+  constructor(private readonly resolve?: (reference: Reference) => Promise<unknown>) {}
+  latest(identity: string): ReplayState | undefined {return this.#latest.get(identity);}
   notification(message: Notification): void {
-    if (message.type !== 'replay_state' || !object(message.body) || typeof message.body.request_id !== 'string') return;
-    for (const listener of [...this.#listeners]) listener(message.body as unknown as ReplayState);
+    if(this.#closed || message.type !== 'replay_state') return;
+    const order = ++this.#order;
+    if(object(message.body) && object(message.body.ref) && this.resolve) {
+      void this.resolve(message.body.ref as unknown as Reference).then(body => {
+        if(!this.#closed && order > this.#observed) this.apply(body, order);
+      }).catch(() => {});
+    } else this.apply(message.body, order);
+  }
+  private apply(body: unknown, order: number): void {
+    if(!object(body) || typeof body.request_id !== 'string' || order < (this.#orders.get(body.request_id) ?? 0)) return;
+    this.#orders.set(body.request_id, order);
+    const value = body as unknown as ReplayState;
+    this.#latest.delete(value.request_id); this.#latest.set(value.request_id,value);
+    while(this.#latest.size > 64) {const id = this.#latest.keys().next().value!; this.#latest.delete(id); this.#orders.delete(id);}
+    for(const listener of [...this.#listeners]) listener(value);
+  }
+  observe(rows: readonly ReplayEntry[]): void {
+    this.#observed = ++this.#order;
+    for(const row of rows) this.apply({...row,message:row.reason ?? undefined}, this.#observed);
   }
   subscribe(listener: (state: ReplayState) => void): () => void {
     this.#listeners.add(listener);
     return () => {this.#listeners.delete(listener);};
   }
+  dispose(): void {this.#closed=true; this.#listeners.clear(); this.#latest.clear(); this.#orders.clear();}
 }
 
 /** Interactive results, the committed replications of one experiment report and succeeded replays.
@@ -88,7 +113,7 @@ export function CompareSideView({index, side, connected, onReplay, host, time, t
     {side.phase === 'replaying' && (side.status === 'succeeded'
       ? side.verified ? <p role="status">Replay verified; opening it.</p>
         : <p role="status"><ReplayBadge verified={false} reason={side.reason} /> Unverified replays are excluded from side-by-side playback; turn on Include unverified replays to compare it.</p>
-      : <p role="status">{side.status === 'starting' || side.status === 'running' || side.status === 'pending' ? 'Replay running at full level…' : `Replay ${side.status}`}</p>)}
+      : <p role="status">{side.status === 'starting' || side.status === 'running' || side.status === 'pending' ? 'Replay running at full level…' : `Replay ${side.status}${side.reason ? ': ' + side.reason : ''}`}</p>)}
     <div className="compare-scene" data-side={name} ref={host} hidden={side.phase !== 'ready' && side.phase !== 'loading'} />
     <output ref={time} aria-label={`Side ${name} time`}>t = —</output>
     <div className="tiles" ref={tiles} />
@@ -205,10 +230,11 @@ function CompareView({client, state, connected, headers, replays, onError, onClo
     try {
       const result = await client.command('replay.start', {request_id: side.entry.request_id});
       if (!result.ok) throw new Error(JSON.stringify(result.error));
-      setSide(index, {phase: 'replaying', entry: side.entry, replay: String(result.request_id), status: 'starting', verified: null, reason: null});
+      const latest = replays.latest(String(result.request_id));
+      setSide(index, {phase: 'replaying', entry: side.entry, replay: String(result.request_id), status: latest?.status ?? 'starting', verified: latest?.verified ?? null, reason: latest?.message ?? null});
     } catch (error) {onError(String(error));}
   };
-  // Follow replay_state: progress and failures before scheduling arrive only as notifications.
+  // Follow ordered notifications and reconciled authoritative state, including preflight failures.
   useEffect(() => replays.subscribe(update => setSides(current => {
     const follow = (side: SideState): SideState => side.phase === 'replaying' && side.replay === update.request_id
       ? {...side, status: update.status, verified: update.verified, reason: update.message ?? side.reason} : side;
@@ -220,8 +246,9 @@ function CompareView({client, state, connected, headers, replays, onError, onClo
   useEffect(() => {
     sides.forEach((side, index) => {
       if (side.phase !== 'replaying') return;
-      const row = state?.replays?.find(item => item.request_id === side.replay && item.status === 'succeeded' && item.trace);
+      const row = state?.replays?.find(item => item.request_id === side.replay);
       if (!row) return;
+      if(row.status !== 'succeeded' || !row.trace || side.status !== 'succeeded') return;
       const entry = listed.entries.find(item => item.kind === 'replay' && item.request_id === row.request_id);
       if (entry) pick(index as Side, entry);
       else if (side.status !== 'succeeded' || side.verified !== row.verified)

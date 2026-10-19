@@ -106,3 +106,14 @@ it('supersedes a controller open that has exposed its source before preparing pl
   expect(controller.open).toHaveBeenLastCalledWith({url: '/trace/a'}, 'Run · revision 1', null, undefined);
   release(); await flush(); playback.dispose();
 });
+
+it('reconciles a missed live terminal notification from authoritative state', () => {
+  vi.spyOn(HttpSource, 'open').mockImplementation(() => new Promise(() => {}));
+  const {playback} = setup();
+  const active = {...state('a'), results:[], view:null, last_good:null, active:{key:key('a'),revision:1,status:'running',details:{},prefix:result('a').trace}};
+  playback.update(active);
+  expect(playback.live?.state.terminal).toBeNull();
+  playback.update({...active,active:{...active.active,status:'cancelled'}});
+  expect(playback.live?.state.terminal).toBe('cancelled');
+  playback.dispose();
+});

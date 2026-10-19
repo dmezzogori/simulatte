@@ -375,7 +375,9 @@ class ExperimentCommands:
             )
             try:
                 # A scheduled replay announced its own outcome; announce only failures before scheduling.
-                if attempt() == before:
+                if co.store.fail_replay_preflight(
+                    replay, original, before, {"message": str(error)[:4096], "code": status}
+                ):
                     body = {"request_id": replay, "original": original, "status": status, "verified": None}
                     co._emit("replay_state", None, {**body, "message": str(error)[:4096]})
             except Exception:

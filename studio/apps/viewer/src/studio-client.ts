@@ -106,8 +106,16 @@ export class StudioClient {
   #abort = new AbortController();
   #statePending: unknown = undefined;
   #stateReading = false;
+  #notifications = new Set<(message: Notification) => void>();
+  #states = new Set<(state: StudioState) => void>();
   constructor(private readonly secret: string, private readonly options: Options = {}) {
     this.origin = options.origin ?? location.origin;
+  }
+  subscribeNotifications(listener: (message: Notification) => void): () => void {
+    this.#notifications.add(listener); return () => {this.#notifications.delete(listener);};
+  }
+  subscribeState(listener: (state: StudioState) => void): () => void {
+    this.#states.add(listener); return () => {this.#states.delete(listener);};
   }
   private statusChanged(status: ConnectionStatus): void {this.status = status; this.options.onStatus?.(status);}
   private current(socket: WebSocket, epoch: number): boolean {return this.#socket === socket && this.#epoch === epoch;}
@@ -152,7 +160,10 @@ export class StudioClient {
         if (message.type === 'state') {
           this.#statePending = message.body;
           if (!this.#stateReading) void this.readState(socket, epoch);
-        } else this.options.onNotification?.(message as unknown as Notification);
+        } else {
+          this.options.onNotification?.(message as unknown as Notification);
+          for(const listener of [...this.#notifications]) listener(message as unknown as Notification);
+        }
       } catch (error) {this.options.onError?.(error); socket.close(1002);}
     };
     socket.onclose = event => {
@@ -202,6 +213,7 @@ export class StudioClient {
         if (state.project !== undefined) validateProjectState(state.project);
         this.state = state as unknown as StudioState;
         this.#delay = 1000; this.statusChanged('connected'); this.options.onState?.(this.state);
+        for(const listener of [...this.#states]) listener(this.state);
       }
     } catch (error) {
       if (this.current(socket, epoch)) {this.options.onError?.(error); socket.close(1012);}
@@ -286,6 +298,6 @@ export class StudioClient {
     if (this.#retry) clearTimeout(this.#retry); this.#retry = null;
     const socket = this.#socket; this.#socket = null; this.#epoch++; this.#abort.abort();
     for (const pending of this.#pending.values()) {clearTimeout(pending.timer); pending.reject(new Error('Studio client disposed'));}
-    this.#pending.clear(); socket?.close(1000); this.statusChanged('disposed');
+    this.#pending.clear(); this.#notifications.clear(); this.#states.clear(); socket?.close(1000); this.statusChanged('disposed');
   }
 }

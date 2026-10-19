@@ -165,3 +165,21 @@ it('validates large layouts over bounded HTTP without writing the file', async (
   await expect(client.validateLayout({text: 'x'.repeat(16 << 20)}, revision)).rejects.toThrow(/limit/);
   client.dispose();
 });
+
+it('routes notifications and reconnect state only to mounted subscribers', async () => {
+  vi.useFakeTimers();
+  const {client,socket,sockets} = setup();
+  const notifications: string[] = [], states: number[] = [];
+  const unnotify = client.subscribeNotifications(message => notifications.push(message.type));
+  const unstate = client.subscribeState(value => states.push(value.revision!.number));
+  socket.message({v:1,type:'state',event_seq:1,body:state}); await tick();
+  socket.message({v:1,type:'replay_state',event_seq:2,body:{status:'failed'}});
+  expect(notifications).toEqual(['replay_state']);
+  socket.close(1013); await vi.advanceTimersByTimeAsync(1000);
+  sockets[1]!.open(); sockets[1]!.message({v:1,type:'state',event_seq:1,body:{...state,revision:{...revision,number:2}}}); await tick();
+  expect(states).toEqual([1,2]);
+  unnotify(); unstate();
+  sockets[1]!.message({v:1,type:'run_state',event_seq:2,body:{status:'failed'}});
+  expect(notifications).toEqual(['replay_state']);
+  client.dispose(); vi.useRealTimers();
+});

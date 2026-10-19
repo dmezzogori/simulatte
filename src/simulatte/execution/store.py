@@ -948,6 +948,28 @@ class RunStore:
                     (attempt, _blob({}), request_id),
                 )
 
+    def fail_replay_preflight(
+        self, request_id: str, original: str, previous_attempt: str | None, details: dict
+    ) -> bool:
+        """Persist an unscheduled failure unless another owner has admitted a newer replay.
+
+        The replay row describes the latest operation; earlier requests/results remain immutable.
+        """
+        with self._transaction() as db:
+            if db.execute("SELECT 1 FROM requests WHERE id=?", (original,)).fetchone() is None:
+                raise KeyError(original)
+            db.execute(
+                "INSERT OR IGNORE INTO replays VALUES (?,?,NULL,'pending',NULL,?)", (request_id, original, _blob({}))
+            )
+            if db.execute("SELECT original FROM replays WHERE request_id=?", (request_id,)).fetchone()[0] != original:
+                raise ValueError("Replay is linked to another original request")
+            changed = db.execute(
+                "UPDATE replays SET attempt=NULL,status='failed',verified=NULL,details=? "
+                "WHERE request_id=? AND attempt IS ? AND status!='running'",
+                (_blob(details), request_id, previous_attempt),
+            )
+            return changed.rowcount == 1
+
     def set_replay(
         self, request_id: str, attempt: str, status: str, *, verified: bool | None = None, details: dict | None = None
     ) -> None:
