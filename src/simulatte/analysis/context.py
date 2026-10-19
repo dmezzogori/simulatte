@@ -47,6 +47,29 @@ class AnalysisContext:
         self._input_dir, self._output_dir = Path(input_dir), Path(output_dir)
         self._output_dir.mkdir(parents=True, exist_ok=True)
         self._requirements = {r["dataset"]: set(r["fields"]) for r in requirements}
+        self._availability = {}
+        for dataset, fields in self._requirements.items():
+            missing = []
+            for row in self.inputs["replications"]:
+                captured = row.get("datasets", {}).get(dataset)
+                absent = (
+                    sorted(fields - {f["name"] for f in captured["manifest"]["schema"]["fields"]})
+                    if captured
+                    else sorted(fields)
+                )
+                if not row["available"] or captured is None or absent:
+                    missing.append(
+                        {
+                            "run": row["run"],
+                            "configuration": row["configuration"],
+                            "index": row["index"],
+                            "status": row["status"],
+                            "missing_fields": absent,
+                            "reason": row.get("reason")
+                            or ("dataset unavailable" if captured is None else "fields not retained"),
+                        }
+                    )
+            self._availability[dataset] = {"valid": len(self.inputs["replications"]) - len(missing), "missing": missing}
         self._outputs = []
         self._names = set()
         self._bytes = self._files = 0
@@ -70,6 +93,8 @@ class AnalysisContext:
 
     def emit(self, name, output):
         identifier(name)
+        if not isinstance(output, (Number, Table, Distribution, Figure, Image)):
+            raise ValueError("Unsupported analysis output; use a typed output or optional figure adapter")
         if name in self._names:
             raise ValueError("Output names must be unique")
         if any(old.casefold() == name.casefold() for old in self._names):
@@ -80,6 +105,7 @@ class AnalysisContext:
         metadata = {
             **dict(output.metadata),
             "partial_snapshot": self.inputs["partial"],
+            "input_availability": self._availability,
             "planned": self.inputs["planned"],
             "available": self.inputs["available"],
             "inferential_convention": output.metadata.get("inferential_convention", "descriptive"),

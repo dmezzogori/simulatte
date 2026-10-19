@@ -156,7 +156,7 @@ class ShopFloorTimeSeries(Collector):
             self.throughput_ts.append((now, len(shopfloor.jobs_done)))
             self.lateness_ts.append((now, event.lateness))
 
-    def plot_wip(self) -> None:  # pragma: no cover
+    def plot_wip(self, *, show: bool = True):  # pragma: no cover
         """Step plot of the total WIP over time (`RuntimeError` without data)."""
         import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
@@ -169,9 +169,12 @@ class ShopFloorTimeSeries(Collector):
         plt.title("Total WIP over time")
         plt.xlabel("Simulation Time")
         plt.ylabel("WIP (total processing time)")
-        plt.show()
+        figure = plt.gcf()
+        if show:
+            plt.show()
+        return figure
 
-    def plot_job_count(self) -> None:  # pragma: no cover
+    def plot_job_count(self, *, show: bool = True):  # pragma: no cover
         """Step plot of the jobs on the shop floor over time (`RuntimeError` without data)."""
         import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
@@ -184,9 +187,12 @@ class ShopFloorTimeSeries(Collector):
         plt.title("Jobs in system over time")
         plt.xlabel("Simulation Time")
         plt.ylabel("Job Count")
-        plt.show()
+        figure = plt.gcf()
+        if show:
+            plt.show()
+        return figure
 
-    def plot_throughput(self) -> None:  # pragma: no cover
+    def plot_throughput(self, *, show: bool = True):  # pragma: no cover
         """Step plot of the cumulative throughput over time (`RuntimeError` before the first completion)."""
         import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
@@ -198,9 +204,12 @@ class ShopFloorTimeSeries(Collector):
         plt.title("Cumulative throughput over time")
         plt.xlabel("Simulation Time")
         plt.ylabel("Completed Jobs")
-        plt.show()
+        figure = plt.gcf()
+        if show:
+            plt.show()
+        return figure
 
-    def plot_lateness(self) -> None:  # pragma: no cover
+    def plot_lateness(self, *, show: bool = True):  # pragma: no cover
         """Scatter plot of job lateness at completion, tardy jobs red and early ones green (`RuntimeError` without
         data)."""
         import_optional("matplotlib.pyplot", "plot")
@@ -215,7 +224,10 @@ class ShopFloorTimeSeries(Collector):
         plt.title("Job lateness over time")
         plt.xlabel("Simulation Time")
         plt.ylabel("Lateness (positive = tardy)")
-        plt.show()
+        figure = plt.gcf()
+        if show:
+            plt.show()
+        return figure
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -302,7 +314,7 @@ class ServerTimeSeries(Collector):
         if isinstance(event, (JobGranted, JobReleased)):  # the busy slots changed
             self.ut.append((now, self._utilization()))
 
-    def plot_qt(self) -> None:  # pragma: no cover
+    def plot_qt(self, *, show: bool = True):  # pragma: no cover
         """Step plot of the queue length over time (`RuntimeError` without data)."""
         import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
@@ -315,9 +327,12 @@ class ServerTimeSeries(Collector):
         plt.title(f"Q(t): {self._server} queue length over time")
         plt.xlabel("Simulation Time")
         plt.ylabel("Queue Length")
-        plt.show()
+        figure = plt.gcf()
+        if show:
+            plt.show()
+        return figure
 
-    def plot_ut(self) -> None:  # pragma: no cover
+    def plot_ut(self, *, show: bool = True):  # pragma: no cover
         """Step plot of the utilization over time, up to the current time."""
         import_optional("matplotlib.pyplot", "plot")
         import matplotlib.pyplot as plt
@@ -329,7 +344,10 @@ class ServerTimeSeries(Collector):
         plt.title(f"U(t): {self._server} utilization over time")
         plt.xlabel("Simulation Time")
         plt.ylabel("Utilization rate")
-        plt.show()
+        figure = plt.gcf()
+        if show:
+            plt.show()
+        return figure
 
 
 # ---------------------------------------------------------------------------------------------------------

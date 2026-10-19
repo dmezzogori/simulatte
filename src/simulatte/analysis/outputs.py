@@ -5,7 +5,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
-from .types import DatasetSchema, Value
+from .types import DatasetSchema, Value, plain
 
 
 @dataclass(frozen=True)
@@ -62,7 +62,7 @@ class OutputDescriptor:
             "name": self.name,
             "kind": self.kind,
             "artifacts": list(self.artifacts),
-            "metadata": dict(self.metadata),
+            "metadata": plain(self.metadata),
             "renderer": self.renderer,
         }
 
@@ -79,5 +79,5 @@ class OutputManifest:
             "schema": self.schema,
             "execution_id": self.execution_id,
             "outputs": [o.to_dict() for o in self.outputs],
-            "provenance": dict(self.provenance),
+            "provenance": plain(self.provenance),
         }
