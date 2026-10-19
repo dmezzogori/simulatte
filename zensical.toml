@@ -60,9 +60,14 @@ nav = [
     { "Utilities" = "api/utilities.md" },
     { "Experimental" = "api/experimental.md" },
   ]},
+  { "Studio" = [
+    { "First run" = "studio/index.md" },
+    { "Projects and history" = "studio/projects.md" },
+    { "Environments and recovery" = "studio/environments.md" },
+    { "Recording reference" = "development/studio.md" },
+  ]},
   { "Development" = [
     { "Contributing" = "development/contributing.md" },
-    { "Studio" = "development/studio.md" },
     { "Agent Skill" = "development/agent-skill.md" },
     { "Changelog" = "development/changelog.md" },
   ]},

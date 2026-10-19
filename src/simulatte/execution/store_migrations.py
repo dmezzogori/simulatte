@@ -1,6 +1,7 @@
 """Durable schema additions and pre-migration SQLite backups."""
 
 import hashlib
+from contextlib import closing
 import json
 from pathlib import Path
 import shutil
@@ -46,9 +47,8 @@ def backup_store(db: sqlite3.Connection, root: Path, version: int) -> Path:
     target.mkdir()
     try:
         path = target / "index.sqlite"
-        with sqlite3.connect(path) as backup:
+        with closing(sqlite3.connect(path)) as backup:
             db.backup(backup)
-        backup.close()
         manifest = {
             "schema": version,
             "sqlite_version": sqlite3.sqlite_version,

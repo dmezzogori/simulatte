@@ -282,7 +282,7 @@ class Coordinator:
                 return job.key
         return None
 
-    def admit_run(self, model_id, request, revision, *, auto_session=None):
+    def admit_run(self, model_id, request, revision, *, auto_session=None, timeout=None):
         from simulatte.execution.admission import Admission
 
         with self._condition:
@@ -301,13 +301,13 @@ class Coordinator:
                     return Admission("busy", owner=owner)
             else:
                 snapshot, documents = self._preparation(request)
-                key = self._schedule(request, revision, snapshot, documents, None, model_id=model_id)
+                key = self._schedule(request, revision, snapshot, documents, timeout, model_id=model_id)
                 if auto_session is not None:
                     self._auto_owners[key.attempt_id] = (model_id, auto_session)
                 return Admission("started", key=key)
-        return self.stop_and_run(owner, model_id, request, revision, _auto_session=auto_session)
+        return self.stop_and_run(owner, model_id, request, revision, _auto_session=auto_session, timeout=timeout)
 
-    def stop_and_run(self, owner, model_id, request, revision, *, _auto_session=None):
+    def stop_and_run(self, owner, model_id, request, revision, *, _auto_session=None, timeout=None):
         from simulatte.execution.admission import Admission
 
         with self._condition:
@@ -332,7 +332,7 @@ class Coordinator:
                 self._condition.wait(remaining)
             if self.store.slots()[INTERACTIVE]["generation"] != generation or self._owner() is not None:
                 return Admission("busy", owner=self._owner())
-            return self.admit_run(model_id, request, revision, auto_session=_auto_session)
+            return self.admit_run(model_id, request, revision, auto_session=_auto_session, timeout=timeout)
 
     # The interactive slot's actor state, under the names Studio's lifecycle uses.
     @property

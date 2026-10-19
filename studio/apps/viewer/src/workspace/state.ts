@@ -105,6 +105,7 @@ export interface ProjectState {
   environment: Generation | null;
   preparation_progress: string;
   legacy_reference: string | null;
+  legacy_layout?: string | null;
 }
 export interface RunDetails {
   request_id: string;

@@ -61,6 +61,8 @@ class EnvironmentPool:
         self._cancelled.set()
 
     def _run(self, command, *, cwd, environment=None):
+        if self._cancelled.is_set():
+            raise ValueError("Environment preparation cancelled before starting")
         env = dict(os.environ)
         if environment is not None:
             env["UV_PROJECT_ENVIRONMENT"] = str(environment)
@@ -83,6 +85,7 @@ class EnvironmentPool:
             while child.returncode is None:
                 if self._cancelled.is_set() or time.monotonic() >= deadline:
                     child.kill()
+                    child.wait(timeout=5)
                     raise ValueError("Environment preparation cancelled or timed out")
                 try:
                     child.wait(timeout=0.05)

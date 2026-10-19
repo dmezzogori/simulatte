@@ -199,7 +199,7 @@ Without `--worker` a replay runs only on the host of the original attempt, local
 
 ## Retention
 
-Nothing is deleted automatically. The store under `.simulatte/` stays safe to delete; deleting it resets everything.
+Nothing is deleted automatically. `.simulatte/` contains durable history, recordings, annotations, captured inputs and environment evidence. Back it up with the project; it is not a disposable cache. Use explicit pruning for unwanted results, respecting important/reference protection. See [projects and saved history](../studio/projects.md).
 
 ```bash
 simulatte experiment delete RUN_ID      # a run that is not running
@@ -211,7 +211,7 @@ simulatte store prune
 
 ## Store migration
 
-The 0.17 store uses schema 2 (slots, experiments, replications and replays). A store from 0.16 migrates automatically in one transaction when it is first opened, and keeps its request ids and results. A store written by a newer version is refused. To reset instead, delete `.simulatte/`. Protocol version 1.1 adds staging and provisioning messages for remote workers; local execution is unchanged.
+The project workspace uses schema 3, adding persistent project/model associations and environment evidence to the schema-2 experiment store. A supported older store is backed up before migration and keeps its request ids and results. A store written by a newer version is refused. Do not delete `.simulatte/` to fix a runtime problem; saved-work recovery remains available. Protocol version 1.1 adds staging and provisioning messages for remote workers; local execution is unchanged.
 
 ## Windows
 

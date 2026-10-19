@@ -22,6 +22,7 @@ export function Models({
     [entry, setEntry] = useState(
       state.legacy_reference ?? "models/model.py:build",
     );
+  const [layout, setLayout] = useState(state.legacy_layout ?? "");
   const [preview, setPreview] = useState<{
       preview_id: string;
       files: Record<string, string>;
@@ -83,7 +84,7 @@ export function Models({
                     key,
                     name,
                     entrypoint: entry,
-                    layout: `layouts/${key}.json`,
+                    layout: layout || `layouts/${key}.json`,
                   },
                 ],
                 include: [entry.split(":")[0]],
@@ -114,6 +115,14 @@ export function Models({
                   value={entry}
                   onChange={(e) => setEntry(e.target.value)}
                   placeholder="models/plant.py:build"
+                />
+              </label>
+              <label className="ws-wide">
+                Layout path
+                <input
+                  value={layout}
+                  onChange={(e) => setLayout(e.target.value)}
+                  placeholder={`layouts/${key}.json`}
                 />
               </label>
             </div>

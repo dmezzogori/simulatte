@@ -239,9 +239,13 @@ class ProjectServer(StudioServer):
             if state is None or state.request is None:
                 raise ValueError("Prepare and configure valid inputs before running")
             admission = (
-                co.admit_run(model_id, state.request, base, auto_session=body.get("auto_session"))
+                co.admit_run(
+                    model_id, state.request, base, auto_session=body.get("auto_session"), timeout=service.timeout
+                )
                 if kind == "run.start"
-                else co.stop_and_run(AttemptKey(**body["owner"]), model_id, state.request, base)
+                else co.stop_and_run(
+                    AttemptKey(**body["owner"]), model_id, state.request, base, timeout=service.timeout
+                )
             )
             return {"ok": True, **asdict(admission)}
         if kind == "layout.get":

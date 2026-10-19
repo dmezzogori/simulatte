@@ -77,6 +77,12 @@ The library provides ready-to-use components for common manufacturing scenarios 
 - `TraceRecorder` writes a run to a seekable trace file; `Trace` replays, seeks and verifies it
 - Log sinks: text or JSON output, SQLite, and a queryable in-memory history with filtering by component, level, time range
 
+### Studio projects
+- Open or create a folder with `simulatte studio [PATH]`; opening never starts a simulation
+- Register named Python models, prepare an isolated environment, then explicitly Run
+- Inspect recordings and retain named history across sessions
+- Install with `pip install 'simulatte[studio]'`; see the [Studio guide](docs/studio/index.md)
+
 ### Multi-Run Experiments
 - **Runner** class for stochastic experiments across multiple seeds
 - Automatic seed management for reproducibility
