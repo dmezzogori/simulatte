@@ -32,14 +32,17 @@ export function Setup({
     preview_id: string;
     files: Record<string, string>;
   } | null>(null);
+  const [operation, setOperation] = useState<string | null>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [python, setPython] = useState("");
   const act = async (type: Command, body: Record<string, unknown>) => {
     setBusy(true);
     setError("");
+    const operationId = type === "environment.prepare" ? crypto.randomUUID() : null;
+    setOperation(operationId);
     try {
-      const result = await invoke(client, type, body);
+      const result = await invoke(client, type, operationId ? {...body, operation_id: operationId} : body);
       if (result.status === "busy") throw new Error("The current environment still has active work. Wait for it to finish or explicitly stop it, then select this generation again.");
       if (result.preview_id) setPreview(result as unknown as typeof preview);
       else setPreview(null);
@@ -47,6 +50,7 @@ export function Setup({
       setError(String(e));
     } finally {
       setBusy(false);
+      setOperation(null);
     }
   };
   if (state.read_only)
@@ -111,10 +115,10 @@ export function Setup({
           </button>
           <button disabled={busy || !connected} onClick={()=>void act("environment.prepare",{lock_update:true})}>Preview dependency update</button>
           <button
-            disabled={!busy}
-            onClick={() =>
-              void client.command("environment.prepare", { cancel: true })
-            }
+            disabled={!operation}
+            onClick={() => {
+              if (operation) void client.cancelPreparation(operation).catch((e) => setError(String(e)));
+            }}
           >
             Cancel preparation
           </button>

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import asdict
 from pathlib import Path
+import re
 import secrets
 import sqlite3
 import sys
@@ -47,6 +49,9 @@ class ProjectService:
         self._closed = False
         self.initial_options = None
         self._generation = None
+        self._preparation_lock = threading.Lock()
+        self._preparation_id = None
+        self._cancelled_preparations = deque(maxlen=32)
 
     @classmethod
     def open(cls, target: StudioTarget, *, read_only=False):
@@ -205,6 +210,17 @@ class ProjectService:
                 edit = ConfigEdit(edit.path, edit.original_sha256, tomlkit.dumps(document).encode("utf-8"))
             return self._preview("config", edit, files={"pyproject.toml": edit.proposed_bytes.decode("utf-8")})
 
+    def cancel_preparation(self, identity):
+        if not isinstance(identity, str) or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", identity) is None:
+            raise ValueError("Invalid preparation operation id")
+        with self._preparation_lock:
+            self._writable()
+            if identity not in self._cancelled_preparations:
+                self._cancelled_preparations.append(identity)
+            if self._preparation_id == identity:
+                self.environments.cancel()
+        return {"ok": True}
+
     def prepare_environment(self, body):
         self._writable()
         assert self.store is not None and self.environments is not None
@@ -213,16 +229,32 @@ class ProjectService:
         if body.get("cancel"):
             self.environments.cancel()
             return {"ok": True}
-        if "existing" in body:
-            generation = self.environments.use_existing(Path(body["existing"]))
-        else:
-            try:
-                generation = self.environments.prepare(self.workspace, lock_update=body.get("lock_update", False))
-            except LockPreviewRequired as preview:
-                return self._preview(
-                    "lock", preview.edit, files={"uv.lock": preview.edit.proposed_bytes.decode("utf-8")}
-                )
-        return {"ok": True, "generation": self._generation_state(generation)}
+        identity = body.get("operation_id", secrets.token_urlsafe(24))
+        if not isinstance(identity, str) or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", identity) is None:
+            raise ValueError("Invalid preparation operation id")
+        with self._preparation_lock:
+            if identity in self._cancelled_preparations:
+                raise ValueError("Environment preparation cancelled before starting")
+            if self._preparation_id is not None:
+                raise ValueError("Environment preparation is busy")
+            self.environments._cancelled.clear()
+            self._preparation_id = identity
+        try:
+            if "existing" in body:
+                generation = self.environments.use_existing(Path(body["existing"]))
+            else:
+                try:
+                    generation = self.environments.prepare(
+                        self.workspace, lock_update=body.get("lock_update", False), reset_cancel=False
+                    )
+                except LockPreviewRequired as preview:
+                    return self._preview(
+                        "lock", preview.edit, files={"uv.lock": preview.edit.proposed_bytes.decode("utf-8")}
+                    )
+            return {"ok": True, "generation": self._generation_state(generation)}
+        finally:
+            with self._preparation_lock:
+                self._preparation_id = None
 
     def select_environment(self, body):
         with self._lock:

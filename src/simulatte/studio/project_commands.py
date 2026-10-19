@@ -297,6 +297,20 @@ class ProjectServer(StudioServer):
 
     async def request(self, request):
         path = request.path_params["path"]
+        if request.method == "PUT" and path.startswith("api/environment/cancel/"):
+            headers = response_headers()
+            if not self.headers_valid(request, require_origin=True) or not self.authenticated(request):
+                return Response("Authentication required", status_code=403, headers=headers)
+            async for chunk in request.stream():
+                if chunk:
+                    return Response("Cancellation takes no body", status_code=413, headers=headers)
+            try:
+                result = await asyncio.to_thread(
+                    self.service.cancel_preparation, path.removeprefix("api/environment/cancel/")
+                )
+                return JSONResponse(result, headers=headers)
+            except ValueError as error:
+                return JSONResponse({"ok": False, "error": {"message": str(error)}}, status_code=400, headers=headers)
         if request.method == "PUT" and path in ("api/layout", "api/layout/validate"):
             from simulatte.layout.types import LayoutLimits
             from simulatte.layout.io import parse_layout
