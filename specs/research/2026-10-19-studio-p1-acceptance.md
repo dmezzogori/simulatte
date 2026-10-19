@@ -5,9 +5,9 @@ Node 24.13.0. Branch: `feature/studio-projects`, isolated worktree
 `.worktrees/studio-project-experience`. Baseline `a80ece3`; original reviewed
 candidate `dfc63ae`; revised product/test candidate `6ccac36` (signed). T1–T7 and
 R1–R9/M1 fixes are implemented and all code findings are independently closed.
-The reviewer conditionally approves the code; coordinator package acceptance
-remains pending.
-This is not a P1 completion claim or P2/release authorization. The final section
+The reviewer approved the code conditionally on final gates; the coordinator
+has now verified those gates and accepted P1 at `6ccac36`. This is P1 local
+package completion, not merge/release authorization or P2 ownership for this implementer. The final section
 records the revised checks and exact tested heads. Earlier sections retain the
 initial failed-candidate evidence and decisions as history.
 
@@ -400,7 +400,7 @@ Windows execution; that remains a CI obligation.
 Product/test head: **`6ccac36f9ab60e88f80cdcbba4ec7a98ea950672`**, signed.
 Review-fix range: `dfc63ae..6ccac36`; original implementation baseline: `a80ece3`.
 Final independent delta review closes all R1–R9/M1 code findings. Coordinator
-package acceptance remains pending. The ledger stays in `.superpowers/sdd/2026-10-19-studio-p1-projects/progress.md` through
+package acceptance is now closed at this tested head. The ledger stays in `.superpowers/sdd/2026-10-19-studio-p1-projects/progress.md` through
 review/fixes. No P2 work has started.
 
 The final review follow-ups are separate signed commits:
@@ -488,8 +488,9 @@ closed. Exact conditional verdict:
 
 Reviewer checkpoint:
 `/Users/davide/.local/state/cortex/fallback/20261019T182053-studio-p1-arrival-d5a3d5b9-46f4-449e-b145-12319878429c.md`.
-Original review/probe artifacts remain unchanged. This records code approval;
-P1 package acceptance and any next assignment remain coordinator-owned.
+Original review/probe artifacts remain unchanged. This was conditional code
+approval; the subsequent coordinator acceptance below closes its gate condition.
+Any next assignment remains coordinator-owned.
 
 ### Final browser and installed-workspace gates
 
@@ -522,9 +523,9 @@ unchanged. No threshold, exclusion or benchmark workload was relaxed.
 All requested local gates pass, and all R1–R9/M1 code findings are independently
 closed. The final documentation commit changes only this acceptance report and
 the two plans; the preserved plan-specific ledger is reconciled as well. Completed
-P1 tasks/prerequisites are checked. Overall P1 acceptance remains with the
-coordinator, and explicit unobserved platform/CI obligations remain open. No P2
-ownership, merge, push or release is implied. All commits to date are signed;
+P1 tasks/prerequisites and coordinator acceptance are checked. Explicit unobserved
+platform/CI obligations remain open. No P2 ownership for this implementer, merge,
+push or release is implied. All commits to date are signed;
 no signing fallback or global configuration change was needed.
 
 During the final handoff the refreshed Cortex brief reported availability. Two
@@ -534,3 +535,18 @@ previously unsent implementer checkpoints returned **applied**, publication pend
 archived in `cortex-applied-fallbacks/` before removing the applied unsent copies.
 The final post-commit checkpoint uses the coordinator-requested local fallback;
 its path and final commit are reported in the handoff and retained ledger.
+
+### Coordinator acceptance and writer handoff
+
+After directly reading the final gate logs and independent review closure, the
+coordinator explicitly accepted P1 product/test
+`6ccac36f9ab60e88f80cdcbba4ec7a98ea950672`. Acceptance record:
+`/Users/davide/.local/state/cortex/fallback/2026-10-19-studio-p1-accepted-ff8fed98-8f94-493d-ad9a-db18345e2889.md`.
+This is a local fallback record, not a Cortex-published acceptance. It confirms
+all R1–R9/M1 findings closed and all local package gates passed at the exact heads
+above. The earlier conditional reviewer verdict is preserved verbatim.
+
+The implementer releases P1 writer ownership after the final signed documentation
+commit and clean-status verification. The coordinator will assign P2; this session
+stops without starting it. Unobserved native platform/CI obligations and historical
+failed checks remain recorded. No broad checks were repeated for documentation.
