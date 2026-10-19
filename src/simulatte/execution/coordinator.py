@@ -624,16 +624,30 @@ class Coordinator:
                 self._preview_done.set()
 
     def make_request(
-        self, prepared: PreparedModel, *, parameters=None, seed=0, stopping=None, level="full", kpis=()
+        self,
+        prepared: PreparedModel,
+        *,
+        parameters=None,
+        seed=0,
+        stopping=None,
+        level="full",
+        kpis=(),
+        measurements=None,
     ) -> ExecutionRequest:
         request = self._build_request(
-            prepared, parameters=parameters, seed=seed, stopping=stopping, level=level, kpis=kpis
+            prepared,
+            parameters=parameters,
+            seed=seed,
+            stopping=stopping,
+            level=level,
+            kpis=kpis,
+            measurements=measurements,
         )
         self._remember(prepared, request)
         return request
 
     @staticmethod
-    def _build_request(prepared, *, parameters=None, seed=0, stopping=None, level="full", kpis=()):
+    def _build_request(prepared, *, parameters=None, seed=0, stopping=None, level="full", kpis=(), measurements=None):
         selected = selected_model(prepared.metadata)
         parameters = validate_parameters(ParameterSchema.from_dict(selected["parameters"]), parameters or {})
         return ExecutionRequest(
@@ -647,6 +661,7 @@ class Coordinator:
             stopping=selected["stopping"] if stopping is None else stopping,
             level=level,
             kpis=kpis,
+            measurements=measurements,
             runtime=prepared.runtime,
         )
 
@@ -1363,6 +1378,10 @@ class SlotActor:
                     "timeout": c._remaining(job.deadline),
                     "inspection_ref" if inspect else "request_ref": c._document("request", job.request.to_dict()),
                 }
+            if not inspect and job.request.measurements is not None:
+                if "analytical-artifacts-v1" not in self.capabilities:
+                    raise ValueError("Worker lacks analytical-artifacts-v1 capability")
+                body["required_capabilities"] = [*body.get("required_capabilities", ()), "analytical-artifacts-v1"]
             c.store.require_active(key)
             self._reached = True  # From here a result may exist: a re-dispatch keeps this request.
             c._send(worker, "inspect" if inspect else "run", body, key=key)

@@ -51,7 +51,7 @@ def runtime_evidence(tmp_path, trusted_hash):
     return requested, config
 
 
-def run_fixture(tmp_path, model=MODEL, *, action="run"):
+def run_fixture(tmp_path, model=MODEL, *, action="run", measurements=None, level="full"):
     project, snapshot = tmp_path / "project", tmp_path / "snapshot"
     project.mkdir()
     snapshot.mkdir()
@@ -75,6 +75,8 @@ def run_fixture(tmp_path, model=MODEL, *, action="run"):
         seed=42,
         stopping=Horizon(2).to_dict(),
         runtime=requested_runtime,
+        measurements=measurements,
+        level=level,
     )
     worker = WorkerHarness()
     store = RunStore.open(tmp_path / ".simulatte")
@@ -453,3 +455,34 @@ def test_execution_requires_measured_runtime_evidence_before_model_import(tmp_pa
     with pytest.raises(ValueError, match="runtime evidence"):
         local_driver(tmp_path, monkeypatch, build, change=omit)
     assert not built
+
+
+def test_numerical_run_publishes_declared_dataset_without_domain_animation(tmp_path):
+    import json
+    from simulatte.analysis import DatasetSchema, Field, MeasurementPlan
+    from simulatte.analysis.measurements import select_measurements
+    from simulatte.analysis.datasets import DatasetReader, DatasetManifest
+    from simulatte.trace import Trace
+
+    plan = MeasurementPlan("numbers", (DatasetSchema("numbers", (Field("x", "int64"),)),))
+    source = MODEL.replace(
+        "@simulatte.model(params=Params, horizon=2)",
+        """from simulatte.analysis import DatasetSchema, Field, MeasurementPlan, ObservationCollector
+plan = MeasurementPlan('numbers', (DatasetSchema('numbers', (Field('x', 'int64'),)),))
+@simulatte.model(params=Params, horizon=2, measurement_plans=(plan,))""",
+    )
+    source = source.replace(
+        "    def process():",
+        """    collector = ObservationCollector(plan.datasets[0], fields={}).attach(env)
+    def process():""",
+    ).replace(
+        "        yield env.timeout(1)",
+        """        yield env.timeout(1)
+        collector.record(None, observed_at='observation', values={'x': 2**60})""",
+    )
+    result, _ = run_fixture(tmp_path, source, measurements=select_measurements(plan), level="kpi")
+    root = result.path / "artifacts/datasets/numbers"
+    manifest = DatasetManifest.from_dict(json.loads((root / "manifest.json").read_text()))
+    assert list(DatasetReader(root, manifest).iter_rows()) == [{"x": 2**60}]
+    trace = Trace.open(result.path / "run.simtrace")
+    assert trace.level == "kpi"

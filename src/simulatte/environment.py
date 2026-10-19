@@ -125,6 +125,7 @@ class Environment(simpy.Environment):
         self._warmup = 0.0
         self.measurements: MeasurementPlan | None = None
         self.measurements_output_dir: Path | None = None
+        self.measurement_selection: Mapping[str, Any] = MappingProxyType({})
         self._collectors: list[Collector] = []  # attached KPI collectors, in attachment order
         self._stopping_policy: Wire | None = None
         self._wall_clock_start: str | None = None
@@ -652,6 +653,8 @@ class Environment(simpy.Environment):
         self._closed = True
         recorders, self._recorders = self._recorders, []
         with contextlib.ExitStack() as stack:
+            for collector in self._collectors:
+                stack.callback(collector.finish)
             for sink in reversed(self._sinks):
                 stack.callback(sink.close)
             for recorder in reversed(recorders):

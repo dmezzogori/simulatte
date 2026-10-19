@@ -154,3 +154,24 @@ def test_new_installation_handoff_keeps_tags_raw_evidence_and_relocated_bindings
             "bindings": captured_bindings,
         }
         until(lambda: bool(released))
+
+
+@pytest.mark.parametrize("reused", [False, True])
+def test_analytical_request_refuses_incapable_worker_before_dispatch(tmp_path, reused):
+    from simulatte.analysis import MeasurementPlan
+    from simulatte.analysis.measurements import select_measurements
+
+    with Coordinator(project(tmp_path), slots=SlotConfig(local=1)) as co:
+        prepared = co.prepare(timeout=10)
+        peer = Peer()
+        sent = []
+        peer.send = lambda kind, body, **kw: sent.append(kind)
+        actor = co._actors["local-1"]
+        actor.transport_factory = lambda: peer
+        if reused:
+            actor._start_worker()
+        request = co.make_request(prepared, measurements=select_measurements(MeasurementPlan("off", ())))
+        key = co.submit(request, prepared.revision, slot="local-1", timeout=10)
+        with pytest.raises(ExecutionFailure, match="analytical-artifacts-v1"):
+            co.wait(key, timeout=15)
+        assert "run" not in sent

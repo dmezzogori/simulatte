@@ -64,11 +64,11 @@ Snapshot/output manifests use a canonical tagged numeric representation for exac
 
 `DatasetReader.to_csv(destination: TextIO) -> None` streams exact scalar text, with structured cells encoded as JSON and explicit null/non-finite tags documented in a companion schema. Test CSV export/reimport against typed rows; never truncate a download to the current UI page. Users can construct their preferred dataframe from `iter_rows()` without a required dataframe dependency.
 
-- [ ] Test empty dataset, chunk boundaries, a 256 KiB row limit violation, truncated/corrupt/reordered chunks, nested typed fields and `test_missingness_and_exact_numeric_roundtrip`. Assert `list(reader.iter_rows()) == expected_rows` for `2**60`, explicit nulls, strings and finite numbers; assert `math.isnan`/infinity sign for non-finite values. HTTP conversion is separately round-tripped without changing meaning.
-- [ ] Test a million small rows with a counting writer/reader: buffers never exceed one chunk and `.page(limit=100)` reads bounded chunks. Do not use a million-entity simulation as a codec unit test.
-- [ ] Test old requests serialize/hash identically; selection changes change the request ID. Numerical experiment recording publishes analytical artifacts without domain animation, using existing `env.artifacts_dir` and hashed artifact streams. Reject a worker lacking the new capability rather than discarding datasets. Preserve old trace readers and limits.
-- [ ] Run `uv run --all-extras pytest tests/core/test_analytical_datasets.py tests/execution/test_schema.py tests/execution/test_driver.py tests/execution/test_publication.py tests/core/test_experiments.py --no-cov` red/green; add remote transfer/publication regression coverage using existing harnesses.
-- [ ] Commit `feat(analysis): persist bounded typed datasets with run artifacts`.
+- [x] Test empty dataset, chunk boundaries, a 256 KiB row limit violation, truncated/corrupt/reordered chunks, nested typed fields and `test_missingness_and_exact_numeric_roundtrip`. Assert `list(reader.iter_rows()) == expected_rows` for `2**60`, explicit nulls, strings and finite numbers; assert `math.isnan`/infinity sign for non-finite values. HTTP conversion is separately round-tripped without changing meaning.
+- [x] Test a million small rows with a counting writer/reader: buffers never exceed one chunk and `.page(limit=100)` reads bounded chunks. Do not use a million-entity simulation as a codec unit test.
+- [x] Test old requests serialize/hash identically; selection changes change the request ID. Numerical experiment recording publishes analytical artifacts without domain animation, using existing `env.artifacts_dir` and hashed artifact streams. Reject a worker lacking the new capability rather than discarding datasets. Preserve old trace readers and limits.
+- [x] Run `uv run --all-extras pytest tests/core/test_analytical_datasets.py tests/execution/test_schema.py tests/execution/test_driver.py tests/execution/test_publication.py tests/core/test_experiments.py --no-cov` red/green; add remote transfer/publication regression coverage using existing harnesses.
+- [x] Commit `feat(analysis): persist bounded typed datasets with run artifacts`.
 
 ## Task 3: Production/logistics measurements and numerical examples
 

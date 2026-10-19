@@ -4,6 +4,17 @@
   "title": "Simulatte experiment definition, schema 1",
   "type": "object",
   "properties": {
+    "measurements": {
+      "type": "object",
+      "properties": {
+        "schema": {"const": 1},
+        "plan": {"$ref": "#/$defs/identifier"},
+        "selection": {"type": "object"},
+        "definition_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "required": ["schema", "plan", "selection", "definition_hash"],
+      "additionalProperties": false
+    },
     "schema": {
       "const": 1
     },
