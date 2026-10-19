@@ -328,3 +328,140 @@ def test_user_policy_applies_to_dataset_valid_inputs(setup, policy):
     # The relaxed policy can use one valid replication; no evidence is silently removed.
     relaxed = admit(analysis, definition, analysis.preview(Selection(experiment_run_ids=(run,), configurations=(0,))))
     assert len(analysis.snapshot(relaxed.snapshot_hash)["replications"]) == 2
+
+
+def index(store, attempt, files):
+    """Register result files as published artifacts, optionally with an overridden descriptor."""
+    import hashlib
+
+    root = store.root / "results" / attempt / "artifacts"
+    with store._transaction() as db:
+        for path, override in files.items():
+            raw = (root / path).read_bytes() if (root / path).is_file() else b""
+            descriptor = {"length": len(raw), "sha256": hashlib.sha256(raw).hexdigest(), **override}
+            db.execute(
+                "INSERT INTO artifacts VALUES (?,?,?,?)", (attempt, path, descriptor["length"], descriptor["sha256"])
+            )
+
+
+def dataset(root, name, schema="jobs"):
+    from simulatte.analysis.datasets import DatasetWriter
+    from simulatte.analysis.types import DatasetSchema, Field
+
+    writer = DatasetWriter(root / "datasets" / name, DatasetSchema(schema, (Field("lateness", "float64"),)))
+    writer.append({"lateness": 1.5})
+    writer.finish()
+    return sorted(p.relative_to(root).as_posix() for p in (root / "datasets" / name).iterdir())
+
+
+@pytest.mark.parametrize(
+    "case, message",
+    [
+        ("removed", "Evidence files removed"),
+        ("escape", "Unsafe evidence path"),
+        ("absent", "Evidence files removed"),
+        ("large", "exceeds 4 MiB"),
+        ("changed", "Dataset manifest changed"),
+        ("duplicate", "Duplicate dataset name"),
+        ("unpublished", "chunk is not published"),
+    ],
+)
+def test_preview_marks_unsafe_or_changed_evidence_unavailable(setup, case, message):
+    import shutil
+
+    store, analysis, definition = setup
+    run, _ = build(store, {(0, 0): "pending"})
+    attempt = publish(store, run, 0, 0, 3)
+    root = store.root / "results" / attempt / "artifacts"
+    root.mkdir(exist_ok=True)
+    if case == "removed":
+        shutil.rmtree(store.root / "results" / attempt)
+    elif case == "escape":
+        index(store, attempt, {"../outside": {"length": 0}})
+    elif case == "absent":
+        index(store, attempt, {"absent.bin": {"length": 1}})
+    elif case == "large":
+        (root / "datasets/big").mkdir(parents=True)
+        with (root / "datasets/big/manifest.json").open("wb") as stream:
+            stream.truncate((4 << 20) + 1)
+        index(store, attempt, {"datasets/big/manifest.json": {}})
+    elif case == "changed":
+        index(store, attempt, {path: {"sha256": "0" * 64} for path in dataset(root, "jobs")})
+    elif case == "duplicate":
+        index(store, attempt, {path: {} for path in dataset(root, "a") + dataset(root, "b")})
+    else:
+        index(store, attempt, {path: {} for path in dataset(root, "jobs") if path.endswith("manifest.json")})
+    preview = analysis.preview(Selection(run_ids=(attempt,)))
+    assert (preview.available, preview.missing) == (0, 1)
+    assert message in analysis.snapshot(preview.snapshot_hash)["replications"][0]["reason"]
+    with pytest.raises(ValueError, match="insufficient input"):
+        admit(analysis, definition, preview)
+
+
+def test_unknown_identities_selection_and_source_are_refused(setup):
+    from types import SimpleNamespace
+
+    store, analysis, definition = setup
+    run, _ = build(store, {(0, 0): "pending", (1, 0): "pending"})
+    publish(store, run, 0, 0, 3)
+    publish(store, run, 1, 0, 4)
+    preview = analysis.preview(Selection(experiment_run_ids=(run,), configurations=(1,)))
+    snapshot = analysis.snapshot(preview.snapshot_hash)
+    assert [r["configuration"] for r in snapshot["replications"]] == [1] and preview.available == 1
+    with pytest.raises(ValueError, match="Unknown configuration"):
+        analysis.preview(Selection(experiment_run_ids=(run,), configurations=(2,)))
+    for call in (
+        lambda: analysis.preview(Selection(experiment_run_ids=("missing",))),
+        lambda: analysis.admit("missing", definition_id=definition, parameters={}, generation_id="env"),
+        lambda: analysis.definition("missing"),
+        lambda: analysis.execution("missing"),
+        lambda: analysis.annotate("missing", "note"),
+    ):
+        with pytest.raises(KeyError):
+            call()
+    source = SimpleNamespace(content_hash="b" * 64, project=SimpleNamespace(root=store.root.parent))
+    with pytest.raises(ValueError, match="source identity/project mismatch"):
+        analysis.put_definition(
+            AnalysisDefinition("lateness", "report.py:analyze", "a" * 64, ParameterSchema(()), ()), source=source
+        )
+
+
+def test_admission_refuses_short_groups_and_removed_experiment(setup):
+    store, analysis, definition = setup
+    run, _ = build(store, {(0, 0): "pending", (0, 1): "pending"})
+    publish(store, run, 0, 0, 3)
+    short = analysis.preview(Selection(experiment_run_ids=(run,), min_replications=2))
+    assert (short.available, short.partial) == (1, True)
+    with pytest.raises(ValueError, match="insufficient replication count"):
+        admit(analysis, definition, short)
+    preview = analysis.preview(Selection(experiment_run_ids=(run,)))
+    store.set_run_status(run, "paused")
+    store.delete_experiment_run(run)
+    with pytest.raises(ValueError, match="Experiment removed"):
+        admit(analysis, definition, preview)
+
+
+def test_referenced_analysis_is_kept_and_annotations_are_bounded(setup):
+    store, analysis, definition = setup
+    run, _ = build(store, {(0, 0): "pending"})
+    attempt = publish(store, run, 0, 0, 3)
+    execution = admit(analysis, definition, analysis.preview(Selection(run_ids=(attempt,))))
+    for text in (None, "x" * 65537):
+        with pytest.raises(ValueError, match="Annotation"):
+            analysis.annotate(execution.id, text)
+    first, second = analysis.annotate(execution.id, "first"), analysis.annotate(execution.id, "")
+    assert first != second
+    assert analysis.cancel(execution.id).state == "cancelled"
+    # Cancellation is idempotent on terminal executions.
+    assert analysis.cancel(execution.id).state == "cancelled"
+    with store._transaction() as db:
+        db.execute('INSERT INTO "references" VALUES (?,?,?,?)', ("report", "r-1", "analysis", execution.id))
+    with pytest.raises(ValueError, match="Analysis is referenced"):
+        analysis.delete(execution.id)
+    with store._transaction() as db:
+        db.execute('DELETE FROM "references" WHERE owner_kind=?', ("report",))
+    analysis.delete(execution.id)
+    with store._transaction() as db:
+        assert db.execute("SELECT COUNT(*) FROM analysis_annotations").fetchone()[0] == 0
+    with pytest.raises(KeyError):
+        analysis.execution(execution.id)

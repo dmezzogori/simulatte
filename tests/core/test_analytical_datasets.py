@@ -237,3 +237,50 @@ def test_reader_refuses_structurally_invalid_verified_chunks(tmp_path):
         )
         with pytest.raises(ValueError):
             list(d.DatasetReader(tmp_path, manifest).iter_rows())
+
+
+def test_manifest_and_reader_refuse_inconsistent_counts(tmp_path):
+    d = api()
+    schema = DatasetSchema("rows", (Field("x", "int64"),))
+    writer = d.DatasetWriter(tmp_path, schema)
+    writer.append({"x": 1})
+    manifest = writer.finish()
+    data = manifest.to_dict()
+    for tampered in (
+        {**data, "codec": "analytical-dataset-v2"},
+        {**data, "extra": 1},
+        {k: v for k, v in data.items() if k != "window"},
+    ):
+        with pytest.raises(ValueError, match="Unsupported"):
+            d.DatasetManifest.from_dict(tampered)
+    for count in (-1, True, 2):
+        with pytest.raises(ValueError, match="row count"):
+            d.DatasetReader(tmp_path, replace(manifest, row_count=count))
+
+
+def test_page_cursors_skip_whole_chunks_and_reject_foreign_positions(tmp_path):
+    d = api()
+    schema = DatasetSchema("rows", (Field("x", "int64"),))
+    writer = d.DatasetWriter(tmp_path, schema)
+    for i in range(4097):
+        writer.append({"x": i})
+    reader = d.DatasetReader(tmp_path, writer.finish())
+    last = reader.page(f"{reader._identity}:4096", limit=10)
+    assert [row["x"] for row in last.rows] == [4096] and last.next_cursor is None
+    assert reader.chunks_read == 1
+    for cursor in (f"{'0' * 64}:1", f"{reader._identity}:4097", f"{reader._identity}:01", f"{reader._identity}:-1"):
+        with pytest.raises(ValueError, match="cursor"):
+            reader.page(cursor)
+
+
+def test_json_page_refuses_row_larger_than_the_page_limit(tmp_path):
+    d = api()
+    schema = DatasetSchema("strings", (Field("text", "string"),))
+    writer = d.DatasetWriter(tmp_path, schema)
+    writer.append({"text": "\x00" * 250_000})  # 250 KB as msgpack, 1.5 MB once JSON-escaped
+    reader = d.DatasetReader(tmp_path, writer.finish())
+    with pytest.raises(ValueError, match="streaming dataset export"):
+        reader.page()
+    stream = io.StringIO()
+    reader.to_csv(stream)
+    assert len(stream.getvalue()) > 1 << 20

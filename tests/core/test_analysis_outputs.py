@@ -207,3 +207,65 @@ def test_plotly_renderer_identity_is_javascript_not_python_producer(tmp_path):
     assert saved.renderer == {"name": "plotly.js", "version": get_plotlyjs_version()}
     assert saved.metadata["adapter"] == "plotly"
     assert saved.metadata["adapter_version"] == plotly.__version__
+
+
+def test_summary_groups_keep_missing_labels_and_reject_invalid_inputs():
+    table = summarize_population(
+        [{"family": None, "x": 1}, {"family": "A", "x": 2}, {"family": None, "x": 3}], value="x", group_by=("family",)
+    )
+    assert [(row["family"], row["n"], row["mean"]) for row in table.rows] == [(None, 2, 2.0), ("A", 1, 2.0)]
+    dtype = {f.name: f.dtype for f in table.schema.fields}["family"]
+    assert dtype == "string"
+    only_missing = summarize_population([{"family": None, "x": 1}], value="x", group_by=("family",))
+    assert {f.name: f.dtype for f in only_missing.schema.fields}["family"] == "null"
+    for rows, message in (
+        ([{"family": ["A"], "x": 1}], "scalar"),
+        ([{"family": "A", "x": 1}, {"family": 2, "x": 1}], "inconsistent"),
+        ([{"family": "A", "x": "1"}], "numerical or missing"),
+        ([{"family": "A", "x": True}], "numerical or missing"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            summarize_population(rows, value="x", group_by=("family",))
+
+
+def test_summary_group_count_is_bounded():
+    rows = ({"group": i, "x": 1} for i in range(10_001))
+    with pytest.raises(ValueError, match="10000 groups"):
+        summarize_population(rows, value="x", group_by=("group",))
+
+
+def test_figure_adapter_refuses_invalid_names_objects_and_overwrites(tmp_path):
+    from matplotlib.figure import Figure as MatplotlibFigure
+
+    for name in ("../escape", "dir/fig", "fig.pdf", ".png"):
+        with pytest.raises(ValueError):
+            save_figure(MatplotlibFigure(), tmp_path, name=name)
+    detached = type("Detached", (), {"__module__": "matplotlib.fake", "figure": None})()
+    with pytest.raises(ValueError, match="figure or axes"):
+        save_figure(detached, tmp_path, name="detached")
+    first = save_figure(MatplotlibFigure(), tmp_path / "figures", name="plot.svg")
+    assert first.kind == "svg" and first.payload.is_file()
+    with pytest.raises(ValueError, match="already exists"):
+        save_figure(MatplotlibFigure(), tmp_path / "figures", name="plot.svg")
+    first.payload.unlink()
+    first.payload.symlink_to(tmp_path / "missing.svg")
+    with pytest.raises(ValueError, match="already exists"):
+        save_figure(MatplotlibFigure(), tmp_path / "figures", name="plot.svg")
+
+
+def test_analytical_json_rejects_unexact_numbers_and_unknown_tags():
+    for value in (
+        {"$int64": "5"},  # representable exactly as a JSON number: tag must not be used
+        {"$int64": "007"},
+        {"$int64": str(2**63)},
+        {"$int64": 5},
+        {"$float64": "1.5"},
+        {"$unknown": 1},
+        {"$record": 1},
+        2**53,
+        math.inf,
+    ):
+        with pytest.raises(ValueError):
+            codec.from_json(value)
+    assert codec.from_json({"$int64": str(2**53)}) == 2**53
+    assert codec.from_json(2**53 - 1) == 2**53 - 1

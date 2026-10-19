@@ -486,3 +486,67 @@ plan = MeasurementPlan('numbers', (DatasetSchema('numbers', (Field('x', 'int64')
     assert list(DatasetReader(root, manifest).iter_rows()) == [{"x": 2**60}]
     trace = Trace.open(result.path / "run.simtrace")
     assert trace.level == "kpi"
+
+
+def measured_model():
+    return MODEL.replace(
+        "@simulatte.model(params=Params, horizon=2)",
+        """from simulatte.analysis import DatasetSchema, Field, MeasurementPlan, ObservationCollector
+plan = MeasurementPlan('numbers', (DatasetSchema('numbers', (Field('x', 'int64'),)),))
+@simulatte.model(params=Params, horizon=2, measurement_plans=(plan,))""",
+    ).replace(
+        "    def process():",
+        """    collector = ObservationCollector(plan.datasets[0], fields={}).attach(env)
+    def process():
+        collector.record(None, observed_at='observation', values={'x': params.n})""",
+    )
+
+
+@pytest.mark.parametrize("declared", [True, False])
+def test_local_driver_applies_only_the_captured_measurement_declaration(tmp_path, monkeypatch, declared):
+    from dataclasses import replace
+    from simulatte.analysis import DatasetSchema, Field, MeasurementPlan
+    from simulatte.analysis.codec import to_json
+    from simulatte.analysis.measurements import select_measurements
+    from simulatte.execution import driver
+    from simulatte.execution.schema import AttemptKey
+
+    plan = MeasurementPlan("numbers", (DatasetSchema("numbers", (Field("x", "int64"),)),))
+    spec = driver.get_model_spec
+    monkeypatch.setattr(
+        driver, "get_model_spec", lambda build: replace(spec(build), measurement_plans=(plan,) if declared else ())
+    )
+    selections = []
+
+    def build(env, layout, params):
+        selections.append(env.measurement_selection)
+
+    def change(request, key, config):
+        request = replace(request, measurements=select_measurements(plan, {"limit": 3}))
+        return request, AttemptKey(request_id(request), key.attempt_id, key.generation), config
+
+    if not declared:
+        with pytest.raises(ValueError, match="measurement declaration differs"):
+            local_driver(tmp_path, monkeypatch, build, change=change)
+        assert selections == []
+        return
+    proposal, _, _ = local_driver(tmp_path, monkeypatch, build, change=change)
+    assert [dict(selection) for selection in selections] == [{"limit": 3}]
+    # The resolved manifest records the declaration and selection in codec wire form.
+    expected = to_json({"declaration": plan.to_dict(), "selection": {"limit": 3}})
+    assert proposal["resolved_manifest"]["measurements"] == expected
+
+
+def test_coordinator_dispatches_measured_request_to_capable_worker(tmp_path):
+    from simulatte.analysis import DatasetSchema, Field, MeasurementPlan
+    from simulatte.analysis.measurements import select_measurements
+    from simulatte.execution.coordinator import Coordinator
+    from tests.execution.test_coordinator import project
+
+    plan = MeasurementPlan("numbers", (DatasetSchema("numbers", (Field("x", "int64"),)),))
+    with Coordinator(project(tmp_path, measured_model())) as coordinator:
+        prepared = coordinator.prepare(timeout=10)
+        request = coordinator.make_request(prepared, measurements=select_measurements(plan), level="kpi")
+        key = coordinator.submit(request, prepared.revision, timeout=10)
+        result = coordinator.wait(key, timeout=15)
+    assert (result.path / "artifacts/datasets/numbers/manifest.json").is_file()

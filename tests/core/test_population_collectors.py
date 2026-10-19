@@ -155,3 +155,67 @@ def test_attaching_after_completed_history_reports_limitation():
     assert collector.limitations == (
         "1 jobs completed before collector attachment; completion observations unavailable",
     )
+
+
+def test_selection_and_population_declarations_reject_invalid_predicates():
+    b = api()
+    with pytest.raises(ValueError, match="must return bool"):
+        b.select_population([{"x": 1}], Population("not_bool", lambda row: 1, "analysis", fields=("x",)))
+    twice = (Population("same", lambda row: True, "completion"),) * 2
+    with pytest.raises(ValueError, match="Duplicate populations"):
+        b.JobOutcomeCollector(fields={}, populations=twice)
+
+
+def test_retained_fields_allow_temporal_selection_when_complete():
+    b = api()
+    population = Population("positive", lambda row: row["lateness"] > 0, "analysis", fields=("lateness",))
+    rows = [{"lateness": 1.0}, {"lateness": -1.0}]
+    result = b.select_population(rows, population, retained_fields=("lateness",))
+    assert result.status == "available" and [row["lateness"] for row in result.rows] == [1.0]
+
+
+def test_job_collector_outside_measurement_plan_is_disabled_and_ignores_unadmitted_jobs():
+    from simulatte.analysis import MeasurementPlan
+
+    b = api()
+    with Environment(seed=1) as env:
+        env.configure_measurements(MeasurementPlan("off", ()))
+        disabled = b.JobOutcomeCollector(fields={}, populations=()).attach(env)
+        assert disabled._disabled and disabled not in env.collectors
+    with Environment(seed=1) as env:
+        floor = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=floor)
+        ProductionJob(env=env, sku="A", servers=[server], processing_times=[1], due_date=2)
+        collector = b.JobOutcomeCollector(fields={}, populations=()).attach(env)
+        assert collector._pending == {} and collector.limitations == ()
+
+
+def test_job_admitted_through_pool_keeps_its_first_observation():
+    from simulatte.psp import PreShopPool
+
+    b = api()
+    with Environment(seed=1) as env:
+        floor = ShopFloor(env=env)
+        server = Server(env=env, capacity=1, shopfloor=floor)
+        psp = PreShopPool(env=env, shopfloor=floor)
+        collector = b.JobOutcomeCollector(
+            fields={"family": ("string", lambda job: job.sku)}, populations=(), membership_at="arrival"
+        ).attach(env)
+        job = ProductionJob(env=env, sku="A", servers=[server], processing_times=[1], due_date=5)
+        psp.add(job)
+        assert set(collector._pending) == {job.id}
+        job.sku = "B"
+        psp.release(job)
+        env.run(until=3)
+    assert collector.failure is None and len(collector.rows) == 1
+    assert collector.rows[0]["family"] == "A" and collector.rows[0]["completion"] == 1
+
+
+def test_finish_failure_is_recorded_without_rows():
+    from simulatte.analysis.types import Observation
+
+    b = api()
+    with Environment(seed=1) as env:
+        collector = b.JobOutcomeCollector(fields={}, populations=()).attach(env)
+        collector._pending["job-unknown"] = Observation({"job_id": "job-unknown"})
+    assert "KeyError" in collector.failure and collector.rows == ()

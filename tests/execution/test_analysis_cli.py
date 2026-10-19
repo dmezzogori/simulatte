@@ -174,3 +174,139 @@ def test_inspection_capacity_shared_with_model_preparation(project):
                 assert started.wait(5) and not future.done()
             definition, generation = future.result(timeout=15)
         assert AnalysisStore(store).definition(definition)["entrypoint"] == "report.py:analyze"
+
+
+def waiting(root, attempt):
+    from simulatte.analysis.command import prepare_analysis
+    from simulatte.analysis.selection import Selection
+
+    with RunStore.open(root / ".simulatte") as store:
+        analysis = AnalysisStore(store)
+        definition, generation = prepare_analysis(store, "total")
+        preview = analysis.preview(Selection(run_ids=(attempt,)))
+        return analysis.admit(preview.id, definition_id=definition, parameters={}, generation_id=generation).id
+
+
+@pytest.mark.parametrize("tamper", ["size", "identity"])
+def test_inspection_refuses_invalid_metadata_and_releases_capacity(project, monkeypatch, tamper):
+    from types import SimpleNamespace
+    from simulatte.analysis import codec, command as module
+    from simulatte.projects.environments import EnvironmentPool
+
+    root, run, attempt = project
+    if tamper == "size":
+        monkeypatch.setattr(module, "MAX_MANIFEST_BYTES", 1)
+        message = "Invalid analysis metadata"
+    else:
+        monkeypatch.setattr(module, "codec", SimpleNamespace(loads=lambda raw: {**codec.loads(raw), "id": "other"}))
+        message = "identity mismatch"
+    with RunStore.open(root / ".simulatte") as store:
+        environments = EnvironmentPool(root, store)
+        generation = environments.use_existing(sys.executable)
+        with pytest.raises(ValueError, match=message):
+            module.prepare_analysis(store, "total", environments=environments, generation=generation)
+        with store._transaction() as db:
+            owners = db.execute('SELECT owner_kind FROM "references"').fetchall()
+            assert "analysis-inspection" not in {row[0] for row in owners}
+            assert db.execute("SELECT COUNT(*) FROM analysis_definitions").fetchone()[0] == 0
+        assert environments.owners(generation.id) == ()
+        assert list((store.root / "analysis-staging").iterdir()) == []
+
+
+def test_request_cancel_guards_identity_state_and_control_file(project, capsys):
+    from uuid import uuid4
+    from simulatte.analysis.command import request_cancel
+
+    root, run, attempt = project
+    identity = waiting(root, attempt)
+    store = root / ".simulatte"
+    with pytest.raises(ValueError, match="Invalid execution UUID"):
+        request_cancel(store, identity.upper())
+    with pytest.raises(KeyError):
+        request_cancel(store, str(uuid4()))
+    control = store / "analysis-control" / (identity + ".cancel")
+    for _ in range(2):
+        # A repeated request keeps the single pending control file.
+        assert request_cancel(store, identity)["cancellation_requested"] is True
+        assert control.is_file()
+    control.unlink()
+    control.symlink_to(root / "elsewhere")
+    with pytest.raises(ValueError, match="Unsafe cancellation"):
+        request_cancel(store, identity)
+    control.unlink()
+    # The writer that admitted it has closed: reopening records the unsubmitted execution as lost.
+    code, terminal = invoke(capsys, root, "cancel", identity)
+    assert code == 0 and terminal["execution"]["state"] == "lost"
+    assert request_cancel(store, identity) == terminal
+    code, missing = invoke(capsys, root, "show", str(uuid4()))
+    assert code == 2 and missing["status"] == "validation_failed"
+
+
+def test_show_refuses_store_without_analysis_schema(tmp_path, capsys):
+    from uuid import uuid4
+
+    with RunStore.open(tmp_path / ".simulatte") as store:
+        with store._transaction() as db:
+            names = [
+                r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'analysis_%'")
+            ]
+            for name in reversed(names):
+                db.execute(f"DROP TABLE {name}")
+            db.execute("PRAGMA user_version=3")
+    code, refused = invoke(capsys, tmp_path, "show", str(uuid4()))
+    assert code == 2 and "schema4" in refused["message"]
+
+
+def test_cli_parameters_are_typed_by_captured_schema(project, capsys):
+    from simulatte.analysis import codec
+
+    root, run, attempt = project
+    (root / "report.py").write_text("""from simulatte.analysis import analysis
+from simulatte.model import ParameterField, ParameterSchema
+from simulatte.analysis.outputs import Number
+@analysis(parameters=ParameterSchema((ParameterField('scale', 'int', False, 1),)))
+def analyze(context, parameters):
+    total = sum(row['scalars']['lateness'] for row in context.scalars())
+    context.emit('total', Number(total * parameters['scale']))
+""")
+    code, failed = invoke(capsys, root, "run", "total", "--run", attempt, "--param", "scale")
+    assert code == 2 and "NAME=VALUE" in failed["message"]
+    code, done = invoke(capsys, root, "run", "total", "--run", attempt, "--param", "scale=2")
+    assert code == 0 and done["execution"]["state"] == "succeeded"
+    output = root / ".simulatte/analysis-results" / done["execution"]["id"] / "total/number.json"
+    assert codec.loads(output.read_bytes())["value"] == 6
+
+
+def test_interrupted_run_cancels_its_execution(project, capsys, monkeypatch):
+    from simulatte.analysis.execution import AnalysisRunner
+
+    root, run, attempt = project
+    (root / "report.py").write_text("""import time
+from simulatte.analysis import analysis
+from simulatte.model import ParameterSchema
+@analysis(parameters=ParameterSchema(()))
+def analyze(context, parameters):
+    while True: time.sleep(.01)
+""")
+    wait, interrupted = AnalysisRunner.wait, []
+
+    def interrupt_once(self, identity, timeout=None):
+        if not interrupted:
+            interrupted.append(identity)
+            raise KeyboardInterrupt
+        return wait(self, identity, timeout)
+
+    monkeypatch.setattr(AnalysisRunner, "wait", interrupt_once)
+    code, cancelled = invoke(capsys, root, "run", "total", "--run", attempt)
+    assert code == 130 and cancelled["execution"]["state"] == "cancelled"
+    assert cancelled["execution"]["id"] == interrupted[0]
+
+
+def test_operational_failure_and_text_output(tmp_path, capsys):
+    project = tmp_path / "file"
+    project.write_text("not a project directory")
+    assert main(["analysis", "rerun", "a", "--project", str(project)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == "" and captured.err.strip()
+    assert main(["analysis", "show", "a", "--project", str(tmp_path)]) == 2
+    assert "No readable run store index" in capsys.readouterr().err
