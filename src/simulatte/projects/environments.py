@@ -438,6 +438,11 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
                 raise ValueError("Cannot clean up an owned generation")
             if generation.state == "selected":
                 raise ValueError("Cannot clean up the selected generation")
+            with self.store._transaction() as db:
+                if db.execute(
+                    'SELECT 1 FROM "references" WHERE target_kind=? AND target_id=?', ("environment", generation_id)
+                ).fetchone():
+                    raise ValueError("Cannot clean up a referenced generation")
             if generation.evidence["spec"]["kind"] == "existing":
                 raise ValueError("Existing environments are managed outside Studio")
             remove_tree(self.cache / generation_id)

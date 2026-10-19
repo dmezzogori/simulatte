@@ -41,15 +41,40 @@ class AnalysisStore:
     def __init__(self, store: RunStore):
         self.store = store
 
-    def put_definition(self, definition: AnalysisDefinition) -> str:
+    def put_definition(self, definition: AnalysisDefinition, *, source=None) -> str:
         body = definition.to_dict()
+        if source is not None:
+            if (
+                source.content_hash != definition.source_hash
+                or source.project.root.resolve() != self.store.root.parent.resolve()
+            ):
+                raise ValueError("Analysis source identity/project mismatch")
+            body["capture"] = {"python_path": list(source.project.python_path)}
         identity = codec.identity(body)
         with self.store._transaction() as db:
             db.execute(
                 "INSERT OR IGNORE INTO analysis_definitions VALUES (?,?,?)",
                 (identity, definition.id, codec.dumps(body)),
             )
+            if source is not None:
+                from simulatte.execution.store import _blob
+
+                db.execute(
+                    "INSERT OR IGNORE INTO snapshots VALUES (?,?,?)",
+                    (source.content_hash, "analysis-source", _blob({"source_hash": source.content_hash})),
+                )
+                db.execute(
+                    'INSERT OR IGNORE INTO "references" VALUES (?,?,?,?)',
+                    ("analysis-definition", identity, "snapshot", source.content_hash),
+                )
         return identity
+
+    def output(self, identity):
+        with self.store._transaction() as db:
+            row = db.execute("SELECT manifest FROM analysis_outputs WHERE execution=?", (identity,)).fetchone()
+            if row is None:
+                raise KeyError(identity)
+            return Observation(codec.loads(row[0]))
 
     def definition(self, identity):
         with self.store._transaction() as db:
@@ -346,3 +371,15 @@ class AnalysisStore:
             db.execute("DELETE FROM analysis_annotations WHERE execution=?", (identity,))
             db.execute("DELETE FROM analysis_outputs WHERE execution=?", (identity,))
             db.execute("DELETE FROM analysis_executions WHERE id=?", (identity,))
+
+    def annotate(self, identity, text):
+        if not isinstance(text, str) or len(text) > 65536:
+            raise ValueError("Annotation must be text of at most 65536 characters")
+        revision = str(uuid4())
+        with self.store._transaction() as db:
+            self._execution(db, identity)
+            db.execute(
+                "INSERT INTO analysis_annotations VALUES (?,?,?,?)",
+                (revision, identity, codec.dumps({"text": text}), time.time()),
+            )
+        return revision

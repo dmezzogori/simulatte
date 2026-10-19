@@ -81,9 +81,15 @@ class DatasetWriter:
         self._bytes = 3  # array16 header for at most 4096 rows
         self._chunks: list[Chunk] = []
         self._count = 0
+        self._persisted_bytes = 0
         self._manifest: DatasetManifest | None = None
         self.window: Mapping[str, Any] = {}
         self.peak_buffer_rows = self.peak_buffer_bytes = 0
+
+    @property
+    def encoded_size(self) -> int:
+        """Written bytes plus the bounded pending chunk (conservative header allowance)."""
+        return self._persisted_bytes + self._bytes
 
     def append(self, row: Mapping[str, Any]) -> None:
         if self._manifest is not None:
@@ -114,6 +120,7 @@ class DatasetWriter:
                 length += len(data)
             stream.flush()
             os.fsync(stream.fileno())
+        self._persisted_bytes += length
         self._chunks.append(Chunk(path, length, digest.hexdigest(), len(self._buffer)))
         self._buffer.clear()
         self._bytes = 3
