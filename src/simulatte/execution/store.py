@@ -150,7 +150,6 @@ def _migrate_1(db) -> None:
             )
 
 
-
 _MIGRATIONS = {1: _migrate_1, 2: migrate_2}
 _DDL = (*_DDL, *SCHEMA_3)
 
@@ -322,9 +321,17 @@ class RunStore:
         row = db.execute("SELECT number,digest FROM revisions ORDER BY number DESC LIMIT 1").fetchone()
         return Revision(row[0], row[1]) if row is not None else None
 
-    def current_revision(self) -> Revision | None:
+    def current_revision(self, *, model_id=None) -> Revision | None:
         with self._transaction() as db:
+            if model_id is not None:
+                from simulatte.execution.project_store import latest_model_revision
+
+                return latest_model_revision(db, model_id)
             return self._current_revision(db)
+
+    def next_revision_number(self):
+        current = self.current_revision()
+        return 1 if current is None else current.number + 1
 
     def create_revision(
         self,
@@ -334,18 +341,26 @@ class RunStore:
         revoke_active: bool = False,
         view=None,
         preparation=None,
+        model_id=None,
     ) -> Revision:
         if revoke_active and view is not None:
             raise ValueError("Cannot revoke an attempt and associate its presentation in one change")
         data, digest = _blob(inputs), canonical_hash("revision-inputs-v1", inputs)
         with self._transaction() as db:
             current = self._current_revision(db)
-            if expected is not None and expected != current:
+            expected_current = current
+            if model_id is not None:
+                from simulatte.execution.project_store import latest_model_revision
+
+                expected_current = latest_model_revision(db, model_id)
+            if expected is not None and expected != expected_current:
                 raise RevisionConflict("Project revision changed; reload before editing")
             number = 1 if current is None else current.number + 1
             revision = Revision(number, digest)
             db.execute("INSERT INTO revisions VALUES (?,?,?)", (number, digest, data))
-            if revoke_active:
+            if model_id is not None:
+                db.execute("INSERT INTO model_revisions VALUES (?,?)", (number, model_id))
+            if revoke_active and model_id is None:
                 # Experiment slots run at their pinned revision; only interactive work is superseded.
                 active = db.execute("SELECT active FROM slots WHERE name=?", (INTERACTIVE,)).fetchone()[0]
                 if active is not None:
@@ -398,7 +413,14 @@ class RunStore:
         with self._transaction() as db:
             self._require_active(db, key)
             number = db.execute("SELECT revision FROM attempts WHERE id=?", (key.attempt_id,)).fetchone()[0]
-            revision = self._current_revision(db)
+            associated = db.execute("SELECT model FROM attempt_models WHERE attempt=?", (key.attempt_id,)).fetchone()
+            revision = (
+                self._current_revision(db)
+                if associated is None
+                else Revision(
+                    number, db.execute("SELECT digest FROM revisions WHERE number=?", (number,)).fetchone()[0]
+                )
+            )
             if revision is None or revision.number != number:
                 raise StaleAttempt("Ready bundle belongs to obsolete inputs")
             self._put_view(db, revision, key, bundle)
@@ -441,6 +463,7 @@ class RunStore:
         slot: str = INTERACTIVE,
         worker: str | None = None,
         pinned: bool = False,
+        model_id=None,
     ) -> AttemptKey:
         """Make a new attempt its slot's active assignment, superseding the slot's previous one.
 
@@ -455,10 +478,17 @@ class RunStore:
             worker=worker,
             pinned=pinned,
             content=content_id(request),
+            model_id=model_id,
         )
 
-    def assign_inspection(self, request: InspectionRequest, revision: Revision) -> AttemptKey:
-        return self._assign(inspection_id(request), request.to_dict(), revision)
+    def assign_inspection(self, request: InspectionRequest, revision: Revision, *, model_id=None) -> AttemptKey:
+        return self._assign(
+            inspection_id(request),
+            request.to_dict(),
+            revision,
+            slot=INTERACTIVE if model_id is None else "inspection",
+            model_id=model_id,
+        )
 
     def _assign(
         self,
@@ -470,6 +500,7 @@ class RunStore:
         worker: str | None = None,
         pinned: bool = False,
         content: str | None = None,
+        model_id=None,
     ) -> AttemptKey:
         if type(slot) is not str or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", slot) is None:
             raise ValueError("Invalid slot name")
@@ -478,7 +509,12 @@ class RunStore:
         if slot == INTERACTIVE and worker is not None:
             raise ValueError("The interactive slot has no remote worker")
         with self._transaction() as db:
-            if not pinned:
+            if model_id is not None:
+                from simulatte.execution.project_store import latest_model_revision
+
+                if revision != latest_model_revision(db, model_id):
+                    raise RevisionConflict("Cannot assign obsolete model inputs")
+            elif not pinned:
                 if revision != self._current_revision(db):
                     raise RevisionConflict("Cannot assign an obsolete revision")
             elif (
@@ -520,6 +556,8 @@ class RunStore:
                     worker,
                 ),
             )
+            if model_id is not None:
+                db.execute("INSERT INTO attempt_models VALUES (?,?)", (key.attempt_id, model_id))
             db.execute("UPDATE state SET generation=? WHERE singleton=1", (key.generation,))
             db.execute("UPDATE slots SET generation=?,active=? WHERE name=?", (key.generation, key.attempt_id, slot))
             return key

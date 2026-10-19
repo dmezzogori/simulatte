@@ -168,13 +168,24 @@ class Coordinator:
         slots: SlotConfig | None = None,
         _store_root=None,
         _runtime=None,
+        _store=None,
     ):
         self.project = project
         self.reference = reference or project.model
         self.slots = SlotConfig() if slots is None else slots
         if type(self.slots) is not SlotConfig:
             raise ValueError("slots must be a SlotConfig")
-        self.store = RunStore.open(project.root / ".simulatte" if _store_root is None else _store_root)
+        self._owns_store = _store is None
+        self.store = (
+            _store
+            if _store is not None
+            else RunStore.open(project.root / ".simulatte" if _store_root is None else _store_root)
+        )
+        self.contexts = {}
+        self.environments = None
+        self._inspection_lock = threading.RLock()
+        self._auto_owners = {}
+        self._inspection_cache = {}
         try:
             self.runtime = (
                 freeze_runtime(Path(__file__).resolve().parents[1], project.root) if _runtime is None else _runtime
@@ -205,8 +216,118 @@ class Coordinator:
             self._add_workers(self.slots.workers)
         except BaseException:
             self._closed = True
-            self.store.close()
+            if self._owns_store:
+                self.store.close()
             raise
+
+    @classmethod
+    def for_workspace(cls, root, *, store, environments):
+        from simulatte.projects import load_workspace
+        from simulatte.execution.model_context import ModelContext
+        from simulatte.execution.project_store import ProjectStore
+
+        workspace = load_workspace(root)
+        if workspace is None:
+            raise ValueError("Configure a workspace before creating its coordinator")
+        selected = environments.selected
+        import sys
+
+        if selected is None:
+            raise ValueError("Prepare and select a project environment before execution")
+        if selected.interpreter.absolute() != Path(sys.executable).absolute():
+            raise ValueError("Restart Studio in the selected project interpreter before execution")
+        environments._verify(selected)
+        ProjectStore(store).register(workspace)
+        project = ProjectSpec(root, "__workspace__.py", "layout.json", (), (), (".",), False)
+        coordinator = cls(project, _store=store)
+        try:
+            coordinator.environments = environments
+            coordinator.contexts = {m.id: ModelContext(coordinator, m) for m in workspace.models}
+            actor = SlotActor(coordinator, "inspection", coordinator._transports["local"])
+            coordinator._actors["inspection"] = actor
+            actor.thread.start()
+            return coordinator
+        except BaseException:
+            coordinator.close()
+            raise
+
+    def prepare_model(self, model_id, *, timeout=None):
+        with self._inspection_lock:
+            context = self.contexts[model_id]
+            from simulatte.execution.snapshot import discover_project
+
+            context.project = discover_project(
+                context.project.root / context.project.model, context.project.root, layout=context.registration.layout
+            )
+            return context.prepare(timeout=timeout)
+
+    def inputs_for(self, model_id):
+        return self.contexts[model_id].inputs
+
+    def enable_auto(self, model_id):
+        import secrets
+
+        with self._condition:
+            token = secrets.token_hex(24)
+            self.contexts[model_id].auto_session = token
+            return token
+
+    def disable_auto(self, model_id):
+        with self._condition:
+            self.contexts[model_id].auto_session = None
+
+    def _owner(self):
+        for job in (self._pending, self._current):
+            if job is not None:
+                return job.key
+        return None
+
+    def admit_run(self, model_id, request, revision, *, auto_session=None):
+        from simulatte.execution.admission import Admission
+
+        with self._condition:
+            context = self.contexts[model_id]
+            if (
+                context.revision != revision
+                or request.model != context.reference
+                or request.layout_revision != revision.number
+            ):
+                return Admission("stale")
+            if auto_session is not None and context.auto_session != auto_session:
+                return Admission("stale")
+            owner = self._owner()
+            if owner is not None:
+                if auto_session is None or self._auto_owners.get(owner.attempt_id) != (model_id, auto_session):
+                    return Admission("busy", owner=owner)
+            else:
+                snapshot, documents = self._preparation(request)
+                key = self._schedule(request, revision, snapshot, documents, None, model_id=model_id)
+                if auto_session is not None:
+                    self._auto_owners[key.attempt_id] = (model_id, auto_session)
+                return Admission("started", key=key)
+        return self.stop_and_run(owner, model_id, request, revision, _auto_session=auto_session)
+
+    def stop_and_run(self, owner, model_id, request, revision, *, _auto_session=None):
+        from simulatte.execution.admission import Admission
+
+        with self._condition:
+            if self.contexts[model_id].revision != revision:
+                return Admission("stale")
+            if self._owner() != owner:
+                return Admission("busy", owner=self._owner())
+            generation = self.store.slots()[INTERACTIVE]["generation"]
+            if not self.cancel(owner):
+                return Admission("busy", owner=owner)
+        deadline = time.monotonic() + 10
+        with self._condition:
+            while self._current is not None and self._current.key == owner:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return Admission("busy", owner=owner)
+                self._condition.wait(remaining)
+            if self.store.slots()[INTERACTIVE]["generation"] != generation or self._owner() is not None:
+                return Admission("busy", owner=self._owner())
+            return self.admit_run(model_id, request, revision, auto_session=_auto_session)
 
     # The interactive slot's actor state, under the names Studio's lifecycle uses.
     @property
@@ -339,13 +460,14 @@ class Coordinator:
             return result
 
     def prepare(
-        self, *, timeout=None, expected: Revision | None = None, _on_revision=None, _project=None
+        self, *, timeout=None, expected: Revision | None = None, _on_revision=None, _project=None, _context=None
     ) -> PreparedModel:
+        store = self.store if _context is None else _context.store
         if self._closed:
             raise RuntimeError("Coordinator is closed")
-        if expected is not None and self.store.current_revision() != expected:
+        if expected is not None and store.current_revision() != expected:
             raise RevisionConflict("Preparation belongs to an obsolete revision")
-        project = self.project if _project is None else _project
+        project = (self.project if _context is None else _context.project) if _project is None else _project
         deadline = self._deadline(timeout)
         source = capture_source(project)
         self._remaining(deadline)
@@ -360,22 +482,44 @@ class Coordinator:
         }
         documents = {"runtime_ref": self._document("runtime", evidence), "layout_ref": self._document("layout", layer)}
         self._remaining(deadline)
-        inspection = InspectionRequest(model=self.reference, source_hash=source.content_hash, runtime=runtime)
+        inspection = InspectionRequest(
+            model=self.reference if _context is None else _context.reference,
+            source_hash=source.content_hash,
+            runtime=runtime,
+        )
         with self._condition:
-            revision = self.store.create_revision(
+            revision = store.create_revision(
                 {"source": source.content_hash, "layout": layout_hash("file", layer)}, expected=expected
             )
             if _on_revision is not None:
                 _on_revision(revision)
-            key = self._schedule(inspection, revision, source_only, documents, self._remaining(deadline))
-        metadata = self.wait(key, timeout=None if timeout is None else timeout + 5)
+            from simulatte.execution.schema import inspection_id
+
+            cache_key = inspection_id(inspection)
+            metadata = None if _context is None else self._inspection_cache.get(cache_key)
+            if metadata is None:
+                key = self._schedule(
+                    inspection,
+                    revision,
+                    source_only,
+                    documents,
+                    self._remaining(deadline),
+                    slot=INTERACTIVE if _context is None else "inspection",
+                    model_id=None if _context is None else _context.registration.id,
+                )
+        if metadata is None:
+            metadata = self.wait(key, timeout=None if timeout is None else timeout + 5)
+            if _context is not None:
+                if len(self._inspection_cache) >= 64:
+                    self._inspection_cache.clear()
+                self._inspection_cache[cache_key] = metadata
         selected = selected_model(metadata)
         snapshot = capture_inputs(source, tuple(selected["inputs"]))
         self._remaining(deadline)
         # Input discovery changes the source/data partition. Record that final
         # captured input state before a request can be assigned.
         with self._condition:
-            revision = self.store.create_revision(
+            revision = store.create_revision(
                 {
                     "source": snapshot.source.content_hash,
                     "inputs": snapshot.inputs.content_hash,
@@ -415,7 +559,11 @@ class Coordinator:
                     )
                     while True:
                         with self._condition:
-                            if self._closed or self.store.current_revision() != prepared.revision:
+                            from simulatte.execution.project_store import revision_is_current
+
+                            with self.store._transaction() as db:
+                                current = revision_is_current(self.store, db, prepared.revision)
+                            if self._closed or not current:
                                 preview.cancel(key)
                                 raise RevisionConflict("Layout preview was superseded")
                         poll_timeout = min(0.1, self._remaining(deadline))
@@ -470,7 +618,9 @@ class Coordinator:
     def _remember(self, prepared, request):
         manifest = self._preparation_manifest(prepared, request)
         with self.store._transaction() as db:
-            if prepared.revision != self.store._current_revision(db):
+            from simulatte.execution.project_store import revision_is_current
+
+            if not revision_is_current(self.store, db, prepared.revision):
                 raise RevisionConflict("Prepared model belongs to an obsolete revision")
             db.execute(
                 "INSERT OR REPLACE INTO snapshots VALUES (?,?,?)", (request_id(request), "preparation", _blob(manifest))
@@ -509,23 +659,31 @@ class Coordinator:
             raise ValueError("Timeout must be positive and finite")
         return None if timeout is None else time.monotonic() + timeout
 
-    def _schedule(self, request, revision, snapshot, documents, timeout, *, _preview=None, slot=INTERACTIVE):
+    def _schedule(
+        self, request, revision, snapshot, documents, timeout, *, _preview=None, slot=INTERACTIVE, model_id=None
+    ):
         deadline = self._deadline(timeout)
         with self._condition:
             if self._closed or self._fatal is not None:
                 raise RuntimeError("Coordinator is closed or has a storage failure; restart it")
             actor = self._actors.get(slot)
-            if actor is None or (slot != INTERACTIVE and isinstance(request, InspectionRequest)):
+            if actor is None or (slot not in (INTERACTIVE, "inspection") and isinstance(request, InspectionRequest)):
                 raise ValueError(f"Unknown execution slot {slot!r}")
             if isinstance(request, InspectionRequest):
-                key = self.store.assign_inspection(request, revision)
+                key = self.store.assign_inspection(request, revision, model_id=model_id)
             elif slot == INTERACTIVE:
-                key = self.store.assign(request, revision)
+                key = self.store.assign(request, revision, model_id=model_id)
             else:
                 # Never supersede a replication: an experiment slot takes one request only when idle.
                 if actor.current is not None or actor.pending is not None:
                     raise RuntimeError(f"Slot {slot} is busy")
                 key = self.store.assign(request, revision, slot=slot, worker=actor.host, pinned=True)
+            if self.environments is not None and self.environments.selected is not None:
+                try:
+                    self.environments.acquire(self.environments.selected.id, key.attempt_id)
+                except Exception:
+                    self.store.revoke(key, "failed")
+                    raise
             actor.pending = _Job(key, request, snapshot, documents, deadline, _preview)
             self._condition.notify_all()
         self._emit("queued", key, {} if slot == INTERACTIVE else {"slot": slot})
@@ -555,6 +713,8 @@ class Coordinator:
                         pass  # The actor will close the failed transport.
                 if actor.pending is not None and actor.pending.key == key:
                     actor.pending = None
+                    if self.environments is not None:
+                        self.environments.release(key.attempt_id)
             self._condition.notify_all()
         self._emit(event, key, details)
         return True
@@ -776,7 +936,7 @@ class Coordinator:
             raise TimeoutError("Attempt deadline expired during preparation")
         return remaining
 
-    def start_experiment(self, experiment, *, workers=None, timeout=None) -> str:
+    def start_experiment(self, experiment, *, workers=None, timeout=None, model_id=None) -> str:
         """Expand an experiment at a pinned preparation and dispatch it to the local and remote slots.
 
         ``workers`` names ``local`` and/or workers of ``workers.toml`` (default: the file's, else
@@ -801,20 +961,29 @@ class Coordinator:
         if "local" in names and not self.slots.local:
             raise ValueError("No local experiment slots are configured")
         self._deadline(timeout)
+        bound = (
+            (None if self._inputs is None else self._inputs._prepared)
+            if model_id is None
+            else self.inputs_for(model_id)._prepared
+        )
+        if bound is None:
+            prepared = (
+                self.prepare(timeout=timeout) if model_id is None else self.prepare_model(model_id, timeout=timeout)
+            )
+        else:
+            prepared = bound
         runtimes = {}
         if remote:
             from simulatte.execution.preflight import preflight
 
             checked = preflight(
-                self.project,
+                prepared.snapshot.source.project,
                 self.project.root / "uv.lock",
                 coordinator_python=self.python,
                 trusted_runtime_hash=self.runtime.content_hash,
             )
             self.preflight_warnings = list(checked.warnings)
             runtimes["uv"] = checked.spec
-        bound = None if self._inputs is None else self._inputs._prepared
-        prepared = self.prepare(timeout=timeout) if bound is None else bound
         if "local" in names:
             runtimes["local"] = prepared.runtime
         project = prepared.snapshot.source.project
@@ -841,6 +1010,11 @@ class Coordinator:
             "project": {**asdict(project), "root": str(self.project.root)},
             "workers": list(names),
         }
+        if self.environments is not None and self.environments.selected is not None:
+            preparation["environment"] = self.environments.selected.id
+            preparation["environment_evidence"] = _plain(self.environments.selected.evidence)
+        if model_id is not None:
+            preparation["model_id"] = model_id
         with self._condition:
             if self._closed or self._fatal is not None:
                 raise RuntimeError("Coordinator is closed or has a storage failure; restart it")
@@ -870,7 +1044,21 @@ class Coordinator:
         remote = [name for name in dict.fromkeys(names) if name != "local"]
         configured = self._worker_specs(remote)
         self._add_workers([configured[name] for name in remote])
-        self._scheduler.activate(run_id, timeout=timeout)
+        generation = record["preparation"].get("environment")
+        if generation is not None:
+            if (
+                self.environments is None
+                or self.environments.selected is None
+                or self.environments.selected.id != generation
+            ):
+                raise ValueError("Resume requires the experiment captured environment; reconstruct and select it first")
+            self.environments.acquire(generation, "experiment:" + run_id)
+        try:
+            self._scheduler.activate(run_id, timeout=timeout)
+        except BaseException:
+            if self.environments is not None:
+                self.environments.release("experiment:" + run_id)
+            raise
 
     def resume_experiment(self, run_id: str, *, timeout=None) -> None:
         """Dispatch a paused run's pending replications again (explicit only, D97)."""
@@ -932,7 +1120,8 @@ class Coordinator:
             raise RuntimeError("Coordinator shutdown did not finish")
         if not self._preview_done.wait(10):
             raise RuntimeError("Layout preview shutdown did not finish")
-        self.store.close()
+        if self._owns_store:
+            self.store.close()
 
     def __enter__(self):
         return self
@@ -1338,7 +1527,7 @@ class SlotActor:
                     job, self.pending = self.pending, None
                     if (
                         job is None
-                        and self.slot != INTERACTIVE
+                        and self.slot not in (INTERACTIVE, "inspection")
                         and not c._closed
                         and c._fatal is None
                         and time.monotonic() >= self.backoff_until
@@ -1349,6 +1538,10 @@ class SlotActor:
                     self._run_job(job)
                     with c._condition:
                         self.current = None
+                        c._auto_owners.pop(job.key.attempt_id, None)
+                        if c.environments is not None:
+                            c.environments.release(job.key.attempt_id)
+                        c._condition.notify_all()
                     if job.experiment is not None:
                         self._finish(job)
                     if self._unreachable is not None:

@@ -253,12 +253,21 @@ class Scheduler:
                         except BaseException:
                             self.store.revoke(key, "cancelled", details={"message": "Replication was not bound"})
                             raise
+                        record = self.store.experiment_run(run_id)
+                        model_id = record["preparation"].get("model_id")
+                        if model_id is not None:
+                            from simulatte.execution.project_store import ProjectStore
+
+                            ProjectStore(self.store).associate_attempt(key, model_id)
                         try:
                             snapshot, documents = coordinator._preparation(request)
                         except (ValueError, KeyError, OSError) as error:
                             coordinator._record_failure(key, "validation_failed", {"message": str(error)[:4096]})
                             self.on_terminal(key, "validation_failed")
                             continue
+                        generation = record["preparation"].get("environment")
+                        if generation is not None:
+                            coordinator.environments.acquire(generation, key.attempt_id)
                         job = _Job(
                             key, request, snapshot, documents, coordinator._deadline(run.timeout), experiment=run_id
                         )
@@ -334,6 +343,8 @@ class Scheduler:
             for configuration, index, key in dispatched:
                 if coordinator.cancel(key):
                     self.store.set_replication_status(run_id, configuration, index, "cancelled", attempt=key.attempt_id)
+            if coordinator.environments is not None:
+                coordinator.environments.release("experiment:" + run_id)
             self._progress(run_id)
 
     def pause(self) -> None:
@@ -343,6 +354,9 @@ class Scheduler:
                 for run_id in list(self._runs):  # Activated runs are running; others leave the registry.
                     self.store.set_run_status(run_id, "paused")
             finally:
+                if self.coordinator.environments is not None:
+                    for run_id in self._runs:
+                        self.coordinator.environments.release("experiment:" + run_id)
                 self._runs.clear()
 
     def _settle(self, run_id: str) -> None:
@@ -355,6 +369,8 @@ class Scheduler:
         # Lost replications here are terminal: a re-queueable one is pending again.
         self.store.set_run_status(run_id, "completed" if totals["succeeded"] or totals["reused"] else "failed")
         self._runs.pop(run_id, None)
+        if self.coordinator.environments is not None:
+            self.coordinator.environments.release("experiment:" + run_id)
         self.coordinator._condition.notify_all()
 
     def _progress(self, run_id: str) -> None:
