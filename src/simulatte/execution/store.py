@@ -226,6 +226,7 @@ class RunStore:
     def __init__(self, root: Path):
         self.root = Path(root).absolute()
         self._mutex = threading.RLock()
+        self._inspection_lock = threading.RLock()
         self._lock: Any = None
         self._db: sqlite3.Connection | None = None
         self._closed = False
@@ -286,7 +287,7 @@ class RunStore:
                     for step in range(version, cls.schema_version):
                         _MIGRATIONS[step](db)
                     db.execute(f"PRAGMA user_version={cls.schema_version}")
-            for name in ("snapshots", "staging", "results", "analysis-staging", "analysis-results"):
+            for name in ("snapshots", "staging", "results", "analysis-staging", "analysis-results", "analysis-control"):
                 _directory(store.root / name)
             store.recover()
             return store

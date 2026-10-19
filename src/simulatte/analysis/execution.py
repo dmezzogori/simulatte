@@ -101,7 +101,7 @@ class AnalysisRunner:
             for descriptor in row["artifacts"]:
                 if descriptor["path"] not in needed:
                     continue
-                source = self.store.root / "results" / row["attempt"] / descriptor["path"]
+                source = self.store.root / "results" / row["attempt"] / "artifacts" / descriptor["path"]
                 target = destination / row["attempt"] / descriptor["path"]
                 target.parent.mkdir(parents=True, exist_ok=True)
                 # The published descriptor is the sole authority for input bytes.
@@ -117,11 +117,18 @@ class AnalysisRunner:
             path.chmod(0o555)
         destination.chmod(0o555)
 
+    def _control(self, identity):
+        path = self.store.root / "analysis-control" / (identity + ".cancel")
+        if path.exists() and not path.is_symlink():
+            self.analysis.cancel(identity)
+            path.unlink()
+
     def _run(self, identity):
         directory = self.store.root / "analysis-staging" / identity
         child, acquired, drains = None, False, []
         diagnostics = bytearray()
         try:
+            self._control(identity)
             if not self._transition(identity, "waiting", "running"):
                 return
             item = self.analysis.execution(identity)
@@ -181,6 +188,7 @@ class AnalysisRunner:
                 self._processes[identity] = child
             deadline, cancelled_at = time.monotonic() + self.timeout, None
             while child.returncode is None:
+                self._control(identity)
                 if self.analysis.execution(identity).state == "cancelled" or time.monotonic() >= deadline:
                     if cancelled_at is None:
                         cancelled_at = time.monotonic()
@@ -213,6 +221,14 @@ class AnalysisRunner:
             try:
                 if child is not None:
                     child.close()
+            except (OSError, TimeoutError) as error:
+                # Cleanup failure is recorded even for cancellation; it must not
+                # escape wait() or turn already-cancelled work into success.
+                with self.store._transaction() as db:
+                    db.execute(
+                        "UPDATE analysis_executions SET details=? WHERE id=?",
+                        (codec.dumps({"cleanup_error": str(error)[-8192:]}), identity),
+                    )
             finally:
                 for thread in drains:
                     thread.join(5)

@@ -200,7 +200,12 @@ def test_dataset_inputs_are_private_verified_copies(prepared):
                 data = path.read_bytes()
                 db.execute(
                     "INSERT INTO artifacts VALUES (?,?,?,?)",
-                    (attempt, path.relative_to(result).as_posix(), len(data), hashlib.sha256(data).hexdigest()),
+                    (
+                        attempt,
+                        path.relative_to(result / "artifacts").as_posix(),
+                        len(data),
+                        hashlib.sha256(data).hexdigest(),
+                    ),
                 )
     (root / "report.py").write_text("""from simulatte.analysis.outputs import Number
 
@@ -282,3 +287,61 @@ def analyze(context, parameters):
         assert runner.wait(item.id).state == "cancelled"
     with pytest.raises(KeyError):
         analysis.output(item.id)
+
+
+def test_real_publisher_dataset_admission_and_child_execution(tmp_path):
+    from dataclasses import replace
+    import hashlib
+    from simulatte.analysis.datasets import DatasetWriter
+    from simulatte.analysis.definition import DatasetRequirement
+    from simulatte.analysis.types import DatasetSchema, Field
+    from tests.execution.test_publication import prepared as publication_fixture
+    from tests.execution.test_receipts import descriptor
+    from simulatte.execution.publication import publish as publish_result
+
+    store, key, proposal, receiver = publication_fixture(tmp_path, level="kpi", finalize=False)
+    with store:
+        dataset = tmp_path / "dataset"
+        writer = DatasetWriter(dataset, DatasetSchema("values", (Field("value", "int64"),)))
+        writer.append({"value": 2**60})
+        writer.finish()
+        artifacts = []
+        for sequence, file in enumerate(sorted(dataset.iterdir()), start=2):
+            data = file.read_bytes()
+            path = "datasets/values/" + file.name
+            receiver.receive(
+                descriptor(data, id=f"data-{sequence}", sequence=sequence, stream="artifact/" + path), 0, data
+            )
+            artifacts.append({"path": path, "length": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+        store.transition(key, "finalizing")
+        result = publish_result(
+            store, key, replace(proposal, artifacts=tuple(artifacts)), execution_exited=True, descendants_cleaned=True
+        )
+        assert (result.path / "artifacts/datasets/values/manifest.json").is_file()
+        analysis = AnalysisStore(store)
+        preview = analysis.preview(Selection(run_ids=(key.attempt_id,)))
+        assert preview.available == 1, analysis.snapshot(preview.snapshot_hash)
+        (tmp_path / "report.py").write_text("""from simulatte.analysis.outputs import Number
+
+def analyze(context, parameters):
+    context.emit('value', Number(next(context.rows('values'))['value']))
+""")
+        source = capture_source(ProjectSpec(tmp_path, "report.py", "layout.json", ("report.py",), (), (".",), False))
+        definition = analysis.put_definition(
+            AnalysisDefinition(
+                "published",
+                "report.py:analyze",
+                source.content_hash,
+                ParameterSchema(()),
+                (DatasetRequirement("values", ("value",)),),
+            ),
+            source=source,
+        )
+        environments = EnvironmentPool(tmp_path, store)
+        generation = environments.use_existing(sys.executable)
+        item = analysis.admit(preview.id, definition_id=definition, parameters={}, generation_id=generation.id)
+        with AnalysisRunner(store, environments=environments) as runner:
+            runner.submit(item.id)
+            assert runner.wait(item.id).state == "succeeded"
+        value = codec.loads((store.root / "analysis-results" / item.id / "value/number.json").read_bytes())
+        assert value["value"] == 2**60

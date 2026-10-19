@@ -183,7 +183,7 @@ class Coordinator:
         )
         self.contexts = {}
         self.environments = None
-        self._inspection_lock = threading.RLock()
+        self._inspection_lock = self.store._inspection_lock
         self._auto_owners = {}
         self._inspection_cache = {}
         try:

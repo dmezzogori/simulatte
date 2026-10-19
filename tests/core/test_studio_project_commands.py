@@ -83,11 +83,11 @@ def test_unknown_store_and_locked_writer_are_actionable(tmp_path):
         finally:
             service.close()
     with sqlite3.connect(tmp_path / ".simulatte/index.sqlite") as db:
-        db.execute("PRAGMA user_version=4")
+        db.execute("PRAGMA user_version=5")
     before = (tmp_path / ".simulatte/index.sqlite").read_bytes()
     service = m.ProjectService.open(StudioTarget(tmp_path, None))
     try:
-        assert "schema 4" in service.state()["error"]
+        assert "schema 5" in service.state()["error"]
         assert service.coordinator is None
     finally:
         service.close()

@@ -44,10 +44,13 @@ def main(argv: list[str] | None = None) -> int:
     from simulatte.execution.workers_cli import add_workers_arguments
 
     add_workers_arguments(commands.add_parser("workers", help="Configure and check remote workers"))
+    from simulatte.analysis.command import add_arguments as add_analysis_arguments
+
+    add_analysis_arguments(commands.add_parser("analysis", help="Run reproducible numerical analyses"))
     worker = commands.add_parser("worker", help=argparse.SUPPRESS)
     worker.add_argument("--stdio", action="store_true", required=True)
     commands._choices_actions = [action for action in commands._choices_actions if action.dest != "worker"]
-    commands.metavar = "{studio,run,experiment,view,replay,store,workers}"
+    commands.metavar = "{studio,run,experiment,analysis,view,replay,store,workers}"
     args = parser.parse_args(argv)
     if args.command == "run":
         from simulatte.execution.command import run as execute
@@ -57,6 +60,10 @@ def main(argv: list[str] | None = None) -> int:
         from simulatte.execution import command
 
         return {"experiment": command.experiment, "replay": command.replay, "store": command.store}[args.command](args)
+    if args.command == "analysis":
+        from simulatte.analysis.command import command
+
+        return command(args)
     if args.command == "workers":
         from simulatte.execution.workers_cli import workers
 
