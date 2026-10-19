@@ -695,6 +695,8 @@ class Coordinator:
             actor = self._actors.get(slot)
             if actor is None or (slot not in (INTERACTIVE, "inspection") and isinstance(request, InspectionRequest)):
                 raise ValueError(f"Unknown execution slot {slot!r}")
+            if slot == "inspection" and not isinstance(request, InspectionRequest):
+                raise ValueError("The inspection slot accepts only inspection requests")
             if isinstance(request, InspectionRequest):
                 key = self.store.assign_inspection(request, revision, model_id=model_id)
             elif slot == INTERACTIVE:
@@ -843,7 +845,9 @@ class Coordinator:
             (
                 name
                 for name, actor in actors
-                if name != INTERACTIVE and actor.kind == kind and (worker is not None or actor.host == host)
+                if name not in (INTERACTIVE, "inspection")
+                and actor.kind == kind
+                and (worker is not None or actor.host == host)
             ),
             key=lambda name: self._actors[name].host != host,
         )
