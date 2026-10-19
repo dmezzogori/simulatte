@@ -103,20 +103,29 @@ class _PE:
                 sections.append({"header": self.bytes(offset, 40).hex(), "payload": digest(payload)})
         if resource is None:
             raise ValueError("Windows launcher has no uv resources")
-        start, size, rva, _ = resource
+        start, size, rva, resource_header = resource
         if start + size != max(end for _, end in occupied):
             raise ValueError("Unsupported non-final uv resource section")
         alignment = self.unpack("<I", optional + 32)[0]
+        initialized_header = self.unpack("<I", optional + 8)[0]
+        # uv0.13.1/editpe0.2.4 appends .pedata without updating the original
+        # StandardHeader. That unchanged base value is meaningful evidence:
+        # validate it against the retained sections and keep it byte-for-byte.
+        preserved_initialized = (
+            self.bytes(resource_header, 8) == b".pedata\0" and initialized_header == initialized - size
+        )
         if (
             not alignment
             or alignment & (alignment - 1)
-            or self.unpack("<I", optional + 8)[0] != initialized
+            or (initialized_header != initialized and not preserved_initialized)
             or self.unpack("<I", optional + 56)[0] != (image_end + alignment - 1) // alignment * alignment
         ):
             raise ValueError("Invalid derived Windows launcher sizes")
         if any(self.bytes(start + resource_size, size - resource_size)):
             raise ValueError("Unsupported nonzero Windows resource padding")
-        for offset in (optional + 8, optional + 56, optional + 64, directories + 20):
+        if not preserved_initialized:
+            struct.pack_into("<I", header, optional + 8, 0)
+        for offset in (optional + 56, optional + 64, directories + 20):
             struct.pack_into("<I", header, offset, 0)
         # Parse logical resources, retaining unrelated names, metadata and content.
         resources = _Resources(self.bytes(start, resource_size), rva)

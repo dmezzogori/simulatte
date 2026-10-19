@@ -226,3 +226,38 @@ def test_unknown_archive_and_interposed_launcher_code_refuse():
         raw = b"MZcode#!" + python.encode() + b"\n" + (b"code\n" if b"not_main.py" not in zipped else b"") + zipped
         with pytest.raises(ValueError):
             identity(raw, python)
+
+
+@pytest.mark.parametrize("mode", ["console", "gui"])
+def test_current_uv_base_with_appended_editpe_resources(mode):
+    from pathlib import Path
+
+    # editpe0.2.4 preserves StandardHeader.SizeOfInitializedData when it appends
+    # .pedata after an existing .rsrc/.reloc pair. Retain that base header exactly.
+    base = (Path(__file__).parents[1] / "fixtures/launchers" / f"uv-0.13.1-x86_64-{mode}.bin").read_bytes()
+
+    def generated(python, body=b"print(1)\n"):
+        fixture = pe_launcher(python, body)
+        resource = bytearray(fixture[1024:])
+        size = struct.unpack_from("<I", fixture, 152 + 112 + 20)[0]
+        for i in range(3):
+            address = struct.unpack_from("<I", resource, 136 + i * 16)[0]
+            struct.pack_into("<I", resource, 136 + i * 16, address + 0x11000 - 0x2000)
+        output = bytearray(base)
+        pe = struct.unpack_from("<I", output, 60)[0]
+        optional = pe + 24
+        count = struct.unpack_from("<H", output, pe + 6)[0]
+        table = optional + 240 + count * 40
+        struct.pack_into("<H", output, pe + 6, count + 1)
+        struct.pack_into("<I", output, optional + 56, ((0x11000 + size + 4095) // 4096) * 4096)
+        struct.pack_into("<II", output, optional + 112 + 16, 0x11000, size)
+        output[table : table + 40] = struct.pack(
+            "<8sIIIIIIHHI", b".pedata\0", size, 0x11000, len(resource), len(output), 0, 0, 0, 0, 0x40000040
+        )
+        return bytes(output) + resource
+
+    a = r"C:\a\python.exe"
+    b = r"C:\Projects with spaces\Vénétó\Scripts\python.exe"
+    before = identity(generated(a), a)
+    assert before == identity(generated(b), b)
+    assert before != identity(generated(b, b"print(2)\n"), b)
