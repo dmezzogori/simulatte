@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import {createHash} from "node:crypto";
 import { resolve } from "node:path";
 import type { ExperimentReport, ExperimentRun } from "../apps/viewer/src/studio-client";
 
@@ -38,9 +39,21 @@ const state = {
   workers: { local: 1, workers: [], slots: [], error: null },
 };
 
-async function studio(page: Page, experiment?: {run: ExperimentRun; report: ExperimentReport}, delivery = "event") {
+async function studio(page: Page, experiment?: {run: ExperimentRun; report: ExperimentReport}, delivery = "event", host = "legacy") {
   const errors: string[] = [], sessions: (string | undefined)[] = [];
-  const currentState = {...state, experiments: experiment ? [experiment.run] : []};
+  const project = {name:"Replay ordering",id:"project",phase:"ready",read_only:false,error:null,
+    models:[{id:"model-a",key:"a",name:"Production",entrypoint:"plant.py:build",layout:"layout.json",revision:null,inputs:null,metadata:null,auto_session:null}],
+    history:[],active_run:null,generations:[],environment:null,preparation_progress:"",legacy_reference:null};
+  const currentState = {...state, experiments: experiment ? [experiment.run] : [], ...(host === "workspace" ? {project} : {})};
+  await page.route("**/api/state", route=>route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(currentState)}));
+  let release = () => {};
+  let delivered = false;
+  const held = new Promise<void>(resolve=>{release=resolve;});
+  const oldState = {...currentState,replays:[{...replayed,status:"succeeded",verified:false,reason:"old digest",trace:prefix("e")}]};
+  const bytes = Buffer.from(JSON.stringify(oldState)), digest = createHash("sha256").update(bytes).digest("hex");
+  await page.route("**/api/references/"+digest, async route=>{
+    await held; await route.fulfill({status:200,contentType:"application/json",body:bytes}); delivered=true;
+  });
   let publish = () => {};
   let comparisons = 0;
   page.on("pageerror", (error) => errors.push(error.message));
@@ -63,10 +76,15 @@ async function studio(page: Page, experiment?: {run: ExperimentRun; report: Expe
         comparisons++;
         socket.send(JSON.stringify({v: 1, type: "response", id: message.id, body: {ok: true, report: experiment.report}}));
       } else if (message.type === "replay.start") {
-        expect(message.body).toEqual({ request_id: "c".repeat(64) });
+        expect(message.body).toEqual({ request_id: "c".repeat(64), ...(host === "workspace" ? {model_id:"model-a"} : {}) });
         const notify = (type: string, body: unknown) => socket.send(JSON.stringify({ v: 1, type, event_seq: ++sequence, body }));
         const reply = () => socket.send(JSON.stringify({ v: 1, type: "response", id: message.id, body: { ok: true, request_id: replayed.request_id, original: replayed.original } }));
         if(delivery !== "snapshot-before-response") reply();
+        if(delivery.startsWith("old-")) {
+          notify("state", delivery === "old-reference" ? {ref:{id:digest,sha256:digest,length:bytes.length,url:"/api/references/"+digest}} : oldState);
+          notify("replay_state", {request_id:replayed.request_id,original:replayed.original,status:"running",verified:null});
+          return;
+        }
         notify("replay_state", { request_id: replayed.request_id, original: replayed.original, status: "running", verified: null });
         // The replay publishes but fails verification: the state lists it, unverified.
         notify("state", { ...state, replays: [{ ...replayed, status: "succeeded", verified: false, reason: "fingerprint digest", trace: prefix("e") }] });
@@ -90,7 +108,7 @@ async function studio(page: Page, experiment?: {run: ExperimentRun; report: Expe
       body: data.subarray(start!, end! + 1),
     });
   });
-  return { errors, sessions, publish: () => publish(), comparisons: () => comparisons };
+  return { errors, sessions, publish: () => publish(), comparisons: () => comparisons, release:()=>release(), delivered:()=>delivered };
 }
 const times = (page: Page) =>
   page.evaluate(() =>
@@ -218,5 +236,23 @@ for(const delivery of ["snapshot", "snapshot-before-response"]) {
     await page.getByLabel("Include unverified replays").check();
     await expect(page.locator('.compare-scene[data-side="A"] canvas')).toHaveCount(1);
     expect(errors).toEqual([]);
+  });
+}
+
+for(const host of ["legacy", "workspace"]) for(const delivery of ["old-inline", "old-reference"]) {
+  test(`${host} keeps newer replay running after older state (${delivery})`, async ({page}) => {
+    const proof = await studio(page, undefined, delivery, host);
+    await page.goto("/");
+    if(host === "workspace") await page.getByRole('link',{name:'Experiments',exact:true}).click();
+    await page.getByText("Compare", {exact:true}).click();
+    await page.getByLabel("Side A recording").selectOption(attempt("c"));
+    await page.getByRole("button", {name:"Replay at full level",exact:true}).click();
+    await expect(page.getByText("Replay running at full level…")).toBeVisible();
+    proof.release();
+    if(delivery === "old-reference") await expect.poll(proof.delivered).toBe(true);
+    await expect(page.getByText("1 unverified replay(s) hidden")).toBeVisible();
+    await expect(page.getByText("Replay running at full level…")).toBeVisible();
+    await expect(page.locator('.compare-scene[data-side="A"] canvas')).toHaveCount(0);
+    expect(proof.errors).toEqual([]);
   });
 }

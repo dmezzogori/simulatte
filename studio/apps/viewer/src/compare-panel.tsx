@@ -38,7 +38,8 @@ export class ReplayNotifications {
   latest(identity: string): ReplayState | undefined {return this.#latest.get(identity);}
   notification(message: Notification): void {
     if(this.#closed || message.type !== 'replay_state') return;
-    const order = ++this.#order;
+    const order = message.arrival ?? this.#order + 1;
+    this.#order = Math.max(this.#order, order);
     if(object(message.body) && object(message.body.ref) && this.resolve) {
       void this.resolve(message.body.ref as unknown as Reference).then(body => {
         if(!this.#closed && order > this.#observed) this.apply(body, order);
@@ -53,9 +54,10 @@ export class ReplayNotifications {
     while(this.#latest.size > 64) {const id = this.#latest.keys().next().value!; this.#latest.delete(id); this.#orders.delete(id);}
     for(const listener of [...this.#listeners]) listener(value);
   }
-  observe(rows: readonly ReplayEntry[]): void {
-    this.#observed = ++this.#order;
-    for(const row of rows) this.apply({...row,message:row.reason ?? undefined}, this.#observed);
+  observe(rows: readonly ReplayEntry[], arrival = this.#order + 1): void {
+    this.#order = Math.max(this.#order, arrival);
+    this.#observed = Math.max(this.#observed, arrival);
+    for(const row of rows) this.apply({...row,message:row.reason ?? undefined}, arrival);
   }
   subscribe(listener: (state: ReplayState) => void): () => void {
     this.#listeners.add(listener);

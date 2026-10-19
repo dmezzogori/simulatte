@@ -34,7 +34,8 @@ export class ExperimentFeed {
   };
   notification(message: Notification): void {
     if (this.#closed || (message.type !== 'experiment_progress' && message.type !== 'workers_state')) return;
-    const body = message.body, order = ++this.#arrival;
+    const body = message.body, order = message.arrival ?? this.#arrival + 1;
+    this.#arrival = Math.max(this.#arrival, order);
     if (object(body) && Object.keys(body).length === 1 && object(body.ref)) {
       if (!this.resolve) return;
       void this.resolve(body.ref as unknown as Reference).then(value => this.apply(message.type, order, value)).catch(() => {});
@@ -56,10 +57,12 @@ export class ExperimentFeed {
    * An authoritative `state` arrived: it supersedes every earlier progress and worker notification.
    * Run ids are content-derived, so a deleted, re-created or restarted run must not keep old counts.
    */
-  observe(): void {
+  observe(arrival = this.#arrival + 1): void {
     if (this.#closed) return;
-    this.#listed = ++this.#arrival;
-    this.#progress.clear(); this.#workers = null;
+    this.#arrival = Math.max(this.#arrival, arrival);
+    this.#listed = Math.max(this.#listed, arrival);
+    for(const [run, item] of this.#progress) if(item.seq <= this.#listed) this.#progress.delete(run);
+    if(this.#workers && this.#workers.seq <= this.#listed) this.#workers = null;
     if (this.#timer !== null) clearTimeout(this.#timer);
     this.flush();
   }
