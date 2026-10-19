@@ -34,6 +34,7 @@ from simulatte.provenance import (
 from simulatte.rng import BindingKind, CountingRandom, DrawCounter, derive_seed, resolve_binding
 
 if TYPE_CHECKING:  # pragma: no cover
+    from simulatte.analysis.measurements import MeasurementPlan
     from simulatte.kpi import Collector
     from simulatte.trace.writer import TraceRecorder
 
@@ -122,6 +123,8 @@ class Environment(simpy.Environment):
         self._requested: FrozenMap | None = None
         self._requested_inputs: tuple[int, str | None, Provenance | None, float] | None = None
         self._warmup = 0.0
+        self.measurements: MeasurementPlan | None = None
+        self.measurements_output_dir: Path | None = None
         self._collectors: list[Collector] = []  # attached KPI collectors, in attachment order
         self._stopping_policy: Wire | None = None
         self._wall_clock_start: str | None = None
@@ -522,6 +525,17 @@ class Environment(simpy.Environment):
     # -------------------------------------------------------------------------
     # KPIs
     # -------------------------------------------------------------------------
+
+    def configure_measurements(self, plan: MeasurementPlan, *, output_dir: Path | None = None) -> None:
+        """Select declared measurements before activation; an empty plan disables collection."""
+        from simulatte.analysis.measurements import MeasurementPlan
+
+        if self._activation_started:
+            raise RuntimeError("configure_measurements() must be called before activation")
+        if not isinstance(plan, MeasurementPlan):
+            raise TypeError("Expected a MeasurementPlan")
+        self.measurements = plan
+        self.measurements_output_dir = Path(output_dir) if output_dir is not None else self.artifacts_dir
 
     def configure_kpis(self, *, warmup: float = 0.0) -> None:
         """Set the warm-up of the KPI observation window (spec §12.2), recorded in the requested manifest.

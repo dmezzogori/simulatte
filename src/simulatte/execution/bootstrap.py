@@ -50,6 +50,11 @@ def load_model(reference: str, roots: tuple[Path, ...], *, source_root: Path | N
                 "description": metadata.description,
                 "parameters": metadata.schema.to_dict(),
                 "inputs": list(metadata.inputs),
+                **(
+                    {"measurement_plans": [p.to_dict() for p in metadata.measurement_plans]}
+                    if metadata.measurement_plans
+                    else {}
+                ),
                 "time_unit": metadata.time_unit,
                 "stopping": metadata.stop.to_dict()
                 if metadata.stop is not None
