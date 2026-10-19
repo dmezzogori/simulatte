@@ -82,10 +82,12 @@ Build/package assets before tests that require the installed wheel; do not alter
 
 ## Bigboss execution handoff
 
-- [ ] Review these plans and select the execution method before implementation. Recommend native execution per package with an independent package review: tasks share store/runtime interfaces, so a continuous implementation context is useful; preserve separate review at risky boundaries.
-- [ ] Use a dedicated worktree on bigboss from the exact committed planning branch. Check `git status`, `git rev-parse HEAD` and the spec revision before starting. Preserve `/Users/davide/Developer/simulatte` and the existing native-engine worktree.
-- [ ] Initialize the existing Homebrew/fnm tools in non-interactive SSH; use installed Node 24 and the repository-pinned pnpm. Sync the project's Python environment and TypeScript lockfile in this worktree only.
-- [ ] Establish the baseline on bigboss, record commands/results and distinguish failures already present on `d3e17e6` from new work. Start P1 T1 only after plan review and baseline triage.
+- [x] Review these plans and select the execution method before implementation. Recommend native execution per package with an independent package review: tasks share store/runtime interfaces, so a continuous implementation context is useful; preserve separate review at risky boundaries.
+- [x] Use a dedicated worktree on bigboss from the exact committed planning branch. Check `git status`, `git rev-parse HEAD` and the spec revision before starting. Preserve `/Users/davide/Developer/simulatte` and the existing native-engine worktree.
+- [x] Initialize the existing Homebrew/fnm tools in non-interactive SSH; use installed Node 24 and the repository-pinned pnpm. Sync the project's Python environment and TypeScript lockfile in this worktree only.
+- [x] Establish the baseline on bigboss, record commands/results and distinguish failures already present on `d3e17e6` from new work. Start P1 T1 only after plan review and baseline triage.
 - [ ] At every package handoff record branch/commit, tests, browser evidence, accepted deviations and next task in Cortex. Keep plan checkboxes synchronized with actual evidence. No deployment, release or remote Herdr agent is started by this document.
 
-The concrete prepared checkout and commit are recorded in the handoff checkpoint, avoiding a self-referential commit hash in this file.
+P1 prerequisite evidence: Davide's approval `session-05fa3802-37e9-4cc3-a775-17bf24805322`, accepted persistent execution method `session-f4330bcd-95ba-48de-a778-c540b63823cd`, corrected w2E locator `session-f063c8f8-a419-4799-b14b-7f304669253f`, and prepared checkout/baseline `session-2c448970-eade-4135-8102-6690dd49d234`. The isolated checkout started clean at `a80ece3020562b4a700faa4fb7e6d1c0fefaadad`; Node 24.13.0, uv 0.13.1 and Python 3.14.3 were prepared there. Baseline: 437 TypeScript tests/typecheck/build and 118 targeted Python tests passed, not full coverage or platform acceptance. Saved baseline log: `/Users/davide/.local/state/simulatte/handoffs/2026-10-19-studio-a80ece3-baseline.log`, SHA-256 `f9dcda96815e121bd51c01889ffacccb2934d171d1d7d3a6bfd94e56a50ede97`.
+
+P1's current evidence and conditional independent code approval are recorded in [its acceptance report](../specs/research/2026-10-19-studio-p1-acceptance.md). The recurring handoff obligation above remains open for future packages; no P2–P4 gate is completed by this update.
