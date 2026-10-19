@@ -1046,6 +1046,8 @@ class RunStore:
         The index transaction commits first; directories are removed afterwards, so an
         interrupted prune leaves only unindexed directories that ``recover`` removes.
         Analysis previews no execution admitted are removed with their unused input snapshots.
+        Derived table indexes under ``analysis-cache`` are removed entirely; readers rebuild them on
+        demand. ``recover`` leaves them alone.
         """
         with self._transaction() as db:
             attempts = self._unreferenced(db)
@@ -1080,6 +1082,9 @@ class RunStore:
             self._remove_results(attempts)
             for name in snapshots:
                 _remove(self.root / "snapshots" / name)
+            cache = self.root / "analysis-cache"
+            if cache.exists() or cache.is_symlink():
+                _remove(cache)
         return {"results": attempts, "snapshots": snapshots}
 
     def delete_experiment_run(self, run_id: str) -> dict:

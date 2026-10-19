@@ -378,6 +378,10 @@ class ProjectService:
                 "read_only": self.read_only,
                 "error": self.error,
                 "models": models,
+                "analyses": [
+                    {"key": a.key, "id": a.id, "name": a.name, "entrypoint": a.entrypoint}
+                    for a in (() if self.workspace is None else self.workspace.analyses)
+                ],
                 "history": history,
                 "active_run": active,
                 "generations": generations,

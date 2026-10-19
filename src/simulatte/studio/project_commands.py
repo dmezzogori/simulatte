@@ -16,8 +16,10 @@ from starlette.routing import Route, WebSocketRoute
 
 from simulatte.execution.schema import AttemptKey, Revision
 from simulatte.execution.store import RevisionConflict, _read
+from simulatte.studio import analysis_http
+from simulatte.studio.analysis_commands import AnalysisCommands
 from simulatte.studio.app import StudioServer
-from simulatte.studio.auth import SessionAuth, response_headers
+from simulatte.studio.auth import FRAME_CSP, SessionAuth, response_headers
 from simulatte.studio.http import References, ImmutableFile, RangeSource, parse_range
 from simulatte.studio.websocket import CommandCache, ConnectionHub, EXPERIMENT_COMMANDS
 
@@ -36,6 +38,7 @@ class ProjectServer(StudioServer):
         self._monitors = {}
         self._tasks = []
         self._experiments = {}
+        self.analysis = AnalysisCommands(service)
         self.app = Starlette(
             routes=[
                 WebSocketRoute("/ws", self.hub.handle),
@@ -141,6 +144,9 @@ class ProjectServer(StudioServer):
                         self._tasks.append(asyncio.create_task(monitor.run()))
                 for event in co.events():
                     self.hub.notify(event["type"], self._body(event["body"]), key=event["key"])
+            if self.analysis.watching():
+                for body in await asyncio.to_thread(self.analysis.changes):
+                    self.hub.notify("analysis_state", body)
             if self.hub.connections:
                 await self._broadcast_state()
             if self.service.restart_generation is not None and self.on_restart is not None:
@@ -215,6 +221,8 @@ class ProjectServer(StudioServer):
             return ExperimentCommands(SimpleNamespace(store=store))(
                 kind, {key: value for key, value in body.items() if key != "model_id"}
             )
+        if kind.startswith("analysis."):
+            return self.analysis(kind, body)
         service._writable()
         if kind == "history.annotate":
             from simulatte.execution.project_store import ProjectStore
@@ -373,6 +381,14 @@ class ProjectServer(StudioServer):
                 return JSONResponse(result, headers=headers)
             except (ValueError, KeyError, TypeError) as error:
                 return JSONResponse({"ok": False, "error": {"message": str(error)}}, status_code=400, headers=headers)
+        if request.method in ("GET", "HEAD") and path.startswith("api/analysis/"):
+            return await analysis_http.handle(self, request, path)
+        if request.method in ("GET", "HEAD") and path.rpartition("/")[2] == "plotly-frame.html":
+            # The sandboxed figure frame may be embedded by Studio; it loads only the local renderer.
+            response = await super().request(request)
+            if response.status_code == 200:
+                response.headers["Content-Security-Policy"] = FRAME_CSP
+            return response
         if path.startswith("api/artifacts/"):
             headers = response_headers()
             if not self.headers_valid(request) or not self.authenticated(request):
