@@ -58,14 +58,14 @@ export class ProjectFixture {
       { stdio: "pipe" },
     );
   }
-  async launch(target = this.root) {
+  async launch(target = this.root, environment: NodeJS.ProcessEnv = {}) {
     this.links = [];
     this.child = spawn(
       this.executable,
       ["studio", target, "--port", "0", "--no-browser"],
       {
         cwd: this.root,
-        env: { ...process.env, PYTHONUNBUFFERED: "1" },
+        env: { ...process.env, ...environment, PYTHONUNBUFFERED: "1" },
         stdio: ["ignore", "pipe", "pipe"],
       },
     );

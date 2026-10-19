@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { writeFile, readFile, mkdir, rm, readdir } from "node:fs/promises";
+import { writeFile, readFile, mkdir, rm, readdir, chmod } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { ProjectFixture } from "./project-fixture";
@@ -304,4 +304,28 @@ test("two models keep drafts and explicit busy ownership across navigation", asy
   } finally {
     await fixture.close();
   }
+});
+
+
+test("workspace cancels pending environment preparation from the same tab", async ({page}) => {
+  test.setTimeout(90000);
+  test.skip(process.platform === "win32", "POSIX executable uv shim; cancellation API is tested separately");
+  const fixture = new ProjectFixture();
+  try {
+    await fixture.setup();
+    const bin = join(fixture.directory, "slow-uv");
+    await mkdir(bin);
+    const executable = join(bin, "uv");
+    await writeFile(executable, `#!${fixture.python}\nimport time\nprint("Waiting for cancellation", flush=True)\ntime.sleep(30)\n`);
+    await chmod(executable, 0o755);
+    await page.goto(await fixture.launch(fixture.root, {PATH: bin + ":" + process.env.PATH}));
+    await page.getByRole("button", {name: "Production", exact: false}).click();
+    await page.getByRole("button", {name: "Apply changes", exact: true}).click();
+    await page.getByRole("button", {name: "Prepare environment", exact: true}).click();
+    await expect(page.locator("pre").filter({hasText: "Waiting for cancellation"})).toBeAttached({timeout: 15000});
+    await page.getByRole("button", {name: "Cancel preparation", exact: true}).click();
+    await expect(page.getByRole("alert")).toContainText(/cancel/i, {timeout: 10000});
+    await expect(page.getByRole("button", {name: "Prepare environment", exact: true})).toBeEnabled();
+    await expect(page.getByRole("button", {name: "Use environment and restart"})).toHaveCount(0);
+  } finally { await fixture.close(); }
 });

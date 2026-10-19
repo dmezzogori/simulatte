@@ -161,9 +161,11 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
         old = files.get("uv.lock")
         return ConfigEdit(self.root / "uv.lock", None if old is None else hashlib.sha256(old).hexdigest(), proposed)
 
-    def prepare(self, workspace: WorkspaceDefinition, *, lock_update=False):
+    def prepare(self, workspace: WorkspaceDefinition, *, lock_update=False, reset_cancel=True):
         with self._mutex:
-            self._cancelled.clear()
+            # ProjectService establishes its operation before dispatch so early cancel is retained.
+            if reset_cancel:
+                self._cancelled.clear()
             if lock_update or not (self.root / "uv.lock").is_file():
                 raise LockPreviewRequired(self.preview_lock(workspace))
             files = self._files(workspace)

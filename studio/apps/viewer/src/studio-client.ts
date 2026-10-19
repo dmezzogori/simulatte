@@ -248,6 +248,12 @@ export class StudioClient {
       try {socket.send(raw);} catch (error) {clearTimeout(timer); this.#pending.delete(id); reject(error);}
     });
   }
+  async cancelPreparation(operationId: string): Promise<void> {
+    const response = await (this.options.fetch ?? fetch)(new URL('/api/environment/cancel/' + encodeURIComponent(operationId), this.origin), {
+      method: 'PUT', headers: {'X-Simulatte-Session': this.secret}, credentials: 'same-origin', redirect: 'error', signal: this.#abort.signal,
+    });
+    if (!response.ok) throw new Error('Environment cancellation failed; check the preparation log');
+  }
   async resync(): Promise<void> {
     const sequence = this.#sequence;
     const result = await this.command('state.get');
