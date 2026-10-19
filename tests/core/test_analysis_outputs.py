@@ -132,7 +132,7 @@ def test_plotly_data_only_roundtrip(tmp_path):
 
     fig = go.Figure(data=go.Bar(x=["A"], y=[3]))
     saved = save_figure(fig, tmp_path, name="plot")
-    assert saved.kind == "plotly" and saved.renderer["name"] == "plotly"
+    assert saved.kind == "plotly" and saved.renderer["name"] == "plotly.js"
     ctx = context(tmp_path)
     ctx.emit("plot", saved)
     ctx.finish("execution", {})
@@ -147,7 +147,7 @@ def test_saved_outputs_without_plot_dependencies(tmp_path, monkeypatch):
     image = tmp_path / "tiny.png"
     image.write_bytes(b"\x89PNG\r\n\x1a\n")
     ctx.emit("image", Image(image, "image/png"))
-    ctx.emit("spec", Figure("plotly", {"data": [], "layout": {}}, renderer={"name": "plotly", "version": "test"}))
+    ctx.emit("spec", Figure("plotly", {"data": [], "layout": {}}, renderer={"name": "plotly.js", "version": "test"}))
     ctx.finish("execution", {})
     for name in ("matplotlib", "seaborn", "plotly", "pandas", "numpy"):
         monkeypatch.setitem(sys.modules, name, None)
@@ -196,3 +196,14 @@ def test_output_paths_and_budgets_are_enforced(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "MAX_MANIFEST_BYTES", 1)
     with pytest.raises(ValueError, match="4 MiB"):
         context(tmp_path / "document").emit("value", Number(1))
+
+
+def test_plotly_renderer_identity_is_javascript_not_python_producer(tmp_path):
+    import plotly
+    import plotly.graph_objects as go
+    from plotly.offline import get_plotlyjs_version
+
+    saved = save_figure(go.Figure(), tmp_path, name="renderer")
+    assert saved.renderer == {"name": "plotly.js", "version": get_plotlyjs_version()}
+    assert saved.metadata["adapter"] == "plotly"
+    assert saved.metadata["adapter_version"] == plotly.__version__

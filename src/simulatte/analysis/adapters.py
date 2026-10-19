@@ -22,13 +22,14 @@ def save_figure(figure: object, output_dir: Path, *, name: str) -> Figure:
     module = type(figure).__module__.split(".")[0]
     if module == "plotly":
         import plotly
+        from plotly.offline import get_plotlyjs_version
 
         payload = json.loads(figure.to_json())
         return Figure(
             "plotly",
             payload,
-            {"adapter": "plotly", "representation": "figure_specification"},
-            {"name": "plotly", "version": plotly.__version__},
+            {"adapter": "plotly", "adapter_version": plotly.__version__, "representation": "figure_specification"},
+            {"name": "plotly.js", "version": get_plotlyjs_version()},
         )
     if module in ("matplotlib", "seaborn"):
         import matplotlib
