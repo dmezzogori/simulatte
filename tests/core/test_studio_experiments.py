@@ -20,7 +20,7 @@ from simulatte.studio import app as studio_app
 from simulatte.studio.app import StudioServer
 from simulatte.studio.watcher import ProjectWatcher
 from simulatte.studio.websocket import ConnectionHub, Peer
-from tests.core.test_studio_live import auth, wait_state
+from tests.core.test_studio_live import auth, start_run, wait_state
 from tests.execution.test_coordinator import MODEL
 
 # MODEL plus a `cell/count` KPI (scalar and series, two samples per run) and a `delay` parameter.
@@ -142,6 +142,7 @@ def test_define_start_progress_compare_results_and_lifecycle(tmp_path, monkeypat
     try:
         with TestClient(server.app, base_url=server.origin) as client:
             headers = auth(server, client)
+            start_run(server, client, headers)
             state = wait_state(client, headers, lambda value: bool(value["results"]))
             assert state["experiments"] == [] and state["replays"] == []
             assert [slot["name"] for slot in state["workers"]["slots"]] == ["local-1"]
@@ -281,7 +282,7 @@ def test_define_rejections_and_external_edits_notify(tmp_path, monkeypatch):
     (root / "linked").symlink_to(tmp_path / "outside")
     try:
         with TestClient(server.app, base_url=server.origin) as client:
-            wait_state(client, auth(server, client), lambda value: bool(value["results"]))
+            wait_state(client, start_run(server, client, auth(server, client)), lambda value: bool(value["results"]))
             socket = Socket(server, client)
             try:
                 for path in (
@@ -366,6 +367,7 @@ def test_unknown_worker_replay_series_and_interactive_filtering(tmp_path, monkey
     try:
         with TestClient(server.app, base_url=server.origin) as client:
             headers = auth(server, client)
+            start_run(server, client, headers)
             state = wait_state(client, headers, lambda value: bool(value["results"]))
             interactive = state["results"][0]["key"]
             socket = Socket(server, client)
@@ -472,6 +474,7 @@ def test_duplicate_replay_start_returns_the_running_replay(tmp_path, monkeypatch
     try:
         with TestClient(server.app, base_url=server.origin) as client:
             headers = auth(server, client)
+            start_run(server, client, headers)
             original = wait_state(client, headers, lambda value: bool(value["results"]))["results"][0]["key"]
             release = threading.Event()
             wait = coordinator.wait

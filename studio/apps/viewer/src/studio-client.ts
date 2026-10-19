@@ -1,3 +1,4 @@
+import {validateProjectState, type ProjectState} from './workspace/state';
 /** Data-only authenticated transport. Reconnect reconciles; mutations are never replayed. */
 export interface Revision {number: number; digest: string;}
 export interface AttemptKey {request_id: string; attempt_id: string; generation: number;}
@@ -5,6 +6,7 @@ export interface Reference {id: string; url: string; length: number; sha256: str
 export interface Prefix {last_cursor?: readonly [number, number] | null; attempt: string; generation: number; length: number; sha256: string; url: string;}
 export interface View {revision: Revision; key: AttemptKey; committed: boolean; layout: Reference;}
 export interface StudioState {
+  project?: ProjectState;
   revision: Revision | null;
   inputs: {options: Record<string, unknown>; issues: Record<string, unknown>} | null;
   startup: {phase: string; error: unknown};
@@ -47,7 +49,8 @@ export interface ExperimentReport {
 export interface SeriesEntry {attempt: string; series: Record<string, {points: [number, number, number | null][]; truncated: boolean}>;}
 /** Experiment commands fence on run ids and store state; their revision may be omitted. */
 export type ExperimentCommand = 'experiment.define' | 'experiment.start' | 'experiment.cancel' | 'experiment.resume' | 'experiment.delete' | 'comparison.get' | 'series.get' | 'replay.start' | 'workers.get';
-export type Command = 'project.rescan' | 'state.get' | 'params.set' | 'run.start' | 'run.cancel' | 'layout.get' | 'layout.validate' | 'layout.write' | 'view.select' | ExperimentCommand;
+export type ProjectCommand = 'project.get' | 'project.configure' | 'model.prepare' | 'environment.prepare' | 'environment.select' | 'history.get' | 'history.annotate' | 'run.get' | 'run.stop_and_run' | 'model.auto';
+export type Command = ProjectCommand | 'project.rescan' | 'state.get' | 'params.set' | 'run.start' | 'run.cancel' | 'layout.get' | 'layout.validate' | 'layout.write' | 'view.select' | ExperimentCommand;
 export type NotificationType = 'state' | 'model_info' | 'revision_changed' | 'run_state' | 'progress' | 'trace_available' | 'kpi' | 'layout_resolved' | 'validation' | 'inputs_changed' | 'invalidated' | 'error'
   | 'experiment_state' | 'experiment_progress' | 'replay_state' | 'workers_state' | 'experiments_changed';
 export type ConnectionStatus = 'connecting' | 'synchronizing' | 'connected' | 'reconnecting' | 'authentication_required' | 'disposed';
@@ -196,6 +199,7 @@ export class StudioClient {
         if (!this.current(socket, epoch)) return;
         if (this.#statePending !== undefined) continue;
         if (!object(state) || !('revision' in state) || !Array.isArray(state.results) || !object(state.startup)) throw new Error('Invalid Studio state');
+        if (state.project !== undefined) validateProjectState(state.project);
         this.state = state as unknown as StudioState;
         this.#delay = 1000; this.statusChanged('connected'); this.options.onState?.(this.state);
       }
@@ -239,7 +243,7 @@ export class StudioClient {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.#pending.delete(id); reject(new Error('Command outcome is unknown; resynchronize before trying again'));
-      }, 30000);
+      }, type === 'environment.prepare' ? 660000 : 30000);
       this.#pending.set(id, {resolve, reject, timer});
       try {socket.send(raw);} catch (error) {clearTimeout(timer); this.#pending.delete(id); reject(error);}
     });
@@ -252,18 +256,18 @@ export class StudioClient {
     const socket = this.#socket;
     if (socket && sequence === this.#sequence) {this.#statePending = result.state; if (!this.#stateReading) await this.readState(socket, this.#epoch);}
   }
-  async writeLayout(layer: Record<string, unknown>, revision: Revision, signal?: AbortSignal): Promise<Record<string, unknown>> {
-    return this.layoutCommand(false, layer, revision, signal);
+  async writeLayout(layer: Record<string, unknown>, revision: Revision, signal?: AbortSignal, modelId?: string): Promise<Record<string, unknown>> {
+    return this.layoutCommand(false, layer, revision, signal, modelId);
   }
-  async validateLayout(layer: Record<string, unknown>, revision: Revision, signal?: AbortSignal): Promise<Record<string, unknown>> {
-    return this.layoutCommand(true, layer, revision, signal);
+  async validateLayout(layer: Record<string, unknown>, revision: Revision, signal?: AbortSignal, modelId?: string): Promise<Record<string, unknown>> {
+    return this.layoutCommand(true, layer, revision, signal, modelId);
   }
-  private async layoutCommand(validate: boolean, layer: Record<string, unknown>, revision: Revision, signal?: AbortSignal): Promise<Record<string, unknown>> {
+  private async layoutCommand(validate: boolean, layer: Record<string, unknown>, revision: Revision, signal?: AbortSignal, modelId?: string): Promise<Record<string, unknown>> {
     if (this.status !== 'connected') throw new Error('Studio must synchronize before editing');
     const raw = serialize(layer, 16 << 20);
     const response = await (this.options.fetch ?? fetch)(new URL(validate ? '/api/layout/validate' : '/api/layout', this.origin), {
       method: 'PUT', headers: {'X-Simulatte-Session': this.secret, 'Content-Type': 'application/json',
-        'X-Simulatte-Revision': JSON.stringify(revision), 'X-Simulatte-Command': crypto.randomUUID()},
+        'X-Simulatte-Revision': JSON.stringify(revision), 'X-Simulatte-Command': crypto.randomUUID(), ...(modelId ? {'X-Simulatte-Model':modelId} : {})},
       body: raw, credentials: 'same-origin', redirect: 'error', signal: signal ?? null,
     });
     const result: unknown = await this.expand(await response.json(), signal ?? this.#abort.signal);

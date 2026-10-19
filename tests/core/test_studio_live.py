@@ -49,13 +49,29 @@ def response(socket, identity):
             return message["body"]
 
 
-def test_studio_auto_run_auth_references_and_committed_ranges(tmp_path):
+def start_run(server, client, headers):
+    """Explicitly start the prepared model; authentication/opening never submits."""
+    state = wait_state(client, headers, lambda value: value["inputs"] is not None)
+    with client.websocket_connect(
+        server.origin.replace("http:", "ws:") + "/ws", headers={"Origin": server.origin}
+    ) as socket:
+        socket.send_json({"v": 1, "type": "auth", "secret": server.secret})
+        socket.receive_json()
+        socket.send_json(
+            {"v": 1, "type": "run.start", "id": "explicit-first-run", "revision": state["revision"], "body": {}}
+        )
+        assert response(socket, "explicit-first-run")["ok"]
+    return headers
+
+
+def test_studio_explicit_run_auth_references_and_committed_ranges(tmp_path):
     coordinator, server = setup(tmp_path)
     try:
         with TestClient(server.app, base_url=server.origin) as client:
             assert client.get("/").text == "Studio shell"
             assert client.get("/api/state").status_code == 403
             headers = auth(server, client)
+            start_run(server, client, headers)
             assert client.get("/api/state").status_code == 403
             state = wait_state(client, headers, lambda state: bool(state["results"]))
             metadata = client.get(state["metadata"]["url"], headers=headers)
@@ -124,6 +140,7 @@ def test_live_prefix_revokes_on_cancel_and_old_cancel_cannot_target_replacement(
     try:
         with TestClient(server.app, base_url=server.origin) as client:
             headers = auth(server, client)
+            start_run(server, client, headers)
             state = wait_state(client, headers, lambda value: value["active"] and value["active"]["prefix"])
             prefix = state["active"]["prefix"]
             assert client.get(prefix["url"], headers=headers).content.startswith(b"SIMTRACE")
@@ -162,6 +179,7 @@ def test_layout_put_requires_origin_and_base_and_preserves_presentation_trace(tm
     try:
         with TestClient(server.app, base_url=server.origin) as client:
             headers = auth(server, client)
+            start_run(server, client, headers)
             state = wait_state(client, headers, lambda value: bool(value["results"]))
             original = state["results"][0]["key"]
             layer = {"schema_version": "1.0", "placements": {"machine": {"kind": "server", "visual": {"color": "red"}}}}
@@ -255,6 +273,7 @@ def test_command_outcomes_view_selection_and_original_notification_revision(tmp_
     try:
         with TestClient(server.app, base_url=server.origin) as client:
             headers = auth(server, client)
+            start_run(server, client, headers)
             state = wait_state(client, headers, lambda value: bool(value["results"]))
             with client.websocket_connect(
                 server.origin.replace("http:", "ws:") + "/ws", headers={"Origin": server.origin}
@@ -351,6 +370,7 @@ def test_attempt_prefix_gap_and_missing_receipt_are_rejected(tmp_path):
     try:
         with TestClient(server.app, base_url=server.origin) as client:
             headers = auth(server, client)
+            start_run(server, client, headers)
             state = wait_state(client, headers, lambda value: value["active"] and value["active"]["prefix"])
             prefix = state["active"]["prefix"]
             assert client.get(prefix["url"].rsplit("/", 1)[0] + "/99999", headers=headers).status_code == 410
@@ -398,6 +418,7 @@ def test_large_layout_validation_uses_bounded_authenticated_http_without_writing
     try:
         with TestClient(server.app, base_url=server.origin) as client:
             headers = auth(server, client)
+            start_run(server, client, headers)
             state = wait_state(client, headers, lambda value: bool(value["results"]))
             request_headers = {
                 **headers,
@@ -462,6 +483,7 @@ def test_initial_invalid_layout_can_be_repaired_with_exact_backup(tmp_path):
                 )
                 repaired = response(socket, "repair")
                 assert repaired["ok"]
+            start_run(server, client, headers)
             ready = wait_state(client, headers, lambda value: bool(value["results"]))
             assert ready["startup"]["phase"] == "ready"
             identity = backup_layout(coordinator.store, LayoutFile("layout.json", raw))
@@ -519,7 +541,9 @@ def test_cli_and_studio_use_equivalent_input_content_and_fingerprints(tmp_path, 
     coordinator, server = setup(studio_root)
     try:
         with TestClient(server.app, base_url=server.origin) as client:
-            state = wait_state(client, auth(server, client), lambda value: bool(value["results"]))
+            state = wait_state(
+                client, start_run(server, client, auth(server, client)), lambda value: bool(value["results"])
+            )
             actual = state["results"][0]["key"]
             studio_request = coordinator.store.request(actual["request_id"]).to_dict()
             # Revision numbers are local fences and remain part of request identity.

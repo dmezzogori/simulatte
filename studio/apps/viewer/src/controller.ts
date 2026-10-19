@@ -138,7 +138,7 @@ export class Controller {
     );
     const history = el("div", undefined, "history panel-padding");
     this.#panels.set("events", history);
-    const toolbar = el("div", undefined, "row");
+    const toolbar = el("div", undefined, "row event-filters");
     const phase = el("select");
     phase.setAttribute("aria-label", "Event phase");
     for (const [value, label] of [
@@ -197,7 +197,12 @@ export class Controller {
     type.onchange = entity.onchange = start.onchange = end.onchange = filters;
     entity.title =
       "Filters delta-touched entities; payload references are not inferred.";
-    toolbar.append(phase, filter, type, entity, start, end, first, more);
+    for (const control of [phase, filter, type, entity, start, end]) {
+      const label = el("label");
+      label.append(el("span", control.getAttribute("aria-label")!), control);
+      toolbar.append(label);
+    }
+    toolbar.append(first, more);
     this.#history = el("div", undefined, "event-rows");
     this.#details = el("div");
     history.append(toolbar, this.#history, this.#details);

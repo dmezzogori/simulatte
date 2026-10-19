@@ -8,7 +8,7 @@ import type {ConnectionStatus, Reference, Revision, StudioClient, StudioState} f
 
 interface LayoutDocument {valid: boolean; layer?: Layer; raw?: string; error?: string;}
 interface Loaded {document: LayoutDocument; revision: Revision;}
-export function LayoutEditor({client, state, status}: {client: StudioClient | null; state: StudioState | null; status: ConnectionStatus}) {
+export function LayoutEditor({client, state, status, modelId}: {modelId?: string; client: StudioClient | null; state: StudioState | null; status: ConnectionStatus}) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [draft, setDraft] = useState<LayoutDraft | null>(null);
   const [repair, setRepair] = useState('');
@@ -37,7 +37,7 @@ export function LayoutEditor({client, state, status}: {client: StudioClient | nu
   useEffect(() => {
     if (!client || !revision || status !== 'connected' || applying.current || loaded?.revision.number === revision.number) return;
     const abort = new AbortController();
-    void client.command('layout.get').then(async result => {
+    void client.command('layout.get', modelId ? {model_id:modelId} : {}, {revision}).then(async result => {
       if (!result.ok || !result.revision) throw new Error('Layout is not available');
       const document = await client.reference(result.layout as unknown as Reference, abort.signal) as LayoutDocument;
       if (!abort.signal.aborted) setLoaded({document, revision: result.revision as unknown as Revision});
@@ -64,12 +64,12 @@ export function LayoutEditor({client, state, status}: {client: StudioClient | nu
       if (action === 'redo') draft.redo();
       const proposal = draft.proposal(); validateLayoutPatch(proposal.layer);
       if (action === 'preview') {
-        const result = await client.validateLayout(proposal.layer, proposal.revision);
+        const result = await client.validateLayout(proposal.layer, proposal.revision, undefined, modelId);
         if (!result.ok) throw new Error(JSON.stringify(result.error));
         if (result.layout) setBundle(await client.reference(result.layout as unknown as Reference) as Layer);
-        setPreview(result.requires_rerun ? 'Physical preparation passed in a disposable process; saving starts a fresh run.' : 'Presentation validation passed; saving updates the view without rerunning.');
+        setPreview(result.requires_rerun ? 'Physical preparation passed in a disposable process; save, then explicitly Run to use physical changes.' : 'Presentation validation passed; saving updates the view without rerunning.');
       } else {
-        const result = await client.writeLayout(proposal.layer, proposal.revision);
+        const result = await client.writeLayout(proposal.layer, proposal.revision, undefined, modelId);
         if (!result.ok) throw new Error(JSON.stringify(result.error));
         draft.accept(result.revision as unknown as Revision); setPreview('');
         await client.resync();
@@ -90,7 +90,7 @@ export function LayoutEditor({client, state, status}: {client: StudioClient | nu
           void (async () => {
             if (new TextEncoder().encode(repair).length > 16 << 20) throw new Error('Layout exceeds 16 MiB');
             const layer = JSON.parse(repair); validateLayoutPatch(layer);
-            const result = await client.writeLayout(layer, loaded.revision);
+            const result = await client.writeLayout(layer, loaded.revision, undefined, modelId);
             if (!result.ok) throw new Error(JSON.stringify(result.error));
             setDraft(null); setLoaded(null); await client.resync();
           })().catch(error => setError(String(error))).finally(() => {applying.current = false; setBusy(false);});

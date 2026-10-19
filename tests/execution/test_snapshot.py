@@ -777,3 +777,17 @@ def test_registered_layouts_and_project_history_are_not_source(tmp_path):
     names = {e.path for e in m.capture_source(spec).entries}
     assert "other.json" not in names
     assert not any(n.startswith(".simulatte/") for n in names)
+
+
+def test_project_relative_wheel_is_captured_without_becoming_python_path(tmp_path):
+    m = api()
+    (tmp_path / "plant.py").write_text("# no import")
+    (tmp_path / "vendor").mkdir()
+    (tmp_path / "vendor/library.whl").write_bytes(b"frozen wheel bytes")
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.simulatte.bundle]\ninclude=["plant.py", "vendor/*.whl"]\n'
+        '[tool.uv.sources]\nlibrary={path="vendor/library.whl"}\n'
+    )
+    spec = m.discover_project(tmp_path / "plant.py")
+    assert "vendor/library.whl" not in spec.python_path
+    assert any(e.path == "vendor/library.whl" for e in m.capture_source(spec).entries)

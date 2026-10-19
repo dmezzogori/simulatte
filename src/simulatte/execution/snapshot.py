@@ -269,6 +269,10 @@ def local_package_roots(root: Path, config: Mapping, distributions=None) -> tupl
     for package in packages:
         if not package.is_relative_to(root):
             raise ValueError("Local path dependency escapes project root")
+        if package.is_file() and package.suffix == ".whl":
+            # Wheels are installed dependencies, not importable source roots.
+            # Their bytes still require explicit source bundle membership.
+            continue
         if not package.is_dir():
             raise ValueError("Local package directory is missing")
         candidate = package / "src" if (package / "src").is_dir() else package

@@ -8,9 +8,10 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 import sqlite3
+import re
 
 from starlette.applications import Starlette
-from starlette.responses import Response, StreamingResponse
+from starlette.responses import Response, StreamingResponse, JSONResponse
 from starlette.routing import Route, WebSocketRoute
 
 from simulatte.execution.schema import AttemptKey, Revision
@@ -49,6 +50,49 @@ class ProjectServer(StudioServer):
 
     def snapshot(self, peer=None):
         project = self.service.state()
+        extra = {}
+        co = self.service.coordinator
+        store = self.service.store or self.service.reader
+        if store is not None:
+            from simulatte.studio.experiments import prefix, replays
+
+            with store._transaction() as db:
+                extra["results"] = [
+                    {
+                        "key": {
+                            "request_id": item["request_id"],
+                            "attempt_id": item["id"],
+                            "generation": item["generation"],
+                        },
+                        "revision": item["revision"],
+                        "created": item["created"],
+                        "trace": prefix(db, item["id"]),
+                    }
+                    for item in project["history"]
+                    if item["has_result"]
+                ]
+                extra["replays"] = replays(db, prefix)
+        if co is not None:
+            from simulatte.execution import scheduler
+            from simulatte.studio.experiments import ExperimentCommands
+            from simulatte.execution.snapshot import non_source_members
+
+            extra["experiments"] = scheduler.runs(co.store, limit=20)
+            extra["workers"] = ExperimentCommands(co, workers_error=self.service.error).workers()
+            for model in project["models"]:
+                model["metadata_reference"] = (
+                    None if model["metadata"] is None else self.references.put(model["metadata"])
+                )
+                context = co.contexts[model["id"]]
+                model["view"] = (
+                    self._view(co.store.presentation_view(revision=context.revision)) if context.revision else None
+                )
+                try:
+                    model["experiment_files"] = [
+                        name for name in non_source_members(context.project) if name.endswith(".experiment.json")
+                    ]
+                except (ValueError, OSError):
+                    model["experiment_files"] = []
         return {
             "project": project,
             "revision": None,
@@ -60,6 +104,7 @@ class ProjectServer(StudioServer):
             "view": None,
             "last_good": None,
             "fatal": None,
+            **extra,
         }
 
     @asynccontextmanager
@@ -187,7 +232,7 @@ class ProjectServer(StudioServer):
         if base is None or context.revision != base:
             raise RevisionConflict("Model inputs changed; reload before editing or running")
         if kind == "params.set":
-            state = owner.apply(base, body["changes"], auto_run=context.auto_session is not None)
+            state = owner.apply(base, body["changes"], auto_run=False)
             return {"ok": True, "revision": asdict(state.revision)}
         if kind in ("run.start", "run.stop_and_run"):
             state = owner.state
@@ -202,12 +247,16 @@ class ProjectServer(StudioServer):
         if kind == "layout.get":
             from simulatte.execution.layout_files import read_layout_file
 
-            return {
-                "ok": True,
-                "layout": self.references.put(
-                    read_layout_file(context.project.root, context.project.layout).layer().to_dict()
-                ),
-            }
+            captured = read_layout_file(context.project.root, context.project.layout)
+            try:
+                document = {"valid": True, "layer": captured.layer().to_dict()}
+            except ValueError as error:
+                document = {
+                    "valid": False,
+                    "raw": (captured.raw or b"").decode("utf-8", errors="replace"),
+                    "error": str(error),
+                }
+            return {"ok": True, "revision": asdict(base), "layout": self.references.put(document)}
         if kind == "layout.validate":
             validation = owner.preview_layout(base, body["layout"], timeout=30)
             return {
@@ -216,6 +265,14 @@ class ProjectServer(StudioServer):
                 "layout": None if validation.bundle is None else self.references.put(validation.bundle.to_dict()),
             }
         if kind == "layout.write":
+            from simulatte.execution.layout_files import _path
+            from simulatte.execution.store import _directory
+
+            target = _path(context.project.root, context.project.layout)
+            parent = context.project.root
+            for component in target.parent.relative_to(parent).parts:
+                parent = parent / component
+                _directory(parent)
             state = owner.write_layout(base, body["layout"], auto_run=False, timeout=30)
             return {"ok": True, "revision": asdict(state.revision)}
         raise ValueError("Unsupported project command")
@@ -236,6 +293,43 @@ class ProjectServer(StudioServer):
 
     async def request(self, request):
         path = request.path_params["path"]
+        if request.method == "PUT" and path in ("api/layout", "api/layout/validate"):
+            from simulatte.layout.types import LayoutLimits
+            from simulatte.layout.io import parse_layout
+
+            headers = response_headers()
+            if not self.headers_valid(request, require_origin=True) or not self.authenticated(request):
+                return Response("Authentication required", status_code=403, headers=headers)
+            try:
+                for name in ("x-simulatte-command", "x-simulatte-revision", "x-simulatte-model"):
+                    if len(request.headers.getlist(name)) != 1:
+                        raise ValueError("Model layout PUT requires unique model, command and revision headers")
+                identity = request.headers["x-simulatte-command"]
+                if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", identity) is None:
+                    raise ValueError("Invalid command id")
+                raw = bytearray()
+                async for chunk in request.stream():
+                    if len(raw) + len(chunk) > LayoutLimits().max_file_bytes:
+                        return Response("Layout byte limit exceeded", status_code=413, headers=headers)
+                    raw.extend(chunk)
+                message = {
+                    "v": 1,
+                    "type": "layout.validate" if path.endswith("/validate") else "layout.write",
+                    "id": identity,
+                    "revision": json.loads(request.headers["x-simulatte-revision"]),
+                    "body": {
+                        "model_id": request.headers["x-simulatte-model"],
+                        "layout": parse_layout(bytes(raw)).to_dict(),
+                    },
+                }
+                async with self.commands:
+                    result = self.http_commands.get(message)
+                    if result is None:
+                        result = await self.command(message, None)
+                        self.http_commands.put(message, result)
+                return JSONResponse(result, headers=headers)
+            except (ValueError, KeyError, TypeError) as error:
+                return JSONResponse({"ok": False, "error": {"message": str(error)}}, status_code=400, headers=headers)
         if path.startswith("api/artifacts/"):
             headers = response_headers()
             if not self.headers_valid(request) or not self.authenticated(request):
