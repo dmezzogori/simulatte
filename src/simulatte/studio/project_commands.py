@@ -72,12 +72,14 @@ class ProjectServer(StudioServer):
                     if item["has_result"]
                 ]
                 extra["replays"] = replays(db, prefix)
-        if co is not None:
+        if store is not None:
             from simulatte.execution import scheduler
+
+            extra["experiments"] = scheduler.runs(store, limit=20)
+        if co is not None:
             from simulatte.studio.experiments import ExperimentCommands
             from simulatte.execution.snapshot import non_source_members
 
-            extra["experiments"] = scheduler.runs(co.store, limit=20)
             extra["workers"] = ExperimentCommands(co, workers_error=self.service.error).workers()
             for model in project["models"]:
                 model["metadata_reference"] = (
@@ -179,6 +181,20 @@ class ProjectServer(StudioServer):
                 if row is None:
                     raise KeyError(attempt)
                 run = dict(row)
+                annotation = None
+                if getattr(store, "version", 3) >= 3:
+                    annotation = db.execute(
+                        "SELECT name,text,important FROM history_annotations WHERE attempt=?", (attempt,)
+                    ).fetchone()
+                run.update(
+                    {"name": "", "text": "", "important": False}
+                    if annotation is None
+                    else {
+                        "name": annotation["name"],
+                        "text": annotation["text"],
+                        "important": bool(annotation["important"]),
+                    }
+                )
                 run["request"] = _read(run.pop("body"))
                 run["details"] = _read(run["details"])
                 run["trace"] = prefix(db, attempt)
@@ -190,7 +206,26 @@ class ProjectServer(StudioServer):
                 ).fetchone()
                 run["layout"] = None if view is None else self.references.put(_read(view[0]))
             return {"ok": True, "run": run}
+        if kind in ("comparison.get", "series.get"):
+            from simulatte.studio.experiments import ExperimentCommands
+
+            store = service.store or service.reader
+            if store is None:
+                raise ValueError("Saved experiments are unavailable")
+            return ExperimentCommands(SimpleNamespace(store=store))(
+                kind, {key: value for key, value in body.items() if key != "model_id"}
+            )
         service._writable()
+        if kind == "history.annotate":
+            from simulatte.execution.project_store import ProjectStore
+
+            ProjectStore(service.store).annotate(
+                body["attempt_id"],
+                name=body.get("name", ""),
+                text=body.get("text", ""),
+                important=body.get("important", False),
+            )
+            return {"ok": True}
         if kind == "project.configure":
             return service.configure(body)
         if kind == "environment.prepare":
@@ -203,16 +238,6 @@ class ProjectServer(StudioServer):
         if kind == "run.cancel":
             key = AttemptKey(**body["owner"])
             return {"ok": True, "cancelled": co.cancel(key)}
-        if kind == "history.annotate":
-            from simulatte.execution.project_store import ProjectStore
-
-            ProjectStore(service.store).annotate(
-                body["attempt_id"],
-                name=body.get("name", ""),
-                text=body.get("text", ""),
-                important=body.get("important", False),
-            )
-            return {"ok": True}
         model_id = body["model_id"]
         owner = co.inputs_for(model_id)
         context = co.contexts[model_id]

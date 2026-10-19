@@ -727,12 +727,10 @@ class RunStore:
             )
         return identity
 
-    def experiment(self, experiment_id: str) -> dict:
-        with self._transaction() as db:
-            row = db.execute("SELECT * FROM experiments WHERE id=?", (experiment_id,)).fetchone()
-        if row is None:
-            raise KeyError(experiment_id)
-        return {**dict(row), "definition": _read(row["definition"])}
+    def experiment(self, experiment_id: str):
+        from simulatte.execution.experiment_reads import experiment
+
+        return experiment(self, experiment_id)
 
     def create_experiment_run(self, experiment_id: str, preparation: dict, configurations, replications) -> str:
         """Record a run with all replications pending; an existing run id is returned unchanged.
@@ -791,61 +789,20 @@ class RunStore:
             )
         return run
 
-    def experiment_run(self, run_id: str) -> dict:
-        with self._transaction() as db:
-            row = db.execute("SELECT * FROM experiment_runs WHERE id=?", (run_id,)).fetchone()
-            if row is None:
-                raise KeyError(run_id)
-            configurations = [
-                {
-                    "index": item["idx"],
-                    "label": item["label"],
-                    "parameters": _read(item["parameters"]),
-                    "layout_hash": item["layout_hash"],
-                    "layout_ref": _read(item["layout_ref"]),
-                }
-                for item in db.execute("SELECT * FROM configurations WHERE run=? ORDER BY idx", (run_id,))
-            ]
-        return {
-            **dict(row),
-            "preparation": _read(row["preparation"]),
-            "details": _read(row["details"]),
-            "configurations": configurations,
-        }
+    def experiment_run(self, run_id: str):
+        from simulatte.execution.experiment_reads import experiment_run
 
-    def replications(self, run_id: str, *, status: str | None = None) -> list[dict]:
-        """Replications in dispatch order: replication-major, then configuration."""
-        with self._transaction() as db:
-            rows = db.execute(
-                "SELECT * FROM replications WHERE run=? AND (? IS NULL OR status=?) ORDER BY idx,configuration",
-                (run_id, status, status),
-            ).fetchall()
-        return [
-            {
-                "configuration": row["configuration"],
-                "index": row["idx"],
-                "seed": int(row["seed"]),
-                "worker_kind": row["worker_kind"],
-                "request_id": row["request_id"],
-                "status": row["status"],
-                "attempt": row["attempt"],
-                "dispatches": row["dispatches"],
-            }
-            for row in rows
-        ]
+        return experiment_run(self, run_id)
 
-    def replication_kpis(self, run_id: str) -> dict[tuple[int, int], dict[str, Any]]:
-        """KPI scalars of the succeeded and reused replications, by ``(configuration, index)``."""
-        with self._transaction() as db:
-            rows = db.execute(
-                "SELECT r.configuration,r.idx,k.name,k.value FROM replications r "
-                "JOIN kpis k ON k.attempt=r.attempt WHERE r.run=? AND r.status IN ('succeeded','reused')",
-                (run_id,),
-            ).fetchall()
-        scalars: dict[tuple[int, int], dict[str, Any]] = {}
-        for configuration, index, name, value in rows:
-            scalars.setdefault((configuration, index), {})[name] = _read(value)
-        return scalars
+    def replications(self, run_id: str, *, status: str | None = None):
+        from simulatte.execution.experiment_reads import replications
+
+        return replications(self, run_id, status=status)
+
+    def replication_kpis(self, run_id: str):
+        from simulatte.execution.experiment_reads import replication_kpis
+
+        return replication_kpis(self, run_id)
 
     def _replication(self, db, run_id, configuration, index):
         row = db.execute(
@@ -1149,7 +1106,7 @@ class RunStore:
             # Contained children lose their parent-liveness channel on writer death;
             # late publication is rejected by the lost attempt/cleared slot fences.
             # Keep captured experiment preparation and all durable reference kinds.
-            db.execute('DELETE FROM "references" WHERE owner_kind=\'environment-owner\'')
+            db.execute("DELETE FROM \"references\" WHERE owner_kind='environment-owner'")
             db.execute(
                 """UPDATE replications SET status='pending' WHERE status='lost' AND dispatches<?
                 AND run IN (SELECT id FROM experiment_runs WHERE status='paused')""",

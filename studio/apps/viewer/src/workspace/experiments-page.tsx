@@ -89,7 +89,7 @@ export function ExperimentsPage({
         <ComparePanel
           client={scoped}
           state={legacy}
-          status={status}
+          status={state.read_only ? "authentication_required" : status}
           headers={{
             "X-Simulatte-Session":
               sessionStorage.getItem("simulatte-session") ?? "",

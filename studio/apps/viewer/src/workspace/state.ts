@@ -108,6 +108,9 @@ export interface ProjectState {
   legacy_layout?: string | null;
 }
 export interface RunDetails {
+  name: string;
+  text: string;
+  important: boolean;
   request_id: string;
   generation: number;
   id: string;

@@ -228,9 +228,26 @@ export function RunPage({
 }) {
   const [run, setRun] = useState<RunDetails | null>(null),
     [error, setError] = useState(""),
-    [name, setName] = useState(""),
-    [text, setText] = useState(""),
-    [important, setImportant] = useState(false);
+    [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState<{attempt: string; name: string; text: string; important: boolean} | null>(null);
+  const loaded = run?.id === attempt;
+  const annotation = draft?.attempt === attempt ? draft : loaded ? {
+    attempt, name: run.name, text: run.text, important: run.important,
+  } : null;
+  const edit = (change: Partial<{name: string; text: string; important: boolean}>) => {
+    if(annotation) setDraft({...annotation, ...change});
+  };
+  const save = async () => {
+    if(!annotation || !loaded) return;
+    const submitted = annotation;
+    setSaving(true);
+    try {
+      await invoke(client, "history.annotate", {attempt_id: attempt, name: submitted.name, text: submitted.text, important: submitted.important});
+      setRun(current => current?.id === attempt ? {...current, name: submitted.name, text: submitted.text, important: submitted.important} : current);
+      setDraft(current => current === submitted ? null : current);
+    } catch(e) {setError(String(e));}
+    finally {setSaving(false);}
+  };
   useEffect(() => {
     let closed = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -253,12 +270,6 @@ export function RunPage({
       clearTimeout(timer);
     };
   }, [client, attempt, connected]);
-  useEffect(() => {
-    const item = state.history.find((r) => r.id === attempt);
-    setName(item?.name ?? "");
-    setText(item?.text ?? "");
-    setImportant(item?.important ?? false);
-  }, [attempt]);
   const active = state.active_run?.key.attempt_id === attempt;
   const download = async (path: string) => {
     try {
@@ -290,7 +301,7 @@ export function RunPage({
       <div className="ws-page-heading">
         <div className="ws-eyebrow">SAVED EXECUTION</div>
         <h1>
-          {state.history.find((r) => r.id === attempt)?.name ||
+          {run?.name ||
             "Run " + attempt.slice(0, 8)}
         </h1>
         <p>
@@ -346,40 +357,23 @@ export function RunPage({
           )}
         </section>
       )}
-      {!state.read_only && (
-        <section className="ws-card">
-          <h2>Keep context with this run</h2>
-          <label>
-            Run name
-            <input value={name} onChange={(e) => setName(e.target.value)} />
-          </label>
-          <label>
-            Notes
-            <textarea value={text} onChange={(e) => setText(e.target.value)} />
-          </label>
-          <label className="ws-check">
-            <input
-              type="checkbox"
-              checked={important}
-              onChange={(e) => setImportant(e.target.checked)}
-            />
-            Important · protect from pruning
-          </label>
-          <button
-            disabled={!connected}
-            onClick={() =>
-              void invoke(client, "history.annotate", {
-                attempt_id: attempt,
-                name,
-                text,
-                important,
-              }).catch((e) => setError(String(e)))
-            }
-          >
-            Save notes
-          </button>
-        </section>
-      )}
+      <section className="ws-card">
+        <h2>Keep context with this run</h2>
+        {!loaded && <p role="status">Loading saved notes…</p>}
+        <label>
+          Run name
+          <input value={annotation?.name ?? ""} disabled={!loaded} readOnly={state.read_only} onChange={(e) => edit({name: e.target.value})} />
+        </label>
+        <label>
+          Notes
+          <textarea aria-label="Notes" value={annotation?.text ?? ""} disabled={!loaded} readOnly={state.read_only} onChange={(e) => edit({text: e.target.value})} />
+        </label>
+        <label className="ws-check">
+          <input type="checkbox" checked={annotation?.important ?? false} disabled={!loaded || state.read_only} onChange={(e) => edit({important: e.target.checked})} />
+          Important · protect from pruning
+        </label>
+        {!state.read_only && <button disabled={!connected || !loaded || draft?.attempt !== attempt || saving} onClick={() => void save()}>Save notes</button>}
+      </section>
       {error && <p role="alert">{error}</p>}
     </>
   );
