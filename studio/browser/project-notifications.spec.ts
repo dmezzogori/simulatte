@@ -98,3 +98,47 @@ def build(env,layout,params):
     await expect(page.locator('.ws-recording .status')).toHaveText('invalidated');
   } finally {await fixture.close();}
 });
+
+
+test('workspace comparison recovers verified replay from reconnect without its terminal event', async ({page}) => {
+  test.setTimeout(90000);
+  const fixture = new ProjectFixture();
+  try {
+    await fixture.setup();
+    const attempt = prepare(fixture, `co=service.ensure_coordinator(); model=service.workspace.models[0].id
+ prepared=co.prepare_model(model,timeout=20)
+ request=co.make_request(prepared,level='kpi')
+ admission=co.admit_run(model,request,prepared.revision)
+ co.wait(admission.key,timeout=20)
+ print(admission.key.attempt_id)`);
+    await page.addInitScript(() => {
+      const NativeWebSocket = window.WebSocket;
+      Object.assign(window, {missedReplayTerminal: 0});
+      window.WebSocket = class extends NativeWebSocket {
+        constructor(url: string|URL, protocols?: string|string[]) {
+          super(url, protocols);
+          this.addEventListener('message', event => {
+            const message = JSON.parse(String(event.data));
+            if(message.type === 'replay_state' && message.body.status === 'succeeded') {
+              event.stopImmediatePropagation();
+              (window as unknown as {missedReplayTerminal:number}).missedReplayTerminal++;
+              this.close(); // The next authenticated snapshot is the only terminal evidence the UI gets.
+            }
+          });
+        }
+      };
+    });
+    let connections = 0;
+    page.on('websocket', () => {connections++;});
+    await page.goto(await fixture.launch());
+    await page.getByRole('link', {name:'Experiments',exact:true}).click();
+    await page.locator('summary').filter({hasText:/^Compare$/}).click();
+    await page.getByLabel('Side A recording', {exact:true}).selectOption(attempt);
+    await page.getByRole('button', {name:'Replay at full level',exact:true}).click();
+    await expect.poll(() => page.evaluate(() => (window as unknown as {missedReplayTerminal:number}).missedReplayTerminal)).toBe(1);
+    await expect.poll(() => connections).toBeGreaterThan(1);
+    await expect(page.locator('.compare-side[aria-label="Compare side A"] .replay-verified')).toHaveText('verified replay');
+    await expect(page.locator('.compare-scene[data-side="A"] canvas')).toHaveCount(1);
+    await expect(page.getByText('Replay running at full level…')).toHaveCount(0);
+  } finally {await fixture.close();}
+});
