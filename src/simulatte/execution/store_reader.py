@@ -37,7 +37,7 @@ class StoreReader:
         reader._db.row_factory = sqlite3.Row
         try:
             reader.version = reader._db.execute("PRAGMA user_version").fetchone()[0]
-            if reader.version not in (2, 3):
+            if reader.version not in (2, 3, 4):
                 raise ValueError(f"Unsupported run store schema {reader.version}; use a compatible reader")
             reader._db.execute("PRAGMA query_only=ON")
         except BaseException:

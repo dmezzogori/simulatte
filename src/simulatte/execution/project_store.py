@@ -120,6 +120,9 @@ class ProjectStore:
 
 def require_reference(db, kind, identity):
     tables = {
+        "analysis": ("analysis_executions", "id"),
+        "analysis-snapshot": ("analysis_input_snapshots", "id"),
+        "analysis-definition": ("analysis_definitions", "id"),
         "model": ("models", "id"),
         "attempt": ("attempts", "id"),
         "result": ("results", "attempt"),
