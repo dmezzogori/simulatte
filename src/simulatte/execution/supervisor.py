@@ -35,6 +35,7 @@ _CAPABILITIES = frozenset(
         "ordinary-descendant-cleanup",
         "ready-barrier",
         "metadata-artifacts",
+        "installation-runtime-v1",
     }
 )
 # Advertised only by supervisors with a remote cache (``_worker <hash> <cache> <uv>``).

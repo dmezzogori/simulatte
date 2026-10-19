@@ -523,3 +523,17 @@ def test_run_id_is_stable_across_separate_preparations(tmp_path):
     assert one.run_id == two.run_id
     assert one.replications == two.replications
     assert [request_id(r) for r in one.requests.values()] != [request_id(r) for r in two.requests.values()]
+
+
+def test_versioned_local_installation_runtime_stays_on_local_slots(tmp_path):
+    from dataclasses import replace
+
+    m = api()
+    base = prepared(tmp_path)
+    local = {**base.runtime, "kind": "local-installation-v1"}
+    base = replace(base, runtime=local)
+    run = expand(m, m.Experiment.from_dict(definition()), base)
+    assert {key[2] for key in run.requests} == {"local"}
+    assert all(item.runtime["kind"] == "local-installation-v1" for item in run.requests.values())
+    with pytest.raises(ValueError, match="different kind"):
+        expand(m, m.Experiment.from_dict(definition()), base, kinds={"uv": local})

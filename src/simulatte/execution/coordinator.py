@@ -505,6 +505,23 @@ class Coordinator:
             "dependencies_hash": canonical_hash("dependencies-v1", evidence["dependencies"]),
             "trusted_runtime_hash": self.runtime.content_hash,
         }
+        generation = None if self.environments is None else self.environments.selected
+        if generation is not None and generation.evidence["spec"].get("runtime_format") == "installation-v1":
+            assert self.environments is not None
+            probe = self.environments.installation_probe(generation)
+            identity = probe["installation"]
+            runtime = {
+                "kind": "local-installation-v1",
+                "facts": identity["facts"],
+                "dependencies_hash": canonical_hash("installation-dependencies-v1", identity["dependencies"]),
+                "trusted_runtime_hash": self.runtime.content_hash,
+            }
+            evidence = {
+                "format": "installation-v1",
+                "identity": identity,
+                "raw": probe["runtime"],
+                "bindings": probe["bindings"],
+            }
         documents = {"runtime_ref": self._document("runtime", evidence), "layout_ref": self._document("layout", layer)}
         self._remaining(deadline)
         inspection = InspectionRequest(
@@ -1196,6 +1213,7 @@ class SlotActor:
         self.pending: _Job | None = None
         self.current: _Job | None = None
         self.worker: Any = None
+        self.capabilities: frozenset[str] = frozenset()
         self.python: str | None = None  # The Python a remote supervisor was started on.
         self.backoff = 0.0  # The last backoff delay; 0 once a hello succeeds.
         self.backoff_until = 0.0  # The time.monotonic() before which the slot takes no replication.
@@ -1244,6 +1262,7 @@ class SlotActor:
                     raise RemoteStepError("worker_capabilities", {"message": message})
                 if hello.body.get("trusted_runtime_hash") != self.coordinator.runtime.content_hash:
                     raise RemoteStepError("runtime_mismatch", {"message": "Worker runs another trusted runtime"})
+            self.capabilities = frozenset(hello.body["capabilities"])
             self.backoff = self.backoff_until = 0.0  # The worker answered: no more backoff.
         return self.worker
 
@@ -1331,6 +1350,14 @@ class SlotActor:
                     "metadata_artifacts": True,
                     **job.documents,
                 }
+                if job.request.runtime.get("kind") == "local-installation-v1":
+                    if "installation-runtime-v1" not in self.capabilities:
+                        raise ValueError("Worker lacks installation-runtime-v1 capability")
+                    config["trusted_runtime_hash"] = c.runtime.content_hash
+                    if c.environments is not None and c.environments.selected is not None:
+                        config["installation_bindings"] = c.environments.installation_bindings(c.environments.selected)
+                        # Python <3.14 with -S reports the base prefix, not the virtual environment.
+                        config["installation_prefix"] = str(c.environments.selected.interpreter.parent.parent)
                 body = {
                     "config": config,
                     "timeout": c._remaining(job.deadline),

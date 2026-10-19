@@ -54,6 +54,15 @@ def fake_pool(workspace, store, monkeypatch):
             "studio": True,
         },
     )
+    monkeypatch.setattr(
+        pool,
+        "_probe_installation",
+        lambda path, bindings: {
+            **pool._probe(path),
+            "installation": {"format": "installation-v1", **pool._probe(path)["runtime"]},
+            "bindings": bindings,
+        },
+    )
     return pool
 
 
@@ -157,3 +166,114 @@ def test_existing_native_environment_probe_does_not_install(configured):
         assert pool.acquire(generation.id, "inspection:1").id == generation.id
         assert not pool.cache.exists()
         pool.release("inspection:1")
+
+
+def test_new_generation_reconstructs_installation_metadata_without_rewriting_capture(configured, monkeypatch):
+    from simulatte.execution.schema import _plain
+    from simulatte.execution.hashing import canonical_hash
+    import shutil
+
+    with RunStore.open(configured.root / ".simulatte") as store:
+        pool = fake_pool(configured, store, monkeypatch)
+        raw = [1]
+
+        def probe(path, bindings):
+            return {
+                **pool._probe(path),
+                "runtime": {"install": raw[0]},
+                "installation": {
+                    "format": "installation-v1",
+                    "facts": {"python": "3.14.3"},
+                    "dependencies": {},
+                    "warnings": [],
+                },
+                "bindings": bindings,
+            }
+
+        monkeypatch.setattr(pool, "_probe_installation", probe, raising=False)
+        captured = pool.prepare(configured)
+        evidence = _plain(captured.evidence)
+        assert evidence["spec"]["runtime_format"] == "installation-v1"
+        assert captured.id == canonical_hash("local-environment-v2", evidence["spec"])
+        other = pool.use_existing(Path(sys.executable))
+        pool.activate(other.id)
+        shutil.rmtree(captured.interpreter.parent.parent)
+        raw[0] = 2
+        restored = pool.reconstruct(evidence)
+        assert restored.id == captured.id and _plain(restored.evidence) == evidence
+        assert pool.selected.id == other.id
+        assert pool.installation_probe(restored)["runtime"] == {"install": 2}
+        assert pool.acquire(restored.id, "test").id == restored.id
+        pool.release("test")
+        assert evidence["probe"]["runtime"] == {"install": 1}
+
+
+def test_legacy_managed_generation_keeps_id_and_strict_raw_refusal(configured, monkeypatch):
+    from simulatte.execution.schema import _plain
+    from simulatte.execution.hashing import canonical_hash
+    import shutil
+
+    with RunStore.open(configured.root / ".simulatte") as store:
+        pool = fake_pool(configured, store, monkeypatch)
+        spec = _plain(pool.prepare(configured).evidence["spec"])
+        del spec["runtime_format"]
+        legacy = pool._prepare_spec(spec)
+        assert legacy.id == canonical_hash("local-environment-v1", spec)
+        assert "installation" not in legacy.evidence["probe"]
+        shutil.rmtree(legacy.interpreter.parent.parent)
+        raw = _plain(legacy.evidence["probe"])
+        raw["runtime"]["dependencies"] = {"changed_record": True}
+        monkeypatch.setattr(pool, "_probe", lambda path: raw)
+        with pytest.raises(ValueError, match="differs"):
+            pool.reconstruct(legacy.evidence)
+        assert pool.get(legacy.id).evidence == legacy.evidence
+        assert pool.selected is None
+
+
+def test_evidence_tags_and_local_binding_document_cannot_downgrade(configured, monkeypatch):
+    import json
+    from simulatte.execution.schema import _plain
+
+    m = api()
+    for spec in (
+        {"kind": "managed", "runtime_format": "future"},
+        {"kind": "existing", "runtime_format": "installation-v1"},
+    ):
+        with pytest.raises(ValueError, match="format"):
+            m.environment_identity(spec)
+    for spec, probe in (({}, {"installation": {}}), ({"runtime_format": "installation-v1"}, {})):
+        with pytest.raises(ValueError, match="format"):
+            m._probe_identity(spec, probe)
+    with RunStore.open(configured.root / ".simulatte") as store:
+        pool = fake_pool(configured, store, monkeypatch)
+        generation = pool.prepare(configured)
+        local = pool.cache / generation.id / "installation.json"
+        value = json.loads(local.read_text())
+        value["installation"]["facts"]["python"] = "changed"
+        local.write_text(json.dumps(value))
+        with pytest.raises(ValueError, match="differs"):
+            pool.installation_bindings(generation)
+        assert pool.get(generation.id).evidence == generation.evidence
+        assert m._captured_runtime({}, _plain(generation.evidence)["probe"]) == value["runtime"]
+
+
+def test_new_reconstruction_requests_the_captured_exact_interpreter(configured, monkeypatch):
+    import shutil
+    from simulatte.execution.schema import _plain
+
+    with RunStore.open(configured.root / ".simulatte") as store:
+        pool = fake_pool(configured, store, monkeypatch)
+        generation = pool.prepare(configured)
+        shutil.rmtree(generation.interpreter.parent.parent)
+        commands = []
+        run = pool._run
+
+        def capture(command, **kw):
+            commands.append(command)
+            run(command, **kw)
+
+        monkeypatch.setattr(pool, "_run", capture)
+        restored = pool.reconstruct(generation.evidence)
+        assert commands[0][-2:] == ["--python", "cpython@3.14.3"]
+        assert restored.id == generation.id
+        assert _plain(restored.evidence) == _plain(generation.evidence)

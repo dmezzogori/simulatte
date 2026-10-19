@@ -835,7 +835,9 @@ class RunStore:
                 "dispatches=dispatches+1 WHERE run=? AND configuration=? AND idx=?",
                 (
                     key.request_id,
-                    body["runtime"].get("kind", "local"),
+                    "local"
+                    if body["runtime"].get("kind") == "local-installation-v1"
+                    else body["runtime"].get("kind", "local"),
                     key.attempt_id,
                     run_id,
                     configuration,

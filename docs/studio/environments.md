@@ -67,12 +67,20 @@ unchanged and can fail if the original Python or packages are unavailable. Prese
 the failure and evidence; do not substitute current dependencies and call the result
 the original environment. Reopen Studio after a successful reconstruction.
 
-P1 has an open reconstruction limitation: installing the same locked packages at
-a different project path can change generated console scripts and local-wheel
-installation metadata. Their distribution `RECORD` hashes then differ, even when
-package versions and payload manifest entries match. Reconstruction currently
-refuses this mismatch; it does not rewrite captured runtime identities. A local
-wheel can also acquire a different uv cache timestamp during reconstruction.
-Saved recordings remain readable in recovery. See the
-`specs/research/2026-10-19-studio-p1-acceptance.md`
-in the repository for the native reproduction and open review issue.
+New managed generations use versioned installed-payload evidence. Reconstruction
+retains the exact interpreter facts and package/entrypoint content while comparing
+recognized generated interpreter paths and installation timestamps independently
+of their machine locations. Captured local dependency URLs are bound to verified
+retained artifact content before provisioning. Both the original raw probe and the
+rebuilt installation probe are kept; reconstruction does not change the selection
+or the recorded execution requests. Altered package bytes or launcher bodies refuse
+verification even when their RECORD entries were not updated.
+
+Older generations and existing interpreters retain their original strict raw-RECORD
+identity. They are not silently upgraded. Reinstalling their packages may still fail
+verification because console-script paths, local URLs or cache metadata differ.
+Insufficient old evidence remains unavailable for verified reconstruction; saved
+recordings remain readable in recovery. Unsupported launcher/evidence formats also
+refuse rather than falling back to a weaker identity. Native platform verification
+and review status are recorded in
+`specs/research/2026-10-19-studio-p1-acceptance.md` in the repository.

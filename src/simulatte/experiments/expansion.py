@@ -118,7 +118,8 @@ def expand(
     runtimes = {}
     for kind in sorted(runtime_by_kind):
         runtime = _runtime(runtime_by_kind[kind])
-        if runtime.get("kind", "local") != kind:
+        worker_kind = "local" if runtime.get("kind") == "local-installation-v1" else runtime.get("kind", "local")
+        if worker_kind != kind:
             raise ValueError(f"The {kind} runtime mapping has a different kind")
         runtimes[kind] = runtime
     path, separator, _ = experiment.model.partition(":")
