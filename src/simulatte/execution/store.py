@@ -286,7 +286,7 @@ class RunStore:
                     for step in range(version, cls.schema_version):
                         _MIGRATIONS[step](db)
                     db.execute(f"PRAGMA user_version={cls.schema_version}")
-            for name in ("snapshots", "staging", "results"):
+            for name in ("snapshots", "staging", "results", "analysis-staging", "analysis-results"):
                 _directory(store.root / name)
             store.recover()
             return store
@@ -1144,6 +1144,12 @@ class RunStore:
             )
             db.execute("UPDATE analysis_executions SET state='lost' WHERE state IN ('waiting','running','finalizing')")
             indexed = {row[0] for row in db.execute("SELECT attempt FROM results")}
+            analysis_indexed = {row[0] for row in db.execute("SELECT execution FROM analysis_outputs")}
+        for path in (self.root / "analysis-staging").iterdir():
+            _remove(path)
+        for path in (self.root / "analysis-results").iterdir():
+            if path.name not in analysis_indexed:
+                _remove(path)
         for path in (self.root / "staging").iterdir():
             _remove(path)
         for path in (self.root / "results").iterdir():

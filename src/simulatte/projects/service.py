@@ -40,6 +40,7 @@ class ProjectService:
         self.reader = None
         self.environments = None
         self.coordinator = None
+        self.analysis_runner = None
         self.read_only = False
         self.error = None
         self.restart_generation = None
@@ -396,11 +397,23 @@ class ProjectService:
             path, name = reference, "build"
         return str(Path(path).relative_to(self.root).as_posix()) + ":" + name
 
+    def analyses(self):
+        """One local analysis slot, independent of simulation and inspection capacity."""
+        with self._lock:
+            self._writable()
+            if self.analysis_runner is None:
+                from simulatte.analysis.execution import AnalysisRunner
+
+                self.analysis_runner = AnalysisRunner(self.store, environments=self.environments)
+            return self.analysis_runner
+
     def close(self):
         with self._lock:
             if self._closed:
                 return
             self._closed = True
+            if self.analysis_runner is not None:
+                self.analysis_runner.close()
             if self.coordinator is not None:
                 self.coordinator.close()
             if self.reader is not None:
