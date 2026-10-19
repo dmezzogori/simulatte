@@ -182,3 +182,47 @@ def test_resource_payload_cannot_alias_another_resource():
     raw[1024 + 152 : 1024 + 160] = raw[1024 + 136 : 1024 + 144]
     with pytest.raises(ValueError):
         identity(bytes(raw), python)
+
+
+def test_recognized_optional_pe_checksum_is_verified_not_part_of_identity():
+    python = r"C:\a\python.exe"
+    raw = bytearray(pe_launcher(python))
+    # PE checksum for this fixed fixture, independently calculated by DWORD folding.
+    struct.pack_into("<I", raw, 216, 13915)
+    assert identity(bytes(raw), python) == identity(pe_launcher(python), python)
+
+
+@pytest.mark.parametrize(
+    "change", ["overlap", "resource-size", "padding", "unreferenced", "cycle", "duplicate", "missing", "language"]
+)
+def test_uv_resource_manifest_refuses_ambiguous_or_unknown_layout(change):
+    python = r"C:\a\python.exe"
+    raw = bytearray(pe_launcher(python))
+    if change == "overlap":
+        struct.pack_into("<I", raw, 432 + 20, 512)
+    elif change == "resource-size":
+        struct.pack_into("<I", raw, 152 + 112 + 20, 999999)
+    elif change == "padding":
+        raw[-1] = 1
+    elif change == "unreferenced":
+        entry = 1024 + 136
+        size = struct.unpack_from("<I", raw, entry + 4)[0]
+        struct.pack_into("<I", raw, entry + 4, size - 1)
+    elif change == "cycle":
+        struct.pack_into("<I", raw, 1024 + 20, 0x80000000)
+    elif change == "duplicate":
+        raw[1024 + 48 : 1024 + 52] = raw[1024 + 40 : 1024 + 44]
+    elif change == "missing":
+        raw = raw.replace("UV_SCRIPT_DATA".encode("utf-16le"), "XY_SCRIPT_DATA".encode("utf-16le"))
+    else:
+        struct.pack_into("<I", raw, 1024 + 64 + 16, 1)
+    with pytest.raises(ValueError):
+        identity(bytes(raw), python)
+
+
+def test_unknown_archive_and_interposed_launcher_code_refuse():
+    python = r"C:\a\python.exe"
+    for zipped in (archive(b"print(1)\n").replace(b"__main__.py", b"not_main.py"), archive(b"print(1)\n")):
+        raw = b"MZcode#!" + python.encode() + b"\n" + (b"code\n" if b"not_main.py" not in zipped else b"") + zipped
+        with pytest.raises(ValueError):
+            identity(raw, python)
