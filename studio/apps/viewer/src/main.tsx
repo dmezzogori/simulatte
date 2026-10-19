@@ -16,6 +16,7 @@ import {ReplayNotifications} from "./compare-panel";
 import "dockview/dist/styles/dockview.css";
 import "uplot/dist/uPlot.min.css";
 import "./style.css";
+import {WorkspaceApplication} from "./workspace/shell";
 function App() {
   const [studioMode] = useState(() => {
     try {return sessionStorage.getItem("simulatte-mode") === "studio";} catch {return false;}
@@ -348,4 +349,14 @@ function App() {
     </main>
   );
 }
-createRoot(document.getElementById("root")!).render(<App />);
+function Entry() {
+  const [project,setProject]=useState<boolean|null>(null);
+  useEffect(()=>{let current=true;
+    if(sessionStorage.getItem('simulatte-mode')!=='studio'){setProject(false);return;}
+    void fetch('/api/state',{headers:{'X-Simulatte-Session':sessionStorage.getItem('simulatte-session')??''}})
+      .then(r=>r.json()).then(s=>{if(current)setProject(!!s.project);}).catch(()=>{if(current)setProject(false);});
+    return()=>{current=false;};
+  },[]);
+  return project===null?<div className="ws-loading">Opening Simulatte…</div>:project?<WorkspaceApplication/>:<App/>;
+}
+createRoot(document.getElementById("root")!).render(<Entry />);

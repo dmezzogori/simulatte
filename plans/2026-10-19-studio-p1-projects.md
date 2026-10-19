@@ -101,7 +101,7 @@ Schema 3 adds `project_meta`, `models` (including tombstones), `model_revisions`
 
 - [x] Test no-argument/path/legacy CLI calls and applicable flags. Hide the internal worker command from normal help while keeping the internal entrypoints. Invalid flags/schema errors precede simulation admission.
 - [x] Test `test_recovery_viewer_never_imports_project` with a project module that raises on import and an unusable project interpreter. History, supported traces and generic saved artifacts remain readable using launcher assets; mutation/execute endpoints reject. Unknown store version is explained without migration.
-- [ ] Test missing Studio in the selected environment, cancelled setup, mismatched server/assets, handoff failure and locked store: all produce actionable states without fallback execution in the wrong interpreter. Reuse HTTP auth/origin/CSP/range tests for setup/recovery routes. Probe rejection, cancellation, failed handoff and locked store covered; successful installed-process handoff remains T6/package evidence.
+- [x] Test missing Studio in the selected environment, cancelled setup, mismatched server/assets, handoff failure and locked store: all produce actionable states without fallback execution in the wrong interpreter. Reuse HTTP auth/origin/CSP/range tests for setup/recovery routes. Probe rejection, cancellation, failed handoff and locked store covered; successful installed-process handoff and saved-work recovery verified in T6 on Chromium, Firefox and WebKit.
 - [x] Run `uv run --all-extras pytest tests/core/test_cli.py tests/core/test_studio_command.py tests/core/test_studio_project_commands.py tests/core/test_studio_http.py tests/core/test_studio_websocket.py --no-cov` red/green.
 - [x] Commit `feat(studio): open projects with setup and recovery flows`.
 
@@ -111,11 +111,11 @@ Schema 3 adds `project_meta`, `models` (including tombstones), `model_revisions`
 
 **Interfaces:** `WorkspaceRoute` is a discriminated union for overview, model(id), run(attempt), experiments, analyses and presentations. Hash navigation carries IDs and browser back/forward works without another routing dependency. `WorkspaceShell({client, state})` owns navigation; `RecordingPane` owns/disposes the existing Controller and playback listeners when mounted. `ProjectState` mirrors the validated project API and separates `selectedModelId`, `activeRun` and per-model drafts. Unsupported later-package actions are clearly unavailable; do not show fabricated data.
 
-- [ ] Test that selecting B never sends `run.start`, losing/reconnecting the socket restores authoritative ownership, and navigating away preserves parameter drafts and active progress. Add component assertions that one sidebar owns top-level navigation and Run is the primary model-page action.
-- [ ] Browser test the installed service: empty folder → starter preview → prepare environment → select model → explicit Run → inspect → close/reopen history. Repeat existing-project registration and legacy launch; assert zero attempts immediately after opening. Exercise busy-owner feedback and explicit stop.
-- [ ] Implement shared typography/spacing/controls and the selected focused structure; retain domain layout editing via model context and existing recording entity/KPI controls. Do not defer all UX quality until P3.
-- [ ] Run `pnpm --dir studio --filter @simulatte/viewer test`, `pnpm --dir studio typecheck`, then build/package and `pnpm --dir studio exec playwright test browser/project.spec.ts`. Capture screenshots at 1280×800 and 1440×900 and keyboard traversal. Expected: no console errors, usable first-run flow, no duplicate navigation.
-- [ ] Commit `feat(studio): add project workspace and explicit first-run flow`.
+- [x] Test that selecting B never sends `run.start`, losing/reconnecting the socket restores authoritative ownership, and navigating away preserves parameter drafts and active progress. Add component assertions that one sidebar owns top-level navigation and Run is the primary model-page action.
+- [x] Browser test the installed service: empty folder → starter preview → prepare environment → select model → explicit Run → inspect → close/reopen history. Repeat existing-project registration and legacy launch; assert zero attempts immediately after opening. Exercise busy-owner feedback and explicit stop.
+- [x] Implement shared typography/spacing/controls and the selected focused structure; retain domain layout editing via model context and existing recording entity/KPI controls. Do not defer all UX quality until P3.
+- [x] Run `pnpm --dir studio --filter @simulatte/viewer test`, `pnpm --dir studio typecheck`, then build/package and `pnpm --dir studio exec playwright test browser/project.spec.ts`. Capture screenshots at 1280×800 and 1440×900 and keyboard traversal. Expected: no console errors, usable first-run flow, no duplicate navigation.
+- [x] Commit `feat(studio): add project workspace and explicit first-run flow`.
 
 ## Task 7: P1 documentation and integration gate
 

@@ -24,6 +24,7 @@ from simulatte.projects import (
     apply_config,
     starter_files,
     install_starter,
+    ConfigEdit,
 )
 from simulatte.projects.environments import EnvironmentPool, LockPreviewRequired
 
@@ -171,6 +172,27 @@ class ProjectService:
                 body.get("default_model"),
             )
             edit = preview_config(self.root, definition)
+            if "include" in body:
+                import tomlkit
+                import re
+                from simulatte.execution.snapshot import _path
+
+                document = tomlkit.parse(edit.proposed_bytes.decode("utf-8"))
+                include = body["include"]
+                if not isinstance(include, list) or not all(isinstance(item, str) for item in include):
+                    raise ValueError("Bundle include must be a list of relative paths")
+                for item in include:
+                    _path(item)
+                bundle = document.setdefault("tool", {}).setdefault("simulatte", {}).setdefault("bundle", {})
+                bundle["include"] = list(dict.fromkeys([*bundle.get("include", []), *include]))
+                if "project" not in document:
+                    document["project"] = {
+                        "name": re.sub(r"[^a-z0-9]+", "-", self.root.name.lower()).strip("-") or "simulation-project",
+                        "version": "0.1.0",
+                        "requires-python": ">=3.11",
+                        "dependencies": ["simulatte[studio]>=0.17.0"],
+                    }
+                edit = ConfigEdit(edit.path, edit.original_sha256, tomlkit.dumps(document).encode("utf-8"))
             return self._preview("config", edit, files={"pyproject.toml": edit.proposed_bytes.decode("utf-8")})
 
     def prepare_environment(self, body):
@@ -296,8 +318,17 @@ class ProjectService:
                 "generations": generations,
                 "environment": None if selected is None else self._generation_state(selected),
                 "preparation_progress": "" if self.environments is None else self.environments.progress,
-                "legacy_reference": self.target.legacy_reference,
+                "legacy_reference": self._legacy_reference(),
             }
+
+    def _legacy_reference(self):
+        reference = self.target.legacy_reference
+        if reference is None:
+            return None
+        path, separator, name = reference.rpartition(":")
+        if not separator or not path.endswith(".py"):
+            path, name = reference, "build"
+        return str(Path(path).relative_to(self.root).as_posix()) + ":" + name
 
     def close(self):
         if self._closed:

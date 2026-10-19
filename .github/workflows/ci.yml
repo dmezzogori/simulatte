@@ -196,10 +196,6 @@ jobs:
         working-directory: studio
         run: pnpm exec playwright install --with-deps chromium firefox webkit
 
-      - name: Browser acceptance
-        working-directory: studio
-        run: pnpm test:browser
-
       - name: Install uv for asset manifest
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
 
@@ -207,6 +203,10 @@ jobs:
         run: |
           uv run python studio/scripts/package_assets.py
           uv build
+
+      - name: Browser acceptance
+        working-directory: studio
+        run: pnpm test:browser
 
       - name: Smoke test the installed wheel and offline player
         run: |

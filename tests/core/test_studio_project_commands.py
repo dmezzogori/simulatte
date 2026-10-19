@@ -193,8 +193,10 @@ def test_launcher_handoff_failure_keeps_recovery_and_cli_flags(tmp_path, monkeyp
         assert service.coordinator is None
 
     monkeypatch.setattr(command, "serve_project", serve)
+
     def initial(prepared):
         return {}
+
     initial.flags = {"seed": 55}
     bootstrap.launch_project(target, port=0, no_browser=True, configure=initial)
     assert seen == [{"seed": 55}]
@@ -210,3 +212,65 @@ def test_cancelled_setup_has_no_coordinator_or_attempt(tmp_path, monkeypatch):
         assert seen == [True] and service.coordinator is None and not service.state()["history"]
     finally:
         service.close()
+
+
+def test_registration_previews_explicit_membership_and_preserves_source(tmp_path):
+    (tmp_path / "plant.py").write_text('raise AssertionError("no import")')
+    service = api().ProjectService.open(StudioTarget(tmp_path, str(tmp_path / "plant.py") + ":alternate"))
+    try:
+        assert service.state()["legacy_reference"] == "plant.py:alternate"
+        preview = service.configure(
+            {"models": [{"key": "plant", "name": "Plant", "entrypoint": "plant.py:alternate"}], "include": ["plant.py"]}
+        )
+        assert not (tmp_path / "pyproject.toml").exists()
+        assert 'include = ["plant.py"]' in preview["files"]["pyproject.toml"]
+        service.configure({"apply": preview["preview_id"]})
+        assert load_workspace(tmp_path).models[0].entrypoint == "plant.py:alternate"
+        assert "raise AssertionError" in (tmp_path / "plant.py").read_text()
+    finally:
+        service.close()
+
+
+def test_project_model_http_layout_and_saved_run_share_one_store(tmp_path):
+    from dataclasses import asdict
+    from simulatte.studio.project_commands import ProjectServer
+    from simulatte.execution.schema import AttemptKey
+
+    install_starter(tmp_path, starter_files("production"))
+    service = api().ProjectService.open(StudioTarget(tmp_path, None))
+    generation = service.environments.use_existing(Path(sys.executable))
+    service.environments.activate(generation.id)
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "manifest.json").write_text('{"assets":{}}')
+    server = ProjectServer(service, 8123, static)
+    model = service.workspace.models[0].id
+    service.prepare_model(model)
+    context = service.coordinator.contexts[model]
+    assert not service.state()["history"]
+    message = {"type": "run.start", "body": {"model_id": model}, "revision": asdict(context.revision)}
+    started = server._command(message, None)
+    service.coordinator.wait(AttemptKey(**started["key"]), timeout=10)
+    assert len(service.state()["history"]) == 1
+    assert server.snapshot()["project"]["models"][0]["view"] is not None
+    with TestClient(server.app, base_url=server.origin) as client:
+        client.get(server.link())
+        headers = {
+            "X-Simulatte-Session": server.secret,
+            "Origin": server.origin,
+            "X-Simulatte-Command": "layout-preview",
+            "X-Simulatte-Model": model,
+            "X-Simulatte-Revision": json.dumps(asdict(context.revision)),
+        }
+        layer = {"schema_version": "1.0", "placements": {"wc-0": {"kind": "server", "visual": {"label": "Reviewed"}}}}
+        assert client.put("/api/layout/validate", json=layer).status_code == 403
+        reply = client.put("/api/layout/validate", json=layer, headers=headers)
+        assert reply.status_code == 200 and reply.json()["ok"]
+        repeated = client.put("/api/layout/validate", json=layer, headers=headers)
+        assert repeated.json() == reply.json()
+        assert not (tmp_path / "layouts/production.json").exists()
+        headers["X-Simulatte-Command"] = "layout-write"
+        saved = client.put("/api/layout", json=layer, headers=headers)
+        assert saved.json()["ok"], saved.json()
+        assert (tmp_path / "layouts/production.json").exists()
+        assert len(service.state()["history"]) == 1
