@@ -250,6 +250,7 @@ class ModelSpec:
     schema: ParameterSchema
     name: str
     description: str
+    measurement_plans: tuple[Any, ...] = ()
 
 
 def model(
@@ -260,6 +261,7 @@ def model(
     time_unit: str | None = None,
     inputs: Iterable[str] = (),
     stop: Any = None,
+    measurement_plans: tuple[Any, ...] = (),
 ) -> Callable[[F], F]:
     """Describe a build function without wrapping it or changing ordinary calls."""
     if (horizon is None) == (stop is None):
@@ -293,6 +295,13 @@ def model(
             raise ValueError("inputs must be normalized project-relative file paths")
     if len(set(captured)) != len(captured):
         raise ValueError("Duplicate declared inputs")
+    if measurement_plans:
+        from simulatte.analysis.measurements import MeasurementPlan
+
+        if type(measurement_plans) is not tuple or any(type(p) is not MeasurementPlan for p in measurement_plans):
+            raise ValueError("Invalid measurement plans")
+        if len({p.name for p in measurement_plans}) != len(measurement_plans):
+            raise ValueError("Duplicate measurement plan")
     schema = _schema(params)
 
     def decorate(build: F) -> F:
@@ -308,6 +317,7 @@ def model(
             schema,
             getattr(build, "__name__", type(build).__name__),
             build.__doc__ or "",
+            measurement_plans,
         )
         setattr(build, "__simulatte_model__", spec)
         return build
