@@ -29,7 +29,7 @@ def test_invalid_initial_source_recovers_without_restarting_server(tmp_path):
                 assert coordinator.inputs.state is None
                 (spec.root / "plant.py").write_text(MODEL)
                 await wait_until(lambda: session.status["phase"] == "ready")
-                await wait_until(lambda: bool(list((spec.root / ".simulatte/results").glob("*/run.simtrace"))))
+                assert not list((spec.root / ".simulatte/results").glob("*/run.simtrace"))
                 assert coordinator.inputs.state.request.parameters["n"] == 2
             finally:
                 session.close()

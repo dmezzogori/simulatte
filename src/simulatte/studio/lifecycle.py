@@ -139,19 +139,17 @@ class ProjectSession:
                     initial_error = None
                     try:
                         initial = None if self.configure is None else self.configure(prepared)
-                        state = self.coordinator.inputs.bind(prepared, initial=initial)
+                        self.coordinator.inputs.bind(prepared, initial=initial)
                     except (ValueError, TypeError) as error:
                         # Invalid startup overrides must remain reviewable, without
                         # silently executing model defaults in their place.
                         initial_error = {"message": str(error)[:4096]}
-                        state = self.coordinator.inputs.bind(prepared, initial_error=initial_error["message"])
+                        self.coordinator.inputs.bind(prepared, initial_error=initial_error["message"])
                     self.metadata = prepared.metadata
                     self._install()
                     if initial_error is not None:
                         self._status("error", initial_error)
                         continue
-                    if state.request is not None:
-                        self.coordinator.submit(state.request, state.revision, timeout=self.timeout)
                     self._status("ready")
             except Exception as error:
                 if not self._closed and epoch == self._epoch:

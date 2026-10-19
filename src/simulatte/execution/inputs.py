@@ -175,7 +175,7 @@ class InputOwner:
             "layout_file_sha256": None if captured is None else captured.digest,
         }
         if request is not None:
-            request = replace(request, layout_revision=prepared.revision.number + 1)
+            request = replace(request, layout_revision=self.coordinator.store.next_revision_number())
         manifest = None if request is None else self.coordinator._preparation_manifest(prepared, request)
         revision = self.coordinator.store.create_revision(
             inputs, expected=prepared.revision, revoke_active=view is None, view=view, preparation=manifest

@@ -145,3 +145,41 @@ def protected_results(db):
         ON (t.kind IN ('attempt','result') AND t.id=a.id) OR (t.kind='request' AND t.id=a.request_id)
         UNION SELECT attempt FROM history_annotations WHERE important=1""").fetchall()
     return {row[0] for row in rows}
+
+
+def latest_model_revision(db, model_id):
+    from simulatte.execution.schema import Revision
+
+    row = db.execute(
+        """SELECT r.number,r.digest FROM revisions r JOIN model_revisions m ON m.revision=r.number
+        WHERE m.model=? ORDER BY r.number DESC LIMIT 1""",
+        (model_id,),
+    ).fetchone()
+    return None if row is None else Revision(*row)
+
+
+def revision_is_current(store, db, revision):
+    row = db.execute("SELECT model FROM model_revisions WHERE revision=?", (revision.number,)).fetchone()
+    current = store._current_revision(db) if row is None else latest_model_revision(db, row[0])
+    return current == revision
+
+
+class ModelStore:
+    """Revision-scoped view of the same writer, never a second store connection."""
+
+    def __init__(self, store, model_id):
+        self.store, self.model_id = store, model_id
+
+    def __getattr__(self, name):
+        return getattr(self.store, name)
+
+    def current_revision(self):
+        return self.store.current_revision(model_id=self.model_id)
+
+    def create_revision(self, inputs, **kwargs):
+        kwargs["revoke_active"] = False
+        return self.store.create_revision(inputs, model_id=self.model_id, **kwargs)
+
+    def next_revision_number(self):
+        current = self.store.current_revision()
+        return 1 if current is None else current.number + 1
