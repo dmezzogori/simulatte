@@ -44,6 +44,10 @@ def verify_replay(original: PublishedResult, replay: PublishedResult, replay_tra
         if not _same(before[name], after[name]):
             return Verification(False, f"kpi_mismatch:{name}")
     old, new = original.manifest["resolved"], replay.manifest["resolved"]
+    if (old["runtime"].get("kind") == "local-installation-v1") != (
+        new["runtime"].get("kind") == "local-installation-v1"
+    ):
+        return Verification(False, "runtime_mismatch")
     if not _same(old["runtime"]["facts"], new["runtime"]["facts"]):
         return Verification(False, "runtime_mismatch")
     if not _same(old["runtime"]["dependencies_hash"], new["runtime"]["dependencies_hash"]) or not _same(

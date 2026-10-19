@@ -73,3 +73,53 @@ def test_request_must_match_actual_runtime_identity(tmp_path, monkeypatch, chang
     }
     with pytest.raises(ValueError, match="actual runtime"):
         m.verify_runtime(config, requested | changed)
+
+
+def test_installation_runtime_requires_matching_tags_and_independent_payload(tmp_path, monkeypatch):
+    from simulatte.execution.installation import FORMAT, RUNTIME_KIND
+    from simulatte.execution import installation
+    from simulatte.execution.hashing import canonical_hash
+    from simulatte.execution.references import write_document
+
+    payload = {"format": FORMAT, "facts": {"python": "3.14.3"}, "dependencies": {"packages": {}}, "warnings": []}
+    document = {
+        "format": FORMAT,
+        "identity": payload,
+        "bindings": {"file:///captured.whl": "c" * 64},
+        "raw": {"record": "old"},
+    }
+    config = {
+        "runtime_ref": write_document(tmp_path, "runtime", document),
+        "distribution_roots": [],
+        "trusted_runtime_hash": "a" * 64,
+    }
+    requested = {
+        "kind": RUNTIME_KIND,
+        "facts": payload["facts"],
+        "dependencies_hash": canonical_hash("installation-dependencies-v1", payload["dependencies"]),
+        "trusted_runtime_hash": "a" * 64,
+    }
+    monkeypatch.setattr(installation, "describe_installation", lambda roots, bindings: payload)
+    assert api().verify_runtime(config, requested) == (requested, payload["dependencies"], ())
+    for change in (
+        {"kind": "local"},
+        {"trusted_runtime_hash": "b" * 64},
+        {"dependencies_hash": "d" * 64},
+        {"facts": {}},
+        {"unexpected": True},
+    ):
+        with pytest.raises(ValueError):
+            api().verify_runtime(config, requested | change)
+    for wrong in (
+        {"facts": {}, "dependencies": {}, "warnings": []},
+        {**document, "format": "future"},
+        {**document, "identity": {**payload, "format": "future"}},
+    ):
+        config["runtime_ref"] = write_document(tmp_path, "runtime", wrong)
+        with pytest.raises(ValueError):
+            api().verify_runtime(config, requested)
+    config["runtime_ref"] = write_document(tmp_path, "runtime", document)
+    changed = {**payload, "dependencies": {"changed": True}}
+    monkeypatch.setattr(installation, "describe_installation", lambda roots, bindings: changed)
+    with pytest.raises(ValueError, match="changed"):
+        api().verify_runtime(config, requested)

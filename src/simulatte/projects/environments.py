@@ -28,6 +28,27 @@ from simulatte.execution.store import RunStore, _acquire, _release, _blob, _read
 from simulatte.projects.types import ConfigEdit, WorkspaceDefinition
 
 
+def environment_identity(spec):
+    version = spec.get("runtime_format")
+    if version not in (None, "installation-v1") or (version and spec["kind"] != "managed"):
+        raise ValueError("Unsupported environment runtime evidence format")
+    return canonical_hash("local-environment-v2" if version else "local-environment-v1", spec)
+
+
+def _probe_identity(spec, probe):
+    if spec.get("runtime_format") == "installation-v1":
+        if probe.get("installation", {}).get("format") != "installation-v1":
+            raise ValueError("Environment runtime evidence format mismatch")
+        return {name: probe[name] for name in ("installation", "distribution_roots", "studio")}
+    if "installation" in probe:
+        raise ValueError("Environment runtime evidence format mismatch")
+    return probe
+
+
+def _captured_runtime(spec, probe):
+    return _probe_identity(spec, probe) if spec.get("runtime_format") else probe["runtime"]
+
+
 @dataclass(frozen=True, slots=True)
 class EnvironmentGeneration:
     id: str
@@ -115,6 +136,44 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
         except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError) as error:
             raise ValueError(f"Environment interpreter unavailable: {error}") from error
 
+    @staticmethod
+    def _probe_installation(interpreter, bindings):
+        code = """import json,sys,sysconfig,importlib.util
+from simulatte.execution.runtime import describe_runtime
+from simulatte.execution.installation import describe_installation
+roots=list(dict.fromkeys(sysconfig.get_path(k) for k in ('purelib','platlib')))
+bindings=json.load(sys.stdin)
+print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
+ 'installation':describe_installation(roots,bindings=bindings),'bindings':bindings,
+ 'studio':all(importlib.util.find_spec(k) is not None for k in ('starlette','uvicorn','tomlkit'))}))
+"""
+        try:
+            result = subprocess.run(
+                [str(interpreter), "-I", "-c", code],
+                input=json.dumps(bindings).encode(),
+                capture_output=True,
+                timeout=30,
+            )
+            if result.returncode:
+                raise ValueError(
+                    "Installation probe failed: " + result.stderr[-4096:].decode("utf-8", errors="replace")
+                )
+            return json.loads(result.stdout)
+        except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError) as error:
+            raise ValueError(f"Installation interpreter unavailable: {error}") from error
+
+    def installation_probe(self, generation):
+        """Read this installation's verified-source bindings; never infer them from installed URLs."""
+        return self._probe_installation(generation.interpreter, self.installation_bindings(generation))
+
+    def installation_bindings(self, generation):
+        captured = json.loads((self.cache / generation.id / "installation.json").read_text())
+        if _probe_identity(generation.evidence["spec"], captured) != _probe_identity(
+            generation.evidence["spec"], _plain(generation.evidence)["probe"]
+        ):
+            raise ValueError("Local installation evidence differs from captured generation")
+        return captured["bindings"]
+
     def _files(self, workspace):
         files = {}
         if workspace.models:
@@ -172,6 +231,7 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
             config = tomllib.loads(files["pyproject.toml"].decode())
             spec = {
                 "kind": "managed",
+                "runtime_format": "installation-v1",
                 "files": {name: data.hex() for name, data in files.items()},
                 "python": config.get("project", {}).get("requires-python", ">=3.11"),
                 "platform": sys.platform,
@@ -182,7 +242,7 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
             return self._prepare_spec(spec)
 
     def _prepare_spec(self, spec, *, expected_probe=None):
-        identity = canonical_hash("local-environment-v1", spec)
+        identity = environment_identity(spec)
         _directory(self.cache)
         directory = self.cache / identity
         lock_path = self.cache / (identity + ".lock")
@@ -210,22 +270,42 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
                     with tempfile.TemporaryDirectory(dir=self.cache, prefix="build-") as temporary:
                         build = Path(temporary)
                         self._write_files(build, spec["files"])
+                        bindings = None
+                        python = spec["python"]
+                        if spec.get("runtime_format") == "installation-v1":
+                            from simulatte.execution.installation import bind_artifacts
+
+                            bindings = bind_artifacts(spec["files"], build)
+                            if expected_probe is not None:
+                                python = (
+                                    spec["implementation"] + "@" + expected_probe["installation"]["facts"]["python"]
+                                )
                         self._run(
-                            [self._uv(), *spec["provisioning"], "--python", spec["python"]],
+                            [self._uv(), *spec["provisioning"], "--python", python],
                             cwd=build,
                             environment=directory,
                         )
                         if (build / "uv.lock").read_bytes() != bytes.fromhex(spec["files"]["uv.lock"]):
                             raise ValueError("Locked provisioning changed uv.lock")
                     interpreter = directory / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-                    probe = self._probe(interpreter)
+                    probe = (
+                        self._probe(interpreter)
+                        if bindings is None
+                        else self._probe_installation(interpreter, bindings)
+                    )
                     probe["distribution_roots"] = [
                         str(Path(p).relative_to(directory)) for p in probe["distribution_roots"]
                     ]
-                    if expected_probe is not None and probe["runtime"] != expected_probe["runtime"]:
+                    if expected_probe is not None and _captured_runtime(spec, probe) != _captured_runtime(
+                        spec, expected_probe
+                    ):
                         raise ValueError("Reconstructed runtime differs from captured environment")
                     evidence = {"spec": spec, "probe": probe}
                     self._save(identity, evidence)
+                    if bindings is not None:
+                        probe_path = directory / "installation.tmp"
+                        probe_path.write_text(json.dumps(probe, sort_keys=True))
+                        replace_durable(probe_path, directory / "installation.json")
                     marker = directory / "published.tmp"
                     marker.write_text(identity)
                     replace_durable(marker, directory / "published")
@@ -241,8 +321,12 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
     def _save(self, identity, evidence):
         with self.store._transaction() as db:
             old = db.execute("SELECT evidence FROM environment_generations WHERE id=?", (identity,)).fetchone()
-            if old is not None and _read(old[0])["probe"]["runtime"] != _plain(evidence)["probe"]["runtime"]:
-                raise ValueError("Environment evidence changed; reconstruction unavailable")
+            if old is not None:
+                captured = _read(old[0])
+                if _captured_runtime(captured["spec"], captured["probe"]) != _captured_runtime(
+                    evidence["spec"], evidence["probe"]
+                ):
+                    raise ValueError("Environment evidence changed; reconstruction unavailable")
             db.execute(
                 "INSERT OR IGNORE INTO environment_generations VALUES (?,?,?)", (identity, _blob(evidence), "prepared")
             )
@@ -271,11 +355,14 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
         return None if row is None else self.get(row[0])
 
     def _verify(self, generation):
-        actual = self._probe(generation.interpreter)
+        spec = generation.evidence["spec"]
+        actual = (
+            self.installation_probe(generation) if spec.get("runtime_format") else self._probe(generation.interpreter)
+        )
         if generation.evidence["spec"]["kind"] == "managed":
             directory = self.cache / generation.id
             actual["distribution_roots"] = [str(Path(p).relative_to(directory)) for p in actual["distribution_roots"]]
-        if actual != _plain(generation.evidence)["probe"]:
+        if _probe_identity(spec, actual) != _probe_identity(spec, _plain(generation.evidence)["probe"]):
             raise ValueError("Environment changed after preparation; prepare a new generation")
 
     def owners(self, identity):
@@ -340,7 +427,7 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
         interpreter = Path(interpreter).absolute()
         probe = self._probe(interpreter)
         spec = {"kind": "existing", "interpreter": str(interpreter), "runtime": probe["runtime"]}
-        identity = canonical_hash("local-environment-v1", spec)
+        identity = environment_identity(spec)
         self._save(identity, {"spec": spec, "probe": probe})
         return self.get(identity)
 
@@ -358,7 +445,7 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
     def reconstruct(self, evidence):
         evidence = _plain(evidence)
         spec = evidence["spec"]
-        identity = canonical_hash("local-environment-v1", spec)
+        identity = environment_identity(spec)
         try:
             if spec["kind"] == "existing":
                 generation = self.get(identity)

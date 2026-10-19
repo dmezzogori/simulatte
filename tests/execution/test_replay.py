@@ -155,6 +155,15 @@ def test_verification_reports_the_first_differing_field():
     assert verify_replay(published(kpis={"a": float("nan")}), published(kpis={"a": float("nan")}), True).verified
 
 
+def test_replay_never_bridges_old_and_installation_runtime_versions():
+    legacy = published()
+    modern = published()
+    modern.manifest["resolved"]["runtime"]["kind"] = "local-installation-v1"
+    assert verify_replay(legacy, modern, True) == Verification(False, "runtime_mismatch")
+    assert verify_replay(modern, legacy, True) == Verification(False, "runtime_mismatch")
+    assert verify_replay(modern, modern, True).verified
+
+
 def test_no_compatible_worker_and_uncommitted_requests_fail_before_scheduling(tmp_path, monkeypatch):
     spec = project(tmp_path)
     with m.Coordinator(spec, slots=SlotConfig(local=1)) as coordinator:

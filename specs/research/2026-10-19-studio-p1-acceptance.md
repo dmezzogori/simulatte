@@ -168,7 +168,8 @@ metadata evidence, not a fresh hash of every installed dependency file. The stri
 raw-RECORD identity check intentionally still rejects the rebuilt runtime. No old
 request/runtime IDs, probe evidence, dependency manifests or acceptance comparisons
 were rewritten or normalized, and no mismatch was treated as verified reproduction.
-A runtime-identity redesign is outside this candidate's bounded gate fixes.
+This was the original candidate boundary. The subsequent blocking review explicitly
+authorized the bounded, versioned new-generation implementation described below.
 
 Retained evidence:
 
@@ -265,3 +266,63 @@ Native Windows/Linux/PyPy, actual Safari and native Firefox application acceptan
 are not established by these macOS Playwright runs. Existing CI lanes remain
 required. The eva Safari gallery acceptance concerns actual UI screenshots only.
 No merge, push, release or production publishing has been performed.
+
+## Revised review pass: R1 implementation evidence (review remains open)
+
+Coordinator accepted the versioned design and all four obligations in Cortex
+`session-16f6fa50-3592-4878-bdd5-41b42ffccf61`. New managed generations select
+`installation-v1`, generation domain `local-environment-v2`, execution kind
+`local-installation-v1`, and dependency domain `installation-dependencies-v1`.
+Old generation/request domains, `describe_runtime`, raw verifier and remote `uv`
+contract remain unchanged. No existing request or runtime is rewritten.
+
+Actual file bytes and canonical installation paths determine the new identity.
+RECORD is the enumerating manifest, not recursively hashed generated serialization;
+unhashed generated `__pycache__/*.pyc` entries alone may be omitted. Duplicate or
+escaping paths, missing payload and ambiguous distributions refuse. Local file URLs
+normalize only through exact bindings made from verified captured files before
+provisioning; these bindings survive staging deletion and reach the independent
+child verifier. Unknown external local URLs refuse. Other direct-URL provenance
+and unknown uv-cache fields remain exact; only the recognized timestamp is omitted.
+
+Generated POSIX shebang/long-path trampolines retain their body. Windows uv0.13.1
+PE resources `UV_TRAMPOLINE_KIND`, `UV_PYTHON_PATH`, `UV_SCRIPT_DATA` and the archived
+`__main__.py` selector are parsed; console/GUI mode, code, body and unrelated
+resources remain exact. Bounds, derived sizes, nonzero PE checksums and ZIP CRC
+are checked. Only selectors and derived layout/CRC bookkeeping normalize; unknown
+formats refuse. Parser fixtures cover path lengths, spaces, non-ASCII and tampering.
+The implementation follows uv's pinned [builder](https://github.com/astral-sh/uv/blob/0.13.1/crates/uv-trampoline-builder/src/lib.rs)
+and [wheel installer](https://github.com/astral-sh/uv/blob/0.13.1/crates/uv-install-wheel/src/wheel.rs).
+
+Capability admission occurs before inspect/run commands, including reused workers,
+experiments and replay. Request/evidence tags must agree; old/new replay versions
+never silently bridge. Reconstruction requests the captured exact interpreter for
+new generations and retains strict comparison of all interpreter facts.
+
+`review-r1-native-2.log`: fresh-wheel macOS CPython3.14.3/uv0.13.1 proof passed
+preparation, stopped-project copy without cache, reconstruction with unchanged
+selection and immutable capture/request, independent child run and verified replay,
+two-configuration experiment, console/GUI script execution, payload/entrypoint-body
+tamper refusal, and pre-import refusal by a reused incapable real worker.
+`reconstruction-v2-native-2/` retains original/rebuilt raw probes and base64 raw
+RECORD/direct_url/uv_cache/entrypoint files, original request and phase results.
+The first native proof (`review-r1-native.log`, `reconstruction-v2-native-1/`)
+failed at experiment expansion after reconstruction/run/replay; this exposed and
+fixed the new-kind-to-local-worker mapping. Both failed and successful evidence
+remain. New macOS/Windows CI reconstruction exercises were added; native Windows
+results have not been observed locally and are not claimed.
+
+Targeted compatibility checks: `review-r1-experiment-final.log` **114 passed**;
+`review-r1-compatibility-final.log` **84 passed**; targeted coverage/provisioning
+`review-r1-targeted-coverage.log` **105 passed**. These are scoped checks, not the
+full99% package gate. R1 remains subject to independent implementation recheck;
+M1 and refreshed package gates are still pending at this checkpoint.
+
+Follow-up final R1 proof: `review-r1-native-4.log` and
+`reconstruction-v2-native-4/` pass the same complete fresh-wheel journey after
+exact-interpreter reconstruction selection. `review-r1-native-3.log` preserves a
+proof-harness failure: manually starting an idle actor's worker raced its heartbeat
+reader for the hello. The harness now completes the actual handshake before
+publishing the reused worker. Product admission was not relaxed. Exact-interpreter
+regression failed before the fix and the environment suite then passed10 tests;
+Ruff and `ty check src` pass. Native-4 is the latest R1 portability proof.

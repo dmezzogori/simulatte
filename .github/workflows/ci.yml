@@ -143,6 +143,32 @@ jobs:
           grep -q '"succeeded":8' "$RUNNER_TEMP/smoke.json"
           run_id=$(uv run --python ${{ matrix.python }} --extra studio python -c "import json, sys; sys.stdout.write(json.load(open(sys.argv[1]))['run_id'])" "$RUNNER_TEMP/smoke.json" | tr -d '\r')
           uv run --python ${{ matrix.python }} --extra studio simulatte experiment results "$run_id" --project "$project"
+      - name: Set up Node for installed managed-project reconstruction
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 24
+      - name: Build the native reconstruction wheel with Studio assets
+        shell: bash
+        run: |
+          corepack enable
+          pnpm --dir studio install --frozen-lockfile
+          pnpm --dir studio build
+          uv run --python ${{ matrix.python }} python studio/scripts/package_assets.py
+          uv build
+      - name: Native copied-project reconstruction, execution and console/GUI launchers
+        shell: bash
+        run: |
+          wheels=(dist/simulatte-*.whl)
+          test "${#wheels[@]}" -eq 1
+          uv run --python ${{ matrix.python }} python studio/scripts/project-reconstruction.py \
+            --wheel "${wheels[0]}" --output "$RUNNER_TEMP/studio-reconstruction"
+      - name: Keep native reconstruction evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reconstruction-${{ matrix.os }}-${{ matrix.python }}
+          path: ${{ runner.temp }}/studio-reconstruction/*.json
+          if-no-files-found: ignore
       - name: SSH from a Windows coordinator reports itself untested
         if: runner.os == 'Windows'
         shell: bash

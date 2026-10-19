@@ -52,7 +52,8 @@ def test_cancelled_operation_never_launches_and_active_cancel_is_contained(confi
 
 
 @pytest.mark.parametrize("failure", ["exit", "json", "os", "timeout"])
-def test_interpreter_probe_errors_are_bounded(monkeypatch, failure):
+@pytest.mark.parametrize("installation", [False, True])
+def test_interpreter_probe_errors_are_bounded(monkeypatch, failure, installation):
     from simulatte.projects import environments
 
     def run(*args, **kw):
@@ -64,7 +65,10 @@ def test_interpreter_probe_errors_are_bounded(monkeypatch, failure):
 
     monkeypatch.setattr(environments.subprocess, "run", run)
     with pytest.raises(ValueError) as caught:
-        EnvironmentPool._probe(Path("missing"))
+        if installation:
+            EnvironmentPool._probe_installation(Path("missing"), {})
+        else:
+            EnvironmentPool._probe(Path("missing"))
     assert len(str(caught.value)) < 5000
 
 
@@ -127,7 +131,12 @@ def test_failed_generation_is_not_published(configured, monkeypatch, failure):
 
             monkeypatch.setattr(pool, "_run", run)
         with pytest.raises(ValueError, match="changed|differs|symlink|owned|cancelled"):
-            pool._prepare_spec(spec, expected_probe={"runtime": {}} if failure == "probe-different" else None)
+            pool._prepare_spec(
+                spec,
+                expected_probe={**_plain(generation.evidence["probe"]), "installation": {"format": "installation-v1"}}
+                if failure == "probe-different"
+                else None,
+            )
         assert pool.selected is None
         if failure != "symlink":
             assert not (pool.cache / generation.id / "published").exists()
@@ -159,8 +168,12 @@ def test_generation_leases_and_cleanup_refuse_wrong_ownership(configured, monkey
         with pytest.raises(ValueError, match="unavailable"):
             pool.reconstruct({"spec": spec, "probe": dict(first.evidence["probe"])})
         # Changed evidence for an existing identity cannot silently overwrite history.
+        from simulatte.execution.schema import _plain
+
+        changed = _plain(first.evidence)
+        changed["probe"]["installation"]["facts"]["python"] = "changed"
         with pytest.raises(ValueError, match="evidence changed"):
-            pool._save(first.id, {"spec": dict(first.evidence["spec"]), "probe": {"runtime": {}}})
+            pool._save(first.id, changed)
 
 
 def test_native_command_failure_preserves_diagnostics(configured):

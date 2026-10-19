@@ -75,6 +75,10 @@ def verify_runtime(config, requested):
     with the actual facts, so replay verification and ``mixed_runtime`` compare them.
     """
     expected = read_document(config["runtime_ref"], "runtime")
+    if requested.get("kind") == "local-installation-v1" or "format" in expected:
+        from simulatte.execution.installation import verify_installation
+
+        return verify_installation(config, requested, expected)
     actual = describe_runtime(config["distribution_roots"])
     if canonical_hash("runtime-evidence-v1", actual) != canonical_hash("runtime-evidence-v1", expected):
         raise RuntimeChanged("Installed runtime changed after preparation")
