@@ -277,3 +277,14 @@ def test_new_reconstruction_requests_the_captured_exact_interpreter(configured, 
         assert commands[0][-2:] == ["--python", "cpython@3.14.3"]
         assert restored.id == generation.id
         assert _plain(restored.evidence) == _plain(generation.evidence)
+
+
+def test_referenced_generation_is_not_cleaned_up(configured, monkeypatch):
+    with RunStore.open(configured.root / ".simulatte") as store:
+        pool = fake_pool(configured, store, monkeypatch)
+        generation = pool.prepare(configured)
+        with store._transaction() as db:
+            db.execute('INSERT INTO "references" VALUES (?,?,?,?)', ("analysis", "a1", "environment", generation.id))
+        with pytest.raises(ValueError, match="referenced"):
+            pool.cleanup(generation.id)
+        assert generation.interpreter.exists()

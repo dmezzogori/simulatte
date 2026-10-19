@@ -236,3 +236,10 @@ def test_optional_measurements_preserve_legacy_and_change_selected_identity():
     for value in ({}, {"schema": 2}, {"schema": 1, "plan": "jobs", "selection": {}, "definition_hash": "bad"}):
         with pytest.raises(ValueError):
             replace(legacy, measurements=value)
+
+
+def test_measurement_selection_must_decode_to_a_record():
+    m = api()
+    selection = {"schema": 1, "plan": "jobs", "selection": [1], "definition_hash": "a" * 64}
+    with pytest.raises(ValueError, match="record"):
+        replace(request(m), measurements=selection)
