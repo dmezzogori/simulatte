@@ -755,3 +755,25 @@ def test_layout_variants_are_recorded_and_may_be_missing(tmp_path):
     )
     with pytest.raises(ValueError, match="project configuration"):
         m.capture_source(spec)
+
+
+def test_registered_layouts_and_project_history_are_not_source(tmp_path):
+    from uuid import uuid4
+
+    m = api()
+    model = project(tmp_path)
+    with (tmp_path / "pyproject.toml").open("a") as f:
+        f.write(f'\n[tool.simulatte.project]\nschema = 1\nid = "{uuid4()}"\n')
+        f.write(
+            f'[tool.simulatte.models.other]\nid = "{uuid4()}"\nname = "Other"\n'
+            'entrypoint = "helper.py:build"\nlayout = "other.json"\n'
+        )
+    (tmp_path / "other.json").write_text("{}")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / ".simulatte/cache").mkdir(parents=True)
+    (tmp_path / ".simulatte/cache/private.py").write_text("private")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    spec = m.discover_project(model)
+    names = {e.path for e in m.capture_source(spec).entries}
+    assert "other.json" not in names
+    assert not any(n.startswith(".simulatte/") for n in names)
