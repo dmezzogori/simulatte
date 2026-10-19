@@ -65,3 +65,92 @@ def test_experiment_local_children_require_new_capability(tmp_path, monkeypatch)
         for row in co.store.replications(run):
             assert row["worker_kind"] == "local"
             assert row["status"] == "failed"
+
+
+@pytest.mark.parametrize("inspection", [False, True])
+def test_new_installation_handoff_keeps_tags_raw_evidence_and_relocated_bindings(tmp_path, inspection):
+    from pathlib import Path
+    from types import SimpleNamespace
+    from simulatte.execution.references import read_document
+    from simulatte.execution.hashing import canonical_hash
+
+    with Coordinator(project(tmp_path)) as co:
+        prepared = co.prepare(timeout=10)
+        until(lambda: co._current is None)
+        actor = co._actors["interactive"]
+        actor.worker.close()
+        actor.worker = None
+        identity = {
+            "format": "installation-v1",
+            "facts": dict(prepared.runtime["facts"]),
+            "dependencies": {"packages": {}},
+            "warnings": [],
+        }
+        captured_bindings = {"file:///deleted-staging/wheel.whl": "a" * 64}
+        relocated_bindings = {"file:///rebuilt-staging/wheel.whl": "a" * 64}
+        generation = SimpleNamespace(
+            id="g" * 64,
+            interpreter=tmp_path / "relocated/bin/python",
+            evidence={"spec": {"runtime_format": "installation-v1"}},
+        )
+        released = []
+        co.environments = SimpleNamespace(
+            selected=generation,
+            installation_probe=lambda value: {
+                "installation": identity,
+                "runtime": {"raw": "retained"},
+                "bindings": captured_bindings,
+            },
+            installation_bindings=lambda value: relocated_bindings,
+            acquire=lambda identity, owner: None,
+            release=released.append,
+        )
+        peer = Peer()
+        receive = peer.receive
+        sent = []
+
+        def hello(timeout):
+            message = receive(timeout)
+            message.body["capabilities"].append("installation-runtime-v1")
+            return message
+
+        peer.receive = hello
+        peer.send = lambda kind, body, **kw: sent.append((kind, body))
+        actor.transport_factory = lambda: peer
+        if inspection:
+            with pytest.raises(ExecutionFailure):
+                co.prepare(timeout=10)
+        else:
+            runtime = {
+                "kind": "local-installation-v1",
+                "facts": identity["facts"],
+                "dependencies_hash": canonical_hash("installation-dependencies-v1", identity["dependencies"]),
+                "trusted_runtime_hash": co.runtime.content_hash,
+            }
+            evidence = {
+                "format": "installation-v1",
+                "identity": identity,
+                "raw": {"raw": "retained"},
+                "bindings": captured_bindings,
+            }
+            documents = {**prepared.documents, "runtime_ref": co._document("runtime", evidence)}
+            request = co.make_request(replace(prepared, runtime=runtime, documents=documents))
+            key = co.submit(request, prepared.revision, timeout=10)
+            with pytest.raises(ExecutionFailure):
+                co.wait(key, timeout=15)
+        kind, command = next(item for item in sent if item[0] in ("inspect", "run"))
+        assert kind == ("inspect" if inspection else "run")
+        config = command["config"]
+        assert Path(config["installation_prefix"]) == generation.interpreter.parent.parent
+        assert config["installation_bindings"] == relocated_bindings
+        assert config["trusted_runtime_hash"] == co.runtime.content_hash
+        captured_request = read_document(command["inspection_ref" if inspection else "request_ref"], "request")
+        assert captured_request["runtime"]["kind"] == "local-installation-v1"
+        evidence = read_document(config["runtime_ref"], "runtime")
+        assert evidence == {
+            "format": "installation-v1",
+            "identity": identity,
+            "raw": {"raw": "retained"},
+            "bindings": captured_bindings,
+        }
+        until(lambda: bool(released))

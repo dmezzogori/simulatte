@@ -243,3 +243,59 @@ def test_environment_change_cannot_cancel_work_admitted_during_validation(tmp_pa
         co.cancel(admitted[0].key)  # Only the explicit test-owner stop cancels it.
     finally:
         service.close()
+
+
+def test_failed_coordinator_configuration_closes_unpublished_instance(tmp_path, monkeypatch):
+    from simulatte.execution import workers
+
+    service, _ = ready_service(tmp_path)
+    made = []
+    factory = Coordinator.for_workspace.__func__
+
+    def capture(cls, *args, **kwargs):
+        co = factory(cls, *args, **kwargs)
+        made.append(co)
+        return co
+
+    def unavailable():
+        raise OSError("workers configuration unreadable")
+
+    monkeypatch.setattr(Coordinator, "for_workspace", classmethod(capture))
+    monkeypatch.setattr(workers, "load_workers", unavailable)
+    try:
+        with pytest.raises(OSError, match="unreadable"):
+            service.ensure_coordinator()
+        assert service.coordinator is None
+        assert len(made) == 1 and made[0]._closed
+        monkeypatch.setattr(workers, "load_workers", lambda: {})
+        retry = service.ensure_coordinator()
+        assert retry is made[1] and not retry._closed
+    finally:
+        service.close()
+
+
+@pytest.mark.parametrize("outcome", ["selected", "busy", "error"])
+def test_selection_without_handoff_restores_admission(tmp_path, monkeypatch, outcome):
+    service, _ = ready_service(tmp_path)
+    co = service.ensure_coordinator()
+    pool = service.environments
+
+    def select(identity):
+        assert co._admission_paused
+        if outcome == "error":
+            raise OSError("selection failed")
+        return outcome
+
+    monkeypatch.setattr(pool, "select", select)
+    try:
+        if outcome == "error":
+            with pytest.raises(OSError, match="selection failed"):
+                service.select_environment({"id": pool.selected.id})
+        else:
+            assert service.select_environment({"id": pool.selected.id})["status"] == outcome
+        assert service.restart_generation is None
+        assert not co._admission_paused
+        assert co.pause_admission()
+        co.resume_admission()
+    finally:
+        service.close()
