@@ -133,7 +133,13 @@ def test_failed_generation_is_not_published(configured, monkeypatch, failure):
         with pytest.raises(ValueError, match="changed|differs|symlink|owned|cancelled"):
             pool._prepare_spec(
                 spec,
-                expected_probe={**_plain(generation.evidence["probe"]), "installation": {"format": "installation-v1"}}
+                expected_probe={
+                    **_plain(generation.evidence["probe"]),
+                    "installation": {
+                        **_plain(generation.evidence["probe"]["installation"]),
+                        "dependencies": {"changed": True},
+                    },
+                }
                 if failure == "probe-different"
                 else None,
             )
