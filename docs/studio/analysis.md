@@ -109,6 +109,11 @@ revisions. Outputs are shown only for a succeeded execution; a failed, cancelled
 running or lost execution shows its state and the diagnostics of the contained
 process, never partial files as results.
 
+A succeeded execution's numbers, table excerpts, distributions, figures and images can be
+selected as evidence in a [presentation](presentations.md#evidence); the presentation
+carries their unit, population, sample size and snapshot labels and keeps the
+execution protected.
+
 **Rerun on the same snapshot** recomputes the frozen inputs as a new execution.
 **Refresh inputs** previews the current results of the same selection, says whether
 the snapshot changed, and creates a distinct execution only after **Admit refreshed

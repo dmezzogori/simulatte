@@ -79,8 +79,11 @@ The library provides ready-to-use components for common manufacturing scenarios 
 
 ### Studio projects
 - Open or create a folder with `simulatte studio [PATH]`; opening never starts a simulation
-- Register named Python models, prepare an isolated environment, then explicitly Run
-- Inspect recordings and retain named history across sessions
+- Register named Python models, prepare an isolated environment, then explicitly Run; inspect recordings and retain named history across sessions
+- Run experiments with replication-level intervals and paired comparisons, locally or on [remote workers](docs/guides/remote-workers.md)
+- Analyse populations with reproducible, saved numerical analyses over frozen inputs
+- Turn a chosen run into a saved presentation with supporting evidence, then present it in Studio or export a video or offline HTML; see [Presentations](docs/studio/presentations.md)
+- Keep, clean, move and recover a project: [storage and portability](docs/studio/storage.md) and the [CLI reference](docs/studio/cli.md)
 - Install with `pip install 'simulatte[studio]'`; see the [Studio guide](docs/studio/index.md)
 
 ### Multi-Run Experiments

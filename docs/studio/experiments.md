@@ -94,3 +94,11 @@ full recordings: two recordings on one clock, chosen from interactive results, c
 replications and replays. A KPI-only replication offers **Replay at full level**; the
 replay is labelled verified or unverified with its reason. The [recording
 reference](../development/studio.md#replays-and-compare-playback) describes the controls.
+
+## Present a configuration
+
+Experiments are numerical. To show a configuration as an animation, record a full run
+of it on the **Presentations** page: with the replication's own seed it is a verified
+replay, with another seed it is a new recording that is labelled as such. The stopping
+policy, warm-up and measurements of the experiment are kept. See
+[Presentations](presentations.md#an-experiment-is-numerical-a-presentation-needs-a-full-recording).

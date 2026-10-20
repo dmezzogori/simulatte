@@ -91,10 +91,12 @@ Important or referenced results are protected from pruning. Removing a registrat
 does not erase its history; the original model identity remains in the store.
 Legacy results without a proven model association remain unassigned.
 
-Schema 3 adds project/model associations without changing existing request, attempt
-or result identities; schema 4 adds analysis snapshots and executions. A writer makes
-a SQLite backup and manifest before upgrading an older store. A newer unsupported
-schema is refused rather than modified.
+The store is at schema 5. Schema 3 added project/model associations without changing
+existing request, attempt or result identities; schema 4 added analysis snapshots and
+executions; schema 5 adds presentations, their immutable revisions and export jobs.
+A writer makes a SQLite backup and manifest before upgrading an older store. A newer
+unsupported schema is refused rather than modified. The
+[storage page](storage.md#schema-versions-and-migration) lists what each schema holds.
 
 **Do not treat `.simulatte/` as disposable.** It contains saved results, traces,
 annotations, captured inputs, analysis snapshots and outputs, backups and durable
@@ -102,5 +104,9 @@ environment evidence. Back up the whole quiescent project, including this direct
 before moving or cleaning it. Stop Studio and other writers before copying.
 Environment caches can require reconstruction after moving a virtualenv; saved
 evidence and recordings remain useful. Use explicit store pruning for unwanted
-history, respecting important/reference protection. No results are deleted
-automatically.
+history, respecting important/reference protection: results used by a saved analysis
+or presentation, or by an export in progress, are kept until their last owner is
+removed. No results are deleted automatically. See
+[storage and portability](storage.md) for the layout, pruning, deletion, copying a
+project and read-only recovery viewing, and [presentations](presentations.md) for
+what saved presentations hold.
