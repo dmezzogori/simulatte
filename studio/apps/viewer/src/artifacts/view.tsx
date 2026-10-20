@@ -1,5 +1,5 @@
 /** Saved analysis outputs, numeric first: numbers, tables, distributions, images, then isolated figures. */
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { formatValue, untag, type Plain } from "../analysis/codec";
 import { Diagnostic } from "../workspace/feedback";
 import { DistributionSummary } from "./distribution";
@@ -210,7 +210,8 @@ function FigureCard({ output, source }: { output: OutputDescriptor; source: Arti
   const url = useObjectUrl(blob.status === "ready" ? blob.value : null);
   const [frame, setFrame] = useState<FrameState>("loading");
   const renderer = rendererState(output.renderer);
-  const verdict = load.status === "ready" ? validateFigure(load.value) : null;
+  // Validated once per loaded specification, not on every render.
+  const verdict = useMemo(() => (load.status === "ready" ? validateFigure(load.value) : null), [load]);
   const figureState =
     renderer.state !== "ready" ? renderer.state : verdict === null ? "loading" : !verdict.ok ? "refused" : frame;
   return (

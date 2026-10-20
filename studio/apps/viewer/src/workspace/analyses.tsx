@@ -1,5 +1,5 @@
 /** Saved analyses: the list, one saved execution with its inputs, outputs and annotations, and explicit admission of a new one. */
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { formatValue, untag, type Plain } from "../analysis/codec";
 import { httpArtifactSource } from "../artifacts/source";
 import type { OutputManifest } from "../artifacts/types";
@@ -87,6 +87,64 @@ interface Refusal {
   details?: unknown;
 }
 type CommandError = Error & { refusal?: Refusal };
+/** ``service.state()`` carries the newest history page of this size. */
+export const HISTORY_PAGE = 50;
+export interface RunPaging {
+  items: HistoryItem[];
+  /** ``history.get`` cursor of the next older page; ``null`` asks for the first server page. */
+  cursor: string | null;
+  hasMore: boolean;
+}
+const generationOf = (item: HistoryItem): number | null => {
+  const value = (item as HistoryItem & { generation?: unknown }).generation;
+  return typeof value === "number" && Number.isSafeInteger(value) ? value : null;
+};
+const dedupe = (items: readonly HistoryItem[]): HistoryItem[] => {
+  const seen = new Set<string>();
+  return items.filter((item) => !seen.has(item.id) && (seen.add(item.id), true));
+};
+/** Start from the state's newest page: continue after its last generation when known, or page from the server's first page with dedup. */
+export function initialRunPaging(history: readonly HistoryItem[]): RunPaging {
+  const items = dedupe(history);
+  const first = items[0], last = items[items.length - 1];
+  const high = first ? generationOf(first) : null, low = last ? generationOf(last) : null;
+  const hasMore = history.length >= HISTORY_PAGE;
+  const cursor = hasMore && high !== null && low !== null && low >= 1 && low <= high + 1 ? `${high}:${low}` : null;
+  return { items, cursor, hasMore };
+}
+/** Append one ``history.get`` page without repeating runs already listed. */
+export function appendRuns(paging: RunPaging, page: { items: HistoryItem[]; next_cursor: string | null }): RunPaging {
+  return { items: dedupe([...paging.items, ...page.items]), cursor: page.next_cursor, hasMore: page.next_cursor !== null };
+}
+/** ``service.state()`` carries the newest experiment runs of this size; ``experiment.list`` pages the rest. */
+export const EXPERIMENT_PAGE = 20;
+export interface ExperimentPaging {
+  items: ExperimentRun[];
+  /** Opaque ``experiment.list`` cursor of the next older page; ``null`` asks for the first server page. */
+  cursor: string | null;
+  hasMore: boolean;
+}
+const dedupeRuns = (items: readonly ExperimentRun[]): ExperimentRun[] => {
+  const seen = new Set<string>();
+  return items.filter((item) => !seen.has(item.run_id) && (seen.add(item.run_id), true));
+};
+export function initialExperimentPaging(listed: readonly ExperimentRun[]): ExperimentPaging {
+  return { items: dedupeRuns(listed), cursor: null, hasMore: listed.length >= EXPERIMENT_PAGE };
+}
+/** Append one ``experiment.list`` page without repeating runs already listed. */
+export function appendExperiments(
+  paging: ExperimentPaging,
+  page: { items: ExperimentRun[]; next_cursor: string | null },
+): ExperimentPaging {
+  return { items: dedupeRuns([...paging.items, ...page.items]), cursor: page.next_cursor, hasMore: page.next_cursor !== null };
+}
+/** Fresh status and counts from the state's newest page; runs it no longer lists stay where they were loaded. */
+export function mergeExperiments(paging: ExperimentPaging, latest: readonly ExperimentRun[]): ExperimentPaging {
+  const fresh = new Map(latest.map((run) => [run.run_id, run]));
+  const known = new Set(paging.items.map((run) => run.run_id));
+  const newer = latest.filter((run) => !known.has(run.run_id));
+  return { ...paging, items: [...newer, ...paging.items.map((run) => fresh.get(run.run_id) ?? run)] };
+}
 /** Why the "Add annotation" button is disabled, so it is never disabled without a reason. */
 export function annotationDisabled(busy: string, blocked: string, note: string) {
   return disabledWhen(busy && WORKING, blocked, !note.trim() && "Type an annotation first");
@@ -123,15 +181,20 @@ function StateBadge({ state }: { state: string }) {
   return <span className={"ws-badge " + state}>{state}</span>;
 }
 function useAnalysisStates(client: StudioClient, listener: (body: { execution_id: string; state: string }) => void) {
+  // One subscription per client: the latest listener is read through a ref, so renders never resubscribe.
+  const current = useRef(listener);
+  useEffect(() => {
+    current.current = listener;
+  }, [listener]);
   useEffect(
     () =>
       client.subscribeNotifications((notification: Notification) => {
         if (notification.type !== "analysis_state") return;
         const body = notification.body as { execution_id?: unknown; state?: unknown };
         if (typeof body?.execution_id === "string" && typeof body.state === "string")
-          listener({ execution_id: body.execution_id, state: body.state });
+          current.current({ execution_id: body.execution_id, state: body.state });
       }),
-    [client, listener],
+    [client],
   );
 }
 function Pairs({ items }: { items: [string, ReactNode][] }) {
@@ -432,10 +495,35 @@ function NewAnalysis({
   connected: boolean;
 }) {
   const registration = registrations(state).find((item) => item.key === registrationKey);
-  const [experiments, setExperiments] = useState<ExperimentRun[]>(() => client.state?.experiments ?? []);
-  useEffect(() => client.subscribeState((value) => setExperiments(value.experiments ?? [])), [client]);
-  const [runs, setRuns] = useState<HistoryItem[]>(state.history);
-  const [runCursor, setRunCursor] = useState<string | null>(null);
+  const [experimentPaging, setExperimentPaging] = useState<ExperimentPaging>(() =>
+    initialExperimentPaging(client.state?.experiments ?? []),
+  );
+  const experiments = experimentPaging.items;
+  useEffect(
+    () => client.subscribeState((value) => setExperimentPaging((old) => mergeExperiments(old, value.experiments ?? []))),
+    [client],
+  );
+  const [loadingExperiments, setLoadingExperiments] = useState(false);
+  const loadExperiments = async () => {
+    setLoadingExperiments(true);
+    try {
+      // The cursor is opaque, so the first server page overlaps the state's newest runs; ask for two
+      // pages then, so one click always reaches runs the state does not list.
+      const reply = await invoke(client, "experiment.list" as Parameters<StudioClient["command"]>[0], {
+        limit: experimentPaging.cursor ? EXPERIMENT_PAGE : 2 * EXPERIMENT_PAGE,
+        ...(experimentPaging.cursor ? { cursor: experimentPaging.cursor } : {}),
+      });
+      setExperimentPaging((old) =>
+        appendExperiments(old, { items: reply.items as ExperimentRun[], next_cursor: (reply.next_cursor as string | null) ?? null }),
+      );
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setLoadingExperiments(false);
+    }
+  };
+  const [paging, setPaging] = useState<RunPaging>(() => initialRunPaging(state.history));
+  const runs = paging.items;
   const [selectedExperiments, setSelectedExperiments] = useState<string[]>([]);
   const [selectedRuns, setSelectedRuns] = useState<string[]>([]);
   const [configurations, setConfigurations] = useState<{ run: string; index: number; label: string }[]>([]);
@@ -472,9 +560,10 @@ function NewAnalysis({
   const completed = runs.filter((item) => item.status === "succeeded" && item.has_result);
   const loadRuns = async () => {
     try {
-      const reply = await invoke(client, "history.get", { model_id: null, after: runCursor });
-      setRuns((old) => [...old, ...(reply.items as HistoryItem[])]);
-      setRunCursor((reply.next_cursor as string | null) ?? null);
+      const reply = await invoke(client, "history.get", { model_id: null, after: paging.cursor });
+      setPaging((old) =>
+        appendRuns(old, { items: reply.items as HistoryItem[], next_cursor: (reply.next_cursor as string | null) ?? null }),
+      );
     } catch (e) {
       setError(message(e));
     }
@@ -575,7 +664,7 @@ function NewAnalysis({
         </p>
         <FieldGroup
           legend="Experiment runs"
-          hint="Committed replications of running, paused or finished experiments. Newest 20 runs."
+          hint="Committed replications of running, paused or finished experiments, newest first."
           disabled={!!busy}
         >
           {experiments.length ? (
@@ -602,6 +691,11 @@ function NewAnalysis({
               No experiment runs yet. <a href={routeHash({ page: "experiments" })}>Define an experiment</a> or select completed
               runs below.
             </p>
+          )}
+          {experimentPaging.hasMore && (
+            <button type="button" {...disabledWhen(loadingExperiments && WORKING)} onClick={() => void loadExperiments()}>
+              Load older experiment runs
+            </button>
           )}
         </FieldGroup>
         {selectedExperiments.length > 0 && (
@@ -649,9 +743,9 @@ function NewAnalysis({
           ) : (
             <p className="ws-hint">No completed runs with results.</p>
           )}
-          {runCursor !== null && (
+          {paging.hasMore && (
             <button type="button" onClick={() => void loadRuns()}>
-              Load more runs
+              Load older runs
             </button>
           )}
         </FieldGroup>
