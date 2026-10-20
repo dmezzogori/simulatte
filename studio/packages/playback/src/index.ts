@@ -1,5 +1,8 @@
 import {pinPresentation} from './presentation';
 export {pinPresentation, freezePresentation} from './presentation';
+export {validatePresentation, applyPresentation, capturePresentation, enforceRange, PresentationError, LIMITS as PRESENTATION_LIMITS,
+  type PresentationManifest, type PresentationSelection, type EvidenceSelection, type EvidenceLabels, type EvidenceChoice, type EvidenceKind,
+  type Annotation, type PlaybackRange, type Bounds, type SceneView, type SessionView, type PlaybackView} from './presentation-manifest';
 import {
   compare,
   type Cursor,

@@ -2,7 +2,8 @@ import type { AttemptKey, Revision, Prefix, Reference } from "../studio-client";
 import type { ParameterSchema } from "../parameter-draft";
 /** Focused routes. P1 values stay valid; sub-identities are optional segments. */
 export type WorkspaceRoute =
-  | { page: "overview" | "models" | "presentations" | "settings" }
+  | { page: "overview" | "models" | "settings" }
+  | { page: "presentations"; id?: string; present?: boolean; attempt?: string }
   | { page: "model"; id: string }
   | { page: "run"; attempt: string }
   | { page: "runs"; model?: string }
@@ -38,9 +39,14 @@ export function parseRoute(hash: string): WorkspaceRoute {
         if (page === "runs") return { page, model: id };
         if (page === "experiments") return { page, run: id };
         if (page === "analyses") return { page, execution: id };
+        if (page === "presentations" && first !== "new") return { page, id };
       }
     } else if (parts.length === 3 && page === "analyses" && first === "new" && second)
       return { page, definition: decodeURIComponent(second) };
+    else if (parts.length === 3 && page === "presentations" && first === "new" && second)
+      return { page, attempt: decodeURIComponent(second) };
+    else if (parts.length === 3 && page === "presentations" && first && first !== "new" && second === "present")
+      return { page, id: decodeURIComponent(first), present: true };
   } catch {
     /* An invalid bookmark opens the overview. */
   }
@@ -62,6 +68,15 @@ export function routeHash(route: WorkspaceRoute): string {
       return (
         "#/compare" +
         (route.selection.length ? "/" + route.selection.map(e).join(",") : "")
+      );
+    case "presentations":
+      return (
+        "#/presentations" +
+        (route.attempt
+          ? "/new/" + e(route.attempt)
+          : route.id
+            ? "/" + e(route.id) + (route.present ? "/present" : "")
+            : "")
       );
     case "analyses":
       return (
@@ -121,6 +136,12 @@ export function routeCrumbs(
         ? [home, { label: "New analysis" }]
         : route.execution
           ? [home, { label: "Analysis" }]
+          : [home];
+    case "presentations":
+      return route.attempt
+        ? [home, { label: "New presentation" }]
+        : route.id
+          ? [home, { label: route.present ? "Presenting" : "Presentation" }]
           : [home];
     default:
       return [{ label: section }];

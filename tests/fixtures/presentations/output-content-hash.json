@@ -1,0 +1,24 @@
+{
+ "input": {
+  "id": "7777777777777777777777777777777777777777777777777777777777777777",
+  "name": "Mean lateness",
+  "kind": "number",
+  "artifacts": [
+   {
+    "path": "number.json",
+    "length": 57,
+    "sha256": "8888888888888888888888888888888888888888888888888888888888888888"
+   }
+  ],
+  "metadata": {
+   "partial_snapshot": true,
+   "planned": 24,
+   "available": 8,
+   "inferential_convention": "descriptive",
+   "input_availability": 0.3333333333333333,
+   "unit": "h"
+  },
+  "renderer": null
+ },
+ "hash": "72575923ca70c389c9f208c09016d9b8766e0e0c67e74c79d6ebd1ef3dee8ca6"
+}

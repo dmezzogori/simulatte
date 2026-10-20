@@ -51,10 +51,15 @@ export interface SeriesEntry {attempt: string; series: Record<string, {points: [
 export type ExperimentCommand = 'experiment.define' | 'experiment.start' | 'experiment.cancel' | 'experiment.resume' | 'experiment.delete' | 'experiment.list' | 'experiment.get' | 'comparison.get' | 'series.get' | 'replay.start' | 'workers.get';
 /** Analysis commands are project-fenced like other project commands and accept ``revision: null``. */
 export type AnalysisCommand = 'analysis.list' | 'analysis.get' | 'analysis.preview' | 'analysis.admit' | 'analysis.cancel' | 'analysis.rerun' | 'analysis.refresh' | 'analysis.annotate';
-export type ProjectCommand = 'project.get' | 'project.configure' | 'model.prepare' | 'environment.prepare' | 'environment.select' | 'history.get' | 'history.annotate' | 'run.get' | 'run.stop_and_run' | 'model.auto' | AnalysisCommand;
+/** Presentation and export commands (P4 R3/R4): project-fenced, nullable revision. */
+export type PresentationCommand = 'presentation.list' | 'presentation.get' | 'presentation.create' | 'presentation.revise' | 'presentation.delete'
+  | 'presentation.diff' | 'presentation.record' | 'presentation.recordings'
+  | 'export.admit' | 'export.start' | 'export.finish' | 'export.cancel' | 'export.list' | 'export.get';
+export type ProjectCommand = 'project.get' | 'project.configure' | 'model.prepare' | 'environment.prepare' | 'environment.select' | 'history.get' | 'history.annotate' | 'run.get' | 'run.stop_and_run' | 'model.auto' | AnalysisCommand | PresentationCommand;
 export type Command = ProjectCommand | 'project.rescan' | 'state.get' | 'params.set' | 'run.start' | 'run.cancel' | 'layout.get' | 'layout.validate' | 'layout.write' | 'view.select' | ExperimentCommand;
 export type NotificationType = 'state' | 'model_info' | 'revision_changed' | 'run_state' | 'progress' | 'trace_available' | 'kpi' | 'layout_resolved' | 'validation' | 'inputs_changed' | 'invalidated' | 'error'
-  | 'experiment_state' | 'experiment_progress' | 'replay_state' | 'workers_state' | 'experiments_changed' | 'analysis_state';
+  | 'experiment_state' | 'experiment_progress' | 'replay_state' | 'workers_state' | 'experiments_changed' | 'analysis_state'
+  | 'recording_state' | 'export_state' | 'presentation_changed';
 export type ConnectionStatus = 'connecting' | 'synchronizing' | 'connected' | 'reconnecting' | 'authentication_required' | 'disposed';
 export interface Notification {v: 1; type: NotificationType; event_seq: number; body: unknown; revision?: Revision | null; attempt_id?: string; generation?: number; arrival?: number;}
 interface Options {
