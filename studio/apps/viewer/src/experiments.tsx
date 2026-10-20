@@ -61,7 +61,7 @@ export function DefinitionForm({client, fields, model, workers, onSaved, onError
           <label>Label<input value={row.label} onChange={event => change({explicit: form.explicit.map((item, other) => other === index ? {...item, label: event.target.value} : item)})} /></label>
           {fields.map(field => <label key={field.name}>{field.name}<input value={row.values[field.name] ?? ''} placeholder={field.default === null ? '' : String(field.default)}
             onChange={event => change({explicit: form.explicit.map((item, other) => other === index ? {...item, values: {...item.values, [field.name]: event.target.value}} : item)})} /></label>)}
-          <button type="button" disabled={form.explicit.length < 2} onClick={() => change({explicit: form.explicit.filter((_, other) => other !== index)})}>Remove</button>
+          <button type="button" disabled={form.explicit.length < 2} title={form.explicit.length < 2 ? 'Keep at least one configuration' : undefined} onClick={() => change({explicit: form.explicit.filter((_, other) => other !== index)})}>Remove</button>
           {issue(`explicit.${index}`)}
         </div>)}
         <button type="button" onClick={() => change({explicit: [...form.explicit, {label: '', values: {}}]})}>Add configuration</button></>}
@@ -88,7 +88,7 @@ export function DefinitionForm({client, fields, model, workers, onSaved, onError
       </div>
     </fieldset>
     <label><input type="checkbox" checked={overwrite} onChange={event => setOverwrite(event.target.checked)} /> Replace an existing file</label>
-    <button type="submit" disabled={busy || Object.keys(issues).length > 0}>Save</button>
+    <button type="submit" disabled={busy || Object.keys(issues).length > 0} title={busy ? 'Saving…' : Object.keys(issues).length ? `${Object.keys(issues).length} issue(s) to fix before saving` : undefined}>Save</button>
     <span role="status">{busy ? 'Saving…' : Object.keys(issues).length ? `${Object.keys(issues).length} issue(s)` : 'Valid; the server checks it against the model on save'}</span>
   </form>;
 }
@@ -121,7 +121,7 @@ export function RunDetails({client, run, counts, live, filter, onOpen, onError}:
   const replications = report.replications.filter(item => status === null || item.status === status);
   const chosen = report.replications.filter(item => item.attempt !== null && selected.includes(item.attempt));
   return <div className="run-details">
-    <h4>{report.name} · {run.status} <button disabled={busy} onClick={() => setRefresh(refresh + 1)}>Refresh results</button></h4>
+    <h4>{report.name} · {run.status} <button disabled={busy} title={busy ? 'Loading results…' : undefined} onClick={() => setRefresh(refresh + 1)}>Refresh results</button></h4>
     <table><thead><tr><th>Configuration</th><th>Progress</th></tr></thead>
       <tbody>{report.configurations.map(item => <tr key={item.index}><td>{item.label}</td><td><Counts counts={progress?.[item.index] ?? item.counts} /></td></tr>)}</tbody></table>
     <ResultsTable report={report} options={options} onOptions={setOptions} busy={busy} />
@@ -138,7 +138,7 @@ export function RunDetails({client, run, counts, live, filter, onOpen, onError}:
             checked={item.attempt !== null && selected.includes(item.attempt)}
             onChange={event => setSelected(event.target.checked ? [...selected, item.attempt!] : selected.filter(attempt => attempt !== item.attempt))} /></td>
           <td>{report.configurations[item.configuration]?.label ?? item.configuration}</td><td>{item.index}</td><td>{item.status}</td>
-          <td><button disabled={!committed(item)} onClick={() => onOpen(report, item)}>Open</button></td>
+          <td><button disabled={!committed(item)} title={committed(item) ? undefined : 'No committed recording for this replication'} onClick={() => onOpen(report, item)}>Open</button></td>
         </tr>)}</tbody></table>
       {report.replications.length < report.replications_total && <small>Showing the first {report.replications.length} of {report.replications_total} replications; choose a configuration to list its own.</small>}
     </details>

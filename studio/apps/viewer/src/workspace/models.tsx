@@ -8,7 +8,7 @@ import {
 import { LayoutEditor } from "../layout-editor";
 import { invoke } from "./setup";
 import { FailureNotice } from "./feedback";
-import { Actions, CheckField, Field, FieldGroup } from "./forms";
+import { Actions, CheckField, Field, FieldGroup, NOT_CONNECTED, READ_ONLY, WORKING, disabledWhen } from "./forms";
 import {
   routeHash,
   WorkspaceDrafts,
@@ -72,7 +72,7 @@ export function Models({
                 <a href={routeHash({ page: "runs", model: m.id })}>Runs →</a>
                 <button
                   type="button"
-                  disabled={state.read_only || busy || !connected}
+                  {...disabledWhen(state.read_only && READ_ONLY, busy && WORKING, !connected && NOT_CONNECTED)}
                   onClick={() =>
                     void change({ models: state.models.filter((v) => v.id !== m.id) })
                   }
@@ -132,7 +132,7 @@ export function Models({
               </Field>
             </div>
             <Actions note="Registration changes are previewed before they are applied.">
-              <button className="primary" disabled={busy || !connected}>
+              <button className="primary" {...disabledWhen(busy && WORKING, !connected && NOT_CONNECTED)}>
                 Preview registration
               </button>
             </Actions>
@@ -151,7 +151,7 @@ export function Models({
           <Actions>
             <button
               className="primary"
-              disabled={busy}
+              {...disabledWhen(busy && WORKING)}
               onClick={() => void change({ apply: preview.preview_id })}
             >
               Apply registration
@@ -197,6 +197,7 @@ export function ModelPage({
       (m) => m.name === model.metadata?.selected,
     );
   const enabled = connected && !state.read_only && !busy;
+  const blockedReason = disabledWhen(!connected && NOT_CONNECTED, state.read_only && READ_ONLY, busy && WORKING).title;
   const edit = (patch: Record<string, unknown>) => {
     if (draft) {
       drafts.edit(model.id, { ...draft.options, ...patch });
@@ -318,7 +319,7 @@ export function ModelPage({
           >
             <button
               className="primary"
-              disabled={!enabled || !state.environment}
+              {...disabledWhen(blockedReason, !state.environment && "Prepare an environment in Settings first")}
               onClick={() => void prepare()}
             >
               Prepare model
@@ -476,7 +477,7 @@ export function ModelPage({
                 <Actions note="Runs start only when you choose Run.">
                   <button
                     className="primary"
-                    disabled={!enabled || draft.conflict}
+                    {...disabledWhen(blockedReason, draft.conflict && "Reload the current inputs before running")}
                     onClick={() => void run()}
                   >
                     Run
@@ -536,7 +537,7 @@ export function ModelPage({
                   }
                 />
               </CheckField>
-              <button type="button" disabled={!enabled} onClick={() => void prepare()}>
+              <button type="button" {...disabledWhen(blockedReason)} onClick={() => void prepare()}>
                 Refresh model metadata
               </button>
             </details>
@@ -565,7 +566,7 @@ export function ModelPage({
           <Actions>
             <button
               className="primary"
-              disabled={!enabled}
+              {...disabledWhen(blockedReason)}
               onClick={() => void run(blocked.owner)}
             >
               Stop active run and run {model.name}

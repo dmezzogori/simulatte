@@ -10,7 +10,7 @@ import { StudioPlayback } from "../studio-playback";
 import type { RunDetails, ProjectState } from "./state";
 import { invoke } from "./setup";
 import { Diagnostic, FailureNotice, Feedback, classifyFailure, type PageState } from "./feedback";
-import { Actions, CheckField, Field } from "./forms";
+import { Actions, CheckField, Field, NOT_CONNECTED, READ_ONLY, disabledWhen } from "./forms";
 import { formatNumber } from "./tables";
 export function RecordingPane({
   client,
@@ -141,7 +141,7 @@ export function RecordingPane({
           {present ? "Exit presentation" : "Present"}
         </button>
         <button
-          disabled={exporting || run.status !== "succeeded"}
+          {...disabledWhen(exporting && "An export is in progress", run.status !== "succeeded" && "Available once the run has succeeded")}
           onClick={() => void saveHtml()}
         >
           Export HTML
@@ -150,7 +150,7 @@ export function RecordingPane({
           <button onClick={() => abort.current?.abort()}>Cancel export</button>
         )}
         <button
-          disabled={run.status !== "succeeded"}
+          {...disabledWhen(run.status !== "succeeded" && "Available once the run has succeeded")}
           onClick={() => {
             const c = controller.current;
             if (c?.recording?.finiteRange)
@@ -173,6 +173,7 @@ export function RecordingPane({
       <footer>
         <button
           aria-label="Previous event"
+          title="Step to the previous event; unavailable before the recording is open or at its start"
           onClick={() => void controller.current?.playback?.step(-1)}
         >
           Previous
@@ -180,6 +181,7 @@ export function RecordingPane({
         <button
           className="primary"
           ref={play}
+          title="Play or pause the recording; unavailable until the recording is open"
           onClick={() => {
             const p = controller.current?.playback;
             if (p) {
@@ -192,6 +194,7 @@ export function RecordingPane({
         </button>
         <button
           aria-label="Next event"
+          title="Step to the next event; unavailable before the recording is open or at its end"
           onClick={() => void controller.current?.playback?.step(1)}
         >
           Next
@@ -286,8 +289,7 @@ export function RunPage({
         }
       if (!closed) timer = setTimeout(() => void load(), 1000);
     };
-    setRun(null);
-    setError("");
+    // The shell keys this page by attempt, so a reconnect must not clear the run being read.
     void load();
     return () => {
       closed = true;
@@ -343,7 +345,7 @@ export function RunPage({
         {active && (
           <button
             type="button"
-            disabled={!connected || state.read_only}
+            {...disabledWhen(!connected && NOT_CONNECTED, state.read_only && READ_ONLY)}
             onClick={() =>
               void invoke(client, "run.cancel", {
                 owner: state.active_run!.key,
@@ -444,7 +446,7 @@ export function RunPage({
                 </CheckField>
                 {!state.read_only && (
                   <Actions note={state.read_only ? undefined : "Notes stay with the run in this project."}>
-                    <button type="button" disabled={!connected || !loaded || draft?.attempt !== attempt || saving} onClick={() => void save()}>Save notes</button>
+                    <button type="button" {...disabledWhen(!connected && NOT_CONNECTED, !loaded && "Loading the saved notes", saving && "Saving…", draft?.attempt !== attempt && "No changes to save")} onClick={() => void save()}>Save notes</button>
                   </Actions>
                 )}
               </section>

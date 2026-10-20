@@ -1,5 +1,5 @@
 /** Shared page states: designed loading, empty, error and stale screens with a next action. */
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 export interface Action {
   label: string;
   invoke: () => void;
@@ -110,6 +110,7 @@ export function ActionButton({
         type="button"
         className={primary ? "primary" : undefined}
         disabled={!!action.disabledReason}
+        {...(action.disabledReason ? { title: action.disabledReason } : {})}
         onClick={action.invoke}
       >
         {action.label}
@@ -221,4 +222,61 @@ export function Feedback<T>({
     default:
       return <>{children(state.value)}</>;
   }
+}
+
+/** A modal confirmation on the native ``<dialog>``: focus stays inside while open, Escape cancels,
+ * and the browser returns focus to the control that opened it. */
+export function ConfirmDialog({
+  open,
+  title,
+  text,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  title: string;
+  text: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    else if (!open && dialog.open) dialog.close();
+  }, [open]);
+  return (
+    <dialog
+      ref={ref}
+      className="ws-dialog"
+      aria-labelledby="ws-dialog-title"
+      onClose={onCancel}
+      onCancel={(e) => {
+        e.preventDefault();
+        onCancel();
+      }}
+      onKeyDown={(e) => {
+        // Keep Tab inside the dialog: browsers otherwise let it leave to the window chrome.
+        if (e.key !== "Tab" || !ref.current) return;
+        const items = Array.from(ref.current.querySelectorAll<HTMLElement>("button, [href], input, select, textarea"));
+        const first = items[0], last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+      }}
+    >
+      <h2 id="ws-dialog-title">{title}</h2>
+      <p>{text}</p>
+      <div className="ws-actions">
+        <button type="button" autoFocus onClick={onCancel}>
+          Keep it
+        </button>
+        <button type="button" className="primary" onClick={onConfirm}>
+          {confirmLabel}
+        </button>
+      </div>
+    </dialog>
+  );
 }

@@ -101,3 +101,15 @@ export function Actions({
     </div>
   );
 }
+
+/** Props for a control that may be disabled: the first reason given wins and becomes the
+ * control's ``title``, so no disabled action is left unexplained. */
+export function disabledWhen(
+  ...reasons: (string | false | null | undefined)[]
+): { disabled?: true; title?: string } {
+  const reason = reasons.find((r) => typeof r === "string" && r);
+  return reason ? { disabled: true, title: reason } : {};
+}
+export const NOT_CONNECTED = "Studio is not connected; the action resumes when the connection returns";
+export const READ_ONLY = "This session is read-only";
+export const WORKING = "Working; wait for the current action to finish";

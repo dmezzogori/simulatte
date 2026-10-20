@@ -659,6 +659,11 @@ input[type="range"] {
 .ws-skip:focus{top:6px;}
 .ws-content [role=alert]:not(.ws-state){color:var(--ws-fail-ink);background:var(--ws-fail-bg);padding:12px 15px;border-radius:6px;}
 .ws-content small[role=alert]{padding:0;background:none;}
+.ws-dialog{border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;max-width:440px;font:var(--ws-text)/var(--ws-leading) var(--ws-font);color:var(--ink);}
+.ws-dialog::backdrop{background:rgba(29,52,58,.35);}
+.ws-dialog h2{font-size:15px;margin:0 0 8px;}
+.ws-dialog p{margin:0 0 6px;color:var(--muted);font-size:var(--ws-text-s);}
+.ws-dialog .ws-actions{justify-content:flex-end;}
 /* Desktop sizes: 1440×900 and 1280×800 keep three tiles and two columns; narrower windows fold the sidebar. */
 @media(max-width:1100px){.ws-sidebar{width:185px;padding:20px 10px;}.ws-content{padding:22px 20px 40px;}.ws-cols{grid-template-columns:minmax(0,1fr) 240px;}.ws-page-heading{flex-wrap:wrap;}.ws-tiles{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:850px){.ws-sidebar{width:150px;padding:18px 7px;}.ws-brand{font-size:17px;gap:6px;padding:0 3px;}.ws-brand-mark{width:26px;height:26px;font-size:19px;}.ws-sidebar nav a small{display:none;}.ws-content{padding:18px;}.ws-grid,.ws-form-grid,.ws-tiles,.ws-cols{grid-template-columns:1fr;}.ws-next{flex-wrap:wrap;}.ws-topbar{padding:0 18px;}.ws-notices,.ws-active{padding-left:18px;padding-right:18px;}.ws-recording{height:600px;}}

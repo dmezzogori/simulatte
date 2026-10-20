@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { StudioClient, Command } from "../studio-client";
 import type { ProjectState } from "./state";
 import { Diagnostic, FailureNotice } from "./feedback";
-import { Field } from "./forms";
+import { Field, NOT_CONNECTED, WORKING, disabledWhen } from "./forms";
 export async function invoke(
   client: StudioClient,
   type: Command,
@@ -81,7 +81,7 @@ export function Setup({
         <div className="ws-grid">
           <button
             className="ws-choice"
-            disabled={busy || !connected}
+            {...disabledWhen(busy && WORKING, !connected && NOT_CONNECTED)}
             onClick={() =>
               void act("project.configure", { starter: "production" })
             }
@@ -91,7 +91,7 @@ export function Setup({
           </button>
           <button
             className="ws-choice"
-            disabled={busy || !connected}
+            {...disabledWhen(busy && WORKING, !connected && NOT_CONNECTED)}
             onClick={() =>
               void act("project.configure", { starter: "logistics" })
             }
@@ -110,14 +110,14 @@ export function Setup({
         <div className="ws-actions">
           <button
             className="primary"
-            disabled={busy || !connected}
+            {...disabledWhen(busy && WORKING, !connected && NOT_CONNECTED)}
             onClick={() => void act("environment.prepare", {})}
           >
             Prepare environment
           </button>
-          <button disabled={busy || !connected} onClick={()=>void act("environment.prepare",{lock_update:true})}>Preview dependency update</button>
+          <button {...disabledWhen(busy && WORKING, !connected && NOT_CONNECTED)} onClick={()=>void act("environment.prepare",{lock_update:true})}>Preview dependency update</button>
           <button
-            disabled={!operation}
+            {...disabledWhen(!operation && "No preparation is running")}
             onClick={() => {
               if (operation) void client.cancelPreparation(operation).catch((e) => setError(String(e)));
             }}
@@ -139,7 +139,7 @@ export function Setup({
           <div className="ws-actions">
             <button
               className="primary"
-              disabled={busy}
+              {...disabledWhen(busy && WORKING)}
               onClick={() =>
                 void act("project.configure", { apply: preview.preview_id })
               }
@@ -159,7 +159,7 @@ export function Setup({
               <Diagnostic lines={["Generation " + g.id, g.interpreter]} />
             </span>
             <button
-              disabled={busy || !connected}
+              {...disabledWhen(busy && WORKING, !connected && NOT_CONNECTED)}
               onClick={() =>
                 void act("environment.select", { id: g.id, restart: true })
               }
@@ -183,7 +183,7 @@ export function Setup({
             />
           </Field>
           <button
-            disabled={busy || !connected || !python}
+            {...disabledWhen(busy && WORKING, !connected && NOT_CONNECTED, !python && "Enter an interpreter path first")}
             onClick={() =>
               void act("environment.prepare", { existing: python })
             }

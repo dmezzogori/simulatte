@@ -13,8 +13,8 @@ import type {
   Command,
   ExperimentRun,
 } from "../studio-client";
-import { EmptyState, FailureNotice } from "./feedback";
-import { Actions, CheckField, Field } from "./forms";
+import { ConfirmDialog, EmptyState, FailureNotice } from "./feedback";
+import { Actions, CheckField, Field, NOT_CONNECTED, READ_ONLY, WORKING, disabledWhen } from "./forms";
 import { formatTime } from "./tables";
 import { routeHash, type ProjectState } from "./state";
 import "./research.css";
@@ -80,6 +80,7 @@ export function ExperimentsPage({
     [workers, setWorkers] = useState<string[]>([]),
     [level, setLevel] = useState(""),
     [metadata, setMetadata] = useState<{ id: string; value: Metadata } | null>(null),
+    [pending, setPending] = useState<ExperimentAction | null>(null),
     [baseline, setBaseline] = useState(() => new Map(state.models.map((m) => [m.id, m.revision?.number ?? 0])));
   const model = state.models.find((m) => m.id === id) ?? state.models[0];
   const [feed] = useState(() => new ExperimentFeed((ref) => client.reference(ref)));
@@ -134,6 +135,7 @@ export function ExperimentsPage({
     [client, model?.id ?? id],
   );
   const connected = status === "connected" && !state.read_only;
+  const blocked = disabledWhen(status !== "connected" && NOT_CONNECTED, state.read_only && READ_ONLY, busy && WORKING).title;
   const runs: ExperimentRun[] = (client.state?.experiments ?? []) as ExperimentRun[];
   const files = [...new Set([...(model?.experiment_files ?? []), ...saved])].sort();
   const pool = live.workers ?? client.state?.workers ?? null;
@@ -146,9 +148,12 @@ export function ExperimentsPage({
     model: model?.entrypoint.split(":")[0] ?? "",
     experiment_files: model?.experiment_files ?? [],
   };
-  const send = async (action: ExperimentAction) => {
+  const send = async (action: ExperimentAction, confirmed = false) => {
     if (busy || !connected) return;
-    if (action.confirm && !window.confirm(action.confirm)) return;
+    if (action.confirm && !confirmed) {
+      setPending(action);
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -192,7 +197,7 @@ export function ExperimentsPage({
           Compare numerically →
         </a>
         {experimentActions(selected).map((action) => (
-          <button key={action.label} type="button" className={action.primary ? "primary" : undefined} disabled={!connected || busy} onClick={() => void send(action)}>
+          <button key={action.label} type="button" className={action.primary ? "primary" : undefined} {...disabledWhen(blocked)} onClick={() => void send(action)}>
             {action.label}
           </button>
         ))}
@@ -269,7 +274,7 @@ export function ExperimentsPage({
                         <td className="ws-num">{formatTime(run.created)}</td>
                         <td className="ws-controls">
                           {experimentActions(run).map((action) => (
-                            <button key={action.label} type="button" className="ws-inline" disabled={!connected || busy} onClick={() => void send(action)}>
+                            <button key={action.label} type="button" className="ws-inline" {...disabledWhen(blocked)} onClick={() => void send(action)}>
                               {action.label}
                             </button>
                           ))}
@@ -326,7 +331,7 @@ export function ExperimentsPage({
                         <code>{path}</code>
                         {model && stale.has(model.id) && <span className="ws-badge warm">stale</span>}
                       </span>
-                      <button type="button" className="ws-inline primary" disabled={!connected || busy || !model?.metadata} onClick={() => start(path)}>
+                      <button type="button" className="ws-inline primary" {...disabledWhen(blocked, !model?.metadata && "Prepare the model first")} onClick={() => start(path)}>
                         Start
                       </button>
                     </li>
@@ -373,7 +378,7 @@ export function ExperimentsPage({
                 {pool?.error && <FailureNotice compact message={pool.error} />}
               </details>
               <Actions>
-                <button type="button" disabled={!prepared || !model} onClick={() => setCreating(!creating)}>
+                <button type="button" {...disabledWhen(!model && "Register a model first", !prepared && "Prepare the model to read its parameters")} onClick={() => setCreating(!creating)}>
                   {creating ? "Close form" : "Define a new experiment"}
                 </button>
               </Actions>
@@ -410,6 +415,18 @@ export function ExperimentsPage({
           onError={setError}
         />
       </section>
+      <ConfirmDialog
+        open={pending !== null}
+        title={pending ? `${pending.label} this experiment run?` : "Confirm"}
+        text={pending?.confirm ?? ""}
+        confirmLabel={pending?.label ?? "Confirm"}
+        onCancel={() => setPending(null)}
+        onConfirm={() => {
+          const action = pending;
+          setPending(null);
+          if (action) void send(action, true);
+        }}
+      />
       {busy && <p role="status">Working…</p>}
       {error && <FailureNotice message={error} compact />}
     </>
