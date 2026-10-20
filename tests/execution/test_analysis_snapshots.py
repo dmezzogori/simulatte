@@ -166,6 +166,8 @@ def test_schema_three_backup_and_recovery_preserve_identities(setup):
     with RunStore.open(root) as old:
         old.create_revision({"source": "unchanged"})
         with old._transaction() as db:
+            for name in ("export_jobs", "presentation_revisions", "presentations"):
+                db.execute(f"DROP TABLE {name}")
             names = [
                 r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'analysis_%'")
             ]
@@ -173,7 +175,7 @@ def test_schema_three_backup_and_recovery_preserve_identities(setup):
                 db.execute(f"DROP TABLE {name}")
             db.execute("PRAGMA user_version=3")
     with RunStore.open(root) as migrated:
-        assert migrated.schema_version == 4 and migrated.current_revision().number == 1
+        assert migrated.schema_version == 5 and migrated.current_revision().number == 1
     backup = next((root / "backups").glob("schema-3-*/index.sqlite"))
     with sqlite3.connect(backup) as db:
         assert db.execute("PRAGMA user_version").fetchone()[0] == 3
@@ -280,9 +282,9 @@ def test_readers_refuse_unknown_schema(tmp_path):
     with RunStore.open(root):
         pass
     with closing(StoreReader.open(root)) as reader:
-        assert reader.version == 4
+        assert reader.version == 5
     with sqlite3.connect(root / "index.sqlite") as db:
-        db.execute("PRAGMA user_version=5")
+        db.execute("PRAGMA user_version=6")
     with pytest.raises(ValueError, match="Unsupported"):
         StoreReader.open(root)
 

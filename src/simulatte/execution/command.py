@@ -268,6 +268,11 @@ def add_store_arguments(parser):
         "prune", help="Remove unreferenced results and snapshots"
     )
     prune.add_argument("--dry-run", action="store_true")
+    prune.add_argument(
+        "--recordings",
+        action="store_true",
+        help="also drop presentation recordings no presentation adopted, beyond the newest 20",
+    )
     prune.add_argument("--project", help="project directory holding the .simulatte store")
     prune.add_argument("--json", action="store_true")
 
@@ -450,12 +455,12 @@ def experiment(args):
 
 
 def store(args):
-    """``simulatte store prune [--dry-run]``."""
+    """``simulatte store prune [--dry-run] [--recordings]``."""
     from simulatte.execution.store import RunStore
 
     try:
         with RunStore.open(_store_root(args) / ".simulatte") as owner:
-            pruned = owner.prune(dry_run=args.dry_run)
+            pruned = owner.prune(dry_run=args.dry_run, recordings=args.recordings)
         code = 0
         envelope = {"status": "succeeded", "dry_run": args.dry_run, **pruned}
     except (ValueError, KeyError) as error:
@@ -463,5 +468,8 @@ def store(args):
     except (OSError, RuntimeError, sqlite3.Error) as error:
         code, envelope = 1, {"status": "failed", "message": str(error)[:4096]}
     verb = "would remove" if args.dry_run else "removed"
-    text = f"{verb} {len(envelope.get('results', []))} results and {len(envelope.get('snapshots', []))} snapshots"
+    results, snapshots = len(envelope.get("results", [])), len(envelope.get("snapshots", []))
+    text = f"{verb} {results} results and {snapshots} snapshots"
+    if "recordings" in envelope:
+        text = f"{verb} {results} results, {snapshots} snapshots and {len(envelope['recordings'])} recordings"
     return _emit_result(args, code, envelope, text)

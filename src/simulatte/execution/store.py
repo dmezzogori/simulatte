@@ -17,7 +17,7 @@ import threading
 import time
 from typing import Any
 
-from simulatte.execution.store_migrations import SCHEMA_3, SCHEMA_4, migrate_2, migrate_3
+from simulatte.execution.store_migrations import SCHEMA_3, SCHEMA_4, SCHEMA_5, migrate_2, migrate_3, migrate_4
 from simulatte._wire import canonical_pack, freeze, unpack
 from simulatte.execution.hashing import canonical_hash
 from simulatte.execution.durability import sync_directory
@@ -72,6 +72,8 @@ _RUN = {
     "cancelled": (),
 }
 _SNAPSHOT = re.compile("[0-9a-f]{64}")
+# ``store prune --recordings`` keeps this many newest presentation recordings no presentation adopted.
+KEEP_RECORDINGS = 20
 # Schema 2 tables shared by fresh stores and the 1 -> 2 migration. `state` only
 # allocates unique generations; each slot fences its own active attempt.
 _STATE = """CREATE TABLE state (singleton INTEGER PRIMARY KEY CHECK(singleton=1), generation INTEGER NOT NULL)"""
@@ -150,8 +152,8 @@ def _migrate_1(db) -> None:
             )
 
 
-_MIGRATIONS = {1: _migrate_1, 2: migrate_2, 3: migrate_3}
-_DDL = (*_DDL, *SCHEMA_3, *SCHEMA_4)
+_MIGRATIONS = {1: _migrate_1, 2: migrate_2, 3: migrate_3, 4: migrate_4}
+_DDL = (*_DDL, *SCHEMA_3, *SCHEMA_4, *SCHEMA_5)
 
 
 def experiment_run_id(experiment_id: str, content_ids) -> str:
@@ -221,7 +223,7 @@ def _remove(path: Path) -> None:
 
 
 class RunStore:
-    schema_version = 4
+    schema_version = 5
 
     def __init__(self, root: Path):
         self.root = Path(root).absolute()
@@ -1037,7 +1039,25 @@ class RunStore:
             if path.exists() or path.is_symlink():
                 _remove(path)
 
-    def prune(self, dry_run: bool = False) -> dict:
+    @staticmethod
+    def _unadopted_recordings(db) -> list[str]:
+        """Presentation recordings no presentation revision or export job adopted, beyond the newest kept.
+
+        A recording is adopted when a ``presentation-revision`` or ``export-job`` reference
+        targets its attempt or result. Adopted recordings are never dropped and do not count.
+        """
+        rows = []
+        for identity, manifest in db.execute("SELECT id,manifest FROM snapshots WHERE kind='presentation-recording'"):
+            adopted = db.execute(
+                """SELECT 1 FROM "references" WHERE owner_kind IN ('presentation-revision','export-job')
+                AND target_kind IN ('attempt','result') AND target_id=?""",
+                (identity,),
+            ).fetchone()
+            if adopted is None:
+                rows.append((-_read(manifest)["created"], identity))
+        return sorted(identity for _, identity in sorted(rows)[KEEP_RECORDINGS:])
+
+    def prune(self, dry_run: bool = False, *, recordings: bool = False) -> dict:
         """Remove unreferenced results (see ``_unreferenced``) and snapshots referenced by no request.
 
         Snapshot directories are kept when any stored request or captured preparation names
@@ -1047,10 +1067,27 @@ class RunStore:
         interrupted prune leaves only unindexed directories that ``recover`` removes.
         Analysis previews no execution admitted are removed with their unused input snapshots.
         Derived table indexes under ``analysis-cache`` are removed entirely; readers rebuild them on
-        demand. ``recover`` leaves them alone.
+        demand. ``recover`` leaves them alone. With ``recordings`` presentation recordings no
+        presentation adopted, beyond the newest ``KEEP_RECORDINGS``, are dropped first (their
+        rows and references), so their otherwise unreferenced results go too; the result then
+        lists them under ``recordings``. Deleted presentations lose their revisions and finished
+        export jobs here; until then those stay readable.
         """
         with self._transaction() as db:
+            dropped = None
+            if recordings:
+                if dry_run:
+                    db.execute("SAVEPOINT recordings")
+                dropped = self._unadopted_recordings(db)
+                for identity in dropped:
+                    db.execute(
+                        """DELETE FROM "references" WHERE owner_kind='presentation-recording' AND owner_id=?""",
+                        (identity,),
+                    )
+                    db.execute("DELETE FROM snapshots WHERE id=? AND kind='presentation-recording'", (identity,))
             attempts = self._unreferenced(db)
+            if recordings and dry_run:
+                db.execute("ROLLBACK TO recordings")
             referenced = set()
             bodies = [_read(row[0]) for row in db.execute("SELECT body FROM requests")]
             bodies += [
@@ -1078,6 +1115,11 @@ class RunStore:
                     AND id NOT IN (SELECT snapshot FROM analysis_previews)
                     AND id NOT IN (SELECT target_id FROM "references" WHERE target_kind='analysis-snapshot')"""
                 )
+                # Deleted presentations keep their revisions readable for terminal exports until here.
+                deleted = "SELECT id FROM presentations WHERE deleted=1"
+                db.execute(f"DELETE FROM export_jobs WHERE presentation IN ({deleted})")
+                db.execute(f"DELETE FROM presentation_revisions WHERE id IN ({deleted})")
+                db.execute("DELETE FROM presentations WHERE deleted=1")
         if not dry_run:
             self._remove_results(attempts)
             for name in snapshots:
@@ -1085,7 +1127,7 @@ class RunStore:
             cache = self.root / "analysis-cache"
             if cache.exists() or cache.is_symlink():
                 _remove(cache)
-        return {"results": attempts, "snapshots": snapshots}
+        return {"results": attempts, "snapshots": snapshots, **({} if dropped is None else {"recordings": dropped})}
 
     def delete_experiment_run(self, run_id: str) -> dict:
         """Remove a run's rows, then the results no other run, replay, view or recent history keeps.
@@ -1160,6 +1202,14 @@ class RunStore:
                 (MAX_DISPATCHES,),
             )
             db.execute("UPDATE analysis_executions SET state='lost' WHERE state IN ('waiting','running','finalizing')")
+            # An export the dead writer admitted never finishes; its leases go, the revision's references stay.
+            db.execute(
+                "UPDATE export_jobs SET state='lost',finished=? WHERE state IN ('waiting','running')", (time.time(),)
+            )
+            db.execute(
+                """DELETE FROM "references" WHERE owner_kind='export-job'
+                AND owner_id NOT IN (SELECT id FROM export_jobs WHERE state IN ('waiting','running'))"""
+            )
             indexed = {row[0] for row in db.execute("SELECT attempt FROM results")}
             analysis_indexed = {row[0] for row in db.execute("SELECT execution FROM analysis_outputs")}
         for path in (self.root / "analysis-staging").iterdir():

@@ -97,3 +97,28 @@ SCHEMA_4 = (
 def migrate_3(db):
     for statement in SCHEMA_4:
         db.execute(statement)
+
+
+# Presentations (schema 5): revisions and their references are immutable once saved; the presentation row keeps
+# the latest name and a deletion mark. Export jobs pin one revision and hold reference leases while active.
+SCHEMA_5 = (
+    """CREATE TABLE presentations (id TEXT PRIMARY KEY, name TEXT NOT NULL, created REAL NOT NULL,
+        deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1)))""",
+    """CREATE TABLE presentation_revisions (id TEXT NOT NULL REFERENCES presentations(id),
+        revision INTEGER NOT NULL CHECK(revision>=1), manifest BLOB NOT NULL, content_hash TEXT NOT NULL,
+        created REAL NOT NULL, PRIMARY KEY(id,revision))""",
+    """CREATE TABLE export_jobs (id TEXT PRIMARY KEY, presentation TEXT NOT NULL, revision INTEGER NOT NULL,
+        target TEXT NOT NULL CHECK(target IN ('studio','video','html')), options BLOB NOT NULL,
+        snapshot_hash TEXT NOT NULL,
+        state TEXT NOT NULL CHECK(state IN ('waiting','running','succeeded','failed','cancelled','lost')),
+        details BLOB NOT NULL, created REAL NOT NULL, finished REAL,
+        FOREIGN KEY(presentation,revision) REFERENCES presentation_revisions(id,revision))""",
+    "CREATE INDEX export_presentation ON export_jobs(presentation,created)",
+    "CREATE TRIGGER presentation_revisions_immutable BEFORE UPDATE ON presentation_revisions "
+    "BEGIN SELECT RAISE(ABORT, 'immutable presentation record'); END",
+)
+
+
+def migrate_4(db):
+    for statement in SCHEMA_5:
+        db.execute(statement)

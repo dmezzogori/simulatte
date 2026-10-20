@@ -47,7 +47,11 @@ def assets() -> Path:
             digest = hashlib.sha256()
             excluded = {"node_modules", "dist", "test-results", "playwright-report", ".vite", ".build"}
             # The JSON schemas the frontend imports, as hatch_build.SCHEMAS and studio/scripts/stamp.mjs list them.
-            schemas = ("layout/schema/layout-v1.schema.json", "experiments/schema/experiment-v1.schema.json")
+            schemas = (
+                "layout/schema/layout-v1.schema.json",
+                "experiments/schema/experiment-v1.schema.json",
+                "presentations/schema/presentation-v1.schema.json",
+            )
             inputs = [*(root / "src/simulatte" / name for name in schemas), *(root / "studio").rglob("*")]
             for path in sorted(inputs, key=lambda p: p.as_posix()):
                 relative = path.relative_to(root)

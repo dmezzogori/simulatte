@@ -63,7 +63,7 @@ def _target(root, relative):
 
 def _published(server, identity):
     store = server.service.store or server.service.reader
-    if store is None or getattr(store, "version", 4) < 4:
+    if store is None or getattr(store, "version", 5) < 4:
         raise Refused(404, "Saved analyses are unavailable")
     analysis = AnalysisStore(store)
     try:

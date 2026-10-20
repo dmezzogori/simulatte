@@ -288,7 +288,7 @@ def test_show_refuses_store_without_analysis_schema(tmp_path, capsys):
                 db.execute(f"DROP TABLE {name}")
             db.execute("PRAGMA user_version=3")
     code, refused = invoke(capsys, tmp_path, "show", str(uuid4()))
-    assert code == 2 and "schema4" in refused["message"]
+    assert code == 2 and "schema 4 or newer" in refused["message"]
 
 
 def test_cli_parameters_are_typed_by_captured_schema(project, capsys):
