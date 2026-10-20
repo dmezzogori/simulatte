@@ -233,3 +233,30 @@ def test_app_policy_only_gains_sandboxed_frames():
         "object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; frame-src 'self'"
     )
     assert response_headers()["Content-Security-Policy"] == CSP
+
+
+def _connection(*origins, host="127.0.0.1:8123"):
+    from types import SimpleNamespace
+
+    from starlette.datastructures import Headers
+
+    pairs = [(b"host", host.encode())] + [(b"origin", value.encode()) for value in origins]
+    return SimpleNamespace(headers=Headers(raw=pairs))
+
+
+def test_null_origin_is_accepted_only_when_the_caller_allows_it():
+    from simulatte.studio.auth import SessionAuth
+
+    auth = SessionAuth(8123, mode="studio")
+    assert not auth.headers_valid(_connection("null"))
+    assert not auth.headers_valid(_connection("null"), require_origin=True)
+    assert auth.headers_valid(_connection("null"), allow_null_origin=True)
+    assert auth.headers_valid(_connection(), allow_null_origin=True)
+    assert auth.headers_valid(_connection(auth.origin), allow_null_origin=True)
+    # Any other value, alone or beside null, is refused.
+    assert not auth.headers_valid(_connection("https://example.com"), allow_null_origin=True)
+    assert not auth.headers_valid(_connection("null", "null"), allow_null_origin=True)
+    assert not auth.headers_valid(_connection("null", auth.origin), allow_null_origin=True)
+    assert not auth.headers_valid(_connection("null", host="example.com"), allow_null_origin=True)
+    # A required origin is still required.
+    assert not auth.headers_valid(_connection(), require_origin=True, allow_null_origin=True)

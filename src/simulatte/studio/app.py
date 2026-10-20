@@ -522,9 +522,11 @@ class StudioServer(SessionAuth):
                 headers=headers,
             )
 
-        if not self.headers_valid(request, require_origin=request.method == "PUT"):
-            return response({"error": "Invalid host or origin"}, 403)
         path = request.path_params["path"]
+        # Firefox sends ``Origin: null`` for subresources of the sandboxed figure frame: packaged assets only.
+        static = request.method in ("GET", "HEAD") and not path.startswith("api/") and path != "bootstrap"
+        if not self.headers_valid(request, require_origin=request.method == "PUT", allow_null_origin=static):
+            return response({"error": "Invalid host or origin"}, 403)
         if path == "bootstrap" and request.method != "PUT":
             return self.bootstrap(request)
         results = path.startswith("api/experiments/") and path.endswith("/results")

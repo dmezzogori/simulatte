@@ -20,7 +20,7 @@ ARTIFACT_CSP = "sandbox; default-src 'none'"
 # only the Studio document may embed it.
 FRAME_CSP = (
     "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; "
-    "frame-ancestors 'self'"
+    "form-action 'none'; frame-ancestors 'self'"
 )
 
 
@@ -61,10 +61,16 @@ class SessionAuth:
             self.token = secrets.token_urlsafe(32)
             return f"{self.origin}/bootstrap?token={self.token}"
 
-    def headers_valid(self, connection, *, require_origin=False):
+    def headers_valid(self, connection, *, require_origin=False, allow_null_origin=False):
+        """``allow_null_origin`` is for packaged static GET/HEAD only: Firefox sends ``Origin: null`` when
+        the sandboxed figure frame (opaque origin) loads its classic script; never for commands or state."""
         hosts = connection.headers.getlist("host")
         origins = connection.headers.getlist("origin")
-        return hosts == [self.host] and (origins == [self.origin] or not origins and not require_origin)
+        if hosts != [self.host]:
+            return False
+        if allow_null_origin and origins == ["null"]:
+            return not require_origin
+        return origins == [self.origin] or not origins and not require_origin
 
     def cookie_valid(self, connection):
         return hmac.compare_digest(connection.cookies.get(self.cookie_name, "").encode(), self.cookie.encode())
