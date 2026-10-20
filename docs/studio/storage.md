@@ -21,6 +21,7 @@ Nothing is ever deleted automatically.
 | `coordinator.lock` | The single-writer lock | Operational |
 | `results/<attempt>/` | A committed run: its trace, artifacts and datasets | Durable |
 | `snapshots/<hash>/` | Captured model sources, input data and runtime bundles, addressed by content | Durable |
+| `documents/<sha256>.msgpack` | Reference documents that requests and preparations point to: runtime evidence, layout, model metadata and requests, addressed by content | Durable |
 | `analysis-results/<execution>/` | The verified outputs of a succeeded analysis | Durable |
 | `backups/schema-<n>-<id>/` | The pre-migration copy of `index.sqlite` and its `manifest.json` (created by the first migration) | Durable safety copy |
 | `cache/environments/<generation>/` | A managed environment generation | Rebuildable |
@@ -142,10 +143,12 @@ owner; it stays until the last of them is removed.
 
 ### Presentation recordings
 
-A presentation recording is kept, together with the result it was cloned from, until a
-presentation revision adopts it. Unadopted recordings do not accumulate forever:
-`store prune --recordings` drops the ones beyond the newest 20, and an ordinary prune
-afterwards frees their results. Without `--recordings`, no recording is dropped.
+A presentation recording holds a reference to its own result and to the result it was
+cloned from until `store prune --recordings` drops it. That option drops only recordings
+no presentation revision or export adopted, beyond the newest 20, and an ordinary prune
+afterwards frees their results. An adopted recording is never dropped; the revision
+that adopted it protects the same results. Without `--recordings`, no recording is
+dropped.
 
 ## Explicit deletion
 
@@ -154,7 +157,7 @@ something still needs the item. Remove dependents first, then the item, then pru
 
 | Item | How | Refused while |
 | --- | --- | --- |
-| Presentation | **Delete** on the presentation (asks for confirmation) | One of its exports is waiting or running |
+| Presentation | **Delete** on the presentation (asks for confirmation) | One of its exports is waiting or running, or another saved item references the presentation or one of its revisions (`Presentation is referenced; delete that owner first`) |
 | Analysis execution | `AnalysisStore.delete(execution_id)` in Python (no CLI or Studio control) | It is waiting, running or finalizing (cancel it first), or a presentation references it |
 | Experiment run | `simulatte experiment delete RUN_ID`, or **Delete** on the run in Studio | It is running (cancel it first), or a saved analysis references it |
 | Interactive run | No delete control. Clear **Important**; once it is not among the newest 20 interactive results and nothing references it, `store prune` removes it | Not applicable: prune keeps it while anything protects it |
@@ -205,6 +208,15 @@ The interpreter path of an **existing** environment is a machine-specific fact
 recorded as evidence. On another machine that path usually does not exist, so the
 launcher opens the recovery view until you select an environment that works there.
 Saved work does not depend on it.
+
+A copy on the same machine records the same absolute path, which still points into the
+original folder (for example `<original>/.venv/bin/python`). Studio does not run a copy
+from another project's environment: when the selected existing interpreter lies in a
+different folder that holds a `.simulatte/` store, the copy opens in the recovery view
+with `Project interpreter is unavailable`, while the original keeps working. Select or
+prepare an environment for the copy, for example its own `.venv`. An interpreter inside
+the copied folder, a standalone Python, or the environment of a plain Python project
+without a `.simulatte/` store (a shared development environment) is used as before.
 
 An artifact is identified by its recorded path, length and SHA-256. After copying,
 verify the project without a writer:

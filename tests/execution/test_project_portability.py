@@ -525,6 +525,61 @@ def test_quiescent_copy_has_no_source_machine_dependency(tmp_path, monkeypatch, 
     assert f"changed analysis-results/{built.partial}/{name} (sha256 {recorded})" in text
 
 
+UNAVAILABLE = "Project interpreter is unavailable. Reconstruct its environment or open with a compatible runtime."
+
+
+def test_same_machine_copy_never_runs_from_the_original_projects_interpreter(tmp_path, monkeypatch):
+    from simulatte.projects import bootstrap
+    from simulatte.studio import command
+
+    original = tmp_path / "source" / "study"
+    (original / ".venv/bin").mkdir(parents=True)
+    interpreter = original / ".venv/bin/python"
+    interpreter.write_text("")  # stands in for the project's own virtual environment; never started
+    runtime = {"facts": {"python": "3.14.0"}, "dependencies": {"packages": {}}, "warnings": []}
+    with RunStore.open(original / ".simulatte") as store:
+        pool = EnvironmentPool(original, store)
+        monkeypatch.setattr(pool, "_probe", lambda path: {"runtime": runtime, "distribution_roots": [], "studio": True})
+        pool.activate(pool.use_existing(interpreter).id)
+    copy = tmp_path / "elsewhere" / "study"
+    shutil.copytree(original, copy, symlinks=True)
+    assert original.exists()  # the original is still present on this machine
+    monkeypatch.setattr(bootstrap, "validate_runtime", lambda path: None)
+    # In the interpreter it registered, the original opens for writing; the copy opens in recovery.
+    monkeypatch.setattr(sys, "executable", str(interpreter))
+    for root, error in ((original, None), (copy, UNAVAILABLE)):
+        service = ProjectService.open(StudioTarget(root, None))
+        try:
+            assert (service.read_only, service.error) == (error is not None, error), root
+        finally:
+            service.close()
+    monkeypatch.undo()
+    # The launcher never hands the copy off to the original's interpreter.
+    monkeypatch.setattr(bootstrap, "validate_runtime", lambda path: None)
+    monkeypatch.setattr(bootstrap, "handoff", lambda *args, **kwargs: pytest.fail("handed off to the original"))
+    served = []
+    monkeypatch.setattr(command, "serve_project", lambda service, **kw: served.append(service.error))
+    assert bootstrap.selected_interpreter(StudioTarget(original, None)) == interpreter
+    assert bootstrap.selected_interpreter(StudioTarget(copy, None)) is None
+    bootstrap.launch_project(StudioTarget(copy, None), port=0, no_browser=True)
+    assert served == [UNAVAILABLE]
+
+
+def test_an_interpreter_of_another_simulatte_project_is_foreign(tmp_path):
+    from simulatte.projects.environments import interpreter_of_another_project as foreign
+
+    other, plain, outside = tmp_path / "other", tmp_path / "plain", tmp_path / "outside"
+    for folder in (other / ".simulatte", other / "nested/.simulatte", plain / "nested/.simulatte"):
+        folder.mkdir(parents=True)
+    (plain / "pyproject.toml").write_text("[project]\nname = 'shared'\n")
+    python = Path(".venv/bin/python")
+    assert foreign(other / "nested", other / "nested" / python) is False  # inside the opened project
+    assert foreign(other / "nested", other / python) is False  # the enclosing project's environment
+    assert foreign(plain / "nested", other / python) is True  # another project, e.g. a copy's original
+    assert foreign(other, plain / python) is False  # a shared development environment
+    assert foreign(other, outside / "python3.14/bin/python") is False  # a standalone runtime
+
+
 @pytest.fixture(scope="module")
 def template(tmp_path_factory):
     root = tmp_path_factory.mktemp("template") / "study"
@@ -850,3 +905,66 @@ def test_cli_replay_in_a_rebuilt_copy_binds_its_verified_rebuilt_artifacts(tmp_p
     (config,) = [body["config"] for kind, body in sent if kind == "run"]
     assert config["installation_bindings"] == bindings
     assert Path(config["installation_prefix"]) == rebuilt.interpreter.parent.parent
+
+
+def test_cli_experiments_in_the_selected_generation_record_its_installation_evidence(tmp_path, monkeypatch, capsys):
+    from unittest.mock import patch
+    from simulatte.projects import bootstrap
+    from simulatte.execution.hashing import canonical_hash
+    from simulatte.execution.references import read_document
+    from tests.execution.test_coordinator import project
+    from tests.execution.test_experiment_cli import NO_WEB, envelope
+
+    spec = project(tmp_path)
+    generation, bindings = selected_generation(spec.root, monkeypatch)
+    # Studio's launcher, too, hands this project to its managed generation's own interpreter.
+    assert bootstrap.selected_interpreter(StudioTarget(spec.root, None)) == generation.interpreter
+    path = write_experiment(spec.root, replications={"count": 1}, configurations={"grid": {"n": [3]}})
+    # An interrupted run started inside the generation (as Studio does): its preparation names it.
+    with Coordinator(spec) as co:
+        prepared = co.prepare(timeout=10)
+        identity = {"format": "installation-v1", "facts": dict(prepared.runtime["facts"])}
+        identity |= {"dependencies": {"packages": {}}, "warnings": []}
+        runtime = {
+            "kind": "local-installation-v1",
+            "facts": identity["facts"],
+            "dependencies_hash": canonical_hash("installation-dependencies-v1", identity["dependencies"]),
+            "trusted_runtime_hash": co.runtime.content_hash,
+        }
+        evidence = {"format": "installation-v1", "identity": identity, "raw": {}, "bindings": bindings}
+        documents = {**prepared.documents, "runtime_ref": co._document("runtime", evidence)}
+        co.environments = EnvironmentPool(spec.root, co.store)
+        monkeypatch.setattr(co, "prepare", lambda timeout=None: replace(prepared, runtime=runtime, documents=documents))
+        monkeypatch.setattr(co, "_activate_experiment", lambda run_id, timeout=None: None)
+        paused = co.start_experiment(load_experiment(path))
+    with RunStore.open(spec.root / ".simulatte") as store:
+        stored = store.experiment_run(paused)["preparation"]
+    assert stored["environment"] == generation.id
+    sent = capture_children(monkeypatch)
+    resume = ["experiment", "resume", paused, "--project", str(spec.root), "--local-slots", "1", "--json"]
+    start = ["experiment", "run", str(path), "--project", str(spec.root), "--local-slots", "1", "--json"]
+    with patch.dict(sys.modules, NO_WEB):
+        # Another interpreter keeps its own raw evidence and cannot resume the generation's run.
+        assert main(resume) == 2
+        assert envelope(capsys)["message"].startswith("Resume requires the experiment captured environment")
+        assert main(start) == 1
+        assert envelope(capsys)["status"] == "lost"
+        monkeypatch.setattr(sys, "executable", str(generation.interpreter))
+        assert main(start) == 1
+        assert envelope(capsys)["status"] == "lost"
+        assert main(resume) == 1  # the fake children lose every dispatch
+        resumed = envelope(capsys)
+        assert (resumed["run_id"], resumed["status"], resumed["counts"]["lost"]) == (paused, "failed", 1)
+    other, inside = [body for kind, body in sent if kind == "inspect"]
+    assert "kind" not in read_document(other["inspection_ref"], "request")["runtime"]
+    assert "installation_bindings" not in other["config"]
+    assert read_document(inside["inspection_ref"], "request")["runtime"]["kind"] == "local-installation-v1"
+    assert read_document(inside["config"]["runtime_ref"], "runtime")["bindings"] == bindings
+    assert inside["config"]["installation_bindings"] == bindings
+    # Resume dispatches the stored requests inside the generation and leaves the preparation as stored.
+    runs = [body for kind, body in sent if kind == "run"]
+    assert runs and all(body["config"]["installation_bindings"] == bindings for body in runs)
+    assert all(Path(body["config"]["installation_prefix"]) == generation.interpreter.parent.parent for body in runs)
+    assert all(read_document(body["request_ref"], "request")["runtime"] == runtime for body in runs)
+    with RunStore.open(spec.root / ".simulatte") as store:
+        assert store.experiment_run(paused)["preparation"] == stored

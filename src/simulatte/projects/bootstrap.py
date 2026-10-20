@@ -59,13 +59,15 @@ def selected_interpreter(target):
         if generation is None:
             return None
         spec = generation["evidence"]["spec"]
+        if spec["kind"] == "existing":
+            from simulatte.projects.environments import interpreter_of_another_project
+
+            # Another project's interpreter (a same-machine copy's original) is never handed off to:
+            # the project then opens in this runtime, which reports it unavailable.
+            interpreter = Path(spec["interpreter"])
+            return None if interpreter_of_another_project(target.root, interpreter) else interpreter
         return (
-            Path(spec["interpreter"])
-            if spec["kind"] == "existing"
-            else root
-            / "cache/environments"
-            / generation["id"]
-            / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            root / "cache/environments" / generation["id"] / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         )
     finally:
         reader.close()
