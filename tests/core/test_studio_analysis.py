@@ -42,6 +42,10 @@ entrypoint = "report.py:slow"
 id = "9a1e2f0c-7c1d-4b8e-9a52-3c0c3f0e6d21"
 name = "Needs jobs"
 entrypoint = "report.py:needs"
+[tool.simulatte.analyses.required]
+id = "3b7c3f0e-52a6-4c43-8d0a-1d5f9a2c7b44"
+name = "Required"
+entrypoint = "report.py:required"
 [tool.simulatte.bundle]
 include = ["report.py"]
 """
@@ -53,7 +57,7 @@ import time
 from simulatte.analysis import analysis, DatasetRequirement
 from simulatte.analysis.outputs import Figure, Image, Number, Table
 from simulatte.analysis.types import DatasetSchema, Field
-from simulatte.model import ParameterSchema
+from simulatte.model import ParameterField, ParameterSchema
 
 SCHEMA = DatasetSchema("values", (Field("index", "int64"), Field("big", "int64"), Field("value", "float64")))
 SPECIAL = {1: math.nan, 2: math.inf, 3: -math.inf}
@@ -77,6 +81,11 @@ def analyze(context, parameters):
 def slow(context, parameters):
     while True:
         time.sleep(0.01)
+
+
+@analysis(parameters=ParameterSchema((ParameterField("threshold", "float", True),)))
+def required(context, parameters):
+    pass
 
 
 @analysis(
@@ -199,6 +208,12 @@ def test_state_lists_registrations(studio):
             "id": "9a1e2f0c-7c1d-4b8e-9a52-3c0c3f0e6d21",
             "name": "Needs jobs",
             "entrypoint": "report.py:needs",
+        },
+        {
+            "key": "required",
+            "id": "3b7c3f0e-52a6-4c43-8d0a-1d5f9a2c7b44",
+            "name": "Required",
+            "entrypoint": "report.py:required",
         },
     ]
     assert studio.server.snapshot()["project"]["analyses"] == analyses
@@ -359,6 +374,42 @@ def test_preview_admit_insufficient_after_change_and_name_validation(studio, mon
             "details": {"$record": {"n": {"$int64": str(2**60)}}},
         },
     }
+
+
+def test_preview_skips_parameter_validation_until_admission(studio):
+    preview = call(studio.server, "analysis.preview", registration_key="required", selection=selection(studio.run))
+    assert preview["ok"], preview
+    assert (preview["available"], preview["planned"]) == (1, 2)
+    fields = preview["definition"]["parameters"]["$record"]["fields"]
+    assert [(f["$record"]["name"], f["$record"]["required"]) for f in fields] == [("threshold", True)]
+    empty = call(
+        studio.server, "analysis.preview", registration_key="required", selection=selection(studio.run), parameters={}
+    )
+    assert empty["ok"] and empty["definition"] == preview["definition"]
+    # Input rules still apply without parameters: insufficient input is reported, not the schema.
+    short = call(
+        studio.server,
+        "analysis.preview",
+        registration_key="required",
+        selection=selection(studio.run, require_complete=True),
+    )
+    assert short["ok"] is False and short["error"]["code"] == "insufficient_input"
+    assert codec.from_json(short["error"]["details"])["require_complete"] is True
+    # A supplied parameter object is still validated.
+    wrong = call(
+        studio.server,
+        "analysis.preview",
+        registration_key="required",
+        selection=selection(studio.run),
+        parameters={"threshold": "high"},
+    )
+    assert wrong["error"]["code"] == "failed"
+    body = {k: preview[k] for k in ("preview_id", "definition_id", "generation_id")}
+    refused = call(studio.server, "analysis.admit", **body)
+    assert refused["error"]["code"] == "failed" and "threshold" in refused["error"]["message"]
+    admitted = call(studio.server, "analysis.admit", parameters={"threshold": 0.5}, **body)
+    assert admitted["ok"], admitted
+    assert admitted["execution"]["parameters"] != {}
 
 
 def test_rerun_keeps_snapshot_and_refresh_returns_new_preview(studio):
@@ -784,13 +835,30 @@ def test_frame_asset_gets_its_own_policy_and_app_csp_only_gains_frame_src(studio
     assert frame.status_code == 200
     assert frame.headers["content-security-policy"] == (
         "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; "
-        "frame-ancestors 'self'"
+        "form-action 'none'; frame-ancestors 'self'"
     )
     app = studio.client.get("/")
     assert app.headers["content-security-policy"] == auth.CSP
     assert "frame-src 'self'" in auth.CSP
     assert studio.client.get("/assets/missing/plotly-frame.html").status_code == 404
     assert auth.artifact_headers("image/png")["Content-Security-Policy"] == "sandbox; default-src 'none'"
+
+
+def test_static_assets_accept_a_null_origin_but_commands_and_state_do_not(studio):
+    null = {"Origin": "null"}
+    frame = studio.client.get("/assets/plotly-frame.html", headers=null)
+    assert frame.status_code == 200
+    assert studio.client.head("/assets/plotly-frame.html", headers=null).status_code == 200
+    assert studio.client.get("/", headers=null).status_code == 200
+    # Nothing else: not the state, not mutations, not the bootstrap page, not a second origin value.
+    assert studio.client.get("/api/state", headers={**studio.headers, **null}).status_code == 403
+    assert studio.client.put("/api/layout", headers={**studio.headers, **null}).status_code == 403
+    assert studio.client.get("/bootstrap?token=x", headers=null).status_code == 403
+    assert (
+        studio.client.get("/assets/plotly-frame.html", headers=[("Origin", "null"), ("Origin", "null")]).status_code
+        == 403
+    )
+    assert studio.client.get("/assets/plotly-frame.html", headers={"Origin": "https://example.com"}).status_code == 403
 
 
 def test_history_get_caps_at_200(studio):

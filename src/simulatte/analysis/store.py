@@ -276,10 +276,11 @@ class AnalysisStore:
                 raise KeyError(preview_id)
             return self._admit(db, row[0], definition_id, parameters, generation_id)
 
-    def _admit(self, db, snapshot_hash, definition_id, parameters, generation_id):
+    def _admit(self, db, snapshot_hash, definition_id, parameters, generation_id, *, validate=True):
         body = self._body(db, "analysis_input_snapshots", snapshot_hash)
         definition = self._body(db, "analysis_definitions", definition_id)
-        parameters = validate_parameters(ParameterSchema.from_dict(definition["parameters"]), parameters)
+        if validate:
+            parameters = validate_parameters(ParameterSchema.from_dict(definition["parameters"]), parameters)
         require_reference(db, "environment", generation_id)
         selection = Selection.from_dict(body["selection"])
         if not body["available"] or selection.require_complete and body["partial"]:
@@ -429,8 +430,13 @@ class AnalysisStore:
             )
         return revision
 
-    def check(self, preview_id: str, *, definition_id: str, parameters, generation_id: str) -> None:
+    def check(
+        self, preview_id: str, *, definition_id: str, parameters, generation_id: str, validate_parameters: bool = True
+    ) -> None:
         """Apply every admission rule to a preview without admitting it.
+
+        ``validate_parameters=False`` skips only the parameter validation (a preview whose form is not
+        filled yet); every input rule still applies.
 
         Raises ``InsufficientInput`` for unmet completeness or replication requirements (the
         generic refusals gain the snapshot counts as details) and ``ValueError``/``KeyError``
@@ -446,7 +452,7 @@ class AnalysisStore:
                 if row is None:
                     raise KeyError(preview_id)
                 try:
-                    self._admit(db, row[0], definition_id, parameters, generation_id)
+                    self._admit(db, row[0], definition_id, parameters, generation_id, validate=validate_parameters)
                 except InsufficientInput:
                     raise
                 except ValueError as error:

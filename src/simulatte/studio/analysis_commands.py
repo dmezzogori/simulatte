@@ -116,7 +116,15 @@ class AnalysisCommands:
         return {"ok": True, **self._get(self._store(), body["execution_id"])}
 
     def _preview(self, analysis, preview, definition, generation, parameters):
-        analysis.check(preview.id, definition_id=definition, parameters=parameters, generation_id=generation)
+        # A preview without parameters validates none: the viewer needs the schema to render the form.
+        # Every input rule still applies; admission validates the parameters.
+        analysis.check(
+            preview.id,
+            definition_id=definition,
+            parameters=parameters,
+            generation_id=generation,
+            validate_parameters=bool(parameters),
+        )
         stored = analysis.definition(definition)
         return {
             "ok": True,
