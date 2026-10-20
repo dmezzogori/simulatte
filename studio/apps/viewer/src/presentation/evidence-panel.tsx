@@ -2,6 +2,7 @@
  * Labels are copied from the output metadata when an item is selected and never edited afterwards. */
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import type { EvidenceChoice, EvidenceLabels, EvidenceSelection, PresentationManifest } from "@simulatte/playback";
+import { canonicalHash } from "@simulatte/export";
 import { formatValue, untag } from "../analysis/codec";
 import { FigureFrame, rendererState, validateFigure } from "../artifacts/figure-frame";
 import type { ArtifactSource, OutputDescriptor, Row } from "../artifacts/types";
@@ -14,26 +15,11 @@ export interface EvidenceOrigin {
   analysis_name: string;
   snapshot_hash: string;
 }
-/** Canonical JSON (sorted keys, no spaces, ASCII escapes), the form the content hash is taken over. */
-export function canonicalJson(value: unknown): string {
-  const encode = (item: unknown): string => {
-    if (item === null || typeof item === "boolean") return JSON.stringify(item);
-    if (typeof item === "number") {
-      if (!Number.isFinite(item)) throw new TypeError("Canonical JSON needs finite numbers");
-      return Number.isInteger(item) ? String(item) : JSON.stringify(item);
-    }
-    if (typeof item === "string") return JSON.stringify(item).replace(/[\u007f-￿]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
-    if (Array.isArray(item)) return "[" + item.map(encode).join(",") + "]";
-    if (typeof item === "object")
-      return "{" + Object.keys(item as object).sort().map((k) => encode(k) + ":" + encode((item as Record<string, unknown>)[k])).join(",") + "}";
-    throw new TypeError("Canonical JSON cannot encode " + typeof item);
-  };
-  return encode(value);
-}
-/** sha256 of the canonical OutputDescriptor JSON: the identity a selection is bound to. */
+/** The identity a selection is bound to: the domain-separated canonical hash of the plain OutputDescriptor,
+ * byte-identical to the server's ``canonical_hash("presentation-evidence-output-v1", descriptor)``. */
+export const EVIDENCE_HASH_DOMAIN = "presentation-evidence-output-v1";
 export async function contentHash(output: OutputDescriptor): Promise<string> {
-  const bytes = new TextEncoder().encode(canonicalJson(output));
-  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
+  return canonicalHash(EVIDENCE_HASH_DOMAIN, output);
 }
 /** The immutable labels of an output as P3 describes it: unit, population, sample counts and convention. */
 export function labelsOf(output: OutputDescriptor, origin: EvidenceOrigin): EvidenceLabels {
@@ -102,7 +88,7 @@ function useArtifact<T>(load: (() => Promise<T>) | null, deps: readonly unknown[
   }, deps);
   return state;
 }
-const blobJson = async (blob: Blob): Promise<unknown> => JSON.parse(await blob.text());
+const blobJson = async (blob: Blob | Promise<Blob>): Promise<unknown> => JSON.parse(await (await blob).text());
 function NumberItem({ item, source }: { item: EvidenceSelection; source: ArtifactSource }) {
   const loaded = useArtifact(() => blobJson(source.blob(item.output_id, "number.json")), [item.output_id]);
   if (loaded.status !== "ready") return <p className="pv-value" role={loaded.status === "error" ? "alert" : "status"}>{loaded.status === "error" ? loaded.message : "…"}</p>;

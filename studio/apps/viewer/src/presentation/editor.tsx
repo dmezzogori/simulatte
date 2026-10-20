@@ -257,7 +257,18 @@ export function PresentationEditor({
       .sort((a, b) => a.id.localeCompare(b.id))
       .slice(0, 500);
   }, [stage]);
-  const series = stage?.recording.seriesKeys ?? [];
+  // Series keys arrive as trace chunks are read, so they are re-read until the list settles.
+  const [series, setSeries] = useState<readonly string[]>([]);
+  useEffect(() => {
+    if (!stage) return;
+    const read = () => {
+      const keys = stage.recording.seriesKeys;
+      setSeries((old) => (old.length === keys.length && old.every((k, i) => k === keys[i]) ? old : [...keys]));
+    };
+    read();
+    const id = setInterval(read, 500);
+    return () => clearInterval(id);
+  }, [stage]);
   const range = stage?.recording.finiteRange ?? null;
   const selection = () => ({
     name: draft.name,
