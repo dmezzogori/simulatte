@@ -643,3 +643,63 @@ def test_large_experiment_progress_keeps_pump_alive_and_coalesces_per_run(monkey
             await asyncio.gather(pumping, return_exceptions=True)
 
     asyncio.run(run())
+
+
+def test_define_with_a_measurement_plan_expands_to_measured_replications(tmp_path, monkeypatch):
+    from simulatte.analysis import DatasetSchema, Field, MeasurementPlan
+    from simulatte.analysis.measurements import select_measurements
+    from simulatte.execution.schema import _plain
+    from tests.execution.test_driver import measured_model
+
+    coordinator, server = setup(tmp_path, monkeypatch, model=measured_model())
+    root = coordinator.project.root
+    try:
+        coordinator.inputs.bind(coordinator.prepare(timeout=20))
+        selected = select_measurements(MeasurementPlan("numbers", (DatasetSchema("numbers", (Field("x", "int64"),)),)))
+        for value in ({"plan": "absent"}, {"plan": None}, {"plan": "numbers", "selection": {}}):
+            with pytest.raises(ValueError, match="measurement"):
+                server.experiments(
+                    "experiment.define",
+                    {"path": "bad.experiment.json", "definition": definition(), "measurements": value},
+                )
+        with pytest.raises(ValueError, match="measurements"):
+            server.experiments(
+                "experiment.define",
+                {
+                    "path": "bad.experiment.json",
+                    "definition": definition(measurements=selected),
+                    "measurements": {"plan": "numbers"},
+                },
+            )
+        assert not list(root.glob("*.experiment.json"))
+        # An explicit null is the legacy definition.
+        plain = server.experiments(
+            "experiment.define", {"path": "plain.experiment.json", "definition": definition(), "measurements": None}
+        )
+        assert load_experiment(root / "plain.experiment.json").measurements is None
+        defined = server.experiments(
+            "experiment.define",
+            {"path": "measured.experiment.json", "definition": definition(), "measurements": {"plan": "numbers"}},
+        )
+        assert defined["ok"] and defined["experiment_id"] != plain["experiment_id"]
+        stored = load_experiment(root / "measured.experiment.json")
+        assert _plain(stored.measurements) == selected
+        assert stored == Experiment.from_dict(definition(measurements=selected))
+
+        started = server.experiments("experiment.start", {"path": "measured.experiment.json"})
+        assert started["measurement_plan"] == "numbers"
+        report = coordinator.wait_experiment(started["run_id"], timeout=60)
+        assert report["status"] == "completed"
+        replications = coordinator.store.replications(started["run_id"])
+        assert len(replications) == 4
+        for item in replications:
+            assert coordinator.store.request(item["request_id"]).measurements["plan"] == "numbers"
+            result = coordinator.store.result(item["attempt"])
+            assert (result.path / "artifacts/datasets/numbers/manifest.json").is_file()
+        listed = studio_experiments.run_summary(coordinator.store, started["run_id"])
+        assert listed["measurement_plan"] == "numbers"
+        legacy = server.experiments("experiment.start", {"path": "plain.experiment.json"})
+        assert "measurement_plan" not in legacy
+        assert coordinator.wait_experiment(legacy["run_id"], timeout=60)["status"] == "completed"
+    finally:
+        coordinator.close()
