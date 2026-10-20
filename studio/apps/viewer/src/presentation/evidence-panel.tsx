@@ -5,11 +5,48 @@ import type { EvidenceChoice, EvidenceLabels, EvidenceSelection, PresentationMan
 import { canonicalHash } from "@simulatte/export";
 import { formatValue, untag, type Plain } from "../analysis/codec";
 import { FigureFrame, rendererState, validateFigure } from "../artifacts/figure-frame";
-import type { ArtifactSource, OutputDescriptor, Row } from "../artifacts/types";
+import { httpArtifactSource, type FetchApi } from "../artifacts/source";
+import type { ArtifactSource, OutputDescriptor, OutputManifest, Row } from "../artifacts/types";
 import "./presentation.css";
 
-/** Where the panel reads evidence bytes: one P3 artifact source per analysis execution. */
-export type EvidenceSource = (executionId: string) => ArtifactSource;
+/** One analysis execution's artifacts plus its output descriptors, which list each output's artifact paths. */
+export interface EvidenceReader extends ArtifactSource {
+  descriptor(outputId: string): Promise<OutputDescriptor>;
+}
+/** Where the panel reads evidence bytes: one P3 artifact reader per analysis execution. */
+export type EvidenceSource = (executionId: string) => EvidenceReader;
+/** Readers over ``analysis.get`` (one call per execution, cached) and the artifact routes, as the export reads them. */
+export function analysisEvidenceSource(
+  command: (type: "analysis.get", body: Record<string, unknown>) => Promise<Record<string, unknown>>,
+  fetchApi: FetchApi,
+): EvidenceSource {
+  const readers = new Map<string, EvidenceReader>();
+  return (executionId) => {
+    let reader = readers.get(executionId);
+    if (!reader) {
+      let manifest: Promise<OutputManifest> | null = null;
+      const load = () =>
+        (manifest ??= command("analysis.get", { execution_id: executionId }).then((reply) => {
+          if (!reply.ok) throw new Error(((reply.error as { message?: string }) ?? {}).message ?? "Analysis unavailable");
+          if (!reply.output) throw new Error("The analysis has no outputs");
+          return untag(reply.output) as unknown as OutputManifest;
+        })).catch((error: unknown) => {
+          manifest = null;
+          throw error;
+        });
+      reader = {
+        ...httpArtifactSource(fetchApi, executionId),
+        async descriptor(outputId) {
+          const found = (await load()).outputs.find((o) => o.id === outputId);
+          if (!found) throw new Error("The output is not in the analysis manifest");
+          return found;
+        },
+      };
+      readers.set(executionId, reader);
+    }
+    return reader;
+  };
+}
 export interface EvidenceOrigin {
   execution_id: string;
   analysis_name: string;
@@ -88,18 +125,15 @@ function useArtifact<T>(load: (() => Promise<T>) | null, deps: readonly unknown[
   }, deps);
   return state;
 }
-/** An item's bytes: P3 lists each artifact under its output's directory (``<name>/number.json``) and the server
- * serves listed paths only. With several candidate files the first that exists wins. */
-export async function evidenceFile(source: ArtifactSource, item: EvidenceSelection, ...files: [string, ...string[]]): Promise<Blob> {
-  let failure: unknown;
+/** An item's bytes at the path its output descriptor lists (never derived from the label name), as the export
+ * reads them. With several candidate files the first one the output lists wins. */
+export async function evidenceFile(source: EvidenceReader, item: EvidenceSelection, ...files: [string, ...string[]]): Promise<Blob> {
+  const { artifacts } = await source.descriptor(item.output_id);
   for (const file of files) {
-    try {
-      return await source.blob(item.output_id, `${item.labels.name}/${file}`);
-    } catch (error) {
-      failure = error;
-    }
+    const listed = artifacts.find((a) => a.path === file || a.path.endsWith("/" + file));
+    if (listed) return source.blob(item.output_id, listed.path);
   }
-  throw failure;
+  throw new Error(`The output lists no ${files.join(" or ")}`);
 }
 /** One field of an analysis document (``number.json``, ``distribution.json``), written as tagged JSON. */
 export function documentField(document: unknown, field: string): Plain {
@@ -107,7 +141,7 @@ export function documentField(document: unknown, field: string): Plain {
   return plain !== null && typeof plain === "object" && field in plain ? plain[field]! : null;
 }
 const blobJson = async (blob: Blob | Promise<Blob>): Promise<unknown> => JSON.parse(await (await blob).text());
-function NumberItem({ item, source }: { item: EvidenceSelection; source: ArtifactSource }) {
+function NumberItem({ item, source }: { item: EvidenceSelection; source: EvidenceReader }) {
   const loaded = useArtifact(() => blobJson(evidenceFile(source, item, "number.json")), [item.output_id]);
   if (loaded.status !== "ready") return <p className="pv-value" role={loaded.status === "error" ? "alert" : "status"}>{loaded.status === "error" ? loaded.message : "…"}</p>;
   const value = documentField(loaded.value, "value");
@@ -118,13 +152,18 @@ function NumberItem({ item, source }: { item: EvidenceSelection; source: Artifac
     </p>
   );
 }
-/** Rows ``offset..offset+limit`` of the selected columns, read through the bounded server pages. */
+/** Rows ``offset..offset+limit`` of the selected columns, read through the bounded server pages. The cursor is
+ * opaque, so pages are read in order until the offset is reached; the table's ``row_count`` bounds the walk. */
 export async function excerptRows(source: ArtifactSource, outputId: string, rows: { offset: number; limit: number; columns: readonly string[] }): Promise<Row[]> {
   const collected: Row[] = [];
   let cursor: string | null = null;
   let skipped = 0;
-  for (let page = 0; page < 20 && collected.length < rows.limit; page++) {
+  let pages = Infinity;
+  for (let page = 0; page < pages && collected.length < rows.limit; page++) {
     const batch = await source.page(outputId, cursor, Math.min(500, rows.offset + rows.limit - skipped - collected.length));
+    // Every page but the last holds at least one row, so no walk needs more pages than the table has rows.
+    if (page === 0) pages = batch.row_count + 1;
+    if (!batch.rows.length) break;
     for (const row of batch.rows) {
       if (skipped < rows.offset) skipped++;
       else if (collected.length < rows.limit) collected.push(rows.columns.length ? Object.fromEntries(rows.columns.map((c) => [c, row[c] ?? null])) : row);
@@ -134,7 +173,7 @@ export async function excerptRows(source: ArtifactSource, outputId: string, rows
   }
   return collected;
 }
-function TableItem({ item, source }: { item: EvidenceSelection; source: ArtifactSource }) {
+function TableItem({ item, source }: { item: EvidenceSelection; source: EvidenceReader }) {
   const rows = "rows" in item.selection ? item.selection.rows : null;
   const loaded = useArtifact(rows ? () => excerptRows(source, item.output_id, rows) : null, [item.output_id, rows?.offset, rows?.limit]);
   if (!rows) return null;
@@ -166,7 +205,7 @@ function TableItem({ item, source }: { item: EvidenceSelection; source: Artifact
     </div>
   );
 }
-function ImageItem({ item, source }: { item: EvidenceSelection; source: ArtifactSource }) {
+function ImageItem({ item, source }: { item: EvidenceSelection; source: EvidenceReader }) {
   const loaded = useArtifact(async () => {
     return URL.createObjectURL(await evidenceFile(source, item, "image.png", "image.svg"));
   }, [item.output_id]);
@@ -176,7 +215,7 @@ function ImageItem({ item, source }: { item: EvidenceSelection; source: Artifact
   if (loaded.status !== "ready") return <p role={loaded.status === "error" ? "alert" : "status"}>{loaded.status === "error" ? loaded.message : "…"}</p>;
   return <img src={loaded.value} alt={item.labels.name} />;
 }
-function FigureItem({ item, source }: { item: EvidenceSelection; source: ArtifactSource }) {
+function FigureItem({ item, source }: { item: EvidenceSelection; source: EvidenceReader }) {
   const size = "figure" in item.selection ? item.selection.figure : { width: 640, height: 360 };
   const loaded = useArtifact(() => blobJson(evidenceFile(source, item, "figure.json")), [item.output_id]);
   if (loaded.status !== "ready") return <p role={loaded.status === "error" ? "alert" : "status"}>{loaded.status === "error" ? loaded.message : "…"}</p>;
@@ -191,7 +230,7 @@ function FigureItem({ item, source }: { item: EvidenceSelection; source: Artifac
     </div>
   );
 }
-function DistributionItem({ item, source }: { item: EvidenceSelection; source: ArtifactSource }) {
+function DistributionItem({ item, source }: { item: EvidenceSelection; source: EvidenceReader }) {
   const loaded = useArtifact(() => blobJson(evidenceFile(source, item, "distribution.json")), [item.output_id]);
   if (loaded.status !== "ready") return <p role={loaded.status === "error" ? "alert" : "status"}>{loaded.status === "error" ? loaded.message : "…"}</p>;
   const summary = documentField(loaded.value, "summary") as Record<string, unknown> | null;
@@ -211,7 +250,7 @@ function DistributionItem({ item, source }: { item: EvidenceSelection; source: A
     </dl>
   );
 }
-export function EvidenceItem({ item, source }: { item: EvidenceSelection; source: ArtifactSource | null }) {
+export function EvidenceItem({ item, source }: { item: EvidenceSelection; source: EvidenceReader | null }) {
   const body: ReactNode = !source ? (
     <p className="pv-note">Evidence bytes are read from the saved analysis when a source is available.</p>
   ) : item.kind === "number" ? (

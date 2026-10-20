@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { validatePresentation, type PresentationManifest } from "@simulatte/playback";
 import { parseRoute, routeCrumbs, routeHash, type WorkspaceRoute } from "../src/workspace/state";
-import { focusWhenShown, notificationReloads, originalRunLabel, recordingLabel } from "../src/workspace/presentations";
-import { EvidencePanel, EvidenceQualifiers, contentHash, documentField, evidenceFile, evidenceFromOutput, excerptRows, labelsOf, qualifierText } from "../src/presentation/evidence-panel";
+import { PresentationPages, focusWhenShown, notificationReloads, originalRunLabel, recordingLabel } from "../src/workspace/presentations";
+import { EvidencePanel, EvidenceQualifiers, analysisEvidenceSource, contentHash, documentField, evidenceFile, evidenceFromOutput, excerptRows, labelsOf, qualifierText } from "../src/presentation/evidence-panel";
 import { currentView, draftOf, manifestOf, pickerOutputs } from "../src/presentation/editor";
 import { hideOutside, type Hideable } from "../src/presentation/hide-outside";
 import type { ArtifactSource, OutputDescriptor, RowsPage } from "../src/artifacts/types";
@@ -53,6 +53,33 @@ describe("original run picker", () => {
       "Release study · servers=3 · replication 4 · Run aaaaaaaa",
     );
     expect(originalRunLabel({ ...row, name: "Baseline" }, undefined)).toMatch(/^Baseline · /);
+  });
+});
+describe("presentation list paging", () => {
+  it("follows next_cursor on request and keeps loaded older pages across refreshes", async () => {
+    const all = Array.from({ length: 120 }, (_, i) => ({ id: "p" + i, name: "P" + i, revision: 1, created: 1000 - i, recording: { attempt_id: "a" }, exports: { active: 0, total: 0 } }));
+    const asked: (string | null)[] = [];
+    const pages = new PresentationPages(async (cursor) => {
+      asked.push(cursor);
+      const start = cursor === null ? 0 : Number(cursor);
+      const end = Math.min(start + 50, all.length);
+      return { items: all.slice(start, end), next_cursor: end < all.length ? String(end) : null };
+    });
+    await pages.refresh();
+    expect(pages.items).toHaveLength(50);
+    expect(pages.cursor).toBe("50");
+    await pages.more();
+    expect(pages.items.map((p) => p.id).slice(48, 52)).toEqual(["p48", "p49", "p50", "p51"]);
+    asked.length = 0;
+    await pages.refresh();
+    expect(asked).toEqual([null, "50"]);
+    expect(pages.items).toHaveLength(100);
+    await pages.more();
+    expect(pages.items).toHaveLength(120);
+    expect(pages.cursor).toBeNull();
+    asked.length = 0;
+    await pages.more();
+    expect(asked).toEqual([]);
   });
 });
 describe("presentation page notifications", () => {
@@ -145,22 +172,53 @@ describe("evidence selection", () => {
     expect(Math.max(...calls)).toBeLessThanOrEqual(500);
   });
 });
-describe("evidence files", () => {
-  it("reads an item's bytes at the path the output manifest lists, under the output's directory", async () => {
-    const item = await evidenceFromOutput({ ...output, name: "mean_lateness", kind: "number" }, origin, {});
-    const files: Record<string, string> = { "mean_lateness/number.json": "{}", "drawing/image.svg": "<svg/>" };
-    const asked: string[] = [];
-    const source = {
-      blob: async (_id: string, path: string) => {
-        asked.push(path);
-        if (!(path in files)) throw new Error("Unknown analysis artifact");
-        return new Blob([files[path]!]);
+describe("row excerpts far into a table", () => {
+  it("pages past 10,000 rows to reach the offset, and stops at the end of the table", async () => {
+    const total = 12_345;
+    let calls = 0;
+    const source: ArtifactSource = {
+      async page(_id, cursor, limit): Promise<RowsPage> {
+        calls++;
+        const start = cursor ? Number(cursor) : 0;
+        const count = Math.min(limit, 500, total - start);
+        const page = Array.from({ length: count }, (_, i) => ({ index: start + i }));
+        return { rows: page, next_cursor: start + count < total ? String(start + count) : null, row_count: total, indexed: false };
       },
-    } as unknown as ArtifactSource;
+      blob: () => Promise.reject(new Error("unused")),
+      csv: () => Promise.reject(new Error("unused")),
+    };
+    expect(await excerptRows(source, "o", { offset: 12_000, limit: 3, columns: ["index"] })).toEqual([{ index: 12_000 }, { index: 12_001 }, { index: 12_002 }]);
+    calls = 0;
+    expect(await excerptRows(source, "o", { offset: 20_000, limit: 3, columns: [] })).toEqual([]);
+    expect(calls).toBe(Math.ceil(total / 500));
+  });
+});
+describe("evidence files", () => {
+  it("reads an item's bytes at the path its output descriptor lists, not one derived from the label name", async () => {
+    // A sanitized directory: the label is "Mean lateness", the listed file is mean_lateness/number.json.
+    const number = { ...output, id: "1".repeat(64), name: "Mean lateness", kind: "number" as const, artifacts: [{ path: "mean_lateness/number.json", length: 2, sha256: "a".repeat(64) }] };
+    const drawing = { ...output, id: "2".repeat(64), name: "drawing", kind: "image" as const, artifacts: [{ path: "out_2/image.svg", length: 6, sha256: "b".repeat(64) }] };
+    const files: Record<string, string> = { "mean_lateness/number.json": "{}", "out_2/image.svg": "<svg/>" };
+    const asked: string[] = [];
+    const replies: Record<string, unknown>[] = [];
+    const source = analysisEvidenceSource(
+      async (_type, body) => {
+        replies.push(body);
+        return { ok: true, output: { outputs: [number, drawing] } };
+      },
+      async (path) => {
+        asked.push(path);
+        const file = decodeURIComponent(path.split("/artifacts/")[1]!);
+        return file in files ? new Response(files[file]!) : new Response("{}", { status: 404 });
+      },
+    )(origin.execution_id);
+    const item = await evidenceFromOutput(number, origin, {});
     expect(await (await evidenceFile(source, item, "number.json")).text()).toBe("{}");
-    const image = await evidenceFromOutput({ ...output, name: "drawing", kind: "image" }, origin, {});
+    const image = await evidenceFromOutput(drawing, origin, {});
     expect(await (await evidenceFile(source, image, "image.png", "image.svg")).text()).toBe("<svg/>");
-    expect(asked).toEqual(["mean_lateness/number.json", "drawing/image.png", "drawing/image.svg"]);
+    expect(asked.map((p) => decodeURIComponent(p.split("/artifacts/")[1]!))).toEqual(["mean_lateness/number.json", "out_2/image.svg"]);
+    expect(replies).toHaveLength(1);
+    await expect(evidenceFile(source, image, "figure.json")).rejects.toThrow("lists no figure.json");
   });
 });
 describe("evidence picker", () => {

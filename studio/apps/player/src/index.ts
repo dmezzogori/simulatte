@@ -2,7 +2,7 @@ import notices from "../../../THIRD_PARTY_NOTICES.md?raw";
 import { openRecording } from "@simulatte/trace";
 import { Session, Playback } from "@simulatte/playback";
 import { Scene } from "@simulatte/scene";
-import { qualifierText, readPresentationBlock, viewRange, type PresentationBlock } from "./presentation-block";
+import { playControl, qualifierText, readPresentationBlock, viewRange, type PresentationBlock } from "./presentation-block";
 const make = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string) => {
   const e = document.createElement(tag);
   if (text) e.textContent = text;
@@ -273,12 +273,10 @@ async function start() {
     const playLabel = status === "playing" || status === "buffering" ? "Pause" : "Play";
     // Preserve the pressed text node across frames so WebKit delivers the click.
     if (play.textContent !== playLabel) play.textContent = playLabel;
-    play.disabled =
-      !frame ||
-      !recording.finiteRange ||
-      !Number.isFinite(frame.time) ||
-      status === "ended" ||
-      (view !== null && frame.time >= view.end);
+    play.disabled = playControl(
+      { frame: !!frame, finiteRange: !!recording.finiteRange, time: frame?.time ?? NaN, status },
+      view,
+    ).disabled;
     back.disabled =
       !frame || frame.mode === "activation" || recording.trace.level !== "full";
     next.disabled =
@@ -303,7 +301,9 @@ async function start() {
     if (playback.status === "playing" || playback.status === "buffering")
       playback.pause();
     else {
-      if (view && playback.frame && playback.frame.time >= view.end) void playback.seekTime(view.start).then(() => playback.play());
+      const frame = playback.frame;
+      const control = playControl({ frame: !!frame, finiteRange: !!recording.finiteRange, time: frame?.time ?? NaN, status: playback.status }, view);
+      if (view && control.restart) void playback.seekTime(view.start).then(() => playback.play());
       else playback.play();
     }
   };

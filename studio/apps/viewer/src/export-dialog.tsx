@@ -41,6 +41,8 @@ export interface PresentationExport {
   jobs: ExportJobs;
   /** The recording bytes for the offline HTML, bounded by the caller. */
   traceSource(limit: number, signal: AbortSignal): Promise<Blob>;
+  /** The recording's size in bytes, known without reading it; the preview needs only this. */
+  traceSize: number;
   playerScript: string;
   playerStyle: string;
 }
@@ -50,6 +52,10 @@ export type Format = MediaOptions["format"] | "html";
 export async function exportOutcome(file: Pick<ExportFile, "name" | "blob">, mediaType: string): Promise<ExportOutcome> {
   if (!file.blob) throw new Error("The export finished where its bytes cannot be read back; the job cannot record its output");
   return { state: "succeeded", output: { name: file.name, size: file.blob.size, sha256: await sha256Blob(file.blob), media_type: mediaType } };
+}
+/** The export target's options; the HTML preview takes the trace size from the source, so the trace is read once, at export. */
+export function targetOptionsOf(target: ExportTarget, options: MediaOptions, format: Format, panel: boolean, presentationExport: Pick<PresentationExport, "traceSize">): TargetOptions {
+  return target === "video" ? { ...options, format: format as MediaOptions["format"], panel } : { panel, traceSize: presentationExport.traceSize };
 }
 export const MEDIA_TYPES: Record<Format, string> = { mp4: "video/mp4", webm: "video/webm", png: "application/zip", html: "text/html" };
 export function ExportDialog({
@@ -134,8 +140,6 @@ export function ExportDialog({
     setRefusal(null);
   };
   const target: ExportTarget = format === "html" ? "html" : "video";
-  const targetOptions = async (signal: AbortSignal): Promise<TargetOptions> =>
-    target === "video" ? { ...options, format: format as MediaOptions["format"], panel } : { panel, traceSize: (await presentationExport!.traceSource(HTML_SOURCE_LIMIT, signal)).size };
   const prepare = async () => {
     if (!presentationExport || preparing) return null;
     setPreparing(true);
@@ -144,7 +148,7 @@ export function ExportDialog({
     const controller = new AbortController();
     abort.current = controller;
     try {
-      const prepared = await prepareExport(manifest!, target, await targetOptions(controller.signal), presentationExport.evidence, controller.signal);
+      const prepared = await prepareExport(manifest!, target, targetOptionsOf(target, options, format, panel, presentationExport), presentationExport.evidence, controller.signal);
       if (mounted.current) setSnapshot(prepared);
       return prepared;
     } catch (error) {
