@@ -60,6 +60,9 @@ importers:
       dockview:
         specifier: 8.4.1
         version: 8.4.1
+      plotly.js-dist-min:
+        specifier: 4.1.1
+        version: 4.1.1
       react:
         specifier: 19.3.0
         version: 19.3.0
@@ -870,6 +873,9 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
+  plotly.js-dist-min@4.1.1:
+    resolution: {integrity: sha512-4Jg6n9FKcn5WBuqHESZmueEBYOLjGlsz8ivzMCl03WCX+GAAOgIALvdONwIi54JDMq0tkxbu+vs5Yj7QSPQtgg==}
+
   postcss@8.5.29:
     resolution: {integrity: sha512-49cGhUbXj8Qenv0iTMxA1cFBzxXoctpC9Ujd77t1WcbJIr6nF/eI7g/8MgxrYldFRuAXvja7xQRwavoW7kgrxQ==}
     engines: {node: ^10 || ^12 || >=14}
@@ -1615,6 +1621,8 @@ snapshots:
   playwright@1.64.0:
     dependencies:
       playwright-core: 1.64.0
+
+  plotly.js-dist-min@4.1.1: {}
 
   postcss@8.5.29:
     dependencies:

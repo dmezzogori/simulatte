@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+import re
 import runpy
 import shutil
 import subprocess
@@ -133,3 +134,42 @@ def test_node_and_python_fingerprints_include_imported_schema(packaging, name):
     assert result.returncode != 0
     assert "Frontend inputs changed during the build" in result.stderr
     assert (dist / "build-stamp.json").read_bytes() == previous_stamp
+
+
+REPOSITORY = Path(__file__).resolve().parents[2]
+STATIC = REPOSITORY / "src/simulatte/studio/static"
+VIEWER_PACKAGE = REPOSITORY / "studio/apps/viewer/package.json"
+
+
+def pinned_plotly():
+    return json.loads(VIEWER_PACKAGE.read_text())["dependencies"]["plotly.js-dist-min"]
+
+
+def test_packaged_assets_include_the_isolated_figure_frame():
+    """The frame document is a classic-script page beside the app, and its bundle is the pinned plotly.js."""
+    manifest = STATIC / "manifest.json"
+    if not manifest.is_file():
+        pytest.skip("Studio assets are not packaged; run pnpm --dir studio build and package_assets.py")
+    assets = json.loads(manifest.read_text())["assets"]
+    assert "plotly-frame.html" in assets
+    scripts = [name for name in assets if re.fullmatch(r"assets/plotly-frame-[A-Za-z0-9_-]+\.js", name)]
+    assert len(scripts) == 1, scripts
+    frame = (STATIC / "plotly-frame.html").read_text()
+    assert frame.count("<script") == 1 and f'<script src="./{scripts[0]}"></script>' in frame
+    assert 'type="module"' not in frame and "http://" not in frame and "https://" not in frame
+    bundle = (STATIC / scripts[0]).read_text(errors="replace")
+    assert f'"{pinned_plotly()}"' in bundle
+    assert "import.meta" not in bundle and not re.search(r"^\s*(?:import|export)\s", bundle, re.MULTILINE)
+
+
+def test_viewer_pins_the_plotly_js_version_python_plotly_bundles():
+    offline = pytest.importorskip("plotly.offline")
+    assert pinned_plotly() == offline.get_plotlyjs_version()
+
+
+def test_third_party_notices_cover_the_plotly_bundle():
+    notices = (REPOSITORY / "studio/THIRD_PARTY_NOTICES.md").read_text()
+    heading = f"## plotly.js-dist-min {pinned_plotly()}"
+    assert heading in notices
+    section = notices.split(heading, 1)[1].split("\n## ", 1)[0]
+    assert "License: MIT" in section and "Permission is hereby granted" in section
