@@ -624,7 +624,10 @@ class AnalysisStore:
             return json.loads(memory[identity])
         path = self.store.root / "analysis-cache" / "windows-v1" / f"{identity}.json"
         try:
-            return json.loads(path.read_bytes())
+            with path.open("rb") as stream:
+                cached = json.loads(stream.read(_WINDOW_CACHE_BYTES + 1))
+            if _windows_valid(cached):
+                return cached
         except (OSError, ValueError):
             pass
         rows = db.execute(_WINDOW_SUMMARY, (identity,)).fetchall()
@@ -660,6 +663,31 @@ class AnalysisStore:
 
 
 MAX_WINDOWS = 20
+_WINDOW_CACHE_BYTES = 64 * 1024
+
+
+def _windows_valid(value) -> bool:
+    """A cached summary is used only in exactly the shape the store writes; anything else is a cache miss."""
+
+    def number(item):
+        return item is None or (type(item) in (int, float))
+
+    if not isinstance(value, dict) or set(value) != {"items", "total"}:
+        return False
+    items, total = value["items"], value["total"]
+    if not isinstance(items, list) or len(items) > MAX_WINDOWS or type(total) is not int or total < len(items):
+        return False
+    return all(
+        isinstance(item, dict)
+        and set(item) == {"dataset", "start", "end", "replications"}
+        and (item["dataset"] is None or isinstance(item["dataset"], str))
+        and number(item["start"])
+        and number(item["end"])
+        and type(item["replications"]) is int
+        and item["replications"] > 0
+        for item in items
+    )
+
 
 # Dataset windows are already tagged JSON inside the tagged snapshot; their extra $record wrappers
 # are intentional. SQLite traverses the stored JSON, but Python receives only the compact aggregate.

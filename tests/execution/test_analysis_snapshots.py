@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
+import json
 from dataclasses import replace
 import sqlite3
 from threading import Event
@@ -735,6 +736,29 @@ def test_window_cache_is_disposable_and_keeps_bounded_order(setup, monkeypatch, 
             rows = db.execute(module._WINDOW_SUMMARY.replace("LIMIT 20", "LIMIT 100"), (identity,)).fetchall()
         assert dict(rows[-1]) == {"dataset": "jobs", "start": 2**60, "end": None, "replications": 1, "total": 25}
         assert dict(rows[-2]) == {"dataset": None, "start": None, "end": None, "replications": 2, "total": 25}
+
+
+@pytest.mark.parametrize(
+    "cached",
+    [
+        "[]",
+        '{"items": 5, "total": 1}',
+        '{"items": [{"dataset": null, "start": true, "end": 1, "replications": 1}], "total": 1}',
+        '{"items": [], "total": 0, "extra": 1}',
+        '{"items": [], "total": -1}',
+        " " * 70000,
+    ],
+)
+def test_window_cache_of_the_wrong_shape_is_recomputed(setup, cached):
+    store, analysis, definition = setup
+    replications = [{"available": True, "request": {"stopping": {"warmup": 3, "horizon": 10.0}}, "datasets": {}}]
+    identity, _ = window_execution(store, analysis, definition, replications)
+    cache = store.root / "analysis-cache" / "windows-v1" / f"{identity}.json"
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(cached)
+    expected = {"items": [{"dataset": None, "start": 3, "end": 10.0, "replications": 1}], "total": 1}
+    assert analysis.get("window-test")["snapshot"]["windows"] == expected
+    assert json.loads(cache.read_text()) == expected
 
 
 def test_window_summary_without_available_inputs(setup):
