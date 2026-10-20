@@ -176,6 +176,40 @@ def test_inspection_capacity_shared_with_model_preparation(project):
         assert AnalysisStore(store).definition(definition)["entrypoint"] == "report.py:analyze"
 
 
+def test_unchanged_registration_reuses_its_inspected_definition(project, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from types import SimpleNamespace
+    from simulatte.analysis import command as module
+    from simulatte.execution.process import ContainedProcess
+
+    root, run, attempt = project
+    starts = []
+
+    def start(*args, **kwargs):
+        starts.append(args)
+        return ContainedProcess.start(*args, **kwargs)
+
+    monkeypatch.setattr(module, "ContainedProcess", SimpleNamespace(start=start))
+    with RunStore.open(root / ".simulatte") as store:
+        first, generation = module.prepare_analysis(store, "total")
+        assert len(starts) == 1
+        # Same registration and captured source: the stored definition, no child and no inspection capacity.
+        with ThreadPoolExecutor(1) as pool, store._inspection_lock:
+            assert pool.submit(module.prepare_analysis, store, "total").result(timeout=15) == (first, generation)
+        assert len(starts) == 1
+        with store._transaction() as db:
+            owners = {row[0] for row in db.execute('SELECT owner_kind FROM "references"')}
+            assert "analysis-inspection" not in owners and "environment-owner" not in owners
+        (root / "report.py").write_text((root / "report.py").read_text() + "# changed\n")
+        second, _ = module.prepare_analysis(store, "total")
+        assert len(starts) == 2 and second != first
+        assert (
+            AnalysisStore(store).definition(second)["source_hash"]
+            != AnalysisStore(store).definition(first)["source_hash"]
+        )
+        assert module.prepare_analysis(store, "total")[0] == second and len(starts) == 2
+
+
 def waiting(root, attempt):
     from simulatte.analysis.command import prepare_analysis
     from simulatte.analysis.selection import Selection

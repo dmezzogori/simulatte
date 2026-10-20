@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import heapq
+import math
+import re
 from typing import Any
 
 from simulatte.execution.schema import AttemptKey, ExecutionRequest, Revision, content_id, request_id
@@ -75,14 +77,13 @@ def report(store: RunStore, run_id: str) -> dict[str, Any]:
     }
 
 
-def runs(store: RunStore, *, limit: int = 20) -> list[dict[str, Any]]:
-    """The newest runs with their state and totals."""
-    with store._transaction() as db:
-        rows = db.execute(
-            "SELECT r.id,r.experiment,e.name,r.status,r.created FROM experiment_runs r "
-            "JOIN experiments e ON e.id=r.experiment ORDER BY r.created DESC,r.id LIMIT ?",
-            (limit,),
-        ).fetchall()
+_RUNS = (
+    "SELECT r.id,r.experiment,e.name,r.status,r.created FROM experiment_runs r JOIN experiments e ON e.id=r.experiment"
+)
+_RUN_ORDER = " ORDER BY r.created DESC,r.id LIMIT ?"
+
+
+def _run_items(store: RunStore, rows) -> list[dict[str, Any]]:
     return [
         {
             "run_id": row[0],
@@ -94,6 +95,49 @@ def runs(store: RunStore, *, limit: int = 20) -> list[dict[str, Any]]:
         }
         for row in rows
     ]
+
+
+def runs(store: RunStore, *, limit: int = 20) -> list[dict[str, Any]]:
+    """The newest runs with their state and totals."""
+    with store._transaction() as db:
+        rows = db.execute(_RUNS + _RUN_ORDER, (limit,)).fetchall()
+    return _run_items(store, rows)
+
+
+def run_item(store: RunStore, run_id: str) -> dict[str, Any]:
+    """One run as :func:`runs` lists it; ``KeyError`` when the store has no such run."""
+    with store._transaction() as db:
+        row = db.execute(_RUNS + " WHERE r.id=?", (run_id,)).fetchone()
+    if row is None:
+        raise KeyError(run_id)
+    return _run_items(store, [row])[0]
+
+
+def runs_page(
+    store: RunStore, *, cursor: str | None = None, limit: int = 20
+) -> tuple[list[dict[str, Any]], str | None]:
+    """A page of :func:`runs`' order (newest first) after ``cursor``, and the next page's cursor.
+
+    The cursor is the last listed run's exact creation time and id, so runs created
+    between pages never shift a later page.
+    """
+    after = ()
+    if cursor is not None:
+        created, _, run_id = cursor.partition("/") if type(cursor) is str else ("", "", "")
+        try:
+            moment = float(created)
+        except ValueError:
+            moment = math.nan
+        if not math.isfinite(moment) or repr(moment) != created or re.fullmatch(r"[a-f0-9]{64}", run_id) is None:
+            raise ValueError("Invalid experiment cursor")
+        after = (moment, moment, run_id)
+    with store._transaction() as db:
+        rows = db.execute(
+            _RUNS + (" WHERE r.created<? OR (r.created=? AND r.id>?)" if after else "") + _RUN_ORDER,
+            (*after, limit + 1),
+        ).fetchall()
+    following = None if len(rows) <= limit else f"{rows[limit - 1][4]!r}/{rows[limit - 1][0]}"
+    return _run_items(store, rows[:limit]), following
 
 
 def cancel_run(store: RunStore, run_id: str) -> list[tuple[int, int, AttemptKey]]:

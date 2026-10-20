@@ -10,6 +10,7 @@ import math
 import random
 import runpy
 import sys
+import time
 import warnings
 
 import pytest
@@ -459,3 +460,89 @@ def test_child_entrypoint_runs_in_process(tmp_path, monkeypatch):
     assert exited.value.code == 0 and not (tmp_path / "work.sqlite").exists()
     page = tq._page(destination, identity, SCHEMA, 0, 100, 6)
     assert [r["id"] for r in page.rows] == [3, 2, 0, 1, 4, 6]
+
+
+def concurrent(tq, reader, query, cache, monkeypatch, callers, *, fail=False, cancels=None):
+    """``callers`` threads ask for one index while its build is held; returns their outcomes.
+
+    ``cancels`` flags the callers that cancel once the build is released.
+    """
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    entered, release = threading.Event(), threading.Event()
+    original = tq._run_child
+
+    def held(config, directory, **options):
+        entered.set()
+        assert release.wait(30)
+        if fail:
+            raise ValueError("boom")
+        return original(config, directory, **options)
+
+    monkeypatch.setattr(tq, "_run_child", held)
+    cancels = cancels or [False] * callers
+
+    def call(flag):
+        try:
+            return tq.query_table(
+                reader, query, None, limit=7, cache_dir=cache, cancel=lambda: flag and release.is_set()
+            )
+        except Exception as error:
+            return error
+
+    with ThreadPoolExecutor(callers) as pool:
+        futures = [pool.submit(call, flag) for flag in cancels]
+        assert entered.wait(30)
+        deadline = time.monotonic() + 30
+        while sum(len(build.cancels) for build in list(tq._BUILDS.values())) < callers:
+            assert time.monotonic() < deadline, "callers never joined the shared build"
+            time.sleep(0.01)
+        release.set()
+        outcomes = [future.result(timeout=60) for future in futures]
+    assert tq._BUILDS == {}
+    return outcomes
+
+
+def test_concurrent_identical_queries_share_one_build(tmp_path, launches, monkeypatch):
+    tq = api()
+    schema = DatasetSchema("rows", (Field("n", "int64"),))
+    reader = dataset(tmp_path / "artifact", schema, [{"n": n % 17} for n in range(100)])
+    query = tq.TableQuery((("n", "desc"),))
+    pages = concurrent(tq, reader, query, tmp_path / "cache", monkeypatch, 6)
+    assert len(launches) == 1 and all(isinstance(page, tq.TablePage) for page in pages)
+    assert all(page == pages[0] for page in pages) and [row["n"] for row in pages[0].rows] == [16] * 5 + [15] * 2
+    identity = query.identity(reader._identity)
+    assert sorted(p.name for p in (tmp_path / "cache" / reader._identity).iterdir()) == [
+        f"{identity}.ready",
+        f"{identity}.sqlite",
+    ]
+
+
+def test_a_failed_shared_build_fails_every_waiter(tmp_path, launches, monkeypatch):
+    tq = api()
+    schema = DatasetSchema("rows", (Field("n", "int64"),))
+    reader = dataset(tmp_path / "artifact", schema, [{"n": n} for n in range(10)])
+    query = tq.TableQuery((("n", "desc"),))
+    errors = concurrent(tq, reader, query, tmp_path / "cache", monkeypatch, 4, fail=True)
+    assert all(type(error) is ValueError and str(error) == "boom" for error in errors)
+    assert list((tmp_path / "cache" / reader._identity).iterdir()) == []
+    monkeypatch.undo()
+    assert len(tq.query_table(reader, query, None, cache_dir=tmp_path / "cache").rows) == 10
+
+
+def test_a_shared_build_stops_only_when_every_caller_cancels(tmp_path, launches, monkeypatch):
+    tq = api()
+    schema = DatasetSchema("rows", (Field("n", "int64"),))
+    reader = dataset(tmp_path / "artifact", schema, [{"n": n} for n in range(10)])
+    query = tq.TableQuery((("n", "desc"),))
+    # One caller leaves; the build continues for the other.
+    outcomes = concurrent(tq, reader, query, tmp_path / "cache", monkeypatch, 2, cancels=[False, True])
+    assert sorted(type(item).__name__ for item in outcomes) == ["TablePage", "TableQueryCancelled"]
+    assert len(launches) == 1
+    for path in (tmp_path / "cache" / reader._identity).iterdir():
+        path.unlink()
+    # Every caller cancels: the child is killed and nothing is published.
+    outcomes = concurrent(tq, reader, query, tmp_path / "cache", monkeypatch, 3, cancels=[True] * 3)
+    assert all(isinstance(item, tq.TableQueryCancelled) for item in outcomes)
+    assert list((tmp_path / "cache" / reader._identity).iterdir()) == []

@@ -32,6 +32,7 @@ MAX_SERIES_ATTEMPTS = 8
 MAX_SERIES_KEYS = 4
 MAX_SERIES_POINTS = 100_000
 MAX_LISTED = 20
+MAX_PAGE = 100
 _SUFFIX = ".experiment.json"
 _HEX64 = re.compile(r"[a-f0-9]{64}")
 _HEX32 = re.compile(r"[a-f0-9]{32}")
@@ -327,6 +328,26 @@ class ExperimentCommands:
         summary = run_summary(self.store, run_id)
         removed = self.coordinator.delete_experiment(run_id)
         return {**self._state({**summary, "status": "deleted"}), "results": len(removed["results"])}
+
+    def _experiment_list(self, body):
+        """A page of experiment runs, newest first, shaped as the snapshot's ``experiments``."""
+        from simulatte.execution import scheduler
+
+        _keys(body, set(), {"cursor", "limit"})
+        limit = body.get("limit", MAX_LISTED)
+        if type(limit) is not int or not 1 <= limit <= MAX_PAGE:
+            raise ValueError(f"limit must be an integer from 1 to {MAX_PAGE}")
+        cursor = body.get("cursor")
+        if cursor is not None and type(cursor) is not str:
+            raise ValueError("Invalid experiment cursor")
+        items, following = scheduler.runs_page(self.store, cursor=cursor, limit=limit)
+        return {"ok": True, "items": with_measurement_plans(self.store, items), "next_cursor": following}
+
+    def _experiment_get(self, body):
+        from simulatte.execution import scheduler
+
+        run_id = self._run(body)
+        return {"ok": True, "run": with_measurement_plans(self.store, [scheduler.run_item(self.store, run_id)])[0]}
 
     def _comparison_get(self, body):
         _keys(body, {"run_id"}, {"level", "baseline", "bonferroni", "configuration"})

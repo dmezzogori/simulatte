@@ -81,6 +81,22 @@ class AnalysisStore:
                 )
         return identity
 
+    def inspected(self, registration_id: str, entrypoint: str, source_hash: str, python_path) -> str | None:
+        """The newest stored definition inspected from this registration and captured source, if any."""
+        with self.store._transaction() as db:
+            rows = db.execute(
+                "SELECT id,body FROM analysis_definitions WHERE name=? ORDER BY rowid DESC", (registration_id,)
+            ).fetchall()
+        for identity, raw in rows:
+            body = codec.loads(raw)
+            if (body["entrypoint"], body["source_hash"], body.get("capture")) == (
+                entrypoint,
+                source_hash,
+                {"python_path": list(python_path)},
+            ):
+                return identity
+        return None
+
     def output(self, identity):
         with self.store._transaction() as db:
             row = db.execute("SELECT manifest FROM analysis_outputs WHERE execution=?", (identity,)).fetchone()

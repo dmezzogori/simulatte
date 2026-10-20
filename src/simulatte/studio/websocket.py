@@ -22,6 +22,8 @@ EXPERIMENT_COMMANDS = frozenset(
         "experiment.cancel",
         "experiment.resume",
         "experiment.delete",
+        "experiment.list",
+        "experiment.get",
         "comparison.get",
         "series.get",
         "replay.start",

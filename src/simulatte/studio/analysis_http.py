@@ -4,8 +4,8 @@ Routes (``GET``/``HEAD``, session cookie and header like every ``api/*`` route):
 
 - ``api/analysis/<execution>/outputs/<output>/rows?cursor=&limit=&sort=&filter=``: one tagged-JSON page
   (limit 1–500, at most 1 MiB) through ``simulatte.analysis.table_query``. Sorting and filtering build a
-  derived index under ``<store>/analysis-cache`` in a contained child, bounded by its timeout; a client
-  disconnect does not cancel the build.
+  derived index under ``<store>/analysis-cache`` in a contained child, bounded by its timeout. Identical
+  concurrent requests share one build, which stops once every waiting client has disconnected.
 - ``api/analysis/<execution>/outputs/<output>/csv``: the whole table, streamed as an attachment.
 - ``api/analysis/<execution>/artifacts/<path>``: one file listed in the execution's output manifest,
   hash-verified, as an isolated attachment.
@@ -36,6 +36,7 @@ MAX_TABLE_MANIFEST = 4 << 20  # the dataset manifest bound admission applies to 
 EXECUTION = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 DIGEST = re.compile(r"[0-9a-f]{64}")
 ROW_PARAMETERS = frozenset(("cursor", "limit", "sort", "filter"))
+DISCONNECT_POLL = 0.5  # seconds between client disconnect checks while a table index builds
 
 
 class Refused(Exception):
@@ -114,7 +115,7 @@ def _row_query(request):
     return values.get("cursor"), int(limit), values.get("sort") or None, values.get("filter") or None
 
 
-def _rows(server, identity, output_id, cursor, limit, sort, filter):
+def _rows(server, identity, output_id, cursor, limit, sort, filter, cancel=None):
     _, reader = _table(server, identity, output_id)
     store = server.service.store
     # Derived indexes only; never inside analysis-results. A recovery reader writes nothing.
@@ -125,7 +126,7 @@ def _rows(server, identity, output_id, cursor, limit, sort, filter):
             if store is None:
                 raise Refused(409, "Sorting and filtering need a writable project; page the table unsorted")
             cache.mkdir(exist_ok=True)
-        return query_table(reader, query, cursor, limit=limit, cache_dir=cache).to_dict()
+        return query_table(reader, query, cursor, limit=limit, cache_dir=cache, cancel=cancel).to_dict()
     except ValueError as error:
         raise Refused(400, str(error)[:4096]) from None
     except (TimeoutError, TableQueryCancelled) as error:
@@ -205,6 +206,13 @@ def csv_chunks(reader):
         stopped.set()
 
 
+async def _watch(request, disconnected):
+    """Set ``disconnected`` once the client has gone; the index build thread polls it as ``cancel``."""
+    while not await request.is_disconnected():
+        await asyncio.sleep(DISCONNECT_POLL)
+    disconnected.set()
+
+
 async def handle(server, request, path):
     if not server.headers_valid(request) or not server.authenticated(request):
         return _json({"error": "Open a fresh terminal link"}, 403)
@@ -216,7 +224,15 @@ async def handle(server, request, path):
         output_id, _, view = rest.partition("/")
         if kind == "outputs" and DIGEST.fullmatch(output_id) and view == "rows":
             query = _row_query(request)
-            return _json(await asyncio.to_thread(_rows, server, identity, output_id, *query))
+            disconnected = threading.Event()
+            watcher = asyncio.create_task(_watch(request, disconnected))
+            try:
+                return _json(
+                    await asyncio.to_thread(_rows, server, identity, output_id, *query, cancel=disconnected.is_set)
+                )
+            finally:
+                watcher.cancel()
+                await asyncio.gather(watcher, return_exceptions=True)
         if request.url.query:
             raise Refused(404, "Unknown analysis resource")
         if kind == "outputs" and DIGEST.fullmatch(output_id) and view == "csv":

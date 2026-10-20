@@ -637,6 +637,35 @@ def test_rows_index_timeouts_ask_for_a_retry(studio, monkeypatch, failure):
     assert response.status_code == 503 and "retry" in response.json()["error"]
 
 
+def test_a_disconnected_client_cancels_its_index_build(studio, monkeypatch):
+    import time
+    from starlette.requests import Request
+    from simulatte.analysis import table_query
+
+    original, observed = table_query._run_child, []
+
+    def blocked(config, directory, *, timeout, cancel):
+        deadline = time.monotonic() + 10
+        while not cancel():
+            assert time.monotonic() < deadline, "the disconnect never reached the build"
+            time.sleep(0.01)
+        observed.append(True)
+        return original(config, directory, timeout=timeout, cancel=cancel)
+
+    async def disconnected(self):
+        return True
+
+    monkeypatch.setattr(table_query, "_run_child", blocked)
+    monkeypatch.setattr(Request, "is_disconnected", disconnected)
+    table = outputs(studio)["values"]
+    cache = studio.service.store.root / "analysis-cache"
+    before = sorted(path for path in cache.rglob("*") if path.is_file())
+    response = studio.client.get(rows_url(studio, table, sort="big:desc", filter="index:lt:77"), headers=studio.headers)
+    assert observed == [True]
+    assert response.status_code == 503 and "cancelled" in response.json()["error"]
+    assert sorted(path for path in cache.rglob("*") if path.is_file()) == before and table_query._BUILDS == {}
+
+
 def test_artifact_targets_stay_inside_the_execution_tree(tmp_path):
     from simulatte.studio import analysis_http
 

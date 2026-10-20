@@ -37,22 +37,28 @@ def prepare_analysis(store, key, *, environments=None, generation=None, timeout=
     environments = environments or EnvironmentPool(store.root.parent, store)
     generation = generation or environments.selected or environments.use_existing(sys.executable)
     owner = "analysis-inspection-" + str(uuid4())
-    with store._inspection_lock:
-        generation = environments.acquire(generation.id, owner)
-        try:
-            project = discover_project(workspace.root / registration.entrypoint.partition(":")[0], workspace.root)
-            # Source capture and its temporary reference are indivisible with respect to prune.
-            with store._mutex:
-                source = capture_source(project)
-                with store._transaction() as db:
-                    db.execute(
-                        "INSERT OR IGNORE INTO snapshots VALUES (?,?,?)",
-                        (source.content_hash, "analysis-source", _blob({"source_hash": source.content_hash})),
-                    )
-                    db.execute(
-                        'INSERT INTO "references" VALUES (?,?,?,?)',
-                        ("analysis-inspection", owner, "snapshot", source.content_hash),
-                    )
+    project = discover_project(workspace.root / registration.entrypoint.partition(":")[0], workspace.root)
+    # Source capture and its temporary reference are indivisible with respect to prune. An
+    # unchanged registration and source reuse the stored definition: no child, no capacity.
+    with store._mutex:
+        source = capture_source(project)
+        inspected = AnalysisStore(store).inspected(
+            registration.id, registration.entrypoint, source.content_hash, project.python_path
+        )
+        if inspected is not None:
+            return inspected, generation.id
+        with store._transaction() as db:
+            db.execute(
+                "INSERT OR IGNORE INTO snapshots VALUES (?,?,?)",
+                (source.content_hash, "analysis-source", _blob({"source_hash": source.content_hash})),
+            )
+            db.execute(
+                'INSERT INTO "references" VALUES (?,?,?,?)',
+                ("analysis-inspection", owner, "snapshot", source.content_hash),
+            )
+    try:
+        with store._inspection_lock:
+            generation = environments.acquire(generation.id, owner)
             with tempfile.TemporaryDirectory(dir=store.root / "analysis-staging") as temporary:
                 directory = Path(temporary)
                 captured = directory / "source"
@@ -130,10 +136,10 @@ def prepare_analysis(store, key, *, environments=None, generation=None, timeout=
                     child.close()
                     for thread in drains:
                         thread.join(5)
-        finally:
-            with store._transaction() as db:
-                db.execute('DELETE FROM "references" WHERE owner_kind=? AND owner_id=?', ("analysis-inspection", owner))
-            environments.release(owner)
+    finally:
+        with store._transaction() as db:
+            db.execute('DELETE FROM "references" WHERE owner_kind=? AND owner_id=?', ("analysis-inspection", owner))
+        environments.release(owner)
 
 
 def add_arguments(parser):

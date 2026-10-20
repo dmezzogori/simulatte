@@ -6,7 +6,8 @@ An empty query pages the artifact's chunks directly. Any other query is answered
 index holds the filtered rows in their final order; the original artifact is only read. An index is
 visible under its final name only after a durable rename, and is used only once its ``.ready``
 marker exists and its stored identity matches; a damaged or unmarked index is rebuilt. Concurrent
-builders of one index each write a private temporary file; the last rename wins with identical content.
+builders of one index in one process share a single build; builders in different processes each
+write a private temporary file, and the last rename wins with identical content.
 
 Ordering, for each sort key:
 
@@ -36,6 +37,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from contextlib import closing, suppress
+import copy
 from dataclasses import dataclass
 import hashlib
 import json
@@ -69,6 +71,26 @@ VERSION = "table-query-v1"
 
 class TableQueryCancelled(RuntimeError):
     """The caller cancelled an index build; nothing was published."""
+
+
+class _SharedBuild:
+    """One in-process index build and the callers waiting for it, keyed by the index path."""
+
+    def __init__(self):
+        self.done = threading.Event()
+        self.count: int | None = None
+        self.error: BaseException | None = None
+        # One entry per waiting caller; the build stops only when every caller has cancelled.
+        self.cancels: dict[object, Callable[[], bool] | None] = {}
+
+    def cancelled(self) -> bool:
+        with _BUILDS_LOCK:
+            cancels = list(self.cancels.values())
+        return all(cancel is not None and cancel() for cancel in cancels)
+
+
+_BUILDS: dict[str, _SharedBuild] = {}
+_BUILDS_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True, slots=True)
@@ -253,10 +275,69 @@ def query_table(
     index = directory / f"{identity}.sqlite"
     count = _ready(index, directory / f"{identity}.ready", identity)
     if count is None:
-        count = _build(reader, query, identity, directory, timeout=timeout, cancel=cancel)
+        count = _shared(reader, query, identity, directory, timeout=timeout, cancel=cancel)
     if cursor is not None and offset >= count:
         raise ValueError("Invalid table cursor for this query")
     return _page(index, identity, schema, offset, limit, count)
+
+
+def _shared(
+    reader: DatasetReader,
+    query: TableQuery,
+    identity: str,
+    directory: Path,
+    *,
+    timeout: float,
+    cancel: Callable[[], bool] | None,
+) -> int:
+    """Build the index once for every concurrent caller in this process and return its row count.
+
+    The first caller builds; later callers wait for it, polling their own ``cancel`` and
+    ``timeout``. A failed build raises its error in every waiter. A caller that cancels leaves
+    with ``TableQueryCancelled``; the child is killed only once every waiting caller has cancelled.
+    """
+    key = str((directory / f"{identity}.sqlite").resolve())
+    while True:
+        token = object()
+        with _BUILDS_LOCK:
+            shared = _BUILDS.get(key)
+            leader = shared is None
+            if shared is None:
+                shared = _BUILDS[key] = _SharedBuild()
+            shared.cancels[token] = cancel
+        if leader:
+            try:
+                # Another build may have finished between the caller's check and this one.
+                count = _ready(directory / f"{identity}.sqlite", directory / f"{identity}.ready", identity)
+                if count is None:
+                    count = _build(reader, query, identity, directory, timeout=timeout, cancel=shared.cancelled)
+                shared.count = count
+            except BaseException as error:
+                shared.error = error
+                raise
+            finally:
+                with _BUILDS_LOCK:
+                    del _BUILDS[key]
+                shared.done.set()
+        else:
+            deadline = time.monotonic() + timeout
+            try:
+                while not shared.done.wait(0.05):
+                    if cancel is not None and cancel():
+                        raise TableQueryCancelled("Table index build cancelled")
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError(f"Table index build exceeded {timeout} s")
+            finally:
+                with _BUILDS_LOCK:
+                    shared.cancels.pop(token, None)
+            if isinstance(shared.error, TableQueryCancelled) and not (cancel is not None and cancel()):
+                continue  # the others cancelled after this caller's last poll: build again
+            if shared.error is not None:
+                raise copy.copy(shared.error) from shared.error
+        if cancel is not None and cancel():
+            raise TableQueryCancelled("Table index build cancelled")
+        assert shared.count is not None
+        return shared.count
 
 
 def _offset(cursor: str | None, identity: str) -> int:
