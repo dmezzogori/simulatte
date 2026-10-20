@@ -46,7 +46,7 @@ export function Field({
     </div>
   );
 }
-/** A checkbox or radio with its label as the accessible name. */
+/** A checkbox or radio with its label as the accessible name; the hint is its description. */
 export function CheckField({
   label,
   hint,
@@ -54,14 +54,17 @@ export function CheckField({
 }: {
   label: ReactNode;
   hint?: ReactNode;
-  children: ReactElement;
+  children: ReactElement<ControlProps & { "aria-labelledby"?: string }>;
 }) {
+  const id = useId();
   return (
     <label className="ws-check">
-      {children}
+      {hint
+        ? cloneElement(children, { "aria-labelledby": id + "-label", "aria-describedby": id + "-hint" })
+        : children}
       <span>
-        {label}
-        {hint && <small>{hint}</small>}
+        <span id={id + "-label"}>{label}</span>
+        {hint && <small id={id + "-hint"}>{hint}</small>}
       </span>
     </label>
   );
