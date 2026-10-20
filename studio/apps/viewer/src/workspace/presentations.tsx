@@ -12,6 +12,19 @@ import { PresentationView, type StageSource } from "../presentation/view";
 import { PresentationExportButton } from "../presentation/export-entry";
 import "../presentation/presentation.css";
 
+/** Which parts of the page a notification refreshes. Only a new revision of the open presentation reloads it:
+ * reloading on export state would unmount the editor and the export dialog, cancelling the running export. */
+export function notificationReloads(message: { type: string; body?: unknown }, presentationId: string | undefined): { list: boolean; detail: boolean } {
+  const list = ["presentation_changed", "recording_state", "export_state"].includes(message.type);
+  const id = (message.body as { id?: unknown } | undefined)?.id;
+  return { list, detail: message.type === "presentation_changed" && !!presentationId && id === presentationId };
+}
+/** Focus an element once it is rendered; false while it is not there yet, so the caller tries again. */
+export function focusWhenShown(doc: { getElementById(id: string): { focus(): void } | null }, id: string): boolean {
+  const element = doc.getElementById(id);
+  element?.focus();
+  return element !== null;
+}
 interface ListedPresentation {
   id: string;
   name: string;
@@ -176,6 +189,19 @@ export function PresentationsPage({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [version, setVersion] = useState(0);
+  const [detailVersion, setDetailVersion] = useState(0);
+  // Leaving presentation mode returns focus to "Present" once the editor has rendered it again.
+  const [refocus, setRefocus] = useState(false);
+  useEffect(() => {
+    if (!refocus || present) return;
+    let frame = 0, tries = 0;
+    const attempt = () => {
+      if (focusWhenShown(document, "pv-present-button") || ++tries > 120) setRefocus(false);
+      else frame = requestAnimationFrame(attempt);
+    };
+    attempt();
+    return () => cancelAnimationFrame(frame);
+  }, [refocus, present]);
   const loadList = async () => {
     try {
       const r = await client.command("presentation.list", { limit: 50 }, { revision: null });
@@ -194,14 +220,17 @@ export function PresentationsPage({
   useEffect(
     () =>
       client.subscribeNotifications((m) => {
-        if (m.type === "presentation_changed" || m.type === "recording_state" || m.type === "export_state") setVersion((n) => n + 1);
+        const reload = notificationReloads(m, presentationId);
+        if (reload.list) setVersion((n) => n + 1);
+        if (reload.detail) setDetailVersion((n) => n + 1);
       }),
-    [client],
+    [client, presentationId],
   );
   useEffect(() => {
     if (!presentationId || !connected) return;
     let closed = false;
-    setLoaded(null);
+    // A refresh of the same presentation keeps the page mounted until the new revision arrives.
+    setLoaded((current) => (current && current.id === presentationId ? current : null));
     void (async () => {
       try {
         const r = await client.command("presentation.get", { id: presentationId }, { revision: null });
@@ -216,7 +245,7 @@ export function PresentationsPage({
     return () => {
       closed = true;
     };
-  }, [client, presentationId, connected, version]);
+  }, [client, presentationId, connected, detailVersion]);
   useEffect(() => {
     if (!attemptId || !connected) return;
     let closed = false;
@@ -241,7 +270,7 @@ export function PresentationsPage({
       if (loaded) {
         const r = await client.command("presentation.revise", { id: loaded.id, expected_revision: loaded.manifest.revision, manifest }, { revision: null });
         if (!r.ok) throw new Error(message(r, "Save failed"));
-        setVersion((n) => n + 1);
+        setDetailVersion((n) => n + 1);
       } else {
         const r = await client.command("presentation.create", { manifest }, { revision: null });
         if (!r.ok) throw new Error(message(r, "Save failed"));
@@ -267,8 +296,8 @@ export function PresentationsPage({
         source={stageSource(loaded.run.trace)}
         evidence={evidence}
         onExit={() => {
+          setRefocus(true);
           location.hash = routeHash({ page: "presentations", id: presentationId });
-          requestAnimationFrame(() => document.getElementById("pv-present-button")?.focus());
         }}
       />
     );
@@ -298,7 +327,7 @@ export function PresentationsPage({
             </button>
           </div>
         </div>
-        {error && <FailureNotice message={error} compact retry={{ label: "Try again", invoke: () => { setError(""); setVersion((n) => n + 1); } }} />}
+        {error && <FailureNotice message={error} compact retry={{ label: "Try again", invoke: () => { setError(""); setDetailVersion((n) => n + 1); } }} />}
         {loaded && loaded.id === presentationId && loaded.run.trace ? (
           <PresentationEditor
             key={loaded.id + ":" + loaded.manifest.revision}

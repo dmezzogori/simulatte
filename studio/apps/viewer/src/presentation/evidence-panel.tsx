@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import type { EvidenceChoice, EvidenceLabels, EvidenceSelection, PresentationManifest } from "@simulatte/playback";
 import { canonicalHash } from "@simulatte/export";
-import { formatValue, untag } from "../analysis/codec";
+import { formatValue, untag, type Plain } from "../analysis/codec";
 import { FigureFrame, rendererState, validateFigure } from "../artifacts/figure-frame";
 import type { ArtifactSource, OutputDescriptor, Row } from "../artifacts/types";
 import "./presentation.css";
@@ -88,11 +88,29 @@ function useArtifact<T>(load: (() => Promise<T>) | null, deps: readonly unknown[
   }, deps);
   return state;
 }
+/** An item's bytes: P3 lists each artifact under its output's directory (``<name>/number.json``) and the server
+ * serves listed paths only. With several candidate files the first that exists wins. */
+export async function evidenceFile(source: ArtifactSource, item: EvidenceSelection, ...files: [string, ...string[]]): Promise<Blob> {
+  let failure: unknown;
+  for (const file of files) {
+    try {
+      return await source.blob(item.output_id, `${item.labels.name}/${file}`);
+    } catch (error) {
+      failure = error;
+    }
+  }
+  throw failure;
+}
+/** One field of an analysis document (``number.json``, ``distribution.json``), written as tagged JSON. */
+export function documentField(document: unknown, field: string): Plain {
+  const plain = untag(document) as Record<string, Plain> | null;
+  return plain !== null && typeof plain === "object" && field in plain ? plain[field]! : null;
+}
 const blobJson = async (blob: Blob | Promise<Blob>): Promise<unknown> => JSON.parse(await (await blob).text());
 function NumberItem({ item, source }: { item: EvidenceSelection; source: ArtifactSource }) {
-  const loaded = useArtifact(() => blobJson(source.blob(item.output_id, "number.json")), [item.output_id]);
+  const loaded = useArtifact(() => blobJson(evidenceFile(source, item, "number.json")), [item.output_id]);
   if (loaded.status !== "ready") return <p className="pv-value" role={loaded.status === "error" ? "alert" : "status"}>{loaded.status === "error" ? loaded.message : "…"}</p>;
-  const value = untag((loaded.value as { value?: unknown })?.value ?? null);
+  const value = documentField(loaded.value, "value");
   return (
     <p className="pv-value">
       {formatValue(value)}
@@ -150,12 +168,7 @@ function TableItem({ item, source }: { item: EvidenceSelection; source: Artifact
 }
 function ImageItem({ item, source }: { item: EvidenceSelection; source: ArtifactSource }) {
   const loaded = useArtifact(async () => {
-    const path = item.labels.unit === "image/svg+xml" ? "image.svg" : "image.png";
-    try {
-      return URL.createObjectURL(await source.blob(item.output_id, path));
-    } catch {
-      return URL.createObjectURL(await source.blob(item.output_id, path === "image.png" ? "image.svg" : "image.png"));
-    }
+    return URL.createObjectURL(await evidenceFile(source, item, "image.png", "image.svg"));
   }, [item.output_id]);
   useEffect(() => () => {
     if (loaded.status === "ready") URL.revokeObjectURL(loaded.value);
@@ -165,7 +178,7 @@ function ImageItem({ item, source }: { item: EvidenceSelection; source: Artifact
 }
 function FigureItem({ item, source }: { item: EvidenceSelection; source: ArtifactSource }) {
   const size = "figure" in item.selection ? item.selection.figure : { width: 640, height: 360 };
-  const loaded = useArtifact(() => blobJson(source.blob(item.output_id, "figure.json")), [item.output_id]);
+  const loaded = useArtifact(() => blobJson(evidenceFile(source, item, "figure.json")), [item.output_id]);
   if (loaded.status !== "ready") return <p role={loaded.status === "error" ? "alert" : "status"}>{loaded.status === "error" ? loaded.message : "…"}</p>;
   const spec = untag(loaded.value) as { data?: unknown; layout?: unknown; renderer?: { name?: string; version?: string } };
   const renderer = rendererState(spec.renderer ?? null);
@@ -179,9 +192,9 @@ function FigureItem({ item, source }: { item: EvidenceSelection; source: Artifac
   );
 }
 function DistributionItem({ item, source }: { item: EvidenceSelection; source: ArtifactSource }) {
-  const loaded = useArtifact(() => blobJson(source.blob(item.output_id, "distribution.json")), [item.output_id]);
+  const loaded = useArtifact(() => blobJson(evidenceFile(source, item, "distribution.json")), [item.output_id]);
   if (loaded.status !== "ready") return <p role={loaded.status === "error" ? "alert" : "status"}>{loaded.status === "error" ? loaded.message : "…"}</p>;
-  const summary = untag((loaded.value as { summary?: unknown })?.summary ?? null) as Record<string, unknown> | null;
+  const summary = documentField(loaded.value, "summary") as Record<string, unknown> | null;
   const quantiles = (summary?.["quantiles"] ?? {}) as Record<string, unknown>;
   return (
     <dl className="ws-pairs pv-distribution">

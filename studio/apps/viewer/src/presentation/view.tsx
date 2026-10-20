@@ -6,6 +6,7 @@ import { Scene } from "@simulatte/scene";
 import type { Prefix } from "../studio-client";
 import { formatValue } from "../analysis/codec";
 import { EvidencePanel, type EvidenceSource } from "./evidence-panel";
+import { hideOutside, type TreeNode } from "./hide-outside";
 import "./presentation.css";
 
 export interface StageHandle {
@@ -196,7 +197,10 @@ export function PresentationView({
   const [time, setTime] = useState<number | null>(null);
   const [error, setError] = useState("");
   const exit = useRef<HTMLButtonElement>(null);
+  const mode = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    // The workspace behind the mode is made inert while it is shown.
+    const restore = mode.current ? hideOutside(mode.current as unknown as TreeNode, document.body as unknown as TreeNode) : () => {};
     const previous = document.activeElement as HTMLElement | null;
     exit.current?.focus();
     const key = (e: KeyboardEvent) => {
@@ -208,11 +212,12 @@ export function PresentationView({
     document.addEventListener("keydown", key);
     return () => {
       document.removeEventListener("keydown", key);
+      restore();
       previous?.focus();
     };
   }, []);
   return (
-    <div className="pv-mode" role="region" aria-label={`Presentation: ${manifest.name}`}>
+    <div ref={mode} className="pv-mode" role="region" aria-label={`Presentation: ${manifest.name}`}>
       <header className="pv-top">
         <h1>{manifest.name}</h1>
         <button ref={exit} type="button" onClick={onExit}>
