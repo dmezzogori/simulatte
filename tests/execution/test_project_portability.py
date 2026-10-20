@@ -735,3 +735,118 @@ def test_check_and_dry_run_name_every_file_problem_and_protection(tmp_path, caps
     (older / ".simulatte/index.sqlite").write_bytes(b"not a database")
     assert main(["store", "check", "--project", str(older)]) == 1
     assert capsys.readouterr().err
+
+
+def selected_generation(root: Path, monkeypatch):
+    """A selected installation-v1 generation of ``root`` (fake uv and probes, also for the CLI's own pool)."""
+    (root / "uv.lock").write_text("version = 1\n")
+    with RunStore.open(root / ".simulatte") as store:
+        pool = fake_pool(WorkspaceDefinition(root, str(uuid4()), (), (), None), store, monkeypatch)
+        generation = pool.prepare(WorkspaceDefinition(root, str(uuid4()), (), (), None))
+        pool.activate(generation.id)
+        bindings = pool.installation_bindings(generation)
+        generation = pool.get(generation.id)
+    for name in ("_probe", "_probe_installation"):
+        monkeypatch.setattr(EnvironmentPool, name, staticmethod(getattr(pool, name)))
+    return generation, bindings
+
+
+def capture_children(monkeypatch) -> list:
+    """Children that advertise installation-runtime-v1, record each command and then lose their stream."""
+    from simulatte.execution import coordinator as module
+    from tests.execution.test_scheduler import Peer
+
+    sent = []
+
+    def start(*args, **kwargs):
+        peer = Peer()
+        receive = peer.receive
+
+        def hello(timeout):
+            message = receive(timeout)
+            message.body["capabilities"].append("installation-runtime-v1")
+            return message
+
+        peer.receive = hello
+        peer.send = lambda kind, body, **kw: sent.append((kind, body))
+        return peer
+
+    monkeypatch.setattr(module.LocalTransport, "start", start)
+    return sent
+
+
+def test_cli_run_in_the_selected_generation_records_its_installation_evidence(tmp_path, monkeypatch, capsys):
+    from unittest.mock import patch
+    from simulatte.execution.references import read_document
+    from tests.execution.test_coordinator import project
+    from tests.execution.test_experiment_cli import NO_WEB, envelope
+
+    spec = project(tmp_path)
+    generation, bindings = selected_generation(spec.root, monkeypatch)
+    sent = capture_children(monkeypatch)
+    command = ["run", str(spec.root / "plant.py"), "--project", str(spec.root), "--json"]
+    with patch.dict(sys.modules, NO_WEB):
+        # Another interpreter keeps its own raw evidence; it never borrows the generation's.
+        assert main(command) == 1
+        assert envelope(capsys)["status"] == "lost"
+        monkeypatch.setattr(sys, "executable", str(generation.interpreter))
+        assert main(command) == 1
+        assert envelope(capsys)["status"] == "lost"
+    other, inside = [body for kind, body in sent if kind == "inspect"]
+    assert "kind" not in read_document(other["inspection_ref"], "request")["runtime"]
+    assert "installation_bindings" not in other["config"]
+    assert read_document(inside["inspection_ref"], "request")["runtime"]["kind"] == "local-installation-v1"
+    evidence = read_document(inside["config"]["runtime_ref"], "runtime")
+    assert (evidence["format"], evidence["bindings"]) == ("installation-v1", bindings)
+    assert inside["config"]["installation_bindings"] == bindings
+    assert Path(inside["config"]["installation_prefix"]) == generation.interpreter.parent.parent
+
+
+def test_cli_replay_in_a_rebuilt_copy_binds_its_verified_rebuilt_artifacts(tmp_path, monkeypatch, capsys):
+    from unittest.mock import patch
+    from simulatte.execution.hashing import canonical_hash
+    from tests.execution.test_coordinator import project
+    from tests.execution.test_experiment_cli import NO_WEB, envelope
+
+    spec = project(tmp_path)
+    generation, captured = selected_generation(spec.root, monkeypatch)
+    # An original request with the generation's installation evidence, committed at the original location.
+    with Coordinator(spec) as co:
+        prepared = co.prepare(timeout=10)
+        identity = {
+            "format": "installation-v1",
+            "facts": dict(prepared.runtime["facts"]),
+            "dependencies": {"packages": {}},
+            "warnings": [],
+        }
+        runtime = {
+            "kind": "local-installation-v1",
+            "facts": identity["facts"],
+            "dependencies_hash": canonical_hash("installation-dependencies-v1", identity["dependencies"]),
+            "trusted_runtime_hash": co.runtime.content_hash,
+        }
+        evidence = {"format": "installation-v1", "identity": identity, "raw": {}, "bindings": captured}
+        documents = {**prepared.documents, "runtime_ref": co._document("runtime", evidence)}
+        request = co.make_request(replace(prepared, runtime=runtime, documents=documents))
+    with RunStore.open(spec.root / ".simulatte") as store:
+        key = store.assign(request, prepared.revision)
+        advance(store, key, "finalizing")
+        commit(store, key, 1.0)
+    copy = tmp_path / "copy"
+    shutil.copytree(spec.root, copy, ignore=shutil.ignore_patterns("cache"))
+    with RunStore.open(copy / ".simulatte") as store:
+        pool = fake_pool(WorkspaceDefinition(copy, str(uuid4()), (), (), None), store, monkeypatch)
+        rebuilt = pool.reconstruct(generation.evidence)
+        bindings = pool.installation_bindings(rebuilt)
+        selected = pool.selected.id
+    # The rebuilt bindings name other staging files, bound to the same verified captured content.
+    assert rebuilt.id == selected == generation.id
+    assert set(bindings).isdisjoint(captured) and sorted(bindings.values()) == sorted(captured.values())
+    monkeypatch.setattr(sys, "executable", str(rebuilt.interpreter))
+    sent = capture_children(monkeypatch)
+    with patch.dict(sys.modules, NO_WEB):
+        assert main(["replay", key.request_id, "--project", str(copy), "--json"]) == 1
+    assert envelope(capsys)["status"] == "lost"
+    (config,) = [body["config"] for kind, body in sent if kind == "run"]
+    assert config["installation_bindings"] == bindings
+    assert Path(config["installation_prefix"]) == rebuilt.interpreter.parent.parent

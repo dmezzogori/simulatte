@@ -74,11 +74,17 @@ of their machine locations. Captured local dependency URLs are bound to verified
 retained artifact content before provisioning. Both the original raw probe and the
 rebuilt installation probe are kept; reconstruction does not change the selection
 or the recorded execution requests. Altered package bytes or launcher bodies refuse
-verification even when their RECORD entries were not updated.
+verification even when their RECORD entries were not updated. Studio, and
+`simulatte run`, `simulatte run --reproduce` and `simulatte replay` started with the
+selected managed generation's own interpreter (for example its `bin/simulatte`),
+record this evidence for new requests and verify against the bindings that
+generation retained from its own verified build.
 
 Older generations and existing interpreters retain their original strict raw-RECORD
-identity. They are not silently upgraded. Reinstalling their packages may still fail
-verification because console-script paths, local URLs or cache metadata differ.
+identity, as do requests recorded by `simulatte experiment run` or by `simulatte run`
+from any other interpreter. They are not silently upgraded. Reinstalling their
+packages may still fail verification because console-script paths, local URLs or
+cache metadata differ.
 Insufficient old evidence remains unavailable for verified reconstruction; saved
 recordings remain readable in recovery. Unsupported launcher/evidence formats also
 refuse rather than falling back to a weaker identity. Native platform verification
