@@ -57,10 +57,10 @@ copy cannot be made, the store is not touched. A store written by a newer Simula
 refused with a message rather than modified; open it with that version or newer.
 
 Keep the backup until you are satisfied with the migrated project; it is a complete
-SQLite copy, so a copied project can be migrated again from it. Restoring one over
-`index.sqlite` is a manual file operation that this documentation has not exercised
-end to end: stop every writer, back up the whole folder first, and do not mix a
-restored index with result folders created after the migration.
+SQLite copy. Restoring one over `index.sqlite` is a manual file operation that this
+documentation has not exercised end to end: stop every writer, back up the whole
+folder first, and do not mix a restored index with result folders created after the
+migration.
 
 The read-only reader used by the launcher's recovery view and by `StoreReader`
 opens schemas 2 to 5 and performs no migration. A schema 1 store needs a writer
@@ -118,20 +118,27 @@ saved analysis, presentation or active export. The index commits first and folde
 are removed afterwards; an interrupted prune leaves only unindexed folders, which the
 next writer removes when it opens the store.
 
-**`--dry-run` computes the same removal and changes nothing.** It reports what would
-go and does not say which owner keeps the rest. Its text form is one line
-(`would remove N results and M snapshots`, or `would remove N results, M snapshots
-and K recordings` with `--recordings`). With `--json` the lists are exact:
+**`--dry-run` computes the same removal and changes nothing, and explains what stays.**
+Its text form is one line (`would remove N results and M snapshots`, or `would remove
+N results, M snapshots and K recordings` with `--recordings`) followed by `; N results
+kept (--json names the owners keeping each)`. With `--json` the lists are exact, and
+`protected` names, for every kept result, each chain of owners that keeps it:
 
 ```json
-{"status":"succeeded","dry_run":true,"results":["<attempt>"],"snapshots":["<hash>"],"recordings":["<attempt>"]}
+{"status":"succeeded","dry_run":true,
+ "results":["<attempt>"],"snapshots":["<hash>"],"recordings":["<attempt>"],
+ "protected":[{"result":"<attempt>",
+   "protected_by":[[{"kind":"presentation-revision","id":"<presentation>:2"},
+                    {"kind":"analysis","id":"<execution>"}]]}]}
 ```
 
-(`recordings` appears only with `--recordings`.) To learn why a result is not in
-the list, work down the protections above: a replication, an analysis, a presentation
-revision or export, an Important flag, or the newest-20 rule for interactive runs.
-The command does not print the owner chain of kept results; use the owner pages
-(`#/experiments`, `#/analyses`, `#/presentations`) to find the dependents.
+(`recordings` appears only with `--recordings`; `protected` appears only on a dry run.)
+Each chain starts at the owner and ends at the result's own reference. The kinds you
+will meet are `experiment` followed by `replication` (`<run>/<configuration>/<index>`),
+`replay` (and the `request` it reproduces), `view`, `recent-interactive`,
+`important-annotation`, and saved references such as `presentation-revision`,
+`export-job` and `analysis`. A result shared by several owners lists one chain per
+owner; it stays until the last of them is removed.
 
 ### Presentation recordings
 
@@ -183,11 +190,12 @@ Cache cleanup never touches durable results.
 2. **Copy the whole folder**, including `.simulatte/`. If `index.sqlite-wal` is
    present, copy it with `index.sqlite` and `index.sqlite-shm`; better, open and
    close the project once with Studio so SQLite checkpoints them.
-3. **Open the copy** with `simulatte studio PATH`. Ids of runs, requests,
+3. **Verify the copy** with `simulatte store check --project PATH` (below).
+4. **Open the copy** with `simulatte studio PATH`. Ids of runs, requests,
    attempts, analyses and presentation revisions are unchanged, and every
    persisted reference is either a relative path or a content identifier. A project
    that moves keeps its history, and the original location does not need to exist.
-4. **Rebuild what is machine-specific.** Environment directories are not
+5. **Rebuild what is machine-specific.** Environment directories are not
    portable between locations or machines. If the selected environment cannot start
    on the new machine, Studio opens the read-only recovery view (below). Prepare the
    environment again from **Settings** (a new generation; history is not rewritten),
@@ -198,10 +206,22 @@ recorded as evidence. On another machine that path usually does not exist, so th
 launcher opens the recovery view until you select an environment that works there.
 Saved work does not depend on it.
 
-An artifact is identified by its recorded path, length and SHA-256. After a partial
-transfer, a file that is absent or differs from its record is an error for that
-result; it is not replaced by a file with a similar name or by another result. Copy
-the missing files again from the source rather than editing the store.
+An artifact is identified by its recorded path, length and SHA-256. After copying,
+verify the project without a writer:
+
+```bash
+simulatte store check --project ./study-copy
+```
+
+`store check` opens the store read-only and checks every indexed result trace, result
+artifact and published analysis artifact against its recorded SHA-256. It prints
+`verified N results and M analyses` and exits 0, or lists every problem and exits 1.
+With `--json`, `problems` holds `{kind, id, name, path, sha256, problem}` entries,
+where `problem` is `missing` (the file is absent), `unsafe` (a link or a path that
+escapes the result) or `changed` (the bytes do not match). A file with the right name
+and other bytes is `changed`; it is never adopted in place of the recorded one. Copy
+the named files again from the source rather than editing the store. Exit code 2 means
+there is no store at the path.
 
 ### Read-only recovery viewing
 
@@ -268,16 +288,14 @@ the host requirements and cache.
 ## What this page has and has not verified
 
 Written from the implementation and checked against the commands' `--help` output:
-the layout, schema list, backup format, protection rules, prune and deletion refusals,
-and the dry-run output shape (confirmed on an empty store).
+the layout, schema list, backup format, protection rules, prune and deletion
+refusals, the dry-run and `store check` output, and, through the project portability
+tests, that a quiescent copy reads, rebuilds and prunes with its source location
+removed and that a partial transfer is diagnosed by file and hash.
 
-Not verified here, so treat them as the design contract rather than a measured result:
+Not verified here:
 
-- that a copied project reads, rebuilds and prunes with its source location removed,
-  and the exact diagnostics for files missing after a partial transfer (the project's
-  portability tests were still being completed when this page was written);
 - restoring a pre-migration backup over a live index;
 - whether any particular model gives identical numbers on a different CPU
   architecture, and how a rebuilt environment behaves on one;
-- cleanup of an environment generation while analyses and presentations hold
-  references, beyond what the code refuses.
+- browser behavior of exports on any particular platform.

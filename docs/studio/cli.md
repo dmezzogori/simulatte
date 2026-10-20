@@ -12,7 +12,7 @@ interface and is not described here.
 | Run many replications and compare configurations | [`simulatte experiment`](#experiment) |
 | Check that a stored run reproduces | [`simulatte replay`](#replay) |
 | Run a numerical analysis over saved results | [`simulatte analysis`](#analysis) |
-| Remove unwanted saved history | [`simulatte store prune`](#store) |
+| Remove unwanted saved history, or verify a project's files | [`simulatte store`](#store) |
 | Configure and check remote hosts | [`simulatte workers`](#workers) |
 | Open a recording file | [`simulatte view`](#view) |
 
@@ -178,15 +178,30 @@ codec for `output` and `details`.
 
 ```bash
 simulatte store prune [--dry-run] [--recordings] [--project PROJECT] [--json]
+simulatte store check [--project PROJECT] [--json]
 ```
 
-Removes unreferenced results and snapshots; nothing is removed unless nothing
-protects it. `--dry-run` reports what would be removed and changes nothing.
+**`prune`** removes unreferenced results and snapshots; nothing is removed unless
+nothing protects it. `--dry-run` reports what would be removed and changes nothing.
 `--recordings` also drops presentation recordings no presentation adopted, beyond the
-newest 20. The JSON is `{"status", "dry_run", "results", "snapshots"}` plus
-`"recordings"` with `--recordings`. Needs the store to itself. The full rules are in
-[Storage and portability](storage.md#prune-unwanted-history). `store` has only
-`prune`; other deletions are explicit per item (`experiment delete`, Studio).
+newest 20. It needs the store to itself. The JSON is `{"status", "dry_run", "results",
+"snapshots"}` plus `"recordings"` with `--recordings`. On a dry run it adds
+`"protected"`: a list of `{"result", "protected_by"}` with one owner chain per reason a
+kept result stays (for example a presentation revision, then an analysis, then the
+result). The text output ends with `; N results kept (--json names the owners keeping
+each)`.
+
+**`check`** verifies, read-only and without taking the writer lock, every indexed
+trace, result artifact and published analysis artifact against its recorded SHA-256.
+Exit `0` prints `verified N results and M analyses`; exit `1` lists the problems (text
+on standard error, or `status: failed` with `problems` under `--json`), each with
+`kind`, `id`, `name`, `path`, `sha256` and `problem` (`missing`, `unsafe` or
+`changed`); exit `2` means there is no store at the project path. Use it after copying
+a project.
+
+The full rules are in [Storage and portability](storage.md#prune-unwanted-history).
+`store` has only `prune` and `check`; other deletions are explicit per item
+(`experiment delete`, Studio).
 
 ## Workers
 
