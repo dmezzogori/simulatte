@@ -7,6 +7,7 @@ preparation; no model code is imported here.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
 import json
 import heapq
@@ -60,16 +61,58 @@ def experiment_path(root: Path, name) -> Path:
         raise ValueError("Experiment path must be normalized, project-relative and free of symlinks") from None
 
 
+def measurement_choice(metadata, value):
+    """The request selection of Studio's ``measurements`` field, resolved against prepared metadata.
+
+    ``None`` selects nothing and keeps legacy request identities. ``{"plan": name}`` names a
+    plan the selected model declares and gives the selection ``select_measurements(plan)``
+    gives in Python: an empty selection bound to the declaration's definition hash.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, Mapping) or set(value) != {"plan"} or type(value["plan"]) is not str:
+        raise ValueError('measurements must be null or {"plan": <declared measurement plan name>}')
+    from simulatte.analysis.codec import identity, to_json
+    from simulatte.execution.coordinator import selected_model
+
+    plans = _plain(selected_model(metadata).get("measurement_plans", ()))
+    plan = next((item for item in plans if item["name"] == value["plan"]), None)
+    if plan is None:
+        declared = ", ".join(item["name"] for item in plans) or "none"
+        raise ValueError(f"Unknown measurement plan {value['plan']!r}; this model declares: {declared}")
+    return {"schema": 1, "plan": plan["name"], "selection": to_json({}), "definition_hash": identity(plan)}
+
+
+def measurement_plan(document) -> str | None:
+    """The selected plan name of a request or experiment definition; ``None`` when unmeasured."""
+    selection = document.get("measurements") if isinstance(document, Mapping) else None
+    plan = selection.get("plan") if isinstance(selection, Mapping) else None
+    return plan if type(plan) is str else None
+
+
+def with_measurement_plans(store, runs: list[dict]) -> list[dict]:
+    """Add ``measurement_plan`` to listed experiment runs whose definition selects one."""
+    with store._transaction() as db:
+        for item in runs:
+            row = db.execute("SELECT definition FROM experiments WHERE id=?", (item["experiment_id"],)).fetchone()
+            plan = None if row is None else measurement_plan(_read(row[0]))
+            if plan is not None:
+                item["measurement_plan"] = plan
+    return runs
+
+
 def run_summary(store, run_id: str) -> dict:
     with store._transaction() as db:
         row = db.execute(
-            "SELECT r.status,r.experiment,e.name FROM experiment_runs r JOIN experiments e ON e.id=r.experiment "
-            "WHERE r.id=?",
+            "SELECT r.status,r.experiment,e.name,e.definition FROM experiment_runs r "
+            "JOIN experiments e ON e.id=r.experiment WHERE r.id=?",
             (run_id,),
         ).fetchone()
     if row is None:
         raise KeyError(run_id)
-    return {"run_id": run_id, "status": row["status"], "name": row["name"], "experiment_id": row["experiment"]}
+    summary = {"run_id": run_id, "status": row["status"], "name": row["name"], "experiment_id": row["experiment"]}
+    plan = measurement_plan(_read(row["definition"]))
+    return summary if plan is None else {**summary, "measurement_plan": plan}
 
 
 def prefix(db, attempt):
@@ -124,9 +167,7 @@ def replays(db, prefix) -> list[dict]:
     # bounded heap: neither snapshot payload nor retained rows grow with history.
     rows = heapq.nsmallest(
         MAX_LISTED,
-        db.execute(
-            "SELECT p.*,a.generation,a.created FROM replays p LEFT JOIN attempts a ON a.id=p.attempt"
-        ),
+        db.execute("SELECT p.*,a.generation,a.created FROM replays p LEFT JOIN attempts a ON a.id=p.attempt"),
         key=lambda row: (-_read(row["details"]).get("_operation_updated_at", row["created"] or 0), row["request_id"]),
     )
     listed = []
@@ -181,13 +222,21 @@ class ExperimentCommands:
     def _experiment_define(self, body):
         from simulatte.experiments import Experiment, expand, experiment_id
 
-        _keys(body, {"path", "definition"}, {"overwrite"})
+        _keys(body, {"path", "definition"}, {"overwrite", "measurements"})
         overwrite = body.get("overwrite", False)
         if type(overwrite) is not bool:
             raise ValueError("overwrite must be a boolean")
         root = self.coordinator.project.root
         path = experiment_path(root, body["path"])
-        experiment = Experiment.from_dict(body["definition"])
+        definition = body["definition"]
+        if body.get("measurements") is not None:
+            if isinstance(definition, Mapping) and "measurements" in definition:
+                raise ValueError("Select measurements in the definition or with the measurements field, not both")
+            # Stored in the definition, so expansion measures every replication.
+            selection = measurement_choice(self._prepared().metadata, body["measurements"])
+            if isinstance(definition, Mapping):
+                definition = {**definition, "measurements": selection}
+        experiment = Experiment.from_dict(definition)
         prepared = self._prepared()
         project = prepared.snapshot.source.project
         layouts = {}
@@ -200,7 +249,7 @@ class ExperimentCommands:
             # Validation only: the expansion is discarded, so no layout document is written.
             layouts[variant.label] = (layout_hash("file", _plain(captured.layer().to_dict())), {})
         expand(experiment, prepared, layouts, {"local": prepared.runtime})
-        raw = (json.dumps(body["definition"], ensure_ascii=False, allow_nan=False, indent=2) + "\n").encode("utf-8")
+        raw = (json.dumps(definition, ensure_ascii=False, allow_nan=False, indent=2) + "\n").encode("utf-8")
         self._write(root, body["path"], path, raw, overwrite=overwrite)
         return {"ok": True, "path": body["path"], "experiment_id": experiment_id(experiment)}
 

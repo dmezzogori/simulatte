@@ -3,7 +3,7 @@
 from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -77,8 +77,9 @@ class ProjectServer(StudioServer):
                 extra["replays"] = replays(db, prefix)
         if store is not None:
             from simulatte.execution import scheduler
+            from simulatte.studio.experiments import with_measurement_plans
 
-            extra["experiments"] = scheduler.runs(store, limit=20)
+            extra["experiments"] = with_measurement_plans(store, scheduler.runs(store, limit=20))
         if co is not None:
             from simulatte.studio.experiments import ExperimentCommands
             from simulatte.execution.snapshot import non_source_members
@@ -181,7 +182,7 @@ class ProjectServer(StudioServer):
                 raise ValueError("Saved history is unavailable")
             return {"ok": True, **asdict(page)}
         if kind == "run.get":
-            from simulatte.studio.experiments import prefix
+            from simulatte.studio.experiments import measurement_plan, prefix
 
             store = service.store or service.reader
             if store is None:
@@ -209,6 +210,9 @@ class ProjectServer(StudioServer):
                     }
                 )
                 run["request"] = _read(run.pop("body"))
+                plan = measurement_plan(run["request"])
+                if plan is not None:
+                    run["measurement_plan"] = plan
                 run["details"] = _read(run["details"])
                 run["trace"] = prefix(db, attempt)
                 run["artifacts"] = [
@@ -275,17 +279,22 @@ class ProjectServer(StudioServer):
             state = owner.apply(base, body["changes"], auto_run=False)
             return {"ok": True, "revision": asdict(state.revision)}
         if kind in ("run.start", "run.stop_and_run"):
-            state = owner.state
-            if state is None or state.request is None:
-                raise ValueError("Prepare and configure valid inputs before running")
+            from simulatte.studio.experiments import measurement_choice
+
+            with co._condition:
+                state, prepared = owner._state, owner._prepared
+                if state is None or state.request is None or prepared is None:
+                    raise ValueError("Prepare and configure valid inputs before running")
+                request = state.request
+                selection = measurement_choice(prepared.metadata, body.get("measurements"))
+                if selection is not None:
+                    # As ``make_request(..., measurements=)``: a new request identity with its captured preparation.
+                    request = replace(request, measurements=selection)
+                    co._remember(prepared, request)
             admission = (
-                co.admit_run(
-                    model_id, state.request, base, auto_session=body.get("auto_session"), timeout=service.timeout
-                )
+                co.admit_run(model_id, request, base, auto_session=body.get("auto_session"), timeout=service.timeout)
                 if kind == "run.start"
-                else co.stop_and_run(
-                    AttemptKey(**body["owner"]), model_id, state.request, base, timeout=service.timeout
-                )
+                else co.stop_and_run(AttemptKey(**body["owner"]), model_id, request, base, timeout=service.timeout)
             )
             return {"ok": True, **asdict(admission)}
         if kind == "layout.get":

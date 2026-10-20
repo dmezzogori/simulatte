@@ -306,3 +306,112 @@ def test_pump_announces_run_lifecycle_as_run_state(tmp_path):
     ]
     assert sent[1][1]["details"] == {"message": "boom"} and sent[1][2] == {"key": key}
     assert sent[3][0] == "progress"
+
+
+def measured_server(tmp_path):
+    """A two-model workspace whose model ``a`` declares the ``numbers`` measurement plan."""
+    from simulatte.studio.project_commands import ProjectServer
+    from tests.execution.test_driver import measured_model
+    from tests.execution.test_project_execution import project
+
+    workspace = project(tmp_path)
+    (tmp_path / "a.py").write_text(measured_model())
+    service = api().ProjectService.open(StudioTarget(tmp_path, None))
+    generation = service.environments.use_existing(Path(sys.executable))
+    service.environments.activate(generation.id)
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "manifest.json").write_text('{"assets":{}}')
+    model = workspace.models[0].id
+    service.prepare_model(model)
+    return service, ProjectServer(service, 8123, static), model
+
+
+def test_run_start_selects_a_declared_measurement_plan(tmp_path):
+    from dataclasses import asdict
+    from simulatte.analysis import DatasetSchema, Field, MeasurementPlan
+    from simulatte.analysis.measurements import select_measurements
+    from simulatte.execution.schema import AttemptKey, _plain
+    from tests.execution.test_project_execution import wait_until
+
+    service, server, model = measured_server(tmp_path)
+    try:
+        context = service.coordinator.contexts[model]
+
+        def run(**fields):
+            # The previous attempt releases the interactive slot shortly after its result.
+            wait_until(lambda: service.coordinator._owner() is None)
+            message = {
+                "type": "run.start",
+                "body": {"model_id": model, **fields},
+                "revision": asdict(context.revision),
+            }
+            started = server._command(message, None)
+            assert started["ok"] and started["status"] == "started", started
+            key = AttemptKey(**started["key"])
+            return key, service.coordinator.wait(key, timeout=15)
+
+        # A legacy body (no field) and an explicit null keep the unmeasured request identity.
+        legacy, plain = run()
+        assert run(measurements=None)[0].request_id == legacy.request_id
+        assert not (plain.path / "artifacts/datasets").exists()
+        details = server._command({"type": "run.get", "body": {"attempt_id": legacy.attempt_id}}, None)["run"]
+        assert "measurements" not in details["request"] and "measurement_plan" not in details
+
+        measured, result = run(measurements={"plan": "numbers"})
+        assert measured.request_id != legacy.request_id
+        request = service.store.request(measured.request_id)
+        plan = MeasurementPlan("numbers", (DatasetSchema("numbers", (Field("x", "int64"),)),))
+        # The same selection as the Python API's ``select_measurements(plan)``.
+        assert _plain(request.measurements) == select_measurements(plan)
+        assert (result.path / "artifacts/datasets/numbers/manifest.json").is_file()
+        details = server._command({"type": "run.get", "body": {"attempt_id": measured.attempt_id}}, None)["run"]
+        assert details["measurement_plan"] == "numbers"
+        assert details["request"]["measurements"]["plan"] == "numbers"
+        assert any(item["path"].startswith("datasets/numbers/") for item in details["artifacts"])
+
+        for kind, extra in (("run.start", {}), ("run.stop_and_run", {"owner": asdict(measured)})):
+            for value in ({"plan": "absent"}, {"plan": 3}, {"name": "numbers"}, "numbers"):
+                refused = asyncio.run(
+                    server.command(
+                        {
+                            "type": kind,
+                            "body": {"model_id": model, "measurements": value, **extra},
+                            "revision": asdict(context.revision),
+                        },
+                        None,
+                    )
+                )
+                assert not refused["ok"] and "measurement" in refused["error"]["message"], (kind, value)
+        unknown = asyncio.run(
+            server.command(
+                {
+                    "type": "run.start",
+                    "body": {"model_id": model, "measurements": {"plan": "absent"}},
+                    "revision": asdict(context.revision),
+                },
+                None,
+            )
+        )
+        assert "numbers" in unknown["error"]["message"]
+        assert len(service.state()["history"]) == 3
+    finally:
+        service.close()
+
+
+def test_project_experiment_list_names_the_selected_measurement_plan(tmp_path):
+    from simulatte.analysis.codec import to_json
+    from tests.execution.test_store_slots import DEFINITION, configurations, replications
+
+    service, server, _ = measured_server(tmp_path)
+    try:
+        store = service.store
+        selection = {"schema": 1, "plan": "numbers", "selection": to_json({}), "definition_hash": "d" * 64}
+        for name, extra in (("plain", {}), ("measured", {"measurements": selection})):
+            identity = store.put_experiment({**DEFINITION, "name": name, **extra})
+            store.create_experiment_run(identity, {}, configurations(), replications())
+        listed = {item["name"]: item for item in server.snapshot()["experiments"]}
+        assert listed["measured"]["measurement_plan"] == "numbers"
+        assert "measurement_plan" not in listed["plain"]
+    finally:
+        service.close()
