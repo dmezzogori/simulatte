@@ -9,6 +9,7 @@ import { formatTime } from "./tables";
 import { routeHash, type ProjectState, type RunDetails } from "./state";
 import { PresentationEditor, type RecordingIdentity } from "../presentation/editor";
 import { PresentationView, type StageSource } from "../presentation/view";
+import { PresentationExportButton } from "../presentation/export-entry";
 import "../presentation/presentation.css";
 
 interface ListedPresentation {
@@ -39,7 +40,13 @@ export function recordingLabel(entry: Pick<RecordingEntry, "mode" | "verified" |
   if (entry.mode === "new_seed") return "new recording, not a verified reproduction";
   return "edited run, distinct from the original";
 }
-const message = (r: Record<string, unknown>, fallback: string) => (r.error as { message?: string })?.message ?? fallback;
+/** The server's refusal as a sentence: a stale revision or an invalid manifest names what to do. */
+const message = (r: Record<string, unknown>, fallback: string) => {
+  const error = r.error as { code?: string; message?: string; details?: { path?: string } } | undefined;
+  if (error?.code === "stale_revision") return "Someone saved a newer revision of this presentation; reload it and apply your changes again.";
+  if (error?.code === "invalid_manifest") return `The presentation was refused${error.details?.path ? ` at ${error.details.path}` : ""}: ${error.message ?? "invalid manifest"}`;
+  return error?.message ?? fallback;
+};
 const headers = () => ({ "X-Simulatte-Session": sessionStorage.getItem("simulatte-session") ?? "" });
 async function loadRun(client: StudioClient, attempt: string): Promise<RunDetails> {
   const r = await client.command("run.get", { attempt_id: attempt });
@@ -283,6 +290,9 @@ export function PresentationsPage({
             </p>
           </div>
           <div className="ws-heading-links">
+            {loaded && loaded.id === presentationId && (
+              <PresentationExportButton client={client} presentationId={presentationId} manifest={loaded.manifest} prefix={loaded.run.trace} connected={connected} readOnly={state.read_only} />
+            )}
             <button type="button" {...disabledWhen(!connected && NOT_CONNECTED, state.read_only && READ_ONLY)} onClick={() => setDeleting(true)}>
               Delete
             </button>

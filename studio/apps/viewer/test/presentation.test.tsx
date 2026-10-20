@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { validatePresentation, type PresentationManifest } from "@simulatte/playback";
 import { parseRoute, routeCrumbs, routeHash, type WorkspaceRoute } from "../src/workspace/state";
 import { recordingLabel } from "../src/workspace/presentations";
-import { EvidencePanel, EvidenceQualifiers, canonicalJson, contentHash, evidenceFromOutput, excerptRows, labelsOf, qualifierText } from "../src/presentation/evidence-panel";
+import { EvidencePanel, EvidenceQualifiers, contentHash, evidenceFromOutput, excerptRows, labelsOf, qualifierText } from "../src/presentation/evidence-panel";
 import { draftOf, manifestOf } from "../src/presentation/editor";
 import type { ArtifactSource, OutputDescriptor, RowsPage } from "../src/artifacts/types";
 
@@ -54,8 +54,9 @@ describe("evidence selection", () => {
     expect(item.content_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(item.content_hash).toBe(await contentHash(output));
     expect(await contentHash({ ...output, name: "Renamed" })).not.toBe(item.content_hash);
-    expect(canonicalJson({ b: 1, a: [true, null, "é"], c: { z: 2.5, y: 3 } })).toBe('{"a":[true,null,"\\u00e9"],"b":1,"c":{"y":3,"z":2.5}}');
-    expect(() => canonicalJson({ a: Number.NaN })).toThrow(TypeError);
+    // The shared fixture pins the exact hash the Python store computes for the same descriptor.
+    const shared = fixture("output-content-hash.json") as { input: OutputDescriptor; hash: string };
+    expect(await contentHash(shared.input)).toBe(shared.hash);
     expect(qualifierText(labels)).toEqual(["unit h", "population All jobs", "8 of 24 replications · partial snapshot", "descriptive"]);
     const html = renderToStaticMarkup(<EvidenceQualifiers labels={labels} />);
     expect(html).toContain("partial snapshot");
