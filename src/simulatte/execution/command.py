@@ -264,17 +264,20 @@ def replay(args):
 
 
 def add_store_arguments(parser):
-    prune = parser.add_subparsers(dest="action", required=True).add_parser(
-        "prune", help="Remove unreferenced results and snapshots"
-    )
+    actions = parser.add_subparsers(dest="action", required=True)
+    prune = actions.add_parser("prune", help="Remove unreferenced results and snapshots")
     prune.add_argument("--dry-run", action="store_true")
     prune.add_argument(
         "--recordings",
         action="store_true",
         help="also drop presentation recordings no presentation adopted, beyond the newest 20",
     )
-    prune.add_argument("--project", help="project directory holding the .simulatte store")
-    prune.add_argument("--json", action="store_true")
+    check = actions.add_parser(
+        "check", help="Verify saved traces and artifacts against their recorded hashes, read-only"
+    )
+    for command in (prune, check):
+        command.add_argument("--project", help="project directory holding the .simulatte store")
+        command.add_argument("--json", action="store_true")
 
 
 _RUN_EXIT = {"completed": 0, "failed": 1, "cancelled": 130, "paused": 130}
@@ -455,12 +458,19 @@ def experiment(args):
 
 
 def store(args):
-    """``simulatte store prune [--dry-run] [--recordings]``."""
+    """``simulatte store prune [--dry-run] [--recordings]`` and ``simulatte store check``.
+
+    A dry run also lists, under ``protected``, every kept result with the owner chains that keep it.
+    ``check`` opens the store read-only (a copied project needs no writer) and exits 1 when an indexed
+    file is missing, unsafe or changed.
+    """
     from simulatte.execution.store import RunStore
 
+    if args.action == "check":
+        return _check(args)
     try:
         with RunStore.open(_store_root(args) / ".simulatte") as owner:
-            pruned = owner.prune(dry_run=args.dry_run, recordings=args.recordings)
+            pruned = owner.prune(dry_run=args.dry_run, recordings=args.recordings, explain=args.dry_run)
         code = 0
         envelope = {"status": "succeeded", "dry_run": args.dry_run, **pruned}
     except (ValueError, KeyError) as error:
@@ -472,4 +482,33 @@ def store(args):
     text = f"{verb} {results} results and {snapshots} snapshots"
     if "recordings" in envelope:
         text = f"{verb} {results} results, {snapshots} snapshots and {len(envelope['recordings'])} recordings"
+    if "protected" in envelope:
+        text += f"; {len(envelope['protected'])} results kept (--json names the owners keeping each)"
+    return _emit_result(args, code, envelope, text)
+
+
+def _check(args):
+    from simulatte.execution.store_reader import StoreReader
+
+    text = None
+    try:
+        reader = StoreReader.open(_store_root(args) / ".simulatte")
+        try:
+            problems = reader.check()
+            with reader._transaction() as db:
+                results = db.execute("SELECT COUNT(*) FROM results").fetchone()[0]
+                analyses = (
+                    db.execute("SELECT COUNT(*) FROM analysis_outputs").fetchone()[0] if reader.version >= 4 else 0
+                )
+        finally:
+            reader.close()
+        code = 1 if problems else 0
+        envelope = {"status": "failed" if problems else "succeeded", "problems": problems}
+        text = "\n".join(f"{item['problem']} {item['path']} (sha256 {item['sha256']})" for item in problems)
+        if not problems:
+            text = f"verified {results} results and {analyses} analyses"
+    except (ValueError, KeyError) as error:
+        code, envelope = 2, {"status": "validation_failed", "message": str(error)[:4096]}
+    except (OSError, sqlite3.Error) as error:
+        code, envelope = 1, {"status": "failed", "message": str(error)[:4096]}
     return _emit_result(args, code, envelope, text)

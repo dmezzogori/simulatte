@@ -1057,7 +1057,52 @@ class RunStore:
                 rows.append((-_read(manifest)["created"], identity))
         return sorted(identity for _, identity in sorted(rows)[KEEP_RECORDINGS:])
 
-    def prune(self, dry_run: bool = False, *, recordings: bool = False) -> dict:
+    @staticmethod
+    def _protections(db, removed) -> list[dict]:
+        """For each kept result, every reason ``_unreferenced`` keeps it, as owner chains (root first).
+
+        Saved references give their chains (``project_store.reference_chains``); the other reasons are
+        one or two nodes: ``experiment``/``replication`` (``<run>/<configuration>/<index>``), ``replay``
+        (the replay request, then the original ``request`` it reproduces), ``view`` (the revision),
+        ``recent-interactive`` and ``important-annotation`` (the attempt itself).
+        """
+        from simulatte.execution.project_store import reference_chains
+
+        kept = {row[0] for row in db.execute("SELECT attempt FROM results")} - set(removed)
+        reasons: dict[str, list[list[dict]]] = {attempt: [] for attempt in kept}
+
+        def add(attempt, *nodes):
+            if attempt in reasons:
+                reasons[attempt].append([{"kind": kind, "id": str(identity)} for kind, identity in nodes])
+
+        for run, configuration, index, attempt in db.execute(
+            "SELECT run,configuration,idx,attempt FROM replications WHERE attempt IS NOT NULL"
+        ):
+            add(attempt, ("experiment", run), ("replication", f"{run}/{configuration}/{index}"))
+        for request, original, attempt in db.execute("SELECT request_id,original,attempt FROM replays").fetchall():
+            for (other,) in db.execute("SELECT id FROM attempts WHERE request_id=? OR id=?", (request, attempt)):
+                add(other, ("replay", request))
+            for (other,) in db.execute("SELECT id FROM attempts WHERE request_id=?", (original,)):
+                add(other, ("replay", request), ("request", original))
+        for revision, attempt in db.execute("SELECT revision,attempt FROM views"):
+            add(attempt, ("view", revision))
+        for (attempt,) in db.execute(
+            """SELECT n.attempt FROM results n JOIN attempts i ON i.id=n.attempt
+            WHERE i.slot=? ORDER BY n.created DESC,n.attempt DESC LIMIT 20""",
+            (INTERACTIVE,),
+        ):
+            add(attempt, ("recent-interactive", attempt))
+        for (attempt,) in db.execute("SELECT attempt FROM history_annotations WHERE important=1"):
+            add(attempt, ("important-annotation", attempt))
+        for attempt, nodes in reference_chains(db):
+            if attempt in reasons:
+                reasons[attempt].append(nodes)
+        return [
+            {"result": attempt, "protected_by": sorted(chains, key=lambda c: [(n["kind"], n["id"]) for n in c])}
+            for attempt, chains in sorted(reasons.items())
+        ]
+
+    def prune(self, dry_run: bool = False, *, recordings: bool = False, explain: bool = False) -> dict:
         """Remove unreferenced results (see ``_unreferenced``) and snapshots referenced by no request.
 
         Snapshot directories are kept when any stored request or captured preparation names
@@ -1071,7 +1116,8 @@ class RunStore:
         presentation adopted, beyond the newest ``KEEP_RECORDINGS``, are dropped first (their
         rows and references), so their otherwise unreferenced results go too; the result then
         lists them under ``recordings``. Deleted presentations lose their revisions and finished
-        export jobs here; until then those stay readable.
+        export jobs here; until then those stay readable. With ``explain`` the result also lists,
+        under ``protected``, each kept result with the owner chains that keep it (``_protections``).
         """
         with self._transaction() as db:
             dropped = None
@@ -1086,6 +1132,7 @@ class RunStore:
                     )
                     db.execute("DELETE FROM snapshots WHERE id=? AND kind='presentation-recording'", (identity,))
             attempts = self._unreferenced(db)
+            protected = self._protections(db, attempts) if explain else None
             if recordings and dry_run:
                 db.execute("ROLLBACK TO recordings")
             referenced = set()
@@ -1127,7 +1174,12 @@ class RunStore:
             cache = self.root / "analysis-cache"
             if cache.exists() or cache.is_symlink():
                 _remove(cache)
-        return {"results": attempts, "snapshots": snapshots, **({} if dropped is None else {"recordings": dropped})}
+        return {
+            "results": attempts,
+            "snapshots": snapshots,
+            **({} if dropped is None else {"recordings": dropped}),
+            **({} if protected is None else {"protected": protected}),
+        }
 
     def delete_experiment_run(self, run_id: str) -> dict:
         """Remove a run's rows, then the results no other run, replay, view or recent history keeps.
