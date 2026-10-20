@@ -159,6 +159,35 @@ def protected_results(db):
     return {row[0] for row in rows}
 
 
+def reference_chains(db):
+    """``(attempt, chain)`` for every saved reference path that protects a result's attempt.
+
+    A chain lists ``{kind, id}`` nodes from a root owner (an owner no reference targets) down to the
+    node naming the attempt: its ``attempt``, ``result`` or ``request``. It follows the same owner =
+    target identity as ``protected_results``.
+    """
+    owners: dict[tuple[str, str], set[tuple[str, str]]] = {}
+    for owner_kind, owner_id, target_kind, target_id in db.execute('SELECT * FROM "references"'):
+        owners.setdefault((target_kind, target_id), set()).add((owner_kind, owner_id))
+
+    def upward(node, seen):
+        parents = sorted(owners.get(node, set()) - seen)
+        if not parents:
+            yield [node]
+        for parent in parents:
+            for path in upward(parent, seen | {parent}):
+                yield [*path, node]
+
+    attempts = db.execute("SELECT id,request_id FROM attempts").fetchall()
+    chains = []
+    for attempt, request in attempts:
+        for node in (("attempt", attempt), ("request", request), ("result", attempt)):
+            for owner in sorted(owners.get(node, ())):
+                for path in upward(owner, {owner, node}):
+                    chains.append((attempt, [{"kind": kind, "id": identity} for kind, identity in [*path, node]]))
+    return chains
+
+
 def latest_model_revision(db, model_id):
     from simulatte.execution.schema import Revision
 

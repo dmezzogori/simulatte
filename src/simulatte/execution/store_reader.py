@@ -1,13 +1,37 @@
 """Read supported saved results without a writer, migration, or project imports."""
 
+import hashlib
 from pathlib import Path
 import sqlite3
+import stat
 
 from simulatte.execution.project_store import history
 from simulatte.execution.publication import PublishedResult
 from simulatte.execution.schema import AttemptKey, _mapping
 from simulatte.execution.store import _read
 from simulatte.execution.snapshot import _path
+
+
+def _file_problem(root: Path, location: str, length: int | None, sha256: str) -> str | None:
+    """``missing``, ``unsafe`` (a symlink or not a regular file), ``changed`` (length or hash), or ``None``."""
+    path = root
+    try:
+        for part in Path(location).parts:
+            path = path / part
+            info = path.lstat()
+            if stat.S_ISLNK(info.st_mode):
+                return "unsafe"
+    except FileNotFoundError:
+        return "missing"
+    if not stat.S_ISREG(info.st_mode):
+        return "unsafe"
+    if length is not None and info.st_size != length:
+        return "changed"
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        while block := stream.read(1 << 20):
+            digest.update(block)
+    return None if digest.hexdigest() == sha256 else "changed"
 
 
 class StoreReader:
@@ -82,6 +106,37 @@ class StoreReader:
         if not target.resolve().is_relative_to(root.resolve()) or target.is_symlink():
             raise ValueError("Artifact escapes saved result")
         return target
+
+    def check(self):
+        """Every indexed file that is missing, unsafe or changed, by owner, name and recorded SHA-256.
+
+        Covers result traces (``trace_sha256`` of the result manifest), result artifacts and published
+        analysis artifacts. A file is matched only by its recorded hash: one with the same name but other
+        bytes is ``changed``, never adopted. Returns problems sorted by kind, owner and name.
+        """
+        from simulatte.analysis import codec
+
+        expected = []
+        for attempt, manifest in self._db.execute("SELECT attempt,manifest FROM results"):
+            trace = _read(manifest).get("trace_sha256")
+            if isinstance(trace, str):
+                expected.append(("result", attempt, "run.simtrace", f"results/{attempt}/run.simtrace", None, trace))
+        for attempt, name, length, sha256 in self._db.execute("SELECT attempt,path,length,sha256 FROM artifacts"):
+            expected.append(("result", attempt, name, f"results/{attempt}/artifacts/{name}", length, sha256))
+        if self.version >= 4:
+            for execution, manifest in self._db.execute("SELECT execution,manifest FROM analysis_outputs"):
+                for output in codec.loads(manifest)["outputs"]:
+                    for item in output["artifacts"]:
+                        location = f"analysis-results/{execution}/{item['path']}"
+                        expected.append(("analysis", execution, item["path"], location, item["length"], item["sha256"]))
+        problems = []
+        for kind, owner, name, location, length, sha256 in sorted(expected):
+            problem = _file_problem(self.root, location, length, sha256)
+            if problem is not None:
+                problems.append(
+                    {"kind": kind, "id": owner, "name": name, "path": location, "sha256": sha256, "problem": problem}
+                )
+        return problems
 
     def close(self):
         self._db.close()
