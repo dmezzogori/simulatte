@@ -425,3 +425,79 @@ test("measurement plans flow through runs, experiments and analysis previews", a
     await fixture.close();
   }
 });
+
+/** Seeds 25 experiment runs without executing anything and prints the 21st-newest run as the server lists them. */
+const seedManyExperiments = (fixture: ProjectFixture) =>
+  JSON.parse(
+    execFileSync(
+      fixture.python,
+      [
+        "-I",
+        "-c",
+        `
+from pathlib import Path
+import json, sys
+from simulatte.execution import schema, scheduler
+from simulatte.execution.store import RunStore
+from simulatte.projects import StudioTarget, install_starter, starter_files
+from simulatte.projects.service import ProjectService
+root=Path(sys.argv[1]); install_starter(root, starter_files('production'))
+service=ProjectService.open(StudioTarget(root,None))
+try:
+ pool=service.environments; pool.activate(pool.use_existing(Path(sys.executable)).id)
+finally: service.close()
+def request(seed):
+    return schema.ExecutionRequest(model='plant.py:build',source_hash='a'*64,input_hash='b'*64,layout_hash='c'*64,layout_revision=1,parameters={'x':1.0},seed=seed,stopping={'type':'horizon','horizon':10.0,'warmup':0.0},runtime={})
+with RunStore.open(root/'.simulatte') as store:
+    store.create_revision({})
+    for index in range(25):
+        identity=store.put_experiment({'schema':1,'name':f'study-{index:02d}','model':'plant.py:build','replications':{'count':1,'base_seed':0}})
+        configurations=[{'label':'x=1/base','parameters':{'x':1.0},'layout_hash':'c'*64,'layout_ref':None}]
+        replications=[{'configuration':0,'index':0,'seed':index,'content_ids':[schema.content_id(request(index))]}]
+        store.create_experiment_run(identity,{},configurations,replications)
+    listed=scheduler.runs(store,limit=25)
+print(json.dumps({'count':len(listed),'older':listed[20]['run_id'],'name':listed[20]['name'],'status':listed[20]['status']}))
+`,
+        fixture.root,
+      ],
+      { encoding: "utf8" },
+    ).trim(),
+  ) as { count: number; older: string; name: string; status: string };
+
+test("experiment runs beyond the newest 20 open from their route and load as older runs", async ({ page }) => {
+  test.setTimeout(180000);
+  const fixture = new ProjectFixture();
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  try {
+    await fixture.setup();
+    const seeded = seedManyExperiments(fixture);
+    expect(seeded.count).toBe(25);
+    await page.goto(await fixture.launch());
+    await page.waitForURL((url) => url.pathname === "/");
+    const origin = new URL(page.url()).origin;
+    // The 21st-newest run is not in the state listing, yet its bookmark opens through experiment.get.
+    await page.goto(origin + "/#/experiments/" + seeded.older);
+    await expect(page.getByRole("heading", { name: seeded.name, exact: true })).toBeVisible({ timeout: 30000 });
+    // Studio pauses seeded "running" runs when it opens the store, so only the name and a status are asserted.
+    await expect(page.locator(".run-details h4")).toContainText(new RegExp(`^${seeded.name} · (running|paused|completed)`));
+    await expect(page.getByText("Experiment run not listed")).toHaveCount(0);
+    // The list shows the newest 20 and pages the rest with a stable cursor and no duplicates.
+    await page.goto(origin + "/#/experiments");
+    const rows = page.locator(".ws-experiments .ws-table tbody tr");
+    await expect(rows).toHaveCount(20);
+    await expect(page.getByRole("button", { name: seeded.name, exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Load older experiment runs", exact: true }).click();
+    await expect(rows).toHaveCount(25);
+    await expect(page.getByRole("button", { name: seeded.name, exact: true })).toBeVisible();
+    await expect(page.getByText("All 25 experiment runs loaded.")).toBeVisible();
+    expect(new Set(await rows.locator("td:first-child").allTextContents()).size).toBe(25);
+    await expect(page.getByText("Experiments (25) · what the controls send")).toBeVisible();
+    expect(errors).toEqual([]);
+  } finally {
+    await fixture.close();
+  }
+});

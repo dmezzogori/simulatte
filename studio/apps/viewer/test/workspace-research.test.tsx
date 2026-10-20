@@ -11,8 +11,8 @@ import {
   type HistoryRow,
 } from "../src/workspace/runs";
 import { ComparisonReport, parseSelection } from "../src/workspace/comparison";
-import { experimentActions, staleModels } from "../src/workspace/experiments";
-import { runBody, plansOf } from "../src/workspace/models";
+import { ExperimentPaging, experimentActions, resolveRun, staleModels } from "../src/workspace/experiments";
+import { runBody, plansOf, declaredPlan } from "../src/workspace/models";
 import type { RunDetails } from "../src/workspace/state";
 import type { ExperimentReport } from "../src/studio-client";
 
@@ -165,9 +165,63 @@ describe("model page run request", () => {
       }).map((p) => [p.name, p.summary]),
     ).toEqual([["numbers", "numbers (x)"]]);
   });
+  it("forgets a remembered plan the re-prepared model no longer declares", () => {
+    const plans = [{ name: "numbers", summary: "numbers (x)" }];
+    expect(declaredPlan("numbers", plans)).toBe("numbers");
+    expect(declaredPlan("numbers", [])).toBe("");
+    expect(declaredPlan("numbers", [{ name: "other", summary: "" }])).toBe("");
+    expect(declaredPlan("", plans)).toBe("");
+    expect(runBody("model-a", declaredPlan("numbers", []), undefined, null)).toMatchObject({ measurements: null });
+  });
 });
 
 describe("experiments page", () => {
+  const summary = (i: number, status = "completed") => ({
+    run_id: String(i).padStart(64, "0"),
+    experiment_id: "x",
+    name: `run-${i}`,
+    status,
+    created: 1000 - i,
+    counts: { succeeded: 2 },
+  });
+  it("pages older experiment runs behind the state listing with a stable cursor and no duplicates", async () => {
+    const all = Array.from({ length: 25 }, (_, i) => summary(i));
+    const listed = all.slice(0, 20);
+    const fetched: (string | null)[] = [];
+    const paging = new ExperimentPaging(async (cursor) => {
+      fetched.push(cursor);
+      const start = cursor ? Number(cursor) : 0;
+      const items = all.slice(start, start + 20);
+      return { items, next_cursor: start + 20 < all.length ? String(start + 20) : null };
+    });
+    expect(paging.hasMore).toBe(true);
+    expect(paging.merge(listed)).toEqual(listed);
+    // The first page repeats the state listing; loading skips it and lands on the older runs.
+    expect(await paging.loadMore(listed)).toBe(5);
+    expect(fetched).toEqual([null, "20"]);
+    expect(paging.hasMore).toBe(false);
+    const merged = paging.merge(listed);
+    expect(merged.map((r) => r.name)).toEqual(all.map((r) => r.name));
+    expect(new Set(merged.map((r) => r.run_id)).size).toBe(25);
+    // A newer run arriving in the state pushes the 20th into the loaded pages without duplicating it.
+    const newer = [summary(100), ...listed.slice(0, 19)];
+    expect(paging.merge(newer).map((r) => r.name)).toEqual(["run-100", ...all.map((r) => r.name)]);
+    // A notification refreshes the status of an older run in place.
+    paging.update({ ...summary(22), status: "cancelled" });
+    expect(paging.merge(listed).find((r) => r.name === "run-22")?.status).toBe("cancelled");
+    expect(await paging.loadMore(listed)).toBe(0);
+    expect(fetched).toHaveLength(2);
+  });
+  it("resolves a bookmarked run from the listing first, then from experiment.get", () => {
+    const listed = [summary(1), summary(2)];
+    expect(resolveRun(undefined, listed, null)).toBeUndefined();
+    expect(resolveRun(summary(2).run_id, listed, null)).toBe(listed[1]);
+    expect(resolveRun(summary(9).run_id, listed, null)).toBeUndefined();
+    expect(resolveRun(summary(9).run_id, listed, summary(9))).toEqual(summary(9));
+    expect(resolveRun(summary(9).run_id, listed, summary(8))).toBeUndefined();
+    // The listing wins over a stale fetched copy of the same run.
+    expect(resolveRun(summary(2).run_id, listed, { ...summary(2), status: "paused" })).toBe(listed[1]);
+  });
   it("exposes the exact commands behind pause, cancel, resume and restart", () => {
     const run = { run_id: "r".repeat(64), experiment_id: "x", name: "Sweep", status: "running", created: 0, counts: {} };
     expect(experimentActions(run).map((a) => [a.label, a.command, a.body])).toEqual([
