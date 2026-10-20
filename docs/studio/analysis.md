@@ -69,6 +69,85 @@ environment, so it must provide a Simulatte release with the analysis API; a
 project pinned to an older release fails at inspection with a module-not-found
 diagnostic rather than a capability message.
 
+## In Studio
+
+**Analyses** (`#/analyses`) lists the definitions registered in `pyproject.toml`,
+each with a **New analysis** button, and the saved executions newest first with
+their state, their input counts ("8 of 24 replications · partial") and the last
+annotation. Every saved execution has a stable address, `#/analyses/<execution id>`.
+
+### Admit a new analysis
+
+`#/analyses/new/<key>` selects inputs explicitly; nothing is selected by default and
+there is no latest-run shortcut. Tick experiment runs (the newest 20, with their
+status and replication counts), optionally restrict them to configurations, tick
+completed runs with results, and set the completeness policy (**Require complete
+inputs**, **Minimum replications**). **Preview inputs** takes a dry-run snapshot and
+shows the available, planned and missing replication counts, the snapshot identity
+and the definition. A partial preview is labelled as such: later replications never
+join that analysis; a refresh creates a new preview and a new execution.
+
+When the selection does not satisfy the definition, the page shows a missing-data
+screen instead of a preview: the dataset, the required fields, the valid and total
+replication counts and each unavailable replication with its reason, with a link to
+**Define a revised experiment**. Studio never substitutes synthetic values.
+
+The preview returns the definition's parameter schema as a form; fill the required
+parameters, name the execution if you like, and **Admit and run**. Admission freezes
+exactly the previewed inputs and submits the execution. Its page follows the state
+(`waiting`, `running`, `finalizing`, then `succeeded`, `failed`, `cancelled` or
+`lost`) and a completion notice appears wherever you are.
+
+### A saved execution
+
+The execution page shows the input snapshot (counts, the selected experiment runs,
+configurations and runs with links, the completeness policy), the definition and its
+parameters, the derived provenance of the outputs (definition revision, source hash,
+environment generation, input snapshot) and the annotations, an append-only list of
+revisions. Outputs are shown only for a succeeded execution; a failed, cancelled,
+running or lost execution shows its state and the diagnostics of the contained
+process, never partial files as results.
+
+**Rerun on the same snapshot** recomputes the frozen inputs as a new execution.
+**Refresh inputs** previews the current results of the same selection, says whether
+the snapshot changed, and creates a distinct execution only after **Admit refreshed
+analysis**; the original execution and its evidence stay unchanged. **Cancel
+execution** is offered while it runs.
+
+### Output cards
+
+Numbers come first, then tables, distributions, images and figures. Every card
+carries the snapshot label (complete or partial with the counts), the inferential
+convention and the unavailable inputs.
+
+- **Numbers** show the value with its unit; exact int64 values are shown with all
+  their digits, non-finite values as `NaN`, `+∞` and `−∞`, missing values as `—`.
+- **Tables** are typed and paged on the server (50–500 rows per page). **Sort by**
+  and **Add filter** (`eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in`, with `null`, `NaN`,
+  `inf` and `-inf` accepted as values) build a derived index over the saved table on
+  the server; the summary line says whether a page came from the saved order or from
+  an index, and asks for a retry while an index is still being built. Nulls sort
+  last, NaN after the infinities. **Download CSV** streams the whole table.
+- **Distributions** show their counts and quantiles and name the retained
+  representation: exact, binned or approximate.
+- **Images** (PNG, SVG) are displayed as images loaded from the verified artifact;
+  an SVG is never inlined into the page, so its scripts and links are inert. The
+  artifact itself downloads as an attachment.
+- **Plotly figures** render in a sandboxed frame without same-origin privileges,
+  using the plotly.js version packaged with Studio. The page validates the saved
+  specification first and refuses, with the reason, specifications that carry URLs
+  (`layout.images[*].source`, `*src` references, `href`), templates by reference,
+  script-like text, a `config` section or map and geo traces that need external
+  tiles. A figure saved for another renderer version shows a **renderer mismatch**
+  label instead of rendering. **Download PNG** exports a browser-rendered image, and
+  the specification JSON downloads as saved. The frame never fetches anything.
+
+The whole path works with tables alone: a project without plotting packages and
+without figures loses nothing above. The analysis pages were verified with the
+browser suite on Chromium, Firefox and WebKit (`studio/browser/analysis.spec.ts`:
+network trap, bounded pages, exact int64 and non-finite labels, frame isolation,
+the eight-of-24 journey and the missing-data refusal).
+
 ## Frozen snapshots and Python API
 
 `AnalysisStore.preview(Selection(...))` records an immutable candidate with
@@ -147,8 +226,10 @@ JavaScript renderer; `metadata.adapter_version` identifies the Python producer.
 `figure.json` is stored in the tagged analytical JSON form (`$record`, `$int64`
 and `$float64` wrappers); a consumer untags it with
 `simulatte.analysis.codec.from_json` before handing it to plotly.js and treats
-Plotly text fields as untrusted content. Browser display requires a compatible
-renderer, supplied by the viewer integration.
+Plotly text fields as untrusted content. Studio packages plotly.js
+`plotly.js-dist-min` at the version `plotly.offline.get_plotlyjs_version()`
+reports for the pinned Python `plotly`, and renders only figures whose
+`renderer.version` matches it (see [In Studio](#in-studio)).
 
 Success requires verified artifacts, clean child/descendant cleanup, durable
 rename and one index visibility transaction. Exceptions, disk failures,

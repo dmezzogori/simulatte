@@ -40,18 +40,50 @@ uv run simulatte run models/production.py:build --seed 29
 The Python API, `Runner`, headless experiments and `simulatte view run.simtrace`
 remain available independently of the workspace. Model code does not import Studio.
 
-## Navigation and recordings
+## Navigation
 
-The sidebar owns navigation: **Overview**, **Models**, **Runs**, **Experiments**,
-**Analyses**, **Presentations** and **Settings**. Analyses and saved presentations
-are reserved for later packages; existing recording presentation and HTML/video/PNG
-export remain on the run page. Existing experiment and comparison tools remain
-available under **Experiments**.
+The sidebar owns navigation. Every page has a stable address, so a bookmark or a
+reload reopens the same identity; malformed addresses open the overview.
+
+| Page | Address | Shows |
+| --- | --- | --- |
+| Overview | `#/overview` | Model, run and environment counts and the next step. |
+| Models | `#/models`, `#/model/<id>` | Registrations; a model's inputs, layout, recording level and Run. |
+| Runs | `#/runs`, `#/runs/<model id>`, `#/run/<attempt>` | Saved history, grouped and searchable; one run's recording and provenance. |
+| Experiments | `#/experiments`, `#/experiments/<run id>`, `#/compare/<run id>[:<configuration>],…` | Definitions, runs, replication progress, results and numerical comparisons. |
+| Analyses | `#/analyses`, `#/analyses/<execution id>`, `#/analyses/new/<key>` | Saved analyses, one execution with its outputs, admission of a new one. |
+| Presentations | `#/presentations` | Reserved for a later package; export stays on the run page. |
+| Settings | `#/settings` | Environment ownership and project setup. |
+
+The breadcrumb names the project, the section and the selected identity. Finished
+work raises a completion notice (an interactive run, an experiment or an analysis)
+with an **Open →** link; a notice never changes the page you are on, never touches a
+draft, and **Dismiss** or Escape removes it. At most five notices are kept.
 
 Selecting another model preserves its draft and does not start or cancel a run.
 If the interactive slot is occupied, Studio identifies the owner. Inspect that run,
 wait, or explicitly choose **Stop and run this model**. Cancellation and admission
 recheck the owner, so another tab cannot accidentally replace a newer run.
 
-See [projects and history](projects.md), [environments and recovery](environments.md),
+## Keyboard use and page states
+
+Every primary action is a button or a link. **Skip to content** is the first Tab
+stop, focus is always visible, and controls that are disabled say why next to
+them. Reduced-motion settings disable transitions and spinners' animation.
+
+Pages use designed states instead of blank panels or browser errors:
+
+- loading (a labelled spinner),
+- empty (what is missing and the next action),
+- error (classified as a model error, an incomplete environment, missing data or a
+  connection problem, with a hint and collapsible diagnostic details; raw hashes and
+  tracebacks stay in the details),
+- stale (shown data may be out of date, with the reason),
+- disconnected ("Reconnecting. Drafts are retained; commands wait for authoritative
+  state."),
+- authentication expired ("Open a fresh link from the serving terminal. A restarted
+  Studio uses a new session.").
+
+See [projects and history](projects.md), [experiments and comparisons](experiments.md),
+[reproducible analysis](analysis.md), [environments and recovery](environments.md),
 and the [recording controls and export reference](../development/studio.md).

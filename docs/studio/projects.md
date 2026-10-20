@@ -38,9 +38,9 @@ TOML and comments; applying refuses a file changed since preview.
 Git projects capture tracked membership and declared additions. Non-Git projects
 must declare source membership with `bundle.include`; registration previews add the
 chosen source, and starters declare their own files. Add imported helper modules
-explicitly. Declare data with `@model(inputs=("data/rates.csv",))`. Data inputs and layouts are captured separately; output/history
-and environment caches are excluded. Studio does not silently initialize Git or
-include every file in the folder.
+explicitly. Declare data with `@model(inputs=("data/rates.csv",))`. Data inputs and
+layouts are captured separately; output/history and environment caches are excluded.
+Studio does not silently initialize Git or include every file in the folder.
 
 ## Run and edit
 
@@ -48,6 +48,11 @@ include every file in the folder.
 revoke model A's active result. **Run** captures the selected model's current inputs.
 Later edits cannot change those captured bytes. Busy admission preserves the draft;
 explicit stop-and-run checks both the owner and the current input revision.
+
+The model page chooses the **Recording** level: a full recording supports playback
+and inspection; **KPIs only** keeps the numerical outputs without a trace, and the
+run page says so ("Numerical outputs were kept without a recording. Analysis remains
+available.").
 
 Automatic runs are an explicit session option on a model page. Switching models
 disables the previous model's automatic session. It cannot replace a manual run or
@@ -58,22 +63,44 @@ checks. Saving a physical layout does not implicitly run the workspace model: pr
 **Run** when ready. Presentation changes keep the recorded trace separate from the
 view. See the [layout controls](../development/studio.md#parameter-and-layout-editing-016).
 
+## Runs page
+
+**Runs** (`#/runs`, or `#/runs/<model id>` with **Filter by model**) pages the saved
+history 100 rows at a time; **Load more** appends older pages, and runs that finish
+meanwhile are added on top without reordering what is loaded. Rows are grouped:
+
+- **Interactive runs**, started explicitly from a model page.
+- **Experiment and replay replications**, each linked to its experiment run.
+- **Unassigned history**, saved before this project assigned runs to models.
+
+**Search loaded runs** filters the loaded rows only, by name, status, notes, model
+and identifier, and says how many of the loaded runs it shows and whether older runs
+are not loaded yet. Nothing is selected automatically. Each row shows the seed, the
+recording level, the stopping policy and the runtime in words; raw identifiers stay
+in the diagnostic details.
+
+**Edit notes** changes the run name, the notes and the **Important · protect from
+pruning** flag in place. These are annotations, not changes to original provenance;
+an edit that the server refuses is reverted and explained. The run page
+(`#/run/<attempt>`) keeps the same annotations next to the recording, the recorded
+KPIs and the provenance.
+
 ## History and portability
 
-**Runs** provides bounded pages, model filtering and saved-run inspection. Names,
-notes and the important flag are annotations, not changes to original provenance.
 Important or referenced results are protected from pruning. Removing a registration
 does not erase its history; the original model identity remains in the store.
 Legacy results without a proven model association remain unassigned.
 
 Schema 3 adds project/model associations without changing existing request, attempt
-or result identities. A writer makes a SQLite backup and manifest before upgrading
-an older store. A newer unsupported schema is refused rather than modified.
+or result identities; schema 4 adds analysis snapshots and executions. A writer makes
+a SQLite backup and manifest before upgrading an older store. A newer unsupported
+schema is refused rather than modified.
 
 **Do not treat `.simulatte/` as disposable.** It contains saved results, traces,
-annotations, captured inputs, backups and durable environment evidence. Back up the
-whole quiescent project, including this directory, before moving or cleaning it.
-Stop Studio and other writers before copying. Environment caches can require
-reconstruction after moving a virtualenv; saved evidence and recordings remain useful.
-Use explicit store pruning for unwanted history, respecting important/reference
-protection. No results are deleted automatically.
+annotations, captured inputs, analysis snapshots and outputs, backups and durable
+environment evidence. Back up the whole quiescent project, including this directory,
+before moving or cleaning it. Stop Studio and other writers before copying.
+Environment caches can require reconstruction after moving a virtualenv; saved
+evidence and recordings remain useful. Use explicit store pruning for unwanted
+history, respecting important/reference protection. No results are deleted
+automatically.

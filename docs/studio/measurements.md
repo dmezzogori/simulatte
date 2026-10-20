@@ -69,6 +69,22 @@ retained as typed lists and used in combined predicates. A posthoc predicate
 requiring an unretained field reports insufficient evidence. Aggregate-only
 history cannot answer a temporal predicate.
 
+## In Studio
+
+Declared measurements are retained when a run's request selects a measurement plan.
+`run_managed.py` does this through `measurements=` of `Coordinator.make_request`;
+an experiment file does it with its `measurements` entry, so experiment replications
+started from **Experiments** retain their datasets. An interactive **Run** from a
+model page does not select a plan yet: it keeps KPIs (and a recording when the
+**Recording** level is a full recording), and an analysis that requires a dataset
+from such a run receives the missing-data screen rather than a result.
+
+**KPIs only** on the model page keeps the numerical outputs without a trace; the
+run page and the Runs page say so, and such a run remains a valid analysis input.
+Analyses read datasets from the snapshot of the selected runs; the [Analyses
+pages](analysis.md#in-studio) show the per-dataset valid counts and the reasons for
+unavailable inputs.
+
 ## Declarations, storage and exact values
 
 A model declares one or more `MeasurementPlan` objects through
