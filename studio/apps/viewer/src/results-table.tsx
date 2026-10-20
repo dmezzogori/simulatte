@@ -15,8 +15,8 @@ export const pairedLabel = (report: ExperimentReport) =>
   label(report.pointwise, report.level, report.paired_m ?? 0, report.paired_effective_level ?? report.level);
 const Badge = ({state}: {state: string}) => <span className={`badge state-${state}`} title={state === 'degenerate'
   ? 'All replications equal: zero-width interval' : state === 'insufficient' ? 'Fewer than two replications: no interval' : undefined}>{state}</span>;
-const cells = (estimate: Estimate) => <><td>{number(estimate.mean)}</td>
-  <td>{estimate.half_width === null || estimate.state === 'insufficient' ? '—' : `± ${number(estimate.half_width)}`}</td></>;
+const cells = (estimate: Estimate) => <><td className="ws-num">{number(estimate.mean)}</td>
+  <td className="ws-num">{estimate.half_width === null || estimate.state === 'insufficient' ? '—' : `± ${number(estimate.half_width)}`}</td></>;
 
 /** Configuration × KPI estimates with paired differences against a chosen baseline (design 5). */
 export function ResultsTable({report, options, onOptions, busy = false}: {report: ExperimentReport; options: ResultsOptions; onOptions(options: ResultsOptions): void; busy?: boolean}) {
@@ -40,15 +40,15 @@ export function ResultsTable({report, options, onOptions, busy = false}: {report
     <p className="interval-label">{intervalLabel(report)}</p>
     {comparing && <p className="interval-label">Differences b − a against {report.baseline}: {pairedLabel(report)}</p>}
     <table>
-      <thead><tr><th>Configuration</th><th>KPI</th><th>n</th><th>Mean</th><th>Half-width</th><th>State</th>
-        {comparing && <><th>b − a</th><th>Half-width</th><th>n</th><th>State</th><th>Missing</th></>}</tr></thead>
+      <thead><tr><th>Configuration</th><th>KPI</th><th className="ws-num">n</th><th className="ws-num">Mean</th><th className="ws-num">Half-width</th><th>State</th>
+        {comparing && <><th className="ws-num">b − a</th><th className="ws-num">Half-width</th><th className="ws-num">n</th><th>State</th><th className="ws-num">Missing</th></>}</tr></thead>
       <tbody>{report.rows.map(row => {
         const difference = paired.get(`${row.configuration}\u0000${row.kpi}`);
         return <tr key={`${row.configuration}\u0000${row.kpi}`}>
           <td>{row.label}{report.configurations[row.configuration]?.mixed_runtime && <span className="badge mixed" title="Replications resolved different dependency sets">mixed runtime</span>}</td>
-          <td>{row.kpi}</td><td>{row.estimate.n}</td>{cells(row.estimate)}<td><Badge state={row.estimate.state} /></td>
+          <td>{row.kpi}</td><td className="ws-num">{row.estimate.n}</td>{cells(row.estimate)}<td><Badge state={row.estimate.state} /></td>
           {comparing && (difference
-            ? <>{cells(difference.estimate)}<td>{difference.n}</td><td><Badge state={difference.estimate.state} /></td><td>{difference.missing.length}</td></>
+            ? <>{cells(difference.estimate)}<td className="ws-num">{difference.n}</td><td><Badge state={difference.estimate.state} /></td><td className="ws-num">{difference.missing.length}</td></>
             : <td colSpan={5}>{row.label === report.baseline ? 'baseline' : '—'}</td>)}
         </tr>;
       })}</tbody>

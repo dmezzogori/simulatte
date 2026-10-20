@@ -23,17 +23,15 @@ export type ShellAction =
   | { type: "notification"; message: Notification; context: NoticeContext }
   | { type: "dismiss"; id: string };
 export const MAX_NOTICES = 5;
-/** Interactive attempt outcomes. The project server forwards the coordinator's raw kinds
- * (``result``, ``failed``, …) while the legacy server wraps them as ``run_state``. */
-const RUN_OUTCOMES: Record<string, string> = {
-  result: "succeeded",
-  succeeded: "succeeded",
-  failed: "failed",
-  cancelled: "cancelled",
-  lost: "lost",
-  disk_full: "disk_full",
-  validation_failed: "validation_failed",
-};
+/** Terminal interactive attempt outcomes; ``run_state`` bodies carry ``{kind, status, details}``. */
+const RUN_OUTCOMES = new Set([
+  "succeeded",
+  "failed",
+  "cancelled",
+  "lost",
+  "disk_full",
+  "validation_failed",
+]);
 const RUN_WORDING: Record<string, string> = {
   succeeded: "completed",
   failed: "failed",
@@ -54,20 +52,21 @@ export function noticeFor(
     message.body !== null && typeof message.body === "object" ? message.body : {}
   ) as Record<string, unknown>;
   const type = message.type as string;
-  if (type === "run_state" || type in RUN_OUTCOMES) {
-    const outcome = RUN_OUTCOMES[type === "run_state" ? text(body.status) : type];
+  if (type === "run_state") {
+    const outcome = text(body.status);
     const attempt = message.attempt_id ?? text(body.attempt_id);
-    if (!outcome || !attempt) return null;
-    const owner =
-      context.activeRun?.attempt_id === attempt
-        ? context.models.find((m) => m.id === context.activeRun?.model_id)?.name
-        : undefined;
+    // The pump announces every attempt, including experiment replications and replays.
+    // Only the interactive run (the project's active run) gets its own notice; a
+    // replication's outcome is covered by its experiment's ``experiment_state``.
+    if (!RUN_OUTCOMES.has(outcome) || !attempt || context.activeRun?.attempt_id !== attempt)
+      return null;
+    const owner = context.models.find((m) => m.id === context.activeRun?.model_id)?.name;
     const success = outcome === "succeeded";
     return {
       id: `run:${attempt}:${outcome}`,
       kind: "run",
       tone: success ? "success" : "failure",
-      title: `${owner ?? "Run"} ${RUN_WORDING[outcome]}`,
+      title: `${owner ?? "Run"} ${RUN_WORDING[outcome] ?? outcome}`,
       text: success
         ? "Results are saved in this project."
         : "Diagnostics are on the run page.",

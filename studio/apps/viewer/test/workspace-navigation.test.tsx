@@ -172,20 +172,28 @@ describe("completion notices", () => {
     expect(drafts.get("model-b")?.dirty).toBe(true);
     expect(drafts.get("model-b")?.options.seed).toBe("44");
   });
-  it("accepts the raw attempt outcomes the project server forwards", () => {
-    const result = noticeFor(
-      notification("result", { attempt_id: "attempt-a" }, { attempt_id: "attempt-a" }),
+  it("notifies only the interactive run and ignores replication attempts and raw kinds", () => {
+    const active = noticeFor(
+      notification("run_state", { kind: "result", status: "succeeded", details: { attempt_id: "attempt-a" } }, { attempt_id: "attempt-a" }),
       context,
     );
-    expect(result).toMatchObject({ id: "run:attempt-a:succeeded", hash: "#/run/attempt-a" });
+    expect(active).toMatchObject({ id: "run:attempt-a:succeeded", hash: "#/run/attempt-a", title: "A completed" });
     const failed = noticeFor(
-      notification("failed", { message: "boom" }, { attempt_id: "attempt-z" }),
-      { ...context, activeRun: null },
+      notification("run_state", { kind: "failed", status: "failed", details: { message: "boom" } }, { attempt_id: "attempt-a" }),
+      { ...context, models: [] },
     );
-    expect(failed).toMatchObject({ tone: "failure", hash: "#/run/attempt-z" });
-    expect(failed!.title).toContain("Run");
-    for (const type of ["queued", "ready", "heartbeat", "progress", "kpi", "trace_available"])
-      expect(noticeFor(notification(type, {}, { attempt_id: "attempt-a" }), context)).toBeNull();
+    expect(failed).toMatchObject({ tone: "failure", hash: "#/run/attempt-a", title: "Run failed" });
+    // A replication or replay attempt is not the active interactive run: its experiment announces it.
+    expect(
+      noticeFor(notification("run_state", { kind: "result", status: "succeeded", details: {} }, { attempt_id: "attempt-z" }), context),
+    ).toBeNull();
+    expect(
+      noticeFor(notification("run_state", { kind: "failed", status: "failed", details: {} }, { attempt_id: "attempt-z" }), { ...context, activeRun: null }),
+    ).toBeNull();
+    for (const status of ["queued", "ready", "running"])
+      expect(noticeFor(notification("run_state", { kind: status, status, details: {} }, { attempt_id: "attempt-a" }), context)).toBeNull();
+    for (const type of ["result", "failed", "cancelled", "heartbeat", "progress", "kpi", "trace_available"])
+      expect(noticeFor(notification(type, { attempt_id: "attempt-a" }, { attempt_id: "attempt-a" }), context)).toBeNull();
   });
   it("links experiment and analysis outcomes and ignores non-terminal states", () => {
     expect(
@@ -316,7 +324,8 @@ describe("shell", () => {
     expect(runs).toContain('aria-busy="true"');
     expect(runs).toContain('value="model-a" selected=""');
     expect(runs).toContain(">Runs of A<");
-    expect(shell("#/runs")).toContain("No runs yet");
+    expect(shell("#/runs")).toContain(">Runs<");
+    expect(shell("#/runs")).toContain('aria-busy="true"');
     // The experiments page wraps the legacy tools (useSyncExternalStore), which cannot render statically;
     // its selected run is covered by the breadcrumb test and the browser spec.
     expect(shell("#/presentations")).toContain("Presentations");
