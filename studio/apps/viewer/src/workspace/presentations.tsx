@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { validatePresentation, type PresentationManifest } from "@simulatte/playback";
 import type { ConnectionStatus, ExperimentReport, ExperimentRun, Prefix, StudioClient } from "../studio-client";
-import { httpArtifactSource } from "../artifacts/source";
 import { ConfirmDialog, EmptyState, FailureNotice, Feedback, type PageState } from "./feedback";
 import { Actions, Field, NOT_CONNECTED, READ_ONLY, disabledWhen } from "./forms";
 import { formatTime } from "./tables";
@@ -11,6 +10,7 @@ import { routeHash, type ProjectState, type RunDetails } from "./state";
 import { PresentationEditor, type RecordingIdentity } from "../presentation/editor";
 import { PresentationView, type StageSource } from "../presentation/view";
 import { PresentationExportButton } from "../presentation/export-entry";
+import { analysisEvidenceSource } from "../presentation/evidence-panel";
 import "../presentation/presentation.css";
 
 /** Which parts of the page a notification refreshes. Only a new revision of the open presentation reloads it:
@@ -26,7 +26,36 @@ export function focusWhenShown(doc: { getElementById(id: string): { focus(): voi
   element?.focus();
   return element !== null;
 }
-interface ListedPresentation {
+type ListPage = { items: ListedPresentation[]; next_cursor: string | null };
+/** The presentation list over the server cursor: newest first, older pages on request. A refresh re-reads as many
+ * pages as are loaded, so notifications never drop the older presentations the user asked for. */
+export class PresentationPages {
+  items: ListedPresentation[] = [];
+  cursor: string | null = null;
+  #pages = 0;
+  constructor(private readonly list: (cursor: string | null) => Promise<ListPage>) {}
+  async refresh(): Promise<void> {
+    const items: ListedPresentation[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < Math.max(1, this.#pages); page++) {
+      const next: ListPage = await this.list(cursor);
+      items.push(...next.items);
+      cursor = next.next_cursor;
+      if (cursor === null) break;
+    }
+    this.items = items.filter((x, i) => items.findIndex((y) => y.id === x.id) === i);
+    this.cursor = cursor;
+    this.#pages = Math.max(1, this.#pages);
+  }
+  async more(): Promise<void> {
+    if (this.cursor === null) return;
+    const next = await this.list(this.cursor);
+    this.items = [...this.items, ...next.items.filter((x) => !this.items.some((y) => y.id === x.id))];
+    this.cursor = next.next_cursor;
+    this.#pages++;
+  }
+}
+export interface ListedPresentation {
   id: string;
   name: string;
   revision: number;
@@ -245,11 +274,29 @@ export function PresentationsPage({
     attempt();
     return () => cancelAnimationFrame(frame);
   }, [refocus, present]);
+  const [pages] = useState(
+    () =>
+      new PresentationPages(async (cursor) => {
+        const r = await client.command("presentation.list", cursor === null ? { limit: 50 } : { limit: 50, cursor }, { revision: null });
+        if (!r.ok) throw new Error(message(r, "Listing failed"));
+        return { items: r.items as ListedPresentation[], next_cursor: (r.next_cursor as string | null | undefined) ?? null };
+      }),
+  );
+  const [older, setOlder] = useState<{ busy: boolean; error: string }>({ busy: false, error: "" });
+  const loadOlder = async () => {
+    setOlder({ busy: true, error: "" });
+    try {
+      await pages.more();
+      setList({ status: "ready", value: pages.items });
+      setOlder({ busy: false, error: "" });
+    } catch (e) {
+      setOlder({ busy: false, error: String(e) });
+    }
+  };
   const loadList = async () => {
     try {
-      const r = await client.command("presentation.list", { limit: 50 }, { revision: null });
-      if (!r.ok) throw new Error(message(r, "Listing failed"));
-      const items = r.items as ListedPresentation[];
+      await pages.refresh();
+      const items = pages.items;
       setList(items.length ? { status: "ready", value: items } : { status: "empty" });
       const rec = await client.command("presentation.recordings", {}, { revision: null });
       if (rec.ok) setRecordings(rec.items as RecordingEntry[]);
@@ -304,7 +351,7 @@ export function PresentationsPage({
       closed = true;
     };
   }, [client, attemptId, connected]);
-  const evidence = (id: string) => httpArtifactSource((path, init) => client.fetchApi(path, init), id);
+  const [evidence] = useState(() => analysisEvidenceSource((type, body) => client.command(type, body, { revision: null }), (path, init) => client.fetchApi(path, init)));
   const stageSource = (prefix: Prefix): StageSource => ({ prefix, headers: headers() });
   const identity = (run: RunDetails): RecordingIdentity => ({ attempt_id: run.id, request_id: run.request_id, trace_sha256: run.trace?.sha256 ?? "" });
   const save = async (manifest: PresentationManifest) => {
@@ -487,6 +534,14 @@ export function PresentationsPage({
                 })}
               </tbody>
             </table>
+            {pages.cursor !== null && (
+              <Actions note={`${items.length} newest presentations shown.`}>
+                <button type="button" {...disabledWhen(!connected && NOT_CONNECTED, older.busy && "Loading…")} onClick={() => void loadOlder()}>
+                  Load older presentations
+                </button>
+              </Actions>
+            )}
+            {older.error && <FailureNotice message={older.error} compact />}
           </div>
         )}
       </Feedback>

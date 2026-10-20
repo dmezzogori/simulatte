@@ -83,6 +83,7 @@ export function PresentationExportButton({
         evidence: evidenceSource((type, body) => client.command(type, body, { revision: null }), (path, init) => client.fetchApi(path, init)),
         jobs: exportJobs(client),
         traceSource: (limit, signal) => traceBlob(open.source, Math.min(limit, MAX_TRACE), signal),
+        traceSize: open.source.size,
         playerScript,
         playerStyle,
       }

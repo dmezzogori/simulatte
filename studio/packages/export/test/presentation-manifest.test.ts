@@ -291,6 +291,10 @@ describe("prepareExport", () => {
     expect(texts.some((t) => t.includes("8 of 24 replications · partial snapshot"))).toBe(true);
     expect(layout.items.filter((i) => i.item.kind === "image")).toHaveLength(2);
   });
+  it("refuses an excerpt past the end of the table with the table's row count", async () => {
+    const refused = await refusal(prepareExport(full(), "video", video(), source({ rows: async () => [] }), new AbortController().signal));
+    expect(refused.reason).toContain("start at row 1, past the end of the table (10000 rows)");
+  });
   it("lists distribution quantiles one per entry with the evidence panel's number formatting", async () => {
     const summary = async () => ({ representation: "exact", count: 8, quantiles: { "0.5": 1.5, "0.9": 2.25, "1": Infinity } });
     const snapshot = await prepareExport(full(), "video", video(), source({ summary }), new AbortController().signal);

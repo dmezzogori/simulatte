@@ -372,7 +372,8 @@ async function excerptOf(
       for (const row of formatted)
         for (const cell of row)
           if (cell.length > MAX_CELL_CHARS) refuse(`a cell holds ${cell.length} characters, above ${MAX_CELL_CHARS}`, "choose other columns or a smaller excerpt");
-      if (!formatted.length) refuse("the selected rows are past the end of the table", "choose rows that exist");
+      if (!formatted.length)
+        refuse(`the selected rows start at row ${rows!.offset + 1}, past the end of the table (${output.metadata.row_count ?? 0} rows)`, "choose rows that exist");
       return { id: evidence.id, kind: "table", columns, rows: formatted, offset: rows!.offset, total: output.metadata.row_count ?? formatted.length };
     }
     case "distribution": {

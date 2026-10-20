@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readPresentationBlock, viewRange } from "../src/presentation-block";
+import { playControl, readPresentationBlock, viewRange } from "../src/presentation-block";
 
 const hash = "c".repeat(64);
 const layout = { schema_version: "1.0" };
@@ -46,5 +46,19 @@ describe("presentation block", () => {
     expect(viewRange(manifest, [3, 5])).toEqual({ start: 3, end: 5 });
     expect(viewRange(null, [3, 5])).toEqual({ start: 3, end: 5 });
     expect(viewRange({ ...manifest, time: { start: 9, end: 12 } }, [0, 10])).toEqual({ start: 9, end: 10 });
+  });
+});
+describe("play control at the saved end", () => {
+  const view = { start: 2, end: 8 };
+  it("keeps Play enabled at the end of the saved view and replays from its start", () => {
+    expect(playControl({ frame: true, finiteRange: true, time: 8, status: "paused" }, view)).toEqual({ disabled: false, restart: true });
+    expect(playControl({ frame: true, finiteRange: true, time: 8, status: "ended" }, view)).toEqual({ disabled: false, restart: true });
+    expect(playControl({ frame: true, finiteRange: true, time: 5, status: "paused" }, view)).toEqual({ disabled: false, restart: false });
+  });
+  it("disables Play without a frame, a finite range, or a view to replay once the trace ended", () => {
+    expect(playControl({ frame: false, finiteRange: true, time: 5, status: "paused" }, view).disabled).toBe(true);
+    expect(playControl({ frame: true, finiteRange: false, time: 5, status: "paused" }, view).disabled).toBe(true);
+    expect(playControl({ frame: true, finiteRange: true, time: NaN, status: "paused" }, view).disabled).toBe(true);
+    expect(playControl({ frame: true, finiteRange: true, time: 20, status: "ended" }, null)).toEqual({ disabled: true, restart: false });
   });
 });

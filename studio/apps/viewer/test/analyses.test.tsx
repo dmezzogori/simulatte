@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  windowLines,
   EXPERIMENT_PAGE,
   HISTORY_PAGE,
   appendExperiments,
@@ -93,5 +94,20 @@ describe("experiment runs in the new-analysis form", () => {
     expect(merged.items[merged.items.length - 1]?.name).toBe("run 1");
     expect(merged.hasMore).toBe(false);
     expect(initialExperimentPaging(newest(3, 3)).hasMore).toBe(false);
+  });
+});
+
+describe("saved analysis input windows", () => {
+  it("states the run's warm-up and horizon and each dataset's window, with counts", () => {
+    expect(
+      windowLines({
+        items: [
+          { dataset: null, start: 0, end: 10, replications: 3 },
+          { dataset: "jobs", start: 5, end: null, replications: 1 },
+        ],
+        total: 4,
+      }),
+    ).toEqual(["Run: warm-up 0, horizon 10 · 3 replications", "jobs: window 5 to — · 1 replication", "2 more windows"]);
+    expect(windowLines(undefined)).toEqual([]);
   });
 });

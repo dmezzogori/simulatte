@@ -54,7 +54,24 @@ interface SelectionBody {
   require_complete: boolean;
   min_replications: number;
 }
+export interface SnapshotWindows {
+  items: { dataset: string | null; start: number | null; end: number | null; replications: number }[];
+  total: number;
+}
+/** The inputs' observation windows in words: the run's warm-up and horizon, then each dataset's recorded window. */
+export function windowLines(windows: SnapshotWindows | undefined): string[] {
+  if (!windows) return [];
+  const n = (value: number | null) => (value === null ? "—" : formatValue(value));
+  const lines = windows.items.map(
+    (w) =>
+      (w.dataset === null ? `Run: warm-up ${n(w.start)}, horizon ${n(w.end)}` : `${w.dataset}: window ${n(w.start)} to ${n(w.end)}`) +
+      ` · ${w.replications} ${w.replications === 1 ? "replication" : "replications"}`,
+  );
+  if (windows.total > windows.items.length) lines.push(`${windows.total - windows.items.length} more windows`);
+  return lines;
+}
 interface Snapshot {
+  windows?: SnapshotWindows;
   hash: string;
   available: number;
   planned: number;
@@ -1029,6 +1046,12 @@ function AnalysisDetail({
                               </a>
                             ))
                           : "none",
+                      ],
+                      [
+                        "Observation window",
+                        windowLines(snapshot.windows).length
+                          ? windowLines(snapshot.windows).map((line) => <div key={line}>{line}</div>)
+                          : "not recorded",
                       ],
                       ["Require complete", snapshot.selection.require_complete ? "yes" : "no"],
                       ["Minimum replications", String(snapshot.selection.min_replications)],

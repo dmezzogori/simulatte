@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import math
 from pathlib import PurePosixPath
 import time
 from uuid import uuid4
@@ -599,11 +600,44 @@ class AnalysisStore:
                     "missing": summary["planned"] - summary["available"],
                     "partial": summary["partial"],
                     "selection": codec.loads(row["selection"]),
+                    "windows": _windows(self._body(db, "analysis_input_snapshots", row["snapshot"])),
                 },
                 "details": codec.loads(extra["details"]),
                 "output": None if output is None else codec.loads(output[0]),
                 "annotations": self._annotations(db, identity),
             }
+
+
+MAX_WINDOWS = 20
+
+
+def _windows(snapshot):
+    """Distinct observation windows of the available inputs, with replication counts, at most ``MAX_WINDOWS``.
+
+    ``dataset`` ``None`` is the run's stopping policy (warm-up to horizon); a dataset reports the window it recorded."""
+
+    def number(value):
+        return value if type(value) in (int, float) and math.isfinite(value) else None
+
+    counts = {}
+    for row in snapshot["replications"]:
+        if not row["available"]:
+            continue
+        stopping = (row.get("request") or {}).get("stopping") or {}
+        keys = [(None, number(stopping.get("warmup")), number(stopping.get("horizon")))]
+        for name, dataset in sorted(row.get("datasets", {}).items()):
+            window = DatasetManifest.from_dict(dataset["manifest"]).window
+            keys.append((name, number(window.get("start")), number(window.get("end"))))
+        for key in keys:
+            counts[key] = counts.get(key, 0) + 1
+    order = sorted(counts, key=lambda k: (k[0] is not None, k[0] or "", *(math.inf if v is None else v for v in k[1:])))
+    return {
+        "items": [
+            {"dataset": d, "start": start, "end": end, "replications": counts[d, start, end]}
+            for d, start, end in order[:MAX_WINDOWS]
+        ],
+        "total": len(order),
+    }
 
 
 def analysis_name(name):

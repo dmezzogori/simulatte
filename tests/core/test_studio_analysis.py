@@ -233,6 +233,7 @@ def test_admitted_execution_get_shows_manifest_snapshot_and_definition(studio):
     assert (snapshot["available"], snapshot["planned"], snapshot["missing"], snapshot["partial"]) == (1, 2, 1, True)
     assert snapshot["hash"] == execution["snapshot_hash"]
     assert snapshot["selection"]["experiment_run_ids"] == [studio.run]
+    assert snapshot["windows"]["total"] == 1 and snapshot["windows"]["items"][0]["replications"] == 1
     assert codec.from_json(reply["details"])["name"] == "Weekly report"
     manifest = codec.from_json(reply["output"])
     assert manifest["schema"] == "analysis-output-v1" and manifest["execution_id"] == studio.id
@@ -1021,3 +1022,52 @@ def test_read_only_tables_page_without_indexes_and_legacy_stores_are_empty(tmp_p
     monkeypatch.setattr(service, "reader", None)
     with pytest.raises(ValueError, match="unavailable"):
         AnalysisCommands(service)("analysis.list", {})
+
+
+def test_analysis_get_reports_the_inputs_observation_windows(tmp_path):
+    import hashlib
+
+    from simulatte.analysis.datasets import DatasetWriter
+    from simulatte.analysis.definition import AnalysisDefinition
+    from simulatte.analysis.types import DatasetSchema, Field
+    from simulatte.execution.store import _blob
+    from simulatte.model import ParameterSchema
+    from tests.core.test_experiment_results import build
+
+    with RunStore.open(tmp_path / ".simulatte") as store:
+        store.create_revision({})
+        analysis = AnalysisStore(store)
+        definition = analysis.put_definition(
+            AnalysisDefinition("w", "report.py:run", "a" * 64, ParameterSchema(()), ())
+        )
+        with store._transaction() as db:
+            db.execute("INSERT INTO environment_generations VALUES (?,?,?)", ("env", _blob({}), "selected"))
+        run, _ = build(store, {(0, i): "pending" for i in range(4)})
+        attempts = [publish(store, run, 0, i, i) for i in range(3)]
+        # Two replications carry a measured dataset with its window; the third has scalars only.
+        for attempt, start in zip(attempts[:2], (5.0, 5.0), strict=True):
+            root = store.root / "results" / attempt / "artifacts"
+            writer = DatasetWriter(root / "datasets" / "jobs", DatasetSchema("jobs", (Field("lateness", "float64"),)))
+            writer.window = {"start": start, "end": 10.0, "limitations": []}
+            writer.append({"lateness": 1.5})
+            writer.finish()
+            with store._transaction() as db:
+                for path in sorted(root.rglob("*")):
+                    if path.is_file():
+                        raw = path.read_bytes()
+                        relative = path.relative_to(root).as_posix()
+                        db.execute(
+                            "INSERT INTO artifacts VALUES (?,?,?,?)",
+                            (attempt, relative, len(raw), hashlib.sha256(raw).hexdigest()),
+                        )
+        preview = analysis.preview(Selection(experiment_run_ids=(run,)))
+        execution = analysis.admit(preview.id, definition_id=definition, parameters={}, generation_id="env")
+        windows = analysis.get(execution.id)["snapshot"]["windows"]
+        # The scalar-only replication reports the stopping policy's warm-up and horizon; the pending one nothing.
+        assert windows == {
+            "items": [
+                {"dataset": None, "start": 0.0, "end": 10.0, "replications": 3},
+                {"dataset": "jobs", "start": 5.0, "end": 10.0, "replications": 2},
+            ],
+            "total": 2,
+        }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ExportRefusal, type ExportSnapshot } from "@simulatte/export";
 import { RefusalNotice, limitsSummary, previewSize } from "../src/presentation/export-preview";
-import { MEDIA_TYPES, exportOutcome } from "../src/export-dialog";
+import { MEDIA_TYPES, exportOutcome, targetOptionsOf } from "../src/export-dialog";
 import { imagePassthrough, CaptureError } from "../src/artifacts/static-capture";
 
 const snapshot = (target: ExportSnapshot["target"], options: ExportSnapshot["options"], limits: Partial<ExportSnapshot["limits"]> = {}): ExportSnapshot =>
@@ -47,5 +47,13 @@ describe("export preview", () => {
     const svg = new Blob(["<svg/>"]);
     expect(imagePassthrough(svg, "image/svg+xml").type).toBe("image/svg+xml");
     expect(() => imagePassthrough(svg, "text/html")).toThrow(CaptureError);
+  });
+});
+
+describe("offline HTML preview options", () => {
+  it("takes the trace size from the source instead of reading the trace", () => {
+    const video = { format: "mp4", width: 1280, height: 720, fps: 30 } as unknown as Parameters<typeof targetOptionsOf>[1];
+    expect(targetOptionsOf("html", video, "html", true, { traceSize: 4096 })).toEqual({ panel: true, traceSize: 4096 });
+    expect(targetOptionsOf("video", video, "webm", false, { traceSize: 4096 })).toMatchObject({ format: "webm", panel: false });
   });
 });

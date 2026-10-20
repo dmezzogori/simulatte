@@ -17,13 +17,12 @@ import {
   type SessionView,
 } from "@simulatte/playback";
 import type { StudioClient } from "../studio-client";
-import { httpArtifactSource } from "../artifacts/source";
 import type { OutputDescriptor, OutputManifest } from "../artifacts/types";
 import { untag } from "../analysis/codec";
 import { FailureNotice } from "../workspace/feedback";
 import { Actions, CheckField, Field, FieldGroup, NOT_CONNECTED, disabledWhen } from "../workspace/forms";
 import { formatTime } from "../workspace/tables";
-import { EvidenceItem, EvidenceQualifiers, evidenceFromOutput, type EvidenceOrigin, type EvidenceSource } from "./evidence-panel";
+import { EvidenceItem, EvidenceQualifiers, analysisEvidenceSource, evidenceFromOutput, type EvidenceOrigin, type EvidenceSource } from "./evidence-panel";
 import { PresentationStage, Transport, type StageHandle, type StageSource } from "./view";
 import "./presentation.css";
 
@@ -266,15 +265,10 @@ export function PresentationEditor({
     setDraft((d) => ({ ...d, ...patch }));
     setDirty(true);
   };
-  const sources = useMemo(() => new Map<string, ReturnType<typeof httpArtifactSource>>(), [client]);
-  const evidenceSource: EvidenceSource = (id) => {
-    let s = sources.get(id);
-    if (!s) {
-      s = httpArtifactSource((path, init) => client.fetchApi(path, init), id);
-      sources.set(id, s);
-    }
-    return s;
-  };
+  const evidenceSource: EvidenceSource = useMemo(
+    () => analysisEvidenceSource((type, body) => client.command(type, body, { revision: null }), (path, init) => client.fetchApi(path, init)),
+    [client],
+  );
   const ready = (handle: StageHandle) => {
     stageRef.current = handle;
     setStage(handle);

@@ -102,3 +102,14 @@ export function qualifierText(labels: Manifest["evidence"][number]["labels"]): s
     .filter(Boolean)
     .join(" · ");
 }
+/** Play stays available at the end of the saved view: pressing it replays from the view's start. */
+export function playControl(
+  state: { frame: boolean; finiteRange: boolean; time: number; status: string },
+  view: { start: number; end: number } | null,
+): { disabled: boolean; restart: boolean } {
+  const restart = view !== null && Number.isFinite(state.time) && (state.status === "ended" || state.time >= view.end);
+  return {
+    disabled: !state.frame || !state.finiteRange || !Number.isFinite(state.time) || (state.status === "ended" && !restart),
+    restart,
+  };
+}
