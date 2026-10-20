@@ -328,6 +328,7 @@ export function RunPage({
   const stopping = (request.stopping ?? {}) as Record<string, unknown>;
   const parameters = (request.parameters ?? {}) as Record<string, unknown>;
   const failed = run != null && !["succeeded", "running", "queued", "ready"].includes(run.status);
+  const plan = (run as (RunDetails & { measurement_plan?: string }) | null)?.measurement_plan;
   return (
     <>
       <p className="ws-back">
@@ -340,6 +341,7 @@ export function RunPage({
           <p>
             <span className={"ws-badge " + (run?.status ?? "")}>{run?.status ?? "Loading…"}</span>
             {run?.trace && <span className="ws-tag">{run.status === "succeeded" ? "Full recording" : "Live recording"}</span>}
+            {run && <span className="ws-tag">{plan ? `Measurements · ${plan}` : "KPIs only"}</span>}
           </p>
         </div>
         {active && (
@@ -395,6 +397,8 @@ export function RunPage({
                   <dd className="ws-num">{describeValue(request.seed)}</dd>
                   <dt>Recording level</dt>
                   <dd>{String(request.level ?? "—")}</dd>
+                  <dt>Measurements</dt>
+                  <dd>{plan ? `Plan ${plan}` : "KPIs only"}</dd>
                   <dt>Stopping</dt>
                   <dd>
                     {String(stopping.type ?? "—")}

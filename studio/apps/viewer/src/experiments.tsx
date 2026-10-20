@@ -24,8 +24,8 @@ export const Counts = ({counts, onSelect}: {counts: Record<string, number>; onSe
     : <span key={state}>{state} {count}</span>)}</span>;
 
 /** The experiment definition form; saves through `experiment.define` after client-side validation. */
-export function DefinitionForm({client, fields, model, workers, onSaved, onError}: {client: StudioClient; fields: readonly ParameterField[]; model: string;
-  workers: readonly string[]; onSaved(path: string): void; onError(message: string): void}) {
+export function DefinitionForm({client, fields, model, workers, plans = [], onSaved, onError}: {client: StudioClient; fields: readonly ParameterField[]; model: string;
+  workers: readonly string[]; plans?: readonly {name: string; summary: string}[]; onSaved(path: string): void; onError(message: string): void}) {
   const [form, setForm] = useState<ExperimentForm>(() => emptyForm(model));
   const [overwrite, setOverwrite] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -81,6 +81,10 @@ export function DefinitionForm({client, fields, model, workers, onSaved, onError
         <option value="kpi">KPIs only</option><option value="full">Full trace</option>
       </select></label>
       <label>KPI keys (one per line; empty records all)<textarea value={form.kpis} onChange={event => change({kpis: event.target.value})} />{issue('kpis')}</label>
+      <label>Measurements<select value={form.measurements} onChange={event => change({measurements: event.target.value})}>
+        <option value="">None — KPIs only</option>
+        {plans.map(plan => <option key={plan.name} value={plan.name}>{plan.name} · {plan.summary}</option>)}
+      </select><small>{plans.length ? 'Every replication retains the datasets the plan declares.' : 'This model declares no measurement plan.'}</small></label>
       <div>Workers (none selected: local only)
         {['local', ...workers].map(name => <label key={name}><input type="checkbox" checked={form.workers.includes(name)}
           onChange={event => change({workers: event.target.checked ? [...form.workers, name] : form.workers.filter(item => item !== name)})} /> {name}</label>)}

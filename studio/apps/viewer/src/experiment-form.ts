@@ -20,6 +20,8 @@ export interface ExperimentForm {
   /** One KPI key per line; none records all. */
   kpis: string;
   workers: string[];
+  /** A declared measurement plan name, or '' for KPIs only; sent next to the definition, not inside it. */
+  measurements: string;
 }
 export interface ExperimentDefinition {
   schema: 1; name: string; model: string;
@@ -46,7 +48,7 @@ const MAX_CONFIGURATIONS = 10_000, MAX_REPLICATIONS = 1_000_000;
 
 export function emptyForm(model: string): ExperimentForm {
   return {path: '', name: '', model, count: '10', base_seed: '0', mode: 'grid', grid: {}, explicit: [{label: '', values: {}}],
-    layouts: '', stopping: null, level: 'kpi', kpis: '', workers: []};
+    layouts: '', stopping: null, level: 'kpi', kpis: '', workers: [], measurements: ''};
 }
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const unique = (values: readonly unknown[]) => new Set(values.map(value => JSON.stringify(value))).size === values.length;
@@ -167,7 +169,8 @@ export async function defineExperiment(client: Pick<StudioClient, 'command'>, fo
     Promise<{ok: true; path: string; experiment_id: string} | {ok: false; issues: Record<string, string>; error?: unknown}> {
   const {definition, issues} = buildDefinition(form, fields);
   if (!definition) return {ok: false, issues};
-  const result = await client.command('experiment.define', {path: form.path, definition: definition as unknown as Record<string, unknown>, overwrite});
+  const result = await client.command('experiment.define', {path: form.path, definition: definition as unknown as Record<string, unknown>, overwrite,
+    measurements: form.measurements ? {plan: form.measurements} : null});
   if (!result.ok) return {ok: false, issues: {}, error: result.error};
   return {ok: true, path: String(result.path), experiment_id: String(result.experiment_id)};
 }

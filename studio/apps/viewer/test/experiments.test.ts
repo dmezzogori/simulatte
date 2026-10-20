@@ -64,7 +64,16 @@ describe('experiment form', () => {
     expect(rejected.ok).toBe(false); expect(command).not.toHaveBeenCalled();
     const saved = await defineExperiment(client, example(), fields, true);
     expect(saved.ok).toBe(true);
-    expect(command).toHaveBeenCalledExactlyOnceWith('experiment.define', {path: 'servers-sweep.experiment.json', definition: EXAMPLE, overwrite: true});
+    expect(command).toHaveBeenCalledExactlyOnceWith('experiment.define', {path: 'servers-sweep.experiment.json', definition: EXAMPLE, overwrite: true, measurements: null});
+  });
+  it('sends a selected measurement plan next to the definition, never inside it', async () => {
+    const command = vi.fn(async () => ({ok: true, path: 'servers-sweep.experiment.json', experiment_id: 'e'.repeat(64)}));
+    const client = {command} as unknown as StudioClient;
+    const measured = {...example(), measurements: 'numbers'};
+    expect(JSON.stringify(buildDefinition(measured, fields).definition)).toBe(JSON.stringify(EXAMPLE));
+    await defineExperiment(client, measured, fields);
+    expect(command).toHaveBeenCalledExactlyOnceWith('experiment.define', {path: 'servers-sweep.experiment.json', definition: EXAMPLE, overwrite: false, measurements: {plan: 'numbers'}});
+    expect(emptyForm('plant.py:build').measurements).toBe('');
   });
 });
 

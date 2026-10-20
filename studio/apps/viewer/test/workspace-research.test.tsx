@@ -12,6 +12,7 @@ import {
 } from "../src/workspace/runs";
 import { ComparisonReport, parseSelection } from "../src/workspace/comparison";
 import { experimentActions, staleModels } from "../src/workspace/experiments";
+import { runBody, plansOf } from "../src/workspace/models";
 import type { RunDetails } from "../src/workspace/state";
 import type { ExperimentReport } from "../src/studio-client";
 
@@ -124,6 +125,7 @@ describe("runs page", () => {
         parameters: { servers: 3, rule: "FIFO" },
         runtime: { python: "3.14.0", lock_hash: "a".repeat(64) },
         source_hash: "b".repeat(64),
+        measurements: { schema: 1, plan: "numbers", selection: {}, definition_hash: "c".repeat(64) },
       },
       details: null,
       trace: null,
@@ -138,10 +140,30 @@ describe("runs page", () => {
     expect(summary.level).toBe("Full recording");
     expect(summary.stopping).toBe("horizon · horizon 100 · warmup 10");
     expect(summary.parameters).toEqual([["servers", "3"], ["rule", "FIFO"]]);
+    expect(summary.measurements).toBe("numbers");
+    expect(summarizeProvenance({ ...run, request: { ...run.request, measurements: undefined } }).measurements).toBe("KPIs only");
     expect(summary.runtime).toContain("python 3.14.0");
     expect(summary.runtime).not.toContain("a".repeat(64));
     expect(summary.diagnostic.join("\n")).toContain("a".repeat(64));
     expect(summary.diagnostic.join("\n")).toContain("e".repeat(64));
+  });
+});
+
+describe("model page run request", () => {
+  it("sends the selected measurement plan, or null for KPIs only, on run.start and run.stop_and_run", () => {
+    expect(runBody("model-a", "", undefined, "auto-1")).toEqual({ model_id: "model-a", auto_session: "auto-1", measurements: null });
+    expect(runBody("model-a", "numbers", undefined, null)).toEqual({ model_id: "model-a", auto_session: null, measurements: { plan: "numbers" } });
+    const owner = { request_id: "r", attempt_id: "a", generation: 1 };
+    expect(runBody("model-a", "numbers", owner, null)).toEqual({ model_id: "model-a", owner, measurements: { plan: "numbers" } });
+    expect(plansOf({ name: "m", parameters: { version: 1, fields: [] }, stopping: {} })).toEqual([]);
+    expect(
+      plansOf({
+        name: "m",
+        parameters: { version: 1, fields: [] },
+        stopping: {},
+        measurement_plans: [{ name: "numbers", datasets: [{ name: "numbers", fields: [{ name: "x", type: "int64" }] }] }],
+      }).map((p) => [p.name, p.summary]),
+    ).toEqual([["numbers", "numbers (x)"]]);
   });
 });
 
