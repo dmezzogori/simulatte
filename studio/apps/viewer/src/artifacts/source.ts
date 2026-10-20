@@ -43,18 +43,18 @@ export function artifactPath(executionId: string, relative: string): string {
 }
 export function httpArtifactSource(fetchApi: FetchApi, executionId: string): ArtifactSource {
   const base = `/api/analysis/${encodeURIComponent(executionId)}/outputs/`;
-  const ok = async (path: string) => {
-    const response = await fetchApi(path);
+  const ok = async (path: string, signal?: AbortSignal) => {
+    const response = await fetchApi(path, signal ? { signal } : undefined);
     if (!response.ok) await refuse(response);
     return response;
   };
   return {
-    async page(outputId, cursor, limit, query) {
+    async page(outputId, cursor, limit, query, signal) {
       const search = new URLSearchParams({ limit: String(Math.min(MAX_PAGE, Math.max(1, Math.trunc(limit)))) });
       if (cursor) search.set("cursor", cursor);
       if (query?.sort) search.set("sort", query.sort);
       if (query?.filter) search.set("filter", query.filter);
-      const response = await ok(base + encodeURIComponent(outputId) + "/rows?" + search.toString());
+      const response = await ok(base + encodeURIComponent(outputId) + "/rows?" + search.toString(), signal);
       return validatePage(await response.json());
     },
     async blob(_outputId, path) {

@@ -52,7 +52,7 @@ export interface EvidenceOutput {
 export interface EvidenceSource {
   output(executionId: string, outputId: string): Promise<EvidenceOutput>;
   value(executionId: string, output: EvidenceOutput): Promise<unknown>;
-  rows(executionId: string, output: EvidenceOutput, offset: number, limit: number): Promise<Record<string, unknown>[]>;
+  rows(executionId: string, output: EvidenceOutput, offset: number, limit: number, signal: AbortSignal): Promise<Record<string, unknown>[]>;
   summary(executionId: string, output: EvidenceOutput): Promise<Record<string, unknown>>;
   file(executionId: string, path: string): Promise<Blob>;
   /** A PNG of a Plotly figure from the sandboxed local renderer; rejects when it cannot render offline. */
@@ -367,7 +367,8 @@ async function excerptOf(
         refuse(`excerpts are limited to ${MAX_EXCERPT_ROWS} rows and ${MAX_EXCERPT_COLUMNS} columns`, "choose a smaller excerpt");
       const missing = columns.filter((c) => !fields.some((f) => f.name === c));
       if (missing.length) refuse(`column ${missing[0]} is not in the saved table`, "reselect the columns");
-      const data = await source.rows(evidence.execution_id, output, rows!.offset, rows!.limit);
+      const data = await source.rows(evidence.execution_id, output, rows!.offset, rows!.limit, signal);
+      signal.throwIfAborted();
       const formatted = data.map((row) => columns.map((c) => formatCell(row[c])));
       for (const row of formatted)
         for (const cell of row)

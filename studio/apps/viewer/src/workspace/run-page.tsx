@@ -12,6 +12,7 @@ import { invoke } from "./setup";
 import { Diagnostic, FailureNotice, Feedback, classifyFailure, type PageState } from "./feedback";
 import { Actions, CheckField, Field, NOT_CONNECTED, READ_ONLY, disabledWhen } from "./forms";
 import { formatNumber } from "./tables";
+import { PresentationOriginalAction } from "./presentations";
 export function RecordingPane({
   client,
   run,
@@ -351,6 +352,7 @@ export function RunPage({
             {run && <span className="ws-tag">{plan ? `Measurements · ${plan}` : "KPIs only"}</span>}
           </p>
         </div>
+        {loaded && run.status === "succeeded" && !state.read_only && <PresentationOriginalAction attempt={attempt} />}
         {active && (
           <button
             type="button"

@@ -78,7 +78,7 @@ export class ArtifactError extends Error {
 }
 export interface ArtifactSource {
   /** One page of a saved table; paging, sorting and filtering happen on the server. */
-  page(outputId: string, cursor: string | null, limit: number, query?: TableQueryStrings): Promise<RowsPage>;
+  page(outputId: string, cursor: string | null, limit: number, query?: TableQueryStrings, signal?: AbortSignal): Promise<RowsPage>;
   /** One verified artifact file of an output. */
   blob(outputId: string, path: string): Promise<Blob>;
   /** The whole table as CSV. */

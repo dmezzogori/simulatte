@@ -625,3 +625,176 @@ def test_failure_published_after_snapshot_is_changed_evidence(setup):
     index(store, attempt, {"datasets/jobs/failure.json": {}})
     with pytest.raises(ValueError, match="Evidence changed"):
         admit(analysis, definition, preview)
+
+
+def window_execution(store, analysis, definition, replications):
+    from simulatte.analysis import codec
+
+    body = {
+        "replications": replications,
+        "selection": {},
+        "available": sum(r["available"] for r in replications),
+        "planned": len(replications),
+        "partial": False,
+        "experiments": [{"unrelated_preparation": "do not decode"}],
+    }
+    identity = codec.identity(body)
+    raw = codec.dumps(body)
+    with store._transaction() as db:
+        db.execute("INSERT INTO analysis_input_snapshots VALUES (?,?)", (identity, raw))
+        db.execute(
+            "INSERT INTO analysis_executions VALUES (?,?,?,?,?,?,?,?)",
+            ("window-test", definition, identity, "env", codec.dumps({}), "waiting", codec.dumps({}), 1),
+        )
+    return identity, raw
+
+
+def test_legacy_window_summary_projects_only_windows_and_caches(setup, monkeypatch):
+    from simulatte.analysis import codec, datasets
+    from simulatte.analysis import store as module
+
+    store, analysis, definition = setup
+    manifest = {
+        "window": codec.to_json({"start": 5.0, "end": 10.0}),
+        "chunks": [{"unrelated_chunk": str(i)} for i in range(100)],
+        "schema": {"unrelated_schema": "do not decode"},
+    }
+    identity, raw = window_execution(
+        store,
+        analysis,
+        definition,
+        [
+            {
+                "available": True,
+                "request": {"stopping": {"warmup": 0.0, "horizon": 10.0}},
+                "datasets": {"jobs": {"manifest": manifest}},
+            }
+            for _ in range(25)
+        ],
+    )
+    original = codec.loads
+
+    def bounded_loads(raw):
+        assert "unrelated_" not in str(raw)
+        return original(raw)
+
+    monkeypatch.setattr(codec, "loads", bounded_loads)
+    monkeypatch.setattr(datasets, "Chunk", lambda **kw: pytest.fail("chunk materialized"))
+    result = analysis.get("window-test")["snapshot"]["windows"]
+    assert result == {
+        "items": [
+            {"dataset": None, "start": 0.0, "end": 10.0, "replications": 25},
+            {"dataset": "jobs", "start": 5.0, "end": 10.0, "replications": 25},
+        ],
+        "total": 2,
+    }
+    monkeypatch.setattr(module, "_WINDOW_SUMMARY", "not SQL: cache must serve this read")
+    assert AnalysisStore(store).get("window-test")["snapshot"]["windows"] == result
+    with store._transaction() as db:
+        assert db.execute("SELECT body FROM analysis_input_snapshots WHERE id=?", (identity,)).fetchone()[0] == raw
+
+
+@pytest.mark.parametrize("failure", ["none", "replace", "mkdir"])
+def test_window_cache_is_disposable_and_keeps_bounded_order(setup, monkeypatch, failure):
+    from pathlib import Path
+    from simulatte.analysis import codec
+    from simulatte.analysis import store as module
+
+    store, analysis, definition = setup
+    replications = [
+        {"available": True, "request": {"stopping": {"warmup": i, "horizon": 10.0}}, "datasets": {}} for i in range(23)
+    ] + [
+        {"available": False},
+        {
+            "available": True,
+            "request": {"stopping": {"warmup": float("nan"), "horizon": "unknown"}},
+            "datasets": {"jobs": {"manifest": {"window": codec.to_json({"start": 2**60, "end": float("inf")})}}},
+        },
+        {"available": True, "datasets": {}},
+    ]
+    identity, _ = window_execution(store, analysis, definition, replications)
+    cache = store.root / "analysis-cache" / "windows-v1" / f"{identity}.json"
+    cache.parent.mkdir(parents=True)
+    cache.write_text("invalid cache")
+
+    def fail(*args, **kwargs):
+        raise OSError("read-only or full disk")
+
+    if failure == "replace":
+        monkeypatch.setattr(module.os, "replace", fail)
+    elif failure == "mkdir":
+        monkeypatch.setattr(Path, "mkdir", fail)
+    result = analysis.get("window-test")["snapshot"]["windows"]
+    assert result["total"] == 25
+    assert [r["start"] for r in result["items"]] == list(range(20))
+    assert len(list(cache.parent.iterdir())) == 1  # no abandoned temporary file
+    if failure == "none":
+        cache.unlink()
+        # Check the tagged/nonfinite values as well as the bounded slice.
+        with store._transaction() as db:
+            rows = db.execute(module._WINDOW_SUMMARY.replace("LIMIT 20", "LIMIT 100"), (identity,)).fetchall()
+        assert dict(rows[-1]) == {"dataset": "jobs", "start": 2**60, "end": None, "replications": 1, "total": 25}
+        assert dict(rows[-2]) == {"dataset": None, "start": None, "end": None, "replications": 2, "total": 25}
+
+
+def test_window_summary_without_available_inputs(setup):
+    store, analysis, definition = setup
+    window_execution(store, analysis, definition, [{"available": False}])
+    assert analysis.get("window-test")["snapshot"]["windows"] == {"items": [], "total": 0}
+
+
+def test_legacy_window_summary_read_only_leaves_no_cache(setup, monkeypatch):
+    from simulatte.execution.store_reader import StoreReader
+
+    store, analysis, definition = setup
+    window_execution(store, analysis, definition, [{"available": True}])
+    with closing(StoreReader.open(store.root)) as reader:
+        assert AnalysisStore(reader).get("window-test")["snapshot"]["windows"] == {
+            "items": [{"dataset": None, "start": None, "end": None, "replications": 1}],
+            "total": 1,
+        }
+        from simulatte.analysis import store as module
+
+        monkeypatch.setattr(module, "_WINDOW_SUMMARY", "not SQL: the reader must reuse its aggregate")
+        assert AnalysisStore(reader).get("window-test")["snapshot"]["windows"]["total"] == 1
+    assert not (store.root / "analysis-cache").exists()
+
+
+@pytest.mark.parametrize("value, expected", [(True, None), ("5", None), ([], None), (2**60, 2**60), (-5.5, -5.5)])
+def test_window_summary_retains_numeric_semantics(setup, value, expected):
+    from simulatte.analysis import codec
+
+    store, analysis, definition = setup
+    window_execution(
+        store,
+        analysis,
+        definition,
+        [
+            {
+                "available": True,
+                "request": {"stopping": {"warmup": value, "horizon": value}},
+                "datasets": {"jobs": {"manifest": {"window": codec.to_json({"start": value, "end": value})}}},
+            }
+        ],
+    )
+    assert analysis.get("window-test")["snapshot"]["windows"]["items"] == [
+        {"dataset": None, "start": expected, "end": expected, "replications": 1},
+        {"dataset": "jobs", "start": expected, "end": expected, "replications": 1},
+    ]
+
+
+def test_read_only_window_memory_cache_evicts_old_entries(setup):
+    from simulatte.analysis import codec
+    from simulatte.execution.store_reader import StoreReader
+
+    store, analysis, definition = setup
+    with store._transaction() as db:
+        db.executemany(
+            "INSERT INTO analysis_input_snapshots VALUES (?,?)",
+            [(str(i), codec.dumps({"replications": []})) for i in range(129)],
+        )
+    with closing(StoreReader.open(store.root)) as reader:
+        with reader._transaction() as db:
+            for i in range(129):
+                assert AnalysisStore(reader)._window_summary(db, str(i)) == {"items": [], "total": 0}
+        assert len(reader._analysis_windows) == 128 and "0" not in reader._analysis_windows

@@ -3,10 +3,14 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { validatePresentation, type PresentationManifest } from "@simulatte/playback";
 import { parseRoute, routeCrumbs, routeHash, type WorkspaceRoute } from "../src/workspace/state";
-import { PresentationPages, focusWhenShown, notificationReloads, originalRunLabel, recordingLabel } from "../src/workspace/presentations";
+import { PresentationPages, focusWhenShown, notificationReloads, originalRunLabel, originalOptions, PresentationOriginalAction, recordingLabel } from "../src/workspace/presentations";
 import { EvidencePanel, EvidenceQualifiers, analysisEvidenceSource, contentHash, documentField, evidenceFile, evidenceFromOutput, excerptRows, labelsOf, qualifierText } from "../src/presentation/evidence-panel";
 import { currentView, draftOf, manifestOf, pickerOutputs } from "../src/presentation/editor";
 import { hideOutside, type Hideable } from "../src/presentation/hide-outside";
+import { DetailsLoader } from "../src/workspace/runs";
+import { ReplicationActions } from "../src/experiments";
+import type { ReplicationEntry } from "../src/studio-client";
+import type { RunDetails } from "../src/workspace/state";
 import type { ArtifactSource, OutputDescriptor, RowsPage } from "../src/artifacts/types";
 
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`../../../../tests/fixtures/presentations/${name}`, import.meta.url), "utf8")) as unknown;
@@ -27,10 +31,14 @@ describe("presentation routes", () => {
       { page: "presentations", id: "0f6a9e2c-7d3b-4c1e-9b5a-2d8f4e6c1a7b" },
       { page: "presentations", id: "0f6a9e2c-7d3b-4c1e-9b5a-2d8f4e6c1a7b", present: true },
       { page: "presentations", attempt: "a".repeat(32) },
+      { page: "presentations", original: "old-study-attempt" },
     ] as WorkspaceRoute[])
       expect(parseRoute(routeHash(route))).toStrictEqual(route);
     expect(routeHash({ page: "presentations", id: "p", present: true })).toBe("#/presentations/p/present");
     expect(routeHash({ page: "presentations", attempt: "r" })).toBe("#/presentations/new/r");
+    expect(routeHash({ page: "presentations", original: "old" })).toBe("#/presentations/new?original=old");
+    expect(parseRoute("#/presentations/new?original=" )).toEqual({ page: "overview" });
+    expect(routeCrumbs({ page: "presentations", original: "old" }, [])).toEqual([{ label: "Presentations", hash: "#/presentations" }, { label: "New presentation" }]);
     for (const bad of ["#/presentations/new", "#/presentations/p/edit", "#/presentations/new/x/y", "#/presentations//present"])
       expect(parseRoute(bad), bad).toStrictEqual({ page: "overview" });
     expect(routeCrumbs({ page: "presentations", id: "p", present: true }, [])).toEqual([{ label: "Presentations", hash: "#/presentations" }, { label: "Presenting" }]);
@@ -189,8 +197,8 @@ describe("row excerpts far into a table", () => {
     };
     expect(await excerptRows(source, "o", { offset: 12_000, limit: 3, columns: ["index"] })).toEqual([{ index: 12_000 }, { index: 12_001 }, { index: 12_002 }]);
     calls = 0;
-    expect(await excerptRows(source, "o", { offset: 20_000, limit: 3, columns: [] })).toEqual([]);
-    expect(calls).toBe(Math.ceil(total / 500));
+    await expect(excerptRows(source, "o", { offset: 20_000, limit: 3, columns: [] })).rejects.toThrow("offset 20000 exceeds 12345 rows");
+    expect(calls).toBe(1);
   });
 });
 describe("evidence files", () => {
@@ -264,5 +272,126 @@ describe("editor drafts", () => {
     expect(patch).toEqual({ camera: [1, 2, 3, 4] });
     const saved = manifestOf({ ...draft, ...patch }, manifest.recording, manifest.layout, patch.camera, manifest);
     expect(saved.rate).toBe(2);
+  });
+});
+
+describe("presentation refresh interleaving", () => {
+  it("discards an older-page continuation from before a refresh", async () => {
+    let all = Array.from({ length: 150 }, (_, i) => ({ id: "p" + i, name: "P", revision: 1, created: 1, recording: { attempt_id: "a" }, exports: { active: 0, total: 0 } }));
+    let block = false;
+    let release!: () => void;
+    const pages = new PresentationPages(async cursor => {
+      const start = cursor === null ? 0 : all.findIndex(x => x.id === cursor) + 1;
+      const items = all.slice(start, start + 50);
+      const response = { items, next_cursor: start + 50 < all.length ? items.at(-1)!.id : null };
+      if (block) { block = false; await new Promise<void>(resolve => { release = resolve; }); }
+      return response;
+    });
+    await pages.refresh(); await pages.more();
+    block = true;
+    const pending = pages.more();
+    all = [{ ...all[0]!, id: "new" }, ...all];
+    await pages.refresh();
+    release(); await pending;
+    expect(pages.cursor).not.toBeNull();
+    while (pages.cursor !== null) await pages.more();
+    expect(new Set(pages.items.map(x => x.id))).toEqual(new Set(all.map(x => x.id)));
+  });
+});
+
+describe("row excerpt cancellation", () => {
+  it("passes the owner's signal to the page reader and stops after the first page", async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    let received: AbortSignal | undefined;
+    const source: ArtifactSource = {
+      async page(_id, _cursor, _limit, _query, signal) {
+        calls++; received = signal; controller.abort();
+        return { rows: [{ index: 0 }], next_cursor: "1", row_count: 12500, indexed: false };
+      },
+      blob: async () => new Blob(), csv: async () => new Blob(),
+    };
+    await expect(excerptRows(source, "o", { offset: 12000, limit: 1, columns: [] }, controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    expect(calls).toBe(1);
+    expect(received).toBe(controller.signal);
+  });
+});
+
+describe("export row excerpt cancellation", () => {
+  it("propagates export cancellation through the HTTP reader after the first page", async () => {
+    const { evidenceSource } = await import("../src/artifacts/static-capture");
+    const { prepareExport } = await import("@simulatte/export");
+    const controller = new AbortController();
+    const table: OutputDescriptor = { ...output, kind: "table", metadata: { ...output.metadata, schema: { name: "jobs", fields: [{ name: "index", dtype: "int64", unit: null, nullable: false }] }, row_count: 12500 } };
+    const item = await evidenceFromOutput(table, origin, { rows: { offset: 12000, limit: 1, columns: ["index"] } });
+    const manifest = { ...validatePresentation(fixture("valid-full.json")), evidence: [item] };
+    let calls = 0;
+    let received: AbortSignal | null | undefined;
+    const source = evidenceSource(async () => ({ ok: true, execution: { state: "succeeded" }, output: { outputs: [table] } }), async (_path, init) => {
+      calls++; received = init?.signal;
+      controller.abort();
+      return new Response(JSON.stringify({ rows: [{ index: 0 }], next_cursor: "1", row_count: 12500, indexed: false }));
+    });
+    await expect(prepareExport(manifest, "html", { panel: true, traceSize: 1 }, source, controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    expect(calls).toBe(1);
+    expect(received).toBe(controller.signal);
+  });
+});
+
+
+describe("original selection outside recent history", () => {
+  it("links directly to the selected original and resolves its complete label with one bounded attempt lookup", async () => {
+    const attempt = "a".repeat(32);
+    const calls: string[] = [];
+    const details = new DetailsLoader(async (id) => {
+      calls.push(id);
+      return { name: "", text: "", important: false, request_id: "r", generation: 1, status: "succeeded", revision: 1, details: null, trace: null, layout: null, artifacts: [], id, request: { seed: 73 }, replication: { run_id: "old-study", name: "Study 21", configuration: "servers=4", index: 29 } } as RunDetails;
+    });
+    const visible = [{ id: attempt, name: "", created: 0 }];
+    details.request([attempt]);
+    await details.idle();
+    expect(originalOptions(visible, details)).toEqual([{ id: attempt, label: "Study 21 · servers=4 · replication 29 · Run aaaaaaaa · seed 73" }]);
+    expect(calls).toEqual([attempt]);
+    const html = renderToStaticMarkup(<PresentationOriginalAction attempt={attempt} />);
+    expect(html).toContain(`href="#/presentations/new?original=${attempt}"`);
+    expect(html).toContain("Create presentation from this run");
+    details.dispose();
+  });
+  it("indexes newly visible completed attempts even while their study's status remains running", async () => {
+    const calls: string[] = [];
+    const details = new DetailsLoader(async (id) => {
+      calls.push(id);
+      return { name: "", text: "", important: false, request_id: "r", generation: 1, status: "succeeded", revision: 1, details: null, trace: null, layout: null, artifacts: [], id, request: { seed: id === "first" ? 1 : 2 }, replication: { run_id: "study", name: "Still running", configuration: "baseline", index: id === "first" ? 0 : 1 } } as RunDetails;
+    });
+    details.request(["first"]); await details.idle();
+    const visible = [{ id: "second", name: "", created: 0 }, { id: "first", name: "", created: 0 }];
+    details.request(visible.map((r) => r.id)); await details.idle();
+    expect(originalOptions(visible, details).map((r) => r.label)).toEqual([
+      "Still running · baseline · replication 1 · Run second · seed 2",
+      "Still running · baseline · replication 0 · Run first · seed 1",
+    ]);
+    expect(calls).toEqual(["first", "second"]);
+    details.dispose();
+  });
+});
+
+
+describe("replication presentation actions", () => {
+  const attempt = "b".repeat(32);
+  const item: ReplicationEntry = { configuration: 0, index: 29, status: "succeeded", attempt, trace: null };
+  const href = (id: string) => routeHash({ page: "presentations", original: id });
+  it("offers presentation creation for successful/reused numerical runs without a full recording", () => {
+    for (const status of ["succeeded", "reused"]) {
+      const html = renderToStaticMarkup(<ReplicationActions item={{ ...item, status }} onOpen={() => {}} presentationHref={href} />);
+      expect(html).toContain(`href="#/presentations/new?original=${attempt}"`);
+      expect(html).toContain("Create presentation from this run");
+    }
+  });
+  it("keeps unavailable runs and the legacy experiment inspector free of project actions", () => {
+    const legacy = renderToStaticMarkup(<ReplicationActions item={item} onOpen={() => {}} />);
+    expect(legacy).not.toContain("Create presentation");
+    for (const unavailable of [{ ...item, status: "failed" }, { ...item, attempt: null }]) {
+      expect(renderToStaticMarkup(<ReplicationActions item={unavailable} onOpen={() => {}} presentationHref={href} />)).not.toContain("Create presentation");
+    }
   });
 });

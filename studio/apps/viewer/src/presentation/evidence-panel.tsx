@@ -105,22 +105,22 @@ export function EvidenceQualifiers({ labels }: { labels: EvidenceLabels }) {
   );
 }
 type Loaded<T> = { status: "loading" } | { status: "ready"; value: T } | { status: "error"; message: string };
-function useArtifact<T>(load: (() => Promise<T>) | null, deps: readonly unknown[]): Loaded<T> {
+function useArtifact<T>(load: ((signal: AbortSignal) => Promise<T>) | null, deps: readonly unknown[]): Loaded<T> {
   const [state, setState] = useState<Loaded<T>>({ status: "loading" });
   useEffect(() => {
     if (!load) return;
-    let closed = false;
+    const controller = new AbortController();
     setState({ status: "loading" });
-    load().then(
+    load(controller.signal).then(
       (value) => {
-        if (!closed) setState({ status: "ready", value });
+        if (!controller.signal.aborted) setState({ status: "ready", value });
       },
       (error: unknown) => {
-        if (!closed) setState({ status: "error", message: error instanceof Error ? error.message : String(error) });
+        if (!controller.signal.aborted) setState({ status: "error", message: error instanceof Error ? error.message : String(error) });
       },
     );
     return () => {
-      closed = true;
+      controller.abort();
     };
   }, deps);
   return state;
@@ -154,15 +154,20 @@ function NumberItem({ item, source }: { item: EvidenceSelection; source: Evidenc
 }
 /** Rows ``offset..offset+limit`` of the selected columns, read through the bounded server pages. The cursor is
  * opaque, so pages are read in order until the offset is reached; the table's ``row_count`` bounds the walk. */
-export async function excerptRows(source: ArtifactSource, outputId: string, rows: { offset: number; limit: number; columns: readonly string[] }): Promise<Row[]> {
+export async function excerptRows(source: ArtifactSource, outputId: string, rows: { offset: number; limit: number; columns: readonly string[] }, signal?: AbortSignal): Promise<Row[]> {
   const collected: Row[] = [];
   let cursor: string | null = null;
   let skipped = 0;
   let pages = Infinity;
   for (let page = 0; page < pages && collected.length < rows.limit; page++) {
-    const batch = await source.page(outputId, cursor, Math.min(500, rows.offset + rows.limit - skipped - collected.length));
+    signal?.throwIfAborted();
+    const batch = await source.page(outputId, cursor, Math.min(500, rows.offset + rows.limit - skipped - collected.length), undefined, signal);
+    signal?.throwIfAborted();
     // Every page but the last holds at least one row, so no walk needs more pages than the table has rows.
-    if (page === 0) pages = batch.row_count + 1;
+    if (page === 0) {
+      if (rows.offset >= batch.row_count) throw new Error(`Table excerpt offset ${rows.offset} exceeds ${batch.row_count} rows`);
+      pages = batch.row_count + 1;
+    }
     if (!batch.rows.length) break;
     for (const row of batch.rows) {
       if (skipped < rows.offset) skipped++;
@@ -175,7 +180,7 @@ export async function excerptRows(source: ArtifactSource, outputId: string, rows
 }
 function TableItem({ item, source }: { item: EvidenceSelection; source: EvidenceReader }) {
   const rows = "rows" in item.selection ? item.selection.rows : null;
-  const loaded = useArtifact(rows ? () => excerptRows(source, item.output_id, rows) : null, [item.output_id, rows?.offset, rows?.limit]);
+  const loaded = useArtifact(rows ? (signal) => excerptRows(source, item.output_id, rows, signal) : null, [source, item.output_id, rows?.offset, rows?.limit, rows?.columns.join("\0")]);
   if (!rows) return null;
   if (loaded.status !== "ready") return <p role={loaded.status === "error" ? "alert" : "status"}>{loaded.status === "error" ? loaded.message : "…"}</p>;
   const columns = rows.columns.length ? rows.columns : Object.keys(loaded.value[0] ?? {});

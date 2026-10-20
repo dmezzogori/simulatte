@@ -291,6 +291,17 @@ describe("prepareExport", () => {
     expect(texts.some((t) => t.includes("8 of 24 replications · partial snapshot"))).toBe(true);
     expect(layout.items.filter((i) => i.item.kind === "image")).toHaveLength(2);
   });
+  it("passes cancellation to table loading and rejects a cancelled row result", async () => {
+    const controller = new AbortController();
+    let received: AbortSignal | undefined;
+    const cancellable = source({ async rows(_execution, _output, _offset, _limit, signal) {
+      received = signal;
+      controller.abort();
+      return [{ family: "A", mean: 1, big: 1n }];
+    } });
+    await expect(prepareExport(full(), "video", video(), cancellable, controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    expect(received).toBe(controller.signal);
+  });
   it("refuses an excerpt past the end of the table with the table's row count", async () => {
     const refused = await refusal(prepareExport(full(), "video", video(), source({ rows: async () => [] }), new AbortController().signal));
     expect(refused.reason).toContain("start at row 1, past the end of the table (10000 rows)");

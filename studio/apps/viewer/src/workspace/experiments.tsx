@@ -349,6 +349,7 @@ export function ExperimentsPage({
           counts={live.counts(selected)}
           live={live}
           filter={null}
+          presentationHref={(attempt) => routeHash({ page: "presentations", original: attempt })}
           onOpen={(_report, item) => {
             if (item.attempt) location.hash = routeHash({ page: "run", attempt: item.attempt });
           }}

@@ -97,9 +97,17 @@ export function DefinitionForm({client, fields, model, workers, plans = [], onSa
   </form>;
 }
 
+/** The project workspace can create a full recording from numerical replications; legacy tools only open traces. */
+export function ReplicationActions({item, onOpen, presentationHref}: {item: ReplicationEntry; onOpen(): void; presentationHref?: (attempt: string) => string}) {
+  return <>
+    <button disabled={!committed(item)} title={committed(item) ? undefined : 'No committed recording for this replication'} onClick={onOpen}>Open</button>
+    {presentationHref && item.attempt && (item.status === "succeeded" || item.status === "reused") && <a className="ws-button" href={presentationHref(item.attempt)}>Create presentation from this run</a>}
+  </>;
+}
+
 /** One run's configurations, results table, replications and charts. */
-export function RunDetails({client, run, counts, live, filter, onOpen, onError}: {client: StudioClient; run: ExperimentRun; counts: Record<string, number>;
-  live: FeedSnapshot; filter: string | null; onOpen(report: ExperimentReport, replication: ReplicationEntry): void; onError(message: string): void}) {
+export function RunDetails({client, run, counts, live, filter, onOpen, onError, presentationHref}: {client: StudioClient; run: ExperimentRun; counts: Record<string, number>;
+  live: FeedSnapshot; filter: string | null; onOpen(report: ExperimentReport, replication: ReplicationEntry): void; onError(message: string): void; presentationHref?: (attempt: string) => string}) {
   const [options, setOptions] = useState<ResultsOptions>({level: 0.95, bonferroni: false, baseline: null});
   const [report, setReport] = useState<ExperimentReport | null>(null);
   const [status, setStatus] = useState(filter);
@@ -142,7 +150,7 @@ export function RunDetails({client, run, counts, live, filter, onOpen, onError}:
             checked={item.attempt !== null && selected.includes(item.attempt)}
             onChange={event => setSelected(event.target.checked ? [...selected, item.attempt!] : selected.filter(attempt => attempt !== item.attempt))} /></td>
           <td>{report.configurations[item.configuration]?.label ?? item.configuration}</td><td>{item.index}</td><td>{item.status}</td>
-          <td><button disabled={!committed(item)} title={committed(item) ? undefined : 'No committed recording for this replication'} onClick={() => onOpen(report, item)}>Open</button></td>
+          <td><ReplicationActions item={item} onOpen={() => onOpen(report, item)} {...(presentationHref ? {presentationHref} : {})} /></td>
         </tr>)}</tbody></table>
       {report.replications.length < report.replications_total && <small>Showing the first {report.replications.length} of {report.replications_total} replications; choose a configuration to list its own.</small>}
     </details>

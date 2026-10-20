@@ -3,7 +3,7 @@ import type { ParameterSchema } from "../parameter-draft";
 /** Focused routes. P1 values stay valid; sub-identities are optional segments. */
 export type WorkspaceRoute =
   | { page: "overview" | "models" | "settings" }
-  | { page: "presentations"; id?: string; present?: boolean; attempt?: string }
+  | { page: "presentations"; id?: string; present?: boolean; attempt?: string; original?: string }
   | { page: "model"; id: string }
   | { page: "run"; attempt: string }
   | { page: "runs"; model?: string }
@@ -22,6 +22,15 @@ const PLAIN_PAGES = [
 /** The route of a location hash; malformed input opens the overview. */
 export function parseRoute(hash: string): WorkspaceRoute {
   try {
+    const query = hash.indexOf("?");
+    if (query >= 0) {
+      const path = hash.slice(0, query);
+      const params = new URLSearchParams(hash.slice(query + 1));
+      const original = params.get("original");
+      if (path === "#/presentations/new" && original && [...params.keys()].every((key) => key === "original") && params.getAll("original").length === 1)
+        return { page: "presentations", original };
+      return { page: "overview" };
+    }
     const parts = hash.replace(/^#\/?/, "").replace(/\/$/, "").split("/");
     const [page = "", first = "", second = ""] = parts;
     if (parts.length === 1) {
@@ -72,7 +81,9 @@ export function routeHash(route: WorkspaceRoute): string {
     case "presentations":
       return (
         "#/presentations" +
-        (route.attempt
+        (route.original
+          ? "/new?original=" + e(route.original)
+          : route.attempt
           ? "/new/" + e(route.attempt)
           : route.id
             ? "/" + e(route.id) + (route.present ? "/present" : "")
@@ -138,7 +149,7 @@ export function routeCrumbs(
           ? [home, { label: "Analysis" }]
           : [home];
     case "presentations":
-      return route.attempt
+      return route.attempt || route.original
         ? [home, { label: "New presentation" }]
         : route.id
           ? [home, { label: route.present ? "Presenting" : "Presentation" }]
@@ -210,6 +221,7 @@ export interface ProjectState {
   legacy_layout?: string | null;
 }
 export interface RunDetails {
+  replication?: { run_id: string; name: string; configuration: string; index: number };
   name: string;
   text: string;
   important: boolean;

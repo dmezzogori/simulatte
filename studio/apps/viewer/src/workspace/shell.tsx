@@ -347,6 +347,7 @@ export function WorkspaceShell({
               status={status}
               {...(route.id ? { presentationId: route.id } : {})}
               {...(route.attempt ? { attemptId: route.attempt } : {})}
+              {...(route.original ? { originalId: route.original } : {})}
               present={route.present === true}
             />
           )}

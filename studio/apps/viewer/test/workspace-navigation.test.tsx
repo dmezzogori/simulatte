@@ -342,6 +342,14 @@ describe("shell", () => {
     // its selected run is covered by the breadcrumb test and the browser spec.
     expect(shell("#/presentations")).toContain("Presentations");
   });
+  it("opens the original-recording flow for an attempt outside recent history", () => {
+    const attempt = "a".repeat(32);
+    const html = shell(`#/presentations/new?original=${attempt}`);
+    expect(html).toContain("<h1>New presentation</h1>");
+    expect(html).toContain("Record a run for presentation");
+    expect(html).toContain(`value="${attempt}" selected=""`);
+    expect(html).not.toContain("New presentation from a recording");
+  });
   it("renders notices with a link and a dismiss control", () => {
     (globalThis as { location?: unknown }).location = { hash: "#/overview" };
     try {
