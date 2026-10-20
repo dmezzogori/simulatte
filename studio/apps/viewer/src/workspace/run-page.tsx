@@ -242,6 +242,11 @@ const describeValue = (value: unknown): string =>
       : typeof value === "object"
         ? JSON.stringify(value)
         : String(value);
+/** Whether the run page shows a recording: driven by the recording level, since KPI-level runs also keep a (KPI) trace. */
+export function recordingOf(run: Pick<RunDetails, "trace" | "status" | "request">): "full" | "live" | null {
+  if (!run.trace || run.request.level === "kpi") return null;
+  return run.status === "succeeded" ? "full" : "live";
+}
 export function RunPage({
   client,
   state,
@@ -328,6 +333,7 @@ export function RunPage({
   const stopping = (request.stopping ?? {}) as Record<string, unknown>;
   const parameters = (request.parameters ?? {}) as Record<string, unknown>;
   const failed = run != null && !["succeeded", "running", "queued", "ready"].includes(run.status);
+  const recording = run ? recordingOf(run) : null;
   const plan = (run as (RunDetails & { measurement_plan?: string }) | null)?.measurement_plan;
   return (
     <>
@@ -340,7 +346,8 @@ export function RunPage({
           <h1>{run?.name || "Run " + attempt.slice(0, 8)}</h1>
           <p>
             <span className={"ws-badge " + (run?.status ?? "")}>{run?.status ?? "Loading…"}</span>
-            {run?.trace && <span className="ws-tag">{run.status === "succeeded" ? "Full recording" : "Live recording"}</span>}
+            {recording && <span className="ws-tag">{recording === "full" ? "Full recording" : "Live recording"}</span>}
+            {run && !recording && request.level === "kpi" && <span className="ws-tag">No recording</span>}
             {run && <span className="ws-tag">{plan ? `Measurements · ${plan}` : "KPIs only"}</span>}
           </p>
         </div>
@@ -367,7 +374,7 @@ export function RunPage({
       <Feedback state={page} loading="Loading the saved run…" empty={{ title: "No run" }}>
         {(run) => (
           <>
-            {run.trace ? (
+            {recordingOf(run) ? (
               <RecordingPane client={client} run={run} />
             ) : (
               <div className="ws-state ws-empty">

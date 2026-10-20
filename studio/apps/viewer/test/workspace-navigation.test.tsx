@@ -19,6 +19,7 @@ import {
   classifyFailure,
   describeMessage,
   Feedback,
+  FailureNotice,
   type PageState,
 } from "../src/workspace/feedback";
 import { WorkspaceShell } from "../src/workspace/shell";
@@ -266,6 +267,17 @@ describe("page states", () => {
     expect(stale).toContain("<p>old</p>");
     expect(stale).toContain("Inputs changed since this run.");
     expect(stale).toContain('role="status"');
+  });
+  it("points a read-only recovery session to the documented reconstruction, not to Settings", () => {
+    const message = "Selected Studio runtime unavailable: interpreter /old/python is missing";
+    expect(classifyFailure(message).hint).toContain("Settings");
+    const recovery = classifyFailure(message, undefined, true);
+    expect(recovery.kind).toBe("dependency");
+    expect(recovery.hint).not.toContain("Settings");
+    expect(recovery.hint).toContain("docs/studio/environments.md");
+    const html = renderToStaticMarkup(<FailureNotice message={message} compact readOnly />);
+    expect(html).not.toContain("Prepare or repair the environment in Settings");
+    expect(html).toContain("reconstruct the environment");
   });
   it("distinguishes model, dependency, missing-data and connection failures", () => {
     expect(classifyFailure("ModuleNotFoundError: No module named 'plotly'").kind).toBe("dependency");
