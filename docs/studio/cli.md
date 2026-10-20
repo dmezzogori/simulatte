@@ -25,8 +25,10 @@ Conventions shared by the commands:
 - `--json` prints exactly one JSON document on standard output. Without it, results
   go to standard output or standard error as short text.
 - `--project DIR` names the project directory that holds `.simulatte/`. It defaults to
-  the current directory. `experiment`, `replay` and `store` need an existing store
-  there and exit 2 with `No run store in DIR` otherwise.
+  the current directory (`run` and `experiment run` look for the project above the
+  model or experiment file instead). `replay`, `store` and every `experiment` action
+  except `experiment run`, which creates the store, need an existing store there and
+  exit 2 with `No run store in DIR` otherwise.
 - A command that changes the store takes the single writer lock. If Studio or another
   command owns it, the command reports `Another coordinator owns this .simulatte
   store`. Stop the owner and retry.

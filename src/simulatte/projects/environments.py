@@ -49,6 +49,28 @@ def _captured_runtime(spec, probe):
     return _probe_identity(spec, probe) if spec.get("runtime_format") else probe["runtime"]
 
 
+def interpreter_of_another_project(root: Path, interpreter: Path) -> bool:
+    """Whether ``interpreter`` belongs to another Simulatte project than the one at ``root``.
+
+    A same-machine copy keeps the absolute path of its original's ``existing`` interpreter
+    (``<original>/.venv/bin/python``). The nearest folder above the interpreter holding a
+    ``.simulatte/`` store or a ``pyproject.toml`` owns it: a Simulatte project other than
+    ``root`` and its enclosing folders makes it foreign. Interpreters inside ``root``, outside
+    any project, or in a plain Python project (a shared development environment) are not.
+    The interpreter's own symlink is kept: a virtual environment's Python links to its base.
+    """
+    root = root.resolve()
+    folder = interpreter.absolute().parent.resolve()
+    if folder.is_relative_to(root):
+        return False
+    for parent in (folder, *folder.parents):
+        if (parent / ".simulatte").is_dir():
+            return not root.is_relative_to(parent)
+        if (parent / "pyproject.toml").is_file():
+            return False
+    return False
+
+
 @dataclass(frozen=True, slots=True)
 class EnvironmentGeneration:
     id: str

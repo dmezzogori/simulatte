@@ -75,13 +75,16 @@ retained artifact content before provisioning. Both the original raw probe and t
 rebuilt installation probe are kept; reconstruction does not change the selection
 or the recorded execution requests. Altered package bytes or launcher bodies refuse
 verification even when their RECORD entries were not updated. Studio, and
-`simulatte run`, `simulatte run --reproduce` and `simulatte replay` started with the
-selected managed generation's own interpreter (for example its `bin/simulatte`),
-record this evidence for new requests and verify against the bindings that
-generation retained from its own verified build.
+`simulatte run`, `simulatte run --reproduce`, `simulatte replay`, `simulatte
+experiment run` and `simulatte experiment resume` started with the selected managed
+generation's own interpreter (for example its `bin/simulatte`), record this evidence
+for new requests and verify against the bindings that generation retained from its
+own verified build. `experiment resume` never re-prepares: it dispatches the requests
+of the stored preparation, and a run whose preparation names a generation resumes only
+inside that selected generation.
 
 Older generations and existing interpreters retain their original strict raw-RECORD
-identity, as do requests recorded by `simulatte experiment run` or by `simulatte run`
+identity, as do requests recorded by `simulatte run` or `simulatte experiment run`
 from any other interpreter. They are not silently upgraded. Reinstalling their
 packages may still fail verification because console-script paths, local URLs or
 cache metadata differ.

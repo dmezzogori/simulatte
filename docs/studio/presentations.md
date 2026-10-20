@@ -39,9 +39,9 @@ The seed decides what the result is called:
 
 | Seed | Mode | Label shown | Meaning |
 | --- | --- | --- | --- |
-| The original's seed | `replay` | `verified replay`, or `replay, not verified` | The established replay path. After the run, its trace, semantic digest, KPI scalars, resolved runtime, dependencies and physical layout are compared with the original. A mismatch names the first failing check. |
+| The original's seed | `replay` | `verified replay`, or `replay, not verified`. Until then: `replay, verification pending` once the run succeeded, otherwise `replay · <status>` | The established replay path. After the run, its trace, semantic digest, KPI scalars, resolved runtime, dependencies and physical layout are compared with the original. A mismatch names the first failing check. |
 | Any other seed | `new_seed` | `new recording, not a verified reproduction` | A new run of the same specification. It is never presented as a reproduction of a different replication and is never compared with the original. |
-| Explicit edits (API) | `edited` | `edited run, distinct from the original` | Changed `parameters`, `stopping`, `measurements` or `kpis`, validated against the captured model metadata. Never verified. |
+| Explicit edits (API) | `edited` | `edited run, distinct from the original` | Changed `parameters`, `stopping`, `measurements` or `kpis`. Parameters and measurements are validated against the captured model metadata; a stopping policy and KPI keys are checked for their form only. Never verified. |
 
 The diff table lists every field that differs (`field`, original value, presentation
 value). With only the original seed, the preview says the run is identical apart from
@@ -56,9 +56,9 @@ is refused; a historical environment is never silently substituted.
 A recording needs an idle compatible slot (the original's worker, or the worker you
 name). If every slot is busy, record again when one is free. Recording is not
 available in a read-only session. A recording is held by a durable reference to its
-own result and to the original's result until a presentation adopts it; see
-[Storage and portability](storage.md#presentation-recordings) for pruning
-unadopted recordings.
+own result and to the original's result until `store prune --recordings` drops it,
+which happens only to unadopted recordings; see
+[Storage and portability](storage.md#presentation-recordings).
 
 The `replay` command-line verb is the headless counterpart for the verified path:
 `simulatte replay REQUEST_ID` (see the [CLI reference](cli.md#replay)).
@@ -83,9 +83,10 @@ zooming, playing, seeking) changes the saved view. Only **Use current view** and
 
 Saving checks the whole manifest against the store: the recording must still have its
 saved trace (its SHA-256 is part of the presentation), the time range must lie inside
-the recording, and every evidence item must still match its analysis output. A refusal
-names the field. Unknown keys and non-finite numbers are rejected; text is always
-plain text.
+the recording, and every evidence item must still match its analysis output. A schema
+refusal names the field; the store checks name the recording, the time range or the
+evidence item (`Evidence <n> (<name>)`) that no longer matches. Unknown keys and
+non-finite numbers are rejected; text is always plain text.
 
 The first save creates revision 1. Every later **Save new revision** creates the next
 revision and never alters an earlier one: revisions are immutable. If another tab
@@ -162,7 +163,7 @@ All three targets use the same saved revision. The differences are fixed:
 | Presentation content | Studio | Video | Standalone HTML |
 | --- | --- | --- | --- |
 | Camera, entity visibility and labels | Restores the saved framing and selections; temporary viewing changes are allowed. | Renders the saved framing, visibility and labels at the chosen output aspect ratio, letterboxed inside the animation area, never cropped. | Opens at the same view; navigation is allowed and **Reset view** returns to the saved one. |
-| Time range and playback rate | Starts from the saved settings; playback controls stay available. | Encodes exactly the selected interval at the saved rate, with the established frame and end-state rules. | Opens at the saved start and rate; pause, seek and replay stay within the saved interval. |
+| Time range and playback rate | Starts from the saved settings; playback controls stay available. | Defaults to the saved interval and rate, which stay editable in the export dialog; the chosen values are recorded in the job's options and its snapshot hash. The established frame and end-state rules apply. | Opens at the saved start and rate; pause, seek and replay stay within the saved interval. |
 | Selected recorded measurements | Shows the selected series' values at the current time, apart from the cross-replication evidence. | Renders the selected values synchronized to simulation time in the panel. | Includes the same selections and synchronized values offline. |
 | Annotations and evidence identity | Shows the text and links to the frozen analyses. | Lists the text and the evidence qualifiers (units, population, planned and available replications, partial snapshot, convention, source and snapshot prefix) in the panel. | Includes the text, the qualifiers and the local evidence references; the original project is not needed. |
 | Numerical evidence, table excerpts and figures | Shows saved outputs with the supported interaction and links to the full analyses. | A bounded static panel beside the animation; figures use a saved static view. | Bundles bounded numbers and table excerpts and static figure views as PNG or SVG. |
@@ -186,7 +187,7 @@ selected content. Nothing is silently omitted, cropped or truncated.
 | Video size | Even dimensions up to 3840 x 2160; at least 160 px of animation beside the panel (about 480 px wide) |
 | Offline HTML recording | 100 MiB of trace |
 | Offline HTML total | 150 MiB including statics, excerpts and the player |
-| Static view | A readable PNG or SVG within the size bound |
+| Static view | A readable PNG or SVG of at most 16 MiB |
 
 The refusal states the reason and a remedy, for example: choose a smaller excerpt,
 export at a taller size, turn the panel off, remove the item, or export a video when
@@ -201,8 +202,9 @@ The HTML file is a single self-contained document that opens from `file://` with
 server or network. It embeds the complete original recording (including entity
 labels, payloads and metadata), the saved presentation manifest, the verified static
 views and the evidence excerpts, and it carries a content-security policy that allows
-no network access and only `data:` images. Review what it contains before sharing: it
-names the source analyses, their snapshot hashes and execution ids, and the layout.
+no network access and only `data:` images and fonts. Review what it contains before
+sharing: it names the source analyses, their snapshot hashes and execution ids, and the
+layout.
 
 The player opens the saved view and offers pause, seek, replay, the rate control,
 **Reset view**, the evidence panel (**Evidence**) and the annotations; an annotation

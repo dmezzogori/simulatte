@@ -391,6 +391,7 @@ def experiment(args):
                 root = project_root(args.file, args.project)
                 spec = discover_project(root / definition.model.partition(":")[0], root)
                 coordinator = Coordinator(spec, reference=definition.model, slots=_slots(args))
+                coordinator.adopt_running_generation()
                 workers = None if args.workers is None else [name.strip() for name in args.workers.split(",")]
                 run_id = coordinator.start_experiment(definition, workers=workers, timeout=args.timeout)
                 for warning in coordinator.preflight_warnings:  # e.g. private_index:<url> (the host's credentials)
@@ -403,6 +404,8 @@ def experiment(args):
                 coordinator = Coordinator(
                     ProjectSpec(**project), reference=preparation["request"]["model"], slots=_slots(args)
                 )
+                # Resume keeps the stored preparation; adoption only admits its captured generation.
+                coordinator.adopt_running_generation()
                 run_id = args.run_id
                 coordinator.resume_experiment(run_id, timeout=args.timeout)
             envelope = coordinator.wait_experiment(run_id)

@@ -29,7 +29,7 @@ from simulatte.projects import (
     install_starter,
     ConfigEdit,
 )
-from simulatte.projects.environments import EnvironmentPool, LockPreviewRequired
+from simulatte.projects.environments import EnvironmentPool, LockPreviewRequired, interpreter_of_another_project
 
 
 class ProjectService:
@@ -76,7 +76,8 @@ class ProjectService:
                         / selected["id"]
                         / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
                     )
-                    if not interpreter.is_file():
+                    # A same-machine copy must not run from its original's existing interpreter.
+                    if not interpreter.is_file() or interpreter_of_another_project(service.root, interpreter):
                         raise ValueError(
                             "Project interpreter is unavailable. Reconstruct its environment "
                             "or open with a compatible runtime."
