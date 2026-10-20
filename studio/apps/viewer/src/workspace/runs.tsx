@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState, useSyncExternalStore } from "react";
 import type { ExperimentReport, ExperimentRun, StudioClient } from "../studio-client";
 import { Diagnostic, FailureNotice, Feedback, type PageState } from "./feedback";
-import { Actions, CheckField, Field } from "./forms";
+import { Actions, CheckField, Field, disabledWhen } from "./forms";
 import { formatTime } from "./tables";
 import { routeHash, type HistoryItem, type ProjectState, type RunDetails } from "./state";
 import "./research.css";
@@ -370,8 +370,8 @@ export function RunsTable({
                         <div className="ws-wide">
                           {edit.error && <FailureNotice message={edit.error} compact retry={{ label: "Try again", invoke: edit.save }} />}
                           <Actions note="Notes are saved with the run; the list updates immediately and reverts if saving fails.">
-                            <button type="submit" className="primary" disabled={edit.busy}>Save notes</button>
-                            <button type="button" disabled={edit.busy} onClick={edit.cancel}>Cancel</button>
+                            <button type="submit" className="primary" {...disabledWhen(edit.busy && "Saving…")}>Save notes</button>
+                            <button type="button" {...disabledWhen(edit.busy && "Saving…")} onClick={edit.cancel}>Cancel</button>
                           </Actions>
                         </div>
                       </form>
@@ -535,7 +535,7 @@ export function RunsPage({
         <Field label="Search loaded runs" hint={loaded ? `${visible.length} of ${loaded} loaded run${loaded === 1 ? "" : "s"} shown${paging.hasMore ? "; older runs are not loaded yet" : ""}` : undefined}>
           <input type="search" value={query} placeholder="Name, status, model or note" onChange={(e) => setQuery(e.target.value)} />
         </Field>
-        <button type="button" disabled={busy} onClick={() => void load(true)}>
+        <button type="button" {...disabledWhen(busy && "Loading runs…")} onClick={() => void load(true)}>
           Refresh history
         </button>
       </div>
@@ -573,7 +573,7 @@ export function RunsPage({
             )}
             <div className="ws-actions">
               {paging.hasMore ? (
-                <button type="button" disabled={busy} onClick={() => void load(false)}>
+                <button type="button" {...disabledWhen(busy && "Loading runs…")} onClick={() => void load(false)}>
                   Load older runs
                 </button>
               ) : (
