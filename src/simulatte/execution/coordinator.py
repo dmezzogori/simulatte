@@ -858,7 +858,57 @@ class Coordinator:
         if row is None:
             raise ValueError("No committed result to replay")
         original = self.store.result(row["attempt"])
-        host = row["worker"] if worker is None else None if worker == "local" else worker
+        slots = self._replay_slots(row["worker"], worker)
+        if prepared is None:
+            raise ValueError("Captured preparation is unavailable for this request")
+        target = replace(request, level="full")
+        snapshot, documents = self._pinned_preparation(prepared[0], target)
+        key = self._schedule_pinned(
+            target,
+            slots,
+            Revision(row["number"], row["digest"]),
+            {"replay": identity},
+            snapshot,
+            documents,
+            timeout,
+            busy="Every compatible slot is busy; replay again when one is idle",
+            # Recorded before the slot actor can take the job: the condition is still held.
+            admitted=lambda key: self.store.put_replay(key.request_id, identity, attempt=key.attempt_id),
+        )
+        self._replay_state(key, identity, "running", None)
+        try:
+            result = self.wait(key, timeout=None if timeout is None else timeout + 5)
+        except BaseException as error:
+            if isinstance(error, ExecutionFailure):
+                status = error.status
+            else:
+                self.cancel(key)
+                status = "cancelled"
+            self.store.set_replay(key.request_id, key.attempt_id, status, details={"message": str(error)[:4096]})
+            self._replay_state(key, identity, status, None)
+            raise
+        from simulatte.trace import Trace
+
+        verification = verify_replay(original, result, Trace.open(result.path / "run.simtrace").verify())
+        self.store.set_replay(
+            key.request_id,
+            key.attempt_id,
+            "succeeded",
+            verified=verification.verified,
+            details={"reason": verification.reason},
+        )
+        self._replay_state(key, identity, "succeeded", verification.verified)
+        return ReplayResult(result.key, verification)
+
+    def _replay_slots(self, original_worker, worker):
+        """The slots that may re-execute a request committed on ``original_worker`` (D100).
+
+        Without ``worker`` only the original host qualifies (local originals on local slots; a
+        remote worker's slots are started from ``workers.toml`` as ``start_experiment`` does).
+        An explicit ``worker`` (``"local"`` is the local pool) is preferred, then any slot of
+        the same kind. The interactive slot is the local fallback without experiment slots.
+        """
+        host = original_worker if worker is None else None if worker == "local" else worker
         # A slot's kind follows its worker: ``local`` without one, else ``uv`` (remote).
         kind = "local" if host is None else "uv"
         if host is not None:
@@ -889,19 +939,32 @@ class Coordinator:
             raise ExecutionFailure(
                 None, "no_compatible_worker", {"message": f"No slot can replay on worker {host or 'local'}"}
             )
-        if prepared is None:
-            raise ValueError("Captured preparation is unavailable for this request")
-        target = replace(request, level="full")
-        manifest = {**_read(prepared[0]), "request": target.to_dict()}
+        return slots
+
+    def _pinned_preparation(self, preparation, target):
+        """Copy a captured preparation manifest for ``target`` and load it for scheduling."""
+        manifest = {**_read(preparation), "request": target.to_dict()}
         with self.store._transaction() as db:
             db.execute(
                 "INSERT OR IGNORE INTO snapshots VALUES (?,?,?)", (request_id(target), "preparation", _blob(manifest))
             )
-        snapshot, documents = self._preparation(target)
-        pinned = Revision(row["number"], row["digest"])
+        return self._preparation(target)
+
+    def _schedule_pinned(
+        self, target, slots, pinned, inputs, snapshot, documents, timeout, *, busy, admitted, keep_interactive=False
+    ):
+        """Schedule ``target`` on the first idle slot, at ``pinned`` on experiment slots.
+
+        The interactive slot runs at a new revision recording ``inputs``; with
+        ``keep_interactive`` an attempt that owns it (a manual run) keeps it and the slot
+        counts as busy. ``admitted(key)`` runs while the condition is held, before the slot
+        actor can take the job. Raises ``RuntimeError(busy)`` when every slot is busy.
+        """
         with self._condition:
             for slot in slots:
-                revision = self.store.create_revision({"replay": identity}) if slot == INTERACTIVE else pinned
+                if slot == INTERACTIVE and keep_interactive and self._owner() is not None:
+                    continue
+                revision = self.store.create_revision(inputs) if slot == INTERACTIVE else pinned
                 try:
                     key = self._schedule(target, revision, snapshot, documents, timeout, slot=slot)
                 except RuntimeError as error:
@@ -910,33 +973,9 @@ class Coordinator:
                     continue
                 break
             else:
-                raise RuntimeError("Every compatible slot is busy; replay again when one is idle")
-            # Recorded before the slot actor can take the job: the condition is still held.
-            self.store.put_replay(key.request_id, identity, attempt=key.attempt_id)
-        self._replay_state(key, identity, "running", None)
-        try:
-            result = self.wait(key, timeout=None if timeout is None else timeout + 5)
-        except BaseException as error:
-            if isinstance(error, ExecutionFailure):
-                status = error.status
-            else:
-                self.cancel(key)
-                status = "cancelled"
-            self.store.set_replay(key.request_id, key.attempt_id, status, details={"message": str(error)[:4096]})
-            self._replay_state(key, identity, status, None)
-            raise
-        from simulatte.trace import Trace
-
-        verification = verify_replay(original, result, Trace.open(result.path / "run.simtrace").verify())
-        self.store.set_replay(
-            key.request_id,
-            key.attempt_id,
-            "succeeded",
-            verified=verification.verified,
-            details={"reason": verification.reason},
-        )
-        self._replay_state(key, identity, "succeeded", verification.verified)
-        return ReplayResult(result.key, verification)
+                raise RuntimeError(busy)
+            admitted(key)
+        return key
 
     def _replay_state(self, key, original, status, verified):
         body = {"request_id": key.request_id, "original": original, "status": status, "verified": verified}

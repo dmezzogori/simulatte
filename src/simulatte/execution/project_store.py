@@ -130,7 +130,16 @@ def require_reference(db, kind, identity):
         "snapshot": ("snapshots", "id"),
         "environment": ("environment_generations", "id"),
         "experiment": ("experiment_runs", "id"),
+        "presentation": ("presentations", "id"),
+        "export-job": ("export_jobs", "id"),
     }
+    if kind == "presentation-revision" and isinstance(identity, str):
+        # ``<presentation id>:<revision>``, the owner id each revision's references use.
+        presentation, _, revision = identity.rpartition(":")
+        query = "SELECT 1 FROM presentation_revisions WHERE id=? AND revision=?"
+        if not revision.isdecimal() or db.execute(query, (presentation, int(revision))).fetchone() is None:
+            raise KeyError(identity)
+        return
     if kind not in tables or not isinstance(identity, str):
         raise ValueError("Unsupported reference kind")
     table, column = tables[kind]

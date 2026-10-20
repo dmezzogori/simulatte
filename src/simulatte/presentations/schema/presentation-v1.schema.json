@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://simulatte.dev/schema/presentation-v1.schema.json",
+  "title": "Simulatte presentation manifest, schema 1",
+  "description": "A saved view of one recording with its supporting evidence. simulatte.presentations.schema.validate_manifest also checks ordered bounds and time range, unique evidence ids and the layout bundle.",
+  "type": "object",
+  "properties": {
+    "schema": {"const": 1},
+    "id": {"$ref": "#/$defs/uuid"},
+    "revision": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "name": {"$ref": "#/$defs/text", "minLength": 1, "maxLength": 200},
+    "notes": {"$ref": "#/$defs/text", "maxLength": 4000},
+    "recording": {
+      "type": "object",
+      "properties": {
+        "attempt_id": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+        "request_id": {"$ref": "#/$defs/hex64"},
+        "trace_sha256": {"$ref": "#/$defs/hex64"}
+      },
+      "required": ["attempt_id", "request_id", "trace_sha256"],
+      "additionalProperties": false
+    },
+    "layout": {"$ref": "#/$defs/layout"},
+    "camera": {
+      "type": "object",
+      "properties": {
+        "bounds": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4}
+      },
+      "required": ["bounds"],
+      "additionalProperties": false
+    },
+    "visibility": {
+      "type": "object",
+      "properties": {
+        "entities": {"$ref": "#/$defs/ids"},
+        "labels": {"$ref": "#/$defs/ids"}
+      },
+      "required": ["entities", "labels"],
+      "additionalProperties": false
+    },
+    "measurements": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/text", "minLength": 1, "maxLength": 1024},
+      "maxItems": 8,
+      "uniqueItems": true
+    },
+    "time": {
+      "type": "object",
+      "properties": {
+        "start": {"type": "number"},
+        "end": {"type": "number"}
+      },
+      "required": ["start", "end"],
+      "additionalProperties": false
+    },
+    "rate": {"type": "number", "exclusiveMinimum": 0, "maximum": 1024},
+    "annotations": {"type": "array", "items": {"$ref": "#/$defs/annotation"}, "maxItems": 50},
+    "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}, "maxItems": 12},
+    "created": {"type": "number", "minimum": 0}
+  },
+  "required": [
+    "schema",
+    "name",
+    "notes",
+    "recording",
+    "layout",
+    "camera",
+    "visibility",
+    "measurements",
+    "time",
+    "rate",
+    "annotations",
+    "evidence",
+    "created"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "uuid": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "hex64": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "text": {
+      "description": "Plain text: no control characters other than tab, line feed and carriage return.",
+      "type": "string",
+      "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f]*$"
+    },
+    "label": {"$ref": "#/$defs/text", "maxLength": 1024},
+    "count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "ids": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "array",
+          "items": {"$ref": "#/$defs/text", "minLength": 1, "maxLength": 1024},
+          "maxItems": 10000,
+          "uniqueItems": true
+        }
+      ]
+    },
+    "layout": {
+      "description": "A layout-v1 bundle (LayoutBundle, schema_version 1.0); its maps are validated by the layout reader.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": "1.0"},
+        "algorithms": {"type": "object"},
+        "stages": {"type": "object"},
+        "topology": {"type": "object"},
+        "targets": {"type": "object"},
+        "layers": {"type": "object"},
+        "dependencies": {"type": "object"},
+        "resolved": {"type": "object"},
+        "network": {"type": ["object", "null"]},
+        "aliases": {"type": "array"},
+        "bindings": {"type": "object"},
+        "diagnostics": {"type": "array"},
+        "auto": {"type": "object"},
+        "leaves": {"type": "array"},
+        "required_paths": {"type": "array"},
+        "full_hash": {"$ref": "#/$defs/hex64"},
+        "physical_hash": {"$ref": "#/$defs/hex64"},
+        "layers_hash": {"$ref": "#/$defs/hex64"}
+      },
+      "required": [
+        "schema_version",
+        "algorithms",
+        "stages",
+        "topology",
+        "targets",
+        "layers",
+        "dependencies",
+        "resolved",
+        "network",
+        "aliases",
+        "bindings",
+        "diagnostics",
+        "auto",
+        "leaves",
+        "required_paths",
+        "full_hash",
+        "physical_hash",
+        "layers_hash"
+      ],
+      "additionalProperties": false
+    },
+    "annotation": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/$defs/uuid"},
+        "text": {"$ref": "#/$defs/text", "minLength": 1, "maxLength": 2000},
+        "time": {"type": ["number", "null"]}
+      },
+      "required": ["id", "text", "time"],
+      "additionalProperties": false
+    },
+    "rows": {
+      "type": "object",
+      "properties": {
+        "rows": {
+          "type": "object",
+          "properties": {
+            "offset": {"$ref": "#/$defs/count"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+            "columns": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/text", "minLength": 1, "maxLength": 256},
+              "maxItems": 12,
+              "uniqueItems": true
+            }
+          },
+          "required": ["offset", "limit", "columns"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["rows"],
+      "additionalProperties": false
+    },
+    "figure": {
+      "type": "object",
+      "properties": {
+        "figure": {
+          "type": "object",
+          "properties": {
+            "width": {"type": "integer", "minimum": 320, "maximum": 3840},
+            "height": {"type": "integer", "minimum": 180, "maximum": 2160}
+          },
+          "required": ["width", "height"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["figure"],
+      "additionalProperties": false
+    },
+    "labels": {
+      "description": "Copied from the output metadata when the evidence is selected; never edited afterwards.",
+      "type": "object",
+      "properties": {
+        "name": {"$ref": "#/$defs/label"},
+        "unit": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/label"}]},
+        "population": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/label"}]},
+        "sample": {
+          "type": "object",
+          "properties": {
+            "planned": {"$ref": "#/$defs/count"},
+            "available": {"$ref": "#/$defs/count"},
+            "partial": {"type": "boolean"}
+          },
+          "required": ["planned", "available", "partial"],
+          "additionalProperties": false
+        },
+        "convention": {"$ref": "#/$defs/label"},
+        "source": {
+          "type": "object",
+          "properties": {
+            "analysis_name": {"$ref": "#/$defs/label"},
+            "snapshot_hash": {"$ref": "#/$defs/hex64"},
+            "execution_id": {"$ref": "#/$defs/uuid"}
+          },
+          "required": ["analysis_name", "snapshot_hash", "execution_id"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["name", "unit", "population", "sample", "convention", "source"],
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/$defs/uuid"},
+        "execution_id": {"$ref": "#/$defs/uuid"},
+        "output_id": {"$ref": "#/$defs/hex64"},
+        "content_hash": {"$ref": "#/$defs/hex64"},
+        "kind": {"enum": ["number", "table", "distribution", "figure", "image"]},
+        "selection": {"type": "object"},
+        "labels": {"$ref": "#/$defs/labels"}
+      },
+      "required": ["id", "execution_id", "output_id", "content_hash", "kind", "selection", "labels"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"const": "table"}}},
+          "then": {"properties": {"selection": {"$ref": "#/$defs/rows"}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "figure"}}},
+          "then": {"properties": {"selection": {"$ref": "#/$defs/figure"}}}
+        },
+        {
+          "if": {"properties": {"kind": {"enum": ["number", "distribution", "image"]}}},
+          "then": {"properties": {"selection": {"maxProperties": 0}}}
+        }
+      ]
+    }
+  }
+}

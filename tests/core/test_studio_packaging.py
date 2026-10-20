@@ -13,7 +13,11 @@ import subprocess
 import pytest
 
 # JSON schemas outside studio/ that the frontend imports.
-SCHEMAS = ("layout/schema/layout-v1.schema.json", "experiments/schema/experiment-v1.schema.json")
+SCHEMAS = (
+    "layout/schema/layout-v1.schema.json",
+    "experiments/schema/experiment-v1.schema.json",
+    "presentations/schema/presentation-v1.schema.json",
+)
 
 
 @pytest.fixture

@@ -84,11 +84,11 @@ def test_unknown_store_and_locked_writer_are_actionable(tmp_path):
         finally:
             service.close()
     with sqlite3.connect(tmp_path / ".simulatte/index.sqlite") as db:
-        db.execute("PRAGMA user_version=5")
+        db.execute("PRAGMA user_version=6")
     before = (tmp_path / ".simulatte/index.sqlite").read_bytes()
     service = m.ProjectService.open(StudioTarget(tmp_path, None))
     try:
-        assert "schema 5" in service.state()["error"]
+        assert "schema 6" in service.state()["error"]
         assert service.coordinator is None
     finally:
         service.close()
@@ -295,6 +295,7 @@ def test_pump_announces_run_lifecycle_as_run_state(tmp_path):
     )
     server.hub = SimpleNamespace(notify=lambda kind, body, **fields: sent.append((kind, body, fields)), connections=())
     server.analysis = SimpleNamespace(watching=lambda: False)
+    server.presentations = SimpleNamespace(changes=lambda: [])
     server._monitors = {}
     server._tasks = []
     server.on_restart = lambda: None

@@ -21,6 +21,8 @@ from simulatte.studio.analysis_commands import AnalysisCommands
 from simulatte.studio.app import StudioServer, _RUN_STATES
 from simulatte.studio.auth import FRAME_CSP, SessionAuth, response_headers
 from simulatte.studio.http import References, ImmutableFile, RangeSource, parse_range
+from simulatte.studio.presentation_commands import PRESENTATION_COMMANDS, PresentationCommands
+from simulatte.studio.recording_commands import RECORDING_COMMANDS, RecordingCommands
 from simulatte.studio.websocket import CommandCache, ConnectionHub, EXPERIMENT_COMMANDS
 
 
@@ -39,6 +41,8 @@ class ProjectServer(StudioServer):
         self._tasks = []
         self._experiments = {}
         self.analysis = AnalysisCommands(service)
+        self.presentations = PresentationCommands(service)
+        self.recordings = RecordingCommands(service)
         self.app = Starlette(
             routes=[
                 WebSocketRoute("/ws", self.hub.handle),
@@ -155,6 +159,8 @@ class ProjectServer(StudioServer):
             if self.analysis.watching():
                 for body in await asyncio.to_thread(self.analysis.changes):
                     self.hub.notify("analysis_state", body)
+            for kind, body in self.presentations.changes():
+                self.hub.notify(kind, body)
             if self.hub.connections:
                 await self._broadcast_state()
             if self.service.restart_generation is not None and self.on_restart is not None:
@@ -234,6 +240,10 @@ class ProjectServer(StudioServer):
             )
         if kind.startswith("analysis."):
             return self.analysis(kind, body)
+        if kind in PRESENTATION_COMMANDS:
+            return self.presentations(kind, body)
+        if kind in RECORDING_COMMANDS:
+            return self.recordings(kind, body)
         service._writable()
         if kind == "history.annotate":
             from simulatte.execution.project_store import ProjectStore

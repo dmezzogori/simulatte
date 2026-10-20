@@ -142,7 +142,7 @@ def test_schema2_migration_backup_preserves_identities(tmp_path):
             for table in ("requests", "attempts", "results", "views")
         }
     with RunStore.open(root) as store:
-        assert store.schema_version == 4
+        assert store.schema_version == 5
         for table, rows in before.items():
             assert [tuple(r) for r in store._db.execute(f"SELECT * FROM {table}")] == rows
     backup = next((root / "backups").glob("*/index.sqlite"))

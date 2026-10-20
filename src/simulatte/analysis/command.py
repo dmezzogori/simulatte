@@ -160,8 +160,8 @@ def add_arguments(parser):
 
 def _read(root, identity):
     with closing(StoreReader.open(root)) as reader:
-        if reader.version != 4:
-            raise ValueError("Analysis needs a schema4 store")
+        if reader.version < 4:
+            raise ValueError("Analysis needs a schema 4 or newer store")
         row = reader._db.execute(
             "SELECT id,definition,snapshot,generation,state,details FROM analysis_executions WHERE id=?", (identity,)
         ).fetchone()

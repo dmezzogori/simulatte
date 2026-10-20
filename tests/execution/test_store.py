@@ -22,12 +22,12 @@ def test_store_initialization_ownership_and_reopen(tmp_path):
     m = api()
     root = tmp_path / ".simulatte"
     with m.RunStore.open(root) as store:
-        assert store.schema_version == 4
+        assert store.schema_version == 5
         assert store.settings() == {"journal_mode": "wal", "synchronous": 2, "foreign_keys": 1}
         with pytest.raises(m.StoreBusy):
             m.RunStore.open(root)
     with closing(sqlite3.connect(root / "index.sqlite")) as reader:
-        assert reader.execute("PRAGMA user_version").fetchone() == (4,)
+        assert reader.execute("PRAGMA user_version").fetchone() == (5,)
     with m.RunStore.open(root):
         pass
     assert (root / "coordinator.lock").exists()
@@ -95,14 +95,14 @@ def test_unknown_schema_is_refused_without_recovery_or_modification(tmp_path):
     with m.RunStore.open(root):
         pass
     with closing(sqlite3.connect(root / "index.sqlite")) as db:
-        db.execute("PRAGMA user_version=5")
+        db.execute("PRAGMA user_version=6")
     orphan = root / "staging" / "unindexed"
     orphan.mkdir()
     with pytest.raises(ValueError, match="schema"):
         m.RunStore.open(root)
     assert orphan.exists()
     with closing(sqlite3.connect(root / "index.sqlite")) as db:
-        assert db.execute("PRAGMA user_version").fetchone() == (5,)
+        assert db.execute("PRAGMA user_version").fetchone() == (6,)
 
 
 def test_actual_owner_death_releases_lock(tmp_path):

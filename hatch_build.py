@@ -10,7 +10,11 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 
 # JSON schemas outside studio/ that the frontend imports; studio/scripts/stamp.mjs lists the same files.
-SCHEMAS = ("layout/schema/layout-v1.schema.json", "experiments/schema/experiment-v1.schema.json")
+SCHEMAS = (
+    "layout/schema/layout-v1.schema.json",
+    "experiments/schema/experiment-v1.schema.json",
+    "presentations/schema/presentation-v1.schema.json",
+)
 
 
 def source_fingerprint(root: Path) -> str:

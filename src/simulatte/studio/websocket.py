@@ -51,6 +51,22 @@ PROJECT_COMMANDS = frozenset(
         "analysis.rerun",
         "analysis.refresh",
         "analysis.annotate",
+        # Presentation recordings fence on the captured attempt, not the model revision.
+        "presentation.diff",
+        "presentation.record",
+        "presentation.recordings",
+        # Saved presentations fence on presentation revisions and export jobs, not the model revision.
+        "presentation.list",
+        "presentation.get",
+        "presentation.create",
+        "presentation.revise",
+        "presentation.delete",
+        "export.admit",
+        "export.start",
+        "export.finish",
+        "export.cancel",
+        "export.list",
+        "export.get",
     )
 )
 COMMANDS = frozenset(
