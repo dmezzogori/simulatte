@@ -1,4 +1,4 @@
-/** Preserve the existing experiment/compare tools while the broader study workflow evolves. */
+/** Experiments: the existing experiment and compare tools behind the focused route. ``experimentRunId`` names the run a bookmark selected. */
 import { useEffect, useMemo, useState } from "react";
 import { Experiments } from "../experiments";
 import { ComparePanel, ReplayNotifications } from "../compare-panel";
@@ -14,10 +14,12 @@ export function ExperimentsPage({
   client,
   state,
   status,
+  experimentRunId,
 }: {
   client: StudioClient;
   state: ProjectState;
   status: ConnectionStatus;
+  experimentRunId?: string;
 }) {
   const [id, setId] = useState(state.models[0]?.id ?? ""),
     [error, setError] = useState("");
@@ -64,6 +66,11 @@ export function ExperimentsPage({
         <p>
           Run replications, inspect summary tables and compare saved recordings.
         </p>
+        {experimentRunId && (
+          <p className="ws-identity">
+            Selected experiment run: <code>{experimentRunId}</code>
+          </p>
+        )}
       </div>
       <section className="ws-card">
         <label>

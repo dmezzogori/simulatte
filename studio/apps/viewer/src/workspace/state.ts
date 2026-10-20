@@ -1,49 +1,130 @@
 import type { AttemptKey, Revision, Prefix, Reference } from "../studio-client";
 import type { ParameterSchema } from "../parameter-draft";
+/** Focused routes. P1 values stay valid; sub-identities are optional segments. */
 export type WorkspaceRoute =
-  | {
-      page:
-        | "overview"
-        | "models"
-        | "runs"
-        | "experiments"
-        | "analyses"
-        | "presentations"
-        | "settings";
-    }
+  | { page: "overview" | "models" | "presentations" | "settings" }
   | { page: "model"; id: string }
-  | { page: "run"; attempt: string };
+  | { page: "run"; attempt: string }
+  | { page: "runs"; model?: string }
+  | { page: "experiments"; run?: string }
+  | { page: "comparison"; selection: string[] }
+  | { page: "analyses"; execution?: string; definition?: string };
+const PLAIN_PAGES = [
+  "overview",
+  "models",
+  "runs",
+  "experiments",
+  "analyses",
+  "presentations",
+  "settings",
+] as const;
+/** The route of a location hash; malformed input opens the overview. */
 export function parseRoute(hash: string): WorkspaceRoute {
   try {
-    const [page, id] = hash.replace(/^#\/?/, "").split("/");
-    if (page === "model" && id) return { page, id: decodeURIComponent(id) };
-    if (page === "run" && id) return { page, attempt: decodeURIComponent(id) };
-    if (
-      [
-        "models",
-        "runs",
-        "experiments",
-        "analyses",
-        "presentations",
-        "settings",
-      ].includes(page ?? "")
-    )
-      return { page } as WorkspaceRoute;
+    const parts = hash.replace(/^#\/?/, "").replace(/\/$/, "").split("/");
+    const [page = "", first = "", second = ""] = parts;
+    if (parts.length === 1) {
+      if (page === "compare") return { page: "comparison", selection: [] };
+      if ((PLAIN_PAGES as readonly string[]).includes(page))
+        return { page } as WorkspaceRoute;
+    } else if (parts.length === 2 && first) {
+      if (page === "compare") {
+        const selection = first.split(",").map(decodeURIComponent);
+        if (selection.every(Boolean)) return { page: "comparison", selection };
+      } else if (page !== "analyses" || first !== "new") {
+        const id = decodeURIComponent(first);
+        if (page === "model") return { page, id };
+        if (page === "run") return { page, attempt: id };
+        if (page === "runs") return { page, model: id };
+        if (page === "experiments") return { page, run: id };
+        if (page === "analyses") return { page, execution: id };
+      }
+    } else if (parts.length === 3 && page === "analyses" && first === "new" && second)
+      return { page, definition: decodeURIComponent(second) };
   } catch {
     /* An invalid bookmark opens the overview. */
   }
   return { page: "overview" };
 }
+/** The inverse of ``parseRoute``. */
 export function routeHash(route: WorkspaceRoute): string {
-  return (
-    "#/" +
-    route.page +
-    ("id" in route
-      ? "/" + encodeURIComponent(route.id)
-      : "attempt" in route
-        ? "/" + encodeURIComponent(route.attempt)
-        : "")
-  );
+  const e = encodeURIComponent;
+  switch (route.page) {
+    case "model":
+      return "#/model/" + e(route.id);
+    case "run":
+      return "#/run/" + e(route.attempt);
+    case "runs":
+      return "#/runs" + (route.model ? "/" + e(route.model) : "");
+    case "experiments":
+      return "#/experiments" + (route.run ? "/" + e(route.run) : "");
+    case "comparison":
+      return (
+        "#/compare" +
+        (route.selection.length ? "/" + route.selection.map(e).join(",") : "")
+      );
+    case "analyses":
+      return (
+        "#/analyses" +
+        (route.definition
+          ? "/new/" + e(route.definition)
+          : route.execution
+            ? "/" + e(route.execution)
+            : "")
+      );
+    default:
+      return "#/" + route.page;
+  }
+}
+export interface Crumb {
+  label: string;
+  hash?: string;
+}
+const SECTION_LABELS: Record<WorkspaceRoute["page"], string> = {
+  overview: "Overview",
+  models: "Models",
+  model: "Models",
+  runs: "Runs",
+  run: "Runs",
+  experiments: "Experiments",
+  comparison: "Experiments",
+  analyses: "Analyses",
+  presentations: "Presentations",
+  settings: "Settings",
+};
+/** The sidebar entry a route belongs to. */
+export function routeSection(route: WorkspaceRoute): string {
+  return SECTION_LABELS[route.page].toLowerCase();
+}
+/** Breadcrumbs: the section, then the selected identity when the route has one. */
+export function routeCrumbs(
+  route: WorkspaceRoute,
+  models: readonly { id: string; name: string }[],
+): Crumb[] {
+  const section = SECTION_LABELS[route.page];
+  const home: Crumb = { label: section, hash: "#/" + section.toLowerCase() };
+  const model = (id: string) =>
+    models.find((m) => m.id === id)?.name ?? "Unknown model";
+  switch (route.page) {
+    case "model":
+      return [home, { label: model(route.id) }];
+    case "run":
+      return [home, { label: "Run" }];
+    case "runs":
+      return route.model ? [home, { label: model(route.model) }] : [home];
+    case "experiments":
+      return route.run ? [home, { label: "Experiment run" }] : [home];
+    case "comparison":
+      return [home, { label: "Comparison" }];
+    case "analyses":
+      return route.definition
+        ? [home, { label: "New analysis" }]
+        : route.execution
+          ? [home, { label: "Analysis" }]
+          : [home];
+    default:
+      return [{ label: section }];
+  }
 }
 export interface ProjectModel {
   id: string;

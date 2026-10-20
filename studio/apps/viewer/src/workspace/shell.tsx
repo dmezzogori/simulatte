@@ -1,37 +1,55 @@
-import { ExperimentsPage } from "./experiments-page";
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { StudioClient, type ConnectionStatus } from "../studio-client";
 import {
   parseRoute,
+  routeCrumbs,
+  routeHash,
+  routeSection,
   WorkspaceDrafts,
   type WorkspaceRoute,
   type ProjectState,
 } from "./state";
-import { Overview, RunsPage } from "./overview";
+import { shellReducer, type Notice, type NoticeContext } from "./notices";
+import { Overview } from "./overview";
 import { Setup } from "./setup";
 import { Models, ModelPage } from "./models";
 import { RunPage } from "./run-page";
+import { RunsPage } from "./runs";
+import { ExperimentsPage } from "./experiments";
+import { ComparisonPage } from "./comparison";
+import { AnalysesPage } from "./analyses";
+import { Diagnostic, EmptyState } from "./feedback";
+const ICONS: Record<string, string> = {
+  overview: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
+  models: "m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5",
+  runs: "m9 5 11 7-11 7V5Z",
+  experiments: "M8 3h8M10 3v6l-6 10q-1 2 2 2h12q3 0 2-2L14 9V3M7 15h10",
+  analyses: "M4 3v18h17M8 16v-5m5 5V7m5 9v-3",
+  presentations: "M3 4h18v13H3zM12 17v4m-4 0h8m-6-14 6 4-6 3V7Z",
+};
 export function Sidebar({
   name,
   route,
+  counts = {},
 }: {
   name: string;
   route: WorkspaceRoute;
+  counts?: Record<string, number>;
 }) {
-  const active =
-    route.page === "model"
-      ? "models"
-      : route.page === "run"
-        ? "runs"
-        : route.page;
+  const active = routeSection(route);
   return (
     <aside className="ws-sidebar">
       <a className="ws-brand" href="#/overview">
-        <span className="ws-brand-mark">S</span>Simulatte<span>STUDIO</span>
+        <span className="ws-brand-mark" aria-hidden="true">
+          s
+        </span>
+        <span>
+          simulatte<em>STUDIO</em>
+        </span>
       </a>
       <div className="ws-project-name">
-        <small>PROJECT</small>
         <strong>{name}</strong>
+        <small>Project workspace</small>
       </div>
       <nav aria-label="Project navigation">
         {[
@@ -47,7 +65,13 @@ export function Sidebar({
             href={"#/" + page}
             aria-current={active === page ? "page" : undefined}
           >
-            {label}
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d={ICONS[page!]} />
+            </svg>
+            <span>{label}</span>
+            {counts[page!] ? (
+              <small aria-hidden="true">{counts[page!]}</small>
+            ) : null}
           </a>
         ))}
       </nav>
@@ -56,31 +80,94 @@ export function Sidebar({
           href="#/settings"
           aria-current={active === "settings" ? "page" : undefined}
         >
-          Settings
+          <span>Settings</span>
         </a>
-        <small>Local project workspace</small>
+        <small>
+          <i aria-hidden="true" />
+          Local workspace · changes are saved in the project
+        </small>
       </div>
     </aside>
+  );
+}
+function Notices({
+  notices,
+  dismiss,
+}: {
+  notices: readonly Notice[];
+  dismiss: (id: string) => void;
+}) {
+  if (!notices.length) return null;
+  return (
+    <div className="ws-notices" aria-label="Completed work">
+      {notices.map((n) => (
+        <div
+          key={n.id}
+          className={"ws-toast " + n.tone}
+          role="status"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              dismiss(n.id);
+            }
+          }}
+        >
+          <span>
+            <strong>{n.title}</strong> {n.text}
+          </span>
+          <a href={n.hash}>Open →</a>
+          <button
+            type="button"
+            aria-label={"Dismiss: " + n.title}
+            onClick={() => dismiss(n.id)}
+          >
+            Dismiss
+          </button>
+        </div>
+      ))}
+    </div>
   );
 }
 export function WorkspaceShell({
   client,
   state,
   status = "connected",
+  notices: initialNotices = [],
 }: {
   client: StudioClient;
   state: ProjectState;
   status?: ConnectionStatus;
+  /** Initial notices, for rendering tests. */
+  notices?: Notice[];
 }) {
-  const [route, setRoute] = useState(() =>
-    parseRoute(typeof location === "undefined" ? "" : location.hash),
-  );
+  const [shell, dispatch] = useReducer(shellReducer, initialNotices, (notices) => ({
+    route: parseRoute(typeof location === "undefined" ? "" : location.hash),
+    notices,
+  }));
+  const route = shell.route;
   const [drafts] = useState(() => new WorkspaceDrafts());
+  // The notification subscription outlives renders; it reads the latest names through a ref.
+  const context = useRef<NoticeContext>({ models: [], activeRun: null });
   useEffect(() => {
-    const update = () => setRoute(parseRoute(location.hash));
+    context.current = {
+      models: state.models,
+      activeRun: state.active_run
+        ? { attempt_id: state.active_run.key.attempt_id, model_id: state.active_run.model_id }
+        : null,
+    };
+  }, [state]);
+  useEffect(() => {
+    const update = () => dispatch({ type: "navigate", hash: location.hash });
     window.addEventListener("hashchange", update);
     return () => window.removeEventListener("hashchange", update);
   }, []);
+  useEffect(
+    () =>
+      client.subscribeNotifications((message) =>
+        dispatch({ type: "notification", message, context: context.current }),
+      ),
+    [client],
+  );
   useEffect(() => {
     if (route.page !== "model" || status !== "connected") return;
     for (const m of state.models)
@@ -92,6 +179,7 @@ export function WorkspaceShell({
   const connected = status === "connected";
   const model =
     route.page === "model" ? state.models.find((m) => m.id === route.id) : null;
+  const crumbs = routeCrumbs(route, state.models);
   return (
     <div className="project-workspace">
       <a
@@ -104,22 +192,31 @@ export function WorkspaceShell({
       >
         Skip to content
       </a>
-      <Sidebar name={state.name} route={route} />
+      <Sidebar
+        name={state.name}
+        route={route}
+        counts={{ models: state.models.length, runs: state.history.length }}
+      />
       <div className="ws-body">
         <header className="ws-topbar">
-          <span>
-            {state.name}{" "}
-            <span className="ws-muted">
-              /{" "}
-              {route.page === "model"
-                ? model?.name
-                : route.page === "run"
-                  ? "Run"
-                  : route.page}
-            </span>
-          </span>
+          <nav aria-label="Breadcrumb" className="ws-crumbs">
+            <ol>
+              <li>
+                <a href="#/overview">{state.name}</a>
+              </li>
+              {crumbs.map((c, i) => (
+                <li key={i} aria-current={i === crumbs.length - 1 ? "page" : undefined}>
+                  {c.hash && i < crumbs.length - 1 ? (
+                    <a href={c.hash}>{c.label}</a>
+                  ) : (
+                    <span>{c.label}</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </nav>
           <span className="ws-connection" role="status">
-            <i className={connected ? "online" : ""} />
+            <i className={connected ? "online" : ""} aria-hidden="true" />
             {status}
           </span>
         </header>
@@ -144,15 +241,17 @@ export function WorkspaceShell({
               : "Reconnecting. Drafts are retained; commands wait for authoritative state."}
           </div>
         )}
+        <Notices
+          notices={shell.notices}
+          dismiss={(id) => dispatch({ type: "dismiss", id })}
+        />
         <main id="workspace-content" className="ws-content" tabIndex={-1}>
           {route.page === "overview" && (
-            <>
-              <Overview state={state}>
-                {state.phase !== "ready" && (
-                  <Setup client={client} state={state} connected={connected} />
-                )}
-              </Overview>
-            </>
+            <Overview state={state}>
+              {state.phase !== "ready" && (
+                <Setup client={client} state={state} connected={connected} />
+              )}
+            </Overview>
           )}
           {route.page === "models" && (
             <Models client={client} state={state} connected={connected} />
@@ -168,9 +267,22 @@ export function WorkspaceShell({
                 connected={connected}
               />
             ) : (
-              <h1>Model no longer registered</h1>
+              <EmptyState
+                screen={{
+                  title: "Model no longer registered",
+                  text: "Its saved runs remain available in Runs.",
+                  link: { label: "Back to models", hash: "#/models" },
+                }}
+              />
             ))}
-          {route.page === "runs" && <RunsPage client={client} state={state} />}
+          {route.page === "runs" && (
+            <RunsPage
+              key={route.model ?? ""}
+              client={client}
+              state={state}
+              {...(route.model ? { modelId: route.model } : {})}
+            />
+          )}
           {route.page === "run" && (
             <RunPage
               key={route.attempt}
@@ -183,6 +295,7 @@ export function WorkspaceShell({
           {route.page === "settings" && (
             <>
               <div className="ws-page-heading">
+                <div className="ws-eyebrow">PROJECT SETTINGS</div>
                 <h1>Project settings</h1>
                 <p>Environment ownership and project setup.</p>
               </div>
@@ -190,30 +303,57 @@ export function WorkspaceShell({
                 <section className="ws-card">
                   <h2>Selected environment</h2>
                   <p>
-                    {state.environment.kind} ·{" "}
-                    {state.environment.id.slice(0, 12)}
+                    {state.environment.kind === "managed"
+                      ? "Managed by Studio"
+                      : "Existing interpreter"}{" "}
+                    · <code>{state.environment.interpreter}</code>
                   </p>
-                  <code>{state.environment.interpreter}</code>
+                  <Diagnostic
+                    lines={[
+                      "Generation " + state.environment.id,
+                      "State " + state.environment.state,
+                    ]}
+                  />
                 </section>
               )}
               <Setup client={client} state={state} connected={connected} />
             </>
           )}
           {route.page === "experiments" && (
-            <ExperimentsPage client={client} state={state} status={status} />
+            <ExperimentsPage
+              client={client}
+              state={state}
+              status={status}
+              {...(route.run ? { experimentRunId: route.run } : {})}
+            />
           )}
-          {["analyses", "presentations"].includes(route.page) && (
-            <div className="ws-page-heading">
-              <div className="ws-eyebrow">{route.page.toUpperCase()}</div>
-              <h1>{route.page[0]!.toUpperCase() + route.page.slice(1)}</h1>
-              <div className="ws-empty">
-                <h2>{"This workspace is not available yet"}</h2>
-                <p>
-                  {"Saved model runs and recordings remain available in Runs."}
-                </p>
-                <a href="#/models">Back to models →</a>
+          {route.page === "comparison" && (
+            <ComparisonPage client={client} state={state} selection={route.selection} />
+          )}
+          {route.page === "analyses" && (
+            <AnalysesPage
+              client={client}
+              state={state}
+              status={status}
+              {...(route.execution ? { executionId: route.execution } : {})}
+              {...(route.definition ? { registrationKey: route.definition } : {})}
+            />
+          )}
+          {route.page === "presentations" && (
+            <>
+              <div className="ws-page-heading">
+                <div className="ws-eyebrow">PRESENTATIONS</div>
+                <h1>Presentations</h1>
+                <p>Named views of selected full recordings and their evidence.</p>
               </div>
-            </div>
+              <EmptyState
+                screen={{
+                  title: "This workspace is not available yet",
+                  text: "Open a saved run to play, inspect and export its recording.",
+                  link: { label: "Browse runs", hash: routeHash({ page: "runs" }) },
+                }}
+              />
+            </>
           )}
         </main>
       </div>

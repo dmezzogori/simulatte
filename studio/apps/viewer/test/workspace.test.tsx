@@ -47,8 +47,9 @@ describe("project navigation and independent drafts", () => {
       "Presentations",
       "Settings",
     ])
-      expect(html).toContain(`>${name}</a>`);
+      expect(html).toContain(`<span>${name}</span>`);
     expect(html).not.toContain('role="tab"');
+    expect(html.match(/<a /g)!.length).toBe(8);
   });
   it("rejects malformed ownership or models in project state", () => {
     expect(() => validateProjectState({ models: [], history: [] })).toThrow();
