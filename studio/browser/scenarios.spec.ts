@@ -5,9 +5,10 @@
  * SIMULATTE_PLOT_PYTHON to an interpreter of a wheel install with the plot extras. */
 import { test, expect, type Page, type Locator } from "@playwright/test";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { cp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { ProjectFixture } from "./project-fixture";
 
@@ -19,6 +20,8 @@ const hash = (page: Page) => page.evaluate(() => location.hash);
 const capture = async (page: Page, engine: string, scenario: number, step: string) => {
   for (const [width, height] of [[1440, 900], [1280, 800]] as const) {
     await page.setViewportSize({ width, height });
+    // Let ResizeObserver and the canvas renderer finish adapting before the screenshot.
+    await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
     await page.screenshot({ path: join(evidence, `${engine}-scenario${scenario}-${step}-${width}x${height}.png`) });
   }
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -510,6 +513,21 @@ test("scenario 1 and 10: fresh install, missing folder, starter, environment, ru
       expect(refusal.stderr, reference).toContain(message);
       expect((await readdir(legacy)).sort(), reference).toEqual(before);
     }
+    // O2: missing layout is a named registration/key diagnostic, including in the recovery UI.
+    const invalid = join(fixture.directory, "invalid-registration");
+    await mkdir(invalid);
+    await writeFile(join(invalid, "pyproject.toml"), `[tool.simulatte.project]
+schema = 1
+id = "72bd0044-6952-4244-8683-15ba82ab8ab1"
+[tool.simulatte.models.production]
+id = "839bfc13-0d9a-455f-9fa9-08615ad6fb8b"
+name = "Production"
+entrypoint = "plant.py:build"
+`);
+    await page.goto(await fixture.launch(invalid));
+    await expect(page.getByRole("alert"), "O2: registration names model and missing layout key").toContainText("Model registration 'production' is missing required key 'layout'");
+    await capture(page, info.project.name, 1, "missing-layout");
+    await fixture.stop();
     // Scenario 10: a quiescent copy without the environment cache opens read-only, is rebuilt from
     // evidence with the documented snippet, and reopens with the same history.
     const copy = join(fixture.directory, "copied-plant");
@@ -519,6 +537,11 @@ test("scenario 1 and 10: fresh install, missing folder, starter, environment, ru
     await expect(page.getByRole("heading", { name: "Saved work is available" })).toBeVisible({ timeout: 60000 });
     await expect(page.getByRole("alert").filter({ hasText: "The project environment is incomplete" })).toContainText("Selected Studio runtime unavailable");
     await expect(page.getByText(/This session is read-only/)).toBeVisible();
+    const recovery = page.getByRole("alert").filter({ hasText: "The project environment is incomplete" });
+    await expect(recovery, "O1: read-only recovery points to retained-evidence reconstruction").toContainText("reconstruct the environment from its retained evidence");
+    await expect(recovery).toContainText("docs/studio/environments.md");
+    await expect(recovery).not.toContainText("repair the environment in Settings");
+    await capture(page, info.project.name, 10, "recovery-guidance");
     await page.getByRole("link", { name: "Starter run", exact: true }).click();
     await expect(page.locator(".ws-recording .status")).toHaveText("paused", { timeout: 60000 });
     await expect(page.getByRole("button", { name: "Save notes", exact: true })).toHaveCount(0);
@@ -671,7 +694,7 @@ test("scenario 3: broken model, missing plot packages, recovery viewer, environm
       await expect(page.getByRole("heading", { name: "Figures" })).toBeVisible({ timeout: 30000 });
       await expect(page.locator('[data-output="matplotlib_png"] img')).toBeVisible({ timeout: 60000 });
       await expect(page.locator('[data-output="seaborn_svg"] img')).toBeVisible();
-      await expect.soft(page.locator('[data-output="plotly_figure"]'), "B5: a default Plotly figure (template data includes choropleth) is refused").toHaveAttribute("data-figure", "rendered", { timeout: 60000 });
+      await expect(page.locator('[data-output="plotly_figure"]'), "B5: default-template Plotly figure renders without external tiles").toHaveAttribute("data-figure", "rendered", { timeout: 60000 });
       await capture(page, info.project.name, 3, "saved-figures-without-plot-packages");
       // Running the figure analysis here fails with a diagnostic that names the missing package.
       await page.goto(site + "/#/analyses/new/plots");
@@ -698,7 +721,10 @@ test("scenario 3: broken model, missing plot packages, recovery viewer, environm
     await page.goto(site + "/#/run/" + runs.figures.attempts[0]);
     await expect(page.locator(".ws-page-heading .ws-badge")).toHaveText("succeeded", { timeout: 30000 });
     await expect(page.locator("dt").filter({ hasText: /^Recording level$/ }).locator("+ dd")).toHaveText("kpi");
-    await expect.soft(page.locator(".ws-page-heading .ws-tag").first(), "B1: KPI-level run labelled as a full recording").not.toHaveText("Full recording");
+    await expect(page.locator(".ws-page-heading .ws-tag").first(), "B1: KPI-level run is numerical only").toHaveText("No recording");
+    await expect(page.getByRole("heading", { name: "No recording available" })).toBeVisible();
+    await expect(page.locator(".ws-content")).toContainText("Numerical outputs were kept without a recording. Analysis remains available.");
+    await expect(page.locator(".ws-recording")).toHaveCount(0);
     await fixture.stop();
     // Environment update during an active simulation and analysis; a failed update keeps the selection; restart waits.
     await writeFile(join(fixture.root, "models/production.py"), STUDY_MODEL.replace("delay: float = 0.0", "delay: float = 12.0"));
@@ -788,11 +814,11 @@ test("scenario 4: full recording with entity inspection, then a numerical-only r
     await expect(page.locator(".ws-page-heading .ws-badge")).toHaveText("succeeded", { timeout: 120000 });
     await expect(page.getByRole("heading", { name: "Run details" })).toBeVisible();
     await expect(page.locator("dt", { hasText: "Recording level" }).locator("+ dd")).toHaveText("kpi");
-    // Product defect B1 (run-page.tsx:343): a KPI-level run's KPI trace is labelled "Full recording".
-    await expect.soft(page.locator(".ws-page-heading .ws-tag").first(), "B1: KPI-level run labelled as a full recording").not.toHaveText("Full recording");
-    // The numerical outputs of the KPI-level trace stay inspectable.
-    await page.getByRole("tab", { name: "Recorded KPIs", exact: true }).click();
-    await expect(page.locator(".ws-recording")).toContainText(/lateness|utilization|makespan/);
+    await expect(page.locator(".ws-page-heading .ws-tag").first(), "B1: KPI-level run is numerical only").toHaveText("No recording");
+    await expect(page.getByRole("heading", { name: "No recording available" })).toBeVisible();
+    await expect(page.locator(".ws-content")).toContainText("Numerical outputs were kept without a recording. Analysis remains available.");
+    await expect(page.locator(".ws-recording")).toHaveCount(0);
+    // The KPI-level run remains available to numerical analysis, without the full-recording inspector.
     await capture(page, info.project.name, 4, "numerical");
     await page.goto(site + "/#/runs");
     await expect(page.getByRole("region", { name: "Interactive runs" })).toContainText("KPIs only");
@@ -835,22 +861,29 @@ test("scenarios 5, 6 and 7: lateness over populations, AGV utilization by family
     await expect(intervals.locator("tbody tr")).toHaveCount(2);
     await expect(intervals).toContainText("ok");
     // Warm-up handling is visible: the analysis names the inputs' warm-up (10) that excluded early jobs.
-    await expect.soft(page.locator(".ws-content"), "V2: the analysis page does not show the inputs' warm-up/observation window").toContainText(/warm-?up/i);
+    const observation = page.getByText("Observation window", { exact: true }).locator("+ dd");
+    await expect(observation, "V2: captured observation window is visible").toContainText("Run: warm-up 10, horizon 60 · 6 replications");
+    await expect(observation).toContainText("job_outcomes: window 10 to 60");
     await capture(page, info.project.name, 5, "lateness");
+    await observation.scrollIntoViewIfNeeded();
+    await capture(page, info.project.name, 5, "observation-window");
     // Scenario 6: AGV utilization by family with both named aggregations and the observation window.
     await admitAnalysis(page, site, "utilization", async (p) => { await p.getByLabel(/^fleet/).check(); }, "Fleet utilization");
     await expect(page.locator('[data-output="standard_mean_of_vehicle_fractions"]')).toBeVisible();
     await expect(page.locator('[data-output="standard_ratio_of_durations"]')).toBeVisible();
     await expect(page.locator('[data-output="standard_mean_of_vehicle_fractions"]')).toContainText(/fraction/);
     // The explicit aggregation and the observation window the analysis attached as output metadata.
-    await expect.soft(page.locator('[data-output="standard_mean_of_vehicle_fractions"]'), "V3: output metadata (convention, aggregation, window) is not shown on the number card").toContainText(/descriptive_within_run|window/);
+    const utilization = page.locator('[data-output="standard_mean_of_vehicle_fractions"]');
+    for (const qualifier of ["convention descriptive_within_run", "aggregation mean_of_vehicle_fractions", "population standard", "window start"])
+      await expect(utilization, "V3: number metadata names convention, aggregation, population and window").toContainText(qualifier);
+    await expect(page.getByText("Observation window", { exact: true }).locator("+ dd")).toContainText("Run: warm-up 10, horizon 100 · 4 replications");
     await expect(page.locator('[data-output="intervals_by_family"] tbody tr').first()).toBeVisible();
     await capture(page, info.project.name, 6, "utilization");
     // Scenario 7: a new post-run subset from retained attributes, then an unavailable field.
     await admitAnalysis(page, site, "subset", async (p) => { await p.getByLabel(/^policies/).check(); }, "Late jobs of family B", { "family (str)": "B", "late_after (float)": "0" });
     await expect(page.locator('[data-output="subset_status"]')).toContainText("available");
     await expect(page.locator('[data-output="subset_summary"] tbody tr')).toHaveCount(1);
-    await expect.soft(page.locator('[data-output="subset_summary"]'), "V4: a table output's population label is not shown").toContainText("late_in_family");
+    await expect(page.locator('[data-output="subset_summary"]'), "V4: table population label is visible").toContainText("late_in_family");
     await capture(page, info.project.name, 7, "subset");
     await page.goto(site + "/#/analyses/new/subset_priority");
     await page.getByLabel(/^policies/).check();
@@ -899,12 +932,12 @@ test("scenario 8: the same analysis through Python and Studio, figures reopened 
     await expect(page.getByRole("heading", { name: "Figures (Python)" })).toBeVisible({ timeout: 30000 });
     await expect(page.locator('[data-output="matplotlib_png"] img')).toBeVisible({ timeout: 60000 });
     await expect(page.locator('[data-output="seaborn_svg"] img')).toBeVisible();
-    await expect.soft(page.locator('[data-output="plotly_figure"]'), "B5: a default Plotly figure (template data includes choropleth) is refused").toHaveAttribute("data-figure", "rendered", { timeout: 60000 });
+    await expect(page.locator('[data-output="plotly_figure"]'), "B5: default-template Plotly figure renders without external tiles").toHaveAttribute("data-figure", "rendered", { timeout: 60000 });
     const requests: string[] = [];
     // blob: and data: URLs are the page's own in-memory objects, not network requests.
     page.on("request", (r) => { if (!/^(blob|data):/.test(r.url()) && !r.url().startsWith(site2)) requests.push(r.url()); });
     await page.reload();
-    await expect.soft(page.locator('[data-output="plotly_figure"]'), "B5: a default Plotly figure (template data includes choropleth) is refused").toHaveAttribute("data-figure", "rendered", { timeout: 60000 });
+    await expect(page.locator('[data-output="plotly_figure"]'), "B5: default-template Plotly figure renders without external tiles").toHaveAttribute("data-figure", "rendered", { timeout: 60000 });
     expect(requests).toEqual([]);
     await capture(page, info.project.name, 8, "figures-offline");
     await fixture.stop();
@@ -1068,7 +1101,22 @@ with RunStore.open(Path(sys.argv[1]) / '.simulatte') as store:
     print(json.dumps(out))
 `;
 
-test("scenario 9: presentation from a chosen configuration and seed, every §9 row in Studio, video and offline HTML", async ({ page, context, browserName }, info) => {
+/** WebKit's ephemeral contexts reject OPFS; match presentation.spec.ts for the export journey. */
+const persistent = test.extend({
+  page: async ({ playwright, browserName }, use) => {
+    const directory = await mkdtemp(join(tmpdir(), "simulatte-presentation-"));
+    const context = await playwright[browserName].launchPersistentContext(directory, { headless: true, viewport: { width: 1440, height: 1000 } });
+    try {
+      await use(context.pages()[0] ?? (await context.newPage()));
+    } finally {
+      await context.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+});
+
+persistent("scenario 9: presentation from a chosen configuration and seed, every §9 row in Studio, video and offline HTML", async ({ page, browserName }, info) => {
+  const context = page.context();
   test.setTimeout(1200000);
   const engine = info.project.name;
   const fixture = new Studio();
@@ -1090,7 +1138,11 @@ test("scenario 9: presentation from a chosen configuration and seed, every §9 r
     await page.goto(site + "/#/presentations");
     await expect(page.getByRole("heading", { name: "Record a run for presentation" })).toBeVisible({ timeout: 30000 });
     const recordAs = async (seedValue: string, mode: "replay" | "new_seed") => {
-      await page.getByLabel("Original run", { exact: true }).selectOption(study.attempt);
+      const original = page.getByLabel("Original run", { exact: true });
+      const chosen = original.locator("option").filter({ hasText: /^policy · three servers\/base · replication 0 · / });
+      await expect(chosen, "V5: experiment, configuration and replication identify the original run").toHaveCount(1, { timeout: 30000 });
+      await original.selectOption({ label: (await chosen.innerText()) });
+      await expect(page.getByText("Original seed 17", { exact: true })).toBeVisible();
       await page.getByLabel("Seed", { exact: true }).fill(seedValue);
       await page.getByRole("button", { name: "Preview differences", exact: true }).click();
       const diff = page.locator("[data-diff-mode]");
@@ -1175,7 +1227,7 @@ test("scenario 9: presentation from a chosen configuration and seed, every §9 r
     await expect(qualifiers).toContainText(/Lateness study · snapshot/);
     // Saved evidence values render in the editor (number, distribution, figure, image).
     for (const name of ["included_jobs", "lateness_distribution", "lateness_figure", "bars"])
-      await expect.soft(page.getByRole("region", { name, exact: true }).getByRole("alert"), `B4: ${name} evidence fails to load in Studio`).toHaveCount(0, { timeout: 15000 });
+      await expect(page.getByRole("region", { name, exact: true }).getByRole("alert"), `B4: ${name} evidence fails to load in Studio`).toHaveCount(0, { timeout: 15000 });
     const stage = page.locator(".pv-stage canvas");
     await expect(stage).toBeVisible();
     await stage.focus();
@@ -1196,7 +1248,7 @@ test("scenario 9: presentation from a chosen configuration and seed, every §9 r
     await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Three servers policy", { timeout: 30000 });
     await expect(page.getByLabel("Start", { exact: true })).toHaveValue("10");
     await expect(page.getByLabel("End", { exact: true })).toHaveValue("30");
-    await expect.soft(page.getByLabel("Rate", { exact: true }), `B2: saved rate not restored in the editor (store: ${savedRate})`).toHaveValue("2");
+    await expect(page.getByLabel("Rate", { exact: true }), `B2: saved rate not restored in the editor (store: ${savedRate})`).toHaveValue("2");
     await expect(page.getByLabel("Show every entity", { exact: true })).not.toBeChecked();
     await expect(page.locator("[data-camera]")).toHaveAttribute("data-camera", framing!);
     await stage.focus();
@@ -1210,6 +1262,10 @@ test("scenario 9: presentation from a chosen configuration and seed, every §9 r
     await expect(mode).toBeVisible();
     await expect(mode.getByRole("button", { name: "Exit presentation" })).toBeFocused();
     await expect(mode.locator(".pv-measurements")).toBeVisible({ timeout: 30000 });
+    // Wait for the saved frame, rather than capturing the blank loading stage.
+    await expect(mode.getByLabel("Current time", { exact: true })).toHaveText("t = 10", { timeout: 60000 });
+    await expect(mode.locator(".pv-clock dd")).toHaveText("10");
+    await expect(mode.locator(".pv-measurements dd").first()).toHaveText("7");
     await expect(mode).toContainText("Queues build after the warm-up");
     const aside = mode.getByRole("complementary", { name: "Supporting evidence" });
     await expect(aside).toContainText("3 of 4 replications · partial snapshot");
@@ -1217,7 +1273,7 @@ test("scenario 9: presentation from a chosen configuration and seed, every §9 r
     await expect(aside.locator('[data-evidence][data-kind="table"] table')).toBeVisible({ timeout: 30000 });
     await expect(aside.locator('[data-evidence][data-kind="figure"]')).not.toContainText("Figure refused", { timeout: 30000 });
     await expect(aside.getByRole("link", { name: "Open analysis →" })).toHaveCount(5);
-    await expect.soft(page.getByRole("navigation", { name: "Project navigation" }), "B3: workspace navigation stays exposed in presentation mode").toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: "Project navigation" }), "B3: workspace navigation stays exposed in presentation mode").toHaveCount(0);
     await capture(page, engine, 9, "present");
     await page.keyboard.press("Escape");
     await expect(mode).toHaveCount(0);
@@ -1225,6 +1281,16 @@ test("scenario 9: presentation from a chosen configuration and seed, every §9 r
 
     // Export: target previews at the actual size, an actionable refusal naming the item, static substitutions.
     await page.evaluate(() => Object.defineProperty(window, "showSaveFilePicker", { value: undefined }));
+    await page.evaluate(() => {
+      const texts: string[] = [];
+      (window as unknown as { scenarioExportText: string[] }).scenarioExportText = texts;
+      const draw = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, x, y, maxWidth) {
+        texts.push(text);
+        if (maxWidth === undefined) draw.call(this, text, x, y);
+        else draw.call(this, text, x, y, maxWidth);
+      };
+    });
     await page.locator("#pv-export-button").click();
     const dialog = page.getByRole("dialog", { name: /^Export presentation/ });
     await expect(dialog).toBeVisible({ timeout: 60000 });
@@ -1253,6 +1319,10 @@ test("scenario 9: presentation from a chosen configuration and seed, every §9 r
     await dialog.getByLabel("End time", { exact: true }).fill("11");
     await prepare();
     const pngHash = await ready();
+    const previewText = await page.evaluate(() => (window as unknown as { scenarioExportText: string[] }).scenarioExportText);
+    for (const quantile of ["q0.1:", "q0.5:", "q0.9:"])
+      expect(previewText.some((text) => text.startsWith(quantile)), "O3: video preview gives each quantile its own readable entry").toBe(true);
+    expect(previewText.some((text) => text.startsWith("quantiles:"))).toBe(false);
     const canvas = dialog.locator("figure.export-preview canvas");
     await expect(canvas).toHaveAttribute("width", "1920");
     await expect(canvas).toHaveAttribute("height", "1080");
@@ -1351,6 +1421,12 @@ test("scenario 9: presentation from a chosen configuration and seed, every §9 r
     await expect(panel).toContainText("Queues build after the warm-up");
     await expect(panel).toContainText("3 of 4 replications · partial snapshot");
     await expect(panel.locator("table")).toHaveCount(1);
+    for (const quantile of ["q0.1", "q0.5", "q0.9"]) {
+      const entry = panel.locator("dt").filter({ hasText: new RegExp(`^${quantile.replace(".", "\\.")}$`) });
+      await expect(entry, "O3: offline quantiles are individually labelled").toBeVisible();
+      await expect(entry.locator("+ dd")).toHaveText(/^-?\d+(\.\d+)?$/);
+    }
+    await expect(panel.locator("dt").filter({ hasText: /^quantiles$/ })).toHaveCount(0);
     await expect(panel.locator('img[src^="data:image/png"]')).toHaveCount(1);
     await expect(panel.locator('img[src^="data:image/svg+xml"]')).toHaveCount(1);
     await expect(panel.locator(".provenance")).toContainText("snapshot");
@@ -1366,6 +1442,12 @@ test("scenario 9: presentation from a chosen configuration and seed, every §9 r
     await expect(page.locator("footer output")).toContainText("t = 10");
     await capture(page, engine, 9, "offline-html");
     expect(requests).toEqual([]);
+    await writeFile(join(samples, `scenario9-${engine}-evidence.json`), JSON.stringify({
+      configuration: "three servers", originalSeed: "17", replay, fresh,
+      framing, savedRate: JSON.parse(savedRate), frameCount: Number(frames), pngHash,
+      previewQuantiles: previewText.filter((text) => /^q0\.[159]:/.test(text)), exports: state,
+      offlineRequests: requests,
+    }, null, 2) + "\n");
     await context.setOffline(false);
     if (browserName === "chromium") expect(errors).toEqual([]);
   } finally {
