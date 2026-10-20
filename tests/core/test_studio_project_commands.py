@@ -415,3 +415,100 @@ def test_project_experiment_list_names_the_selected_measurement_plan(tmp_path):
         assert "measurement_plan" not in listed["plain"]
     finally:
         service.close()
+
+
+def experiment_runs(store, count):
+    """``count`` experiment runs; pairs share a creation time so the id tie-break is exercised."""
+    from tests.execution.test_store_slots import DEFINITION, configurations, replications
+
+    for number in range(count):
+        identity = store.put_experiment({**DEFINITION, "name": f"sweep-{number}"})
+        run = store.create_experiment_run(identity, {}, configurations(), replications())
+        with store._transaction() as db:
+            db.execute("UPDATE experiment_runs SET created=? WHERE id=?", (1000.0 + number // 2, run))
+
+
+def test_experiment_list_pages_every_run_with_stable_cursors(tmp_path):
+    from types import SimpleNamespace
+    from simulatte.analysis.codec import to_json
+    from simulatte.execution import scheduler
+    from simulatte.studio.experiments import ExperimentCommands, with_measurement_plans
+    from tests.execution.test_store_slots import DEFINITION, configurations, replications
+
+    with RunStore.open(tmp_path / ".simulatte") as store:
+        experiment_runs(store, 25)
+        commands = ExperimentCommands(SimpleNamespace(store=store))
+        expected = with_measurement_plans(store, scheduler.runs(store, limit=100))
+        assert len(expected) == 25 and scheduler.runs(store) == expected[:20]
+        first = commands("experiment.list", {"limit": 10})
+        assert first["ok"] and first["items"] == expected[:10] and type(first["next_cursor"]) is str
+        # A run created between pages lands before the first page and leaves the cursor stable.
+        selection = {"schema": 1, "plan": "numbers", "selection": to_json({}), "definition_hash": "d" * 64}
+        identity = store.put_experiment({**DEFINITION, "name": "newest", "measurements": selection})
+        newest = store.create_experiment_run(identity, {}, configurations(), replications())
+        second = commands("experiment.list", {"cursor": first["next_cursor"], "limit": 10})
+        assert second["items"] == expected[10:20]
+        assert commands("experiment.list", {"cursor": first["next_cursor"], "limit": 10}) == second
+        third = commands("experiment.list", {"cursor": second["next_cursor"], "limit": 10})
+        assert third["items"] == expected[20:] and third["next_cursor"] is None
+        top = commands("experiment.list", {})
+        assert len(top["items"]) == 20 and top["items"][0]["run_id"] == newest
+        assert top["items"][0]["measurement_plan"] == "numbers"
+        assert top["items"] == with_measurement_plans(store, scheduler.runs(store))
+        # The 21st-newest run, beyond the snapshot's list, is reachable by id.
+        older = expected[20]
+        assert older["run_id"] not in {item["run_id"] for item in top["items"]}
+        assert commands("experiment.get", {"run_id": older["run_id"]}) == {"ok": True, "run": older}
+        for body in (
+            {"limit": 0},
+            {"limit": 101},
+            {"limit": "10"},
+            {"limit": True},
+            {"cursor": "nonsense"},
+            {"cursor": 3},
+            {"extra": 1},
+        ):
+            with pytest.raises(ValueError):
+                commands("experiment.list", body)
+        assert len(commands("experiment.list", {"limit": 100})["items"]) == 26
+        with pytest.raises(KeyError):
+            commands("experiment.get", {"run_id": "0" * 64})
+        with pytest.raises(ValueError):
+            commands("experiment.get", {"run_id": "x"})
+
+
+def test_experiment_list_and_get_on_a_read_only_project(tmp_path):
+    from simulatte.execution import scheduler
+    from simulatte.studio.project_commands import ProjectServer
+    from simulatte.studio.websocket import EXPERIMENT_COMMANDS, decode_message
+
+    with RunStore.open(tmp_path / ".simulatte") as store:
+        experiment_runs(store, 23)
+        expected = scheduler.runs(store, limit=100)
+    service = api().ProjectService.open(StudioTarget(tmp_path, None), read_only=True)
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "manifest.json").write_text('{"assets":{}}')
+    server = ProjectServer(service, 8123, static)
+    try:
+        assert service.reader is not None and service.store is None
+        assert {"experiment.list", "experiment.get"} <= EXPERIMENT_COMMANDS
+        for kind in ("experiment.list", "experiment.get"):
+            # Experiment commands need no revision in their envelope.
+            decode_message(json.dumps({"v": 1, "type": kind, "id": "c1", "body": {}}))
+
+        def command(kind, body):
+            return asyncio.run(server.command({"type": kind, "body": body}, None))
+
+        assert len(server.snapshot()["experiments"]) == 20
+        page = command("experiment.list", {"limit": 20})
+        assert page["ok"] and page["items"] == expected[:20]
+        rest = command("experiment.list", {"cursor": page["next_cursor"]})
+        assert rest == {"ok": True, "items": expected[20:], "next_cursor": None}
+        assert command("experiment.get", {"run_id": expected[22]["run_id"]}) == {"ok": True, "run": expected[22]}
+        missing = command("experiment.get", {"run_id": "0" * 64})
+        assert missing["ok"] is False and missing["error"]["code"] == "failed"
+        refused = command("experiment.list", {"limit": 101})
+        assert refused["ok"] is False and "limit" in refused["error"]["message"]
+    finally:
+        service.close()

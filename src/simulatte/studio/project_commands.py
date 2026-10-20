@@ -223,7 +223,7 @@ class ProjectServer(StudioServer):
                 ).fetchone()
                 run["layout"] = None if view is None else self.references.put(_read(view[0]))
             return {"ok": True, "run": run}
-        if kind in ("comparison.get", "series.get"):
+        if kind in ("comparison.get", "series.get", "experiment.list", "experiment.get"):
             from simulatte.studio.experiments import ExperimentCommands
 
             store = service.store or service.reader
