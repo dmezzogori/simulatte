@@ -462,9 +462,7 @@ test("insufficientObservationsAndMissingRenderer", async ({ page }) => {
     await expect(page.locator('[data-output="old"] iframe')).toHaveCount(0);
     await expect(page.locator('[data-output="total"] .af-value')).toContainText("32");
     await expect(page.locator('[data-output="figure"]')).toHaveAttribute("data-figure", "rendered", { timeout: 60000 });
-    // Known gap owned by the analyses page (workspace/analyses.tsx): the annotation button is disabled
-    // without a reason while the field is empty. Listed here so the audit stays strict for everything else.
-    await clean("renderer mismatch", ['<button type="submit" disabled="">Add annotation</button>']);
+    await clean("renderer mismatch");
     expect(errors).toEqual([]);
   } finally {
     await fixture.close();

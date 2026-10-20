@@ -10,6 +10,7 @@ import {
   PACKAGED_PLOTLY_VERSION,
 } from "../src/artifacts/figure-frame";
 import type { ArtifactSource, OutputDescriptor, OutputManifest } from "../src/artifacts/types";
+import { annotationDisabled } from "../src/workspace/analyses";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -188,5 +189,15 @@ describe("figure isolation", () => {
     expect(acceptsFrameMessage({ source: frame, data: { v: 2, nonce, type: "ready" } }, nonce, frame)).toBeNull();
     expect(acceptsFrameMessage({ source: frame, data: "ready" }, nonce, frame)).toBeNull();
     expect(acceptsFrameMessage({ source: frame, data: { v: 1, nonce, type: "ready" } }, nonce, null)).toBeNull();
+  });
+});
+
+describe("analysis annotations", () => {
+  it("never disables Add annotation without a reason", () => {
+    expect(annotationDisabled("", "", "")).toEqual({ disabled: true, title: "Type an annotation first" });
+    expect(annotationDisabled("", "", "   ")).toEqual({ disabled: true, title: "Type an annotation first" });
+    expect(annotationDisabled("", "", "first look")).toEqual({});
+    expect(annotationDisabled("Saving note…", "", "first look")).toMatchObject({ disabled: true, title: expect.stringContaining("Working") });
+    expect(annotationDisabled("", "This project is open read-only", "x")).toEqual({ disabled: true, title: "This project is open read-only" });
   });
 });
