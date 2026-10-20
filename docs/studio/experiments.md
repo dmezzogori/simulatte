@@ -33,8 +33,10 @@ level and run on the local slots. Remote workers show name, host and slot count,
 credentials, and each slot's state: `idle`, `backoff` after an unreachable worker, or the
 status of its last attempt.
 
-The runs table lists the newest 20 runs with their state and replication counts. Each
-run offers exactly the controls its state allows, and the footnote says what each sends:
+The runs table lists the newest runs first with their state and replication counts;
+**Load older experiment runs** pages through the rest, and a bookmarked run opens from its
+address even when it is no longer among the newest. Each run offers exactly the controls its
+state allows, and the footnote says what each sends:
 
 | State | Controls | What happens |
 | --- | --- | --- |

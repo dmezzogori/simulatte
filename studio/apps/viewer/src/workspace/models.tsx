@@ -193,6 +193,11 @@ export function runBody(
     measurements: plan ? { plan } : null,
   };
 }
+/** The remembered choice only if the model still declares it; a plan that vanished after a
+ * re-prepare falls back to "None — KPIs only", so the request never names an unknown plan. */
+export function declaredPlan(remembered: string, plans: readonly DeclaredPlan[]): string {
+  return plans.some((p) => p.name === remembered) ? remembered : "";
+}
 /** The plan chosen per model survives navigation within the session; it is not a server input. */
 const chosenPlans = new Map<string, string>();
 const STOPPING_UNITS: Record<string, string> = {
@@ -215,7 +220,7 @@ export function ModelPage({
   connected: boolean;
 }) {
   const [, redraw] = useState(0),
-    [plan, setPlan] = useState(() => chosenPlans.get(model.id) ?? ""),
+    [remembered, setRemembered] = useState(() => chosenPlans.get(model.id) ?? ""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [blocked, setBlocked] = useState<{
@@ -228,6 +233,8 @@ export function ModelPage({
     meta = model.metadata?.models.find(
       (m) => m.name === model.metadata?.selected,
     );
+  const plans = meta ? plansOf(meta) : [];
+  const plan = declaredPlan(remembered, plans);
   const enabled = connected && !state.read_only && !busy;
   const blockedReason = disabledWhen(!connected && NOT_CONNECTED, state.read_only && READ_ONLY, busy && WORKING).title;
   const edit = (patch: Record<string, unknown>) => {
@@ -309,10 +316,9 @@ export function ModelPage({
   };
   const stopping = (draft?.options.stopping ?? {}) as Record<string, unknown>;
   const level = String(draft?.options.level ?? "full");
-  const plans = meta ? plansOf(meta) : [];
   const choosePlan = (name: string) => {
     chosenPlans.set(model.id, name);
-    setPlan(name);
+    setRemembered(name);
   };
   const issues = model.inputs ? Object.entries(model.inputs.issues) : [];
   return (

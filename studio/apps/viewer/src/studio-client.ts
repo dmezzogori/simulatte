@@ -27,8 +27,8 @@ export interface StudioState {
   workers?: WorkerPool;
   replays?: ReplayEntry[];
 }
-/** Newest experiment runs (at most 20) with replication counts per state. */
-export interface ExperimentRun {run_id: string; experiment_id: string; name: string; status: string; created: number; counts: Record<string, number>;}
+/** An experiment run summary: the state lists the newest 20; ``experiment.list`` pages the rest and ``experiment.get`` fetches one. */
+export interface ExperimentRun {run_id: string; experiment_id: string; name: string; status: string; created: number; counts: Record<string, number>; measurement_plan?: string;}
 export interface WorkerSlot {name: string; kind: string; worker: string | null; state: string; attempt: string | null; last_status: string | null; last_code: string | null;}
 export interface WorkerPool {local: number; workers: {name: string; host: string; slots: number}[]; slots: WorkerSlot[]; error: string | null;}
 export interface ReplayEntry {request_id: string; original: string; status: string; verified: boolean | null; reason: string | null; key: AttemptKey | null; trace: Prefix | null;}
@@ -48,7 +48,7 @@ export interface ExperimentReport {
 /** One recording of a ``series.get`` response; points are ``[t, seq, value]``, bounded per key. */
 export interface SeriesEntry {attempt: string; series: Record<string, {points: [number, number, number | null][]; truncated: boolean}>;}
 /** Experiment commands fence on run ids and store state; their revision may be omitted. */
-export type ExperimentCommand = 'experiment.define' | 'experiment.start' | 'experiment.cancel' | 'experiment.resume' | 'experiment.delete' | 'comparison.get' | 'series.get' | 'replay.start' | 'workers.get';
+export type ExperimentCommand = 'experiment.define' | 'experiment.start' | 'experiment.cancel' | 'experiment.resume' | 'experiment.delete' | 'experiment.list' | 'experiment.get' | 'comparison.get' | 'series.get' | 'replay.start' | 'workers.get';
 /** Analysis commands are project-fenced like other project commands and accept ``revision: null``. */
 export type AnalysisCommand = 'analysis.list' | 'analysis.get' | 'analysis.preview' | 'analysis.admit' | 'analysis.cancel' | 'analysis.rerun' | 'analysis.refresh' | 'analysis.annotate';
 export type ProjectCommand = 'project.get' | 'project.configure' | 'model.prepare' | 'environment.prepare' | 'environment.select' | 'history.get' | 'history.annotate' | 'run.get' | 'run.stop_and_run' | 'model.auto' | AnalysisCommand;

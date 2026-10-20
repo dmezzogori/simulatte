@@ -62,7 +62,56 @@ interface Metadata {
   selected: string;
   models: { name: string; parameters: ParameterSchema; measurement_plans?: { name: string; datasets?: { name: string; fields?: { name: string }[] }[] }[] }[];
 }
-const planOf = (run: ExperimentRun) => (run as ExperimentRun & { measurement_plan?: string }).measurement_plan;
+const planOf = (run: ExperimentRun) => run.measurement_plan;
+export type ExperimentListFetch = (cursor: string | null) => Promise<{ items: ExperimentRun[]; next_cursor: string | null }>;
+/** Older experiment runs behind the state's newest-20 listing, paged through ``experiment.list``
+ * with the server's keyset cursor. The listing stays authoritative for the runs it holds. */
+export class ExperimentPaging {
+  #older: ExperimentRun[] = [];
+  #ids = new Set<string>();
+  cursor: string | null = null;
+  started = false;
+  constructor(private readonly fetch: ExperimentListFetch) {}
+  get hasMore(): boolean {
+    return !this.started || this.cursor !== null;
+  }
+  /** Fetches pages until one adds a run the listing does not hold (the first page repeats it) or the cursor ends.
+   * Every fetched run is kept, so a run the listing drops later (a newer run arrived) stays reachable. */
+  async loadMore(listed: readonly ExperimentRun[]): Promise<number> {
+    const shown = new Set(listed.map((r) => r.run_id));
+    let added = 0;
+    for (let i = 0; i < 5 && added === 0 && this.hasMore; i++) {
+      const page = await this.fetch(this.started ? this.cursor : null);
+      this.started = true;
+      for (const run of page.items)
+        if (!this.#ids.has(run.run_id)) {
+          this.#ids.add(run.run_id);
+          this.#older.push(run);
+          if (!shown.has(run.run_id)) added++;
+        }
+      this.cursor = page.next_cursor;
+    }
+    return added;
+  }
+  /** Replace an older run's summary in place (an ``experiment_state`` notification). */
+  update(run: ExperimentRun): void {
+    this.#older = this.#older.map((r) => (r.run_id === run.run_id ? run : r));
+  }
+  /** The listing first, then loaded older runs it does not hold; never a duplicate id. */
+  merge(listed: readonly ExperimentRun[]): ExperimentRun[] {
+    const ids = new Set(listed.map((r) => r.run_id));
+    return [...listed, ...this.#older.filter((r) => !ids.has(r.run_id))];
+  }
+}
+/** The run a route names: from the listing when present, else the copy ``experiment.get`` fetched for that id. */
+export function resolveRun(
+  runId: string | undefined,
+  listed: readonly ExperimentRun[],
+  fetched: ExperimentRun | null,
+): ExperimentRun | undefined {
+  if (!runId) return undefined;
+  return listed.find((r) => r.run_id === runId) ?? (fetched?.run_id === runId ? fetched : undefined);
+}
 export function ExperimentsPage({
   client,
   state,
@@ -83,8 +132,20 @@ export function ExperimentsPage({
     [level, setLevel] = useState(""),
     [metadata, setMetadata] = useState<{ id: string; value: Metadata } | null>(null),
     [pending, setPending] = useState<ExperimentAction | null>(null),
+    [older, setOlder] = useState(0),
+    [loadingOlder, setLoadingOlder] = useState(false),
+    [olderError, setOlderError] = useState(""),
+    [fetched, setFetched] = useState<{ id: string; run: ExperimentRun | null; error: string } | null>(null),
     [baseline, setBaseline] = useState(() => new Map(state.models.map((m) => [m.id, m.revision?.number ?? 0])));
   const model = state.models.find((m) => m.id === id) ?? state.models[0];
+  const [paging] = useState(
+    () =>
+      new ExperimentPaging(async (cursor) => {
+        const r = await client.command("experiment.list", { ...(cursor ? { cursor } : {}), limit: 20 });
+        if (!r.ok) throw new Error((r.error as { message?: string })?.message ?? "Listing failed");
+        return { items: r.items as ExperimentRun[], next_cursor: r.next_cursor as string | null };
+      }),
+  );
   const [feed] = useState(() => new ExperimentFeed((ref) => client.reference(ref)));
   const [replays] = useState(() => new ReplayNotifications((ref) => client.reference(ref)));
   const live = useSyncExternalStore(feed.subscribe, feed.snapshot, feed.snapshot);
@@ -96,6 +157,14 @@ export function ExperimentsPage({
     const unnotify = client.subscribeNotifications((message) => {
       feed.notification(message);
       replays.notification(message);
+      if (message.type === "experiment_state" && message.body && typeof message.body === "object") {
+        const run = message.body as ExperimentRun;
+        if (typeof run.run_id === "string" && typeof run.status === "string" && run.status !== "deleted") {
+          paging.update(run);
+          setFetched((old) => (old && old.run?.run_id === run.run_id ? { ...old, run: { ...old.run, ...run } } : old));
+          setOlder((n) => n + 1);
+        }
+      }
     });
     const unstate = client.subscribeState(reconcile);
     if (client.state) reconcile(client.state, client.stateArrival);
@@ -138,7 +207,40 @@ export function ExperimentsPage({
   );
   const connected = status === "connected" && !state.read_only;
   const blocked = disabledWhen(status !== "connected" && NOT_CONNECTED, state.read_only && READ_ONLY, busy && WORKING).title;
-  const runs: ExperimentRun[] = (client.state?.experiments ?? []) as ExperimentRun[];
+  const listed: ExperimentRun[] = (client.state?.experiments ?? []) as ExperimentRun[];
+  const runs = paging.merge(listed);
+  void older;
+  const loadOlder = async () => {
+    setLoadingOlder(true);
+    setOlderError("");
+    try {
+      await paging.loadMore(listed);
+      setOlder((n) => n + 1);
+    } catch (e) {
+      setOlderError(String(e));
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
+  // A bookmarked run that is not among the listed ones is fetched on its own.
+  const missing = experimentRunId !== undefined && !runs.some((r) => r.run_id === experimentRunId);
+  useEffect(() => {
+    if (!missing || status !== "connected" || fetched?.id === experimentRunId) return;
+    let closed = false;
+    void client
+      .command("experiment.get", { ...(model ? { model_id: model.id } : {}), run_id: experimentRunId })
+      .then((r) => {
+        if (closed) return;
+        if (!r.ok) throw new Error((r.error as { message?: string })?.message ?? "Experiment run not found");
+        setFetched({ id: experimentRunId!, run: r.run as ExperimentRun, error: "" });
+      })
+      .catch((e) => {
+        if (!closed) setFetched({ id: experimentRunId!, run: null, error: String(e) });
+      });
+    return () => {
+      closed = true;
+    };
+  }, [client, experimentRunId, missing, status]);
   const files = [...new Set([...(model?.experiment_files ?? []), ...saved])].sort();
   const pool = live.workers ?? client.state?.workers ?? null;
   const prepared = metadata?.id === reference?.id ? metadata?.value.models.find((m) => m.name === metadata.value.selected) : undefined;
@@ -179,7 +281,7 @@ export function ExperimentsPage({
       command: "experiment.start",
       body: { path, ...(workers.length ? { workers } : {}), ...(level ? { level } : {}) },
     });
-  const selected = experimentRunId ? runs.find((r) => r.run_id === experimentRunId) : undefined;
+  const selected = resolveRun(experimentRunId, runs, fetched && fetched.id === experimentRunId ? fetched.run : null);
   const heading = selected ? (
     <div className="ws-page-heading">
       <div>
@@ -218,11 +320,23 @@ export function ExperimentsPage({
   return (
     <>
       {heading}
-      {experimentRunId && !selected && (
+      {experimentRunId && !selected && fetched?.id === experimentRunId && fetched.error && (
+        <FailureNotice
+          message={fetched.error}
+          retry={{ label: "Try again", invoke: () => setFetched(null) }}
+        />
+      )}
+      {experimentRunId && !selected && !(fetched?.id === experimentRunId && fetched.error) && (
+        <div className="ws-state ws-loading-state" role="status" aria-busy="true">
+          <span className="ws-spinner" aria-hidden="true" />
+          <p>Loading the experiment run…</p>
+        </div>
+      )}
+      {experimentRunId && !selected && fetched?.id === experimentRunId && fetched.error && (
         <EmptyState
           screen={{
-            title: "Experiment run not listed",
-            text: "It is not among the newest experiment runs, or it was deleted. Its address stays valid for bookmarks.",
+            title: "Experiment run not found",
+            text: "It may have been deleted. Its address stays valid for bookmarks of runs that still exist.",
             link: { label: "All experiments", hash: "#/experiments" },
           }}
         />
@@ -246,7 +360,7 @@ export function ExperimentsPage({
           <section className="ws-card">
             <div className="ws-section-heading">
               <h2>Experiment runs</h2>
-              <span className="ws-hint">Newest 20 · results stay in the project</span>
+              <span className="ws-hint">Newest first · results stay in the project</span>
             </div>
             {runs.length ? (
               <div className="ws-table-wrap">
@@ -287,6 +401,16 @@ export function ExperimentsPage({
                     ))}
                   </tbody>
                 </table>
+                <div className="ws-actions">
+                  {paging.hasMore ? (
+                    <button type="button" {...disabledWhen(loadingOlder && "Loading older runs…", status !== "connected" && NOT_CONNECTED)} onClick={() => void loadOlder()}>
+                      Load older experiment runs
+                    </button>
+                  ) : (
+                    <small className="ws-note">All {runs.length} experiment runs loaded.</small>
+                  )}
+                  {olderError && <small role="alert">{olderError}</small>}
+                </div>
                 <details className="ws-footnote">
                   <summary>Experiments ({runs.length}) · what the controls send</summary>
                   <p>
