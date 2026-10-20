@@ -11,6 +11,7 @@ import { Scene } from "@simulatte/scene";
 import type { RecordingView, LayoutBundle } from "@simulatte/trace";
 import { frameSchedule } from "./index";
 import type { Destination, ExportFile } from "./sink";
+import { animationArea, renderPresentationFrame, type ExportSnapshot, type PresentationScene } from "./presentation";
 export const PNG_FRAME_LIMIT = 10000;
 export interface MediaOptions {
   start: number;
@@ -98,9 +99,13 @@ export async function exportMedia(
   signal: AbortSignal,
   progress: (frame: number, total: number) => void,
   presentation: LayoutBundle | null = null,
+  snapshot: ExportSnapshot | null = null,
 ): Promise<ExportFile> {
-  const session = new Session(recording, presentation),
-    scene = new Scene();
+  // A presentation snapshot pins the layout, the selected series and the framing of every frame.
+  const session = new Session(recording, snapshot ? snapshot.manifest.layout : presentation),
+    scene = new Scene() as PresentationScene;
+  if (snapshot) session.setSeries(snapshot.manifest.measurements);
+  const area = snapshot ? animationArea(options.width, options.height, snapshot.options.panel) : { width: options.width, height: options.height, panelWidth: 0 };
   const callerSignal = signal,
     lifetime = new AbortController();
   const cancel = () => lifetime.abort(callerSignal.reason);
@@ -124,7 +129,7 @@ export async function exportMedia(
       );
     const codec = await codecFor(options);
     signal.throwIfAborted();
-    await scene.init(host, options.width, options.height);
+    await scene.init(host, area.width, area.height);
     signal.throwIfAborted();
     scene.app.renderer.background.color = options.background;
     const canvas =
@@ -194,17 +199,24 @@ export async function exportMedia(
     for (let i = 0; i < schedule.count; i++) {
       signal.throwIfAborted();
       const frame = schedule.frame(i);
-      scene.render(
-        await session.prepare(
-          { mode: "continuous", time: frame.time, cursor: null },
-          signal,
-        ),
-        { transferClock: i, transferLifetime: 6 },
+      const prepared = await session.prepare(
+        { mode: "continuous", time: frame.time, cursor: null },
+        signal,
       );
+      if (snapshot) {
+        await renderPresentationFrame(snapshot, frame.time, context, scene, session, {
+          frame: prepared,
+          transferClock: i,
+          transferLifetime: 6,
+          background: options.background,
+        });
+      } else {
+        scene.render(prepared, { transferClock: i, transferLifetime: 6 });
+        context.fillStyle = options.background;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(scene.canvas, 0, 0);
+      }
       signal.throwIfAborted();
-      context.fillStyle = options.background;
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(scene.canvas, 0, 0);
       if (options.overlays) {
         context.fillStyle = "#172b23";
         context.font = `${Math.max(14, options.width / 80)}px system-ui`;
