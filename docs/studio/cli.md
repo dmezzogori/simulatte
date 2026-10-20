@@ -47,7 +47,7 @@ simulatte studio [model] [--project PROJECT] [--port PORT] [--no-browser] [--lay
 ```
 
 `model` is a folder, `MODEL.py` or `MODEL.py:build_name`. An explicit missing folder is
-created; a missing `MODEL.py:build_name` file is an error and creates nothing.
+created; a missing `MODEL.py` or `MODEL.py:build_name` file is an error and creates nothing.
 Opening a project never starts a simulation or imports a model.
 
 | Option | Meaning |
