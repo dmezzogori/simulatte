@@ -109,9 +109,15 @@ export function acceptsFrameMessage(
   if (data.v !== 1 || data.nonce !== nonce || typeof data.type !== "string") return null;
   return { type: data.type, data };
 }
-function pngBlob(dataUrl: unknown): Blob | null {
+/** The PNG the frame returned, or ``null`` for anything that is not a well-formed PNG data URL. */
+export function pngBlob(dataUrl: unknown): Blob | null {
   if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/png;base64,")) return null;
-  const binary = atob(dataUrl.slice("data:image/png;base64,".length));
+  let binary: string;
+  try {
+    binary = atob(dataUrl.slice("data:image/png;base64,".length));
+  } catch {
+    return null;
+  }
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return new Blob([bytes], { type: "image/png" });
@@ -153,7 +159,7 @@ export function FigureFrame({
           setExporting(false);
           const blob = pngBlob(accepted.data.data);
           if (blob) downloadBlob(blob, name + ".png");
-          else setMessage("The renderer returned no PNG");
+          else setMessage("The renderer returned no readable PNG");
           break;
         }
       }

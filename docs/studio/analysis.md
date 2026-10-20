@@ -79,8 +79,9 @@ annotation. Every saved execution has a stable address, `#/analyses/<execution i
 ### Admit a new analysis
 
 `#/analyses/new/<key>` selects inputs explicitly; nothing is selected by default and
-there is no latest-run shortcut. Tick experiment runs (the newest 20, with their
-status and replication counts), optionally restrict them to configurations, tick
+there is no latest-run shortcut. Tick experiment runs (the newest 20 first; **Load
+older experiment runs** pages the rest, with their status and replication counts),
+optionally restrict them to configurations, tick
 completed runs with results, and set the completeness policy (**Require complete
 inputs**, **Minimum replications**). **Preview inputs** takes a dry-run snapshot and
 shows the available, planned and missing replication counts, the snapshot identity

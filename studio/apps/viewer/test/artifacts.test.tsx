@@ -7,6 +7,7 @@ import {
   rendererState,
   acceptsFrameMessage,
   frameUrl,
+  pngBlob,
   PACKAGED_PLOTLY_VERSION,
 } from "../src/artifacts/figure-frame";
 import type { ArtifactSource, OutputDescriptor, OutputManifest } from "../src/artifacts/types";
@@ -199,5 +200,17 @@ describe("analysis annotations", () => {
     expect(annotationDisabled("", "", "first look")).toEqual({});
     expect(annotationDisabled("Saving note…", "", "first look")).toMatchObject({ disabled: true, title: expect.stringContaining("Working") });
     expect(annotationDisabled("", "This project is open read-only", "x")).toEqual({ disabled: true, title: "This project is open read-only" });
+  });
+});
+
+describe("frame PNG export", () => {
+  it("decodes a PNG data URL and refuses malformed ones without throwing", () => {
+    const png = pngBlob("data:image/png;base64,iVBORw0KGgo=");
+    expect(png?.type).toBe("image/png");
+    expect(png?.size).toBe(8);
+    expect(pngBlob("data:image/png;base64,%%%not-base64%%%")).toBeNull();
+    expect(pngBlob("data:text/html;base64,PHNjcmlwdD4=")).toBeNull();
+    expect(pngBlob(42)).toBeNull();
+    expect(pngBlob("https://example.com/x.png")).toBeNull();
   });
 });

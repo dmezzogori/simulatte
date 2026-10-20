@@ -100,10 +100,16 @@ with RunStore.open(root / '.simulatte') as store:
         run = store.create_experiment_run(store.put_experiment(definition), {}, configurations, replications)
         (root / 'run.txt').write_text(run)
     run = (root / 'run.txt').read_text()
+    if mode == 'fillers':
+        for n in range(first, last):
+            definition = {'schema': 1, 'name': f'filler {n:02d}', 'model': 'plant.py:build', 'replications': {'count': 1, 'base_seed': 1000 + n}}
+            store.create_experiment_run(store.put_experiment(definition), {}, [{'label': 'x=1/base', 'parameters': {'x': 1.0}, 'layout_hash': 'c'*64, 'layout_ref': None}],
+                [{'configuration': 0, 'index': 0, 'seed': 1000 + n, 'content_ids': [schema.content_id(request(1000 + n))]}])
     if mode == 'publish':
         store.set_run_status(run, 'running')  # Studio paused the run at shutdown; the experiment resumes
-    for i in range(first, last):
-        publish(store, run, i)
+    if mode in ('seed', 'publish'):
+        for i in range(first, last):
+            publish(store, run, i)
 if mode == 'seed':
     service = ProjectService.open(StudioTarget(root, None))
     try:
@@ -161,10 +167,12 @@ const capture = async (page: Page, engine: string, step: string) => {
     await page.screenshot({ path: join(evidence, `${engine}-${step}-${width}x${height}.png`) });
   }
 };
+/** Page errors always count; console errors too, except the browser's own note about the websocket while Studio is deliberately stopped. */
+const RECONNECT = /establish a connection to the server at ws:|WebSocket connection to 'ws:.*' failed|Could not connect to the server/;
 const watch = (page: Page, errors: string[]) => {
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
+    if (message.type() === "error" && !RECONNECT.test(message.text())) errors.push(message.text());
   });
 };
 
@@ -399,6 +407,39 @@ test("eightOfTwentyFourJourney", async ({ page }, info) => {
     await expect(refusal).toContainText("never substitutes synthetic values");
     await expect(refusal.getByRole("link", { name: "Define a revised experiment →" })).toHaveAttribute("href", "#/experiments");
     await expect(page.locator("[data-preview]")).toHaveCount(0);
+    expect(errors).toEqual([]);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("olderExperimentRunsSelectable", async ({ page }) => {
+  test.setTimeout(240000);
+  const fixture = new ProjectFixture();
+  const errors: string[] = [];
+  watch(page, errors);
+  try {
+    await seed(fixture);
+    // 24 newer runs push the seeded "sweep" run beyond the newest 20 the state carries.
+    python(fixture, SEED, "fillers", "0", "24");
+    await open(page, fixture, "#/analyses/new/report");
+    await expect(page.getByRole("heading", { name: "New analysis: Report" })).toBeVisible();
+    const group = page.getByRole("group", { name: "Experiment runs" });
+    await expect(group.getByRole("checkbox")).toHaveCount(20);
+    await expect(group.getByLabel(/^sweep/)).toHaveCount(0);
+    await group.getByRole("button", { name: "Load older experiment runs" }).click();
+    await expect(group.getByRole("checkbox")).toHaveCount(25);
+    await expect(group.getByRole("button", { name: "Load older experiment runs" })).toHaveCount(0);
+    const names = await group
+      .getByRole("checkbox")
+      .evaluateAll((nodes) => nodes.map((n) => (n.closest("label") as HTMLElement).innerText.split("\n")[0]));
+    expect(new Set(names).size).toBe(25);
+    expect(names[names.length - 1]).toBe("sweep");
+    await group.getByLabel(/^sweep/).check();
+    await page.getByRole("button", { name: "Preview inputs" }).click();
+    const preview = page.locator("[data-preview]");
+    await expect(preview).toBeVisible({ timeout: 60000 });
+    await expect(preview).toContainText("8 of 24 replications · partial");
     expect(errors).toEqual([]);
   } finally {
     await fixture.close();
