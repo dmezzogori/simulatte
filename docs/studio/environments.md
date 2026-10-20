@@ -32,7 +32,7 @@ or prepare a managed generation for an explicit update.
 
 Interpreter paths are machine-specific store evidence, not authored project model
 paths. Do not commit credentials or machine-specific worker configuration into the
-project. [Remote worker configuration](../guides/experiments.md) remains user-owned.
+project. [Remote worker configuration](../guides/remote-workers.md) remains user-owned.
 
 ## Saved-work recovery
 
@@ -84,3 +84,7 @@ recordings remain readable in recovery. Unsupported launcher/evidence formats al
 refuse rather than falling back to a weaker identity. Native platform verification
 and review status are recorded in
 `specs/research/2026-10-19-studio-p1-acceptance.md` in the repository.
+
+Moving a project to another machine, and the difference between offline viewing and
+execution verification, are described in
+[Storage and portability](storage.md#move-or-copy-a-project).

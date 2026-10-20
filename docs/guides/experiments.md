@@ -211,7 +211,7 @@ simulatte store prune
 
 ## Store migration
 
-The project workspace uses schema 3, adding persistent project/model associations and environment evidence to the schema-2 experiment store. A supported older store is backed up before migration and keeps its request ids and results. A store written by a newer version is refused. Do not delete `.simulatte/` to fix a runtime problem; saved-work recovery remains available. Protocol version 1.1 adds staging and provisioning messages for remote workers; local execution is unchanged.
+The project workspace uses schema 5, adding persistent project/model associations and environment evidence to the schema-2 experiment store. A supported older store is backed up before migration and keeps its request ids and results. A store written by a newer version is refused. Do not delete `.simulatte/` to fix a runtime problem; saved-work recovery remains available. Protocol version 1.1 adds staging and provisioning messages for remote workers; local execution is unchanged.
 
 ## Windows
 
