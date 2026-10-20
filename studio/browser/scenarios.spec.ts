@@ -940,11 +940,12 @@ test("scenario 8: the same analysis through Python and Studio, figures reopened 
     await expect(page.locator('[data-output="plotly_figure"]'), "B5: default-template Plotly figure renders without external tiles").toHaveAttribute("data-figure", "rendered", { timeout: 60000 });
     expect(requests).toEqual([]);
     await capture(page, info.project.name, 8, "figures-offline");
+    // Checked before stopping Studio: the page's reconnect attempts afterwards are expected noise.
+    expect(errors).toEqual([]);
     await fixture.stop();
     const after = inspect(fixture);
     expect(Object.keys(after).length).toBe(Object.keys(saved).length);
     expect(after[figures.execution]!.outputs).toEqual(figures.outputs);
-    expect(errors).toEqual([]);
   } finally {
     await fixture.close();
   }
