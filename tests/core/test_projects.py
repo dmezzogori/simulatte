@@ -56,7 +56,9 @@ def test_targets(tmp_path):
         m.resolve_target("data.txt", cwd=tmp_path)
 
 
-@pytest.mark.parametrize("reference", ["missing.py:build", "missing.py:bad-name", "missing.py:"])
+@pytest.mark.parametrize(
+    "reference", ["missing.py:build", "missing.py:bad-name", "missing.py:", "nosuch/folder/model.py", "model.py"]
+)
 def test_legacy_reference_never_creates_directory(tmp_path, reference):
     with pytest.raises(ValueError):
         api().resolve_target(reference, cwd=tmp_path)

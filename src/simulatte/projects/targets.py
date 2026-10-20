@@ -22,6 +22,8 @@ def resolve_target(value: str | None, *, cwd: Path) -> StudioTarget:
         if not path.is_file() or path.suffix != ".py":
             raise ValueError(f"Python entrypoint source does not exist: {path}")
     elif not path.exists():
+        if path.suffix == ".py":
+            raise ValueError(f"Python model file does not exist: {path}")
         path.mkdir(parents=True)
         return StudioTarget(path.resolve(), None)
     if not path.is_file() or path.suffix != ".py":
