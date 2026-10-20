@@ -12,6 +12,8 @@ import {
 } from "./project";
 export { Projector, equipment, type Projection, type Glyph } from "./project";
 export { motionProgress } from "./motion";
+export { cameraForBounds, boundsOfCamera, worldToScreen, glyphVisible, labelVisible, EVERYTHING, type Bounds, type Visibility } from "./view";
+import { cameraForBounds, boundsOfCamera, worldToScreen as project, glyphVisible, labelVisible, EVERYTHING, type Bounds, type Visibility } from "./view";
 export interface Camera {
   x: number;
   y: number;
@@ -70,6 +72,7 @@ export class Scene {
   #projector: Projector | null = null;
   #selected: string | null = null;
   #camera: Camera = { x: 0, y: 0, scale: 50 };
+  #visibility: Visibility = EVERYTHING;
   #disposed = false;
   #lost = false;
   #resize: ResizeObserver | null = null;
@@ -78,6 +81,25 @@ export class Scene {
   onEditorPointer: ((event: EditorPointer) => boolean) | null = null;
   screenToWorld(x: number, y: number): Point {
     return {x: (x - this.#camera.x) / this.#camera.scale, y: -(y - this.#camera.y) / this.#camera.scale};
+  }
+  worldToScreen(x: number, y: number): Point {
+    return project(this.#camera, x, y);
+  }
+  /** Frame a saved world rectangle: contained and centred (letterboxed) in the current viewport. */
+  fitBounds(bounds: Bounds): void {
+    this.camera = cameraForBounds(bounds, this.app.screen.width, this.app.screen.height);
+  }
+  /** The visible world rectangle of the current camera; what `fitBounds` restores. */
+  worldBounds(): [number, number, number, number] {
+    return boundsOfCamera(this.#camera, this.app.screen.width, this.app.screen.height);
+  }
+  get visibility(): Visibility {
+    return this.#visibility;
+  }
+  /** Entity and label filters honoured by rendering, labels and picking. */
+  setVisibility(visibility: Visibility): void {
+    this.#visibility = { entities: visibility.entities, labels: visibility.labels };
+    this.draw();
   }
   /** Static editor projections reuse rendering/camera controls without a playback clock. */
   renderProjection(projection: Projection): void {
@@ -316,6 +338,7 @@ export class Scene {
   private pick(x: number, y: number): string | null {
     const point = this.screenToWorld(x, y);
     for (const g of [...(this.#projection?.glyphs ?? [])].reverse()) {
+      if (!glyphVisible(g, this.#visibility)) continue;
       const dx = point.x - g.x,
         dy = point.y - g.y,
         c = Math.cos(g.rotation),
@@ -418,6 +441,7 @@ export class Scene {
       }
     const visible = new Set<string>();
     for (const item of this.#projection.glyphs) {
+      if (!glyphVisible(item, this.#visibility)) continue;
       const sx = x + item.x * scale,
         sy = y - item.y * scale;
       if (
@@ -428,11 +452,7 @@ export class Scene {
       )
         continue;
       this.glyph(dynamic, item, scale);
-      if (
-        scale > 20 &&
-        item.kind !== "job" &&
-        (item.kind !== "node" || item.id === this.#selected)
-      ) {
+      if (labelVisible(item, this.#visibility, this.#selected, scale)) {
         visible.add(item.id);
         let text = this.#texts.get(item.id);
         if (!text) {

@@ -18,6 +18,7 @@ import { RunsPage } from "./runs";
 import { ExperimentsPage } from "./experiments";
 import { ComparisonPage } from "./comparison";
 import { AnalysesPage } from "./analyses";
+import { PresentationsPage } from "./presentations";
 import { Diagnostic, EmptyState } from "./feedback";
 const ICONS: Record<string, string> = {
   overview: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
@@ -340,20 +341,14 @@ export function WorkspaceShell({
             />
           )}
           {route.page === "presentations" && (
-            <>
-              <div className="ws-page-heading">
-                <div className="ws-eyebrow">PRESENTATIONS</div>
-                <h1>Presentations</h1>
-                <p>Named views of selected full recordings and their evidence.</p>
-              </div>
-              <EmptyState
-                screen={{
-                  title: "This workspace is not available yet",
-                  text: "Open a saved run to play, inspect and export its recording.",
-                  link: { label: "Browse runs", hash: routeHash({ page: "runs" }) },
-                }}
-              />
-            </>
+            <PresentationsPage
+              client={client}
+              state={state}
+              status={status}
+              {...(route.id ? { presentationId: route.id } : {})}
+              {...(route.attempt ? { attemptId: route.attempt } : {})}
+              present={route.present === true}
+            />
           )}
         </main>
       </div>

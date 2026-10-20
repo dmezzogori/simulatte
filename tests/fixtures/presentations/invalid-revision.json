@@ -1,0 +1,1616 @@
+{
+ "schema": 1,
+ "name": "Selected release policy",
+ "notes": "ConWIP cap 20 against immediate release.",
+ "recording": {
+  "attempt_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "request_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "trace_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+ },
+ "layout": {
+  "algorithms": {
+   "auto": "layered-v1",
+   "hash": "layout-hash-v1",
+   "network": "network-v1"
+  },
+  "aliases": [
+   {
+    "address": {
+     "i": 0,
+     "j": 0,
+     "kind": "lattice"
+    },
+    "canonical": {
+     "i": 0,
+     "j": 0,
+     "kind": "lattice"
+    }
+   },
+   {
+    "address": {
+     "i": 1,
+     "j": 0,
+     "kind": "lattice"
+    },
+    "canonical": {
+     "i": 1,
+     "j": 0,
+     "kind": "lattice"
+    }
+   }
+  ],
+  "auto": {
+   "algorithm": "layered-v1",
+   "data": {
+    "placements": {
+     "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d": {
+      "footprint": {
+       "depth": 0.1,
+       "height": 0,
+       "width": 0.1
+      },
+      "kind": "node",
+      "obstacle": false,
+      "ports": {},
+      "rotation": 0,
+      "visual": {}
+     },
+     "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d": {
+      "footprint": {
+       "depth": 0.1,
+       "height": 0,
+       "width": 0.1
+      },
+      "kind": "node",
+      "obstacle": false,
+      "ports": {},
+      "rotation": 0,
+      "visual": {}
+     },
+     "station": {
+      "footprint": {
+       "depth": 1,
+       "height": 0,
+       "width": 1
+      },
+      "kind": "server",
+      "obstacle": false,
+      "ports": {},
+      "rotation": 0,
+      "visual": {}
+     }
+    },
+    "schema_version": "1.0"
+   },
+   "derived_positions": {
+    "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d": [
+     0,
+     0,
+     0
+    ],
+    "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d": [
+     2,
+     0,
+     0
+    ]
+   },
+   "targets": {
+    "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d": {
+     "explicitly_placed": false,
+     "graph_position": [
+      0,
+      0,
+      0
+     ],
+     "kind": "node"
+    },
+    "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d": {
+     "explicitly_placed": false,
+     "graph_position": [
+      2,
+      0,
+      0
+     ],
+     "kind": "node"
+    },
+    "station": {
+     "explicitly_placed": true,
+     "kind": "server"
+    }
+   },
+   "topology": {
+    "flows": [],
+    "routings": [],
+    "shopfloors": []
+   }
+  },
+  "bindings": {},
+  "dependencies": {
+   "bindings": {},
+   "queries": [
+    {
+     "code_count": 3,
+     "descriptor": {
+      "kind": "variant",
+      "path": [
+       "network"
+      ]
+     },
+     "observed": {
+      "state": "present",
+      "value": "lattice"
+     },
+     "origin": "network",
+     "targets": {
+      "station": "server"
+     }
+    },
+    {
+     "code_count": 3,
+     "descriptor": {
+      "kind": "presence",
+      "path": [
+       "grid"
+      ]
+     },
+     "observed": {
+      "state": "present"
+     },
+     "origin": "network",
+     "targets": {
+      "station": "server"
+     }
+    },
+    {
+     "code_count": 3,
+     "descriptor": {
+      "kind": "presence",
+      "path": [
+       "network"
+      ]
+     },
+     "observed": {
+      "state": "present"
+     },
+     "origin": "network",
+     "targets": {
+      "station": "server"
+     }
+    },
+    {
+     "code_count": 3,
+     "descriptor": {
+      "kind": "value",
+      "path": [
+       "network"
+      ]
+     },
+     "observed": {
+      "eligible": true,
+      "state": "present",
+      "unset": [],
+      "value": {
+       "blocked": {},
+       "bounds": [
+        0,
+        0,
+        2,
+        0
+       ],
+       "capacity": 2,
+       "clearance": 0,
+       "direction": "both",
+       "enabled": true,
+       "neighbors": 4,
+       "type": "lattice"
+      }
+     },
+     "origin": "network",
+     "targets": {
+      "station": "server"
+     }
+    },
+    {
+     "code_count": 3,
+     "descriptor": {
+      "kind": "value",
+      "path": [
+       "grid"
+      ]
+     },
+     "observed": {
+      "eligible": true,
+      "state": "present",
+      "unset": [],
+      "value": {
+       "dx": 2,
+       "dy": 2,
+       "origin": [
+        0,
+        0,
+        0
+       ]
+      }
+     },
+     "origin": "network",
+     "targets": {
+      "station": "server"
+     }
+    },
+    {
+     "code_count": 3,
+     "descriptor": {
+      "kind": "selection",
+      "path": [
+       "placements"
+      ],
+      "predicate": "obstacle"
+     },
+     "observed": {
+      "flags": {
+       "station": {
+        "state": "absent",
+        "value": null
+       }
+      },
+      "members": [
+       "station"
+      ],
+      "selected": [],
+      "state": "present"
+     },
+     "origin": "network",
+     "targets": {
+      "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d": "node",
+      "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d": "node",
+      "station": "server"
+     }
+    },
+    {
+     "code_count": 3,
+     "descriptor": {
+      "kind": "selection",
+      "path": [
+       "placements"
+      ],
+      "predicate": "connector"
+     },
+     "observed": {
+      "flags": {
+       "station": {
+        "ports": {},
+        "state": "absent"
+       }
+      },
+      "members": [
+       "station"
+      ],
+      "selected": [],
+      "state": "present"
+     },
+     "origin": "network",
+     "targets": {
+      "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d": "node",
+      "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d": "node",
+      "station": "server"
+     }
+    },
+    {
+     "code_count": 3,
+     "descriptor": {
+      "kind": "membership",
+      "path": [
+       "overrides"
+      ]
+     },
+     "observed": {
+      "members": [],
+      "state": "absent"
+     },
+     "origin": "network",
+     "targets": {
+      "station": "server"
+     }
+    },
+    {
+     "code_count": 3,
+     "descriptor": {
+      "kind": "value",
+      "path": [
+       "placements",
+       "station",
+       "footprint",
+       "width"
+      ]
+     },
+     "observed": {
+      "eligible": true,
+      "state": "present",
+      "unset": [],
+      "value": 2
+     },
+     "origin": "model",
+     "targets": {
+      "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d": "node",
+      "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d": "node",
+      "station": "server"
+     }
+    }
+   ],
+   "sealed": true
+  },
+  "diagnostics": [
+   {
+    "code": "orphan-placement",
+    "message": "placement target is absent",
+    "path": [
+     "placements",
+     "ghost"
+    ],
+    "related_paths": [],
+    "severity": "warning",
+    "stage": null,
+    "target": "ghost"
+   }
+  ],
+  "full_hash": "158ca3bea77f8d8650574b2e00b0565a88486ee89aacf29475b59652fb800511",
+  "layers": {
+   "code": [
+    [
+     "declare",
+     {
+      "grid": {
+       "dx": 2,
+       "dy": 2,
+       "origin": [
+        0,
+        0,
+        0
+       ]
+      },
+      "schema_version": "1.0"
+     }
+    ],
+    [
+     "declare",
+     {
+      "network": {
+       "blocked": {},
+       "bounds": [
+        0,
+        0,
+        2,
+        0
+       ],
+       "capacity": 2,
+       "clearance": 0,
+       "direction": "both",
+       "enabled": true,
+       "neighbors": 4,
+       "type": "lattice"
+      },
+      "schema_version": "1.0"
+     }
+    ],
+    [
+     "stations",
+     {
+      "placements": {
+       "station": {
+        "footprint": {
+         "width": 2
+        },
+        "kind": "server",
+        "position": [
+         0,
+         3,
+         0
+        ],
+        "visual": {
+         "color": "#112233"
+        }
+       }
+      },
+      "schema_version": "1.0"
+     }
+    ]
+   ],
+   "file": {
+    "placements": {
+     "ghost": {
+      "kind": "server",
+      "visual": {
+       "label": "ignored"
+      }
+     }
+    },
+    "schema_version": "1.0"
+   }
+  },
+  "layers_hash": "b193c08634a21f125fff1cbff7f61418583444cc4cf39d971b67cda6ff6f164a",
+  "leaves": [
+   {
+    "path": [
+     "grid"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "grid",
+     "dx"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "grid",
+     "dy"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "grid",
+     "origin"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "grid",
+     "origin",
+     "0"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "grid",
+     "origin",
+     "1"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "grid",
+     "origin",
+     "2"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "network"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "network",
+     "blocked"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "network",
+     "bounds"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "network",
+     "bounds",
+     "0"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "network",
+     "bounds",
+     "1"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "network",
+     "bounds",
+     "2"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "network",
+     "bounds",
+     "3"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "network",
+     "capacity"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "network",
+     "clearance"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "network",
+     "direction"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "network",
+     "enabled"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "network",
+     "neighbors"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "network",
+     "type"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "declare"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "stations"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d",
+     "footprint"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d",
+     "footprint",
+     "depth"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d",
+     "footprint",
+     "height"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d",
+     "footprint",
+     "width"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d",
+     "kind"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d",
+     "obstacle"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d",
+     "ports"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d",
+     "rotation"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d",
+     "visual"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d",
+     "footprint"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d",
+     "footprint",
+     "depth"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d",
+     "footprint",
+     "height"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d",
+     "footprint",
+     "width"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d",
+     "kind"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d",
+     "obstacle"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d",
+     "ports"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d",
+     "rotation"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d",
+     "visual"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "stations"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station",
+     "footprint"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "stations"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station",
+     "footprint",
+     "depth"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station",
+     "footprint",
+     "height"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station",
+     "footprint",
+     "width"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "stations"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station",
+     "kind"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "stations"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station",
+     "obstacle"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station",
+     "ports"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station",
+     "position"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "stations"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station",
+     "position",
+     "0"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "stations"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station",
+     "position",
+     "1"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "stations"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station",
+     "position",
+     "2"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "stations"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station",
+     "rotation"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "auto",
+     "stage": null
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station",
+     "visual"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "stations"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "placements",
+     "station",
+     "visual",
+     "color"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "code",
+     "stage": "stations"
+    },
+    "state": "present"
+   },
+   {
+    "path": [
+     "schema_version"
+    ],
+    "schema_default": false,
+    "source": {
+     "kind": "file",
+     "stage": null
+    },
+    "state": "present"
+   }
+  ],
+  "network": {
+   "adjacency": [
+    {
+     "address": {
+      "i": 0,
+      "j": 0,
+      "kind": "lattice"
+     },
+     "edges": [
+      [
+       {
+        "i": 1,
+        "j": 0,
+        "kind": "lattice"
+       },
+       {
+        "kind": "edge",
+        "source": {
+         "i": 0,
+         "j": 0,
+         "kind": "lattice"
+        },
+        "target": {
+         "i": 1,
+         "j": 0,
+         "kind": "lattice"
+        }
+       }
+      ]
+     ]
+    },
+    {
+     "address": {
+      "i": 1,
+      "j": 0,
+      "kind": "lattice"
+     },
+     "edges": [
+      [
+       {
+        "i": 0,
+        "j": 0,
+        "kind": "lattice"
+       },
+       {
+        "kind": "edge",
+        "source": {
+         "i": 0,
+         "j": 0,
+         "kind": "lattice"
+        },
+        "target": {
+         "i": 1,
+         "j": 0,
+         "kind": "lattice"
+        }
+       }
+      ]
+     ]
+    }
+   ],
+   "clearance": 0,
+   "edges": [
+    {
+     "address": {
+      "kind": "edge",
+      "source": {
+       "i": 0,
+       "j": 0,
+       "kind": "lattice"
+      },
+      "target": {
+       "i": 1,
+       "j": 0,
+       "kind": "lattice"
+      }
+     },
+     "blockers": [],
+     "direction": "both",
+     "enabled": true,
+     "lineage": [],
+     "source": {
+      "i": 0,
+      "j": 0,
+      "kind": "lattice"
+     },
+     "speed_limit": null,
+     "target": {
+      "i": 1,
+      "j": 0,
+      "kind": "lattice"
+     }
+    }
+   ],
+   "graph": {
+    "arcs": [
+     {
+      "source": "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d",
+      "speed_limit": null,
+      "target": "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d"
+     },
+     {
+      "source": "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d",
+      "speed_limit": null,
+      "target": "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d"
+     }
+    ],
+    "nodes": [
+     {
+      "capacity": 2,
+      "id": "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d",
+      "position": [
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "capacity": 2,
+      "id": "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d",
+      "position": [
+       2,
+       0,
+       0
+      ]
+     }
+    ]
+   },
+   "lineage": [],
+   "nodes": [
+    {
+     "address": {
+      "i": 0,
+      "j": 0,
+      "kind": "lattice"
+     },
+     "blockers": [],
+     "capacity": 2,
+     "enabled": true,
+     "id": "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d",
+     "position": [
+      0,
+      0,
+      0
+     ]
+    },
+    {
+     "address": {
+      "i": 1,
+      "j": 0,
+      "kind": "lattice"
+     },
+     "blockers": [],
+     "capacity": 2,
+     "enabled": true,
+     "id": "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d",
+     "position": [
+      2,
+      0,
+      0
+     ]
+    }
+   ],
+   "obstacles": [],
+   "strong_components": [
+    [
+     {
+      "i": 0,
+      "j": 0,
+      "kind": "lattice"
+     },
+     {
+      "i": 1,
+      "j": 0,
+      "kind": "lattice"
+     }
+    ]
+   ],
+   "weak_components": [
+    [
+     {
+      "i": 0,
+      "j": 0,
+      "kind": "lattice"
+     },
+     {
+      "i": 1,
+      "j": 0,
+      "kind": "lattice"
+     }
+    ]
+   ]
+  },
+  "physical_hash": "eda806534299b087df3f63bd0e6ee78706f37fa8d8b0ed9d8dafb82229fc843d",
+  "required_paths": [],
+  "resolved": {
+   "grid": {
+    "dx": 2,
+    "dy": 2,
+    "origin": [
+     0,
+     0,
+     0
+    ]
+   },
+   "placements": {
+    "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d": {
+     "footprint": {
+      "depth": 0.1,
+      "height": 0,
+      "width": 0.1
+     },
+     "kind": "node",
+     "obstacle": false,
+     "ports": {},
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": 0,
+     "visual": {}
+    },
+    "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d": {
+     "footprint": {
+      "depth": 0.1,
+      "height": 0,
+      "width": 0.1
+     },
+     "kind": "node",
+     "obstacle": false,
+     "ports": {},
+     "position": [
+      2,
+      0,
+      0
+     ],
+     "rotation": 0,
+     "visual": {}
+    },
+    "station": {
+     "footprint": {
+      "depth": 1,
+      "height": 0,
+      "width": 2
+     },
+     "kind": "server",
+     "obstacle": false,
+     "ports": {},
+     "position": [
+      0,
+      3,
+      0
+     ],
+     "rotation": 0,
+     "visual": {
+      "color": "#112233"
+     }
+    }
+   },
+   "schema_version": "1.0"
+  },
+  "schema_version": "1.0",
+  "stages": {
+   "binders": [
+    {
+     "after": [],
+     "name": "width",
+     "reads": [
+      {
+       "kind": "value",
+       "path": [
+        "placements",
+        "station",
+        "footprint",
+        "width"
+       ]
+      }
+     ]
+    }
+   ],
+   "stages": [
+    {
+     "after": [],
+     "name": "stations",
+     "reads": []
+    }
+   ]
+  },
+  "targets": {
+   "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d": {
+    "explicitly_named": true,
+    "explicitly_placed": false,
+    "graph_position": [
+     0,
+     0,
+     0
+    ],
+    "kind": "node"
+   },
+   "layout:7b2269223a312c226a223a302c226b696e64223a226c617474696365227d": {
+    "explicitly_named": true,
+    "explicitly_placed": false,
+    "graph_position": [
+     2,
+     0,
+     0
+    ],
+    "kind": "node"
+   },
+   "station": {
+    "explicitly_named": true,
+    "explicitly_placed": true,
+    "kind": "server"
+   }
+  },
+  "topology": {
+   "flows": [],
+   "routings": [],
+   "shopfloors": []
+  }
+ },
+ "camera": {
+  "bounds": [
+   -2.0,
+   -3.0,
+   12.5,
+   6.0
+  ]
+ },
+ "visibility": {
+  "entities": [
+   "station",
+   "layout:7b2269223a302c226a223a302c226b696e64223a226c617474696365227d"
+  ],
+  "labels": [
+   "station"
+  ]
+ },
+ "measurements": [
+  "shopfloor/lateness",
+  "shopfloor/throughput"
+ ],
+ "time": {
+  "start": 0.0,
+  "end": 0.75
+ },
+ "rate": 2.0,
+ "annotations": [
+  {
+   "id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+   "text": "Queue builds at the bottleneck",
+   "time": 0.25
+  },
+  {
+   "id": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+   "text": "Steady state after warm-up",
+   "time": null
+  }
+ ],
+ "evidence": [
+  {
+   "id": "3c4d5e6f-7a8b-4c9d-8e0f-2a3b4c5d6e7f",
+   "execution_id": "6f1d2c3b-4a5e-4f60-8a71-9b8c7d6e5f40",
+   "output_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+   "content_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "kind": "number",
+   "selection": {},
+   "labels": {
+    "name": "Mean lateness",
+    "unit": "h",
+    "population": "All jobs",
+    "sample": {
+     "planned": 24,
+     "available": 8,
+     "partial": true
+    },
+    "convention": "descriptive",
+    "source": {
+     "analysis_name": "Weekly report",
+     "snapshot_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+     "execution_id": "6f1d2c3b-4a5e-4f60-8a71-9b8c7d6e5f40"
+    }
+   }
+  },
+  {
+   "id": "4d5e6f7a-8b9c-4d0e-9f1a-3b4c5d6e7f80",
+   "execution_id": "6f1d2c3b-4a5e-4f60-8a71-9b8c7d6e5f40",
+   "output_id": "1111111111111111111111111111111111111111111111111111111111111111",
+   "content_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+   "kind": "table",
+   "selection": {
+    "rows": {
+     "offset": 0,
+     "limit": 10,
+     "columns": [
+      "family",
+      "lateness"
+     ]
+    }
+   },
+   "labels": {
+    "name": "Lateness by family",
+    "unit": null,
+    "population": "Expedited jobs",
+    "sample": {
+     "planned": 24,
+     "available": 8,
+     "partial": true
+    },
+    "convention": "descriptive",
+    "source": {
+     "analysis_name": "Weekly report",
+     "snapshot_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+     "execution_id": "6f1d2c3b-4a5e-4f60-8a71-9b8c7d6e5f40"
+    }
+   }
+  },
+  {
+   "id": "5e6f7a8b-9c0d-4e1f-8a2b-4c5d6e7f8091",
+   "execution_id": "6f1d2c3b-4a5e-4f60-8a71-9b8c7d6e5f40",
+   "output_id": "3333333333333333333333333333333333333333333333333333333333333333",
+   "content_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+   "kind": "figure",
+   "selection": {
+    "figure": {
+     "width": 960,
+     "height": 540
+    }
+   },
+   "labels": {
+    "name": "Lateness distribution",
+    "unit": "h",
+    "population": null,
+    "sample": {
+     "planned": 24,
+     "available": 24,
+     "partial": false
+    },
+    "convention": "descriptive",
+    "source": {
+     "analysis_name": "Weekly report",
+     "snapshot_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+     "execution_id": "6f1d2c3b-4a5e-4f60-8a71-9b8c7d6e5f40"
+    }
+   }
+  }
+ ],
+ "created": 1760900000.0,
+ "id": "0f6a9e2c-7d3b-4c1e-9b5a-2d8f4e6c1a7b",
+ "revision": -1
+}
