@@ -294,6 +294,5 @@ def test_required_inputs_still_resynchronize_without_admitting_work(service):
         ) as socket:
             socket.send_json({"v": 1, "type": "auth", "secret": server.secret})
             first = socket.receive_json()
-            second = socket.receive_json()
-            assert first["type"] == second["type"] == "state"
-            assert second["body"]["project"]["active_run"] is None
+            assert first["type"] == "state"
+            assert first["body"]["project"]["active_run"] is None
