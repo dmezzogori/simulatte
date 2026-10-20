@@ -15,6 +15,23 @@ export function orderOutputs(outputs: readonly OutputDescriptor[]): OutputDescri
     .sort((a, b) => (ORDER[a.output.kind] ?? 9) - (ORDER[b.output.kind] ?? 9) || a.index - b.index)
     .map(({ output }) => output);
 }
+/** Keys Studio writes itself; everything else is the analysis' own description of the output. */
+const RECORDED_KEYS = new Set(["partial_snapshot", "planned", "available", "inferential_convention", "input_availability", "unit", "schema", "row_count", "media_type"]);
+const scalar = (value: unknown) => value === null || ["string", "number", "boolean", "bigint"].includes(typeof value);
+/** The analysis' metadata (population, convention, aggregation, window, …) as "key value" qualifiers, like the presentation evidence panel. */
+export function metadataQualifiers(metadata: OutputMetadata): string[] {
+  const lines: string[] = [];
+  for (const [key, value] of Object.entries(metadata)) {
+    if (RECORDED_KEYS.has(key)) continue;
+    const text = scalar(value)
+      ? formatValue(value)
+      : Array.isArray(value) && value.length > 0 && value.every(scalar)
+        ? value.map((item) => formatValue(item)).join(", ")
+        : null;
+    if (text !== null) lines.push(`${key.replaceAll("_", " ")} ${text}`);
+  }
+  return lines;
+}
 export function ProvenanceNotes({ metadata }: { metadata: OutputMetadata }) {
   const availability = Object.entries(metadata.input_availability ?? {});
   const missing = availability.flatMap(([dataset, item]) =>
@@ -39,6 +56,11 @@ export function ProvenanceNotes({ metadata }: { metadata: OutputMetadata }) {
           ? " · valid inputs: " + availability.map(([dataset, item]) => `${dataset} ${item.valid}`).join(", ")
           : ""}
       </small>
+      {metadataQualifiers(metadata).map((line) => (
+        <small key={line} className="ws-identity af-qualifier">
+          {line}
+        </small>
+      ))}
       {missing.length > 0 && (
         <details className="ws-diagnostic af-missing">
           <summary>

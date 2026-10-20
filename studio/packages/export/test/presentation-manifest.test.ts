@@ -291,6 +291,19 @@ describe("prepareExport", () => {
     expect(texts.some((t) => t.includes("8 of 24 replications · partial snapshot"))).toBe(true);
     expect(layout.items.filter((i) => i.item.kind === "image")).toHaveLength(2);
   });
+  it("lists distribution quantiles one per entry with the evidence panel's number formatting", async () => {
+    const summary = async () => ({ representation: "exact", count: 8, quantiles: { "0.5": 1.5, "0.9": 2.25, "1": Infinity } });
+    const snapshot = await prepareExport(full(), "video", video(), source({ summary }), new AbortController().signal);
+    const spread = snapshot.evidence[2];
+    if (spread?.kind !== "distribution") throw new Error("distribution");
+    expect(spread.entries).toEqual([
+      ["representation", "exact"],
+      ["count", "8"],
+      ["q0.5", "1.5"],
+      ["q0.9", "2.25"],
+      ["q1", "+∞"],
+    ]);
+  });
   it("names the item that does not fit instead of dropping or truncating it", async () => {
     const long = manifest({ annotations: [{ id: "a", text: "word ".repeat(400).trim(), time: null }] });
     const refused = await refusal(prepareExport(long, "video", video({ width: 640, height: 200 }), source(), new AbortController().signal));

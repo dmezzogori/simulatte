@@ -377,7 +377,14 @@ async function excerptOf(
     }
     case "distribution": {
       const summary = await source.summary(evidence.execution_id, output);
-      const entries = Object.entries(summary).map(([k, v]) => [k, formatCell(v)] as [string, string]);
+      // Quantiles read as one entry each (``q0.5``), as in the Studio evidence panel, not as a JSON object.
+      const entries = Object.entries(summary).flatMap(([k, v]) =>
+        k === "quantiles" && v !== null && typeof v === "object" && !Array.isArray(v)
+          ? Object.entries(v as Record<string, unknown>)
+              .sort(([a], [b]) => Number(a) - Number(b))
+              .map(([q, x]) => [`q${q}`, formatCell(x)] as [string, string])
+          : [[k, formatCell(v)] as [string, string]],
+      );
       for (const [key, value] of entries)
         if (value.length > MAX_CELL_CHARS) refuse(`entry ${key} holds ${value.length} characters, above ${MAX_CELL_CHARS}`, "emit a smaller summary or remove the item");
       return { id: evidence.id, kind: "distribution", entries };

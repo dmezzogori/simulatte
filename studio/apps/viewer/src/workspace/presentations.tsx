@@ -1,11 +1,12 @@
 /** Presentations: saved views of full recordings with their supporting evidence (P4 Task 2). */
 import { useEffect, useState } from "react";
 import { validatePresentation, type PresentationManifest } from "@simulatte/playback";
-import type { ConnectionStatus, Prefix, StudioClient } from "../studio-client";
+import type { ConnectionStatus, ExperimentReport, ExperimentRun, Prefix, StudioClient } from "../studio-client";
 import { httpArtifactSource } from "../artifacts/source";
 import { ConfirmDialog, EmptyState, FailureNotice, Feedback, type PageState } from "./feedback";
 import { Actions, Field, NOT_CONNECTED, READ_ONLY, disabledWhen } from "./forms";
 import { formatTime } from "./tables";
+import { indexReplications, type HistoryRow, type ReplicationRef } from "./runs";
 import { routeHash, type ProjectState, type RunDetails } from "./state";
 import { PresentationEditor, type RecordingIdentity } from "../presentation/editor";
 import { PresentationView, type StageSource } from "../presentation/view";
@@ -66,14 +67,56 @@ async function loadRun(client: StudioClient, attempt: string): Promise<RunDetail
   if (!r.ok) throw new Error(message(r, "Run unavailable"));
   return r.run as unknown as RunDetails;
 }
+/** An "Original run" option: experiment replications name their experiment, configuration and replication. */
+export function originalRunLabel(row: { id: string; name: string; created: number }, replication: ReplicationRef | undefined): string {
+  const name = row.name || "Run " + row.id.slice(0, 8);
+  return replication
+    ? `${replication.name} · ${replication.configuration} · replication ${replication.index} · ${name}`
+    : `${name} · ${formatTime(row.created)}`;
+}
 function RecordFlow({ client, state, connected, recordings }: { client: StudioClient; state: ProjectState; connected: boolean; recordings: RecordingEntry[] }) {
-  const completed = state.history.filter((r) => r.has_result);
+  const completed = (state.history as HistoryRow[]).filter((r) => r.has_result);
   const [original, setOriginal] = useState(completed[0]?.id ?? "");
   const [seed, setSeed] = useState("");
   const [diff, setDiff] = useState<{ mode: string; diff: DiffEntry[] } | null>(null);
   const [job, setJob] = useState<{ attempt_id: string; mode: string } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [originalSeed, setOriginalSeed] = useState<{ attempt: string; seed: unknown } | null>(null);
+  // Replications are identified through the listed experiments' reports, as on the Runs page (bounded by the listing).
+  const [reports, setReports] = useState<Map<string, { status: string; report: ExperimentReport }>>(new Map());
+  const experiments = (client.state?.experiments ?? []) as ExperimentRun[];
+  const needsIndex = completed.some((r) => r.slot && r.slot !== "interactive");
+  useEffect(() => {
+    if (!needsIndex || !connected) return;
+    let closed = false;
+    for (const run of experiments.slice(0, 20)) {
+      if (reports.get(run.run_id)?.status === run.status) continue;
+      void client
+        .command("comparison.get", { run_id: run.run_id })
+        .then((r) => {
+          if (!closed && r.ok) setReports((old) => new Map(old).set(run.run_id, { status: run.status, report: r.report as ExperimentReport }));
+        })
+        .catch(() => {});
+    }
+    return () => {
+      closed = true;
+    };
+  }, [client, connected, needsIndex, experiments.map((r) => r.run_id + r.status).join()]);
+  const replications = indexReplications([...reports.values()].map((r) => r.report));
+  useEffect(() => {
+    if (!original || !connected) return;
+    let closed = false;
+    loadRun(client, original)
+      .then((run) => {
+        if (!closed) setOriginalSeed({ attempt: original, seed: run.request.seed });
+      })
+      .catch(() => {});
+    return () => {
+      closed = true;
+    };
+  }, [client, connected, original]);
+  const shownSeed = originalSeed?.attempt === original ? originalSeed.seed : undefined;
   const preview = async () => {
     setBusy(true);
     setError("");
@@ -109,11 +152,11 @@ function RecordFlow({ client, state, connected, recordings }: { client: StudioCl
         Clones the captured specification of a run (source, layout, parameters, stopping policy, measurements, runtime) at full recording level. Only the seed changes unless you edit settings explicitly.
       </p>
       <div className="ws-form-grid">
-        <Field label="Original run">
+        <Field label="Original run" hint={shownSeed !== undefined ? `Original seed ${String(shownSeed)}` : undefined}>
           <select value={original} onChange={(e) => { setOriginal(e.target.value); setDiff(null); }}>
             {completed.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name || "Run " + r.id.slice(0, 8)} · {formatTime(r.created)}
+                {originalRunLabel(r, replications.get(r.id))}
               </option>
             ))}
           </select>
@@ -401,7 +444,7 @@ export function PresentationsPage({
     );
   }
   // The list.
-  const completed = state.history.filter((r) => r.has_result);
+  const completed = (state.history as HistoryRow[]).filter((r) => r.has_result);
   return (
     <>
       <div className="ws-page-heading">

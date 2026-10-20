@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ArtifactView, orderOutputs, ProvenanceNotes } from "../src/artifacts/view";
+import { ArtifactView, metadataQualifiers, orderOutputs, ProvenanceNotes } from "../src/artifacts/view";
 import { TableRows, clampLimit, tableQuery, PAGE_LIMITS } from "../src/artifacts/table";
 import {
   validateFigure,
@@ -73,6 +73,28 @@ describe("artifact view", () => {
     expect(html).toContain("Partial snapshot");
     expect(html).toContain("8 of 24");
     expect(html).not.toContain("<svg");
+  });
+  it("shows the analysis' own metadata: convention, aggregation, window and population", () => {
+    const m = {
+      ...metadata(),
+      unit: "h",
+      convention: "descriptive_within_run",
+      aggregation: "mean",
+      window_start: 100,
+      population: "late_in_family",
+      group_by: ["family", "rule"],
+      nested: { a: 1 },
+    };
+    expect(metadataQualifiers(m)).toEqual([
+      "convention descriptive_within_run",
+      "aggregation mean",
+      "window start 100",
+      "population late_in_family",
+      "group by family, rule",
+    ]);
+    const html = renderToStaticMarkup(<ProvenanceNotes metadata={m} />);
+    expect(html).toContain("window start 100");
+    expect(html).toContain("population late_in_family");
   });
   it("labels provenance with counts, convention and missing inputs", () => {
     const html = renderToStaticMarkup(<ProvenanceNotes metadata={metadata()} />);
@@ -164,6 +186,27 @@ describe("figure isolation", () => {
     expect(refused([])).toMatch(/object/);
     expect(refused({ data: {}, layout: {} })).toMatch(/data/);
     expect(refused({ data: [], layout: [] })).toMatch(/layout/);
+  });
+  it("accepts plotly's default template, whose style entries per trace type are not traces", () => {
+    const spec = JSON.parse(readFileSync(fileURLToPath(new URL("./fixtures/plotly-default-template.json", import.meta.url)), "utf8"));
+    expect(Object.keys(spec.layout.template.data)).toContain("choropleth");
+    expect(validateFigure(spec)).toMatchObject({ ok: true });
+    const refused = (value: unknown) => {
+      const verdict = validateFigure(value);
+      return verdict.ok ? "" : verdict.reason;
+    };
+    expect(refused({ ...spec, data: [{ type: "choropleth" }] })).toMatch(/data\[0\]\.type: trace type choropleth/);
+    expect(refused({ ...spec, data: [{ type: "scattermapbox" }] })).toMatch(/scattermapbox/);
+    expect(refused({ ...spec, frames: [{ data: [{ type: "densitymap" }] }] })).toMatch(/frames\[0\]\.data\[0\]\.type/);
+    const withTemplate = (data: unknown, layout: unknown = spec.layout.template.layout) => ({
+      ...spec,
+      layout: { ...spec.layout, template: { data, layout } },
+    });
+    expect(refused(withTemplate({ ...spec.layout.template.data, bar: [{ marker: { pattern: { fillmode: "overlay" } }, ysrc: "x" }] }))).toMatch(/ysrc/);
+    expect(refused(withTemplate({ bar: [{ type: "bar" }] }, { images: [{ source: "https://example.com/tile.png" }] }))).toMatch(
+      /layout\.template\.layout\.images\[0\]\.source/,
+    );
+    expect(refused(withTemplate({ scatter: [{ hovertemplate: '<a href="https://x">x</a>' }] }))).toMatch(/href/);
   });
   it("labels renderer mismatches instead of rendering", () => {
     expect(rendererState({ name: "plotly.js", version: PACKAGED_PLOTLY_VERSION })).toEqual({ state: "ready" });

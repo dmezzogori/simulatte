@@ -29,14 +29,15 @@ const SCRIPT_LIKE = /javascript:|vbscript:|<script|href\s*=/i;
 const isObject = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 class Refusal extends Error {}
-function inspect(value: unknown, path: string, depth: number): void {
+/** ``styles`` marks ``layout.template.data``: style defaults keyed by trace type, not traces, so the trace-type refusal does not apply there. */
+function inspect(value: unknown, path: string, depth: number, styles = false): void {
   if (depth > 64) throw new Refusal(`${path}: nesting too deep`);
   if (typeof value === "string") {
     if (SCRIPT_LIKE.test(value)) throw new Refusal(`${path}: script-like text or href is not allowed`);
     return;
   }
   if (Array.isArray(value)) {
-    value.forEach((item, index) => inspect(item, `${path}[${index}]`, depth + 1));
+    value.forEach((item, index) => inspect(item, `${path}[${index}]`, depth + 1, styles));
     return;
   }
   if (!isObject(value)) return;
@@ -45,7 +46,7 @@ function inspect(value: unknown, path: string, depth: number): void {
     if (FORBIDDEN_KEYS.has(key)) throw new Refusal(`${here}: key is not allowed`);
     if (path === "layout" && NETWORK_LAYOUT.has(key))
       throw new Refusal(`${here}: map and geo figures need external tiles`);
-    if (key === "type" && typeof item === "string" && NETWORK_TRACES.has(item))
+    if (!styles && key === "type" && typeof item === "string" && NETWORK_TRACES.has(item))
       throw new Refusal(`${here}: trace type ${item} needs external tiles`);
     if (typeof item === "string") {
       if (key === "href") throw new Refusal(`${here}: href is not allowed`);
@@ -53,7 +54,7 @@ function inspect(value: unknown, path: string, depth: number): void {
       if (key === "template") throw new Refusal(`${here}: template references are not allowed; embed the template`);
       if (key === "source" && URL_LIKE.test(item)) throw new Refusal(`${here}: URL sources are not allowed`);
     }
-    inspect(item, here, depth + 1);
+    inspect(item, here, depth + 1, styles || (key === "data" && (path === "layout.template" || path.endsWith(".layout.template"))));
   }
 }
 /** Only ``data``, ``layout`` and ``frames`` pass; URLs, ``*src`` references, hrefs, script-like text, ``config`` and tile-based traces are refused. */

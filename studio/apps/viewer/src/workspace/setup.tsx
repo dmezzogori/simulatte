@@ -59,7 +59,7 @@ export function Setup({
     return (
       <section className="ws-card recovery">
         <h2>Saved work is available</h2>
-        {state.error && <FailureNotice message={state.error} compact />}
+        {state.error && <FailureNotice message={state.error} compact readOnly />}
         <p>
           This session is read-only. Repair the selected environment or close
           the other Studio process, then reopen this folder. Your saved runs

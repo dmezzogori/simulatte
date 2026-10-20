@@ -13,6 +13,7 @@ import {
 import { ComparisonReport, parseSelection } from "../src/workspace/comparison";
 import { ExperimentPaging, experimentActions, resolveRun, staleModels } from "../src/workspace/experiments";
 import { runBody, plansOf, declaredPlan } from "../src/workspace/models";
+import { recordingOf } from "../src/workspace/run-page";
 import type { RunDetails } from "../src/workspace/state";
 import type { ExperimentReport } from "../src/studio-client";
 
@@ -149,6 +150,16 @@ describe("runs page", () => {
   });
 });
 
+describe("run page recording", () => {
+  it("shows a recording for full-level traces only, not for KPI-level runs or replications", () => {
+    const trace = { length: 10 } as unknown as RunDetails["trace"];
+    expect(recordingOf({ trace, status: "succeeded", request: { level: "full" } })).toBe("full");
+    expect(recordingOf({ trace, status: "running", request: { level: "full" } })).toBe("live");
+    expect(recordingOf({ trace, status: "succeeded", request: { level: "kpi" } })).toBeNull();
+    expect(recordingOf({ trace, status: "succeeded", request: { level: "kpi", experiment: "e1" } })).toBeNull();
+    expect(recordingOf({ trace: null, status: "succeeded", request: { level: "full" } })).toBeNull();
+  });
+});
 describe("model page run request", () => {
   it("sends the selected measurement plan, or null for KPIs only, on run.start and run.stop_and_run", () => {
     expect(runBody("model-a", "", undefined, "auto-1")).toEqual({ model_id: "model-a", auto_session: "auto-1", measurements: null });

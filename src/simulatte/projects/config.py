@@ -1,6 +1,6 @@
 """Versioned project declarations and reviewable, preserving TOML edits."""
 
-from dataclasses import asdict
+from dataclasses import asdict, fields
 import hashlib
 import keyword
 import os
@@ -57,6 +57,17 @@ def _validate(workspace):
         raise ValueError("Invalid default_model registration")
 
 
+def _registration(cls, label, key, value):
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} registration {key!r} must be a table")
+    names = [f.name for f in fields(cls) if f.name != "key"]
+    if missing := [name for name in names if name not in value]:
+        raise ValueError(f"{label} registration {key!r} is missing required key {missing[0]!r}")
+    if unknown := [name for name in value if name not in names]:
+        raise ValueError(f"{label} registration {key!r} has unknown key {unknown[0]!r}")
+    return cls(key=key, **value)
+
+
 def _decode(root, data):
     config = data.get("tool", {}).get("simulatte", {})
     if "project" not in config:
@@ -68,8 +79,8 @@ def _decode(root, data):
         workspace = WorkspaceDefinition(
             root,
             project["id"],
-            tuple(ModelRegistration(key=k, **v) for k, v in config.get("models", {}).items()),
-            tuple(AnalysisRegistration(key=k, **v) for k, v in config.get("analyses", {}).items()),
+            tuple(_registration(ModelRegistration, "Model", k, v) for k, v in config.get("models", {}).items()),
+            tuple(_registration(AnalysisRegistration, "Analysis", k, v) for k, v in config.get("analyses", {}).items()),
             project.get("default_model"),
         )
         _validate(workspace)

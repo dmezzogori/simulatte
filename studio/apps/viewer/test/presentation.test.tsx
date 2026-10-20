@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { validatePresentation, type PresentationManifest } from "@simulatte/playback";
 import { parseRoute, routeCrumbs, routeHash, type WorkspaceRoute } from "../src/workspace/state";
-import { focusWhenShown, notificationReloads, recordingLabel } from "../src/workspace/presentations";
+import { focusWhenShown, notificationReloads, originalRunLabel, recordingLabel } from "../src/workspace/presentations";
 import { EvidencePanel, EvidenceQualifiers, contentHash, documentField, evidenceFile, evidenceFromOutput, excerptRows, labelsOf, qualifierText } from "../src/presentation/evidence-panel";
 import { currentView, draftOf, manifestOf, pickerOutputs } from "../src/presentation/editor";
 import { hideOutside, type Hideable } from "../src/presentation/hide-outside";
@@ -44,6 +44,15 @@ describe("recording provenance labels", () => {
     expect(recordingLabel({ mode: "new_seed", verified: null, status: "succeeded" })).toBe("new recording, not a verified reproduction");
     expect(recordingLabel({ mode: "edited", verified: null, status: "succeeded" })).toBe("edited run, distinct from the original");
     expect(recordingLabel({ mode: "replay", verified: null, status: "running" })).toBe("replay · running");
+  });
+});
+describe("original run picker", () => {
+  it("identifies experiment replications by experiment, configuration and replication", () => {
+    const row = { id: "a".repeat(32), name: "", created: 1_700_000_000 };
+    expect(originalRunLabel(row, { run_id: "r1", name: "Release study", configuration: "servers=3", index: 4 })).toBe(
+      "Release study · servers=3 · replication 4 · Run aaaaaaaa",
+    );
+    expect(originalRunLabel({ ...row, name: "Baseline" }, undefined)).toMatch(/^Baseline · /);
   });
 });
 describe("presentation page notifications", () => {

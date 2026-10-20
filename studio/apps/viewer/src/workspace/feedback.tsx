@@ -91,11 +91,14 @@ const TITLES: Record<FailureKind, [string, string]> = {
     "Try again. The diagnostic details describe what happened.",
   ],
 };
+/** A read-only recovery session cannot prepare environments; it points to the documented reconstruction instead. */
+const READ_ONLY_DEPENDENCY_HINT =
+  "This session cannot change the environment. Close Studio, restore the recorded interpreter or reconstruct the environment from its retained evidence (docs/studio/environments.md, “Saved-work recovery”), then reopen this folder.";
 /** Classify a failure as a model, dependency, missing-data or connection problem. */
-export function classifyFailure(message: string, details?: unknown): Failure {
+export function classifyFailure(message: string, details?: unknown, readOnly = false): Failure {
   const kind = RULES.find(([, re]) => re.test(message))?.[0] ?? "unknown";
   const [title, hint] = TITLES[kind];
-  return { kind, title, hint, ...describeMessage(message, details) };
+  return { kind, title, hint: readOnly && kind === "dependency" ? READ_ONLY_DEPENDENCY_HINT : hint, ...describeMessage(message, details) };
 }
 export function ActionButton({
   action,
@@ -134,6 +137,7 @@ export function FailureNotice({
   retry,
   compact = false,
   announce = true,
+  readOnly = false,
 }: {
   message: string;
   details?: unknown;
@@ -141,8 +145,10 @@ export function FailureNotice({
   compact?: boolean;
   /** ``false`` for standing input issues that must not be announced as a new alert. */
   announce?: boolean;
+  /** A read-only recovery session: no advice that needs a writable session. */
+  readOnly?: boolean;
 }) {
-  const failure = classifyFailure(message, details);
+  const failure = classifyFailure(message, details, readOnly);
   return (
     <div
       role={announce ? "alert" : "note"}

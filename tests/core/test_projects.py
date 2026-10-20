@@ -102,6 +102,23 @@ def test_invalid_definitions_are_rejected(project):
         m.load_workspace(project)
 
 
+def test_registration_key_errors_name_the_registration_and_key(project):
+    m = api()
+    m.apply_config(m.preview_config(project, definition(project)))
+    path = project / "pyproject.toml"
+    original = path.read_text()
+    key = definition(project).models[0].key
+    path.write_text("\n".join(line for line in original.splitlines() if not line.startswith("layout")))
+    with pytest.raises(ValueError, match=f"Model registration '{key}' is missing required key 'layout'"):
+        m.load_workspace(project)
+    path.write_text(original.replace("layout =", "colour = 'red'\nlayout =", 1))
+    with pytest.raises(ValueError, match=f"Model registration '{key}' has unknown key 'colour'"):
+        m.load_workspace(project)
+    path.write_text(original.replace("[tool.simulatte.analyses]", "[tool.simulatte.analyses]\nreport = 3", 1))
+    with pytest.raises(ValueError, match="Analysis registration 'report' must be a table"):
+        m.load_workspace(project)
+
+
 def test_symlinks_and_config_creation(tmp_path):
     m = api()
     root = tmp_path / "actual"
