@@ -286,6 +286,7 @@ class Peer:
         self.cache = CommandCache()
         self.close_code = 1000
         self.selected_view = None
+        self.sent_state = None  # the last state body pushed to this peer
         self.stopped = asyncio.Event()
 
     def close(self, code=None):
@@ -400,7 +401,7 @@ class ConnectionHub:
             peer = Peer(socket)
             self.connections.add(peer)
             initial = self.envelope("state", None)
-            initial["body"] = await self.state(peer)
+            initial["body"] = peer.sent_state = await self.state(peer)
             peer.outbox.put(initial, first=True)
             tasks = [
                 asyncio.create_task(self._send(peer)),

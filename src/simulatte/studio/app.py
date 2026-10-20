@@ -445,14 +445,18 @@ class StudioServer(SessionAuth):
         return None if row is None else ({"number": row["number"], "digest": row["digest"]}, row["slot"])
 
     async def _broadcast_state(self):
-        # A pinned selection is per peer; the shared snapshot serves everyone else.
+        # A pinned selection is per peer; the shared snapshot serves everyone else. A peer receives a snapshot only
+        # when it differs from the last one it was sent, so an idle project sends nothing between changes.
         shared = None
         for peer in tuple(self.hub.connections):
             if peer.selected_view is None:
                 shared = await self.state(None) if shared is None else shared
-                self.hub.send(peer, "state", shared)
+                state = shared
             else:
-                self.hub.send(peer, "state", await self.state(peer))
+                state = await self.state(peer)
+            if state != peer.sent_state:
+                peer.sent_state = state
+                self.hub.send(peer, "state", state)
 
     def _range_source(self, attempt, generation):
         if re.fullmatch(r"[a-f0-9]{32}", attempt) is None or not generation.isdecimal():
