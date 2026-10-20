@@ -215,6 +215,18 @@ class ProjectServer(StudioServer):
                         "important": bool(annotation["important"]),
                     }
                 )
+                # replication_attempt orders matching index entries by rowid: choose one association
+                # without sorting/materializing every study that reused this same result.
+                replication = db.execute(
+                    "SELECT r.run AS run_id,e.name,c.label AS configuration,r.idx AS 'index' "
+                    "FROM replications r JOIN experiment_runs x ON x.id=r.run "
+                    "JOIN experiments e ON e.id=x.experiment "
+                    "JOIN configurations c ON c.run=r.run AND c.idx=r.configuration "
+                    "WHERE r.attempt=? ORDER BY r.rowid LIMIT 1",
+                    (attempt,),
+                ).fetchone()
+                if replication is not None:
+                    run["replication"] = dict(replication)
                 run["request"] = _read(run.pop("body"))
                 plan = measurement_plan(run["request"])
                 if plan is not None:

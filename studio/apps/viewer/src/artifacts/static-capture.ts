@@ -103,9 +103,9 @@ export function evidenceSource(
       if (!path) throw new Error("the number has no saved file");
       return asRecord(await json(executionId, path)).value;
     },
-    async rows(executionId, output, offset, limit) {
+    async rows(executionId, output, offset, limit, signal) {
       // The same bounded excerpt the Studio evidence panel shows (saved order, offset and limit).
-      return excerptRows(reader(executionId), output.id, { offset, limit, columns: [] });
+      return excerptRows(reader(executionId), output.id, { offset, limit, columns: [] }, signal);
     },
     async summary(executionId, output) {
       const path = artifact(output as unknown as OutputDescriptor, "distribution.json");

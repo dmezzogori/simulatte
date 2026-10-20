@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
+from collections import OrderedDict
 import hashlib
 import json
-import math
+import os
 from pathlib import PurePosixPath
 import time
+import tempfile
 from uuid import uuid4
 
 from simulatte.execution.project_store import require_reference
@@ -258,6 +260,7 @@ class AnalysisStore:
             }
             identity, preview = codec.identity(body), str(uuid4())
             db.execute("INSERT OR IGNORE INTO analysis_input_snapshots VALUES (?,?)", (identity, codec.dumps(body)))
+            self._window_summary(db, identity)
             db.execute("INSERT INTO analysis_previews VALUES (?,?)", (preview, identity))
         return InputPreview(
             preview, identity, available, len(replications), len(replications) - available, body["partial"]
@@ -600,44 +603,103 @@ class AnalysisStore:
                     "missing": summary["planned"] - summary["available"],
                     "partial": summary["partial"],
                     "selection": codec.loads(row["selection"]),
-                    "windows": _windows(self._body(db, "analysis_input_snapshots", row["snapshot"])),
+                    "windows": self._window_summary(db, row["snapshot"]),
                 },
                 "details": codec.loads(extra["details"]),
                 "output": None if output is None else codec.loads(output[0]),
                 "annotations": self._annotations(db, identity),
             }
 
+    def _window_summary(self, db, identity):
+        """Disposable aggregate, keyed by immutable snapshot identity; never rewrites input evidence.
+
+        New previews prime it once. Legacy/cache-pruned snapshots project only window fields in SQLite,
+        grouping there and returning at most 20 rows to Python. No request/manifest/chunk is decoded.
+        Read-only stores can compute the same summary even when their cache directory is unwritable.
+        """
+        # A read-only reader retains at most 128 compact entries in memory, without creating files.
+        memory = getattr(self.store, "_analysis_windows", None)
+        if memory is not None and identity in memory:
+            memory.move_to_end(identity)
+            return json.loads(memory[identity])
+        path = self.store.root / "analysis-cache" / "windows-v1" / f"{identity}.json"
+        try:
+            return json.loads(path.read_bytes())
+        except (OSError, ValueError):
+            pass
+        rows = db.execute(_WINDOW_SUMMARY, (identity,)).fetchall()
+        result = {
+            "items": [
+                {"dataset": r["dataset"], "start": r["start"], "end": r["end"], "replications": r["replications"]}
+                for r in rows
+            ],
+            "total": rows[0]["total"] if rows else 0,
+        }
+        if not isinstance(self.store, RunStore):
+            if memory is None:
+                self.store._analysis_windows = memory = OrderedDict()
+            memory[identity] = json.dumps(result)
+            if len(memory) > 128:
+                memory.popitem(last=False)
+            return result
+        # Cache publication is atomic but disposable; inability to write it cannot prevent a detail read.
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
+                temporary = stream.name
+                try:
+                    stream.write(json.dumps(result, separators=(",", ":")).encode())
+                    stream.close()
+                    os.replace(temporary, path)
+                finally:
+                    if os.path.exists(temporary):
+                        os.unlink(temporary)
+        except OSError:
+            pass
+        return result
+
 
 MAX_WINDOWS = 20
 
+# Dataset windows are already tagged JSON inside the tagged snapshot; their extra $record wrappers
+# are intentional. SQLite traverses the stored JSON, but Python receives only the compact aggregate.
+_WINDOW_SUMMARY = """
+WITH inputs AS NOT MATERIALIZED (
+    SELECT r.value AS body FROM analysis_input_snapshots s,
+    json_each(CAST(s.body AS TEXT), '$."$record".replications') r
+    WHERE s.id=? AND json_extract(r.value, '$."$record".available')=1
+), windows AS (
+    SELECT NULL AS dataset,
+      json_extract(body, '$."$record".request."$record".stopping."$record".warmup') AS start,
+      json_extract(body, '$."$record".request."$record".stopping."$record".horizon') AS end,
+      json_type(body, '$."$record".request."$record".stopping."$record".warmup') AS start_type,
+      json_type(body, '$."$record".request."$record".stopping."$record".horizon') AS end_type
+    FROM inputs
+    UNION ALL
+    SELECT d.key,
+      json_extract(d.value, '$."$record".manifest."$record".window."$record"."$record"."$record".start'),
+      json_extract(d.value, '$."$record".manifest."$record".window."$record"."$record"."$record".end'),
+      json_type(d.value, '$."$record".manifest."$record".window."$record"."$record"."$record".start'),
+      json_type(d.value, '$."$record".manifest."$record".window."$record"."$record"."$record".end')
+    FROM inputs, json_each(body, '$."$record".datasets."$record"') d
+), normalized AS (
+    SELECT dataset, {start} AS start, {end} AS end FROM windows
+), counts AS (
+    SELECT dataset,start,end,count(*) AS replications FROM normalized GROUP BY dataset,start,end
+)
+SELECT *,count(*) OVER () AS total FROM counts
+ORDER BY dataset IS NOT NULL,dataset,start IS NULL,start,end IS NULL,end LIMIT """ + str(MAX_WINDOWS)
 
-def _windows(snapshot):
-    """Distinct observation windows of the available inputs, with replication counts, at most ``MAX_WINDOWS``.
 
-    ``dataset`` ``None`` is the run's stopping policy (warm-up to horizon); a dataset reports the window it recorded."""
+def _window_number(field):
+    # Nonfinite tags and nonnumeric window values become null, as in the original summary.
+    return f"""CASE WHEN {field}_type IN ('integer','real') THEN {field}
+        WHEN {field}_type='object' THEN CAST(COALESCE(
+          json_extract({field}, '$."$int64"'),
+          json_extract({field}, '$."$record"."$int64"')) AS INTEGER) END"""
 
-    def number(value):
-        return value if type(value) in (int, float) and math.isfinite(value) else None
 
-    counts = {}
-    for row in snapshot["replications"]:
-        if not row["available"]:
-            continue
-        stopping = (row.get("request") or {}).get("stopping") or {}
-        keys = [(None, number(stopping.get("warmup")), number(stopping.get("horizon")))]
-        for name, dataset in sorted(row.get("datasets", {}).items()):
-            window = DatasetManifest.from_dict(dataset["manifest"]).window
-            keys.append((name, number(window.get("start")), number(window.get("end"))))
-        for key in keys:
-            counts[key] = counts.get(key, 0) + 1
-    order = sorted(counts, key=lambda k: (k[0] is not None, k[0] or "", *(math.inf if v is None else v for v in k[1:])))
-    return {
-        "items": [
-            {"dataset": d, "start": start, "end": end, "replications": counts[d, start, end]}
-            for d, start, end in order[:MAX_WINDOWS]
-        ],
-        "total": len(order),
-    }
+_WINDOW_SUMMARY = _WINDOW_SUMMARY.format(start=_window_number("start"), end=_window_number("end"))
 
 
 def analysis_name(name):

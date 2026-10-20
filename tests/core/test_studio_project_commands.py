@@ -513,3 +513,45 @@ def test_experiment_list_and_get_on_a_read_only_project(tmp_path):
         assert refused["ok"] is False and "limit" in refused["error"]["message"]
     finally:
         service.close()
+
+
+@pytest.mark.parametrize("read_only", [False, True])
+def test_original_attempt_beyond_history_and_experiment_pages(tmp_path, read_only):
+    from contextlib import ExitStack, closing
+    from types import SimpleNamespace
+
+    from simulatte.execution.project_store import ProjectStore
+    from simulatte.execution.store_reader import StoreReader
+    from simulatte.studio.project_commands import ProjectServer
+    from tests.core.test_experiment_results import build
+
+    with RunStore.open(tmp_path / ".simulatte") as store:
+        store.create_revision({})
+        old, attempts = build(store, {(c, i): {} for c in range(2) for i in range(30)})
+        attempt = attempts[0, 0]
+        for i in range(21):
+            build(store, {(0, i + 30): {}})
+        assert attempt not in {r["id"] for r in ProjectStore(store).history().items}
+        # Reuse associates the same attempt with another study; the first indexed match remains stable.
+        build(store, {(0, 0): "pending"})
+        with store._transaction() as db:
+            assert "replication_attempt" in {r["name"] for r in db.execute("PRAGMA index_list(replications)")}
+            assert [r["name"] for r in db.execute("PRAGMA index_info(replication_attempt)")] == ["attempt"]
+        with ExitStack() as stack:
+            selected = stack.enter_context(closing(StoreReader.open(store.root))) if read_only else store
+            server = SimpleNamespace(
+                service=SimpleNamespace(store=None if read_only else selected, reader=selected if read_only else None)
+            )
+            statements = []
+            selected._db.set_trace_callback(statements.append)
+            try:
+                run = ProjectServer._command(server, {"type": "run.get", "body": {"attempt_id": attempt}}, None)["run"]
+            finally:
+                selected._db.set_trace_callback(None)
+            assert int(run["request"]["seed"]) == 0
+            assert run["replication"] == {"run_id": old, "name": "sweep", "configuration": "x=1/base", "index": 0}
+            lookups = [s for s in statements if "FROM replications r" in s]
+            assert len(lookups) == 1 and "LIMIT 1" in lookups[0]
+            plan = list(selected._db.execute("EXPLAIN QUERY PLAN " + lookups[0]))
+            assert any("SEARCH r USING INDEX replication_attempt" in row["detail"] for row in plan)
+            assert not any("TEMP B-TREE" in row["detail"] for row in plan)

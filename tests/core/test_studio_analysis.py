@@ -998,6 +998,8 @@ def test_read_only_tables_page_without_indexes_and_legacy_stores_are_empty(tmp_p
         with AnalysisRunner(store, environments=environments) as runner:
             runner.submit(item.id)
             assert runner.wait(item.id, timeout=60).state == "succeeded"
+    cache = root / ".simulatte/analysis-cache"
+    cached_before = {p.relative_to(cache): p.read_bytes() for p in cache.rglob("*") if p.is_file()}
     service = ProjectService.open(StudioTarget(root, None), read_only=True)
     server = ProjectServer(service, 8123, static_dir(tmp_path / "static"))
     table = next(
@@ -1012,7 +1014,7 @@ def test_read_only_tables_page_without_indexes_and_legacy_stores_are_empty(tmp_p
         assert len(client.get(url + "?limit=7", headers=headers).json()["rows"]) == 7
         sorted_rows = client.get(url + "?sort=value:asc", headers=headers)
         assert sorted_rows.status_code == 409 and "writable" in sorted_rows.json()["error"]
-        assert not (root / ".simulatte/analysis-cache").exists()
+        assert {p.relative_to(cache): p.read_bytes() for p in cache.rglob("*") if p.is_file()} == cached_before
         monkeypatch.setattr(service.reader, "version", 3)
         assert AnalysisCommands(service)("analysis.list", {}) == {"ok": True, "items": [], "next_cursor": None}
         with pytest.raises(KeyError):
@@ -1024,7 +1026,7 @@ def test_read_only_tables_page_without_indexes_and_legacy_stores_are_empty(tmp_p
         AnalysisCommands(service)("analysis.list", {})
 
 
-def test_analysis_get_reports_the_inputs_observation_windows(tmp_path):
+def test_analysis_get_reports_the_inputs_observation_windows(tmp_path, monkeypatch):
     import hashlib
 
     from simulatte.analysis.datasets import DatasetWriter
@@ -1062,6 +1064,17 @@ def test_analysis_get_reports_the_inputs_observation_windows(tmp_path):
                         )
         preview = analysis.preview(Selection(experiment_run_ids=(run,)))
         execution = analysis.admit(preview.id, definition_id=definition, parameters={}, generation_id="env")
+        original_loads = codec.loads
+
+        def small_loads(raw):
+            decoded = original_loads(raw)
+            assert not isinstance(decoded, dict) or "replications" not in decoded, "whole snapshot decoded"
+            return decoded
+
+        monkeypatch.setattr(codec, "loads", small_loads)
+        from simulatte.analysis import datasets
+
+        monkeypatch.setattr(datasets, "Chunk", lambda **kw: pytest.fail("unrelated chunk materialized"))
         windows = analysis.get(execution.id)["snapshot"]["windows"]
         # The scalar-only replication reports the stopping policy's warm-up and horizon; the pending one nothing.
         assert windows == {

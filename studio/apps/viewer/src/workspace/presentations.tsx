@@ -1,11 +1,11 @@
 /** Presentations: saved views of full recordings with their supporting evidence (P4 Task 2). */
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { validatePresentation, type PresentationManifest } from "@simulatte/playback";
-import type { ConnectionStatus, ExperimentReport, ExperimentRun, Prefix, StudioClient } from "../studio-client";
+import type { ConnectionStatus, Prefix, StudioClient } from "../studio-client";
 import { ConfirmDialog, EmptyState, FailureNotice, Feedback, type PageState } from "./feedback";
 import { Actions, Field, NOT_CONNECTED, READ_ONLY, disabledWhen } from "./forms";
 import { formatTime } from "./tables";
-import { indexReplications, type HistoryRow, type ReplicationRef } from "./runs";
+import { DetailsLoader, type HistoryRow, type ReplicationRef } from "./runs";
 import { routeHash, type ProjectState, type RunDetails } from "./state";
 import { PresentationEditor, type RecordingIdentity } from "../presentation/editor";
 import { PresentationView, type StageSource } from "../presentation/view";
@@ -33,24 +33,30 @@ export class PresentationPages {
   items: ListedPresentation[] = [];
   cursor: string | null = null;
   #pages = 0;
+  #generation = 0;
   constructor(private readonly list: (cursor: string | null) => Promise<ListPage>) {}
   async refresh(): Promise<void> {
-    const items: ListedPresentation[] = [];
+    const generation = ++this.#generation;
+    const items = new Map<string, ListedPresentation>();
     let cursor: string | null = null;
     for (let page = 0; page < Math.max(1, this.#pages); page++) {
       const next: ListPage = await this.list(cursor);
-      items.push(...next.items);
+      if (generation !== this.#generation) return;
+      for (const item of next.items) items.set(item.id, item);
       cursor = next.next_cursor;
       if (cursor === null) break;
     }
-    this.items = items.filter((x, i) => items.findIndex((y) => y.id === x.id) === i);
+    this.items = [...items.values()];
     this.cursor = cursor;
     this.#pages = Math.max(1, this.#pages);
   }
   async more(): Promise<void> {
     if (this.cursor === null) return;
-    const next = await this.list(this.cursor);
-    this.items = [...this.items, ...next.items.filter((x) => !this.items.some((y) => y.id === x.id))];
+    const generation = this.#generation, cursor = this.cursor;
+    const next = await this.list(cursor);
+    if (generation !== this.#generation || cursor !== this.cursor) return;
+    const known = new Set(this.items.map((item) => item.id));
+    this.items = [...this.items, ...next.items.filter((x) => !known.has(x.id))];
     this.cursor = next.next_cursor;
     this.#pages++;
   }
@@ -103,49 +109,41 @@ export function originalRunLabel(row: { id: string; name: string; created: numbe
     ? `${replication.name} · ${replication.configuration} · replication ${replication.index} · ${name}`
     : `${name} · ${formatTime(row.created)}`;
 }
-function RecordFlow({ client, state, connected, recordings }: { client: StudioClient; state: ProjectState; connected: boolean; recordings: RecordingEntry[] }) {
+/** The visible originals only: the direct study/run action works even outside the latest history page. */
+export function originalOptions(rows: readonly { id: string; name: string; created: number }[], details: { get(id: string): RunDetails | Error | undefined }): { id: string; label: string }[] {
+  return rows.map((row) => {
+    const run = details.get(row.id);
+    return { id: row.id, label: originalRunLabel(row, run instanceof Error ? undefined : run?.replication) + (run && !(run instanceof Error) ? ` · seed ${String(run.request.seed)}` : "") };
+  });
+}
+export function PresentationOriginalAction({ attempt }: { attempt: string }) {
+  return <a className="ws-button" href={routeHash({ page: "presentations", original: attempt })}>Create presentation from this run</a>;
+}
+function RecordFlow({ client, state, connected, recordings, initialOriginal }: { client: StudioClient; state: ProjectState; connected: boolean; recordings: RecordingEntry[]; initialOriginal?: string }) {
   const completed = (state.history as HistoryRow[]).filter((r) => r.has_result);
-  const [original, setOriginal] = useState(completed[0]?.id ?? "");
+  // A deep link resolves just its selected attempt. The list's picker resolves the visible history page only,
+  // with the same bounded concurrency/cache as Runs; it never fetches experiment reports.
+  const visible = initialOriginal ? [{ id: initialOriginal, name: "", created: 0 }] : completed;
+  const [original, setOriginal] = useState(initialOriginal ?? completed[0]?.id ?? "");
   const [seed, setSeed] = useState("");
   const [diff, setDiff] = useState<{ mode: string; diff: DiffEntry[] } | null>(null);
   const [job, setJob] = useState<{ attempt_id: string; mode: string } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [originalSeed, setOriginalSeed] = useState<{ attempt: string; seed: unknown } | null>(null);
-  // Replications are identified through the listed experiments' reports, as on the Runs page (bounded by the listing).
-  const [reports, setReports] = useState<Map<string, { status: string; report: ExperimentReport }>>(new Map());
-  const experiments = (client.state?.experiments ?? []) as ExperimentRun[];
-  const needsIndex = completed.some((r) => r.slot && r.slot !== "interactive");
+  const [details] = useState(() => new DetailsLoader((attempt) => loadRun(client, attempt)));
+  const detailsVersion = useSyncExternalStore(details.subscribe, details.snapshot, details.snapshot);
+  const visibleIds = visible.map((r) => r.id).join(",");
   useEffect(() => {
-    if (!needsIndex || !connected) return;
-    let closed = false;
-    for (const run of experiments.slice(0, 20)) {
-      if (reports.get(run.run_id)?.status === run.status) continue;
-      void client
-        .command("comparison.get", { run_id: run.run_id })
-        .then((r) => {
-          if (!closed && r.ok) setReports((old) => new Map(old).set(run.run_id, { status: run.status, report: r.report as ExperimentReport }));
-        })
-        .catch(() => {});
-    }
-    return () => {
-      closed = true;
-    };
-  }, [client, connected, needsIndex, experiments.map((r) => r.run_id + r.status).join()]);
-  const replications = indexReplications([...reports.values()].map((r) => r.report));
+    if (connected) details.request(visibleIds ? visibleIds.split(",") : []);
+  }, [details, connected, visibleIds]);
+  useEffect(() => () => details.dispose(), [details]);
+  const selected = details.get(original);
+  const shownSeed = selected && !(selected instanceof Error) ? selected.request.seed : undefined;
   useEffect(() => {
-    if (!original || !connected) return;
-    let closed = false;
-    loadRun(client, original)
-      .then((run) => {
-        if (!closed) setOriginalSeed({ attempt: original, seed: run.request.seed });
-      })
-      .catch(() => {});
-    return () => {
-      closed = true;
-    };
-  }, [client, connected, original]);
-  const shownSeed = originalSeed?.attempt === original ? originalSeed.seed : undefined;
+    if (!original && completed[0]) setOriginal(completed[0].id);
+    if (initialOriginal && shownSeed !== undefined) setSeed((value) => value || String(shownSeed));
+  }, [original, completed[0]?.id, initialOriginal, shownSeed, detailsVersion]);
+  const options = originalOptions(visible, details);
   const preview = async () => {
     setBusy(true);
     setError("");
@@ -183,9 +181,9 @@ function RecordFlow({ client, state, connected, recordings }: { client: StudioCl
       <div className="ws-form-grid">
         <Field label="Original run" hint={shownSeed !== undefined ? `Original seed ${String(shownSeed)}` : undefined}>
           <select value={original} onChange={(e) => { setOriginal(e.target.value); setDiff(null); }}>
-            {completed.map((r) => (
+            {options.map((r) => (
               <option key={r.id} value={r.id}>
-                {originalRunLabel(r, replications.get(r.id))}
+                {r.label}
               </option>
             ))}
           </select>
@@ -233,6 +231,7 @@ function RecordFlow({ client, state, connected, recordings }: { client: StudioCl
           )}
         </p>
       )}
+      {selected instanceof Error && <FailureNotice message={selected.message} compact />}
       {error && <FailureNotice message={error} compact />}
     </section>
   );
@@ -243,6 +242,7 @@ export function PresentationsPage({
   status,
   presentationId,
   attemptId,
+  originalId,
   present = false,
 }: {
   client: StudioClient;
@@ -250,6 +250,7 @@ export function PresentationsPage({
   status: ConnectionStatus;
   presentationId?: string;
   attemptId?: string;
+  originalId?: string;
   present?: boolean;
 }) {
   const connected = status === "connected";
@@ -490,6 +491,13 @@ export function PresentationsPage({
       </>
     );
   }
+  if (originalId) return (
+    <>
+      <p className="ws-back"><a href="#/presentations">← Presentations</a></p>
+      <div className="ws-page-heading"><h1>New presentation</h1></div>
+      {state.read_only ? <p>{READ_ONLY}</p> : <RecordFlow key={originalId} client={client} state={state} connected={connected} recordings={recordings} initialOriginal={originalId} />}
+    </>
+  );
   // The list.
   const completed = (state.history as HistoryRow[]).filter((r) => r.has_result);
   return (
