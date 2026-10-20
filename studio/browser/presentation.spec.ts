@@ -3,7 +3,8 @@
  * evidence qualifiers, keyboard exit from presentation mode. Needs the P4 Python commands (R3/R4) in the wheel. */
 import { test, expect, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { ProjectFixture } from "./project-fixture";
@@ -218,6 +219,9 @@ test("studio presentation rows: provenance, saved view roundtrip, evidence quali
     await expect(mode.getByRole("status", { name: "Current time" })).toHaveText("t = 0", { timeout: 30000 });
     await expect(mode.getByRole("complementary", { name: "Supporting evidence" })).toContainText("1 of 1 replications");
     await expect(page.getByRole("navigation", { name: "Project navigation" })).toHaveCount(0);
+    // The mode covers the whole viewport, also wider than the workspace content column (1350 px).
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await expect.poll(() => mode.boundingBox()).toEqual({ x: 0, y: 0, width: 1600, height: 900 });
     await capture(page, info.project.name, "present");
     await page.keyboard.press("Escape");
     await expect(mode).toHaveCount(0);
@@ -242,6 +246,20 @@ test("studio presentation rows: provenance, saved view roundtrip, evidence quali
 // ---------------------------------------------------------------------------------------------------------------
 // Export (worker p3-artifacts): target preview, refusals, video/PNG/HTML parity and pinned export jobs. Appended
 // only; the helpers above (seed, record, capture, hash) are shared. Needs the export entry on the presentation page.
+/** Exports stage files in origin-private storage, which Playwright's ephemeral WebKit contexts reject
+ * (UnknownError): like export.spec.ts, the export tests run in a persistent context on every engine. */
+const persistent = test.extend({
+  page: async ({ playwright, browserName }, use) => {
+    const directory = await mkdtemp(join(tmpdir(), "simulatte-presentation-"));
+    const context = await playwright[browserName].launchPersistentContext(directory, { headless: true, viewport: { width: 1440, height: 1000 } });
+    try {
+      await use(context.pages()[0] ?? (await context.newPage()));
+    } finally {
+      await context.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+});
 test.describe("export", () => {
   const samples = resolve("../.superpowers/sdd/2026-10-19-studio-p4-presentation/samples");
   const EVIL = `from pathlib import Path
@@ -394,7 +412,8 @@ with RunStore.open(Path(sys.argv[1])/'.simulatte') as store:
     return await download;
   };
 
-  test("targetPreviewAndEvidenceLimits", async ({ page, context }, info) => {
+  persistent("targetPreviewAndEvidenceLimits", async ({ page }, info) => {
+    const context = page.context();
     test.setTimeout(600000);
     const fixture = new ProjectFixture();
     const errors: string[] = [];
@@ -448,25 +467,9 @@ with RunStore.open(Path(sys.argv[1])/'.simulatte') as store:
       await dialog.getByLabel("Format", { exact: true }).selectOption("mp4");
       const mp4Hash = await prepared(dialog);
       expect(mp4Hash).not.toBe(pngHash);
-      // Video needs origin-private temporary storage; Playwright's WebKit has none on the Studio origin
-      // (UnknownError), where the export must refuse plainly instead of producing a partial file.
-      const storage = await page.evaluate(async () => {
-        try {
-          await navigator.storage.getDirectory();
-          return "available";
-        } catch (e) {
-          return (e as Error).name;
-        }
-      });
-      if (storage === "available") {
-        const mp4 = await exported(dialog, page);
-        await mp4.saveAs(join(samples, `${info.project.name}-presentation.mp4`));
-        await dialog.getByRole("button", { name: "Remove temporary copy", exact: true }).click();
-      } else {
-        info.annotations.push({ type: "video", description: `no OPFS on this origin (${storage}); MP4 refused` });
-        await dialog.getByRole("button", { name: "Start export" }).click();
-        await expect(dialog.locator('p[role="status"]')).toContainText("Temporary storage is unavailable", { timeout: 60000 });
-      }
+      const mp4 = await exported(dialog, page);
+      await mp4.saveAs(join(samples, `${info.project.name}-presentation.mp4`));
+      await dialog.getByRole("button", { name: "Remove temporary copy", exact: true }).click();
       // Standalone HTML: preview through the same renderer, then the download.
       await dialog.getByLabel("Format", { exact: true }).selectOption("html");
       await prepared(dialog);
@@ -520,7 +523,7 @@ with RunStore.open(Path(sys.argv[1])/'.simulatte') as store:
     }
   });
 
-  test("exportPinsRevisionAndEvidence", async ({ page }) => {
+  persistent("exportPinsRevisionAndEvidence", async ({ page }) => {
     test.setTimeout(600000);
     const fixture = new ProjectFixture();
     try {
