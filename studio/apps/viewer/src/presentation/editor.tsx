@@ -11,7 +11,10 @@ import {
   type Bounds,
   type EvidenceChoice,
   type EvidenceSelection,
+  type PlaybackView,
   type PresentationManifest,
+  type SceneView,
+  type SessionView,
 } from "@simulatte/playback";
 import type { StudioClient } from "../studio-client";
 import { httpArtifactSource } from "../artifacts/source";
@@ -77,6 +80,34 @@ export function manifestOf(draft: EditorDraft, recording: RecordingIdentity, lay
     created: existing?.created ?? Date.now() / 1000,
   });
 }
+/** "Use current view": the framing taken from the live stage, validated against the rest of the draft. The saved
+ * rate stays the Rate field; the transport's playback rate is a temporary viewing change. */
+export function currentView(
+  draft: EditorDraft,
+  context: { recording: RecordingIdentity; layout: unknown },
+  scene: SceneView,
+  session: SessionView,
+  playback: PlaybackView,
+): { camera: Bounds } {
+  const captured = capturePresentation(scene, session, playback, {
+    name: draft.name,
+    notes: draft.notes,
+    recording: context.recording,
+    layout: context.layout as PresentationManifest["layout"],
+    visibility: { entities: draft.entities, labels: draft.labels },
+    measurements: draft.measurements,
+    time: { start: Number(draft.time.start), end: Number(draft.time.end) },
+    annotations: draft.annotations,
+    evidence: draft.evidence,
+    rate: draft.rate,
+  });
+  return { camera: captured.camera.bounds };
+}
+/** The outputs the picker offers: those of the chosen execution only, so a slow reply never offers the outputs
+ * of the analysis chosen before. */
+export function pickerOutputs<T extends { origin: EvidenceOrigin }>(detail: T | null, chosen: string): T | null {
+  return detail && detail.origin.execution_id === chosen ? detail : null;
+}
 interface Listed {
   id: string;
   name: string;
@@ -90,7 +121,7 @@ interface Listed {
 function EvidencePicker({ client, connected, onAdd, count }: { client: StudioClient; connected: boolean; onAdd: (item: EvidenceSelection) => void; count: number }) {
   const [executions, setExecutions] = useState<Listed[] | null>(null);
   const [chosen, setChosen] = useState("");
-  const [detail, setDetail] = useState<{ origin: EvidenceOrigin; outputs: OutputDescriptor[] } | null>(null);
+  const [loaded, setDetail] = useState<{ origin: EvidenceOrigin; outputs: OutputDescriptor[] } | null>(null);
   const [output, setOutput] = useState("");
   const [rows, setRows] = useState({ offset: "0", limit: "10", columns: [] as string[] });
   const [figure, setFigure] = useState({ width: "960", height: "540" });
@@ -124,6 +155,7 @@ function EvidencePicker({ client, connected, onAdd, count }: { client: StudioCli
       .catch((e) => setError(String(e)))
       .finally(() => setBusy(false));
   }, [client, chosen]);
+  const detail = pickerOutputs(loaded, chosen);
   const selected = detail?.outputs.find((o) => o.id === output) ?? null;
   const fields = selected?.metadata.schema?.fields.map((f) => f.name) ?? [];
   const add = async () => {
@@ -270,23 +302,11 @@ export function PresentationEditor({
     return () => clearInterval(id);
   }, [stage]);
   const range = stage?.recording.finiteRange ?? null;
-  const selection = () => ({
-    name: draft.name,
-    notes: draft.notes,
-    recording,
-    layout: stage!.recording.trace.layout!,
-    visibility: { entities: draft.entities, labels: draft.labels },
-    measurements: draft.measurements,
-    time: { start: Number(draft.time.start), end: Number(draft.time.end) },
-    annotations: draft.annotations,
-    evidence: draft.evidence,
-  });
   const useCurrentView = () => {
     const s = stageRef.current;
     if (!s) return;
     try {
-      const captured = capturePresentation(s.scene, s.session, s.playback, { ...selection(), rate: s.playback.rate });
-      edit({ camera: captured.camera.bounds, rate: captured.rate });
+      edit(currentView(draft, { recording, layout: s.recording.trace.layout }, s.scene, s.session, s.playback));
       setError("");
     } catch (e) {
       // The camera is still worth keeping even when another field is incomplete.

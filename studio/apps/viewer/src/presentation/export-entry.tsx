@@ -56,7 +56,8 @@ export function PresentationExportButton({
   connected: boolean;
   readOnly: boolean;
 }) {
-  const [open, setOpen] = useState<{ recording: RecordingView; source: HttpSource } | null>(null);
+  // The manifest is pinned when the dialog opens: a revision saved meanwhile never changes this export.
+  const [open, setOpen] = useState<{ recording: RecordingView; source: HttpSource; manifest: PresentationManifest } | null>(null);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState("");
   const headers = { "X-Simulatte-Session": sessionStorage.getItem("simulatte-session") ?? "" };
@@ -67,7 +68,7 @@ export function PresentationExportButton({
     try {
       const source = await HttpSource.open(prefix.url, headers);
       const recording = await openRecording(source);
-      setOpen({ recording, source });
+      setOpen({ recording, source, manifest });
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
     } finally {
@@ -76,9 +77,9 @@ export function PresentationExportButton({
   };
   const presentationExport: PresentationExport | null = open
     ? {
-        manifest,
+        manifest: open.manifest,
         presentationId,
-        revision: manifest.revision ?? 0,
+        revision: open.manifest.revision ?? 0,
         evidence: evidenceSource((type, body) => client.command(type, body, { revision: null }), (path, init) => client.fetchApi(path, init)),
         jobs: exportJobs(client),
         traceSource: (limit, signal) => traceBlob(open.source, Math.min(limit, MAX_TRACE), signal),

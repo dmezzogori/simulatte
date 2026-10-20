@@ -114,8 +114,11 @@ async function record(page: Page, seedValue: string, expectedMode: "replay" | "n
   await page.getByRole("button", { name: "Preview differences", exact: true }).click();
   const diff = page.locator("[data-diff-mode]");
   await expect(diff).toHaveAttribute("data-diff-mode", expectedMode);
-  await page.getByRole("button", { name: "Record", exact: true }).click();
   const status = page.locator("[data-recording]");
+  // A previous recording's status stays on screen until the new one starts: wait for the new attempt first.
+  const previous = (await status.count()) ? await status.getAttribute("data-recording") : null;
+  await page.getByRole("button", { name: "Record", exact: true }).click();
+  if (previous) await expect(status).not.toHaveAttribute("data-recording", previous, { timeout: 60000 });
   await expect(status).toContainText("succeeded", { timeout: 120000 });
   return (await status.getAttribute("data-recording"))!;
 }
@@ -187,7 +190,7 @@ test("studio presentation rows: provenance, saved view roundtrip, evidence quali
     await page.getByRole("button", { name: "Save presentation", exact: true }).click();
     await expect.poll(() => hash(page), { timeout: 30000 }).toMatch(/^#\/presentations\/[0-9a-f-]{36}$/);
     const editorRoute = await hash(page);
-    await expect(page.getByText("Revision 1")).toBeVisible();
+    await expect(page.locator(".ws-tag").filter({ hasText: /^Revision 1$/ })).toBeVisible();
     // Reload: every saved setting comes back from the server.
     await page.goto(origin + "/" + editorRoute);
     await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Selected policy", { timeout: 30000 });
@@ -208,11 +211,12 @@ test("studio presentation rows: provenance, saved view roundtrip, evidence quali
     const mode = page.getByRole("region", { name: "Presentation: Selected policy" });
     await expect(mode).toBeVisible();
     await expect(mode.getByRole("button", { name: "Exit presentation" })).toBeFocused();
-    await expect(mode.getByRole("region", { name: "Supporting evidence" })).toBeVisible();
+    await expect(mode.getByRole("complementary", { name: "Supporting evidence" })).toBeVisible();
     await expect(mode.locator(".pv-measurements")).toBeVisible({ timeout: 30000 });
     await expect(mode).toContainText("Queue builds at the bottleneck");
-    await expect(mode.locator('[data-evidence][data-kind="number"] .pv-value')).not.toHaveText("…", { timeout: 30000 });
-    await expect(mode.getByRole("region", { name: "Supporting evidence" })).toContainText("1 of 1 replications");
+    await expect(mode.locator('[data-evidence][data-kind="number"] .pv-value')).toHaveText(/\d/, { timeout: 30000 });
+    await expect(mode.getByRole("status", { name: "Current time" })).toHaveText("t = 0", { timeout: 30000 });
+    await expect(mode.getByRole("complementary", { name: "Supporting evidence" })).toContainText("1 of 1 replications");
     await expect(page.getByRole("navigation", { name: "Project navigation" })).toHaveCount(0);
     await capture(page, info.project.name, "present");
     await page.keyboard.press("Escape");
@@ -336,21 +340,28 @@ with RunStore.open(Path(sys.argv[1])/'.simulatte') as store:
     await page.getByRole("button", { name: "Add annotation", exact: true }).click();
     await page.getByLabel("Annotation 1", { exact: true }).fill("Queue builds at the bottleneck");
     await page.getByLabel("Time of annotation 1", { exact: true }).fill("5");
-    const addEvidence = async (analysisIndex: number, outputIndex: number) => {
-      await page.getByRole("button", { name: "Add evidence", exact: true }).first().click();
-      await page.getByLabel("Saved analysis", { exact: true }).selectOption({ index: analysisIndex });
-      await page.getByLabel("Output", { exact: true }).selectOption({ index: outputIndex });
+    // Analyses are listed newest first, so options are chosen by name; the output list waits for the chosen one.
+    const choose = async (label: string, name: string) => {
+      const select = page.getByLabel(label, { exact: true });
+      const option = select.locator("option").filter({ hasText: new RegExp(`^${name} · `) });
+      await expect(option).toHaveCount(1, { timeout: 30000 });
+      await select.selectOption((await option.getAttribute("value"))!);
+    };
+    const addEvidence = async (analysis: string, output: string) => {
+      if (!(await page.getByLabel("Saved analysis", { exact: true }).isVisible())) await page.getByRole("button", { name: "Add evidence", exact: true }).first().click();
+      await choose("Saved analysis", analysis);
+      await choose("Output", output);
       await page.getByRole("button", { name: "Add evidence", exact: true }).last().click();
     };
-    await addEvidence(1, 1);
+    await addEvidence("Weekly report", "mean_lateness");
     if (evil) {
-      await addEvidence(2, 1);
-      await addEvidence(2, 2);
+      await addEvidence("Evil evidence", "drawing");
+      await addEvidence("Evil evidence", "figure");
     }
     await page.getByRole("button", { name: "Use current view", exact: true }).click();
     await page.getByRole("button", { name: "Save presentation", exact: true }).click();
     await expect.poll(() => hash(page), { timeout: 30000 }).toMatch(/^#\/presentations\/[0-9a-f-]{36}$/);
-    await expect(page.getByText("Revision 1")).toBeVisible();
+    await expect(page.locator(".ws-tag").filter({ hasText: /^Revision 1$/ })).toBeVisible();
     return await hash(page);
   }
   const openExport = async (page: Page) => {
@@ -371,7 +382,13 @@ with RunStore.open(Path(sys.argv[1])/'.simulatte') as store:
   const exported = async (dialog: ReturnType<Page["getByRole"]>, page: Page, timeout = 120000) => {
     await dialog.getByRole("button", { name: "Start export" }).click();
     const link = dialog.getByRole("link", { name: /^Download / });
-    await expect(link).toBeVisible({ timeout });
+    try {
+      await expect(link).toBeVisible({ timeout });
+    } catch (error) {
+      // The dialog's progress, status and refusal say why the export did not finish.
+      console.log("export dialog:", await dialog.locator('output, p[role="status"], .export-refusal').allInnerTexts().catch(() => []));
+      throw error;
+    }
     const download = page.waitForEvent("download");
     await link.click();
     return await download;
@@ -431,9 +448,25 @@ with RunStore.open(Path(sys.argv[1])/'.simulatte') as store:
       await dialog.getByLabel("Format", { exact: true }).selectOption("mp4");
       const mp4Hash = await prepared(dialog);
       expect(mp4Hash).not.toBe(pngHash);
-      const mp4 = await exported(dialog, page);
-      await mp4.saveAs(join(samples, `${info.project.name}-presentation.mp4`));
-      await dialog.getByRole("button", { name: "Remove temporary copy", exact: true }).click();
+      // Video needs origin-private temporary storage; Playwright's WebKit has none on the Studio origin
+      // (UnknownError), where the export must refuse plainly instead of producing a partial file.
+      const storage = await page.evaluate(async () => {
+        try {
+          await navigator.storage.getDirectory();
+          return "available";
+        } catch (e) {
+          return (e as Error).name;
+        }
+      });
+      if (storage === "available") {
+        const mp4 = await exported(dialog, page);
+        await mp4.saveAs(join(samples, `${info.project.name}-presentation.mp4`));
+        await dialog.getByRole("button", { name: "Remove temporary copy", exact: true }).click();
+      } else {
+        info.annotations.push({ type: "video", description: `no OPFS on this origin (${storage}); MP4 refused` });
+        await dialog.getByRole("button", { name: "Start export" }).click();
+        await expect(dialog.locator('p[role="status"]')).toContainText("Temporary storage is unavailable", { timeout: 60000 });
+      }
       // Standalone HTML: preview through the same renderer, then the download.
       await dialog.getByLabel("Format", { exact: true }).selectOption("html");
       await prepared(dialog);
@@ -519,24 +552,32 @@ with RunStore.open(Path(sys.argv[1])/'.simulatte') as store:
       await dialog.getByRole("button", { name: "Start export" }).click();
       await expect(dialog.locator("output")).toContainText("frames", { timeout: 60000 });
       // Meanwhile: a new revision of the presentation and another analysis execution in a second tab.
+      // A second tab of the same browser session: the Studio mode and secret live in per-tab sessionStorage.
+      const secret = await page.evaluate(() => sessionStorage.getItem("simulatte-session"));
       const tab = await page.context().newPage();
+      await tab.addInitScript((value) => {
+        sessionStorage.setItem("simulatte-mode", "studio");
+        sessionStorage.setItem("simulatte-session", value ?? "");
+      }, secret);
       await tab.goto(origin + "/" + route);
       await expect(tab.getByLabel("Notes", { exact: true })).toHaveValue("Replay of the policy study replication.", { timeout: 60000 });
       await tab.getByLabel("Notes", { exact: true }).fill("Revised while an export was running.");
-      await tab.getByRole("button", { name: "Save presentation", exact: true }).click();
-      await expect(tab.getByText("Revision 2")).toBeVisible({ timeout: 30000 });
+      await tab.getByRole("button", { name: "Save new revision", exact: true }).click({ timeout: 30000 });
+      await expect(tab.locator(".ws-tag").filter({ hasText: /^Revision 2$/ })).toBeVisible({ timeout: 30000 });
       await tab.goto(origin + "/#/analyses/new/report");
-      await tab.getByLabel(/^Policy study/).check();
-      await tab.getByRole("button", { name: "Preview inputs" }).click();
+      await tab.getByLabel(/^Policy study/).check({ timeout: 60000 });
+      await tab.getByRole("button", { name: "Preview inputs" }).click({ timeout: 30000 });
       await expect(tab.locator("[data-preview]")).toBeVisible({ timeout: 60000 });
-      await tab.getByRole("button", { name: "Admit and run" }).click();
+      await tab.getByRole("button", { name: "Admit and run" }).click({ timeout: 30000 });
       await expect(tab.locator(".ws-page-heading .ws-badge").first()).toHaveText("succeeded", { timeout: 120000 });
       await tab.close();
       const link = dialog.getByRole("link", { name: /^Download / });
       await expect(link).toBeVisible({ timeout: 240000 });
       await dialog.getByRole("button", { name: "Remove temporary copy", exact: true }).click();
       await dialog.getByRole("button", { name: "Close", exact: true }).click();
-      // A second export is interrupted by a disconnect: recovery marks it lost, never succeeded.
+      // The page followed the revision saved in the other tab without losing the running export.
+      await expect(page.locator(".ws-tag").filter({ hasText: /^Revision 2$/ })).toBeVisible({ timeout: 30000 });
+      // A second export (of revision 2) is interrupted by a disconnect: recovery marks it lost, never succeeded.
       const again = await openExport(page);
       await again.getByLabel("Format", { exact: true }).selectOption("png");
       await again.getByLabel("Width", { exact: true }).fill("640");
@@ -551,7 +592,7 @@ with RunStore.open(Path(sys.argv[1])/'.simulatte') as store:
       expect(state.presentations.map((p) => p.revision)).toEqual([2]);
       const jobs = state.exports.sort((a, b) => (a.state < b.state ? -1 : 1));
       expect(jobs.map((j) => [j.revision, j.state])).toEqual([
-        [1, "lost"],
+        [2, "lost"],
         [1, "succeeded"],
       ]);
       expect(jobs[1]!.snapshot_hash.slice(0, 12)).toBe(pinned);

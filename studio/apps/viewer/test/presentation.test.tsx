@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { validatePresentation, type PresentationManifest } from "@simulatte/playback";
 import { parseRoute, routeCrumbs, routeHash, type WorkspaceRoute } from "../src/workspace/state";
-import { recordingLabel } from "../src/workspace/presentations";
-import { EvidencePanel, EvidenceQualifiers, contentHash, evidenceFromOutput, excerptRows, labelsOf, qualifierText } from "../src/presentation/evidence-panel";
-import { draftOf, manifestOf } from "../src/presentation/editor";
+import { focusWhenShown, notificationReloads, recordingLabel } from "../src/workspace/presentations";
+import { EvidencePanel, EvidenceQualifiers, contentHash, documentField, evidenceFile, evidenceFromOutput, excerptRows, labelsOf, qualifierText } from "../src/presentation/evidence-panel";
+import { currentView, draftOf, manifestOf, pickerOutputs } from "../src/presentation/editor";
+import { hideOutside, type Hideable } from "../src/presentation/hide-outside";
 import type { ArtifactSource, OutputDescriptor, RowsPage } from "../src/artifacts/types";
 
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`../../../../tests/fixtures/presentations/${name}`, import.meta.url), "utf8")) as unknown;
@@ -43,6 +44,47 @@ describe("recording provenance labels", () => {
     expect(recordingLabel({ mode: "new_seed", verified: null, status: "succeeded" })).toBe("new recording, not a verified reproduction");
     expect(recordingLabel({ mode: "edited", verified: null, status: "succeeded" })).toBe("edited run, distinct from the original");
     expect(recordingLabel({ mode: "replay", verified: null, status: "running" })).toBe("replay · running");
+  });
+});
+describe("presentation page notifications", () => {
+  it("refreshes only the list on export state, so an open editor and its running export stay mounted", () => {
+    expect(notificationReloads({ type: "export_state", body: { presentation_id: "p1", state: "running" } }, "p1")).toEqual({ list: true, detail: false });
+    expect(notificationReloads({ type: "presentation_changed", body: { id: "p1", revision: 2 } }, "p1")).toEqual({ list: true, detail: true });
+    expect(notificationReloads({ type: "presentation_changed", body: { id: "p2", revision: 2 } }, "p1")).toEqual({ list: true, detail: false });
+    expect(notificationReloads({ type: "recording_state", body: {} }, undefined)).toEqual({ list: true, detail: false });
+    expect(notificationReloads({ type: "analysis_state", body: {} }, "p1")).toEqual({ list: false, detail: false });
+  });
+});
+describe("leaving presentation mode", () => {
+  it("returns focus to the Present control once the editor shows it again", () => {
+    const focused: string[] = [];
+    const present = { focus: () => focused.push("present") };
+    let shown = false;
+    const doc = { getElementById: (id: string) => (shown && id === "pv-present-button" ? present : null) };
+    expect(focusWhenShown(doc, "pv-present-button")).toBe(false);
+    shown = true;
+    expect(focusWhenShown(doc, "pv-present-button")).toBe(true);
+    expect(focused).toEqual(["present"]);
+  });
+});
+describe("presentation mode isolation", () => {
+  it("hides everything around the mode, at every level up to the body, from focus and assistive technology", () => {
+    type Fake = Hideable & { name: string; parentElement: Fake | null; children: Fake[]; attrs: Map<string, string> };
+    const node = (name: string, children: Fake[] = [], ariaHidden: string | null = null): Fake => {
+      const attrs = new Map<string, string>(ariaHidden === null ? [] : [["aria-hidden", ariaHidden]]);
+      const n: Fake = { name, inert: false, parentElement: null, children, attrs, getAttribute: (k) => attrs.get(k) ?? null, setAttribute: (k, v) => void attrs.set(k, v), removeAttribute: (k) => void attrs.delete(k) };
+      for (const c of children) c.parentElement = n;
+      return n;
+    };
+    const mode = node("mode"), other = node("other"), sidebar = node("sidebar"), decor = node("decor", [], "true");
+    const main = node("main", [mode, other]), app = node("app", [sidebar, main]), body = node("body", [app, decor]);
+    const restore = hideOutside(mode, body);
+    const hidden = (n: Fake) => n.inert && n.getAttribute("aria-hidden") === "true";
+    expect([sidebar, other, decor].map(hidden)).toEqual([true, true, true]);
+    expect([app, main, mode].map((n) => n.inert || n.attrs.size > 0)).toEqual([false, false, false]);
+    restore();
+    expect([sidebar, other, decor].map((n) => n.inert)).toEqual([false, false, false]);
+    expect([sidebar.getAttribute("aria-hidden"), decor.getAttribute("aria-hidden")]).toEqual([null, "true"]);
   });
 });
 describe("evidence selection", () => {
@@ -94,6 +136,41 @@ describe("evidence selection", () => {
     expect(Math.max(...calls)).toBeLessThanOrEqual(500);
   });
 });
+describe("evidence files", () => {
+  it("reads an item's bytes at the path the output manifest lists, under the output's directory", async () => {
+    const item = await evidenceFromOutput({ ...output, name: "mean_lateness", kind: "number" }, origin, {});
+    const files: Record<string, string> = { "mean_lateness/number.json": "{}", "drawing/image.svg": "<svg/>" };
+    const asked: string[] = [];
+    const source = {
+      blob: async (_id: string, path: string) => {
+        asked.push(path);
+        if (!(path in files)) throw new Error("Unknown analysis artifact");
+        return new Blob([files[path]!]);
+      },
+    } as unknown as ArtifactSource;
+    expect(await (await evidenceFile(source, item, "number.json")).text()).toBe("{}");
+    const image = await evidenceFromOutput({ ...output, name: "drawing", kind: "image" }, origin, {});
+    expect(await (await evidenceFile(source, image, "image.png", "image.svg")).text()).toBe("<svg/>");
+    expect(asked).toEqual(["mean_lateness/number.json", "drawing/image.png", "drawing/image.svg"]);
+  });
+});
+describe("evidence picker", () => {
+  it("offers outputs only from the analysis currently chosen, never from the one still on screen", () => {
+    const loaded = { origin, outputs: [output] };
+    expect(pickerOutputs(loaded, origin.execution_id)).toBe(loaded);
+    expect(pickerOutputs(loaded, "another-execution")).toBeNull();
+    expect(pickerOutputs(null, origin.execution_id)).toBeNull();
+  });
+});
+describe("evidence documents", () => {
+  it("reads a field of a tagged analysis document such as number.json", () => {
+    const number = { $record: { value: -1.5, metadata: { $record: { unit: "h" } } } };
+    expect(documentField(number, "value")).toBe(-1.5);
+    expect(documentField({ $record: { value: { $int64: "7" } } }, "value")).toBe(7n);
+    expect(documentField({ $record: { summary: { $record: { count: 3 } } } }, "summary")).toEqual({ count: 3 });
+    expect(documentField({ $record: {} }, "value")).toBeNull();
+  });
+});
 describe("editor drafts", () => {
   it("round trips a manifest through the draft and back, taking the camera from the stage when unsaved", () => {
     const manifest = validatePresentation(fixture("valid-full.json"));
@@ -110,5 +187,15 @@ describe("editor drafts", () => {
     expect(() => manifestOf({ ...fresh, time: { start: "1", end: "1" } }, manifest.recording, manifest.layout, [0, 0, 1, 1], null)).toThrow(/name|time/);
     const stale: PresentationManifest = { ...manifest, revision: 7 };
     expect(manifestOf(draft, manifest.recording, manifest.layout, draft.camera!, stale).revision).toBe(7);
+  });
+  it("takes only the framing from the live view, keeping the Rate field over the transport's playback rate", () => {
+    const manifest = validatePresentation(fixture("valid-full.json"));
+    const draft = { ...draftOf(manifest), rate: 2 };
+    const scene = { fitBounds() {}, setVisibility() {}, worldBounds: () => [1, 2, 3, 4] as const };
+    const playback = { rate: 1, seekTime: async () => {} };
+    const patch = currentView(draft, { recording: manifest.recording, layout: manifest.layout }, scene, { setSeries() {} }, playback);
+    expect(patch).toEqual({ camera: [1, 2, 3, 4] });
+    const saved = manifestOf({ ...draft, ...patch }, manifest.recording, manifest.layout, patch.camera, manifest);
+    expect(saved.rate).toBe(2);
   });
 });
