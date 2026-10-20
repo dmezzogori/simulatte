@@ -7,7 +7,7 @@ import { ArtifactView } from "../artifacts/view";
 import { parseField, type ParameterField, type ParameterSchema, type Scalar } from "../parameter-draft";
 import type { ConnectionStatus, ExperimentRun, Notification, StudioClient } from "../studio-client";
 import { Diagnostic, EmptyState, FailureNotice, Feedback, type Action, type PageState } from "./feedback";
-import { Actions, CheckField, Field, FieldGroup } from "./forms";
+import { Actions, CheckField, Field, FieldGroup, WORKING, disabledWhen } from "./forms";
 import { routeHash, type HistoryItem, type ProjectState } from "./state";
 import { formatTime } from "./tables";
 interface Registration {
@@ -87,6 +87,10 @@ interface Refusal {
   details?: unknown;
 }
 type CommandError = Error & { refusal?: Refusal };
+/** Why the "Add annotation" button is disabled, so it is never disabled without a reason. */
+export function annotationDisabled(busy: string, blocked: string, note: string) {
+  return disabledWhen(busy && WORKING, blocked, !note.trim() && "Type an annotation first");
+}
 const TERMINAL = new Set(["succeeded", "failed", "cancelled", "lost"]);
 const ACTIVE = new Set(["waiting", "running", "finalizing"]);
 const registrations = (state: ProjectState): Registration[] =>
@@ -890,7 +894,7 @@ function AnalysisDetail({
                       <textarea value={note} maxLength={65536} onChange={(e) => setNote(e.target.value)} />
                     </Field>
                     <Actions>
-                      <button type="submit" disabled={!!busy || !!blocked || !note.trim()}>
+                      <button type="submit" {...annotationDisabled(busy, blocked, note)}>
                         Add annotation
                       </button>
                       {blocked && <small>{blocked}</small>}
