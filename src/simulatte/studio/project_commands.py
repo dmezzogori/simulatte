@@ -18,7 +18,7 @@ from simulatte.execution.schema import AttemptKey, Revision
 from simulatte.execution.store import RevisionConflict, _read
 from simulatte.studio import analysis_http
 from simulatte.studio.analysis_commands import AnalysisCommands
-from simulatte.studio.app import StudioServer
+from simulatte.studio.app import StudioServer, _RUN_STATES
 from simulatte.studio.auth import FRAME_CSP, SessionAuth, response_headers
 from simulatte.studio.http import References, ImmutableFile, RangeSource, parse_range
 from simulatte.studio.websocket import CommandCache, ConnectionHub, EXPERIMENT_COMMANDS
@@ -143,7 +143,14 @@ class ProjectServer(StudioServer):
                         self._monitors[model_id] = monitor
                         self._tasks.append(asyncio.create_task(monitor.run()))
                 for event in co.events():
-                    self.hub.notify(event["type"], self._body(event["body"]), key=event["key"])
+                    kind, body = event["type"], event["body"]
+                    if kind in _RUN_STATES:
+                        # The viewer contract names run lifecycle changes ``run_state``; keep the raw kind in the body.
+                        kind, body = (
+                            "run_state",
+                            {"kind": kind, "status": "succeeded" if kind == "result" else kind, "details": body},
+                        )
+                    self.hub.notify(kind, self._body(body), key=event["key"])
             if self.analysis.watching():
                 for body in await asyncio.to_thread(self.analysis.changes):
                     self.hub.notify("analysis_state", body)

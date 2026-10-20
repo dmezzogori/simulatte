@@ -1,5 +1,6 @@
 """Setup and recovery are usable without importing or running project models."""
 
+import asyncio
 import importlib
 import importlib.util
 import json
@@ -274,3 +275,34 @@ def test_project_model_http_layout_and_saved_run_share_one_store(tmp_path):
         assert saved.json()["ok"], saved.json()
         assert (tmp_path / "layouts/production.json").exists()
         assert len(service.state()["history"]) == 1
+
+
+def test_pump_announces_run_lifecycle_as_run_state(tmp_path):
+    from types import SimpleNamespace
+    from simulatte.studio.project_commands import ProjectServer
+
+    key = {"request_id": "r1", "attempt_id": "a1", "generation": 1}
+    events = [
+        {"type": "result", "key": key, "body": {"attempt_id": "a1"}},
+        {"type": "failed", "key": key, "body": {"message": "boom"}},
+        {"type": "cancelled", "key": key, "body": {}},
+        {"type": "progress", "key": key, "body": {"time": 1.0}},
+    ]
+    sent = []
+    server = ProjectServer.__new__(ProjectServer)
+    server.service = SimpleNamespace(
+        coordinator=SimpleNamespace(contexts={}, events=lambda: events), restart_generation=1
+    )
+    server.hub = SimpleNamespace(notify=lambda kind, body, **fields: sent.append((kind, body, fields)), connections=())
+    server.analysis = SimpleNamespace(watching=lambda: False)
+    server._monitors = {}
+    server._tasks = []
+    server.on_restart = lambda: None
+    asyncio.run(server._pump_project())
+    assert [(kind, body["kind"], body["status"]) for kind, body, _ in sent[:3]] == [
+        ("run_state", "result", "succeeded"),
+        ("run_state", "failed", "failed"),
+        ("run_state", "cancelled", "cancelled"),
+    ]
+    assert sent[1][1]["details"] == {"message": "boom"} and sent[1][2] == {"key": key}
+    assert sent[3][0] == "progress"
