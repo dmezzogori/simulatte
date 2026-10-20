@@ -294,9 +294,13 @@ export function ModelPage({
             reads it when you prepare the model.
           </p>
         </div>
-        {model.revision && (
-          <span className="ws-tag">Source revision {model.revision.number}</span>
-        )}
+        <div className="ws-heading-links">
+          {model.revision && (
+            <span className="ws-tag">Source revision {model.revision.number}</span>
+          )}
+          <a href={routeHash({ page: "runs", model: model.id })}>Runs of this model →</a>
+          <a href="#/experiments">Define experiment →</a>
+        </div>
       </div>
       {!model.inputs ? (
         <section className="ws-card">
@@ -465,6 +469,7 @@ export function ModelPage({
                 {issues.length > 0 && (
                   <FailureNotice
                     compact
+                    announce={false}
                     message={issues.map(([k, v]) => `${k}: ${String(v)}`).join("\n")}
                   />
                 )}
@@ -506,7 +511,9 @@ export function ModelPage({
                     Use an experiment for multiple configurations and
                     replications. Recording is off by default there.
                   </p>
-                  <a href="#/experiments">Open experiments →</a>
+                  <a href="#/experiments">Define experiment →</a>
+                  <br />
+                  <a href={routeHash({ page: "runs", model: model.id })}>Runs of this model →</a>
                 </section>
               </aside>
             </div>

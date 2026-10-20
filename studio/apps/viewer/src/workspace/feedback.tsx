@@ -132,16 +132,19 @@ export function FailureNotice({
   details,
   retry,
   compact = false,
+  announce = true,
 }: {
   message: string;
   details?: unknown;
   retry?: Action;
   compact?: boolean;
+  /** ``false`` for standing input issues that must not be announced as a new alert. */
+  announce?: boolean;
 }) {
   const failure = classifyFailure(message, details);
   return (
     <div
-      role="alert"
+      role={announce ? "alert" : "note"}
       className={"ws-state ws-failure" + (compact ? " ws-compact" : "")}
       data-kind={failure.kind}
     >

@@ -18,12 +18,13 @@ export function openReplication(playback: Pick<StudioPlayback, 'select'> | null,
   playback.select(replication.trace!, 0, null, `${report.name} · ${label} · replication ${replication.index}`);
   return true;
 }
-const Counts = ({counts, onSelect}: {counts: Record<string, number>; onSelect?(status: string): void}) =>
+export const Counts = ({counts, onSelect}: {counts: Record<string, number>; onSelect?(status: string): void}) =>
   <span className="counts">{Object.entries(counts).filter(([, count]) => count > 0).map(([state, count]) => onSelect
     ? <button key={state} className="link" onClick={() => onSelect(state)}>{state} {count}</button>
     : <span key={state}>{state} {count}</span>)}</span>;
 
-function Form({client, fields, model, workers, onSaved, onError}: {client: StudioClient; fields: readonly ParameterField[]; model: string;
+/** The experiment definition form; saves through `experiment.define` after client-side validation. */
+export function DefinitionForm({client, fields, model, workers, onSaved, onError}: {client: StudioClient; fields: readonly ParameterField[]; model: string;
   workers: readonly string[]; onSaved(path: string): void; onError(message: string): void}) {
   const [form, setForm] = useState<ExperimentForm>(() => emptyForm(model));
   const [overwrite, setOverwrite] = useState(false);
@@ -92,7 +93,8 @@ function Form({client, fields, model, workers, onSaved, onError}: {client: Studi
   </form>;
 }
 
-function RunDetails({client, run, counts, live, filter, onOpen, onError}: {client: StudioClient; run: ExperimentRun; counts: Record<string, number>;
+/** One run's configurations, results table, replications and charts. */
+export function RunDetails({client, run, counts, live, filter, onOpen, onError}: {client: StudioClient; run: ExperimentRun; counts: Record<string, number>;
   live: FeedSnapshot; filter: string | null; onOpen(report: ExperimentReport, replication: ReplicationEntry): void; onError(message: string): void}) {
   const [options, setOptions] = useState<ResultsOptions>({level: 0.95, bonferroni: false, baseline: null});
   const [report, setReport] = useState<ExperimentReport | null>(null);
@@ -189,7 +191,7 @@ export function Experiments({client, state, status, feed, onOpen, onError}: {cli
       <button disabled={!connected || busy || !file} onClick={() => void act('experiment.start', {path: file})}>Start</button>
       <button disabled={!model || !state?.model} onClick={() => setCreating(!creating)}>{creating ? 'Close form' : 'New experiment'}</button>
     </div>
-    {creating && client && model && state?.model && <Form client={client} fields={model.parameters.fields} model={`${state.model}:${metadata!.value.selected}`}
+    {creating && client && model && state?.model && <DefinitionForm client={client} fields={model.parameters.fields} model={`${state.model}:${metadata!.value.selected}`}
       workers={pool?.workers.map(worker => worker.name) ?? []} onError={onError}
       onSaved={path => {setSaved([...saved, path]); setFile(path); setCreating(false);}} />}
     {pool && <details><summary>Worker pool · {pool.local} local slot(s), {pool.workers.length} remote worker(s)</summary>
