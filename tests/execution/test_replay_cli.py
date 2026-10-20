@@ -73,4 +73,4 @@ def test_replay_prints_verification_and_exits_by_outcome(tmp_path, capsys, monke
         assert main(["replay", "0" * 64, "--project", root, "--json"]) == 2
         assert envelope(capsys)["status"] == "validation_failed"
         assert main(["replay", identity, "--project", str(tmp_path), "--json"]) == 2
-        assert envelope(capsys)["status"] == "validation_failed"
+        assert envelope(capsys) == {"status": "validation_failed", "message": f"No run store in {tmp_path.resolve()}"}

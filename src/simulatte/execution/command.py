@@ -99,6 +99,7 @@ def run(args):
                 raise ValueError("Reproduction uses stored inputs; execution overrides are unavailable")
             reproducing = True
             coordinator = Coordinator.from_store(Path(args.project or "."), args.reproduce)
+            coordinator.adopt_running_generation()
             result = coordinator.reproduce(args.reproduce, timeout=args.timeout)
         else:
             # Split only the optional suffix after .py, preserving Windows drive letters.
@@ -107,6 +108,7 @@ def run(args):
             spec = discover_project(path if selected else args.model, args.project, layout=args.layout)
             reference = spec.model + (":" + name if selected else "")
             coordinator = Coordinator(spec, reference=reference)
+            coordinator.adopt_running_generation()
             prepared = coordinator.prepare(timeout=args.timeout)
             model = next(item for item in prepared.metadata["models"] if item["name"] == prepared.metadata["selected"])
             raw = []
@@ -220,7 +222,8 @@ def replay(args):
     coordinator = None
     envelope: dict[str, Any] = {"request_id": args.request_id}
     try:
-        coordinator = Coordinator.from_store(Path(args.project or "."), args.request_id)
+        coordinator = Coordinator.from_store(_store_root(args), args.request_id)
+        coordinator.adopt_running_generation()
         outcome = coordinator.replay(args.request_id, worker=args.worker, timeout=args.timeout)
         record = coordinator.store.replay(outcome.key.request_id)
         envelope = {

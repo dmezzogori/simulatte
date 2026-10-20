@@ -176,7 +176,9 @@ def test_shutdown_failure_replaces_success_and_human_output_uses_stderr(monkeypa
         raise RuntimeError("cleanup failed")
 
     owner = SimpleNamespace(
-        close=close, reproduce=lambda *a, **kw: (_ for _ in ()).throw(ValueError("missing snapshot"))
+        close=close,
+        adopt_running_generation=lambda: None,
+        reproduce=lambda *a, **kw: (_ for _ in ()).throw(ValueError("missing snapshot")),
     )
     monkeypatch.setattr(command.Coordinator, "from_store", lambda *a: owner)
     assert main(["run", "--reproduce", "a" * 64]) == 1
@@ -210,6 +212,7 @@ def test_keyboard_interrupt_cancels_assigned_attempt(monkeypatch, capsys):
 
     state = SimpleNamespace(revision=None, request=object())
     owner = SimpleNamespace(
+        adopt_running_generation=lambda: None,
         prepare=lambda **kw: prepared,
         inputs=SimpleNamespace(bind=lambda *a: state, apply=lambda *a, **kw: state),
         submit=lambda *a, **kw: key,

@@ -250,13 +250,19 @@ differ. A replay is labelled `verified` only when its trace, semantic digest, KP
 scalars, resolved runtime, dependencies and layout all equal the original's; otherwise
 it is `unverified` with the first mismatch (`digest_mismatch`, `kpi_mismatch:<key>`,
 `runtime_mismatch`, `dependencies_mismatch`, `layout_mismatch`, `trace_unverified`).
-A runtime that differs from the installation is refused for a replay or a
-presentation recording instead of being substituted. Reconstructing a historical
-environment is refused on a different platform or architecture with
-`Captured interpreter platform is unavailable`. Running with updated dependencies is
-a new run with its own provenance, never a verification of the old one. Whether a
-particular model reproduces bit for bit across architectures has not been measured
-for the example project, and this documentation does not claim it.
+A replay or a presentation recording never substitutes another runtime. A different
+trusted Simulatte runtime is refused before an attempt is scheduled (`Requested
+runtime differs from this installation; no automatic provisioning`). Any other
+difference in the installed runtime is found by the attempt itself, which fails with
+`Installed runtime changed after preparation` (for installation evidence `Installed
+payload changed after preparation` or `Local artifact is not bound to verified
+captured source`); `simulatte replay` then exits 1.
+Reconstructing a historical environment is refused on a different platform or
+architecture with `Captured interpreter platform is unavailable`. Running with
+updated dependencies is a new run with its own provenance, never a verification of
+the old one. Whether a particular model reproduces bit for bit across architectures
+has not been measured for the example project, and this documentation does not
+claim it.
 
 ## Dependency repair
 

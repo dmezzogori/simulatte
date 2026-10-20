@@ -21,6 +21,7 @@ import platform
 import sqlite3
 import subprocess
 from pathlib import Path
+import sys
 import sysconfig
 import tempfile
 import threading
@@ -231,8 +232,6 @@ class Coordinator:
         if workspace is None:
             raise ValueError("Configure a workspace before creating its coordinator")
         selected = environments.selected
-        import sys
-
         if selected is None:
             raise ValueError("Prepare and select a project environment before execution")
         if selected.interpreter.absolute() != Path(sys.executable).absolute():
@@ -439,6 +438,25 @@ class Coordinator:
             data = _read(row[0])["project"]
         project: Any = {**data, "root": root}
         return cls(ProjectSpec(**project), reference=request.model)
+
+    def adopt_running_generation(self):
+        """Execute inside the project's selected managed generation as Studio does, when this is it.
+
+        Only a selected ``installation-v1`` generation whose environment holds the running
+        interpreter is adopted: new requests record its installation evidence and children
+        verify against its own retained, source-verified bindings. Any other interpreter keeps
+        its raw runtime evidence and never borrows a generation's identity.
+        """
+        from simulatte.projects.environments import EnvironmentPool
+
+        environments = EnvironmentPool(self.project.root, self.store)
+        selected = environments.selected
+        if (
+            selected is not None
+            and selected.evidence["spec"].get("runtime_format") == "installation-v1"
+            and selected.interpreter.parent.resolve() == Path(sys.executable).absolute().parent.resolve()
+        ):
+            self.environments = environments
 
     def _document(self, kind, value):
         return write_document(self.store.root / "documents", kind, value)
