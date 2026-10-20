@@ -7,6 +7,7 @@ import {
   validateProjectState,
 } from "../src/workspace/state";
 import { Sidebar } from "../src/workspace/shell";
+import { CheckField } from "../src/workspace/forms";
 
 describe("project navigation and independent drafts", () => {
   it("round trips stable IDs and safely handles malformed routes", () => {
@@ -53,5 +54,26 @@ describe("project navigation and independent drafts", () => {
   });
   it("rejects malformed ownership or models in project state", () => {
     expect(() => validateProjectState({ models: [], history: [] })).toThrow();
+  });
+});
+
+describe("form primitives", () => {
+  it("names a checkbox by its label alone and describes it with the hint", () => {
+    const html = renderToStaticMarkup(
+      <CheckField label="Show every entity" hint="Untick to choose entities">
+        <input type="checkbox" />
+      </CheckField>,
+    );
+    const input = /<input[^>]*>/.exec(html)![0];
+    const labelId = /aria-labelledby="([^"]+)"/.exec(input)![1];
+    const hintId = /aria-describedby="([^"]+)"/.exec(input)![1];
+    expect(html).toContain(`<span id="${labelId}">Show every entity</span>`);
+    expect(html).toContain(`<small id="${hintId}">Untick to choose entities</small>`);
+    const plain = renderToStaticMarkup(
+      <CheckField label="Plain">
+        <input type="checkbox" />
+      </CheckField>,
+    );
+    expect(plain).not.toContain("aria-labelledby");
   });
 });
