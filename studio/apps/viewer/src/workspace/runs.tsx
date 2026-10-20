@@ -154,6 +154,8 @@ export interface Provenance {
   model: string;
   seed: string;
   level: string;
+  /** The selected measurement plan name, or "KPIs only". */
+  measurements: string;
   stopping: string;
   parameters: [string, string][];
   runtime: string;
@@ -168,10 +170,12 @@ export function summarizeProvenance(run: RunDetails): Provenance {
   const stopping = (request.stopping ?? {}) as Record<string, unknown>;
   const runtime = (request.runtime ?? {}) as Record<string, unknown>;
   const words = (value: unknown) => scalar(value).replace(HASH, "[id in details]");
+  const selection = request.measurements as { plan?: unknown } | null | undefined;
   return {
     model: scalar(request.model),
     seed: scalar(request.seed),
     level: LEVELS[String(request.level)] ?? scalar(request.level),
+    measurements: selection && typeof selection === "object" && typeof selection.plan === "string" ? selection.plan : "KPIs only",
     stopping:
       scalar(stopping.type) +
       Object.entries(stopping)
@@ -300,6 +304,8 @@ export function RunsTable({
                         <dl className="ws-pairs">
                           <dt>Model</dt>
                           <dd>{provenance.model}</dd>
+                          <dt>Measurements</dt>
+                          <dd>{provenance.measurements}</dd>
                           <dt>Stopping</dt>
                           <dd>{provenance.stopping}</dd>
                           {provenance.parameters.map(([k, v]) => (
@@ -336,7 +342,12 @@ export function RunsTable({
                     <span className={"ws-badge " + r.status}>{r.status}</span>
                   </td>
                   <td className="ws-num">{provenance ? provenance.seed : detail instanceof Error ? "—" : "…"}</td>
-                  <td>{provenance ? provenance.level : detail instanceof Error ? "—" : "…"}</td>
+                  <td>
+                    {provenance ? provenance.level : detail instanceof Error ? "—" : "…"}
+                    {provenance && provenance.measurements !== "KPIs only" && (
+                      <small className="ws-sub">Measurements: {provenance.measurements}</small>
+                    )}
+                  </td>
                   <td className="ws-num">{formatTime(r.created)}</td>
                   <td className="ws-notes">
                     {r.text && <span className="ws-note-text">{r.text}</span>}

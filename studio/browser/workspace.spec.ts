@@ -293,3 +293,135 @@ test("runs, experiments and comparison research pages", async ({ page }, info) =
     await fixture.close();
   }
 });
+
+const MEASURED_MODEL = `from dataclasses import dataclass
+from simulatte import Environment, Layout, model
+from simulatte.analysis import DatasetSchema, Field, MeasurementPlan, ObservationCollector
+from simulatte.builders import build_immediate_release_system
+from simulatte.collectors import ShopFloorKPIs
+from simulatte.scenario import Scenario
+
+plan = MeasurementPlan("numbers", (DatasetSchema("numbers", (Field("x", "int64"),)),))
+
+@dataclass(frozen=True)
+class Params:
+    servers: int = 3
+
+@model(params=Params, horizon=40, measurement_plans=(plan,))
+def build(env, layout, params):
+    system = build_immediate_release_system(env=env, scenario=Scenario.pure_job_shop(n_servers=params.servers))
+    ShopFloorKPIs(system.shop_floor).attach(env)
+    collector = ObservationCollector(plan.datasets[0], fields={}).attach(env)
+    def observe():
+        collector.record(None, observed_at="observation", values={"x": params.servers})
+        yield env.timeout(1)
+    env.process(observe())
+`;
+const REPORT_ANALYSIS = `from simulatte.analysis import analysis
+from simulatte.analysis.outputs import Number
+from simulatte.model import ParameterSchema
+
+@analysis(parameters=ParameterSchema(()))
+def analyze(context, parameters):
+    context.emit("inputs", Number(len(list(context.scalars())), unit="runs"))
+`;
+/** A production project whose model declares the ``numbers`` plan and which registers the ``report`` analysis. */
+const seedMeasured = (fixture: ProjectFixture) =>
+  execFileSync(
+    fixture.python,
+    [
+      "-I",
+      "-c",
+      `
+from pathlib import Path
+import sys
+from simulatte.projects import StudioTarget, install_starter, starter_files
+from simulatte.projects.service import ProjectService
+root=Path(sys.argv[1]); install_starter(root, starter_files('production'))
+(root/'models/production.py').write_text(sys.argv[2])
+(root/'report.py').write_text(sys.argv[3])
+toml=(root/'pyproject.toml').read_text().replace('include = ["models/*.py"]', 'include = ["models/*.py", "report.py"]')
+toml+='\\n[tool.simulatte.analyses.report]\\nid = "e64ca951-1b69-47a0-b1c5-7cfb91d90755"\\nname = "Report"\\nentrypoint = "report.py:analyze"\\n'
+(root/'pyproject.toml').write_text(toml)
+service=ProjectService.open(StudioTarget(root,None))
+try:
+ pool=service.environments; pool.activate(pool.use_existing(Path(sys.executable)).id)
+ print(service.workspace.models[0].id)
+finally: service.close()
+`,
+      fixture.root,
+      MEASURED_MODEL,
+      REPORT_ANALYSIS,
+    ],
+    { encoding: "utf8" },
+  ).trim();
+
+test("measurement plans flow through runs, experiments and analysis previews", async ({ page }, info) => {
+  test.setTimeout(300000);
+  const fixture = new ProjectFixture();
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  try {
+    await fixture.setup();
+    await mkdir(evidence, { recursive: true });
+    const modelId = seedMeasured(fixture);
+    await page.goto(await fixture.launch());
+    await page.waitForURL((url) => url.pathname === "/");
+    const origin = new URL(page.url()).origin;
+    // Interactive run with the declared plan selected.
+    await page.goto(origin + "/#/model/" + modelId);
+    await page.getByRole("button", { name: "Prepare model", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Run", exact: true })).toBeVisible({ timeout: 60000 });
+    const measurements = page.getByLabel("Measurements", { exact: true });
+    await expect(measurements).toHaveValue("");
+    await expect(measurements.locator("option")).toHaveCount(2);
+    await measurements.selectOption("numbers");
+    await expect(page.getByText("Plan numbers", { exact: true })).toBeVisible();
+    await capture(page, info.project.name, "model");
+    await page.getByRole("button", { name: "Run", exact: true }).click();
+    await expect(page.locator(".ws-page-heading .ws-badge")).toHaveText("succeeded", { timeout: 60000 });
+    const runRoute = await hash(page);
+    const attempt = runRoute.replace("#/run/", "");
+    await expect(page.locator(".ws-page-heading")).toContainText("Measurements · numbers");
+    await expect(page.getByRole("heading", { name: "Run details" }).locator("..")).toContainText("Plan numbers");
+    // The Runs list and its provenance carry the plan from the captured request.
+    await page.goto(origin + "/#/runs/" + modelId);
+    const row = page.getByRole("region", { name: "Interactive runs" }).locator("tbody tr").first();
+    await expect(row).toContainText("Measurements: numbers", { timeout: 15000 });
+    // The analysis preview counts the measured run as available input.
+    await page.goto(origin + "/#/analyses/new/report");
+    await expect(page.getByRole("heading", { name: "New analysis: Report" })).toBeVisible();
+    await page.getByRole("group", { name: "Completed runs" }).getByRole("checkbox").first().check();
+    await page.getByRole("button", { name: "Preview inputs" }).click();
+    const preview = page.locator("[data-preview]");
+    await expect(preview).toBeVisible({ timeout: 60000 });
+    await expect(preview).toContainText("1 of 1 replications · complete");
+    // An in-Studio definition with the plan: every replication is measured.
+    await page.goto(origin + "/#/experiments");
+    await page.getByRole("button", { name: "Define a new experiment", exact: true }).click();
+    const form = page.getByRole("form", { name: "New experiment" });
+    await form.getByLabel(/^Name/).fill("measured");
+    await form.getByLabel(/^Replications/).fill("2");
+    await form.getByLabel(/^Measurements/).selectOption("numbers");
+    await form.getByRole("button", { name: "Save", exact: true }).click();
+    await page.locator(".ws-list li").filter({ hasText: "measured.experiment.json" }).getByRole("button", { name: "Start", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "measured", exact: true })).toBeVisible({ timeout: 30000 });
+    await expect(page.locator(".ws-page-heading")).toContainText("Measurements · numbers");
+    await expect(page.locator(".ws-page-heading .ws-badge")).toHaveText("completed", { timeout: 120000 });
+    const experimentRun = (await hash(page)).replace("#/experiments/", "");
+    await page.goto(origin + "/#/experiments");
+    await expect(page.locator(".ws-table").getByText("Measurements: numbers")).toBeVisible();
+    await page.goto(origin + "/#/analyses/new/report");
+    await page.getByLabel(/^measured/).check();
+    await page.getByRole("button", { name: "Preview inputs" }).click();
+    await expect(page.locator("[data-preview]")).toContainText("2 of 2 replications · complete", { timeout: 60000 });
+    expect(experimentRun).toMatch(/^[a-f0-9]{64}$/);
+    expect(attempt).toMatch(/^[a-f0-9]{32}$/);
+    expect(errors).toEqual([]);
+  } finally {
+    await fixture.close();
+  }
+});

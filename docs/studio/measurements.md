@@ -74,10 +74,15 @@ history cannot answer a temporal predicate.
 Declared measurements are retained when a run's request selects a measurement plan.
 `run_managed.py` does this through `measurements=` of `Coordinator.make_request`;
 an experiment file does it with its `measurements` entry, so experiment replications
-started from **Experiments** retain their datasets. An interactive **Run** from a
-model page does not select a plan yet: it keeps KPIs (and a recording when the
-**Recording** level is a full recording), and an analysis that requires a dataset
-from such a run receives the missing-data screen rather than a result.
+started from **Experiments** retain their datasets. On a model page the
+**Measurements** select lists the plans the prepared model declares; **Run** sends
+the chosen plan with the request, the run page and the Runs list name it, and the
+analysis preview counts the run as available input for datasets of that plan. The
+same select in the **New experiment** form stores the plan in the saved definition,
+so every replication is measured. The default, "None — KPIs only", keeps KPIs (and a
+recording when the **Recording** level is a full recording); an analysis that
+requires a dataset from such a run receives the missing-data screen rather than a
+result. Automatic runs after source changes never select a plan.
 
 **KPIs only** on the model page keeps the numerical outputs without a trace; the
 run page and the Runs page say so, and such a run remains a valid analysis input.

@@ -17,6 +17,7 @@ import { ConfirmDialog, EmptyState, FailureNotice } from "./feedback";
 import { Actions, CheckField, Field, NOT_CONNECTED, READ_ONLY, WORKING, disabledWhen } from "./forms";
 import { formatTime } from "./tables";
 import { routeHash, type ProjectState } from "./state";
+import { plansOf } from "./models";
 import "./research.css";
 
 export interface ExperimentAction {
@@ -59,8 +60,9 @@ export function staleModels(
 }
 interface Metadata {
   selected: string;
-  models: { name: string; parameters: ParameterSchema }[];
+  models: { name: string; parameters: ParameterSchema; measurement_plans?: { name: string; datasets?: { name: string; fields?: { name: string }[] }[] }[] }[];
 }
+const planOf = (run: ExperimentRun) => (run as ExperimentRun & { measurement_plan?: string }).measurement_plan;
 export function ExperimentsPage({
   client,
   state,
@@ -190,6 +192,7 @@ export function ExperimentsPage({
           <span className={"ws-badge " + selected.status}>{selected.status}</span>
           <Counts counts={live.counts(selected)} />
           <span className="ws-muted">started {formatTime(selected.created)}</span>
+          <span className="ws-tag">{planOf(selected) ? `Measurements · ${planOf(selected)}` : "KPIs only"}</span>
         </p>
       </div>
       <div className="ws-heading-links">
@@ -270,6 +273,7 @@ export function ExperimentsPage({
                         </td>
                         <td>
                           <Counts counts={live.counts(run)} />
+                          {planOf(run) && <small className="ws-sub">Measurements: {planOf(run)}</small>}
                         </td>
                         <td className="ws-num">{formatTime(run.created)}</td>
                         <td className="ws-controls">
@@ -394,6 +398,7 @@ export function ExperimentsPage({
             fields={prepared.parameters.fields}
             model={`${model.entrypoint.split(":")[0]}:${metadata!.value.selected}`}
             workers={pool?.workers.map((w) => w.name) ?? []}
+            plans={plansOf(prepared)}
             onError={setError}
             onSaved={(path) => {
               setSaved([...saved, path]);

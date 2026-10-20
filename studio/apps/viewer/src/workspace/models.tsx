@@ -164,6 +164,37 @@ export function Models({
     </>
   );
 }
+export interface DeclaredPlan {
+  name: string;
+  /** Dataset names with their fields, for the select's option text. */
+  summary: string;
+}
+/** The measurement plans a prepared model declares, from its metadata. */
+export function plansOf(meta: object): DeclaredPlan[] {
+  const declared = (meta as { measurement_plans?: { name: string; datasets?: { name: string; fields?: { name: string }[] }[] }[] })
+    .measurement_plans;
+  return (declared ?? []).map((plan) => ({
+    name: plan.name,
+    summary: (plan.datasets ?? [])
+      .map((d) => `${d.name}${d.fields?.length ? ` (${d.fields.map((f) => f.name).join(", ")})` : ""}`)
+      .join("; "),
+  }));
+}
+/** The ``run.start`` / ``run.stop_and_run`` body: the selected plan travels as the server's ``measurements`` field. */
+export function runBody(
+  modelId: string,
+  plan: string,
+  owner: AttemptKey | undefined,
+  autoSession: string | null,
+): Record<string, unknown> {
+  return {
+    model_id: modelId,
+    ...(owner ? { owner } : { auto_session: autoSession }),
+    measurements: plan ? { plan } : null,
+  };
+}
+/** The plan chosen per model survives navigation within the session; it is not a server input. */
+const chosenPlans = new Map<string, string>();
 const STOPPING_UNITS: Record<string, string> = {
   horizon: "time units",
   warmup: "time units",
@@ -184,6 +215,7 @@ export function ModelPage({
   connected: boolean;
 }) {
   const [, redraw] = useState(0),
+    [plan, setPlan] = useState(() => chosenPlans.get(model.id) ?? ""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [blocked, setBlocked] = useState<{
@@ -253,10 +285,7 @@ export function ModelPage({
       const result = await invoke(
         client,
         owner ? "run.stop_and_run" : "run.start",
-        {
-          model_id: model.id,
-          ...(owner ? { owner } : { auto_session: model.auto_session }),
-        },
+        runBody(model.id, plan, owner, model.auto_session),
         revision,
       );
       if (result.status === "busy")
@@ -280,6 +309,11 @@ export function ModelPage({
   };
   const stopping = (draft?.options.stopping ?? {}) as Record<string, unknown>;
   const level = String(draft?.options.level ?? "full");
+  const plans = meta ? plansOf(meta) : [];
+  const choosePlan = (name: string) => {
+    chosenPlans.set(model.id, name);
+    setPlan(name);
+  };
   const issues = model.inputs ? Object.entries(model.inputs.issues) : [];
   return (
     <>
@@ -443,6 +477,23 @@ export function ModelPage({
                       <option value="kpi">KPIs only</option>
                     </select>
                   </Field>
+                  <Field
+                    label="Measurements"
+                    hint={
+                      plans.length
+                        ? "A declared plan retains its datasets with the run for analyses"
+                        : "This model declares no measurement plan; KPIs are always kept"
+                    }
+                  >
+                    <select value={plan} onChange={(e) => choosePlan(e.target.value)}>
+                      <option value="">None — KPIs only</option>
+                      {plans.map((p) => (
+                        <option key={p.name} value={p.name}>
+                          {p.name} · {p.summary}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
                   {Object.entries(stopping)
                     .filter(([k]) => k !== "type")
                     .map(([k, v]) => (
@@ -494,6 +545,8 @@ export function ModelPage({
                         ? "Numerical outputs and a full recording"
                         : "Numerical outputs only"}
                     </dd>
+                    <dt>Measurements</dt>
+                    <dd>{plan ? `Plan ${plan}` : "KPIs only"}</dd>
                     <dt>Stopping</dt>
                     <dd>
                       {String(stopping.type ?? "horizon")}
