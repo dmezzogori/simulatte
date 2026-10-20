@@ -1,5 +1,6 @@
 import {freezePresentation} from '@simulatte/playback';
 import type {LayoutBundle} from '@simulatte/trace';
+import {HTML_OUTPUT_LIMIT, HTML_SOURCE_LIMIT, type ExportSnapshot} from './presentation';
 /** Validated manual export timeline. The terminal state receives one complete frame. */
 export function frameSchedule(
   start: number,
@@ -47,20 +48,45 @@ export function frameSchedule(
   }
   return Object.freeze({ count, frame });
 }
-export const HTML_SOURCE_LIMIT = 100 * 1024 * 1024,
-  HTML_OUTPUT_LIMIT = 150 * 1024 * 1024;
+export { HTML_SOURCE_LIMIT, HTML_OUTPUT_LIMIT };
+function base64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
+  return btoa(binary);
+}
+/** The ``#presentation`` version-2 block: the frozen manifest, the verified static views and the evidence excerpts. */
+export function presentationBlock(snapshot: ExportSnapshot, trace_sha256: string): string {
+  const document = {
+    version: 2,
+    trace_sha256,
+    snapshot_hash: snapshot.hash,
+    manifest: snapshot.manifest,
+    statics: snapshot.statics.map((s) => ({
+      evidence_id: s.evidence_id,
+      media_type: s.media_type,
+      sha256: s.sha256,
+      size: s.size,
+      width: s.width,
+      height: s.height,
+      data_base64: base64(s.bytes),
+    })),
+    evidence: snapshot.evidence,
+  };
+  return JSON.stringify(document).replaceAll("<", "\\u003c");
+}
 export async function offlineHtml(
   source: Blob,
   script: string,
   style = "",
   signal?: AbortSignal,
   presentation: LayoutBundle | null = null,
+  snapshot: ExportSnapshot | null = null,
 ): Promise<Blob> {
   if (source.size > HTML_SOURCE_LIMIT)
     throw new RangeError("Offline HTML supports traces up to 100 MiB");
   signal?.throwIfAborted();
   // Capture before the first await; an editor update cannot alter an in-flight export.
-  const pinned = presentation === null ? null : freezePresentation(presentation);
+  const pinned = snapshot ? freezePresentation(snapshot.manifest.layout) : presentation === null ? null : freezePresentation(presentation);
   const safeStyle = style.replace(/<\/style/gi, "<\\/style");
   const safeScript = script.replace(/<\/script/gi, "<\\/script");
   const digest = await crypto.subtle.digest(
@@ -74,15 +100,17 @@ export async function offlineHtml(
   );
   const styleHash = btoa(String.fromCharCode(...new Uint8Array(styleDigest)));
   const head = `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-${hash}'; style-src 'sha256-${styleHash}'; img-src data:; font-src data:; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>Simulatte recorded run</title><style>${safeStyle}</style></head><body><script id="trace" type="application/octet-stream">`;
-  let presentationBlock = '';
+  let block = '';
   if (pinned) {
     signal?.throwIfAborted();
     const traceDigest = await crypto.subtle.digest('SHA-256', await source.arrayBuffer());
     const trace_sha256 = Array.from(new Uint8Array(traceDigest), byte => byte.toString(16).padStart(2, '0')).join('');
-    const document = JSON.stringify({version: 1, trace_sha256, layout: pinned}).replaceAll('<', '\\u003c');
-    presentationBlock = `<script id="presentation" type="application/json">${document}</script>`;
+    if (snapshot && trace_sha256 !== snapshot.manifest.recording.trace_sha256)
+      throw new RangeError("The recording bytes differ from the presentation's recording");
+    const document = snapshot ? presentationBlock(snapshot, trace_sha256) : JSON.stringify({version: 1, trace_sha256, layout: pinned}).replaceAll('<', '\\u003c');
+    block = `<script id="presentation" type="application/json">${document}</script>`;
   }
-  const suffix = `</script>${presentationBlock}<script>${safeScript}</script></body></html>`;
+  const suffix = `</script>${block}<script>${safeScript}</script></body></html>`;
   const exactSize =
     Math.ceil(source.size / 3) * 4 + new Blob([head, suffix]).size;
   if (exactSize > HTML_OUTPUT_LIMIT)
@@ -128,3 +156,40 @@ export {
   validateMedia,
   type MediaOptions,
 } from "./media";
+export {
+  prepareExport,
+  renderPresentationFrame,
+  snapshotHash,
+  outputContentHash,
+  staticIdentities,
+  layoutPanel,
+  panelWidth,
+  animationArea,
+  containBounds,
+  applyFraming,
+  provenanceLine,
+  qualifiers,
+  formatCell,
+  imageSize,
+  wrapText,
+  ExportRefusal,
+  STATIC_LIMIT,
+  MAX_EVIDENCE,
+  MAX_EXCERPT_ROWS,
+  MAX_EXCERPT_COLUMNS,
+  type ExportSnapshot,
+  type ExportTarget,
+  type TargetOptions,
+  type VideoOptions,
+  type HtmlOptions,
+  type EvidenceSource,
+  type EvidenceOutput,
+  type EvidenceExcerpt,
+  type EvidenceSelection,
+  type EvidenceLabels,
+  type PresentationManifest,
+  type StaticView,
+  type PanelLayout,
+  type PresentationScene,
+} from "./presentation";
+export { canonicalPack, canonicalHash, sha256Hex, sha256Blob, Sha256 } from "./canonical";

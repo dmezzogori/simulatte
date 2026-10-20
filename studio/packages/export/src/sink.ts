@@ -81,9 +81,11 @@ export function memoryDestination(name: string): Destination {
     },
   };
 }
+/** ``usePicker=false`` skips the direct file picker so the finished bytes stay readable (size and digest). */
 export async function destination(
   name: string,
   allowMemory = false,
+  usePicker = true,
 ): Promise<Destination> {
   const picker = (
     globalThis as unknown as {
@@ -92,7 +94,7 @@ export async function destination(
       }) => Promise<FileSystemFileHandle>;
     }
   ).showSaveFilePicker;
-  if (picker) {
+  if (picker && usePicker) {
     const handle = await picker({ suggestedName: name });
     const file = await handle.createWritable();
     return {

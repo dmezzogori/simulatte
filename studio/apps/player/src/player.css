@@ -69,3 +69,95 @@ output {
   background: #f2ebd8;
   color: #72592c;
 }
+
+main {
+  display: flex;
+}
+#stage {
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+}
+#evidence {
+  flex: 0 0 30%;
+  min-width: 320px;
+  max-width: 480px;
+  overflow: auto;
+  padding: 14px 18px;
+  background: #fafbf7;
+  border-left: 1px solid #ccd4c7;
+  font: 13px/1.45 system-ui;
+}
+#evidence h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+#evidence h3 {
+  margin: 14px 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #667a80;
+}
+#evidence article {
+  margin: 10px 0;
+}
+#evidence .value {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 2px 0;
+}
+#evidence table {
+  border-collapse: collapse;
+  font: 12px ui-monospace, monospace;
+  width: 100%;
+}
+#evidence th,
+#evidence td {
+  text-align: left;
+  padding: 2px 6px 2px 0;
+  border-bottom: 1px solid #e6ebe4;
+  white-space: nowrap;
+}
+#evidence dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  margin: 4px 0;
+}
+#evidence dd {
+  margin: 0;
+  font-weight: 600;
+}
+#evidence img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #ccd4c7;
+  background: #fff;
+}
+#evidence small {
+  display: block;
+  color: #667a80;
+  font-size: 11px;
+}
+#evidence ol {
+  margin: 0;
+  padding-left: 18px;
+}
+#evidence li {
+  margin: 4px 0;
+}
+#evidence li button {
+  padding: 1px 6px;
+  font-size: 11px;
+}
+#evidence .provenance {
+  margin-top: 16px;
+  color: #667a80;
+  font-size: 11px;
+  word-break: break-all;
+}
+button[aria-pressed="true"] {
+  background: #dfe9dc;
+}

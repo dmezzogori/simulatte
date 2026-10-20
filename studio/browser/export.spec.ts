@@ -128,3 +128,17 @@ test("cancels a running PNG export, keeps the viewer position and removes stagin
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(dialog).toHaveCount(0);
 });
+
+test("recording exports keep the plain dialog: no presentation targets, preview or job protocol", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('input[type="file"]').setInputFiles(fixture);
+  await expect(page.locator(".status")).toHaveText("paused");
+  await page.getByRole("button", { name: "Export video / PNG" }).click();
+  const dialog = page.getByRole("dialog", { name: "Export recording" });
+  await expect(dialog.getByLabel("Format", { exact: true }).locator("option")).toHaveCount(3);
+  await expect(dialog.getByRole("button", { name: /^Prepare preview/ })).toHaveCount(0);
+  await expect(dialog.getByLabel("Evidence panel")).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Start export" })).toBeEnabled();
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+});
