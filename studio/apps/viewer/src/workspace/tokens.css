@@ -1,0 +1,52 @@
+/* Workspace design tokens from the accepted mockup (specs/mockups/2026-10-19-studio-project-workspace.html). */
+:root {
+  --ink: #1d343a;
+  --muted: #667a80;
+  --line: #dce5e5;
+  --paper: #fff;
+  --bg: #f5f8f8;
+  --teal: #14776e;
+  --tint: #e6f3ef;
+  --amber: #ba7731;
+  --blue: #658ab0;
+  --radius: 11px;
+  --focus: #45a99d;
+  --ws-font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --ws-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ws-text: 14px;
+  --ws-text-s: 12px;
+  --ws-text-xs: 11px;
+  --ws-leading: 1.5;
+  --ws-control: 34px;
+  --ws-radius-s: 7px;
+  --ws-space-1: 4px;
+  --ws-space-2: 8px;
+  --ws-space-3: 12px;
+  --ws-space-4: 16px;
+  --ws-space-5: 20px;
+  --ws-space-6: 28px;
+  --ws-sidebar: 208px;
+  --ws-content-max: 1350px;
+  --ws-success-bg: #e6f3ef;
+  --ws-success-ink: #14776e;
+  --ws-warn-bg: #fbf0df;
+  --ws-warn-ink: #996124;
+  --ws-fail-bg: #fbe9e4;
+  --ws-fail-ink: #9b4935;
+  --ws-info-bg: #eef2f4;
+  --ws-info-ink: #657c8b;
+  --ws-motion: 0.15s;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ws-motion: 0s;
+  }
+  .project-workspace,
+  .project-workspace *,
+  .project-workspace *::before,
+  .project-workspace *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}

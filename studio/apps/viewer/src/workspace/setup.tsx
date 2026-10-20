@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { StudioClient, Command } from "../studio-client";
 import type { ProjectState } from "./state";
+import { Diagnostic, FailureNotice } from "./feedback";
+import { Field } from "./forms";
 export async function invoke(
   client: StudioClient,
   type: Command,
@@ -57,7 +59,7 @@ export function Setup({
     return (
       <section className="ws-card recovery">
         <h2>Saved work is available</h2>
-        <p>{state.error}</p>
+        {state.error && <FailureNotice message={state.error} compact />}
         <p>
           This session is read-only. Repair the selected environment or close
           the other Studio process, then reopen this folder. Your saved runs
@@ -153,7 +155,8 @@ export function Setup({
         .map((g) => (
           <div className="ws-generation" key={g.id}>
             <span>
-              Environment ready · {g.kind} · {g.id.slice(0, 8)}
+              Environment ready · {g.kind === "managed" ? "managed by Studio" : "existing interpreter"}
+              <Diagnostic lines={["Generation " + g.id, g.interpreter]} />
             </span>
             <button
               disabled={busy || !connected}
@@ -172,14 +175,13 @@ export function Setup({
             Studio verifies its dependencies; it does not install into this
             environment.
           </p>
-          <label>
-            Python interpreter path
+          <Field label="Python interpreter path" hint="Absolute path to a Python executable">
             <input
               value={python}
               onChange={(e) => setPython(e.target.value)}
               placeholder="/path/to/environment/bin/python"
             />
-          </label>
+          </Field>
           <button
             disabled={busy || !connected || !python}
             onClick={() =>
@@ -197,7 +199,7 @@ export function Setup({
           <pre>{state.preparation_progress}</pre>
         </details>
       )}
-      {error && <p role="alert">{error}</p>}
+      {error && <FailureNotice message={error} compact />}
     </section>
   );
 }

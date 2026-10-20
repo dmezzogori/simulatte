@@ -3,12 +3,15 @@ import type { RecordingView, LayoutBundle } from "@simulatte/trace";
 import { ExportDialog } from "../export-dialog";
 import playerStyle from "../../../player/src/player.css?raw";
 import playerScript from "../../../player/dist/player.js?raw";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { StudioClient, StudioState } from "../studio-client";
 import { Controller } from "../controller";
 import { StudioPlayback } from "../studio-playback";
 import type { RunDetails, ProjectState } from "./state";
 import { invoke } from "./setup";
+import { Diagnostic, FailureNotice, Feedback, classifyFailure, type PageState } from "./feedback";
+import { Actions, CheckField, Field } from "./forms";
+import { formatNumber } from "./tables";
 export function RecordingPane({
   client,
   run,
@@ -212,11 +215,30 @@ export function RecordingPane({
           presentation={media.presentation}
           close={() => setMedia(null)}
         />
-      )}{" "}
-      {error && <p role="alert">{error}</p>}
+      )}
+      {error && <FailureNotice message={error} compact />}
     </section>
   );
 }
+const RUN_WORDING: Record<string, [string, string]> = {
+  succeeded: ["Run completed", "Saved in this project with its captured inputs."],
+  running: ["Running", "Capturing outputs; committed trace data appears as it arrives."],
+  queued: ["Queued", "Waiting for the interactive slot."],
+  ready: ["Starting", "The simulation process is being prepared."],
+  failed: ["Run failed", "The diagnostics below describe what happened."],
+  cancelled: ["Run stopped", "The run was stopped before completion."],
+  lost: ["Run lost", "Studio stopped before this run could finish."],
+  disk_full: ["Run stopped: disk full", "Free disk space before running again."],
+  validation_failed: ["Run failed validation", "The captured inputs did not validate."],
+};
+const describeValue = (value: unknown): string =>
+  typeof value === "number"
+    ? formatNumber(value)
+    : value === null || value === undefined
+      ? "—"
+      : typeof value === "object"
+        ? JSON.stringify(value)
+        : String(value);
 export function RunPage({
   client,
   state,
@@ -258,7 +280,7 @@ export function RunPage({
         try {
           const r = await client.command("run.get", { attempt_id: attempt });
           if (!r.ok) throw Error((r.error as { message: string }).message);
-          if (!closed) setRun(r.run as unknown as RunDetails);
+          if (!closed) {setRun(r.run as unknown as RunDetails); setError("");}
         } catch (e) {
           if (!closed) setError(String(e));
         }
@@ -275,17 +297,11 @@ export function RunPage({
   const active = state.active_run?.key.attempt_id === attempt;
   const download = async (path: string) => {
     try {
-      const response = await fetch(
+      const response = await client.fetchApi(
         "/api/artifacts/" +
-          attempt +
+          encodeURIComponent(attempt) +
           "/" +
           path.split("/").map(encodeURIComponent).join("/"),
-        {
-          headers: {
-            "X-Simulatte-Session":
-              sessionStorage.getItem("simulatte-session") ?? "",
-          },
-        },
       );
       if (!response.ok) throw Error("Artifact unavailable");
       const url = URL.createObjectURL(await response.blob());
@@ -298,85 +314,155 @@ export function RunPage({
       setError(String(e));
     }
   };
+  const page: PageState<RunDetails> = loaded
+    ? { status: "ready", value: run }
+    : error
+      ? { status: "error", message: error }
+      : { status: "loading" };
+  const status = run?.status ?? (active ? state.active_run!.status : "");
+  const [activityTitle, activityText] = RUN_WORDING[status] ?? [status || "Loading", "Reading the saved run."];
+  const model = run ? state.models.find((m) => m.entrypoint === run.request.model) : null;
+  const request = run?.request ?? {};
+  const stopping = (request.stopping ?? {}) as Record<string, unknown>;
+  const parameters = (request.parameters ?? {}) as Record<string, unknown>;
+  const failed = run != null && !["succeeded", "running", "queued", "ready"].includes(run.status);
   return (
     <>
+      <p className="ws-back">
+        <a href="#/runs">← Runs</a>
+      </p>
       <div className="ws-page-heading">
-        <div className="ws-eyebrow">SAVED EXECUTION</div>
-        <h1>
-          {run?.name ||
-            "Run " + attempt.slice(0, 8)}
-        </h1>
-        <p>
-          <span className="ws-badge">{run?.status ?? "Loading…"}</span>
-          {active && (
-            <button
-              disabled={!connected || state.read_only}
-              onClick={() =>
-                void invoke(client, "run.cancel", {
-                  owner: state.active_run!.key,
-                }).catch((e) => setError(String(e)))
-              }
-            >
-              Stop run
-            </button>
-          )}
-        </p>
-      </div>
-      {run?.trace ? (
-        <RecordingPane client={client} run={run} />
-      ) : (
-        <div className="ws-empty">
-          <h2>{active ? "Simulation is running" : "No recording available"}</h2>
+        <div>
+          <div className="ws-eyebrow">SAVED EXECUTION{model ? " · " + model.name : ""}</div>
+          <h1>{run?.name || "Run " + attempt.slice(0, 8)}</h1>
           <p>
-            {active
-              ? "Committed trace data will appear here as it becomes available."
-              : "Inspect the captured inputs and diagnostic information below."}
+            <span className={"ws-badge " + (run?.status ?? "")}>{run?.status ?? "Loading…"}</span>
+            {run?.trace && <span className="ws-tag">{run.status === "succeeded" ? "Full recording" : "Live recording"}</span>}
           </p>
         </div>
+        {active && (
+          <button
+            type="button"
+            disabled={!connected || state.read_only}
+            onClick={() =>
+              void invoke(client, "run.cancel", {
+                owner: state.active_run!.key,
+              }).catch((e) => setError(String(e)))
+            }
+          >
+            Stop run
+          </button>
+        )}
+      </div>
+      {(run || active) && (
+        <div className={"ws-activity" + (failed ? " failed" : "")} role="status">
+          <strong>{activityTitle}</strong>
+          <span>{activityText}</span>
+        </div>
       )}
-      {run && (
-        <section className="ws-card">
-          <h2>Run details</h2>
-          <details>
-            <summary>Captured inputs and provenance</summary>
-            <pre>{JSON.stringify(run.request, null, 2)}</pre>
-          </details>
-          {run.details != null && (
-            <details open={run.status === "failed"}>
-              <summary>Diagnostics</summary>
-              <pre>{JSON.stringify(run.details, null, 2)}</pre>
-            </details>
-          )}
-          {run.artifacts.length > 0 && (
-            <>
-              <h3>Saved artifacts</h3>
-              {run.artifacts.map((a) => (
-                <button key={a.path} onClick={() => void download(a.path)}>
-                  {a.path} · {a.length} bytes ↓
-                </button>
-              ))}
-            </>
-          )}
-        </section>
-      )}
-      <section className="ws-card">
-        <h2>Keep context with this run</h2>
-        {!loaded && <p role="status">Loading saved notes…</p>}
-        <label>
-          Run name
-          <input value={annotation?.name ?? ""} disabled={!loaded} readOnly={state.read_only} onChange={(e) => edit({name: e.target.value})} />
-        </label>
-        <label>
-          Notes
-          <textarea aria-label="Notes" value={annotation?.text ?? ""} disabled={!loaded} readOnly={state.read_only} onChange={(e) => edit({text: e.target.value})} />
-        </label>
-        <label className="ws-check">
-          <input type="checkbox" checked={annotation?.important ?? false} disabled={!loaded || state.read_only} onChange={(e) => edit({important: e.target.checked})} />
-          Important · protect from pruning
-        </label>
-        {!state.read_only && <button disabled={!connected || !loaded || draft?.attempt !== attempt || saving} onClick={() => void save()}>Save notes</button>}
-      </section>
-      {error && <p role="alert">{error}</p>}
+      <Feedback state={page} loading="Loading the saved run…" empty={{ title: "No run" }}>
+        {(run) => (
+          <>
+            {run.trace ? (
+              <RecordingPane client={client} run={run} />
+            ) : (
+              <div className="ws-state ws-empty">
+                <h2>{active ? "Simulation is running" : "No recording available"}</h2>
+                <p>
+                  {active
+                    ? "Committed trace data will appear here as it becomes available."
+                    : run.status === "succeeded"
+                      ? "Numerical outputs were kept without a recording. Analysis remains available."
+                      : "Inspect the captured inputs and diagnostic information below."}
+                </p>
+              </div>
+            )}
+            {failed && run.details != null && (
+              <FailureNotice
+                message={describeDetails(run.details)}
+                details={run.details}
+              />
+            )}
+            <div className="ws-cols">
+              <section className="ws-card ws-details">
+                <h2>Run details</h2>
+                <dl className="ws-pairs">
+                  <dt>Model</dt>
+                  <dd>{model?.name ?? String(request.model ?? "—")}</dd>
+                  <dt>Seed</dt>
+                  <dd className="ws-num">{describeValue(request.seed)}</dd>
+                  <dt>Recording level</dt>
+                  <dd>{String(request.level ?? "—")}</dd>
+                  <dt>Stopping</dt>
+                  <dd>
+                    {String(stopping.type ?? "—")}
+                    {Object.entries(stopping)
+                      .filter(([k, v]) => k !== "type" && v !== null)
+                      .map(([k, v]) => ` · ${k.replaceAll("_", " ")} ${describeValue(v)}`)
+                      .join("")}
+                  </dd>
+                  {Object.entries(parameters).map(([k, v]) => (
+                    <Fragment key={k}>
+                      <dt>{k}</dt>
+                      <dd className="ws-num">{describeValue(v)}</dd>
+                    </Fragment>
+                  ))}
+                </dl>
+                <details>
+                  <summary>Captured inputs and provenance</summary>
+                  <pre>{JSON.stringify(run.request, null, 2)}</pre>
+                </details>
+                {run.details != null && !failed && (
+                  <Diagnostic lines={[JSON.stringify(run.details, null, 2)]} />
+                )}
+                {run.artifacts.length > 0 && (
+                  <>
+                    <h3>Saved artifacts</h3>
+                    <ul className="ws-list">
+                      {run.artifacts.map((a) => (
+                        <li key={a.path}>
+                          <span>{a.path}</span>
+                          <button type="button" onClick={() => void download(a.path)}>
+                            Download · {formatNumber(a.length)} bytes
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </section>
+              <section className="ws-card ws-details">
+                <h2>Keep context with this run</h2>
+                <Field label="Run name">
+                  <input value={annotation?.name ?? ""} disabled={!loaded} readOnly={state.read_only} onChange={(e) => edit({name: e.target.value})} />
+                </Field>
+                <Field label="Notes">
+                  <textarea value={annotation?.text ?? ""} disabled={!loaded} readOnly={state.read_only} onChange={(e) => edit({text: e.target.value})} />
+                </Field>
+                <CheckField label="Important · protect from pruning">
+                  <input type="checkbox" checked={annotation?.important ?? false} disabled={!loaded || state.read_only} onChange={(e) => edit({important: e.target.checked})} />
+                </CheckField>
+                {!state.read_only && (
+                  <Actions note={state.read_only ? undefined : "Notes stay with the run in this project."}>
+                    <button type="button" disabled={!connected || !loaded || draft?.attempt !== attempt || saving} onClick={() => void save()}>Save notes</button>
+                  </Actions>
+                )}
+              </section>
+            </div>
+          </>
+        )}
+      </Feedback>
+      {error && loaded && <FailureNotice message={error} compact />}
     </>
   );
+}
+/** The most useful sentence of a run's diagnostics: its message, or the first string field. */
+function describeDetails(details: unknown): string {
+  if (typeof details === "string") return details;
+  if (details && typeof details === "object") {
+    const record = details as Record<string, unknown>;
+    for (const key of ["message", "error", "reason", "stderr"])
+      if (typeof record[key] === "string" && record[key]) return record[key] as string;
+  }
+  return classifyFailure(JSON.stringify(details)).summary;
 }

@@ -49,10 +49,12 @@ export interface ExperimentReport {
 export interface SeriesEntry {attempt: string; series: Record<string, {points: [number, number, number | null][]; truncated: boolean}>;}
 /** Experiment commands fence on run ids and store state; their revision may be omitted. */
 export type ExperimentCommand = 'experiment.define' | 'experiment.start' | 'experiment.cancel' | 'experiment.resume' | 'experiment.delete' | 'comparison.get' | 'series.get' | 'replay.start' | 'workers.get';
-export type ProjectCommand = 'project.get' | 'project.configure' | 'model.prepare' | 'environment.prepare' | 'environment.select' | 'history.get' | 'history.annotate' | 'run.get' | 'run.stop_and_run' | 'model.auto';
+/** Analysis commands are project-fenced like other project commands and accept ``revision: null``. */
+export type AnalysisCommand = 'analysis.list' | 'analysis.get' | 'analysis.preview' | 'analysis.admit' | 'analysis.cancel' | 'analysis.rerun' | 'analysis.refresh' | 'analysis.annotate';
+export type ProjectCommand = 'project.get' | 'project.configure' | 'model.prepare' | 'environment.prepare' | 'environment.select' | 'history.get' | 'history.annotate' | 'run.get' | 'run.stop_and_run' | 'model.auto' | AnalysisCommand;
 export type Command = ProjectCommand | 'project.rescan' | 'state.get' | 'params.set' | 'run.start' | 'run.cancel' | 'layout.get' | 'layout.validate' | 'layout.write' | 'view.select' | ExperimentCommand;
 export type NotificationType = 'state' | 'model_info' | 'revision_changed' | 'run_state' | 'progress' | 'trace_available' | 'kpi' | 'layout_resolved' | 'validation' | 'inputs_changed' | 'invalidated' | 'error'
-  | 'experiment_state' | 'experiment_progress' | 'replay_state' | 'workers_state' | 'experiments_changed';
+  | 'experiment_state' | 'experiment_progress' | 'replay_state' | 'workers_state' | 'experiments_changed' | 'analysis_state';
 export type ConnectionStatus = 'connecting' | 'synchronizing' | 'connected' | 'reconnecting' | 'authentication_required' | 'disposed';
 export interface Notification {v: 1; type: NotificationType; event_seq: number; body: unknown; revision?: Revision | null; attempt_id?: string; generation?: number; arrival?: number;}
 interface Options {
@@ -266,6 +268,15 @@ export class StudioClient {
       this.#pending.set(id, {resolve, reject, timer});
       try {socket.send(raw);} catch (error) {clearTimeout(timer); this.#pending.delete(id); reject(error);}
     });
+  }
+  /** An authenticated same-origin ``/api/*`` request. The session header never leaves the Studio origin and redirects are refused. */
+  async fetchApi(path: string, init: RequestInit = {}): Promise<Response> {
+    if (!path.startsWith('/api/') ) throw new Error('Studio API paths start with /api/');
+    const url = new URL(path, this.origin);
+    if (url.origin !== this.origin || !url.pathname.startsWith('/api/')) throw new Error('Studio API requests stay on the Studio origin');
+    const headers = new Headers(init.headers);
+    headers.set('X-Simulatte-Session', this.secret);
+    return (this.options.fetch ?? fetch)(url, {...init, headers, mode: 'same-origin', credentials: 'same-origin', redirect: 'error', referrerPolicy: 'no-referrer'});
   }
   async cancelPreparation(operationId: string): Promise<void> {
     const response = await (this.options.fetch ?? fetch)(new URL('/api/environment/cancel/' + encodeURIComponent(operationId), this.origin), {

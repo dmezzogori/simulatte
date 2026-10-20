@@ -1,5 +1,41 @@
-import { useEffect, useState, type ReactNode } from "react";
-import type { ProjectState } from "./state";
+import type { ReactNode } from "react";
+import { DataTable, formatTime, type Column } from "./tables";
+import { routeHash, type HistoryItem, type ProjectState } from "./state";
+/** The project's next useful step, derived from its state. */
+function nextAction(state: ProjectState): {
+  title: string;
+  text: string;
+  link: { label: string; hash: string };
+} {
+  if (state.active_run)
+    return {
+      title: "A run is in progress",
+      text: "Browse other pages freely; the run keeps going and its result stays saved.",
+      link: {
+        label: "Inspect active run",
+        hash: routeHash({ page: "run", attempt: state.active_run.key.attempt_id }),
+      },
+    };
+  if (!state.models.length)
+    return {
+      title: "Start with a model",
+      text: "Register a Python model or create a starter project.",
+      link: { label: "Open models", hash: "#/models" },
+    };
+  const latest = state.history.find((r) => r.has_result);
+  if (latest)
+    return {
+      title: "Review your latest run",
+      text: `${latest.name || "The latest run"} · ${formatTime(latest.created)}`,
+      link: { label: "Open run", hash: routeHash({ page: "run", attempt: latest.id }) },
+    };
+  const first = state.models[0]!;
+  return {
+    title: "Run your first simulation",
+    text: `Configure ${first.name}, then press Run. Opening this project starts nothing.`,
+    link: { label: `Configure ${first.name}`, hash: routeHash({ page: "model", id: first.id }) },
+  };
+}
 export function Overview({
   state,
   children,
@@ -7,6 +43,7 @@ export function Overview({
   state: ProjectState;
   children?: ReactNode;
 }) {
+  const next = nextAction(state);
   return (
     <>
       <div className="ws-page-heading">
@@ -16,25 +53,46 @@ export function Overview({
       </div>
       {children}
       {state.models.length > 0 && (
-        <div className="ws-stats">
-          <div>
-            <strong>{state.models.length}</strong>
-            <span>Registered models</span>
-          </div>
-          <div>
-            <strong>{state.history.filter((r) => r.has_result).length}</strong>
-            <span>Recent saved runs</span>
-          </div>
-          <div>
-            <strong>
+        <div className="ws-tiles">
+          <section className="ws-tile">
+            <div className="ws-number">{state.models.length}</div>
+            <h2>Simulation models</h2>
+            <p>Named entrypoints with independent inputs and saved history.</p>
+            <a href="#/models">Explore models →</a>
+          </section>
+          <section className="ws-tile">
+            <div className="ws-number">
+              {state.history.filter((r) => r.has_result).length}
+            </div>
+            <h2>Saved runs</h2>
+            <p>Individual runs keep their configuration, source and outputs.</p>
+            <a href="#/runs">All runs →</a>
+          </section>
+          <section className="ws-tile">
+            <div className="ws-number">
+              {state.environment ? "Ready" : state.read_only ? "Read-only" : "Setup"}
+            </div>
+            <h2>Project environment</h2>
+            <p>
               {state.environment
-                ? "Ready"
-                : state.read_only
-                  ? "Read-only"
-                  : "Setup"}
-            </strong>
-            <span>Project environment</span>
+                ? "Dependencies are prepared; experiments can run."
+                : "Prepare an environment before running models."}
+            </p>
+            <a href={state.environment ? "#/experiments" : "#/settings"}>
+              {state.environment ? "Open experiments →" : "Project settings →"}
+            </a>
+          </section>
+        </div>
+      )}
+      {state.phase === "ready" && (
+        <div className="ws-next">
+          <div>
+            <strong>{next.title}</strong>
+            <p>{next.text}</p>
           </div>
+          <a className="ws-button primary" href={next.link.hash}>
+            {next.link.label} →
+          </a>
         </div>
       )}
       {state.models.length > 0 && (
@@ -47,7 +105,7 @@ export function Overview({
             {state.models.map((m) => (
               <a
                 className="ws-card ws-model-card"
-                href={"#/model/" + encodeURIComponent(m.id)}
+                href={routeHash({ page: "model", id: m.id })}
                 key={m.id}
               >
                 <span className="ws-eyebrow">PYTHON MODEL</span>
@@ -67,7 +125,7 @@ export function Overview({
         {state.history.length ? (
           <HistoryList state={state} limit={5} />
         ) : (
-          <div className="ws-empty">
+          <div className="ws-state ws-empty">
             <h3>No runs yet</h3>
             <p>
               Choose a model and press Run when its inputs are ready. Opening
@@ -86,115 +144,41 @@ export function HistoryList({
   state: ProjectState;
   limit?: number;
 }) {
+  const columns: Column<HistoryItem>[] = [
+    {
+      key: "run",
+      header: "Run",
+      render: (r) => (
+        <a href={routeHash({ page: "run", attempt: r.id })}>
+          {r.important ? "★ " : ""}
+          {r.name || "Run " + r.id.slice(0, 8)}
+        </a>
+      ),
+    },
+    {
+      key: "model",
+      header: "Model",
+      render: (r) =>
+        state.models.find((m) => m.id === r.model_id)?.name ??
+        (r.model_id ? "Removed model" : "Unassigned"),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => <span className={"ws-badge " + r.status}>{r.status}</span>,
+    },
+    {
+      key: "created",
+      header: "Created",
+      align: "right",
+      render: (r) => formatTime(r.created),
+    },
+  ];
   return (
-    <table className="ws-table">
-      <thead>
-        <tr>
-          <th>Run</th>
-          <th>Model</th>
-          <th>Status</th>
-          <th>Created</th>
-        </tr>
-      </thead>
-      <tbody>
-        {state.history.slice(0, limit).map((r) => (
-          <tr key={r.id}>
-            <td>
-              <a href={"#/run/" + r.id}>
-                {r.important ? "★ " : ""}
-                {r.name || r.id.slice(0, 8)}
-              </a>
-            </td>
-            <td>
-              {state.models.find((m) => m.id === r.model_id)?.name ??
-                (r.model_id ? "Removed model" : "Unassigned")}
-            </td>
-            <td>
-              <span className={"ws-badge " + r.status}>{r.status}</span>
-            </td>
-            <td>{new Date(r.created * 1000).toLocaleString()}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-export function RunsPage({
-  client,
-  state,
-}: {
-  client: import("../studio-client").StudioClient;
-  state: ProjectState;
-}) {
-  const [filter, setFilter] = useState(""),
-    [items, setItems] = useState(state.history),
-    [cursor, setCursor] = useState<string | null>(null),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
-  const load = async (after: string | null) => {
-    setBusy(true);
-    try {
-      const r = await client.command("history.get", {
-        model_id: filter || null,
-        after,
-      });
-      if (!r.ok) throw Error((r.error as { message: string }).message);
-      setItems((old) =>
-        after ? [...old, ...(r.items as typeof old)] : (r.items as typeof old),
-      );
-      setCursor(r.next_cursor as string | null);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  useEffect(() => {
-    void load(null);
-  }, [filter, client]);
-  return (
-    <>
-      <div className="ws-page-heading">
-        <div className="ws-eyebrow">PROJECT HISTORY</div>
-        <h1>Runs</h1>
-        <p>Captured inputs and results stay with the project.</p>
-      </div>
-      <div className="ws-actions">
-        <label>
-          Filter by model
-          <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-            <option value="">
-              All models, including removed and unassigned
-            </option>
-            {state.models.map((m) => (
-              <option value={m.id} key={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button disabled={busy} onClick={() => void load(null)}>
-          Refresh history
-        </button>
-      </div>
-      {items.length ? (
-        <HistoryList
-          state={{ ...state, history: items }}
-          limit={items.length}
-        />
-      ) : (
-        <div className="ws-empty">
-          <h2>No runs yet</h2>
-          <a href="#/models">Choose a model to begin →</a>
-        </div>
-      )}
-      {cursor && (
-        <button disabled={busy} onClick={() => void load(cursor)}>
-          Load more runs
-        </button>
-      )}
-      {error && <p role="alert">{error}</p>}
-    </>
+    <DataTable
+      columns={columns}
+      rows={state.history.slice(0, limit)}
+      rowKey={(r) => r.id}
+    />
   );
 }
