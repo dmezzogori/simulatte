@@ -50,6 +50,7 @@ Against GUI simulation suites such as AnyLogic, FlexSim or Simio:
 - Out of scope: graphical model building, live breakpoints, 3D rendering, multi-user server, cloud scheduler, general notebook environment.
 - Terminology users see: project, model, run, recording (full or KPI-only), experiment, configuration, replication, population, measurement, analysis, presentation, evidence, environment, slot, worker. Internal names (execution request, transport, store schema) stay out of the UI.
 - APIs and formats are under active development and may change between releases.
+- The current Studio UI and the 2026-10-19 mockup are prototypes; their look is evidence, not authority. The definitive visual design is still to be established.
 
 ## Brand Commitments
 
