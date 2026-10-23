@@ -18,5 +18,8 @@
       "Bash(rm:*)"
     ],
     "ask": []
+  },
+  "enabledPlugins": {
+    "impeccable@impeccable": true
   }
 }
