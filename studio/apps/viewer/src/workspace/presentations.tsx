@@ -401,7 +401,6 @@ export function PresentationsPage({
         <p className="ws-back"><a href="#/presentations">← Presentations</a></p>
         <div className="ws-page-heading">
           <div>
-            <div className="ws-eyebrow">PRESENTATION</div>
             <h1>{loaded?.manifest.name ?? "Presentation"}</h1>
             <p>
               {loaded && <span className="ws-tag">Revision {loaded.manifest.revision}</span>}
@@ -467,7 +466,6 @@ export function PresentationsPage({
         <p className="ws-back"><a href="#/presentations">← Presentations</a></p>
         <div className="ws-page-heading">
           <div>
-            <div className="ws-eyebrow">NEW PRESENTATION</div>
             <h1>{draftRun?.name || "New presentation"}</h1>
             <p>
               <span className="ws-tag">Recording {attemptId.slice(0, 8)}</span>
@@ -504,7 +502,6 @@ export function PresentationsPage({
     <>
       <div className="ws-page-heading">
         <div>
-          <div className="ws-eyebrow">PRESENTATIONS</div>
           <h1>Presentations</h1>
           <p>Named views of full recordings with their supporting evidence. Studio presentation is primary; exports reuse the same saved revision.</p>
         </div>

@@ -101,11 +101,12 @@ exactly the previewed inputs and submits the execution. Its page follows the sta
 
 ### A saved execution
 
-The execution page shows the input snapshot (counts, the selected experiment runs,
-configurations and runs with links, the completeness policy), the definition and its
-parameters, the derived provenance of the outputs (definition revision, source hash,
-environment generation, input snapshot) and the annotations, an append-only list of
-revisions. Outputs are shown only for a succeeded execution; a failed, cancelled,
+The execution page leads with its outputs. Below them, **How these numbers were made**
+shows the input snapshot (counts, the selected experiment runs and runs named by
+experiment and date, the configurations, the completeness policy), the definition and its
+parameters, and, folded, the derived provenance with the identifiers (execution, input
+snapshot, definition revision, source hash, environment generation). Annotations, an
+append-only list of revisions, close the page. Outputs are shown only for a succeeded execution; a failed, cancelled,
 running or lost execution shows its state and the diagnostics of the contained
 process, never partial files as results.
 
@@ -120,15 +121,23 @@ the snapshot changed, and creates a distinct execution only after **Admit refres
 analysis**; the original execution and its evidence stay unchanged. **Cancel
 execution** is offered while it runs.
 
-### Output cards
+### Outputs
 
-Numbers come first, then tables, distributions, images and figures. Every card
-carries the snapshot label (complete or partial with the counts), the inferential
-convention and the unavailable inputs.
+Outputs are ordered by meaning: numbers, summary tables (at most 50 rows), distributions,
+images and figures, then whole datasets. When every output reads the same inputs, the
+snapshot label (complete or partial with the counts), the valid inputs and the unavailable
+inputs are said once above them; otherwise each output carries its own. Each output keeps
+its inferential convention and the analysis' own qualifiers (population, aggregation,
+window). Outputs are titled in words, with the emitted name beside the title.
 
-- **Numbers** show the value with its unit; exact int64 values are shown with all
-  their digits, non-finite values as `NaN`, `+∞` and `−∞`, missing values as `—`.
-- **Tables** are typed and paged on the server (50–500 rows per page). **Sort by**
+- **Numbers** show the value with its unit. Floats read at four significant digits;
+  **Full digits** shows every digit. Exact int64 values are always shown with all their
+  digits, non-finite values as `NaN`, `+∞` and `−∞`, missing values as `—`.
+- **Summary tables** are read whole, without paging or filters: a single row as labelled
+  values, a few rows as a plain table, and a table of interval estimates (`mean`, `lower`,
+  `upper`) as forest-plot rows grouped by metric, with **All columns** below. Each offers
+  **Download CSV**.
+- **Whole datasets** show every value exactly as saved. They are typed and paged on the server (50–500 rows per page). **Sort by**
   and **Add filter** (`eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in`, with `null`, `NaN`,
   `inf` and `-inf` accepted as values) build a derived index over the saved table on
   the server; the summary line says whether a page came from the saved order or from

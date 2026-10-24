@@ -19,7 +19,7 @@ SCHEMAS = (
 
 def source_fingerprint(root: Path) -> str:
     digest = hashlib.sha256()
-    excluded = {"node_modules", "dist", "test-results", "playwright-report", ".vite", ".build"}
+    excluded = {"node_modules", "dist", "test-results", "playwright-report", ".vite", ".build", ".impeccable"}
     inputs = [*(root / "src/simulatte" / name for name in SCHEMAS), *(root / "studio").rglob("*")]
     for path in sorted(inputs, key=lambda p: p.as_posix()):
         relative = path.relative_to(root)

@@ -434,7 +434,8 @@ const admitAnalysis = async (page: Page, site: string, key: string, pick: (page:
   await expect(page.locator(".ws-page-heading .ws-badge").first()).toHaveText("succeeded", { timeout: 300000 });
   return (await hash(page)).replace("#/analyses/", "");
 };
-const tableText = async (card: Locator) => (await card.locator("table").innerText()).replace(/\s+/g, " ");
+/** A summary output's text: one-row summaries read as label and value pairs, others as a table. */
+const tableText = async (card: Locator) => " " + (await card.locator(".af-summary").innerText()).replace(/\s+/g, " ");
 
 test("scenario 1 and 10: fresh install, missing folder, starter, environment, run, reopen, legacy references, quiescent copy", async ({ page, browserName }, info) => {
   test.setTimeout(900000);
@@ -717,7 +718,7 @@ test("scenario 3: broken model, missing plot packages, recovery viewer, environm
     await expect(page.locator(".ws-failure").first()).toHaveAttribute("data-kind", "model");
     await capture(page, info.project.name, 3, "broken-model");
     await page.goto(site + "/#/experiments/" + runs.figures.run);
-    await expect(page.locator(".run-details h4")).toContainText("figures · completed", { timeout: 30000 });
+    await expect(page.locator(".st-status")).toContainText("completed", { timeout: 30000 });
     await page.goto(site + "/#/run/" + runs.figures.attempts[0]);
     await expect(page.locator(".ws-page-heading .ws-badge")).toHaveText("succeeded", { timeout: 30000 });
     await expect(page.locator("dt").filter({ hasText: /^Recording level$/ }).locator("+ dd")).toHaveText("kpi");
@@ -849,16 +850,15 @@ test("scenarios 5, 6 and 7: lateness over populations, AGV utilization by family
     const byFamily = page.locator('[data-output="lateness_by_family"]');
     await expect(byFamily).toBeVisible();
     await expect(byFamily.locator("tbody tr")).toHaveCount(2);
-    // The empty population: n = 0 and no statistics (shown as —).
-    expect(await tableText(page.locator('[data-output="lateness_family_Z"]'))).toMatch(/\b0\b/);
-    expect(await tableText(page.locator('[data-output="lateness_family_Z"]'))).toMatch(/—|null/);
+    // The empty population is stated as such, not as a row of zeros and dashes.
+    expect(await tableText(page.locator('[data-output="lateness_family_Z"]'))).toContain("Empty population");
     const all = await tableText(page.locator('[data-output="lateness_all"]'));
     const any = await tableText(page.locator('[data-output="lateness_any_family"]'));
     expect(any.replace(/any_family/g, "")).toContain(all.split(" n ")[1]?.split(" ")[0] ?? "");
     await expect(page.locator('[data-output="lateness_distribution"]')).toContainText("exact");
     const intervals = page.locator('[data-output="lateness_intervals"]');
-    await expect(intervals).toContainText("replication_t");
-    await expect(intervals.locator("tbody tr")).toHaveCount(2);
+    await expect(intervals).toContainText("Replication t convention");
+    await expect(intervals.locator(".af-interval-table .fp-row")).toHaveCount(2);
     await expect(intervals).toContainText("ok");
     // Warm-up handling is visible: the analysis names the inputs' warm-up (10) that excluded early jobs.
     const observation = page.getByText("Observation window", { exact: true }).locator("+ dd");
@@ -874,7 +874,7 @@ test("scenarios 5, 6 and 7: lateness over populations, AGV utilization by family
     await expect(page.locator('[data-output="standard_mean_of_vehicle_fractions"]')).toContainText(/fraction/);
     // The explicit aggregation and the observation window the analysis attached as output metadata.
     const utilization = page.locator('[data-output="standard_mean_of_vehicle_fractions"]');
-    for (const qualifier of ["convention descriptive_within_run", "aggregation mean_of_vehicle_fractions", "population standard", "window start"])
+    for (const qualifier of ["Convention: descriptive within run", "Aggregation: mean of vehicle fractions", "Population: standard", "Window start"])
       await expect(utilization, "V3: number metadata names convention, aggregation, population and window").toContainText(qualifier);
     await expect(page.getByText("Observation window", { exact: true }).locator("+ dd")).toContainText("Run: warm-up 10, horizon 100 · 4 replications");
     await expect(page.locator('[data-output="intervals_by_family"] tbody tr').first()).toBeVisible();
@@ -882,8 +882,8 @@ test("scenarios 5, 6 and 7: lateness over populations, AGV utilization by family
     // Scenario 7: a new post-run subset from retained attributes, then an unavailable field.
     await admitAnalysis(page, site, "subset", async (p) => { await p.getByLabel(/^policies/).check(); }, "Late jobs of family B", { "family (str)": "B", "late_after (float)": "0" });
     await expect(page.locator('[data-output="subset_status"]')).toContainText("available");
-    await expect(page.locator('[data-output="subset_summary"] tbody tr')).toHaveCount(1);
-    await expect(page.locator('[data-output="subset_summary"]'), "V4: table population label is visible").toContainText("late_in_family");
+    await expect(page.locator('[data-output="subset_summary"] .af-summary')).toBeVisible();
+    await expect(page.locator('[data-output="subset_summary"]'), "V4: table population label is visible").toContainText("late in family");
     await capture(page, info.project.name, 7, "subset");
     await page.goto(site + "/#/analyses/new/subset_priority");
     await page.getByLabel(/^policies/).check();

@@ -4,18 +4,26 @@ import { ArtifactError, type ArtifactSource, type Row, type RowsPage, type Table
 export const MAX_PAGE = 500;
 export type FetchApi = (path: string, init?: RequestInit) => Promise<Response>;
 const SAFE_SEGMENT = /^[A-Za-z0-9._-]+$/;
+/** What a refused output read means to the reader, by status; the server's own text stays in the details. */
+const STATUS_COPY: Record<number, string> = {
+  404: "This output is not in the project store any more. Reload the page; if it is still missing, the analysis was deleted.",
+  409: "The analysis has not finished successfully, so its outputs cannot be read. Its state is shown at the top of the page.",
+};
+const UNAVAILABLE = "Studio could not read this output from the project store. Try again; if it keeps failing, reopen the project from the terminal.";
 async function refuse(response: Response): Promise<never> {
-  let message = `Request failed (${response.status})`;
+  let server = "";
   let details: unknown;
   try {
     const body = (await response.json()) as { error?: unknown; state?: unknown; details?: unknown };
-    if (typeof body.error === "string") message = body.error;
+    if (typeof body.error === "string") server = body.error;
     details = body.details;
-    if (typeof body.state === "string") message += ` (execution ${body.state})`;
   } catch {
-    /* A non-JSON refusal keeps the status text. */
+    /* A non-JSON refusal keeps the status copy. */
   }
-  throw new ArtifactError(message, response.status, response.status === 503, details);
+  // A malformed query (400) is answered best by the server's own words, which name the field and the value.
+  const message =
+    response.status >= 500 ? UNAVAILABLE : (STATUS_COPY[response.status] ?? (server || `Request refused (${response.status})`));
+  throw new ArtifactError(message, response.status, response.status === 503, details ?? (server ? { server } : undefined));
 }
 function validatePage(body: unknown): RowsPage {
   const page = body as Partial<RowsPage>;

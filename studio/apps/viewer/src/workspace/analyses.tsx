@@ -10,6 +10,7 @@ import { Diagnostic, EmptyState, FailureNotice, Feedback, type Action, type Page
 import { Actions, CheckField, Field, FieldGroup, WORKING, disabledWhen } from "./forms";
 import { routeHash, type HistoryItem, type ProjectState } from "./state";
 import { formatTime } from "./tables";
+import { runDate, runTitle } from "./study";
 interface Registration {
   key: string;
   id: string;
@@ -28,6 +29,8 @@ interface ListItem {
   planned: number;
   partial: boolean;
   annotation?: string;
+  /** Experiment runs the input snapshot selected. */
+  experiment_run_ids?: string[];
 }
 interface Execution {
   id: string;
@@ -189,7 +192,7 @@ const asRecord = (value: Plain): { [key: string]: Plain } | null =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
 function SnapshotBadge({ available, planned, partial }: { available: number; planned: number; partial: boolean }) {
   return (
-    <span className={"ws-badge " + (partial ? "running" : "")} data-partial={partial}>
+    <span className={"ws-badge " + (partial ? "amber" : "completed")} data-partial={partial}>
       {snapshotLabel(available, planned, partial)}
     </span>
   );
@@ -374,7 +377,12 @@ export function InsufficientInputScreen({
     </div>
   );
 }
-function AnalysesList({ client, state, connected }: { client: StudioClient; state: ProjectState; connected: boolean }) {
+/** The saved executions whose inputs include a run of the study; ``null`` lists them all. */
+export function studyExecutions<T extends { experiment_run_ids?: string[] }>(items: readonly T[], runs: ReadonlySet<string> | null): T[] {
+  return runs === null ? [...items] : items.filter((item) => (item.experiment_run_ids ?? []).some((id) => runs.has(id)));
+}
+function AnalysesList({ client, state, connected, study }: { client: StudioClient; state: ProjectState; connected: boolean; study?: string }) {
+  const studyRuns = study ? new Set((client.state?.experiments ?? []).filter((e) => e.name === study).map((e) => e.run_id)) : null;
   const [page, setPage] = useState<PageState<ListItem[]>>({ status: "loading" });
   const [cursor, setCursor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -408,38 +416,51 @@ function AnalysesList({ client, state, connected }: { client: StudioClient; stat
     ),
   );
   const definitions = registrations(state);
+  const definitionsCard = (
+      <section className="ws-card" aria-labelledby="analysis-definitions">
+      <div className="ws-section-heading">
+        <h2 id="analysis-definitions">Definitions</h2>
+        <small className="ws-identity">Registered in pyproject.toml under tool.simulatte.analyses</small>
+      </div>
+      {definitions.length ? (
+        <ul className="ws-list" aria-label="Analysis definitions">
+          {definitions.map((item) => (
+            <li key={item.key}>
+              <span>
+                <strong>{item.name}</strong> <code className="ws-source">{item.entrypoint}</code>
+              </span>
+              <a className="ws-button primary" href={routeHash({ page: "analyses", definition: item.key })}>
+                New analysis
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="ws-hint">
+          No analysis definitions are registered. Add a <code>[tool.simulatte.analyses.&lt;key&gt;]</code> table to the
+          project's pyproject.toml; saved executions below stay readable.
+        </p>
+      )}
+    </section>
+  );
   return (
     <>
       <div className="ws-page-heading">
-        <div className="ws-eyebrow">REPRODUCIBLE ANALYSIS</div>
-        <h1>Analyses</h1>
-        <p>Named definitions, saved executions, their frozen inputs and outputs.</p>
-      </div>
-      <section className="ws-card" aria-labelledby="analysis-definitions">
-        <div className="ws-section-heading">
-          <h2 id="analysis-definitions">Definitions</h2>
-          <small className="ws-identity">Registered in pyproject.toml under tool.simulatte.analyses</small>
-        </div>
-        {definitions.length ? (
-          <ul className="ws-list" aria-label="Analysis definitions">
-            {definitions.map((item) => (
-              <li key={item.key}>
-                <span>
-                  <strong>{item.name}</strong> <code className="ws-source">{item.entrypoint}</code>
-                </span>
-                <a className="ws-button primary" href={routeHash({ page: "analyses", definition: item.key })}>
-                  New analysis
-                </a>
-              </li>
-            ))}
-          </ul>
+        {study ? (
+          <>
+            <h1>{study}: analyses</h1>
+            <p>
+              Saved analyses whose inputs include a run of this study. <a href="#/analyses">All analyses</a>
+            </p>
+          </>
         ) : (
-          <p className="ws-hint">
-            No analysis definitions are registered. Add a <code>[tool.simulatte.analyses.&lt;key&gt;]</code> table to the
-            project's pyproject.toml; saved executions below stay readable.
-          </p>
+          <>
+            <h1>Analyses</h1>
+            <p>Named definitions, saved executions, their frozen inputs and outputs.</p>
+          </>
         )}
-      </section>
+      </div>
+      {!study && definitionsCard}
       <Feedback
         state={page}
         loading="Loading saved analyses…"
@@ -451,8 +472,17 @@ function AnalysesList({ client, state, connected }: { client: StudioClient; stat
             : {}),
         }}
       >
-        {(items) => (
+        {(all) => {
+          const items = studyExecutions(all, studyRuns);
+          return (
           <>
+            {items.length === 0 && (
+              <div className="ws-state ws-empty">
+                <h2>No saved analysis uses this study yet</h2>
+                <p>Start one from a definition above and select runs of {study} as its inputs. Only the newest loaded analyses are searched; load more to look further back.</p>
+              </div>
+            )}
+            {items.length > 0 && (
             <div className="ws-table-wrap">
               <table className="ws-table" aria-label="Saved analyses">
                 <caption>Saved executions, newest first</caption>
@@ -486,6 +516,7 @@ function AnalysesList({ client, state, connected }: { client: StudioClient; stat
                 </tbody>
               </table>
             </div>
+            )}
             {cursor && (
               <div className="ws-actions">
                 <button type="button" disabled={busy} onClick={() => void load(cursor)}>
@@ -495,8 +526,10 @@ function AnalysesList({ client, state, connected }: { client: StudioClient; stat
               </div>
             )}
           </>
-        )}
+          );
+        }}
       </Feedback>
+      {study && definitionsCard}
     </>
   );
 }
@@ -646,7 +679,6 @@ function NewAnalysis({
   return (
     <>
       <div className="ws-page-heading">
-        <div className="ws-eyebrow">REPRODUCIBLE ANALYSIS</div>
         <h1>New analysis{registration ? `: ${registration.name}` : ""}</h1>
         <p>
           Definition: <code>{registrationKey}</code>
@@ -904,7 +936,6 @@ function AnalysisDetail({
   return (
     <>
       <div className="ws-page-heading">
-        <div className="ws-eyebrow">SAVED ANALYSIS</div>
         <h1>{loaded ? loaded.execution.name : "Saved analysis"}</h1>
         <p>
           {loaded && (
@@ -916,13 +947,10 @@ function AnalysisDetail({
                 partial={loaded.snapshot.partial}
               />
               <span>
-                {loaded.definition.name} · {formatTime(loaded.execution.created)}
+                {loaded.definition.name} · admitted {runDate(loaded.execution.created)}
               </span>
             </>
           )}
-          <span className="ws-identity">
-            Execution: <code>{executionId}</code>
-          </span>
         </p>
       </div>
       <Feedback
@@ -936,203 +964,67 @@ function AnalysisDetail({
         const details = asRecord(untag(detail.details ?? null)) ?? {};
         const diagnostics = typeof details.diagnostics === "string" ? details.diagnostics : "";
         const provenance = manifest ? asRecord(manifest.provenance as unknown as Plain) : null;
-        const experimentName = (run: string) => client.state?.experiments?.find((e) => e.run_id === run)?.name ?? shortHash(run);
+        const experimentName = (run: string) => {
+          const found = client.state?.experiments?.find((e) => e.run_id === run);
+          return found ? runTitle(found) : "Experiment run " + shortHash(run);
+        };
+        const runName = (attempt: string) => {
+          const found = state.history.find((h) => h.id === attempt);
+          return found ? `${found.name} · ${runDate(found.created)}` : "Run " + shortHash(attempt);
+        };
         const paramsForRefresh = asRecord(untag(execution.parameters)) ?? {};
         return (
           <>
             {error && <FailureNotice message={error} compact />}
-            <div className="ws-cols">
-              <div className="ws-stack">
-                {execution.state !== "succeeded" ? (
-                  <section className="ws-card" aria-labelledby="analysis-state" data-outputs="withheld">
-                    <h2 id="analysis-state">{ACTIVE.has(execution.state) ? "Execution in progress" : "No published outputs"}</h2>
-                    <p>
-                      {execution.state === "failed"
-                        ? "The analysis failed. Its inputs stay frozen; the diagnostics below come from the contained process."
-                        : execution.state === "cancelled"
-                          ? "The analysis was cancelled before publishing outputs."
-                          : execution.state === "lost"
-                            ? "The execution was lost (the process or Studio stopped). Rerun it on the same snapshot."
-                            : "Outputs appear here when the execution succeeds; partial files are never shown as results."}
-                    </p>
-                    {diagnostics ? <pre className="ws-log">{diagnostics}</pre> : null}
-                    <Diagnostic
-                      lines={Object.entries(details)
-                        .filter(([key]) => key !== "diagnostics")
-                        .map(([key, value]) => `${key}: ${formatValue(value)}`)}
-                    />
-                  </section>
-                ) : manifest ? (
-                  <section aria-labelledby="analysis-outputs">
-                    <div className="ws-section-heading">
-                      <h2 id="analysis-outputs">Outputs</h2>
-                      <small className="ws-identity">Derived from this execution · numeric results first</small>
-                    </div>
-                    <ArtifactView manifest={manifest} source={source} />
-                  </section>
-                ) : (
-                  <EmptyState screen={{ title: "No output manifest", text: "The execution succeeded without a readable manifest." }} />
-                )}
-                <section className="ws-card" aria-labelledby="analysis-notes">
-                  <h2 id="analysis-notes">Annotations</h2>
-                  {annotations.length ? (
-                    <ol className="ws-list" aria-label="Annotation revisions">
-                      {annotations.map((a, i) => (
-                        <li key={a.revision}>
-                          <span>
-                            <strong>Revision {i + 1}</strong> · {formatTime(a.ts)}
-                            <br />
-                            {a.text}
-                          </span>
-                        </li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <p className="ws-hint">No annotations yet. Every note is an append-only revision.</p>
+            <div className="an-flow">
+              <div className="an-actions">
+<div className="st-actions">
+                  {ACTIVE.has(execution.state) && (
+                    <button
+                      type="button"
+                      disabled={!!busy || !!blocked}
+                      onClick={() => void act("Cancelling…", async () => void (await invoke(client, "analysis.cancel", { execution_id: executionId })))}
+                    >
+                      Cancel execution
+                    </button>
                   )}
-                  <form
-                    aria-label="Add annotation"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void act("Saving note…", async () => {
-                        await invoke(client, "analysis.annotate", { execution_id: executionId, text: note });
-                        setNote("");
-                        await load();
-                      });
-                    }}
-                  >
-                    <Field label="New annotation" wide>
-                      <textarea value={note} maxLength={65536} onChange={(e) => setNote(e.target.value)} />
-                    </Field>
-                    <Actions>
-                      <button type="submit" {...annotationDisabled(busy, blocked, note)}>
-                        Add annotation
-                      </button>
-                      {blocked && <small>{blocked}</small>}
-                    </Actions>
-                  </form>
-                </section>
-              </div>
-              <div className="ws-stack">
-                <section className="ws-card" aria-labelledby="analysis-inputs">
-                  <h2 id="analysis-inputs">Input snapshot</h2>
-                  <p className="ws-hint">Original simulation results, frozen at admission. Later results never join this snapshot.</p>
-                  <Pairs
-                    items={[
-                      ["Available", String(snapshot.available)],
-                      ["Planned", String(snapshot.planned)],
-                      ["Missing", String(snapshot.missing)],
-                      ["Snapshot", <code key="h">{shortHash(snapshot.hash)}</code>],
-                      [
-                        "Experiment runs",
-                        snapshot.selection.experiment_run_ids.length
-                          ? snapshot.selection.experiment_run_ids.map((run) => (
-                              <a key={run} href={routeHash({ page: "experiments", run })}>
-                                {experimentName(run)}{" "}
-                              </a>
-                            ))
-                          : "none",
-                      ],
-                      [
-                        "Configurations",
-                        snapshot.selection.configurations ? snapshot.selection.configurations.join(", ") : "all",
-                      ],
-                      [
-                        "Runs",
-                        snapshot.selection.run_ids.length
-                          ? snapshot.selection.run_ids.map((attempt) => (
-                              <a key={attempt} href={routeHash({ page: "run", attempt })}>
-                                {shortHash(attempt)}{" "}
-                              </a>
-                            ))
-                          : "none",
-                      ],
-                      [
-                        "Observation window",
-                        windowLines(snapshot.windows).length
-                          ? windowLines(snapshot.windows).map((line) => <div key={line}>{line}</div>)
-                          : "not recorded",
-                      ],
-                      ["Require complete", snapshot.selection.require_complete ? "yes" : "no"],
-                      ["Minimum replications", String(snapshot.selection.min_replications)],
-                    ]}
-                  />
-                </section>
-                <section className="ws-card" aria-labelledby="analysis-definition">
-                  <h2 id="analysis-definition">Definition</h2>
-                  <Pairs
-                    items={[
-                      ["Name", definition.name],
-                      ["Entrypoint", <code key="e">{definition.entrypoint}</code>],
-                      ["Registration", definition.registration_key ?? "no longer registered"],
-                      ["Definition revision", <code key="d">{shortHash(definition.id)}</code>],
-                      ...parameterPairs(execution.parameters),
-                    ]}
-                  />
-                </section>
-                {provenance && (
-                  <section className="ws-card" aria-labelledby="analysis-provenance">
-                    <h2 id="analysis-provenance">Derived provenance</h2>
-                    <p className="ws-hint">
-                      Outputs are derived results with their own provenance; they never replace the original results used
-                      for replay verification.
-                    </p>
-                    <Pairs
-                      items={Object.entries(provenance)
-                        .filter(([key]) => key !== "environment" && key !== "parameters")
-                        .map(([key, value]) => [key.replaceAll("_", " "), <code key={key}>{formatValue(value)}</code>])}
-                    />
-                  </section>
-                )}
-                <section className="ws-card" aria-labelledby="analysis-actions">
-                  <h2 id="analysis-actions">Actions</h2>
-                  <div className="ws-actions">
-                    {ACTIVE.has(execution.state) && (
+                  {TERMINAL.has(execution.state) && (
+                    <>
                       <button
                         type="button"
                         disabled={!!busy || !!blocked}
-                        onClick={() => void act("Cancelling…", async () => void (await invoke(client, "analysis.cancel", { execution_id: executionId })))}
+                        onClick={() =>
+                          void act("Rerunning…", async () => {
+                            const reply = await invoke(client, "analysis.rerun", { execution_id: executionId });
+                            location.hash = routeHash({ page: "analyses", execution: (reply.execution as Execution).id });
+                          })
+                        }
                       >
-                        Cancel execution
+                        Rerun on the same snapshot
                       </button>
-                    )}
-                    {TERMINAL.has(execution.state) && (
-                      <>
-                        <button
-                          type="button"
-                          disabled={!!busy || !!blocked}
-                          onClick={() =>
-                            void act("Rerunning…", async () => {
-                              const reply = await invoke(client, "analysis.rerun", { execution_id: executionId });
-                              location.hash = routeHash({ page: "analyses", execution: (reply.execution as Execution).id });
-                            })
-                          }
-                        >
-                          Rerun on the same snapshot
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!!busy || !!blocked}
-                          onClick={() =>
-                            void act("Refreshing…", async () => {
-                              const reply = await invoke(client, "analysis.refresh", { execution_id: executionId });
-                              setRefreshed(reply as unknown as Preview);
-                              setName(execution.name);
-                            })
-                          }
-                        >
-                          Refresh inputs
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  <small className="ws-note">
-                    Rerun recomputes on the frozen snapshot. Refresh previews the current results of the same selection; a
-                    distinct execution is created only after you admit it.
-                  </small>
+                      <button
+                        type="button"
+                        disabled={!!busy || !!blocked}
+                        onClick={() =>
+                          void act("Refreshing…", async () => {
+                            const reply = await invoke(client, "analysis.refresh", { execution_id: executionId });
+                            setRefreshed(reply as unknown as Preview);
+                            setName(execution.name);
+                          })
+                        }
+                      >
+                        Refresh inputs
+                      </button>
+                    </>
+                  )}
+                </div>
                   {blocked && <small className="ws-identity">{blocked}</small>}
                   {busy && <small role="status">{busy}</small>}
-                </section>
+                <small className="ws-note">
+                  Rerun recomputes on the frozen snapshot. Refresh previews the current results of the same selection; a distinct
+                  execution is created only after you admit it.
+                </small>
+              </div>
                 {refusal && <InsufficientInputScreen refusal={refusal} onRevise={{ label: "Dismiss", invoke: () => setRefusal(null) }} />}
                 {refreshed && (
                   <section className="ws-card" aria-labelledby="analysis-refresh" data-preview={refreshed.preview_id}>
@@ -1182,7 +1074,156 @@ function AnalysisDetail({
                     </form>
                   </section>
                 )}
-              </div>
+                {execution.state !== "succeeded" ? (
+                  <section className="ws-card" aria-labelledby="analysis-state" data-outputs="withheld">
+                    <h2 id="analysis-state">{ACTIVE.has(execution.state) ? "Execution in progress" : "No published outputs"}</h2>
+                    <p>
+                      {execution.state === "failed"
+                        ? "The analysis failed. Its inputs stay frozen; the diagnostics below come from the contained process."
+                        : execution.state === "cancelled"
+                          ? "The analysis was cancelled before publishing outputs."
+                          : execution.state === "lost"
+                            ? "The execution was lost (the process or Studio stopped). Rerun it on the same snapshot."
+                            : "Outputs appear here when the execution succeeds; partial files are never shown as results."}
+                    </p>
+                    {diagnostics ? <pre className="ws-log">{diagnostics}</pre> : null}
+                    <Diagnostic
+                      lines={Object.entries(details)
+                        .filter(([key]) => key !== "diagnostics")
+                        .map(([key, value]) => `${key}: ${formatValue(value)}`)}
+                    />
+                  </section>
+                ) : manifest ? (
+                  <section aria-labelledby="analysis-outputs">
+                    <div className="ws-section-heading">
+                      <h2 id="analysis-outputs">Outputs</h2>
+                      <small className="ws-identity">Derived from this execution · numeric results first</small>
+                    </div>
+                    <ArtifactView manifest={manifest} source={source} />
+                  </section>
+                ) : (
+                  <EmptyState screen={{ title: "No output manifest", text: "The execution succeeded without a readable manifest." }} />
+                )}
+                <section className="ws-card an-basis" aria-labelledby="analysis-basis">
+                  <h2 id="analysis-basis">How these numbers were made</h2>
+                  <div className="ws-grid">
+                <section aria-labelledby="analysis-inputs">
+                  <h3 id="analysis-inputs">Inputs</h3>
+                  <p className="ws-hint">Original simulation results, frozen at admission. Later results never join this snapshot.</p>
+                  <Pairs
+                    items={[
+                      ["Available", String(snapshot.available)],
+                      ["Planned", String(snapshot.planned)],
+                      ["Missing", String(snapshot.missing)],
+                      ["Snapshot", `Frozen at admission, ${runDate(execution.created)}`],
+                      [
+                        "Experiment runs",
+                        snapshot.selection.experiment_run_ids.length
+                          ? snapshot.selection.experiment_run_ids.map((run) => (
+                              <a key={run} href={routeHash({ page: "experiments", run })}>
+                                {experimentName(run)}{" "}
+                              </a>
+                            ))
+                          : "none",
+                      ],
+                      [
+                        "Configurations",
+                        snapshot.selection.configurations ? snapshot.selection.configurations.join(", ") : "all",
+                      ],
+                      [
+                        "Runs",
+                        snapshot.selection.run_ids.length
+                          ? snapshot.selection.run_ids.map((attempt) => (
+                              <a key={attempt} href={routeHash({ page: "run", attempt })}>
+                                {runName(attempt)}{" "}
+                              </a>
+                            ))
+                          : "none",
+                      ],
+                      [
+                        "Observation window",
+                        windowLines(snapshot.windows).length
+                          ? windowLines(snapshot.windows).map((line) => <div key={line}>{line}</div>)
+                          : "not recorded",
+                      ],
+                      ["Require complete", snapshot.selection.require_complete ? "yes" : "no"],
+                      ["Minimum replications", String(snapshot.selection.min_replications)],
+                    ]}
+                  />
+                </section>
+                <section aria-labelledby="analysis-definition">
+                  <h3 id="analysis-definition">Definition and parameters</h3>
+                  <Pairs
+                    items={[
+                      ["Name", definition.name],
+                      ["Entrypoint", <code key="e">{definition.entrypoint}</code>],
+                      ["Registration", definition.registration_key ?? "no longer registered"],
+                      ...parameterPairs(execution.parameters),
+                    ]}
+                  />
+                </section>
+                  </div>
+                {provenance && (
+                  <details className="an-identifiers" aria-labelledby="analysis-provenance">
+                    <summary id="analysis-provenance">Derived provenance and identifiers</summary>
+                    <p className="ws-hint">
+                      Outputs are derived results with their own provenance; they never replace the original results used
+                      for replay verification.
+                    </p>
+                    <Pairs
+                      items={[
+                        ["Execution", <code key="x">{executionId}</code>],
+                        ["Input snapshot", <code key="h" data-snapshot="">{snapshot.hash}</code>],
+                        ["Definition revision", <code key="d">{definition.id}</code>],
+                      ]}
+                    />
+                    <Pairs
+                      items={Object.entries(provenance)
+                        .filter(([key]) => key !== "environment" && key !== "parameters")
+                        .map(([key, value]) => [key.replaceAll("_", " "), <code key={key}>{formatValue(value)}</code>])}
+                    />
+                  </details>
+                )}
+                </section>
+                <section className="ws-card" aria-labelledby="analysis-notes">
+                  <h2 id="analysis-notes">Annotations</h2>
+                  {annotations.length ? (
+                    <ol className="ws-list" aria-label="Annotation revisions">
+                      {annotations.map((a, i) => (
+                        <li key={a.revision}>
+                          <span>
+                            <strong>Revision {i + 1}</strong> · {formatTime(a.ts)}
+                            <br />
+                            {a.text}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className="ws-hint">No annotations yet. Every note is an append-only revision.</p>
+                  )}
+                  <form
+                    aria-label="Add annotation"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void act("Saving note…", async () => {
+                        await invoke(client, "analysis.annotate", { execution_id: executionId, text: note });
+                        setNote("");
+                        await load();
+                      });
+                    }}
+                  >
+                    <Field label="New annotation" wide>
+                      <textarea value={note} maxLength={65536} onChange={(e) => setNote(e.target.value)} />
+                    </Field>
+                    <Actions>
+                      <button type="submit" {...annotationDisabled(busy, blocked, note)}>
+                        Add annotation
+                      </button>
+                      {blocked && <small>{blocked}</small>}
+                    </Actions>
+                  </form>
+                </section>
             </div>
           </>
         );
@@ -1197,16 +1238,18 @@ export function AnalysesPage({
   status,
   executionId,
   registrationKey,
+  study,
 }: {
   client: StudioClient;
   state: ProjectState;
   status: ConnectionStatus;
   executionId?: string;
   registrationKey?: string;
+  study?: string;
 }) {
   const connected = status === "connected";
   if (registrationKey)
     return <NewAnalysis key={registrationKey} client={client} state={state} registrationKey={registrationKey} connected={connected} />;
   if (executionId) return <AnalysisDetail key={executionId} client={client} state={state} executionId={executionId} connected={connected} />;
-  return <AnalysesList client={client} state={state} connected={connected} />;
+  return <AnalysesList key={study ?? ""} client={client} state={state} connected={connected} {...(study ? { study } : {})} />;
 }

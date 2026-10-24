@@ -9,7 +9,7 @@ export type WorkspaceRoute =
   | { page: "runs"; model?: string }
   | { page: "experiments"; run?: string }
   | { page: "comparison"; selection: string[] }
-  | { page: "analyses"; execution?: string; definition?: string };
+  | { page: "analyses"; execution?: string; definition?: string; study?: string };
 const PLAIN_PAGES = [
   "overview",
   "models",
@@ -29,6 +29,9 @@ export function parseRoute(hash: string): WorkspaceRoute {
       const original = params.get("original");
       if (path === "#/presentations/new" && original && [...params.keys()].every((key) => key === "original") && params.getAll("original").length === 1)
         return { page: "presentations", original };
+      const study = params.get("study");
+      if (path === "#/analyses" && study && [...params.keys()].every((key) => key === "study") && params.getAll("study").length === 1)
+        return { page: "analyses", study };
       return { page: "overview" };
     }
     const parts = hash.replace(/^#\/?/, "").replace(/\/$/, "").split("/");
@@ -96,7 +99,9 @@ export function routeHash(route: WorkspaceRoute): string {
           ? "/new/" + e(route.definition)
           : route.execution
             ? "/" + e(route.execution)
-            : "")
+            : route.study
+              ? "?study=" + e(route.study)
+              : "")
       );
     default:
       return "#/" + route.page;
@@ -126,6 +131,7 @@ export function routeSection(route: WorkspaceRoute): string {
 export function routeCrumbs(
   route: WorkspaceRoute,
   models: readonly { id: string; name: string }[],
+  experiments: readonly { run_id: string; name: string }[] = [],
 ): Crumb[] {
   const section = SECTION_LABELS[route.page];
   const home: Crumb = { label: section, hash: "#/" + section.toLowerCase() };
@@ -139,7 +145,7 @@ export function routeCrumbs(
     case "runs":
       return route.model ? [home, { label: model(route.model) }] : [home];
     case "experiments":
-      return route.run ? [home, { label: "Experiment run" }] : [home];
+      return route.run ? [home, { label: experiments.find((e) => e.run_id === route.run)?.name ?? "Experiment run" }] : [home];
     case "comparison":
       return [home, { label: "Comparison" }];
     case "analyses":
@@ -147,7 +153,9 @@ export function routeCrumbs(
         ? [home, { label: "New analysis" }]
         : route.execution
           ? [home, { label: "Analysis" }]
-          : [home];
+          : route.study
+            ? [home, { label: route.study }]
+            : [home];
     case "presentations":
       return route.attempt || route.original
         ? [home, { label: "New presentation" }]

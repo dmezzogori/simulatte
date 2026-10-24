@@ -45,7 +45,7 @@ def assets() -> Path:
         root = directory.parents[3]
         if (root / "studio").is_dir():
             digest = hashlib.sha256()
-            excluded = {"node_modules", "dist", "test-results", "playwright-report", ".vite", ".build"}
+            excluded = {"node_modules", "dist", "test-results", "playwright-report", ".vite", ".build", ".impeccable"}
             # The JSON schemas the frontend imports, as hatch_build.SCHEMAS and studio/scripts/stamp.mjs list them.
             schemas = (
                 "layout/schema/layout-v1.schema.json",

@@ -2,7 +2,8 @@
  * commands, a run detail route and the numerical results table. The playback compare of
  * selected recordings stays here as a secondary tool. */
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { Counts, DefinitionForm, RunDetails } from "../experiments";
+import { Counts, DefinitionForm } from "../experiments";
+import { StudyResults, progressSentence, runDate } from "./study";
 import { ComparePanel, ReplayNotifications } from "../compare-panel";
 import { ExperimentFeed } from "../experiment-feed";
 import type { ParameterSchema } from "../parameter-draft";
@@ -285,21 +286,17 @@ export function ExperimentsPage({
   const heading = selected ? (
     <div className="ws-page-heading">
       <div>
-        <p className="ws-back">
-          <a href="#/experiments">← Experiments</a>
-        </p>
-        <div className="ws-eyebrow">EXPERIMENT RUN</div>
         <h1>{selected.name}</h1>
-        <p>
-          <span className={"ws-badge " + selected.status}>{selected.status}</span>
-          <Counts counts={live.counts(selected)} />
-          <span className="ws-muted">started {formatTime(selected.created)}</span>
-          <span className="ws-tag">{planOf(selected) ? `Measurements · ${planOf(selected)}` : "KPIs only"}</span>
+        <p className="st-status">
+          <span className={"ws-badge " + ((live.counts(selected).failed ?? 0) + (live.counts(selected).lost ?? 0) > 0 ? "amber" : selected.status)}>{selected.status}</span>
+          <span>{progressSentence(live.counts(selected))}</span>
+          <span>Run of {runDate(selected.created)}</span>
+          <span className="ws-tag">{planOf(selected) ? `Measurements: ${planOf(selected)}` : "KPIs only"}</span>
         </p>
       </div>
-      <div className="ws-heading-links">
+      <div className="st-actions">
         <a className="ws-button" href={routeHash({ page: "comparison", selection: [selected.run_id] })}>
-          Compare numerically →
+          Compare with other runs
         </a>
         {experimentActions(selected).map((action) => (
           <button key={action.label} type="button" className={action.primary ? "primary" : undefined} {...disabledWhen(blocked)} onClick={() => void send(action)}>
@@ -311,9 +308,8 @@ export function ExperimentsPage({
   ) : (
     <div className="ws-page-heading">
       <div>
-        <div className="ws-eyebrow">NUMERICAL EXPERIMENTS</div>
         <h1>Experiments</h1>
-        <p>Definitions, configurations, replication progress and numerical comparisons.</p>
+        <p>Experiment definitions, their runs and replication progress. Open a run to read its results.</p>
       </div>
     </div>
   );
@@ -342,13 +338,11 @@ export function ExperimentsPage({
         />
       )}
       {selected && (
-        <RunDetails
+        <StudyResults
           key={selected.run_id}
           client={scoped}
           run={selected}
-          counts={live.counts(selected)}
           live={live}
-          filter={null}
           presentationHref={(attempt) => routeHash({ page: "presentations", original: attempt })}
           onOpen={(_report, item) => {
             if (item.attempt) location.hash = routeHash({ page: "run", attempt: item.attempt });
@@ -379,9 +373,7 @@ export function ExperimentsPage({
                     {runs.map((run) => (
                       <tr key={run.run_id}>
                         <td>
-                          <button type="button" className="ws-link-button" onClick={() => { location.hash = routeHash({ page: "experiments", run: run.run_id }); }}>
-                            {run.name}
-                          </button>
+                          <a href={routeHash({ page: "experiments", run: run.run_id })}>{run.name}</a>
                         </td>
                         <td>
                           <span className={"ws-badge " + run.status}>{run.status}</span>
@@ -533,6 +525,7 @@ export function ExperimentsPage({
           />
         </section>
       )}
+      {!selected && (
       <section className="ws-card ws-compare-tool">
         <h2>Selected recordings</h2>
         <p className="ws-hint">Play two committed full recordings side by side on one clock.</p>
@@ -545,6 +538,7 @@ export function ExperimentsPage({
           onError={setError}
         />
       </section>
+      )}
       <ConfirmDialog
         open={pending !== null}
         title={pending ? `${pending.label} this experiment run?` : "Confirm"}

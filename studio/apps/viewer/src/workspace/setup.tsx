@@ -70,7 +70,6 @@ export function Setup({
     );
   return (
     <section className="ws-card">
-      <div className="ws-eyebrow">PROJECT SETUP</div>
       <h2>{state.id ? "Prepare your environment" : "Start with a model"}</h2>
       <p>
         {state.id

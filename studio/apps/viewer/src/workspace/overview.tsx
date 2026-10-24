@@ -47,7 +47,6 @@ export function Overview({
   return (
     <>
       <div className="ws-page-heading">
-        <div className="ws-eyebrow">PROJECT OVERVIEW</div>
         <h1>{state.name}</h1>
         <p>Build in Python. Run experiments. Inspect what happened.</p>
       </div>
@@ -108,7 +107,6 @@ export function Overview({
                 href={routeHash({ page: "model", id: m.id })}
                 key={m.id}
               >
-                <span className="ws-eyebrow">PYTHON MODEL</span>
                 <h3>{m.name}</h3>
                 <code>{m.entrypoint}</code>
                 <span className="ws-link">Configure and run →</span>

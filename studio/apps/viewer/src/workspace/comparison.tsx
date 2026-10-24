@@ -2,8 +2,9 @@
  * Every number comes from `comparison.get`; the page computes nothing itself. */
 import { useEffect, useState } from "react";
 import type { ExperimentReport, StudioClient } from "../studio-client";
-import { Counts } from "../experiments";
-import { ResultsTable, intervalLabel, type ResultsOptions } from "../results-table";
+import type { ResultsOptions } from "../results-table";
+import { ResultsPanel, type FigureSource } from "./results-figure";
+import { progressSentence, runTitle } from "./study";
 import { EmptyState, FailureNotice, Feedback, type PageState } from "./feedback";
 import { routeHash, type ProjectState } from "./state";
 import "./research.css";
@@ -33,61 +34,55 @@ export function parseSelection(selection: readonly string[]): Selection {
   }
   return { runs, invalid };
 }
-/** One run's counts per configuration and its server-computed results table. Static markup only needs ``report``. */
-export function ComparisonReport({
-  report,
+/** The selected runs on one figure: each run's configurations are rows of the same KPI blocks, on shared axes.
+ * Differences stay within a run, paired by replication; nothing is pooled across runs. */
+export function ComparisonFigure({
+  entries,
   options,
   onOptions,
-  configurations = null,
   busy = false,
 }: {
-  report: ExperimentReport;
+  entries: readonly { report: ExperimentReport; configurations?: ReadonlySet<number> | null; created?: number }[];
   options: ResultsOptions;
   onOptions: (options: ResultsOptions) => void;
-  configurations?: ReadonlySet<number> | null;
   busy?: boolean;
 }) {
-  const shown = report.configurations.filter((c) => configurations === null || configurations.has(c.index));
-  const filtered: ExperimentReport = configurations === null ? report : {
-    ...report,
-    rows: report.rows.filter((r) => configurations.has(r.configuration)),
-    missing: report.missing.filter((m) => configurations.has(m.configuration)),
-    ...(report.paired ? { paired: report.paired.filter((p) => configurations.has(p.configuration)) } : {}),
-  };
+  const sources: FigureSource[] = entries.map(({ report, configurations = null, created }) => ({
+    report,
+    configurations,
+    title: created === undefined ? report.name : runTitle({ name: report.name, created }),
+  }));
   return (
-    <section className="ws-card ws-comparison" aria-label={`Comparison of ${report.name}`}>
-      <div className="ws-section-heading">
-        <h2>
-          {report.name} <span className={"ws-badge " + report.status}>{report.status}</span>
-        </h2>
-        <a href={routeHash({ page: "experiments", run: report.run_id })}>Open experiment →</a>
-      </div>
-      <table className="ws-table ws-counts">
-        <thead>
-          <tr>
-            <th scope="col">Configuration</th>
-            <th scope="col">Replications</th>
-            <th scope="col">Runtime</th>
-          </tr>
-        </thead>
-        <tbody>
-          {shown.map((c) => (
-            <tr key={c.index}>
-              <td>{c.label}</td>
-              <td>
-                <Counts counts={c.counts} />
-              </td>
-              <td>{c.mixed_runtime ? <span className="badge mixed">mixed runtime</span> : "consistent"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <section className="ws-comparison" aria-label={"Comparison of " + entries.map(({ report }) => report.name).join(", ")}>
+      <ul className="cmp-runs">
+        {entries.map(({ report }) => (
+          <li key={report.run_id}>
+            <a href={routeHash({ page: "experiments", run: report.run_id })}>{report.name}</a>{" "}
+            <span className={"ws-badge " + (report.missing_total > 0 ? "amber" : report.status)}>{report.status}</span>{" "}
+            <span className="ws-hint">
+              {report.configurations.map((c) => `${c.label}: ${progressSentence(c.counts)}`).join(" · ")}
+            </span>
+          </li>
+        ))}
+      </ul>
       <p className="ws-hint">
-        Estimates are replication-level t intervals within each experiment run ({intervalLabel(report)}). Failed or
-        missing replications are listed below and excluded from every interval; a single replication gives no interval.
-        Distributions of individual observations are not pooled across runs here.
+        Estimates are replication-level t intervals within each experiment run. Failed or missing replications are excluded from
+        every interval; a single replication gives no interval. Differences are paired by replication inside one run and never
+        across runs.
       </p>
-      <ResultsTable report={filtered} options={options} onOptions={onOptions} busy={busy} />
+      <ResultsPanel sources={sources} options={options} onOptions={onOptions} busy={busy}>
+        {entries.some(({ report }) => report.missing_total > 0) && (
+          <p className="st-missing">
+            Excluded from every interval and difference:{" "}
+            {entries
+              .flatMap(({ report }) =>
+                report.missing.map((m) => `${report.name} · ${report.configurations[m.configuration]?.label ?? m.configuration} replication ${m.index} (${m.status})`),
+              )
+              .join("; ")}
+            .
+          </p>
+        )}
+      </ResultsPanel>
     </section>
   );
 }
@@ -141,11 +136,10 @@ export function ComparisonPage({
     <>
       <div className="ws-page-heading">
         <div>
-          <div className="ws-eyebrow">NUMERICAL COMPARISON</div>
           <h1>Comparison</h1>
-          <p>Replication-level estimates and paired differences of the selected experiment runs.</p>
+          <p>The selected runs on shared axes, KPI by KPI. Bookmark this address to come back to the same selection.</p>
         </div>
-        <a href="#/experiments">Compare recordings side by side →</a>
+        <a href="#/experiments">Compare recordings side by side</a>
       </div>
       {parsed.invalid.length > 0 && (
         <FailureNotice compact message={`Ignored ${parsed.invalid.length} selection entr${parsed.invalid.length === 1 ? "y" : "ies"} that name no experiment run.`} details={parsed.invalid} />
@@ -165,14 +159,24 @@ export function ComparisonPage({
       >
         {(reports) => (
           <>
-            {ids.map((id) => {
-              const report = reports.get(id);
-              return report ? (
-                <ComparisonReport key={id} report={report} options={options} onOptions={setOptions} configurations={parsed.runs.get(id) ?? null} busy={busy} />
-              ) : (
-                <EmptyState key={id} screen={{ title: "Experiment run not available", text: "It may have been deleted; its selection stays in this address.", link: { label: "Open experiments", hash: "#/experiments" } }} />
-              );
-            })}
+            {ids
+              .filter((id) => !reports.has(id))
+              .map((id) => (
+                <EmptyState
+                  key={id}
+                  screen={{ title: "Experiment run not available", text: "It may have been deleted; its selection stays in this address.", link: { label: "Open experiments", hash: "#/experiments" } }}
+                />
+              ))}
+            <ComparisonFigure
+              entries={ids.flatMap((id) => {
+                const report = reports.get(id);
+                const created = experiments.find((e) => e.run_id === id)?.created;
+                return report ? [{ report, configurations: parsed.runs.get(id) ?? null, ...(created === undefined ? {} : { created }) }] : [];
+              })}
+              options={options}
+              onOptions={setOptions}
+              busy={busy}
+            />
           </>
         )}
       </Feedback>

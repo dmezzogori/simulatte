@@ -3,7 +3,7 @@ import {readdir, readFile, writeFile, mkdir} from "node:fs/promises";
 import {createHash} from "node:crypto";
 import {resolve, relative, join} from "node:path";
 const root = resolve(import.meta.dirname, "../..");
-const excluded = new Set(["node_modules", "dist", "test-results", "playwright-report", ".vite", ".build"]);
+const excluded = new Set(["node_modules", "dist", "test-results", "playwright-report", ".vite", ".build", ".impeccable"]);
 async function files(directory) {
   const result = [];
   for (const entry of await readdir(directory, {withFileTypes: true})) {

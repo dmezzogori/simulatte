@@ -84,6 +84,7 @@ describe("focused routes", () => {
       { page: "analyses" },
       { page: "analyses", execution: "exec-1" },
       { page: "analyses", definition: "lateness/by family" },
+      { page: "analyses", study: "capacity study/2" },
     ];
     for (const route of routes)
       expect(parseRoute(routeHash(route))).toStrictEqual(route);
@@ -329,8 +330,10 @@ describe("shell", () => {
     const analyses = shell("#/analyses/new/lateness");
     expect(analyses).toContain("lateness");
     expect(analyses).toContain(">New analysis<");
+    // A saved analysis is named for people; its execution id is a diagnostic, not part of the heading.
     const execution = shell("#/analyses/exec-7");
-    expect(execution).toContain("exec-7");
+    expect(execution).toContain(">Saved analysis<");
+    expect(execution).toContain(">Analysis<");
     const runs = shell("#/runs/model-a");
     expect(runs).toContain('aria-current="page"');
     expect(runs).toContain('aria-busy="true"');

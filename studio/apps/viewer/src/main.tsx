@@ -17,6 +17,7 @@ import "dockview/dist/styles/dockview.css";
 import "uplot/dist/uPlot.min.css";
 import "./style.css";
 import "./workspace/tokens.css";
+import "./workspace/world.css";
 import {WorkspaceApplication} from "./workspace/shell";
 function App() {
   const [studioMode] = useState(() => {

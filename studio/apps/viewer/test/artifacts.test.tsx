@@ -58,21 +58,27 @@ const source: ArtifactSource = {
 };
 
 describe("artifact view", () => {
-  it("orders output cards numeric-first: numbers, tables, distributions, images, figures", () => {
-    expect(orderOutputs(manifest.outputs).map((o) => o.kind)).toEqual([
-      "number",
-      "table",
-      "distribution",
-      "image",
-      "figure",
-    ]);
+  it("orders outputs by meaning: numbers, summaries, distributions, images, figures, then whole datasets", () => {
+    const summary = output("by_family", "table", { schema: { name: "by_family", fields: [] }, row_count: 3 });
+    expect(orderOutputs([...manifest.outputs, summary]).map((o) => o.name)).toEqual(["total", "by_family", "spread", "picture", "figure", "values"]);
     const html = renderToStaticMarkup(<ArtifactView manifest={manifest} source={source} />);
     const kinds = [...html.matchAll(/data-kind="(\w+)"/g)].map((m) => m[1]);
-    expect(kinds).toEqual(["number", "table", "distribution", "image", "figure"]);
-    expect(html).toContain("total");
-    expect(html).toContain("Partial snapshot");
-    expect(html).toContain("8 of 24");
+    expect(kinds).toEqual(["number", "distribution", "image", "figure", "table"]);
+    expect(html).toContain("Total");
+    expect(html).toContain("<code>total</code>");
     expect(html).not.toContain("<svg");
+  });
+  it("says the shared snapshot once instead of on every output", () => {
+    const html = renderToStaticMarkup(<ArtifactView manifest={manifest} source={source} />);
+    expect(html).toContain('data-basis="shared"');
+    expect(html.match(/Partial snapshot/g)).toHaveLength(1);
+    expect(html).toContain("8 of 24 replications");
+    expect(html).toContain("1 unavailable input");
+    const mixed = { ...manifest, outputs: [manifest.outputs[4]!, { ...manifest.outputs[3]!, metadata: metadata({ available: 24, partial_snapshot: false }) }] };
+    const separate = renderToStaticMarkup(<ArtifactView manifest={mixed} source={source} />);
+    expect(separate).not.toContain('data-basis="shared"');
+    expect(separate).toContain("Complete snapshot");
+    expect(separate).toContain("Partial snapshot");
   });
   it("shows the analysis' own metadata: convention, aggregation, window and population", () => {
     const m = {
@@ -86,15 +92,15 @@ describe("artifact view", () => {
       nested: { a: 1 },
     };
     expect(metadataQualifiers(m)).toEqual([
-      "convention descriptive_within_run",
-      "aggregation mean",
-      "window start 100",
-      "population late_in_family",
-      "group by family, rule",
+      "Convention: descriptive within run",
+      "Aggregation: mean",
+      "Window start: 100",
+      "Population: late in family",
+      "Group by: family, rule",
     ]);
     const html = renderToStaticMarkup(<ProvenanceNotes metadata={m} />);
-    expect(html).toContain("window start 100");
-    expect(html).toContain("population late_in_family");
+    expect(html).toContain("Window start: 100");
+    expect(html).toContain("Population: late in family");
   });
   it("labels provenance with counts, convention and missing inputs", () => {
     const html = renderToStaticMarkup(<ProvenanceNotes metadata={metadata()} />);

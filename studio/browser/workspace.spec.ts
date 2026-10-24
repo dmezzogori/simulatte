@@ -248,11 +248,12 @@ test("runs, experiments and comparison research pages", async ({ page }, info) =
     // Experiments: the seeded run, its results with the failed pair, then a new definition started from the form.
     await page.goto(origin + "/#/experiments");
     await expect(page.getByRole("heading", { name: "Experiment runs" })).toBeVisible();
-    await page.getByRole("button", { name: "Boom study", exact: true }).click();
+    await page.getByRole("main").getByRole("link", { name: "Boom study", exact: true }).click();
     expect(await hash(page)).toBe("#/experiments/" + seeded.run);
-    await expect(page.locator(".run-details h4")).toContainText("Boom study · completed");
-    await expect(page.getByText("Missing pairs (1)")).toBeVisible();
-    await expect(page.locator(".run-details")).toContainText("boom=1");
+    await expect(page.locator(".ws-page-heading h1")).toHaveText("Boom study");
+    await expect(page.locator(".st-status")).toContainText("completed");
+    await expect(page.locator("#replications")).toContainText("Excluded from every interval and difference");
+    await expect(page.locator(".fp-results")).toContainText("boom=1");
     await capture(page, info.project.name, "experiment");
     await page.goto(origin + "/#/model/" + seeded.model);
     const prepare = page.getByRole("button", { name: "Prepare model", exact: true });
@@ -270,7 +271,7 @@ test("runs, experiments and comparison research pages", async ({ page }, info) =
     await page.locator(".ws-list li").filter({ hasText: "quick.experiment.json" }).getByRole("button", { name: "Start", exact: true }).click();
     await expect(page.getByRole("heading", { name: "quick", exact: true })).toBeVisible({ timeout: 30000 });
     await expect(page.locator(".ws-page-heading .ws-badge")).toHaveText("completed", { timeout: 90000 });
-    await expect(page.locator(".run-details h4")).toContainText("quick · completed");
+    await expect(page.locator(".st-status")).toContainText("completed");
     await expect(page.getByText("Experiments (2) · what the controls send")).toHaveCount(0);
     await page.goto(origin + "/#/experiments");
     await expect(page.getByText("Experiments (2) · what the controls send")).toBeVisible();
@@ -279,15 +280,18 @@ test("runs, experiments and comparison research pages", async ({ page }, info) =
     await expect(page.getByRole("heading", { name: "Comparison", exact: true })).toBeVisible();
     const comparison = page.getByRole("region", { name: "Comparison of Boom study" });
     await expect(comparison).toBeVisible();
-    await expect(comparison).toContainText("failed 1");
-    await expect(comparison).toContainText("succeeded 1");
-    await expect(comparison).toContainText("Missing pairs (1)");
+    await expect(comparison).toContainText("1 failed");
+    await expect(comparison).toContainText("1 of 1 replication succeeded");
+    await expect(comparison).toContainText("Excluded from every interval and difference");
     await expect(comparison).toContainText("pointwise 95 % t intervals");
     await capture(page, info.project.name, "comparison");
     await comparison.getByLabel("Bonferroni").check();
     await expect(comparison).toContainText("Bonferroni-adjusted", { timeout: 15000 });
     await page.goto(origin + "/#/compare/" + seeded.run + ":1");
-    await expect(page.getByRole("region", { name: "Comparison of Boom study" }).locator(".ws-counts tbody tr")).toHaveCount(1);
+    // One configuration selected: only its estimates are read; boom=1 failed, so every KPI is listed without an interval.
+    const single = page.getByRole("region", { name: "Comparison of Boom study" }).locator(".fp-quiet li").first();
+    await expect(single).toContainText("boom=1/base");
+    await expect(single).not.toContainText("boom=0/base");
     expect(errors).toEqual([]);
   } finally {
     await fixture.close();
@@ -409,7 +413,7 @@ test("measurement plans flow through runs, experiments and analysis previews", a
     await form.getByRole("button", { name: "Save", exact: true }).click();
     await page.locator(".ws-list li").filter({ hasText: "measured.experiment.json" }).getByRole("button", { name: "Start", exact: true }).click();
     await expect(page.getByRole("heading", { name: "measured", exact: true })).toBeVisible({ timeout: 30000 });
-    await expect(page.locator(".ws-page-heading")).toContainText("Measurements · numbers");
+    await expect(page.locator(".ws-page-heading")).toContainText("Measurements: numbers");
     await expect(page.locator(".ws-page-heading .ws-badge")).toHaveText("completed", { timeout: 120000 });
     const experimentRun = (await hash(page)).replace("#/experiments/", "");
     await page.goto(origin + "/#/experiments");
@@ -483,16 +487,16 @@ test("experiment runs beyond the newest 20 open from their route and load as old
     await page.goto(origin + "/#/experiments/" + seeded.older);
     await expect(page.getByRole("heading", { name: seeded.name, exact: true })).toBeVisible({ timeout: 30000 });
     // Studio pauses seeded "running" runs when it opens the store, so only the name and a status are asserted.
-    await expect(page.locator(".run-details h4")).toContainText(new RegExp(`^${seeded.name} · (running|paused|completed)`));
+    await expect(page.locator(".st-status .ws-badge")).toHaveText(/^(running|paused|completed)$/);
     await expect(page.getByText("Experiment run not listed")).toHaveCount(0);
     // The list shows the newest 20 and pages the rest with a stable cursor and no duplicates.
     await page.goto(origin + "/#/experiments");
     const rows = page.locator(".ws-experiments .ws-table tbody tr");
     await expect(rows).toHaveCount(20);
-    await expect(page.getByRole("button", { name: seeded.name, exact: true })).toHaveCount(0);
+    await expect(page.getByRole("main").getByRole("link", { name: seeded.name, exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Load older experiment runs", exact: true }).click();
     await expect(rows).toHaveCount(25);
-    await expect(page.getByRole("button", { name: seeded.name, exact: true })).toBeVisible();
+    await expect(page.getByRole("main").getByRole("link", { name: seeded.name, exact: true })).toBeVisible();
     await expect(page.getByText("All 25 experiment runs loaded.")).toBeVisible();
     expect(new Set(await rows.locator("td:first-child").allTextContents()).size).toBe(25);
     await expect(page.getByText("Experiments (25) · what the controls send")).toBeVisible();

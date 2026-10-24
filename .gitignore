@@ -197,3 +197,5 @@ studio/.impeccable/critique/*-screens/
 studio/.impeccable/review/
 studio/.impeccable/build/
 studio/.impeccable/hook.cache.json
+studio/apps/viewer/.impeccable/review/
+studio/apps/viewer/.impeccable/hook.cache.json

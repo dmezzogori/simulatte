@@ -51,7 +51,6 @@ export function Models({
   return (
     <>
       <div className="ws-page-heading">
-        <div className="ws-eyebrow">PROJECT MODELS</div>
         <h1>Models</h1>
         <p>Named entrypoints with independent inputs and saved history.</p>
       </div>
@@ -328,7 +327,6 @@ export function ModelPage({
       </p>
       <div className="ws-page-heading">
         <div>
-          <div className="ws-eyebrow">MODEL · {model.key}</div>
           <h1>{model.name}</h1>
           <p>
             <code>{model.entrypoint}</code> · edit the code in your editor; Studio
