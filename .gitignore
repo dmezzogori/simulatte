@@ -189,3 +189,11 @@ studio/.build/
 
 # Local execution snapshots, attempts and result store
 .simulatte/
+
+# Impeccable local state (decision logs, seeds, screenshots, build/review captures)
+studio/.impeccable/questions/
+studio/.impeccable/config.local.json
+studio/.impeccable/critique/*-screens/
+studio/.impeccable/review/
+studio/.impeccable/build/
+studio/.impeccable/hook.cache.json

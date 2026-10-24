@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Experiment tracker standard · capacity-study</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1440px;height:900px;overflow:hidden}
+body{font-family:Inter,system-ui,sans-serif;font-size:14px;color:#111827;background:#F4F5F7;display:grid;grid-template-columns:224px 1fr}
+nav{background:#fff;border-right:1px solid #E5E7EB;padding:20px 14px;display:flex;flex-direction:column;gap:18px}
+.brand{font-size:20px;font-weight:700}
+nav h4{font-size:12px;font-weight:600;color:#6B7280;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+nav a{display:block;padding:7px 10px;border-radius:6px;color:#374151;text-decoration:none;font-size:14px}
+nav a.on{background:#EEF2FF;color:#2563EB;font-weight:600}
+main{padding:22px 28px;display:flex;flex-direction:column;gap:16px}
+.top{display:flex;justify-content:space-between;align-items:center}
+h1{font-size:26px;font-weight:700}
+.chips{display:flex;gap:8px;margin-top:8px}
+.chip{background:#fff;border:1px solid #E5E7EB;border-radius:999px;padding:3px 10px;font-size:13px;color:#374151}
+.chip.g{background:#ECFDF5;border-color:#A7F3D0;color:#065F46}
+.btn{font:inherit;border:1px solid #D1D5DB;background:#fff;border-radius:6px;padding:8px 14px;font-weight:500}
+.btn.pri{background:#2563EB;border-color:#2563EB;color:#fff}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.tile{background:#fff;border:1px solid #E5E7EB;border-radius:8px;padding:14px}
+.tile small{color:#6B7280;font-size:13px}
+.tile b{display:block;font-size:26px;font-weight:700;margin-top:4px}
+.card{background:#fff;border:1px solid #E5E7EB;border-radius:8px;padding:16px}
+.card h3{font-size:15px;font-weight:600;margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{text-align:left;font-size:12px;color:#6B7280;font-weight:600;padding:8px;border-bottom:1px solid #E5E7EB}
+td{padding:9px 8px;border-bottom:1px solid #F3F4F6;font-size:14px}
+td.n{text-align:right}
+.panels{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+svg{display:block;width:100%;height:150px}
+</style></head><body>
+<nav><div class="brand">Simulatte</div>
+ <div><h4>Project</h4><a href="#">Overview</a><a href="#">Models</a><a href="#">Runs</a><a class="on" href="#">Experiments</a><a href="#">Analyses</a><a href="#">Presentations</a></div>
+</nav>
+<main>
+ <div class="top"><div><h1>capacity-study</h1><div class="chips"><span class="chip g">Completed</span><span class="chip">7 / 8 replications</span><span class="chip">2 configurations</span><span class="chip">21 Oct 16:01</span></div></div>
+  <div style="display:flex;gap:8px"><button class="btn">Compare</button><button class="btn pri">Start again</button></div></div>
+ <div class="tiles"><div class="tile"><small>Throughput, best</small><b>1.52</b></div><div class="tile"><small>Utilization, mean</small><b>0.79</b></div><div class="tile"><small>Lateness, mean (h)</small><b>−30.6</b></div><div class="tile"><small>Failed replications</small><b>1</b></div></div>
+ <div class="card"><h3>Results by configuration</h3>
+  <table><thead><tr><th>Configuration</th><th>KPI</th><th>n</th><th>Mean</th><th>95 % CI</th><th>State</th></tr></thead><tbody>
+  <tr><td>two servers</td><td>Throughput</td><td>3</td><td class="n">1.11</td><td>[0.94, 1.28]</td><td>ok</td></tr>
+  <tr><td>three servers</td><td>Throughput</td><td>4</td><td class="n">1.52</td><td>[1.43, 1.61]</td><td>ok</td></tr>
+  <tr><td>two servers</td><td>Utilization</td><td>3</td><td class="n">0.89</td><td>[0.68, 1.00]</td><td>ok</td></tr>
+  <tr><td>three servers</td><td>Utilization</td><td>4</td><td class="n">0.71</td><td>[0.66, 0.76]</td><td>ok</td></tr>
+  </tbody></table></div>
+ <div class="panels">
+  <div class="card"><h3>Throughput</h3><svg viewBox="0 0 300 150"><polyline fill="none" stroke="#2563EB" stroke-width="2" points="0,110 50,90 100,96 150,70 200,60 250,52 300,48"/><polyline fill="none" stroke="#F59E0B" stroke-width="2" points="0,120 50,115 100,108 150,104 200,100 250,98 300,96"/></svg></div>
+  <div class="card"><h3>Utilization</h3><svg viewBox="0 0 300 150"><polyline fill="none" stroke="#2563EB" stroke-width="2" points="0,60 50,64 100,58 150,62 200,59 250,61 300,60"/><polyline fill="none" stroke="#F59E0B" stroke-width="2" points="0,40 50,30 100,44 150,36 200,28 250,34 300,30"/></svg></div>
+  <div class="card"><h3>Lateness</h3><svg viewBox="0 0 300 150"><rect x="40" y="60" width="60" height="80" fill="#2563EB"/><rect x="180" y="50" width="60" height="90" fill="#F59E0B"/></svg></div>
+ </div>
+</main>
+</body></html>

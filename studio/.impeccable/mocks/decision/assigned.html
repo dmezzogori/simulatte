@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Production Board · capacity-study</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1440px;height:900px;overflow:hidden}
+body{font-family:Archivo,system-ui,sans-serif;font-size:15px;color:#17191A;background:#F6F7F4;display:grid;grid-template-columns:248px 1fr}
+.cond{font-stretch:75%}
+.rail{background:#23413A;color:#E9EFEC;padding:22px 16px;display:flex;flex-direction:column;gap:22px}
+.brand{font-size:26px;font-weight:800;font-stretch:80%;letter-spacing:.01em;color:#fff}
+.proj{font-size:14px;color:#C9D6D1;border-top:1px solid #3C5C54;padding-top:14px}
+.proj b{display:block;color:#fff;font-size:16px}
+.rail h4{font-size:13px;font-weight:700;font-stretch:75%;letter-spacing:.08em;text-transform:uppercase;color:#B8CBC4;margin-bottom:6px}
+.rail a{display:flex;justify-content:space-between;color:#E9EFEC;text-decoration:none;padding:7px 10px;border-radius:3px;font-size:15px}
+.rail a.on{background:#F6F7F4;color:#17191A;font-weight:700;box-shadow:inset 4px 0 0 #F2C230}
+.rail a small{font-size:13px;color:inherit;opacity:.8}
+.rail .sub{padding-left:22px;font-size:14px}
+main{padding:22px 32px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.crumb{font-size:14px;color:#4A5250}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px}
+h1{font-size:40px;font-weight:800;font-stretch:78%;line-height:1}
+.status{display:flex;gap:16px;white-space:nowrap;align-items:center;margin-top:10px;font-size:15px}
+.lamp{display:inline-flex;align-items:center;gap:7px;font-weight:700}
+.lamp::before{content:"";width:12px;height:12px;border-radius:50%;background:#2E7D4F;box-shadow:0 0 0 3px #CFE5D7}
+.ctl{display:flex;gap:10px;align-items:center}
+.btn,.sel{white-space:nowrap;font:inherit;font-size:15px;border:2px solid #17191A;background:#fff;padding:8px 14px;border-radius:3px;font-weight:600}
+.btn.pri{background:#17191A;color:#fff}
+.tabs{display:flex;gap:4px;border-bottom:2px solid #17191A}
+.tabs span{padding:9px 16px;font-weight:600;font-size:15px;color:#3A4240}
+.tabs span.on{background:#17191A;color:#fff;border-radius:3px 3px 0 0}
+.board{background:#fff;border:2px solid #17191A;border-radius:4px;display:grid;grid-template-columns:230px 1fr 1fr 1.15fr}
+.board>div{padding:10px 14px;border-top:2px solid #17191A;border-left:1px solid #C9CEC9;min-height:64px}
+.board>.k{border-left:0}
+.board>.h{border-top:0;min-height:0;padding:12px 14px}
+.h .cfg{font-size:22px;font-weight:800;font-stretch:78%}
+.h.base{background:repeating-linear-gradient(0deg,#fff 0 100%);box-shadow:inset 0 8px 0 #F2C230,inset 0 10px 0 #17191A}
+.tag{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;background:#F2C230;color:#17191A;border:1.5px solid #17191A;padding:1px 6px;margin-left:8px;vertical-align:4px}
+.reps{display:flex;gap:4px;margin-top:8px}
+.reps i{width:14px;height:14px;background:#2E7D4F;border:1.5px solid #17191A}
+.reps i.x{background:#fff;background-image:linear-gradient(45deg,transparent 45%,#C2372D 45% 58%,transparent 58%)}
+.reps em{font-style:normal;font-size:13px;margin-left:6px;color:#3A4240}
+.k b{display:block;font-size:17px;font-weight:700}
+.k small{font-size:13px;color:#4A5250}
+.cell{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center}
+.v{font-size:24px;font-weight:700;font-stretch:80%;font-variant-numeric:tabular-nums}
+.v span{font-size:15px;font-weight:500;color:#3A4240;margin-left:4px}
+.trk{position:relative;height:22px;border-bottom:1px solid #9AA29E}
+.iv{position:absolute;top:9px;height:4px;background:#17191A}
+.pt{position:absolute;top:4px;width:4px;height:14px;background:#17191A;margin-left:-2px}
+.zero{position:absolute;top:0;bottom:-1px;width:2px;background:#F2C230;outline:1px solid #17191A}
+.d .card{border:2px solid #17191A;padding:4px 8px;border-radius:3px;display:inline-block;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.d .card.out{border-style:dashed;font-weight:500}
+.d small{display:block;font-size:13px;color:#4A5250;margin-top:3px}
+.degen{grid-column:2/5;display:flex;align-items:center;font-size:15px;color:#3A4240;gap:10px}
+.degen b{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #8C6A00;color:#6B5200;padding:1px 6px}
+.prov{display:flex;justify-content:space-between;font-size:14px;color:#3A4240;border-top:1px solid #C9CEC9;padding-top:10px}
+.prov b{color:#17191A}
+</style></head><body>
+<nav class="rail">
+ <div class="brand">Simulatte</div>
+ <div class="proj"><b>demo</b>Project · ~/studies/demo</div>
+ <div><h4>Studies</h4>
+  <a class="on" href="#">capacity-study <small>2 runs</small></a>
+  <a class="sub" href="#">Results</a><a class="sub" href="#">Analyses <small>2</small></a><a class="sub" href="#">Presentation <small>1</small></a>
+  <a href="#">fleet-sizing <small>1 run</small></a>
+  <a href="#">lateness-policies <small>draft</small></a></div>
+ <div><h4>Workspace</h4><a href="#">Models <small>4</small></a><a href="#">Runs <small>22</small></a><a href="#">Workers</a><a href="#">Settings</a></div>
+</nav>
+<main>
+ <div class="crumb">demo / capacity-study / Results</div>
+ <div class="head">
+  <div><h1>capacity-study</h1>
+   <div class="status"><span class="lamp">Completed</span><span>7 of 8 replications</span><span>1 failed</span><span>Run of 21 Oct, 16:01</span></div></div>
+  <div class="ctl"><select class="sel"><option>95 % · pointwise</option></select><button class="btn">Bonferroni off</button><button class="btn">Compare runs</button><button class="btn pri">Start again</button></div>
+ </div>
+ <div class="tabs"><span class="on">Results</span><span>Replications</span><span>Analyses · 2</span><span>Presentation · 1</span></div>
+ <div class="board">
+  <div class="k h"><small>8 KPIs · horizon 60, warm-up 10</small></div>
+  <div class="h base"><span class="cfg">two servers</span><span class="tag">Baseline</span><div class="reps"><i></i><i></i><i class="x"></i><i></i><em>n = 3 of 4</em></div></div>
+  <div class="h"><span class="cfg">three servers</span><div class="reps"><i></i><i></i><i></i><i></i><em>n = 4 of 4</em></div></div>
+  <div class="h"><span class="cfg">three − two</span><div class="reps"><em>paired by replication · 3 pairs, index 2 unpaired</em></div></div>
+
+  <div class="k"><b>Throughput</b><small>jobs per time unit</small></div>
+  <div class="cell"><div class="v">1.11<span>± 0.17</span></div><div class="trk"><div class="iv" style="left:8%;width:30%"></div><div class="pt" style="left:23%"></div></div></div>
+  <div class="cell"><div class="v">1.52<span>± 0.09</span></div><div class="trk"><div class="iv" style="left:70%;width:16%"></div><div class="pt" style="left:78%"></div></div></div>
+  <div class="d"><span class="card">+0.41 [0.22, 0.60]</span><small>interval excludes 0</small></div>
+
+  <div class="k"><b>Utilization</b><small>fraction of time busy</small></div>
+  <div class="cell"><div class="v">0.89<span>± 0.21</span></div><div class="trk"><div class="iv" style="left:40%;width:52%"></div><div class="pt" style="left:66%"></div></div></div>
+  <div class="cell"><div class="v">0.71<span>± 0.05</span></div><div class="trk"><div class="iv" style="left:15%;width:13%"></div><div class="pt" style="left:21%"></div></div></div>
+  <div class="d"><span class="card out">−0.18 [−0.39, 0.03]</span><small>interval includes 0</small></div>
+
+  <div class="k"><b>Jobs in system</b><small>time-weighted mean</small></div>
+  <div class="cell"><div class="v">7<span>± 11</span></div><div class="trk"><div class="iv" style="left:0;width:72%"></div><div class="pt" style="left:31%"></div></div></div>
+  <div class="cell"><div class="v">12.6<span>± 6.0</span></div><div class="trk"><div class="iv" style="left:44%;width:40%"></div><div class="pt" style="left:64%"></div></div></div>
+  <div class="d"><span class="card out">+5.5 [−6.0, 17.0]</span><small>interval wider than the estimate</small></div>
+
+  <div class="k"><b>Makespan</b><small>time units</small></div>
+  <div class="cell"><div class="v">5<span>± 7</span></div><div class="trk"><div class="iv" style="left:0;width:66%"></div><div class="pt" style="left:30%"></div></div></div>
+  <div class="cell"><div class="v">8.3<span>± 3.2</span></div><div class="trk"><div class="iv" style="left:40%;width:34%"></div><div class="pt" style="left:57%"></div></div></div>
+  <div class="d"><span class="card out">+3.0 [−4.4, 10.4]</span><small>interval includes 0</small></div>
+
+  <div class="k"><b>Lateness</b><small>hours · negative is early</small></div>
+  <div class="cell"><div class="v">−32.4<span>± 7.6</span></div><div class="trk"><div class="iv" style="left:5%;width:58%"></div><div class="pt" style="left:34%"></div></div></div>
+  <div class="cell"><div class="v">−29.3<span>± 3.2</span></div><div class="trk"><div class="iv" style="left:44%;width:25%"></div><div class="pt" style="left:57%"></div></div></div>
+  <div class="d"><span class="card out">+3.1 [−4.0, 10.2]</span><small>interval includes 0</small></div>
+
+  <div class="k"><b>Tardiness</b><small>hours</small></div>
+  <div class="degen"><b>Degenerate</b>Every replication of both configurations is 0; no interval can be formed.</div>
+ </div>
+ <div class="prov"><span><b>Pointwise 95 % t intervals</b>, no multiple-comparison correction · values rounded to the precision their interval supports</span><span>Seeds 17–20 · model study.py · environment generation 3</span></div>
+</main>
+</body></html>
