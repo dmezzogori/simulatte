@@ -522,7 +522,6 @@ export function RunsPage({
     <>
       <div className="ws-page-heading">
         <div>
-          <div className="ws-eyebrow">PROJECT HISTORY</div>
           <h1>{model ? `Runs of ${model.name}` : "Runs"}</h1>
           <p>Individual runs keep their configuration, source and recorded outputs. Nothing here is selected for you.</p>
         </div>

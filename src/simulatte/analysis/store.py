@@ -530,6 +530,8 @@ class AnalysisStore:
             "available": row["available"],
             "planned": row["planned"],
             "partial": bool(row["partial"]),
+            # The experiment runs the snapshot selected, so Studio can group executions by study.
+            "experiment_run_ids": list(codec.loads(row["selection"])["experiment_run_ids"]),
         }
 
     @staticmethod

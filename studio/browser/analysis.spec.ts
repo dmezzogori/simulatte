@@ -213,11 +213,11 @@ test("artifactIsolation", async ({ page }, info) => {
     }, "#/analyses/" + execution);
     await expect(page.getByRole("heading", { name: "Weekly report" })).toBeVisible({ timeout: 30000 });
     await expect(page.locator(".ws-page-heading .ws-badge").first()).toHaveText("succeeded");
-    // Numeric first: the number tile precedes the table, the distribution, the image and the figures.
+    // Ordered by meaning: the number first, then the distribution, the image and the figures, the whole dataset last.
     const kinds = await page.locator("[data-kind]").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("data-kind")));
-    expect(kinds).toEqual(["number", "table", "distribution", "image", "figure", "figure", "figure"]);
+    expect(kinds).toEqual(["number", "distribution", "image", "figure", "figure", "figure", "table"]);
     await expect(page.locator('[data-output="total"] .af-value')).toContainText("32");
-    await expect(page.locator('[data-output="total"]')).toContainText("8 of 24");
+    await expect(page.locator('[data-basis="shared"]')).toContainText("8 of 24");
     // Bounded, typed, server-paged table with exact int64 and explicit non-finite labels.
     const table = page.locator('[data-output="values"]');
     const rows = table.locator("tbody tr");
@@ -339,7 +339,7 @@ test("eightOfTwentyFourJourney", async ({ page }, info) => {
     await expect(page.locator(".ws-page-heading .ws-badge").first()).toHaveText("succeeded", { timeout: 120000 });
     await expect(page.locator(".ws-page-heading")).toContainText("8 of 24 replications · partial");
     await expect(page.locator('[data-output="total"] .af-value')).toContainText("32");
-    const snapshot = await page.locator("#analysis-inputs ~ dl code").first().textContent();
+    const snapshot = await page.locator("[data-snapshot]").textContent();
     await page.getByLabel("New annotation").fill("first look");
     await page.getByRole("button", { name: "Add annotation" }).click();
     await expect(page.getByRole("list", { name: "Annotation revisions" })).toContainText("first look");
@@ -360,7 +360,7 @@ test("eightOfTwentyFourJourney", async ({ page }, info) => {
     const rerun = await hash(page);
     await expect(page.locator(".ws-page-heading .ws-badge").first()).toHaveText("succeeded", { timeout: 120000 });
     await expect(page.locator(".ws-page-heading")).toContainText("8 of 24 replications · partial");
-    expect(await page.locator("#analysis-inputs ~ dl code").first().textContent()).toBe(snapshot);
+    expect(await page.locator("[data-snapshot]").textContent()).toBe(snapshot);
     await page.evaluate((h) => {
       location.hash = h;
     }, original);
@@ -378,7 +378,7 @@ test("eightOfTwentyFourJourney", async ({ page }, info) => {
     await expect(page.locator(".ws-page-heading .ws-badge").first()).toHaveText("succeeded", { timeout: 120000 });
     await expect(page.locator(".ws-page-heading")).toContainText("24 of 24 replications · complete");
     await expect(page.locator('[data-output="total"] .af-value')).toContainText("288");
-    await expect(page.locator('[data-output="total"]')).toContainText("Complete snapshot");
+    await expect(page.locator('[data-basis="shared"]')).toContainText("Complete snapshot");
     // Both revisions reopen with their own frozen inputs.
     for (const [fragment, text] of [
       [original, "8 of 24 replications · partial"],

@@ -229,7 +229,7 @@ test('workspace presentation-only save pins export and comparison shares one clo
     await offlinePage.goto(pathToFileURL(htmlPath).href);
     await expect(offlinePage.locator('output')).toContainText('t = 0');
     expect(requests).toEqual([]);await offline.close();
-    await page.getByRole('link',{name:'Experiments',exact:true}).click();
+    await page.getByRole('link',{name:'All experiments',exact:true}).click();
     await page.locator('summary').filter({hasText:/^Compare$/}).click();
     await page.getByLabel('Side A recording',{exact:true}).selectOption(first);
     await page.getByLabel('Side B recording',{exact:true}).selectOption(second);

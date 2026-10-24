@@ -43,13 +43,14 @@ describe("project navigation and independent drafts", () => {
       "Overview",
       "Models",
       "Runs",
-      "Experiments",
+      "All experiments",
       "Analyses",
       "Presentations",
       "Settings",
     ])
       expect(html).toContain(`<span>${name}</span>`);
     expect(html).not.toContain('role="tab"');
+    expect(html).toContain("No experiment has run yet.");
     expect(html.match(/<a /g)!.length).toBe(8);
   });
   it("rejects malformed ownership or models in project state", () => {

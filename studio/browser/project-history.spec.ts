@@ -86,12 +86,13 @@ finally:service.close()
     for(const recovery of [false,true]) {
       if(recovery) await writeFile(join(fixture.root,'pyproject.toml'),'invalid toml !!!');
       await page.goto(await fixture.launch());
-      await page.getByRole('link',{name:'Experiments',exact:true}).click();
+      await page.getByRole('link',{name:'All experiments',exact:true}).click();
       await page.locator('summary').filter({hasText:'Experiments (1)'}).click();
-      await page.getByRole('button',{name:'Stored study',exact:true}).click();
-      await expect(page.locator('.run-details h4')).toContainText('Stored study · completed');
-      await expect(page.locator('.run-details')).toContainText('servers=2');
-      await page.locator('.run-details summary').filter({hasText:'Replications (2)'}).click();
+      await page.getByRole('main').getByRole('link',{name:'Stored study',exact:true}).click();
+      await expect(page.locator('.ws-page-heading h1')).toHaveText('Stored study');
+      await expect(page.locator('.st-status')).toContainText('completed');
+      await expect(page.locator('.fp-results')).toContainText('servers=2');
+      await page.locator('#replications summary').filter({hasText:'Replication list (2)'}).click();
       await expect(page.getByRole('button',{name:'Open',exact:true})).toHaveCount(2);
       if(recovery) {
         await expect(page.getByRole('button',{name:'Start again',exact:true})).toBeDisabled();

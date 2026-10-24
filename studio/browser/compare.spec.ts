@@ -243,7 +243,7 @@ for(const host of ["legacy", "workspace"]) for(const delivery of ["old-inline", 
   test(`${host} keeps newer replay running after older state (${delivery})`, async ({page}) => {
     const proof = await studio(page, undefined, delivery, host);
     await page.goto("/");
-    if(host === "workspace") await page.getByRole('link',{name:'Experiments',exact:true}).click();
+    if(host === "workspace") await page.getByRole('link',{name:'All experiments',exact:true}).click();
     await page.getByText("Compare", {exact:true}).click();
     await page.getByLabel("Side A recording").selectOption(attempt("c"));
     await page.getByRole("button", {name:"Replay at full level",exact:true}).click();

@@ -1,7 +1,12 @@
 /** Distribution summaries: counts and quantiles with the retained representation named. */
 import type { Plain } from "../analysis/codec";
-import { formatValue } from "../analysis/codec";
+import { useContext } from "react";
+import { FullDigits, readableValue } from "./format";
 import type { OutputDescriptor } from "./types";
+function Shown({ value }: { value: Plain | undefined }) {
+  return <>{readableValue(value, undefined, useContext(FullDigits))}</>;
+}
+const Value = (value: Plain | undefined) => <Shown value={value} />;
 const REPRESENTATIONS: Record<string, string> = {
   exact: "Exact: every retained observation is represented",
   binned: "Binned: counts per bin, not the individual observations",
@@ -15,7 +20,7 @@ function Pairs({ value }: { value: { [key: string]: Plain } }) {
       {Object.entries(value).map(([key, item]) => (
         <div key={key} className="af-pair">
           <dt>{key}</dt>
-          <dd className={typeof item === "number" || typeof item === "bigint" ? "ws-num" : undefined}>{formatValue(item)}</dd>
+          <dd className={typeof item === "number" || typeof item === "bigint" ? "ws-num" : undefined}>{Value(item)}</dd>
         </div>
       ))}
     </dl>
@@ -41,7 +46,7 @@ function Nested({ name, value }: { name: string; value: Plain }) {
               {Object.entries(value).map(([key, item]) => (
                 <tr key={key}>
                   <td>{key}</td>
-                  <td>{formatValue(item)}</td>
+                  <td>{Value(item)}</td>
                 </tr>
               ))}
             </tbody>
@@ -72,7 +77,7 @@ function Nested({ name, value }: { name: string; value: Plain }) {
                 {rows.map((row, i) => (
                   <tr key={i}>
                     {columns.map((c) => (
-                      <td key={c}>{formatValue(row[c])}</td>
+                      <td key={c}>{Value(row[c])}</td>
                     ))}
                   </tr>
                 ))}
@@ -82,7 +87,7 @@ function Nested({ name, value }: { name: string; value: Plain }) {
         ) : (
           <ol className="af-dist-list">
             {value.map((item, i) => (
-              <li key={i}>{formatValue(item)}</li>
+              <li key={i}>{Value(item)}</li>
             ))}
           </ol>
         )}
@@ -93,7 +98,7 @@ function Nested({ name, value }: { name: string; value: Plain }) {
     <dl className="ws-pairs">
       <div className="af-pair">
         <dt>{name}</dt>
-        <dd>{formatValue(value)}</dd>
+        <dd>{Value(value)}</dd>
       </div>
     </dl>
   );

@@ -343,7 +343,6 @@ export function RunPage({
       </p>
       <div className="ws-page-heading">
         <div>
-          <div className="ws-eyebrow">SAVED EXECUTION{model ? " · " + model.name : ""}</div>
           <h1>{run?.name || "Run " + attempt.slice(0, 8)}</h1>
           <p>
             <span className={"ws-badge " + (run?.status ?? "")}>{run?.status ?? "Loading…"}</span>

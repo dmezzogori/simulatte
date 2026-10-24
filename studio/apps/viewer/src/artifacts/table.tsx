@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { formatValue, tagJson } from "../analysis/codec";
 import { Field } from "../workspace/forms";
 import { downloadBlob } from "./source";
+import { readableValue } from "./format";
+import { estimateNote, estimateText, kpiName, niceAxis, tickLabels } from "../findings";
+import type { Estimate } from "../studio-client";
 import {
   ArtifactError,
   type ArtifactSource,
@@ -25,6 +28,9 @@ export interface Filter {
   /** Tagged JSON text, as the server parses it. */
   value: string;
 }
+/** Column names in words; the code name stays in the CSV and the full table. */
+const FIELD_WORDS: Record<string, string> = { nonfinite: "non-finite", n: "n" };
+export const fieldLabel = (name: string) => FIELD_WORDS[name] ?? name.replace(/[_.-]+/g, " ");
 export function clampLimit(limit: number): number {
   return Math.min(500, Math.max(1, Math.trunc(limit) || 1));
 }
@@ -37,8 +43,9 @@ export function tableQuery(sort: Sort | null, filters: readonly Filter[]): Table
 }
 const numeric = (dtype: unknown) => dtype === "int64" || dtype === "float64";
 const dtypeName = (dtype: unknown) => (typeof dtype === "string" ? dtype : "nested");
-/** Static rows: exact int64 digits, explicit non-finite labels, ``—`` for nulls. */
-export function TableRows({ schema, rows, offset }: { schema: DatasetSchema; rows: readonly Row[]; offset: number }) {
+/** Static rows: exact int64 digits, explicit non-finite labels, ``—`` for nulls; floats read at four significant digits
+ * unless ``full``. */
+export function TableRows({ schema, rows, offset, full = false }: { schema: DatasetSchema; rows: readonly Row[]; offset: number; full?: boolean }) {
   return (
     <div className="ws-table-wrap af-table-wrap">
       <table className="ws-table af-table">
@@ -49,9 +56,8 @@ export function TableRows({ schema, rows, offset }: { schema: DatasetSchema; row
             </th>
             {schema.fields.map((f) => (
               <th key={f.name} scope="col" className={numeric(f.dtype) ? "ws-num" : undefined}>
-                {f.name}
+                {fieldLabel(f.name)}
                 {f.unit && <small> · {f.unit}</small>}
-                <small className="af-dtype"> {dtypeName(f.dtype)}</small>
               </th>
             ))}
           </tr>
@@ -62,7 +68,7 @@ export function TableRows({ schema, rows, offset }: { schema: DatasetSchema; row
               <td className="ws-num af-row-number">{offset + i + 1}</td>
               {schema.fields.map((f) => {
                 const value = row[f.name];
-                const text = formatValue(value, f.dtype);
+                const text = readableValue(value, f.dtype, full);
                 const state =
                   value === null || value === undefined
                     ? "null"
@@ -297,7 +303,8 @@ export function ArtifactTable({ output, source }: { output: OutputDescriptor; so
           </button>
         </div>
       ) : page ? (
-        <TableRows schema={schema} rows={page.rows} offset={offset} />
+        // A whole dataset is data, not a finding: its values print exactly as saved.
+        <TableRows schema={schema} rows={page.rows} offset={offset} full />
       ) : (
         <div className="ws-state ws-loading-state" role="status" aria-busy="true">
           <span className="ws-spinner" aria-hidden="true" />
@@ -338,5 +345,189 @@ export function ArtifactTable({ output, source }: { output: OutputDescriptor; so
         {exporting && <small role="status">{exporting}</small>}
       </div>
     </div>
+  );
+}
+
+const number = (value: unknown): number | null =>
+  typeof value === "number" ? value : typeof value === "bigint" ? Number(value) : null;
+/** A saved table of interval estimates (mean, lower, upper) drawn as forest-plot rows, grouped by metric. */
+export function isIntervalTable(schema: DatasetSchema): boolean {
+  const names = new Set(schema.fields.map((f) => f.name));
+  return names.has("mean") && names.has("lower") && names.has("upper");
+}
+function IntervalRows({ schema, rows, full }: { schema: DatasetSchema; rows: readonly Row[]; full: boolean }) {
+  const labelField = ["label", "configuration_label", "name", "group"].find((n) => schema.fields.some((f) => f.name === n))
+    ?? schema.fields.find((f) => f.dtype === "string")?.name;
+  const groups = new Map<string, Row[]>();
+  for (const row of rows) {
+    const metric = typeof row.metric === "string" ? row.metric : "";
+    groups.set(metric, [...(groups.get(metric) ?? []), row]);
+  }
+  const unit = schema.fields.find((f) => f.name === "mean")?.unit ?? null;
+  return (
+    <div className="af-interval-groups">
+      {[...groups].map(([metric, items]) => {
+        const estimates = items.map((row): Estimate => {
+          const mean = number(row.mean), lower = number(row.lower), upper = number(row.upper);
+          return {
+            n: number(row.n) ?? 0,
+            mean,
+            sd: null,
+            half_width: mean !== null && upper !== null ? upper - mean : null,
+            lower,
+            upper,
+            state: typeof row.state === "string" ? row.state : lower !== null && upper !== null ? "ok" : "insufficient",
+            level: number(row.level) ?? 0,
+          };
+        });
+        const axis = niceAxis(estimates.flatMap((e) => [e.lower, e.upper, e.mean].filter((v): v is number => v !== null && Number.isFinite(v))));
+        const labels = tickLabels(axis.ticks);
+        return (
+          <table key={metric} className="fp-table af-interval-table">
+            {metric && (
+              <caption>
+                {kpiName(metric).title} <code>{metric}</code>
+              </caption>
+            )}
+            <tbody>
+              {items.map((row, i) => {
+                const e = estimates[i]!;
+                const text = estimateText(e, { full });
+                const at = (v: number) => Math.min(100, Math.max(0, axis.at(v)));
+                const note = estimateNote(e);
+                return (
+                  <tr key={i} className="fp-row">
+                    <th scope="row">{labelField ? readableValue(row[labelField]) : `Row ${i + 1}`}</th>
+                    <td className="fp-estimate">
+                      <span className="fp-value">{text.value}</span>
+                      {text.interval && <span className="fp-interval"> {text.interval}</span>}
+                      <small>
+                        n = {e.n}
+                        {note ? ` · ${note}` : ""}
+                      </small>
+                    </td>
+                    <td className="fp-plot" aria-hidden="true">
+                      <span className="fp-track">
+                        {e.state === "ok" && e.lower !== null && e.upper !== null && (
+                          <span className="fp-ci" style={{ left: `${at(e.lower)}%`, width: `${at(e.upper) - at(e.lower)}%` }} />
+                        )}
+                        {e.mean !== null && <span className={"fp-point " + e.state} style={{ left: `${at(e.mean)}%` }} />}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr className="fp-axis-row" aria-hidden="true">
+                <td colSpan={2} className="fp-axis-name">
+                  {unit ?? ""}
+                </td>
+                <td className="fp-plot">
+                  <span className="fp-axis">
+                    {axis.ticks.map((t, i) => (
+                      <span key={i} className="fp-tick" style={{ left: `${axis.at(t)}%` }}>
+                        {labels[i]}
+                      </span>
+                    ))}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A summary table read whole: one row as label and value pairs, a few rows as a plain table; no paging or filters. */
+export function SummaryTable({ output, source, full = false }: { output: OutputDescriptor; source: ArtifactSource; full?: boolean }) {
+  const schema = output.metadata.schema ?? { name: output.name, fields: [] };
+  const [loaded, setLoaded] = useState<Loaded>({ status: "loading" });
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    setLoaded({ status: "loading" });
+    source
+      .page(output.id, null, clampLimit(output.metadata.row_count ?? 50), { sort: "", filter: "" })
+      .then((page) => {
+        if (!cancelled) setLoaded({ status: "ready", page });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setLoaded({ status: "error", message: String(error instanceof Error ? error.message : error), retry: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [source, output.id, attempt]);
+  if (loaded.status === "error")
+    return (
+      <div role="alert" className="ws-state ws-failure ws-compact" data-kind="missing-data">
+        <strong>Table unavailable</strong>
+        <p>{loaded.message}</p>
+        <button type="button" onClick={() => setAttempt((n) => n + 1)}>
+          Try again
+        </button>
+      </div>
+    );
+  if (loaded.status === "loading")
+    return (
+      <p className="af-loading" role="status" aria-busy="true">
+        Loading…
+      </p>
+    );
+  const rows = loaded.page.rows;
+  const single = rows.length === 1 ? rows[0]! : null;
+  const empty = single !== null && (single.n === 0 || single.n === 0n);
+  return (
+    <div className="af-summary">
+      {isIntervalTable(schema) ? (
+        <IntervalRows schema={schema} rows={rows} full={full} />
+      ) : empty ? (
+        <p className="ws-state ws-stale af-empty" role="status">
+          <strong>Empty population.</strong> No observation was included, so there is no mean, minimum or maximum.
+        </p>
+      ) : single ? (
+        <dl className="af-summary-pairs">
+          {schema.fields.map((f) => (
+            <div key={f.name} className={numeric(f.dtype) ? "is-number" : undefined}>
+              <dt>{fieldLabel(f.name)}</dt>
+              <dd>
+                {readableValue(single[f.name], f.dtype, full)}
+                {f.unit && <small> {f.unit}</small>}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <TableRows schema={schema} rows={rows} offset={0} full={full} />
+      )}
+      {isIntervalTable(schema) && (
+        <details className="af-raw">
+          <summary>All columns</summary>
+          <TableRows schema={schema} rows={rows} offset={0} full={full} />
+        </details>
+      )}
+    </div>
+  );
+}
+/** One export per summary output, in its header. */
+export function CsvButton({ output, source }: { output: OutputDescriptor; source: ArtifactSource }) {
+  const [exporting, setExporting] = useState("");
+  const exportCsv = async () => {
+    setExporting("Preparing the CSV download…");
+    try {
+      downloadBlob(await source.csv(output.id), output.name + ".csv");
+      setExporting("");
+    } catch (error) {
+      setExporting(String(error instanceof Error ? error.message : error));
+    }
+  };
+  return (
+    <>
+      <button type="button" className="af-csv" onClick={() => void exportCsv()} disabled={exporting === "Preparing the CSV download…"}>
+        Download CSV
+      </button>
+      {exporting && <small role="status">{exporting}</small>}
+    </>
   );
 }

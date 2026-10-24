@@ -44,7 +44,7 @@ test('workspace reports replay preflight failure and reconciles it after reconne
       if(message.type==='state' && message.body.replays) states.push(message.body.replays);
     });});
     await page.goto(await fixture.launch());
-    await page.getByRole('link',{name:'Experiments',exact:true}).click();
+    await page.getByRole('link',{name:'All experiments',exact:true}).click();
     await page.locator('summary').filter({hasText:/^Compare$/}).click();
     await page.getByLabel('Side A recording',{exact:true}).selectOption(attempt);
     await page.getByRole('button',{name:'Replay at full level',exact:true}).click();
@@ -131,7 +131,7 @@ test('workspace comparison recovers verified replay from reconnect without its t
     let connections = 0;
     page.on('websocket', () => {connections++;});
     await page.goto(await fixture.launch());
-    await page.getByRole('link', {name:'Experiments',exact:true}).click();
+    await page.getByRole('link', {name:'All experiments',exact:true}).click();
     await page.locator('summary').filter({hasText:/^Compare$/}).click();
     await page.getByLabel('Side A recording', {exact:true}).selectOption(attempt);
     await page.getByRole('button', {name:'Replay at full level',exact:true}).click();

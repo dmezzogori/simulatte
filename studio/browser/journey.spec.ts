@@ -23,7 +23,7 @@ def build(env, layout, params):
     ShopFloorKPIs(system.shop_floor).attach(env)
 `;
 const BROKEN = `raise RuntimeError("broken on purpose: the model cannot be imported")\n`;
-const FOCUS_OUTLINE = { width: "3px", color: "rgb(69, 169, 157)" };
+const FOCUS_OUTLINE = { width: "2px", color: "rgb(14, 90, 156)" };
 
 /** One full interactive run and one completed single-configuration experiment. */
 const seed = (fixture: ProjectFixture) =>
@@ -216,13 +216,14 @@ test("keyboardAndRecoveryJourney", async ({ page, browserName, context }) => {
     await tabTo(page, browserName, /^Save notes$/);
     await page.keyboard.press("Enter");
     await expect(page.getByRole("link", { name: "Keyboard run" })).toBeVisible();
-    await tabTo(page, browserName, /^Experiments$/, { backward: true });
+    await tabTo(page, browserName, /^All experiments$/, { backward: true });
     await page.keyboard.press("Enter");
     await expect(page.getByRole("heading", { name: "Experiment runs" })).toBeVisible();
     await clean("experiments page");
     await tabTo(page, browserName, /^Quick study$/);
     await page.keyboard.press("Enter");
-    await expect(page.locator(".run-details h4")).toContainText("Quick study · completed");
+    await expect(page.locator(".ws-page-heading h1")).toHaveText("Quick study");
+    await expect(page.locator(".st-status")).toContainText("completed");
     await clean("experiment detail");
     // The delete confirmation is a modal dialog: focus stays inside, Escape cancels and focus returns.
     await tabTo(page, browserName, /^Delete$/);
@@ -238,9 +239,9 @@ test("keyboardAndRecoveryJourney", async ({ page, browserName, context }) => {
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
     expect((await focused(page)).name).toBe("Delete");
-    await expect(page.locator(".run-details h4")).toContainText("Quick study · completed");
+    await expect(page.locator(".st-status")).toContainText("completed");
     // The comparison link precedes the action buttons in the heading, so it is two Shift+Tabs away.
-    await tabTo(page, browserName, /^Compare numerically/, { backward: true });
+    await tabTo(page, browserName, /^Compare with other runs$/, { backward: true });
     await page.keyboard.press("Enter");
     await expect(page.getByRole("region", { name: "Comparison of Quick study" })).toBeVisible();
     await clean("comparison page");

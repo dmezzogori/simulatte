@@ -1,0 +1,604 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-24T07:45:17+00:00",
+  "title": "Design System: Simulatte Studio",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#1b1d1f",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#232527",
+          "#404244",
+          "#5f6164",
+          "#808385",
+          "#a3a5a8",
+          "#c7c9cc",
+          "#edeff0"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Graphite",
+        "canonical": "#3f454b",
+        "tonalRamp": [
+          "#090b0e",
+          "#20262b",
+          "#3d4349",
+          "#5c6268",
+          "#7c838a",
+          "#9fa6ad",
+          "#c3cad1",
+          "#ebeff4"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Slate",
+        "canonical": "#565d65",
+        "tonalRamp": [
+          "#080b0f",
+          "#20262d",
+          "#3c434a",
+          "#5b626a",
+          "#7c838c",
+          "#9ea6af",
+          "#c2cad3",
+          "#eaeff5"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#d8dce0",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#222528",
+          "#3f4246",
+          "#5e6265",
+          "#7f8386",
+          "#a2a5a9",
+          "#c6cacd",
+          "#eceff1"
+        ]
+      },
+      "line-soft": {
+        "role": "neutral",
+        "displayName": "Soft Hairline",
+        "canonical": "#eceef0",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#242527",
+          "#414244",
+          "#606163",
+          "#818284",
+          "#a3a5a7",
+          "#c7c9cb",
+          "#edeef0"
+        ]
+      },
+      "wash": {
+        "role": "neutral",
+        "displayName": "Wash",
+        "canonical": "#f5f6f7",
+        "tonalRamp": [
+          "#0b0b0c",
+          "#242526",
+          "#414243",
+          "#606162",
+          "#818283",
+          "#a4a5a6",
+          "#c8c9ca",
+          "#eeeeef"
+        ]
+      },
+      "control-stroke": {
+        "role": "neutral",
+        "displayName": "Control Stroke",
+        "canonical": "#8c939a",
+        "tonalRamp": [
+          "#090b0e",
+          "#20262b",
+          "#3d4349",
+          "#5c6269",
+          "#7c838a",
+          "#9fa6ad",
+          "#c3cad2",
+          "#eaeff4"
+        ]
+      },
+      "axis-grey": {
+        "role": "neutral",
+        "displayName": "Axis Grey",
+        "canonical": "#9aa1a8",
+        "tonalRamp": [
+          "#090b0e",
+          "#20262b",
+          "#3d4349",
+          "#5c6268",
+          "#7c838a",
+          "#9fa6ad",
+          "#c3cad1",
+          "#eaeff4"
+        ]
+      },
+      "rail": {
+        "role": "tertiary",
+        "displayName": "Ink-Blue Rail",
+        "canonical": "#13293d",
+        "tonalRamp": [
+          "#030c16",
+          "#11273b",
+          "#2d445a",
+          "#4c647b",
+          "#6c859d",
+          "#8ea8c1",
+          "#b2cde7",
+          "#e0f1ff"
+        ]
+      },
+      "rail-raised": {
+        "role": "tertiary",
+        "displayName": "Raised Rail",
+        "canonical": "#20405c",
+        "tonalRamp": [
+          "#010c1a",
+          "#062741",
+          "#254561",
+          "#446583",
+          "#6486a6",
+          "#86a9ca",
+          "#a9cef0",
+          "#dbf2ff"
+        ]
+      },
+      "rail-ink": {
+        "role": "tertiary",
+        "displayName": "Rail Ink",
+        "canonical": "#f2f5f8",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#232527",
+          "#404245",
+          "#5f6164",
+          "#808385",
+          "#a2a5a8",
+          "#c7c9cc",
+          "#edeff0"
+        ]
+      },
+      "rail-muted": {
+        "role": "tertiary",
+        "displayName": "Rail Mist",
+        "canonical": "#b3c1cf",
+        "tonalRamp": [
+          "#070c11",
+          "#1b2631",
+          "#38434f",
+          "#56636f",
+          "#778491",
+          "#99a7b4",
+          "#bdcbd9",
+          "#e7f0f8"
+        ]
+      },
+      "evidence": {
+        "role": "primary",
+        "displayName": "Evidence Blue",
+        "canonical": "#0e5a9c",
+        "tonalRamp": [
+          "#000928",
+          "#00225c",
+          "#00427e",
+          "#2263a2",
+          "#4686c7",
+          "#69aaee",
+          "#8dceff",
+          "#cbf3ff"
+        ]
+      },
+      "evidence-ink": {
+        "role": "primary",
+        "displayName": "Deep Evidence Blue",
+        "canonical": "#0b4a80",
+        "tonalRamp": [
+          "#000a25",
+          "#002456",
+          "#014379",
+          "#2a649c",
+          "#4d86c1",
+          "#6faae7",
+          "#93ceff",
+          "#cff3ff"
+        ]
+      },
+      "evidence-tint": {
+        "role": "primary",
+        "displayName": "Evidence Wash",
+        "canonical": "#e8f0f8",
+        "tonalRamp": [
+          "#090c0f",
+          "#20262c",
+          "#3c4349",
+          "#5b6269",
+          "#7c838a",
+          "#9fa6ad",
+          "#c2cad2",
+          "#eaeff4"
+        ]
+      },
+      "own": {
+        "role": "secondary",
+        "displayName": "Researcher Violet",
+        "canonical": "#6b3fa0",
+        "tonalRamp": [
+          "#110124",
+          "#310c54",
+          "#4e2e76",
+          "#6e4e99",
+          "#9070be",
+          "#b392e4",
+          "#d7b6ff",
+          "#f7e4ff"
+        ]
+      },
+      "own-tint": {
+        "role": "secondary",
+        "displayName": "Violet Wash",
+        "canonical": "#f2ecf8",
+        "tonalRamp": [
+          "#0c0a0f",
+          "#27232c",
+          "#444049",
+          "#645f69",
+          "#85808a",
+          "#a8a2ae",
+          "#ccc6d2",
+          "#f0edf4"
+        ]
+      },
+      "success-bg": {
+        "role": "state",
+        "displayName": "Success Wash",
+        "canonical": "#e6f3eb",
+        "tonalRamp": [
+          "#080d0a",
+          "#1e2822",
+          "#3a453f",
+          "#59645e",
+          "#7a867f",
+          "#9ca9a1",
+          "#c0cdc5",
+          "#e9f1ec"
+        ]
+      },
+      "success-ink": {
+        "role": "state",
+        "displayName": "Success Green",
+        "canonical": "#1d6641",
+        "tonalRamp": [
+          "#001103",
+          "#003110",
+          "#00502d",
+          "#2a714b",
+          "#4e936b",
+          "#71b78d",
+          "#95dcb1",
+          "#d1fbe0"
+        ]
+      },
+      "warn-bg": {
+        "role": "state",
+        "displayName": "Partial Amber Wash",
+        "canonical": "#fdf2d8",
+        "tonalRamp": [
+          "#0f0b03",
+          "#2c240f",
+          "#4a412c",
+          "#6a604a",
+          "#8b816a",
+          "#aea48c",
+          "#d3c8af",
+          "#f5eedf"
+        ]
+      },
+      "warn-ink": {
+        "role": "state",
+        "displayName": "Partial Amber",
+        "canonical": "#714800",
+        "tonalRamp": [
+          "#190600",
+          "#3f1900",
+          "#603800",
+          "#815719",
+          "#a5793e",
+          "#c99c61",
+          "#efc084",
+          "#ffe9c6"
+        ]
+      },
+      "fail-bg": {
+        "role": "state",
+        "displayName": "Failure Wash",
+        "canonical": "#fbe8e5",
+        "tonalRamp": [
+          "#100908",
+          "#2f211f",
+          "#4d3e3c",
+          "#6d5d5a",
+          "#8f7e7b",
+          "#b2a09e",
+          "#d7c4c1",
+          "#f7ebea"
+        ]
+      },
+      "fail-ink": {
+        "role": "state",
+        "displayName": "Failure Red",
+        "canonical": "#a1261a",
+        "tonalRamp": [
+          "#220000",
+          "#510000",
+          "#752017",
+          "#9a4236",
+          "#bf6456",
+          "#e68778",
+          "#ffab9b",
+          "#ffddd2"
+        ]
+      },
+      "info-bg": {
+        "role": "state",
+        "displayName": "Neutral State Wash",
+        "canonical": "#eef1f4",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#232527",
+          "#404245",
+          "#5f6164",
+          "#808385",
+          "#a2a5a8",
+          "#c6c9cc",
+          "#edeff0"
+        ]
+      },
+      "info-ink": {
+        "role": "state",
+        "displayName": "Neutral State Ink",
+        "canonical": "#3f4c59",
+        "tonalRamp": [
+          "#060c12",
+          "#1a2632",
+          "#374350",
+          "#556370",
+          "#768492",
+          "#98a7b6",
+          "#bccbdb",
+          "#e6f0f9"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page titles."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "KPI block, output, section and dialog titles."
+      },
+      "brand": {
+        "displayName": "Brand",
+        "purpose": "The rail wordmark only."
+      },
+      "figure": {
+        "displayName": "Figure",
+        "purpose": "A single headline number in an analysis output; overview counters at 30px."
+      },
+      "estimate": {
+        "displayName": "Estimate",
+        "purpose": "The estimate in a forest-plot row."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Running text and sentences under figures."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons, form labels, sub-heads, table headers."
+      },
+      "tick": {
+        "displayName": "Tick",
+        "purpose": "Axis ticks, n counts, row notes, badges."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "KPI keys and output names beside human titles."
+      }
+    },
+    "shadows": [
+      {
+        "name": "dialog",
+        "value": "0 12px 32px rgba(19,41,61,.18)",
+        "purpose": "Modal confirmation dialog only; backdrop rgba(19,41,61,.38)."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ws-motion",
+        "value": "160ms",
+        "purpose": "Interval marks and control state transitions; 0s under prefers-reduced-motion."
+      },
+      {
+        "name": "ws-ease",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Ease-out for every workspace transition."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow-rail",
+        "value": "1100px"
+      },
+      {
+        "name": "single-column",
+        "value": "850px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Default action: white body, 1px control stroke, 36px tall.",
+      "html": "<button class=\"ds-btn\">Compare with other runs</button>",
+      "css": ".ds-btn{font-family:var(--ws-font,\"Source Sans 3 Variable\",system-ui,sans-serif);display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 14px;border:1px solid #8c939a;border-radius:4px;background:#fff;color:#1b1d1f;font-size:14px;font-weight:600;cursor:pointer;transition:background 160ms cubic-bezier(0.16,1,0.3,1),border-color 160ms cubic-bezier(0.16,1,0.3,1);} .ds-btn:hover{background:#f5f6f7;border-color:#1b1d1f;} .ds-btn:active{background:#e9ebed;} .ds-btn:focus-visible{outline:2px solid #0e5a9c;outline-offset:2px;}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single committing action of a form: ink fill, white text.",
+      "html": "<button class=\"ds-btn-primary\">Start experiment</button>",
+      "css": ".ds-btn-primary{font-family:var(--ws-font,\"Source Sans 3 Variable\",system-ui,sans-serif);display:inline-flex;align-items:center;min-height:36px;padding:6px 14px;border:1px solid #1b1d1f;border-radius:4px;background:#1b1d1f;color:#fff;font-size:14px;font-weight:600;cursor:pointer;transition:background 160ms cubic-bezier(0.16,1,0.3,1);} .ds-btn-primary:hover{background:#363b40;border-color:#363b40;} .ds-btn-primary:focus-visible{outline:2px solid #0e5a9c;outline-offset:2px;} .ds-btn-primary:disabled{background:#f5f6f7;border-color:#c4c9ce;color:#6b7178;cursor:not-allowed;}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labelled field: label above in 14px 600, 36px control with control stroke.",
+      "html": "<label class=\"ds-field\">Level<input class=\"ds-input\" value=\"0.95\"></label>",
+      "css": ".ds-field{font-family:var(--ws-font,\"Source Sans 3 Variable\",system-ui,sans-serif);display:flex;flex-direction:column;gap:5px;font-size:14px;font-weight:600;color:#1b1d1f;} .ds-input{font:inherit;font-weight:400;min-height:36px;padding:6px 10px;border:1px solid #8c939a;border-radius:4px;background:#fff;color:#1b1d1f;width:120px;} .ds-input:hover{border-color:#1b1d1f;} .ds-input:focus-visible{outline:2px solid #0e5a9c;outline-offset:2px;}"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "chip",
+      "refersTo": "segmented-on",
+      "description": "Figure / Matrix view switch.",
+      "html": "<div class=\"ds-seg\"><button class=\"ds-seg-on\">Figure</button><button>Matrix</button></div>",
+      "css": ".ds-seg{font-family:var(--ws-font,\"Source Sans 3 Variable\",system-ui,sans-serif);display:inline-flex;border:1px solid #8c939a;border-radius:4px;padding:2px;} .ds-seg button{font:inherit;font-size:14px;font-weight:600;border:0;background:none;color:#3f454b;padding:5px 14px;border-radius:3px;cursor:pointer;} .ds-seg button.ds-seg-on{background:#1b1d1f;color:#fff;} .ds-seg button:focus-visible{outline:2px solid #0e5a9c;outline-offset:1px;}"
+    },
+    {
+      "name": "State Badges",
+      "kind": "chip",
+      "refersTo": "badge-success",
+      "description": "Run and output states: green completed, amber partial, red failed, blue-wash running, grey queued.",
+      "html": "<span class=\"ds-badge ds-ok\">completed</span> <span class=\"ds-badge ds-warn\">No interval</span> <span class=\"ds-badge ds-fail\">failed</span> <span class=\"ds-badge ds-run\">running</span> <span class=\"ds-badge\">queued</span>",
+      "css": ".ds-badge{font-family:var(--ws-font,\"Source Sans 3 Variable\",system-ui,sans-serif);display:inline-flex;padding:2px 8px;border-radius:3px;background:#eef1f4;color:#3f4c59;font-size:13px;font-weight:650;line-height:1.5;} .ds-ok{background:#e6f3eb;color:#1d6641;} .ds-warn{background:#fdf2d8;color:#714800;} .ds-fail{background:#fbe8e5;color:#a1261a;} .ds-run{background:#e8f0f8;color:#0b4a80;}"
+    },
+    {
+      "name": "Project Rail",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Ink-blue navigation rail with serif wordmark, grouped items and an expanded active study.",
+      "html": "<nav class=\"ds-rail\"><div class=\"ds-brand\">Simulatte</div><div class=\"ds-group\">Studies</div><a href=\"#\">capacity-study</a><a href=\"#\" class=\"ds-child ds-current\">Results</a><a href=\"#\" class=\"ds-child\">Analyses</a><div class=\"ds-group\">Workspace</div><a href=\"#\">Runs<small>22</small></a></nav>",
+      "css": ".ds-rail{font-family:var(--ws-font,\"Source Sans 3 Variable\",system-ui,sans-serif);width:248px;background:#13293d;color:#f2f5f8;padding:20px 12px;display:flex;flex-direction:column;gap:2px;} .ds-brand{font:600 24px/1.1 var(--ws-serif,\"Source Serif 4 Variable\",Georgia,serif);letter-spacing:-0.01em;padding:2px 10px 16px;} .ds-group{font-size:14px;font-weight:600;color:#b3c1cf;padding:14px 10px 4px;} .ds-rail a{display:flex;gap:10px;padding:7px 10px;border-radius:4px;color:#f2f5f8;text-decoration:none;font-size:15px;font-weight:500;transition:background 160ms cubic-bezier(0.16,1,0.3,1);} .ds-rail a span,.ds-rail a{align-items:baseline;} .ds-rail a small{margin-left:auto;color:#b3c1cf;font-size:14px;font-variant-numeric:tabular-nums;} .ds-rail a:hover{background:#1c3650;} .ds-rail a:focus-visible{outline:2px solid #9cc7f0;outline-offset:2px;} .ds-rail a.ds-child{padding-left:26px;font-size:14px;} .ds-rail a.ds-current{background:#20405c;font-weight:650;}"
+    },
+    {
+      "name": "KPI Block",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Signature forest-plot unit: serif KPI title over an ink rule, estimate rows with squares, a baseline in violet, a difference diamond against zero.",
+      "html": "<section class=\"ds-kpi\"><header><h3>Lateness</h3><code>shopfloor/lateness</code></header><div class=\"ds-row\"><span class=\"ds-lab ds-own\">two servers/base<small>Baseline</small></span><span class=\"ds-est\"><b>−32.4</b> [−40.0, −24.8]</span><span class=\"ds-plot\"><i class=\"ds-ci\" style=\"left:10%;width:60%\"></i><i class=\"ds-sq\" style=\"left:40%\"></i></span></div><div class=\"ds-row\"><span class=\"ds-lab\">three servers/base</span><span class=\"ds-est\"><b>−29.3</b> [−32.5, −26.0]</span><span class=\"ds-plot\"><i class=\"ds-ci\" style=\"left:44%;width:20%\"></i><i class=\"ds-sq\" style=\"left:54%\"></i></span></div><div class=\"ds-row\"><span class=\"ds-lab\">difference</span><span class=\"ds-est ds-ex\"><b>+3.4</b> [1.1, 5.7]</span><span class=\"ds-plot\"><i class=\"ds-zero\" style=\"left:30%\"></i><i class=\"ds-ci\" style=\"left:40%;width:40%\"></i><i class=\"ds-dia\" style=\"left:60%\"></i></span></div></section>",
+      "css": ".ds-kpi{font-family:var(--ws-font,\"Source Sans 3 Variable\",system-ui,sans-serif);width:520px;color:#1b1d1f;font-size:15px;font-variant-numeric:tabular-nums;} .ds-kpi header{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #1b1d1f;padding-bottom:6px;} .ds-kpi h3{font:600 20px/1.25 var(--ws-serif,\"Source Serif 4 Variable\",Georgia,serif);margin:0;} .ds-kpi code{font:13px ui-monospace,Menlo,monospace;color:#565d65;} .ds-row{display:grid;grid-template-columns:34% 31% 1fr;align-items:center;min-height:44px;border-bottom:1px solid #eceef0;} .ds-lab small{display:flex;align-items:center;gap:5px;font-size:13px;font-weight:650;color:#6b3fa0;} .ds-lab small::before{content:\"\";width:8px;height:8px;border-radius:50%;background:#6b3fa0;} .ds-own{color:#6b3fa0;font-weight:650;} .ds-est{color:#3f454b;} .ds-est b{color:#1b1d1f;font-size:16px;font-weight:650;} .ds-ex b{color:#0b4a80;} .ds-plot{position:relative;height:44px;} .ds-plot i{position:absolute;top:50%;} .ds-ci{height:2px;margin-top:-1px;background:#1b1d1f;transition:left 160ms cubic-bezier(0.16,1,0.3,1),width 160ms cubic-bezier(0.16,1,0.3,1);} .ds-sq{width:10px;height:10px;margin:-5px 0 0 -5px;background:#1b1d1f;} .ds-dia{width:12px;height:12px;margin:-6px 0 0 -6px;transform:rotate(45deg);background:#0e5a9c;border:1.5px solid #0b4a80;box-sizing:border-box;} .ds-zero{top:0 !important;bottom:0;border-left:1.5px solid #1b1d1f;} @media (prefers-reduced-motion:reduce){.ds-ci{transition:none;}}"
+    },
+    {
+      "name": "Replication Marks",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Countable replication squares: done, running, waiting, failed.",
+      "html": "<span class=\"ds-marks\"><i></i><i></i><i class=\"ds-running\"></i><i class=\"ds-waiting\"></i><i class=\"ds-failed\"></i></span>",
+      "css": ".ds-marks{display:inline-flex;gap:3px;} .ds-marks i{width:9px;height:9px;border:1.5px solid #1b1d1f;background:#1b1d1f;} .ds-marks i.ds-running{background:linear-gradient(90deg,#1b1d1f 50%,#fff 50%);} .ds-marks i.ds-waiting{background:#fff;border-color:#8c939a;} .ds-marks i.ds-failed{background:#fff linear-gradient(45deg,transparent 42%,#a1261a 42% 58%,transparent 58%);border-color:#a1261a;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Forest Plot",
+    "overview": "**Creative North Star: \"Forest Plot\"**\n\nEvery result in Studio is a row of a forest plot: an estimate with its interval on a shared axis, and every comparison is a difference drawn against a line of zero. The work area is a white figure ground with ink text and hairline rules, the way a statistics paper sets a figure. Navigation lives apart from the figures on a deep ink-blue rail, so the white area holds only the results and the controls that change them.\n\nColour is spent on meaning, not decoration. Ink carries all data marks by default. Evidence blue appears only where a paired difference's interval excludes zero; violet appears only on the researcher's own layer (the chosen baseline); amber marks partial, degenerate or interval-less states; red is kept for failures. Sections are separated by a 1px ink top rule rather than boxed into cards, and the density is that of a reading page: 15px body text, tabular figures for every number, values printed at the precision their interval supports.\n\nThe world was established on the experiment results, cross-run comparison and saved-analysis pages and the project rail. The run page (recording player), the presentation editor and export still use legacy layouts: they inherit these tokens through aliases in `tokens.css` (`--teal`, `--tint`, `--blue`, `--amber`, `--radius`) but have not been redesigned yet. Legacy viewer styles in `studio/apps/viewer/src/style.css` style bare `header`, `nav` and `small` elements; inside `.project-workspace` those are reset to neutral with zero-specificity `:where()` rules, so new surfaces start from this system, not from the legacy viewer.",
+    "keyCharacteristics": [
+      "White figure ground, ink marks, hairline rules; an ink-blue rail carries navigation.",
+      "Serif for page and block titles, sans with tabular figures for everything else.",
+      "Squares are estimates, diamonds are differences, a vertical ink line is zero.",
+      "Colour encodes evidence state plus one reserved accent for the researcher's own layer.",
+      "Sections are ruled, not boxed. Flat surfaces; the only shadow belongs to the modal dialog.",
+      "One motion: interval marks move in 160 ms; reduced motion shows the final state."
+    ],
+    "rules": [
+      {
+        "name": "The Evidence Only Rule",
+        "body": "Blue fills a difference only when its interval excludes zero; a difference that includes zero is a hollow ink diamond. Colour never says \"better\" or \"worse\": differences carry a neutral sign and nothing else.",
+        "section": "colors"
+      },
+      {
+        "name": "The Own Layer Rule",
+        "body": "Violet belongs to what the researcher chose (the baseline). No data mark, status or link is ever violet.",
+        "section": "colors"
+      },
+      {
+        "name": "The Red Is Failure Rule",
+        "body": "Red appears only for failures. Partial, degenerate, missing or interval-less states are amber; neutral waiting states are grey.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Figures Rule",
+        "body": "Every number that can sit above or beside another number (estimates, intervals, ticks, counts, table cells) uses tabular figures and a typographic minus (U+2212).",
+        "section": "typography"
+      },
+      {
+        "name": "The Supported Precision Rule",
+        "body": "Values print to the precision their interval supports (two significant digits of the half-width); floats without an interval read at four significant digits. Full digits appear only behind the explicit \"Full digits\" toggle.",
+        "section": "typography"
+      },
+      {
+        "name": "The Human Name First Rule",
+        "body": "A KPI or output shows a sentence-case human name in serif, with its code key beside it in mono Slate; the key is never dropped.",
+        "section": "typography"
+      },
+      {
+        "name": "The Ruled Not Boxed Rule",
+        "body": "A section starts with a 1px ink top rule (KPI blocks and output cards put the ink rule under their header); it is never a bordered, shadowed card. Hairlines (line, line-soft) divide inside a section.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Mark Grammar Rule",
+        "body": "Squares are estimates, diamonds are differences, a vertical ink line is zero. A degenerate estimate becomes a 3x16px bar, an insufficient one a dashed hollow square. Replication marks are countable squares: filled for done, half-filled for running, hollow grey for waiting, struck through in red for failed.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do draw every estimate as a square with its interval on a shared axis, and every difference as a diamond against a vertical zero line.",
+      "Do fill a difference with Evidence Blue only when its interval excludes zero; leave it a hollow ink diamond otherwise.",
+      "Do mark the researcher's baseline in Researcher Violet and use violet for nothing else.",
+      "Do separate sections with a 1px ink rule and whitespace (28 to 40px).",
+      "Do set page and block titles in Source Serif 4 and everything else in Source Sans 3 with tabular figures and a typographic minus.",
+      "Do print values at the precision their interval supports and offer full digits only through an explicit toggle.",
+      "Do keep a KPI's code key visible in mono Slate beside its human name.",
+      "Do keep row order and column widths fixed while results update; only interval marks move, over 160 ms, and not at all under reduced motion."
+    ],
+    "donts": [
+      "Don't colour a difference as better or worse; sign and evidence state are the only things a difference's colour may say.",
+      "Don't use red for anything but failures; partial, degenerate and missing states are amber or grey.",
+      "Don't box sections into bordered or shadowed cards; the only shadow is the modal dialog's.",
+      "Don't put an uppercase or letter-spaced kicker above a title; section titles stand on their own.",
+      "Don't show hashes or identifiers outside a provenance disclosure.",
+      "Don't invent a unit the data does not carry."
+    ]
+  }
+}

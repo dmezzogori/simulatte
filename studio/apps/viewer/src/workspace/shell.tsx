@@ -20,73 +20,111 @@ import { ComparisonPage } from "./comparison";
 import { AnalysesPage } from "./analyses";
 import { PresentationsPage } from "./presentations";
 import { Diagnostic, EmptyState } from "./feedback";
-const ICONS: Record<string, string> = {
-  overview: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
-  models: "m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5",
-  runs: "m9 5 11 7-11 7V5Z",
-  experiments: "M8 3h8M10 3v6l-6 10q-1 2 2 2h12q3 0 2-2L14 9V3M7 15h10",
-  analyses: "M4 3v18h17M8 16v-5m5 5V7m5 9v-3",
-  presentations: "M3 4h18v13H3zM12 17v4m-4 0h8m-6-14 6 4-6 3V7Z",
-};
+/** A study is one experiment definition read through its runs; it is derived from the runs' names, never stored. */
+export interface Study {
+  name: string;
+  /** The newest run, which the study's Results open. */
+  latest: string;
+  runs: string[];
+}
+export function studiesOf(experiments: readonly { run_id: string; name: string; created: number }[]): Study[] {
+  const byName = new Map<string, { run_id: string; created: number }[]>();
+  for (const e of experiments) byName.set(e.name, [...(byName.get(e.name) ?? []), e]);
+  return [...byName]
+    .map(([name, runs]) => {
+      const ordered = [...runs].sort((a, b) => b.created - a.created);
+      return { name, latest: ordered[0]!.run_id, runs: ordered.map((r) => r.run_id), newest: ordered[0]!.created };
+    })
+    .sort((a, b) => b.newest - a.newest)
+    .map(({ newest: _newest, ...study }) => study);
+}
+/** At most this many studies are listed in the rail; the Experiments page lists every run. */
+export const RAIL_STUDIES = 8;
 export function Sidebar({
   name,
   route,
   counts = {},
+  studies = [],
+  activeStudy = null,
 }: {
   name: string;
   route: WorkspaceRoute;
   counts?: Record<string, number>;
+  studies?: readonly Study[];
+  activeStudy?: string | null;
 }) {
   const active = routeSection(route);
+  const current = (hash: string) => (typeof location !== "undefined" && location.hash === hash ? "page" : undefined);
+  const listed = studies.slice(0, RAIL_STUDIES);
+  if (activeStudy && !listed.some((s) => s.name === activeStudy)) {
+    const extra = studies.find((s) => s.name === activeStudy);
+    if (extra) listed.push(extra);
+  }
   return (
     <aside className="ws-sidebar">
       <a className="ws-brand" href="#/overview">
-        <span className="ws-brand-mark" aria-hidden="true">
-          s
-        </span>
-        <span>
-          simulatte<em>STUDIO</em>
-        </span>
+        Simulatte
       </a>
       <div className="ws-project-name">
         <strong>{name}</strong>
-        <small>Project workspace</small>
+        <small>Studio project</small>
       </div>
       <nav aria-label="Project navigation">
-        {[
-          ["overview", "Overview"],
-          ["models", "Models"],
-          ["runs", "Runs"],
-          ["experiments", "Experiments"],
-          ["analyses", "Analyses"],
-          ["presentations", "Presentations"],
-        ].map(([page, label]) => (
-          <a
-            key={page}
-            href={"#/" + page}
-            aria-current={active === page ? "page" : undefined}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d={ICONS[page!]} />
-            </svg>
-            <span>{label}</span>
-            {counts[page!] ? (
-              <small aria-hidden="true">{counts[page!]}</small>
-            ) : null}
+        <div className="ws-nav-group">
+          <h2>Studies</h2>
+          {listed.length === 0 && <p className="ws-nav-empty">No experiment has run yet.</p>}
+          {listed.map((study) => {
+            const open = study.name === activeStudy;
+            const results = routeHash({ page: "experiments", run: open && route.page === "experiments" && route.run ? route.run : study.latest });
+            const analyses = routeHash({ page: "analyses", study: study.name });
+            return (
+              <div key={study.name} className="ws-study">
+                <a href={routeHash({ page: "experiments", run: study.latest })} aria-current={open && !current(analyses) ? "true" : undefined}>
+                  <span>{study.name}</span>
+                  {study.runs.length > 1 && <small aria-hidden="true">{study.runs.length}</small>}
+                </a>
+                {open && (
+                  <>
+                    <a className="ws-study-child" href={results} aria-current={route.page === "experiments" ? "page" : undefined}>
+                      <span>Results</span>
+                    </a>
+                    <a className="ws-study-child" href={analyses} aria-current={current(analyses)}>
+                      <span>Analyses</span>
+                    </a>
+                  </>
+                )}
+              </div>
+            );
+          })}
+          <a className="ws-nav-more" href="#/experiments" aria-current={route.page === "experiments" && !route.run ? "page" : undefined}>
+            <span>All experiments</span>
           </a>
-        ))}
+        </div>
+        <div className="ws-nav-group">
+          <h2>Workspace</h2>
+          {[
+            ["overview", "Overview"],
+            ["models", "Models"],
+            ["runs", "Runs"],
+            ["analyses", "Analyses"],
+            ["presentations", "Presentations"],
+          ].map(([page, label]) => (
+            <a
+              key={page}
+              href={"#/" + page}
+              aria-current={active === page && !(page === "analyses" && route.page === "analyses" && route.study) ? "page" : undefined}
+            >
+              <span>{label}</span>
+              {counts[page!] ? <small aria-hidden="true">{counts[page!]}</small> : null}
+            </a>
+          ))}
+        </div>
       </nav>
       <div className="ws-sidebar-bottom">
-        <a
-          href="#/settings"
-          aria-current={active === "settings" ? "page" : undefined}
-        >
+        <a href="#/settings" aria-current={active === "settings" ? "page" : undefined}>
           <span>Settings</span>
         </a>
-        <small>
-          <i aria-hidden="true" />
-          Local workspace · changes are saved in the project
-        </small>
+        <small>Local workspace. Changes are saved in the project folder.</small>
       </div>
     </aside>
   );
@@ -180,7 +218,14 @@ export function WorkspaceShell({
   const connected = status === "connected";
   const model =
     route.page === "model" ? state.models.find((m) => m.id === route.id) : null;
-  const crumbs = routeCrumbs(route, state.models);
+  const experiments = client.state?.experiments ?? [];
+  const activeStudy =
+    route.page === "experiments" && route.run
+      ? (experiments.find((e) => e.run_id === route.run)?.name ?? null)
+      : route.page === "analyses" && route.study
+        ? route.study
+        : null;
+  const crumbs = routeCrumbs(route, state.models, experiments);
   return (
     <div className="project-workspace">
       <a
@@ -197,6 +242,8 @@ export function WorkspaceShell({
         name={state.name}
         route={route}
         counts={{ models: state.models.length, runs: state.history.length }}
+        studies={studiesOf(experiments)}
+        activeStudy={activeStudy}
       />
       <div className="ws-body">
         <header className="ws-topbar">
@@ -296,7 +343,6 @@ export function WorkspaceShell({
           {route.page === "settings" && (
             <>
               <div className="ws-page-heading">
-                <div className="ws-eyebrow">PROJECT SETTINGS</div>
                 <h1>Project settings</h1>
                 <p>Environment ownership and project setup.</p>
               </div>
@@ -338,6 +384,7 @@ export function WorkspaceShell({
               status={status}
               {...(route.execution ? { executionId: route.execution } : {})}
               {...(route.definition ? { registrationKey: route.definition } : {})}
+              {...(route.study ? { study: route.study } : {})}
             />
           )}
           {route.page === "presentations" && (

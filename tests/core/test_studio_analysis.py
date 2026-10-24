@@ -273,8 +273,11 @@ def test_list_pages_are_capped_and_stable(studio):
         "available",
         "planned",
         "partial",
+        "experiment_run_ids",
     }
     assert (item["available"], item["planned"], item["partial"]) == (1, 2, True)
+    selection = call(studio.server, "analysis.get", execution_id=studio.id)["snapshot"]["selection"]
+    assert item["experiment_run_ids"] == selection["experiment_run_ids"]
     # New admissions never shift an existing cursor.
     newer = call(studio.server, "analysis.rerun", execution_id=studio.id)
     assert wait_state(studio.server, newer["execution"]["id"], TERMINAL) == "succeeded"

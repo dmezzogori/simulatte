@@ -60,32 +60,55 @@ When a model's source revision moves past the revision the page saw, its definit
 carry a **stale** badge: new runs capture the current source, saved runs keep the inputs
 they captured. **Acknowledge** clears the badge.
 
-## Results table conventions
+## Studies and results
 
-The results table lists configuration × KPI rows with `n`, mean, half-width and a state:
+The sidebar lists **studies**: an experiment definition read through its runs, newest
+first. A study is derived from the runs' names; nothing extra is stored. Opening a study
+shows the results of its newest run; under it, **Analyses** lists the saved analyses whose
+inputs include one of its runs. **All experiments** keeps the definitions, every run and the
+execution settings.
 
-- `ok`: a t interval over the succeeded replications of that configuration.
-- `degenerate`: all replications equal, zero-width interval.
-- `insufficient`: fewer than two replications, no half-width.
+A run's results page leads with one block per KPI, drawn as a small forest plot:
 
-**Level** sets the confidence level (0.8–0.999). **Bonferroni** divides it across the
-family of rows; the label switches from "pointwise 95 % t intervals, no
-multiple-comparison correction" to "Bonferroni-adjusted (m = …, effective level …)".
-**Baseline** adds paired differences, configuration minus baseline, paired by
-replication index and labelled as their own family. **Missing pairs** lists replications
-without a result and the unpaired indices of each comparison; they are excluded from
-every interval and difference. A **mixed runtime** badge marks a configuration whose
-replications resolved different dependency sets. Within-run observations are never
-pooled across runs here: inference stays replication-level.
+- Each configuration is a row with its estimate, its t interval in brackets, `n`, and the
+  interval on an axis the KPI's configurations share, so overlap is visible.
+- Squares under each configuration count its replications: filled when they succeeded,
+  struck through when they failed.
+- Values print to the precision their interval supports (two significant digits of the
+  half-width). **Full digits** shows every digit the server returned.
+- A note names the special cases: `degenerate` (all replications equal, no interval),
+  `insufficient` (fewer than two replications, no interval) and an interval wider than the
+  estimate.
+- KPIs where no configuration has an interval are listed together as one sentence each.
+
+**Baseline** defaults to the first configuration of the definition; choose another one or
+**None**. Each block then adds the differences, configuration minus baseline, paired by
+replication index and labelled as their own family, drawn around a zero line. A filled
+diamond means the difference interval excludes zero, a hollow one that it includes zero.
+The colour says nothing about which configuration is better: KPIs do not declare a
+direction. The unpaired replications of each difference are named under it.
+
+**Level** sets the confidence level (0.8–0.999). **Bonferroni correction** divides it across
+the family; the label switches from "pointwise 95 % t intervals, no multiple-comparison
+correction" to "Bonferroni-adjusted (m = …, effective level …)". **Matrix** shows the same
+estimates as a table, configurations by KPI, sortable by any KPI. Above eight
+configurations the figure shows one slice of the grid: a select per parameter fixes its
+value or shows all of them, and the configurations outside the slice stay on each axis as
+grey ticks.
+
+Replications without a result are named under **Replications** and excluded from every
+interval and difference. A **mixed runtime** badge marks a configuration whose replications
+resolved different dependency sets. Within-run observations are never pooled across runs:
+inference stays replication-level.
 
 ## Comparison page
 
-**Compare numerically →** opens `#/compare/<run_id>[:<configuration>],…`, a bookmarkable
-comparison of up to eight experiment runs or single configurations. Each run gets a card
-with its configuration counts, runtime consistency, the interval convention and the
-results table; level, Bonferroni and baseline apply to all cards. Entries that name no
-experiment run are ignored with a notice, and a deleted run keeps its place in the
-address with an explanation. Read-only sessions show saved results without recomputing.
+**Compare with other runs** opens `#/compare/<run_id>[:<configuration>],…`, a bookmarkable
+comparison of up to eight experiment runs or single configurations. Their configurations
+are rows of the same KPI blocks, on shared axes, each labelled with its run; differences stay
+within a run. Level, Bonferroni and baseline apply to every run. Entries that name no
+experiment run are ignored with a notice, and a deleted run keeps its place in the address
+with an explanation. Read-only sessions show saved results without recomputing.
 
 ## Playback compare
 

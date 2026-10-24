@@ -10,7 +10,7 @@ import {
   summarizeProvenance,
   type HistoryRow,
 } from "../src/workspace/runs";
-import { ComparisonReport, parseSelection } from "../src/workspace/comparison";
+import { ComparisonFigure, parseSelection } from "../src/workspace/comparison";
 import { ExperimentPaging, experimentActions, resolveRun, staleModels } from "../src/workspace/experiments";
 import { runBody, plansOf, declaredPlan } from "../src/workspace/models";
 import { recordingOf } from "../src/workspace/run-page";
@@ -262,8 +262,11 @@ describe("experiments page", () => {
 });
 
 describe("comparison page", () => {
-  const estimate = (n: number, mean: number | null, half_width: number | null, state: string) =>
-    ({ n, mean, sd: half_width === null ? null : 1, half_width, lower: null, upper: null, state, level: 0.95 });
+  const estimate = (n: number, mean: number | null, half_width: number | null, state: string) => ({
+    n, mean, sd: half_width === null ? null : 1, half_width,
+    lower: half_width === null || mean === null ? null : mean - half_width, upper: half_width === null || mean === null ? null : mean + half_width,
+    state, level: 0.95,
+  });
   const report: ExperimentReport = {
     run_id: "a".repeat(64), name: "Policy study", status: "completed", level: 0.95, effective_level: 0.95, pointwise: true, m: 2,
     configurations: [
@@ -279,27 +282,28 @@ describe("comparison page", () => {
   };
   it("comparisonRetainsMissingPairs", () => {
     const html = renderToStaticMarkup(
-      <ComparisonReport report={report} options={{ level: 0.95, bonferroni: false, baseline: null }} onOptions={() => {}} />,
+      <ComparisonFigure entries={[{ report, created: 1_700_000_000 }]} options={{ level: 0.95, bonferroni: false, baseline: null }} onOptions={() => {}} />,
     );
     expect(html).toContain("Policy study");
-    expect(html).toMatch(/succeeded 2/);
-    expect(html).toMatch(/succeeded 1/);
-    expect(html).toMatch(/failed 1/);
-    expect(html).toContain("Missing pairs (1)");
-    expect(html).toMatch(/immediate\/base[^<]*<\/td><td>1<\/td><td>failed/);
+    expect(html).toContain("conwip/base: 2 of 2 replications succeeded");
+    expect(html).toContain("immediate/base: 1 of 2 replications succeeded, 1 failed");
+    expect(html).toContain("Excluded from every interval and difference: Policy study · immediate/base replication 1 (failed)");
     expect(html).toContain("pointwise 95 % t intervals, no multiple-comparison correction");
     expect(html).toContain("mixed runtime");
-    expect(html).toContain("state-insufficient");
-    const start = html.indexOf('immediate/base<span class="badge mixed"');
-    expect(start).toBeGreaterThan(0);
-    const insufficient = html.slice(start, html.indexOf("state-insufficient", start));
-    expect(insufficient).not.toContain("±");
-    expect(insufficient).toContain(">—<");
-    expect(html.slice(html.indexOf("conwip/base</td><td>lateness"), start)).toContain("± 1.1");
+    // The insufficient estimate shows its value and says why it has no interval.
+    expect(html).toContain("One replication: no interval");
+    expect(html).toContain('class="fp-point insufficient"');
+    // The interval prints at the precision its half-width supports, in brackets.
+    expect(html).toContain("−8.4");
+    expect(html).toContain("[−9.5, −7.3]");
     expect(html).toMatch(/within each experiment run/i);
     expect(html).not.toContain("b".repeat(32));
     const adjusted = renderToStaticMarkup(
-      <ComparisonReport report={{ ...report, pointwise: false, effective_level: 0.975 }} options={{ level: 0.95, bonferroni: true, baseline: null }} onOptions={() => {}} />,
+      <ComparisonFigure
+        entries={[{ report: { ...report, pointwise: false, effective_level: 0.975 } }]}
+        options={{ level: 0.95, bonferroni: true, baseline: null }}
+        onOptions={() => {}}
+      />,
     );
     expect(adjusted).toContain("Bonferroni-adjusted (m = 2, effective level 0.975)");
   });
