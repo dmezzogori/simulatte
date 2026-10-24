@@ -1,0 +1,35 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          ".impeccable/mocks/decision/canon.html"
+        ],
+        "createdAt": "2026-10-23T19:16:11.408Z",
+        "reason": "agent decision: canon sketch deliberately depicts the category standard's Inter"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/canon.html"
+        ],
+        "createdAt": "2026-10-23T19:16:11.423Z",
+        "reason": "agent decision: throwaway decision-page sketch, not shipping UI"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/model-pick.html"
+        ],
+        "createdAt": "2026-10-23T19:16:11.437Z",
+        "reason": "agent decision: throwaway decision-page sketch, not shipping UI"
+      }
+    ]
+  }
+}

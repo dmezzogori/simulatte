@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Forest Plot · capacity-study</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&display=swap">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1440px;height:900px;overflow:hidden}
+body{font-family:"Source Sans 3",system-ui,sans-serif;font-size:15px;color:#1B1D1F;background:#fff;display:grid;grid-template-columns:232px 1fr}
+nav{border-right:1px solid #D5D9DD;padding:24px 18px;display:flex;flex-direction:column;gap:20px}
+.brand{font-family:"Source Serif 4",serif;font-size:24px;font-weight:700}
+nav h4{font-size:13px;font-weight:600;color:#5C6166;margin-bottom:6px}
+nav a{display:block;padding:6px 8px;color:#1B1D1F;text-decoration:none;font-size:15px;border-radius:2px}
+nav a.on{background:#E8EEF4;color:#0E5A9C;font-weight:600}
+nav a.sub{padding-left:20px;font-size:14px}
+main{padding:26px 40px;display:flex;flex-direction:column;gap:18px}
+.crumb{font-size:14px;color:#5C6166}
+h1{font-family:"Source Serif 4",serif;font-size:38px;font-weight:700;line-height:1.05}
+.lede{font-size:16px;color:#3E4347;margin-top:6px}
+.bar{display:flex;gap:10px;align-items:center;border-top:1px solid #1B1D1F;border-bottom:1px solid #D5D9DD;padding:10px 0;font-size:15px}
+.bar .sp{flex:1}
+.btn{font:inherit;border:1px solid #1B1D1F;background:#fff;padding:7px 14px;border-radius:2px}
+.btn.pri{background:#0E5A9C;border-color:#0E5A9C;color:#fff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:22px 40px}
+.blk h2{font-family:"Source Serif 4",serif;font-size:22px;font-weight:700;border-bottom:1px solid #1B1D1F;padding-bottom:4px;display:flex;justify-content:space-between;align-items:baseline}
+.blk h2 small{font-family:"Source Sans 3";font-size:14px;font-weight:400;color:#5C6166}
+.row{display:grid;grid-template-columns:120px 150px 1fr;align-items:center;height:34px;border-bottom:1px solid #EEF0F2;font-variant-numeric:tabular-nums}
+.row .c{font-size:15px}
+.row .e{font-size:15px}
+.row.diff{background:#F5F8FB}
+.row.diff .c{font-weight:600;color:#0E5A9C}
+.plot{position:relative;height:34px}
+.plot .ax{position:absolute;left:0;right:0;top:17px;height:1px;background:#EEF0F2}
+.plot .z{position:absolute;top:2px;bottom:2px;width:1.5px;background:#0E5A9C}
+.plot .l{position:absolute;top:16px;height:2px;background:#1B1D1F}
+.plot .p{position:absolute;top:12px;width:10px;height:10px;background:#1B1D1F;margin-left:-5px}
+.plot .dm{position:absolute;top:10px;width:14px;height:14px;background:#0E5A9C;transform:rotate(45deg);margin-left:-7px}
+.note{font-size:14px;color:#5C6166;margin-top:6px}
+.deg{font-size:15px;color:#3E4347;padding:8px 0}
+foot{display:block;font-size:14px;color:#3E4347;border-top:1px solid #D5D9DD;padding-top:10px}
+</style></head><body>
+<nav>
+ <div class="brand">Simulatte</div>
+ <div><h4>Studies</h4><a class="on" href="#">capacity-study</a><a class="sub" href="#">Results</a><a class="sub" href="#">Analyses (2)</a><a class="sub" href="#">Presentation (1)</a><a href="#">fleet-sizing</a><a href="#">lateness-policies</a></div>
+ <div><h4>Workspace</h4><a href="#">Models</a><a href="#">Runs</a><a href="#">Workers</a><a href="#">Settings</a></div>
+</nav>
+<main>
+ <div class="crumb">demo / capacity-study / Results</div>
+ <div><h1>capacity-study</h1><p class="lede">Two configurations, 7 of 8 replications completed. Differences are three servers minus two servers, paired by replication.</p></div>
+ <div class="bar"><span>Level <b>95 %</b> pointwise</span><span>·</span><span>Baseline <b>two servers</b></span><span>·</span><span>1 failed replication excluded</span><span class="sp"></span><button class="btn">Compare runs</button><button class="btn pri">Start again</button></div>
+ <div class="grid">
+  <div class="blk"><h2>Throughput <small>jobs per time unit</small></h2>
+   <div class="row"><span class="c">two servers</span><span class="e">1.11 [0.94, 1.28]</span><div class="plot"><div class="ax"></div><div class="l" style="left:10%;width:28%"></div><div class="p" style="left:24%"></div></div></div>
+   <div class="row"><span class="c">three servers</span><span class="e">1.52 [1.43, 1.61]</span><div class="plot"><div class="ax"></div><div class="l" style="left:66%;width:15%"></div><div class="p" style="left:73%"></div></div></div>
+   <div class="row diff"><span class="c">difference</span><span class="e">+0.41 [0.22, 0.60]</span><div class="plot"><div class="ax"></div><div class="z" style="left:30%"></div><div class="l" style="left:42%;width:22%"></div><div class="dm" style="left:53%"></div></div></div>
+   <p class="note">n = 3 and 4 · the difference interval excludes zero</p></div>
+  <div class="blk"><h2>Utilization <small>fraction of time busy</small></h2>
+   <div class="row"><span class="c">two servers</span><span class="e">0.89 [0.68, 1.00]</span><div class="plot"><div class="ax"></div><div class="l" style="left:44%;width:48%"></div><div class="p" style="left:68%"></div></div></div>
+   <div class="row"><span class="c">three servers</span><span class="e">0.71 [0.66, 0.76]</span><div class="plot"><div class="ax"></div><div class="l" style="left:18%;width:12%"></div><div class="p" style="left:24%"></div></div></div>
+   <div class="row diff"><span class="c">difference</span><span class="e">−0.18 [−0.39, 0.03]</span><div class="plot"><div class="ax"></div><div class="z" style="left:70%"></div><div class="l" style="left:24%;width:50%"></div><div class="dm" style="left:49%"></div></div></div>
+   <p class="note">n = 3 and 4 · the difference interval includes zero</p></div>
+  <div class="blk"><h2>Jobs in system <small>time-weighted mean</small></h2>
+   <div class="row"><span class="c">two servers</span><span class="e">7 [−4, 18]</span><div class="plot"><div class="ax"></div><div class="l" style="left:2%;width:66%"></div><div class="p" style="left:35%"></div></div></div>
+   <div class="row"><span class="c">three servers</span><span class="e">12.6 [6.6, 18.6]</span><div class="plot"><div class="ax"></div><div class="l" style="left:42%;width:36%"></div><div class="p" style="left:60%"></div></div></div>
+   <div class="row diff"><span class="c">difference</span><span class="e">+5.5 [−6.0, 17.0]</span><div class="plot"><div class="ax"></div><div class="z" style="left:25%"></div><div class="l" style="left:8%;width:66%"></div><div class="dm" style="left:41%"></div></div></div>
+   <p class="note">The interval is wider than the estimate; three replications are too few here.</p></div>
+  <div class="blk"><h2>Lateness <small>hours, negative is early</small></h2>
+   <div class="row"><span class="c">two servers</span><span class="e">−32.4 [−40.0, −24.8]</span><div class="plot"><div class="ax"></div><div class="l" style="left:6%;width:54%"></div><div class="p" style="left:33%"></div></div></div>
+   <div class="row"><span class="c">three servers</span><span class="e">−29.3 [−32.5, −26.1]</span><div class="plot"><div class="ax"></div><div class="l" style="left:44%;width:22%"></div><div class="p" style="left:55%"></div></div></div>
+   <div class="row diff"><span class="c">difference</span><span class="e">+3.1 [−4.0, 10.2]</span><div class="plot"><div class="ax"></div><div class="z" style="left:36%"></div><div class="l" style="left:14%;width:50%"></div><div class="dm" style="left:39%"></div></div></div>
+   <p class="deg">Tardiness and tardy fraction: every replication is 0, so no interval is formed.</p></div>
+ </div>
+ <foot>Pointwise 95 % t intervals, no multiple-comparison correction · seeds 17–20 · environment generation 3 · run of 21 Oct, 16:01</foot>
+</main>
+</body></html>
