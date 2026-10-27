@@ -16,10 +16,10 @@
     "assets/source-sans-3-latin-wght-normal-Bo_j9asI.woff2": "19143dca075972bc84e3fd9eab7416dd40cc565dccb2435a044bdfabe060c7d5",
     "assets/source-serif-4-latin-opsz-normal-BpEBLj1O.woff2": "f2ea9c12d2fe9bd3a9589b02ad2c0909da88f30938c91adc838c4f4098f9f9e0",
     "assets/webworkerAll-gE7HILl4.js": "3a14299cb5b6bd2b1c3cd97b7e3cb1952788875f299519f95201205197e60cf2",
-    "build-stamp.json": "46a0ded4a75fd8ac3444359efc20068fa4f8a36c9dd30842967165c61a30c356",
+    "build-stamp.json": "540e8936fc84419ce797e31f6ff43a16ffc2e0ee90c820daa6239fde6dcbfcc1",
     "index.html": "e6a66ea317ba6e448c3b2b9e0f294715b3aa60209bfed24076a7c3b75b752b7f",
     "plotly-frame.html": "aac871b3782ccdc76a96b42f7ad74f89111bc194125b033caa8a840a59637642"
   },
-  "source_fingerprint": "e33b27e5dd14d61bbe4d3050c6d3ca4a7aaa4ca4198e47711d04bc3d077084dd",
+  "source_fingerprint": "4a12c4d424e10cd56242f0e85c92443ed185fa2d323fc434b0a5e481f03990fa",
   "version": "0.17.0"
 }
