@@ -1,0 +1,25 @@
+{
+  "assets": {
+    "THIRD_PARTY_NOTICES.md": "64d490b0839ac6c156d2a55d6e954293a9b79f190a88e85d82a220bd5bf75b43",
+    "assets/CanvasRenderer-Dg-xcB-x.js": "19b1e22daf740b2dcbc8c6ba2512a619a774d6124c80a9cecea7bfaaf38e59c8",
+    "assets/Filter-CxgSmKQZ.js": "a50adda90bcccf85a5fa63080c0eb5253f72a8da75c89d292137618cde4b0a56",
+    "assets/RenderTargetSystem-oaQ7_YAV.js": "0a7ad573eb849e580266752a63562048ef2db18997204482afcd3a79e6651e67",
+    "assets/WebGLRenderer-2rGNTbnq.js": "3a4ce9bc36c46ee34774198a7b376a3df6ced1cc08a9130681120dd19430c539",
+    "assets/WebGPURenderer-ByQKQSce.js": "f73fc7bcdc61b431bffd76f3d10b5c50190e0624046c4c371384452455a5a570",
+    "assets/browserAll-C4d6m2_A.js": "7e36055c8f592d440e384a65e18cc570eaf1ed8df3cfb99bbe6a40d3425d2a35",
+    "assets/getTexelRangeRects-CcdObl1M.js": "5335706e78c3d6ac8ae4134f8fc7eb521d01ea69e0691d14c35725c00ccbe596",
+    "assets/index-BQtptVuW.js": "e10bfab0d3f296bb7aab4d0d7220be339ad9802d039b186b44b7b238ef25d187",
+    "assets/index-kXTKnqGs.css": "7f7252beb44b153b07ccd886bf9a40efd67e00c648eaf9e82801b4d6b1fff941",
+    "assets/plotly-frame-BJi_3VSq.js": "637dc5d92c7a888b51fd0e8ce55a9ebf1cab4aec2edb5e8d351f4909d4709580",
+    "assets/sink-worker-C_x9vrzf.js": "a59a24a7c1fc594618e583c242d4f61cfa4827899a92a95a49bec1c60c778e90",
+    "assets/source-sans-3-latin-ext-wght-normal-C8iNium2.woff2": "a85a7459bdb3cdc1136751e151a506bae653fc29ada3ca86237477df6f1b59e6",
+    "assets/source-sans-3-latin-wght-normal-Bo_j9asI.woff2": "19143dca075972bc84e3fd9eab7416dd40cc565dccb2435a044bdfabe060c7d5",
+    "assets/source-serif-4-latin-opsz-normal-BpEBLj1O.woff2": "f2ea9c12d2fe9bd3a9589b02ad2c0909da88f30938c91adc838c4f4098f9f9e0",
+    "assets/webworkerAll-gE7HILl4.js": "3a14299cb5b6bd2b1c3cd97b7e3cb1952788875f299519f95201205197e60cf2",
+    "build-stamp.json": "46a0ded4a75fd8ac3444359efc20068fa4f8a36c9dd30842967165c61a30c356",
+    "index.html": "e6a66ea317ba6e448c3b2b9e0f294715b3aa60209bfed24076a7c3b75b752b7f",
+    "plotly-frame.html": "aac871b3782ccdc76a96b42f7ad74f89111bc194125b033caa8a840a59637642"
+  },
+  "source_fingerprint": "e33b27e5dd14d61bbe4d3050c6d3ca4a7aaa4ca4198e47711d04bc3d077084dd",
+  "version": "0.17.0"
+}

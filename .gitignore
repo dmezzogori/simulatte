@@ -181,9 +181,6 @@ studio/apps/*/dist/
 studio/test-results/
 studio/playwright-report/
 
-# Built and verified by the Studio packaging command
-src/simulatte/studio/static/
-
 studio/bench/dist/
 studio/.build/
 
