@@ -29,7 +29,12 @@ from simulatte.projects import (
     install_starter,
     ConfigEdit,
 )
-from simulatte.projects.environments import EnvironmentPool, LockPreviewRequired, interpreter_of_another_project
+from simulatte.projects.environments import (
+    EnvironmentPool,
+    LockPreviewRequired,
+    environment_directory,
+    interpreter_of_another_project,
+)
 
 
 class ProjectService:
@@ -71,9 +76,7 @@ class ProjectService:
                     interpreter = (
                         Path(spec["interpreter"])
                         if spec["kind"] == "existing"
-                        else root
-                        / "cache/environments"
-                        / selected["id"]
+                        else environment_directory(root / "cache/environments", selected["id"])
                         / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
                     )
                     # A same-machine copy must not run from its original's existing interpreter.
