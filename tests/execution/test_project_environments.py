@@ -247,7 +247,7 @@ def test_evidence_tags_and_local_binding_document_cannot_downgrade(configured, m
     with RunStore.open(configured.root / ".simulatte") as store:
         pool = fake_pool(configured, store, monkeypatch)
         generation = pool.prepare(configured)
-        local = pool.cache / generation.id / "installation.json"
+        local = m.environment_directory(pool.cache, generation.id) / "installation.json"
         value = json.loads(local.read_text())
         value["installation"]["facts"]["python"] = "changed"
         local.write_text(json.dumps(value))
@@ -288,3 +288,31 @@ def test_referenced_generation_is_not_cleaned_up(configured, monkeypatch):
         with pytest.raises(ValueError, match="referenced"):
             pool.cleanup(generation.id)
         assert generation.interpreter.exists()
+
+
+def test_generation_directories_are_short_and_legacy_ones_are_kept(configured, monkeypatch):
+    m = api()
+    with RunStore.open(configured.root / ".simulatte") as store:
+        pool = fake_pool(configured, store, monkeypatch)
+        generation = pool.prepare(configured)
+        directory = pool.cache / generation.id[: m.DIRECTORY_DIGITS]
+        assert (directory / "published").read_text() == generation.id
+        assert not (pool.cache / generation.id).exists()
+        assert generation.interpreter.is_relative_to(directory)
+        assert pool.prepare(configured).id == generation.id  # reuses the published short directory
+
+        legacy = pool.cache / generation.id
+        directory.rename(legacy)
+        assert m.environment_directory(pool.cache, generation.id) == legacy
+        assert pool.get(generation.id).interpreter.is_relative_to(legacy)
+        assert pool.prepare(configured).id == generation.id
+
+
+def test_a_short_directory_of_another_generation_is_refused(configured, monkeypatch):
+    m = api()
+    with RunStore.open(configured.root / ".simulatte") as store:
+        pool = fake_pool(configured, store, monkeypatch)
+        generation = pool.prepare(configured)
+        (pool.cache / generation.id[: m.DIRECTORY_DIGITS] / "published").write_text("0" * 64)
+        with pytest.raises(ValueError, match="another generation"):
+            pool.prepare(configured)

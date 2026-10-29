@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 from simulatte.execution.store import RunStore
-from simulatte.projects.environments import EnvironmentPool
+from simulatte.projects.environments import EnvironmentPool, environment_directory
 from simulatte.projects import install_starter, starter_files, load_workspace
 from tests.execution.test_project_environments import configured as configured, fake_pool
 
@@ -111,7 +111,7 @@ def test_failed_generation_is_not_published(configured, monkeypatch, failure):
         spec = _plain(generation.evidence["spec"])
         pool.cleanup(generation.id)
         if failure == "symlink":
-            (pool.cache / generation.id).symlink_to(configured.root, target_is_directory=True)
+            environment_directory(pool.cache, generation.id).symlink_to(configured.root, target_is_directory=True)
         elif failure == "owned":
             with store._transaction() as db:
                 db.execute(
@@ -145,7 +145,7 @@ def test_failed_generation_is_not_published(configured, monkeypatch, failure):
             )
         assert pool.selected is None
         if failure != "symlink":
-            assert not (pool.cache / generation.id / "published").exists()
+            assert not (environment_directory(pool.cache, generation.id) / "published").exists()
 
 
 def test_generation_leases_and_cleanup_refuse_wrong_ownership(configured, monkeypatch):

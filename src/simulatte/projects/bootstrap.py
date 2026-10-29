@@ -66,8 +66,10 @@ def selected_interpreter(target):
             # the project then opens in this runtime, which reports it unavailable.
             interpreter = Path(spec["interpreter"])
             return None if interpreter_of_another_project(target.root, interpreter) else interpreter
-        return (
-            root / "cache/environments" / generation["id"] / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        from simulatte.projects.environments import environment_directory
+
+        return environment_directory(root / "cache/environments", generation["id"]) / (
+            "Scripts/python.exe" if os.name == "nt" else "bin/python"
         )
     finally:
         reader.close()

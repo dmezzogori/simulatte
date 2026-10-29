@@ -28,6 +28,21 @@ from simulatte.execution.store import RunStore, _acquire, _release, _blob, _read
 from simulatte.projects.types import ConfigEdit, WorkspaceDefinition
 
 
+DIRECTORY_DIGITS = 16
+"""Hex digits of a generation id used as its directory name: the full 64 put the deepest installed files of a
+project under ``C:\\Users\\<name>\\Documents\\...`` beyond the 260-character limit of Windows paths."""
+
+
+def environment_directory(cache: Path, generation_id: str) -> Path:
+    """The directory of a managed generation under `cache` (``<store>/cache/environments``).
+
+    New generations use the first :data:`DIRECTORY_DIGITS` digits of their id. Generations prepared before
+    that change keep their full-id directory, which is used whenever it exists.
+    """
+    legacy = cache / generation_id
+    return legacy if legacy.exists() else cache / generation_id[:DIRECTORY_DIGITS]
+
+
 def environment_identity(spec):
     version = spec.get("runtime_format")
     if version not in (None, "installation-v1") or (version and spec["kind"] != "managed"):
@@ -189,7 +204,7 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
         return self._probe_installation(generation.interpreter, self.installation_bindings(generation))
 
     def installation_bindings(self, generation):
-        captured = json.loads((self.cache / generation.id / "installation.json").read_text())
+        captured = json.loads((environment_directory(self.cache, generation.id) / "installation.json").read_text())
         if _probe_identity(generation.evidence["spec"], captured) != _probe_identity(
             generation.evidence["spec"], _plain(generation.evidence)["probe"]
         ):
@@ -266,7 +281,7 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
     def _prepare_spec(self, spec, *, expected_probe=None):
         identity = environment_identity(spec)
         _directory(self.cache)
-        directory = self.cache / identity
+        directory = environment_directory(self.cache, identity)
         lock_path = self.cache / (identity + ".lock")
         if lock_path.is_symlink() or directory.is_symlink():
             raise ValueError("Environment cache path is a symlink")
@@ -282,6 +297,8 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
                     time.sleep(0.05)
             try:
                 if (directory / "published").is_file():
+                    if (directory / "published").read_text() != identity:
+                        raise ValueError("Environment cache directory belongs to another generation")
                     found = self.get(identity)
                     self._verify(found)
                     return found
@@ -365,7 +382,8 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
         interpreter = (
             Path(spec["interpreter"])
             if spec["kind"] == "existing"
-            else self.cache / identity / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            else environment_directory(self.cache, identity)
+            / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         )
         return EnvironmentGeneration(identity, interpreter, _mapping(freeze(evidence)), row["state"])
 
@@ -382,7 +400,7 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
             self.installation_probe(generation) if spec.get("runtime_format") else self._probe(generation.interpreter)
         )
         if generation.evidence["spec"]["kind"] == "managed":
-            directory = self.cache / generation.id
+            directory = environment_directory(self.cache, generation.id)
             actual["distribution_roots"] = [str(Path(p).relative_to(directory)) for p in actual["distribution_roots"]]
         if _probe_identity(spec, actual) != _probe_identity(spec, _plain(generation.evidence)["probe"]):
             raise ValueError("Environment changed after preparation; prepare a new generation")
@@ -467,7 +485,7 @@ print(json.dumps({'runtime':describe_runtime(roots),'distribution_roots':roots,
                     raise ValueError("Cannot clean up a referenced generation")
             if generation.evidence["spec"]["kind"] == "existing":
                 raise ValueError("Existing environments are managed outside Studio")
-            remove_tree(self.cache / generation_id)
+            remove_tree(environment_directory(self.cache, generation_id))
 
     def reconstruct(self, evidence):
         evidence = _plain(evidence)

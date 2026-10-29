@@ -40,7 +40,7 @@ from simulatte.projects import (
     load_workspace,
     preview_config,
 )
-from simulatte.projects.environments import EnvironmentPool
+from simulatte.projects.environments import EnvironmentPool, environment_directory
 from simulatte.projects.service import ProjectService
 from simulatte.studio.http import ImmutableFile
 from simulatte.studio.project_commands import ProjectServer
@@ -698,7 +698,7 @@ def test_environment_cleanup_refuses_owners_and_keeps_reconstruction_evidence(st
             pool.cleanup(managed.id)
         analysis.delete(execution.id)
         pool.cleanup(managed.id)
-        assert not (store.root / "cache/environments" / managed.id).exists()
+        assert not environment_directory(store.root / "cache/environments", managed.id).exists()
         # Durable reconstruction evidence stays in history; the generation rebuilds to the same identity.
         assert pool.get(managed.id).evidence == managed.evidence
         rebuilt = pool.reconstruct(managed.evidence)
