@@ -1,2 +1,11 @@
 # Committed run store fixtures are byte-exact; never convert line endings.
 tests/fixtures/stores/v1/** -text
+
+# Studio assets and the inputs of their fingerprint are checked byte for byte
+# by hatch_build.py; converting line endings (Git for Windows core.autocrlf)
+# breaks installs from git.
+src/simulatte/studio/static/** -text
+studio/** -text
+src/simulatte/layout/schema/layout-v1.schema.json -text
+src/simulatte/experiments/schema/experiment-v1.schema.json -text
+src/simulatte/presentations/schema/presentation-v1.schema.json -text
