@@ -1,0 +1,23 @@
+{
+  "cases": 72,
+  "measured_samples": 360,
+  "separate_cold_probes": 72,
+  "exact_coverage": true,
+  "observer_invariance": true,
+  "full_trace_semantic_event_state_kpi_parity": true,
+  "source_and_libraries_frozen": true,
+  "negative_checks_rejected": [
+    "case",
+    "source_sha256",
+    "libraries",
+    "trajectory_sha256",
+    "generated_sha256",
+    "decisions_sha256",
+    "source_records_sha256",
+    "trace_signature",
+    "samples"
+  ],
+  "matrix_sha256": "2730ed49ff3ad3b3013b206a9ec9f31f38ee6ec42e8fc24ef0accf3d9ae5b360",
+  "metadata_sha256": "544e60c8cd7906db97369bb734dcb4bb3ab7faf473ba54e314bf2054279071fd",
+  "analysis_sha256": "150cba729a5fbcb20bccd677476dc664b9de3d5e97052826cdee76753c881aaa"
+}

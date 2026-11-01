@@ -14,10 +14,10 @@ static uint32_t random_u32(void) {
 
 /* Return zero only when the injected allocation did not interrupt the whole
  * workload. Every error path must remain inspectable as failed and destroyable. */
-static int exercise(const char *path, size_t nth) {
+static int exercise(const char *path, size_t nth, int rich) {
     nd_test_fail_allocation(nth);
     char error[256];
-    nd_engine *e = nd_create(8, 3, 1, path ? 2 : 1, path, error, sizeof(error));
+    nd_engine *e = nd_create(8, 3, 1, path ? (rich ? 3 : 2) : 1, path, error, sizeof(error));
     if (!e) { assert(strstr(error, "allocation")); return -1; }
     uint32_t routes[8], id = 0;
     double durations[8];
@@ -214,13 +214,19 @@ int main(int argc, char **argv) {
     assert(argc == 2);
     boundaries();
     batch_boundaries();
-    assert(exercise(NULL, 0) == 0);
+    assert(exercise(NULL, 0, 0) == 0);
     size_t failure = 1;
-    while (exercise(argv[1], failure)) {
+    while (exercise(argv[1], failure, 0)) {
         assert(failure < 512);
         ++failure;
     }
     printf("dynamic sanitizer passed: %zu allocation failure positions, randomized growth and boundary cases\n", failure - 1);
+    failure = 1;
+    while (exercise(argv[1], failure, 1)) {
+        assert(failure < 512);
+        ++failure;
+    }
+    printf("rich recording sanitizer passed: %zu allocation failure positions\n", failure - 1);
     assert(exercise_batch(NULL, 0) == 0);
     failure = 1;
     while (exercise_batch(argv[1], failure)) {

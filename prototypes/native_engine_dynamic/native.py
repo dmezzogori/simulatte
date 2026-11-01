@@ -149,11 +149,11 @@ class NativeStream:
         self._last_arrival = 0.0
         self._servers = _count(servers, "servers", positive=True)
         cap = 0 if wip_cap is None else _count(wip_cap, "wip_cap", positive=True)
-        if policy not in ("fifo", "spt") or mode not in ("none", "kpi", "record"):
+        if policy not in ("fifo", "spt") or mode not in ("none", "kpi", "record", "studio"):
             raise ValueError("invalid policy or observation mode")
-        if (mode == "record") != (trace_path is not None):
+        if (mode in ("record", "studio")) != (trace_path is not None):
             raise ValueError("trace_path is required exactly in record mode")
-        path = os.fsencode(trace_path) if mode == "record" else None
+        path = os.fsencode(trace_path) if mode in ("record", "studio") else None
         if path is not None and (not path or b"\x00" in path):
             raise ValueError("invalid trace path")
         if array("d").itemsize != ct.sizeof(ct.c_double) or ct.sizeof(ct.c_double) != 8:
@@ -167,7 +167,7 @@ class NativeStream:
             servers,
             cap,
             int(policy == "spt"),
-            ("none", "kpi", "record").index(mode),
+            ("none", "kpi", "record", "studio").index(mode),
             path,
             error,
             len(error),

@@ -8,6 +8,7 @@ from prototypes.native_engine.recording import UNSET
 
 from .handles import JobHandle
 from .recording import ARRIVAL, END, FINISH, QUEUE, RELEASE, START, Writer
+from .rich_recording import REGISTER, GRANT, DEPART, Writer as RichWriter
 
 FEED_EVENT, START_EVENT, END_EVENT, ADVANCE_EVENT, DISPATCH_EVENT = range(5)
 
@@ -24,9 +25,9 @@ class ReferenceStream:
     def __init__(self, servers, *, wip_cap=None, policy="fifo", mode="none", trace_path=None):
         self.servers = count(servers, "servers")
         self.cap = None if wip_cap is None else count(wip_cap, "wip_cap")
-        if policy not in ("fifo", "spt") or mode not in ("none", "kpi", "record"):
+        if policy not in ("fifo", "spt") or mode not in ("none", "kpi", "record", "studio"):
             raise ValueError("invalid policy or mode")
-        if (mode == "record") != (trace_path is not None):
+        if (mode in ("record", "studio")) != (trace_path is not None):
             raise ValueError("trace path required exactly in record mode")
         self.policy, self.mode, self.now = policy, mode, 0.0
         self._owner, self.state = object(), "open"
@@ -41,7 +42,7 @@ class ReferenceStream:
         self.total_flow = self.total_wait = self.total_tardiness = self.pool_wait = 0.0
         self.completed = self.events = self.sequence = 0
         self.makespan = 0.0
-        self.writer = Writer(trace_path) if mode == "record" else None
+        self.writer = Writer(trace_path) if mode == "record" else RichWriter(trace_path) if mode == "studio" else None
 
     def _open(self):
         if self.state != "open":
@@ -77,6 +78,8 @@ class ReferenceStream:
             self.released.append(None)
             self.status.append("scheduled")
             self._schedule(job.arrival, FEED_EVENT, identity)
+            if self.mode == "studio":
+                self._record(REGISTER, identity)
             return JobHandle(self._owner, identity)
         except BaseException:
             self.state = "failed"
@@ -116,6 +119,8 @@ class ReferenceStream:
         index = 0 if self.policy == "fifo" else min(range(len(queue)), key=lambda i: self.durations[queue[i]])
         op = queue.pop(index)
         self.busy_server[server] = True
+        if self.mode == "studio":
+            self._record(GRANT, self.owners[op], op, server)
         self._schedule(self.now, START_EVENT, op)
 
     def _enqueue(self, op):
@@ -159,6 +164,8 @@ class ReferenceStream:
             self._schedule(self.now, ADVANCE_EVENT, op)
         else:
             self.busy_server[server] = False
+            if self.mode == "studio":
+                self._record(DEPART, job, op, server)
             self._schedule(self.now, DISPATCH_EVENT, server)
             if op + 1 < self.offsets[job + 1]:
                 self._enqueue(op + 1)

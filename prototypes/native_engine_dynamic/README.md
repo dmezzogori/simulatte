@@ -145,3 +145,45 @@ independent jobs and 1.64–1.68x with live feedback/Job creation. Margins over 
 4.90–5.15x to 1.56–1.83x. This C API candidate on PyPy improves ctypes but loses to compact PyPy at 50k
 feedback and uses materially more whole-process memory. Keep it opt-in; see the report for uncertainty
 and remaining production trace/extension gates.
+
+## Production Studio trace gate
+
+The [plan](../../specs/research/2026-11-01-native-studio-trace-plan.md) and
+[report](../../specs/research/2026-11-01-native-studio-trace.md) evaluate real production trace encoding.
+Source mode studio writes NTRC0001, an intermediate journal, and TraceStream projects it through the
+actual TraceRecorder into a .simtrace with typed production entities/events, snapshots, digest, CRCs,
+compression, KPIs and provenance. Grants/departures are captured at real execution points. Full projection
+accepts scalar registration at arrival only; it never resimulates a SimPy model or changes native state.
+
+```sh
+.venv/bin/python -m prototypes.native_engine_dynamic.trace_fixture
+cd studio
+pnpm --filter @simulatte/playback exec vitest run test/native-prototype.test.ts
+pnpm build
+pnpm exec playwright test browser/native-prototype.spec.ts
+cd ..
+.venv/bin/python -m prototypes.native_engine_dynamic.trace_benchmark matrix \
+  --output prototypes/native_engine_dynamic/trace-results \
+  --pypy prototypes/native_engine/.build/pypy-env/bin/python
+.venv/bin/python specs/research/native-engine-data/trace_analysis.py \
+  prototypes/native_engine_dynamic/trace-results
+```
+
+Regenerate the retained fixture only deliberately, before freezing sources: its bytes participate in
+study provenance. Python supplies full container/snapshot/digest checks; these APIs are not ported to
+TypeScript. The fixture verifies history, forward/backward seek, exact KPIs and scene placement in the
+TypeScript stack, and opens/steps/seeks/plays/renders in the production browser viewer.
+
+72 cases: 500/5000 historical prefixes, independent/feedback, none/rich raw/full trace,
+compiled/reference/tuned, CPython/PyPy. All bridge/intermediate I/O and writer shutdown count. Default
+count/byte/pending limits, latency disabled for deterministic chunks. Every full repetition checks CRCs
+and normalized deterministic wire content; first/cold iterations fully check reconstruction/digest and
+expected events/states/KPIs. Compare semantic signatures across interpreters, not volatile file bytes.
+This bridge is not a direct native serializer ceiling. Live delivery, general integration and 50k full
+trace scaling remain unproven. Prior measured binaries are archived in ignored .build/pre-studio-0f20924.
+
+The completed gate passes real file compatibility and replay/browser checks, but not a useful native
+margin through this bridge. At 5k, full native CPython takes 2.13/1.58 s independent/feedback versus
+compact PyPy 1.83/1.48 s (0.85x/0.94x throughput). Relative to compact CPython it gains only 1.02x/1.03x.
+The kernel still helps untraced/rich-raw work; keep it experimental and address trace architecture or
+product needs before broader integration. No further kernel/binding/batch tuning here.

@@ -5,6 +5,7 @@ import heapq
 
 from .reference import ReferenceStream, START_EVENT
 from .recording import QUEUE
+from .rich_recording import GRANT
 
 
 class TunedStream(ReferenceStream):
@@ -31,4 +32,6 @@ class TunedStream(ReferenceStream):
             return
         op = queue.popleft() if self.policy == "fifo" else heapq.heappop(queue)[2]
         self.busy_server[server] = True
+        if self.mode == "studio":
+            self._record(GRANT, self.owners[op], op, server)
         self._schedule(self.now, START_EVENT, op)

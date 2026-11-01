@@ -113,3 +113,19 @@ explicit; this is not the static prototype format or production Studio tracing.
   construction, registration/advance/run, detached extraction and close/GC. Include cold/RSS separately.
   Preserve source/library/input hashes, commands, raw samples and uncertainty. No hidden registration
   costs or comparison of ConWIP results to an immediate-release baseline as equivalent work.
+
+## Production trace projection gate
+
+The [trace study](../../specs/research/2026-11-01-native-studio-trace-plan.md) adds opt-in source mode
+studio. Raw NTRC0001 keeps 32-byte framing, adding REGISTER(7), GRANT(8), DEPART(9) at actual admission,
+server reservation and departure execution points. Source records count 4 per job plus 5 per operation.
+Existing modes keep their behavior. Rich recording accepts future/bulk jobs; full TraceStream projection
+is limited to scalar registration at arrival, matching the two measured producers.
+
+TraceStream projects available complete records into actual production kinds/events through the unchanged
+TraceRecorder. A separate empty-calendar Environment consumes validated source times without running
+model processes or feeding state back. Final SIMTRACE 1.3 includes snapshots/deltas/digest/CRC/zlib/index/
+footer/manifest/KPIs. Source queue order and actual SPT removals are represented, not a claim of identical
+micro-event ordering to SimPy's scheduler. Intermediate I/O, shadow state and complete writer close are
+timed. Record buffering can defer projection; completed-file compatibility is not bounded live delivery
+or managed Studio integration. Latency sealing is disabled; other production limits remain unchanged.

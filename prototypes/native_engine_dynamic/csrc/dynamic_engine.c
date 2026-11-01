@@ -127,7 +127,7 @@ static int flush_records(nd_engine *e) {
 }
 
 static int record(nd_engine *e, uint32_t kind, uint32_t job, uint32_t op, uint32_t server) {
-    if (e->mode != 2) return 0;
+    if (e->mode < 2) return 0;
     if (e->result.records == UINT64_MAX) return fail(e, "record sequence overflow");
     if (e->record_used + 32 > RECORD_BUFFER_SIZE && flush_records(e)) return -1;
     unsigned char *p = e->record_buffer + e->record_used;
@@ -171,6 +171,7 @@ static int grant(nd_engine *e, uint32_t server) {
     if (e->tail[server] == chosen) e->tail[server] = previous;
     e->next[chosen] = NONE;
     e->occupied[server] = 1;
+    if (e->mode == 3 && record(e, 8, e->job_of[chosen], chosen, server)) return -1;
     return schedule(e, e->now, START, chosen);
 }
 
@@ -256,6 +257,7 @@ static int process(nd_engine *e, event ev) {
         return schedule(e, e->now, ADVANCE, op);
     }
     e->occupied[server] = 0;
+    if (e->mode == 3 && record(e, 9, job, op, server)) return -1;
     if (schedule(e, e->now, RELEASE_DISPATCH, server)) return -1;
     if (op + 1 < e->offsets[job + 1]) return enqueue(e, op + 1);
     e->finished[job] = e->now;
@@ -349,6 +351,7 @@ int nd_add(nd_engine *e, double arrival, double due, uint32_t count,
     if (schedule(e, arrival, ARRIVAL, job)) return -1;
     ++e->jobs;
     e->operations += count;
+    if (e->mode == 3 && record(e, 7, job, NONE, NONE)) return -1;
     *id = job;
     return 0;
 }
@@ -388,7 +391,7 @@ nd_engine *nd_create(uint32_t servers, uint32_t cap, int policy, int mode,
         return NULL;
     }
     if (!servers || servers == NONE || cap == NONE || (policy != 0 && policy != 1) ||
-        mode < 0 || mode > 2 || ((mode == 2) != (path != NULL)) || (path && !*path)) {
+        mode < 0 || mode > 3 || ((mode >= 2) != (path != NULL)) || (path && !*path)) {
         (void)fail(e, "invalid server count, cap, policy, mode or record path");
         goto failure;
     }
@@ -401,14 +404,14 @@ nd_engine *nd_create(uint32_t servers, uint32_t cap, int policy, int mode,
     if (!e->field) goto failure; \
 } while (0)
     ALLOC(head, servers); ALLOC(tail, servers); ALLOC(occupied, servers); ALLOC(busy, servers);
-    if (mode == 2) { ALLOC(record_buffer, RECORD_BUFFER_SIZE); }
+    if (mode >= 2) { ALLOC(record_buffer, RECORD_BUFFER_SIZE); }
 #undef ALLOC
     for (uint32_t s = 0; s < servers; ++s) e->head[s] = e->tail[s] = NONE;
-    if (mode == 2) {
+    if (mode >= 2) {
         e->file = fopen(path, "wb");
         if (!e->file) { (void)fail(e, "cannot open record file"); goto failure; }
         (void)setvbuf(e->file, NULL, _IONBF, 0);
-        memcpy(e->record_buffer, "NDYN0001", 8);
+        memcpy(e->record_buffer, mode == 3 ? "NTRC0001" : "NDYN0001", 8);
         e->record_used = 8;
     }
     return e;
@@ -441,7 +444,7 @@ int nd_run(nd_engine *e) {
     if (drain(e, INFINITY)) return -1;
     if (e->result.completed != e->jobs || e->dispatched != e->operations || e->floor_wip || e->pool_size)
         return fail(e, "incomplete simulation");
-    if (e->mode == 2 && (flush_records(e) || fflush(e->file))) return fail(e, "record flush failed");
+    if (e->mode >= 2 && (flush_records(e) || fflush(e->file))) return fail(e, "record flush failed");
     e->result.starts = e->starts;
     e->result.ends = e->ends;
     e->result.finished = e->finished;

@@ -28,16 +28,16 @@ class CompiledStream:
         self._lock, self._owner = RLock(), object()
         servers = _count(servers, "servers", positive=True)
         cap = 0 if wip_cap is None else _count(wip_cap, "wip_cap", positive=True)
-        if policy not in ("fifo", "spt") or mode not in ("none", "kpi", "record"):
+        if policy not in ("fifo", "spt") or mode not in ("none", "kpi", "record", "studio"):
             raise ValueError("invalid policy or observation mode")
-        if (mode == "record") != (trace_path is not None):
+        if (mode in ("record", "studio")) != (trace_path is not None):
             raise ValueError("trace_path is required exactly in record mode")
         path = os.fsencode(trace_path) if trace_path is not None else None
         if path is not None and (not path or b"\x00" in path):
             raise ValueError("invalid trace path")
         self._module = extension()
         self._engine = self._module.create(
-            servers, cap, int(policy == "spt"), ("none", "kpi", "record").index(mode), path
+            servers, cap, int(policy == "spt"), ("none", "kpi", "record", "studio").index(mode), path
         )
 
     def _check(self):
