@@ -1,0 +1,43 @@
+{
+  "cases_per_phase": 24,
+  "measured_samples": 240,
+  "separate_cold_probes": 48,
+  "exact_coverage": true,
+  "all_fingerprints_and_counters_match": true,
+  "unchanged_release_library": true,
+  "changed_measured_sources": [
+    "prototypes/native_engine/native.py"
+  ],
+  "before_sha256": "c1cb020759c3fa085717d64dc1bb102e2d80ec2e1f06e53e9e0094e54e480083",
+  "after_sha256": "7786ad0814ee790e238a6abc88b53bfa9d4d0313639e1eebf6891748d29fb529",
+  "metadata_sha256": "bc6f117912ffc4fb9b5ede4327f9e2dd34b771654743133a5467df444ee13128",
+  "analysis_sha256": "d4e2c137418d35d6f3c0faf83dcdea7876ea14a8e001a42e8e686b38c02bddb5",
+  "checks": {
+    "baseline_tests": {
+      "CPython": 81,
+      "PyPy": 81
+    },
+    "optimized_tests": {
+      "CPython": 111,
+      "PyPy": 111
+    },
+    "pypy_warnings": "two existing missing pytest-timeout config warnings",
+    "asan_ubsan": "passed boundaries, 120 randomized lifecycles, allocation faults",
+    "ruff_check": "passed",
+    "ruff_format": "24 files already formatted",
+    "production_suite": "not rerun; no production changes",
+    "analysis_rejects_corrupt_evidence": [
+      "duplicate case",
+      "trajectory fingerprint",
+      "library metadata mismatch"
+    ],
+    "protected_diff": "empty against 2c2dfd2",
+    "independent_review": "one read-only review: P2 buffer-length/count mismatch reproduced (4 failing tests), fixed (4 passing), full suites 111 each; macOS report version corrected to 27.2",
+    "timing_controls_drift_percent": [
+      -0.17737891545541729,
+      2.4111630183641486
+    ],
+    "documentation_links": "17 local links resolve; fences balanced",
+    "git_diff_check": "clean"
+  }
+}

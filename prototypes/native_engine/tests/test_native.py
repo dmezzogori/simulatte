@@ -1,5 +1,6 @@
 """Focused native boundary and lifecycle tests (the common suite checks parity)."""
 
+import gc
 import math
 import os
 import random
@@ -12,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from prototypes.native_engine.native import NativeRunner
+from prototypes.native_engine.model import Job, Workload
 
 
 def workload(rows=(), servers=1):
@@ -55,8 +57,9 @@ def test_hand_derived(policy, starts, dispatch):
         runner.result()
 
 
-def test_empty_and_lifecycle():
-    runner = NativeRunner(workload())
+@pytest.mark.parametrize("typed", [False, True])
+def test_empty_and_lifecycle(typed):
+    runner = NativeRunner(Workload(1, ()) if typed else workload())
     with pytest.raises(RuntimeError):
         runner.result()
     runner.run()
@@ -70,6 +73,78 @@ def test_empty_and_lifecycle():
     never_run.close()
     with pytest.raises(RuntimeError):
         never_run.run()
+
+
+@pytest.mark.parametrize("policy", ["fifo", "spt"])
+@pytest.mark.parametrize("mode", ["none", "kpi", "record"])
+def test_typed_and_checked_workloads_match(tmp_path, policy, mode):
+    class DerivedWorkload(Workload):
+        pass
+
+    class DerivedJob(Job):
+        pass
+
+    data = sample()
+    jobs = tuple(Job(**vars(job)) for job in data.jobs)
+    variants = (
+        data,
+        Workload(1, jobs),
+        DerivedWorkload(1, jobs),
+        Workload(1, tuple(DerivedJob(**vars(job)) for job in data.jobs)),
+    )
+    results, recordings = [], []
+    for index, variant in enumerate(variants):
+        path = tmp_path / f"{index}.bin" if mode == "record" else None
+        runner = NativeRunner(variant, policy=policy, mode=mode, trace_path=path)
+        try:
+            runner.run()
+            results.append(runner.result())
+        finally:
+            runner.close()
+        if path is not None:
+            recordings.append(path.read_bytes())
+    assert all(result == results[0] for result in results)
+    assert results[0]["starts"] == ([0.0, 3.0, 5.0] if policy == "fifo" else [0.0, 4.0, 3.0])
+    assert all(recording == recordings[0] for recording in recordings)
+
+
+def test_input_storage_is_owned_after_construction():
+    data = Workload(1, (Job(0, (0,), (3,), 2),))
+    runner = NativeRunner(data)
+    del data
+    gc.collect()
+    try:
+        runner.run()
+        result = runner.result()
+        assert result["starts"] == [0.0]
+        assert result["ends"] == result["finished"] == [3.0]
+        assert result["dispatch"] == [0]
+    finally:
+        runner.close()
+
+
+@pytest.mark.parametrize("mode", ["none", "kpi", "record"])
+@pytest.mark.parametrize("empty", [False, True])
+def test_result_lists_survive_close_and_are_independent(tmp_path, mode, empty):
+    data = Workload(1, () if empty else (Job(0, (0,), (3,), 2),))
+    runner = NativeRunner(data, mode=mode, trace_path=tmp_path / "result.bin" if mode == "record" else None)
+    try:
+        runner.run()
+        first, second, expected = runner.result(), runner.result(), runner.result()
+        for key in ("starts", "ends", "finished", "dispatch"):
+            assert type(first[key]) is list
+            first[key][:] = [999]
+        if mode != "none":
+            assert type(first["kpis"]["busy"]) is list
+            first["kpis"]["busy"][:] = [999]
+        assert second == expected == runner.result()
+    finally:
+        runner.close()
+    del runner
+    gc.collect()
+    assert second == expected
+    assert second["starts"] == ([] if empty else [0.0])
+    assert second["ends"] == second["finished"] == ([] if empty else [3.0])
 
 
 def test_hook_and_record(tmp_path):
@@ -127,6 +202,14 @@ def test_hook_exception_preserved():
     [
         ([], 0),
         ([], True),
+        ([], 0xFFFFFFFF),
+        ([], 2**40),
+        ([(True, [0], [1], 0)], 1),
+        ([(0, [0], [True], 0)], 1),
+        ([(0, [0], [1], True)], 1),
+        ([(0, [-1], [1], 0)], 1),
+        ([(0, [0xFFFFFFFF], [1], 0)], 1),
+        ([(0, [2**40], [1], 0)], 1),
         ([(math.nan, [0], [1], 0)], 1),
         ([(0, [], [], 0)], 1),
         ([(0, [1], [1], 0)], 1),
@@ -330,6 +413,36 @@ def test_bad_paths_and_metadata(tmp_path):
     data = sample()
     data.operation_count += 1
     with pytest.raises(ValueError):
+        NativeRunner(data)
+
+
+@pytest.mark.parametrize("count", [-1, 0xFFFFFFFF, 2**40, True])
+def test_invalid_operation_count(count):
+    data = sample()
+    data.operation_count = count
+    with pytest.raises((TypeError, ValueError)):
+        NativeRunner(data)
+
+
+@pytest.mark.parametrize(
+    "field,reported,actual", [("jobs", 2, 1), ("jobs", 0, 1), ("durations", 1, 0), ("durations", 1, 2)]
+)
+def test_inconsistent_container_lengths_rejected_before_c(monkeypatch, field, reported, actual):
+    class Miscounted(list):
+        def __len__(self):
+            return reported
+
+    def unsafe_library_load():
+        raise AssertionError("inconsistent input must be rejected before calling C")
+
+    # Do not enter C with undersized buffers, even in a regression test.
+    monkeypatch.setattr("prototypes.native_engine.native._load_library", unsafe_library_load)
+    data = workload([(0, [0], [1], 0)])
+    if field == "jobs":
+        data.jobs = Miscounted(data.jobs)
+    else:
+        data.jobs[0].durations = Miscounted([1] * actual)
+    with pytest.raises(ValueError, match="lengths"):
         NativeRunner(data)
 
 

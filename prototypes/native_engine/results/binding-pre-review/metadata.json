@@ -1,0 +1,219 @@
+{
+  "before": {
+    "git_revision": "2c2dfd25fc41f8a7b9bebea9daee3f71ca371b24",
+    "git_status": "?? specs/research/2026-11-01-native-engine-bindings-plan.md",
+    "source_sha256": "48ae419d1a6b4d1794c5ee1f61cfb1534aa1a15d84de684262c006a20bd465b1",
+    "files": {
+      "prototypes/native_engine/analyze.py": "9e61fb419286ede490f9f154fa4422359cfe9469cd4fccc08b49f3660dca3d11",
+      "prototypes/native_engine/baseline.py": "fedbcdc2301da868ecc1d75b417e964c62c807baf2e8e1b1a1e544f0375a21d8",
+      "prototypes/native_engine/benchmark.py": "bb08c822d8c0a5bc9ee9234ae1b2158c56fc59065992116d20e9f01d4a927577",
+      "prototypes/native_engine/build.py": "52af16e61c5b6de181d6514e083e5225bf186e9774e1af90d0f88fb3484f0ade",
+      "prototypes/native_engine/csrc/native_engine.c": "3ef9ff3a8a7722d0a35e0aa1001bdc0e9f7801135dd0404be493cd3801ea4ec7",
+      "prototypes/native_engine/csrc/native_engine.h": "aab5e20dcb57a62c45fb5c96f1955a41be8381a19b21a77311af5ed4271005af",
+      "prototypes/native_engine/model.py": "bd6f81455a683d47f1c8964cdd845df408e21f722554be02bdbfcbbac830150f",
+      "prototypes/native_engine/native.py": "ae7923e6c822f9d0e23966f621a641cdc2802835ef2a009a0c955701ce3c2c04",
+      "prototypes/native_engine/recording.py": "5a37000a9e32b2d629d4734103cd128cba0faae90d6032563e2a26222f07d476",
+      "prototypes/native_engine/reference.py": "a8a6a844db42d8c1bf06fceb06928a26086738cd646a64587b6bf8aed19b5c13",
+      "prototypes/native_engine/tuned.py": "1f03357fca709a48efa3e36f95ad207e8d931aa2c74f6b6a3ea1482631a30178",
+      "prototypes/native_engine/validation.py": "821c597806a2504d33e32b4f50a94ca1115cb4ee32f686a955917be71d5a91fc",
+      "prototypes/native_engine/workloads.py": "1490e36d0f61d0edc58c0895e9b1478bfeed9fd21560f7c86a632eb8b188fbf1"
+    },
+    "library_sha256": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+    "inputs": {
+      "jobs-5000-load-0.5.json": "9f62297959c8e889140aac6ed469c24f989132f9fcb73e0aa897dbcd22b65e9d",
+      "jobs-5000-load-0.95.json": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "jobs-50000-load-0.5.json": "04bbd870a60f47b2980d30cd5641421b6d88709b4a4a922693b6defed05c8017",
+      "jobs-50000-load-0.95.json": "2e45f12f28e425c4614aff714ceb35902bb64ced1b1878dde82e5b086926565b"
+    },
+    "platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+    "hardware": "Apple M4 Pro\n12\n51539607552",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.4.1.1)\nTarget: arm64-apple-darwin27.2.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+    "flags": [
+      "-std=c17",
+      "-Wall",
+      "-Wextra",
+      "-Wpedantic",
+      "-Werror",
+      "-O3",
+      "-fPIC",
+      "-dynamiclib"
+    ],
+    "cpython": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+    "pypy": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+    "dependencies": "anyio==4.15.1\nattrs==26.1.0\ncertifi==2026.7.22\ncfgv==3.5.0\nclick==8.5.0\ncloudpickle==3.1.2\ncontourpy==1.4.0\ncoverage==7.16.2\ncycler==0.12.1\ndeepmerge==3.0.1\ndistlib==0.4.3\nfarama-notifications==0.0.6\nfilelock==4.0.12\nfonttools==4.66.1\nghp-import==2.1.0\ngriffelib==2.3.2\ngymnasium==1.4.0\nh11==0.16.0\nhatchling==1.32.4\nhttpcore==1.0.9\nhttpx==0.28.1\nidentify==2.6.20\nidna==3.20\niniconfig==2.3.1\njinja2==3.1.6\njsonschema==4.26.0\njsonschema-specifications==2025.9.1\nkiwisolver==1.5.1\nmarkdown==3.11\nmarkupsafe==3.0.4\nmatplotlib==3.11.2\nmergedeep==1.3.4\nmkdocs==1.6.1\nmkdocs-autorefs==1.4.4\nmkdocs-get-deps==0.2.2\nmkdocstrings==1.0.6\nmkdocstrings-python==2.0.9\nmsgpack==1.2.3\nnodeenv==1.11.0\nnumpy==2.5.3\npackaging==26.3\npathspec==1.1.1\npillow==12.3.0\nplatformdirs==4.12.3\npluggy==1.6.0\npre-commit==4.7.0\npygments==2.21.0\npymdown-extensions==12.1\npyparsing==3.3.3\npytest==9.1.1\npytest-cov==7.1.0\npytest-timeout==2.4.0\npython-dateutil==2.9.0.post0\npython-discovery==1.6.1\npyyaml==6.0.3\npyyaml-env-tag==1.1\nreferencing==0.37.0\nrpds-py==2026.9.1\nruff==0.17.2\nsimpy==4.1.2\n-e file:///Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility\nsix==1.17.0\nstarlette==1.10.0\ntabulate==0.10.0\ntomli==2.4.1\ntomlkit==0.15.1\ntqdm==4.70.1\ntrove-classifiers==2026.9.21.13\nty==0.0.91\ntyping-extensions==4.16.0\nuvicorn==0.54.0\nvirtualenv==21.14.5\nwatchdog==6.0.0\nwatchfiles==1.3.0\nwebsockets==17.2\nzensical==0.0.73",
+    "pypy_dependencies": "iniconfig==2.3.1\nmsgpack==1.2.3\npackaging==26.3\npluggy==1.7.0\npygments==2.21.0\npytest==9.1.1\nsimpy==4.1.2\n-e file:///Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility\ntabulate==0.10.0\ntqdm==4.70.1"
+  },
+  "method": {
+    "jobs": 50000,
+    "load": 0.95,
+    "policy": "spt",
+    "modes": [
+      "none",
+      "record"
+    ],
+    "hooks": [
+      "builtin",
+      "python"
+    ],
+    "backends": [
+      "reference",
+      "tuned",
+      "native"
+    ],
+    "interpreters": [
+      "CPython",
+      "PyPy"
+    ],
+    "warmups": {
+      "CPython": 1,
+      "PyPy": 7
+    },
+    "samples_per_case": 5,
+    "separate_cold_probes": true,
+    "serial": true,
+    "list_materialization_in_timing": true
+  },
+  "after": {
+    "git_revision": "2c2dfd25fc41f8a7b9bebea9daee3f71ca371b24",
+    "git_status": "M prototypes/native_engine/native.py\n M prototypes/native_engine/tests/test_native.py\n?? prototypes/native_engine/results/binding-before.jsonl\n?? prototypes/native_engine/results/binding-metadata.json\n?? specs/research/2026-11-01-native-engine-bindings-plan.md",
+    "source_sha256": "8c29d7471233883e532d95d632f97d658cffae9128d7b72acdc6c199eec3c566",
+    "files": {
+      "prototypes/native_engine/analyze.py": "9e61fb419286ede490f9f154fa4422359cfe9469cd4fccc08b49f3660dca3d11",
+      "prototypes/native_engine/baseline.py": "fedbcdc2301da868ecc1d75b417e964c62c807baf2e8e1b1a1e544f0375a21d8",
+      "prototypes/native_engine/benchmark.py": "bb08c822d8c0a5bc9ee9234ae1b2158c56fc59065992116d20e9f01d4a927577",
+      "prototypes/native_engine/build.py": "52af16e61c5b6de181d6514e083e5225bf186e9774e1af90d0f88fb3484f0ade",
+      "prototypes/native_engine/csrc/native_engine.c": "3ef9ff3a8a7722d0a35e0aa1001bdc0e9f7801135dd0404be493cd3801ea4ec7",
+      "prototypes/native_engine/csrc/native_engine.h": "aab5e20dcb57a62c45fb5c96f1955a41be8381a19b21a77311af5ed4271005af",
+      "prototypes/native_engine/model.py": "bd6f81455a683d47f1c8964cdd845df408e21f722554be02bdbfcbbac830150f",
+      "prototypes/native_engine/native.py": "9754792ad278e2ac688962a937efc9fa192f221da91ff7cb9728645ef783fadb",
+      "prototypes/native_engine/recording.py": "5a37000a9e32b2d629d4734103cd128cba0faae90d6032563e2a26222f07d476",
+      "prototypes/native_engine/reference.py": "a8a6a844db42d8c1bf06fceb06928a26086738cd646a64587b6bf8aed19b5c13",
+      "prototypes/native_engine/tuned.py": "1f03357fca709a48efa3e36f95ad207e8d931aa2c74f6b6a3ea1482631a30178",
+      "prototypes/native_engine/validation.py": "821c597806a2504d33e32b4f50a94ca1115cb4ee32f686a955917be71d5a91fc",
+      "prototypes/native_engine/workloads.py": "1490e36d0f61d0edc58c0895e9b1478bfeed9fd21560f7c86a632eb8b188fbf1"
+    },
+    "library_sha256": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+    "inputs": {
+      "jobs-5000-load-0.5.json": "9f62297959c8e889140aac6ed469c24f989132f9fcb73e0aa897dbcd22b65e9d",
+      "jobs-5000-load-0.95.json": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "jobs-50000-load-0.5.json": "04bbd870a60f47b2980d30cd5641421b6d88709b4a4a922693b6defed05c8017",
+      "jobs-50000-load-0.95.json": "2e45f12f28e425c4614aff714ceb35902bb64ced1b1878dde82e5b086926565b"
+    },
+    "platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+    "hardware": "Apple M4 Pro\n12\n51539607552",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.4.1.1)\nTarget: arm64-apple-darwin27.2.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+    "flags": [
+      "-std=c17",
+      "-Wall",
+      "-Wextra",
+      "-Wpedantic",
+      "-Werror",
+      "-O3",
+      "-fPIC",
+      "-dynamiclib"
+    ],
+    "cpython": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+    "pypy": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+    "dependencies": "anyio==4.15.1\nattrs==26.1.0\ncertifi==2026.7.22\ncfgv==3.5.0\nclick==8.5.0\ncloudpickle==3.1.2\ncontourpy==1.4.0\ncoverage==7.16.2\ncycler==0.12.1\ndeepmerge==3.0.1\ndistlib==0.4.3\nfarama-notifications==0.0.6\nfilelock==4.0.12\nfonttools==4.66.1\nghp-import==2.1.0\ngriffelib==2.3.2\ngymnasium==1.4.0\nh11==0.16.0\nhatchling==1.32.4\nhttpcore==1.0.9\nhttpx==0.28.1\nidentify==2.6.20\nidna==3.20\niniconfig==2.3.1\njinja2==3.1.6\njsonschema==4.26.0\njsonschema-specifications==2025.9.1\nkiwisolver==1.5.1\nmarkdown==3.11\nmarkupsafe==3.0.4\nmatplotlib==3.11.2\nmergedeep==1.3.4\nmkdocs==1.6.1\nmkdocs-autorefs==1.4.4\nmkdocs-get-deps==0.2.2\nmkdocstrings==1.0.6\nmkdocstrings-python==2.0.9\nmsgpack==1.2.3\nnodeenv==1.11.0\nnumpy==2.5.3\npackaging==26.3\npathspec==1.1.1\npillow==12.3.0\nplatformdirs==4.12.3\npluggy==1.6.0\npre-commit==4.7.0\npygments==2.21.0\npymdown-extensions==12.1\npyparsing==3.3.3\npytest==9.1.1\npytest-cov==7.1.0\npytest-timeout==2.4.0\npython-dateutil==2.9.0.post0\npython-discovery==1.6.1\npyyaml==6.0.3\npyyaml-env-tag==1.1\nreferencing==0.37.0\nrpds-py==2026.9.1\nruff==0.17.2\nsimpy==4.1.2\n-e file:///Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility\nsix==1.17.0\nstarlette==1.10.0\ntabulate==0.10.0\ntomli==2.4.1\ntomlkit==0.15.1\ntqdm==4.70.1\ntrove-classifiers==2026.9.21.13\nty==0.0.91\ntyping-extensions==4.16.0\nuvicorn==0.54.0\nvirtualenv==21.14.5\nwatchdog==6.0.0\nwatchfiles==1.3.0\nwebsockets==17.2\nzensical==0.0.73",
+    "pypy_dependencies": "iniconfig==2.3.1\nmsgpack==1.2.3\npackaging==26.3\npluggy==1.7.0\npygments==2.21.0\npytest==9.1.1\nsimpy==4.1.2\n-e file:///Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility\ntabulate==0.10.0\ntqdm==4.70.1"
+  },
+  "commands": {
+    "before": [
+      "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/.venv/bin/python",
+      "-m",
+      "prototypes.native_engine.benchmark",
+      "matrix",
+      "--output",
+      "prototypes/native_engine/results/binding-before.jsonl",
+      "--jobs",
+      "50000",
+      "--loads",
+      "0.95",
+      "--policies",
+      "spt",
+      "--modes",
+      "none",
+      "record",
+      "--hooks",
+      "builtin",
+      "python",
+      "--backends",
+      "reference",
+      "tuned",
+      "native",
+      "--pypy",
+      "prototypes/native_engine/.build/pypy-env/bin/python",
+      "--pypy-backends",
+      "reference",
+      "tuned",
+      "native",
+      "--warmups",
+      "1",
+      "--pypy-warmups",
+      "7",
+      "--repeats",
+      "5"
+    ],
+    "after": [
+      "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/.venv/bin/python",
+      "-m",
+      "prototypes.native_engine.benchmark",
+      "matrix",
+      "--output",
+      "prototypes/native_engine/results/binding-after.jsonl",
+      "--jobs",
+      "50000",
+      "--loads",
+      "0.95",
+      "--policies",
+      "spt",
+      "--modes",
+      "none",
+      "record",
+      "--hooks",
+      "builtin",
+      "python",
+      "--backends",
+      "reference",
+      "tuned",
+      "native",
+      "--pypy",
+      "prototypes/native_engine/.build/pypy-env/bin/python",
+      "--pypy-backends",
+      "reference",
+      "tuned",
+      "native",
+      "--warmups",
+      "1",
+      "--pypy-warmups",
+      "7",
+      "--repeats",
+      "5"
+    ]
+  },
+  "checks": {
+    "baseline_tests": {
+      "CPython": 81,
+      "PyPy": 81
+    },
+    "optimized_tests": {
+      "CPython": 107,
+      "PyPy": 107
+    },
+    "pypy_warnings": "two existing missing pytest-timeout config warnings",
+    "asan_ubsan": "passed boundaries, 120 randomized lifecycles, allocation faults",
+    "ruff_check": "passed",
+    "ruff_format": "22 files already formatted",
+    "production_suite": "not rerun; no production changes",
+    "analysis_rejects_corrupt_evidence": [
+      "duplicate case",
+      "trajectory fingerprint",
+      "library metadata mismatch"
+    ],
+    "protected_diff": "empty against 2c2dfd2",
+    "timing_controls_drift_percent": [
+      0.674857093667125,
+      4.338871349792561
+    ]
+  }
+}

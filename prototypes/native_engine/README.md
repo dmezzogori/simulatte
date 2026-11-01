@@ -4,6 +4,12 @@ An isolated feasibility experiment, not an installed Simulatte API. Production c
 unchanged. See [CONTRACT.md](CONTRACT.md), [OPTIMIZATIONS.md](OPTIMIZATIONS.md), and the
 [evaluation report](../../specs/research/2026-10-15-native-engine-prototype.md).
 
+The [binding-only follow-up](../../specs/research/2026-11-01-native-engine-bindings.md) retains the same C
+engine and detached-list API, with buffer-backed input conversion and bulk result extraction. Its fresh
+24-case before/after study is separate from the historical 384-case evidence below: CPython native built-ins
+improve 3.07x without recording and 2.85x with recording for 50k/.95/SPT, reaching 6.89x / 7.02x the fastest
+compact PyPy baseline. Python hooks remain roughly at parity or slower than that baseline.
+
 The four backends share inputs and results: actual current Simulatte with observation adapters; a small
 five-phase Python reference; the reference with specialized Python queues; and independent C17 state,
 calendar, resources, operation transitions, KPIs and recording, exposed with ctypes. Python authoring
@@ -61,7 +67,8 @@ them. An interrupted run can resume into its existing output if source hashes ma
 source changes. The completed raw evidence is `results/final-matrix.jsonl`; CSV gives per-case medians.
 
 Generation/parsing, imports and common input-model validation are outside timing. Native boundary
-revalidation remains inside its constructor. Model lowering/build, run, detached
+checks remain inside its constructor; the binding follow-up skips redundant element checks only for exact
+validated Workload/Job objects, preserving checked duck-typed/subclass handling. Model lowering/build, run, detached
 Python extraction and close are inside. Close includes explicit cyclic garbage collection. Recording flushes
 at successful run completion; close releases the file. Writes are buffered OS writes, without fsync or
 durability guarantees. All modes collect trajectories, including `none`. Memory is absolute process peak

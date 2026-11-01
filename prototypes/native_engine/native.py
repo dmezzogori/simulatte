@@ -13,9 +13,11 @@ from __future__ import annotations
 import ctypes as ct
 import os
 import operator
+from array import array
 from threading import RLock
 
 from .build import LIBRARY
+from .model import Job, Workload
 
 _U32 = ct.c_uint32
 _U64 = ct.c_uint64
@@ -107,6 +109,14 @@ def _number(value):
         raise ValueError("time or duration is outside binary64 range") from error
 
 
+def _copy_list(pointer, count, typecode):
+    if not count:
+        return []
+    buffer = array(typecode, [0]) * count
+    ct.memmove(buffer.buffer_info()[0], pointer, count * buffer.itemsize)
+    return buffer.tolist()
+
+
 def _raise_native(message):
     text = message.decode("utf-8", errors="replace")
     if "allocation" in text:
@@ -138,23 +148,47 @@ class NativeRunner:
         self._servers = _count(workload.servers, "servers", positive=True)
         self._jobs = _count(len(workload.jobs), "jobs")
         self._operations = _count(workload.operation_count, "operation_count")
+        if array("d").itemsize != ct.sizeof(ct.c_double) or ct.sizeof(ct.c_double) != 8:
+            raise RuntimeError("native binding requires matching binary64 double buffers")
+        if array("I").itemsize != ct.sizeof(_U32) or ct.sizeof(_U32) != 4:
+            raise RuntimeError("native binding requires matching uint32 buffers")
         arrivals, due, offsets, routes, durations = [], [], [0], [], []
-        for job in workload.jobs:
-            arrivals.append(_number(job.arrival))
-            due.append(_number(job.due))
-            if len(job.route) != len(job.durations):
-                raise ValueError("route and duration lengths differ")
-            routes.extend(_count(server, "route server") for server in job.route)
-            durations.extend(_number(duration) for duration in job.durations)
-            offsets.append(_count(len(routes), "operation offset"))
-        if len(routes) != self._operations:
-            raise ValueError("operation_count does not match routes")
-        # These temporary arrays are live through create, which validates and copies.
-        c_arrivals = (ct.c_double * self._jobs)(*arrivals)
-        c_due = (ct.c_double * self._jobs)(*due)
-        c_offsets = (_U32 * (self._jobs + 1))(*offsets)
-        c_routes = (_U32 * self._operations)(*routes)
-        c_durations = (ct.c_double * self._operations)(*durations)
+        if type(workload) is Workload and all(type(job) is Job for job in workload.jobs):
+            # Frozen model instances have already validated and normalized their values.
+            for job in workload.jobs:
+                arrivals.append(job.arrival)
+                due.append(job.due)
+                routes.extend(job.route)
+                durations.extend(job.durations)
+                offsets.append(len(routes))
+        else:
+            # Preserve the checked boundary for duck-typed inputs and subclasses.
+            for job in workload.jobs:
+                arrivals.append(_number(job.arrival))
+                due.append(_number(job.due))
+                if len(job.route) != len(job.durations):
+                    raise ValueError("route and duration lengths differ")
+                routes.extend(_count(server, "route server") for server in job.route)
+                durations.extend(_number(duration) for duration in job.durations)
+                offsets.append(_count(len(routes), "operation offset"))
+        if not (
+            len(arrivals) == len(due) == self._jobs
+            and len(offsets) == self._jobs + 1
+            and len(routes) == len(durations) == self._operations
+        ):
+            raise ValueError("lowered input lengths do not match native counts")
+        # Buffer-backed views stay alive through create, which validates and copies.
+        buffers = (
+            array("d", arrivals),
+            array("d", due),
+            array("I", offsets),
+            array("I", routes),
+            array("d", durations),
+        )
+        c_arrivals, c_due, c_offsets, c_routes, c_durations = (
+            (ctype * len(buffer)).from_buffer(buffer)
+            for ctype, buffer in zip((ct.c_double, ct.c_double, _U32, _U32, ct.c_double), buffers)
+        )
         inputs = _Input(
             self._servers, self._jobs, self._operations, c_arrivals, c_due, c_offsets, c_routes, c_durations
         )
@@ -217,10 +251,10 @@ class NativeRunner:
                 raise RuntimeError("result requires a successful, open runner")
             view = self._library.ne_get_result(self._engine).contents
             return {
-                "starts": list(view.starts[: self._operations]),
-                "ends": list(view.ends[: self._operations]),
-                "finished": list(view.finished[: self._jobs]),
-                "dispatch": list(view.dispatch[: self._operations]),
+                "starts": _copy_list(view.starts, self._operations, "d"),
+                "ends": _copy_list(view.ends, self._operations, "d"),
+                "finished": _copy_list(view.finished, self._jobs, "d"),
+                "dispatch": _copy_list(view.dispatch, self._operations, "I"),
                 "makespan": view.makespan,
                 "completed": view.completed,
                 "events": view.events,
@@ -232,7 +266,7 @@ class NativeRunner:
                     "total_flow": view.total_flow,
                     "total_wait": view.total_wait,
                     "total_tardiness": view.total_tardiness,
-                    "busy": list(view.busy[: self._servers]),
+                    "busy": _copy_list(view.busy, self._servers, "d"),
                     "wip_area": view.wip_area,
                     "max_wip": view.max_wip,
                 },

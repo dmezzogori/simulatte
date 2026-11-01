@@ -1,6 +1,7 @@
 # Measured optimization ledger
 
-Budget: at most three iterations after a correct baseline. One iteration used; no native optimization yet.
+Budget: at most three iterations after a correct baseline. Two iterations used: Python queue specialization
+and the subsequently authorized binding-only follow-up. No native C algorithm optimization.
 
 ## Baseline
 
@@ -47,3 +48,30 @@ environment and failing import before the first PyPy timing. The matrix resumed 
 that execs the virtualenv path, preserving all measured engine sources. After the full matrix, the driver
 was corrected to retain a lexical absolute executable path, and representative CPython/PyPy cases were
 repeated in fresh processes. This launcher repair changes no measured engine code or timing boundary.
+
+## Iteration 2: binding-only follow-up (2026-11-01)
+
+Davide authorized the [bounded plan](../../specs/research/2026-11-01-native-engine-bindings-plan.md) after
+review found redundant input checks, ctypes argument splatting and per-element extraction dominated native
+lifecycle cost. Hypothesis: standard-library array/from_buffer input and memmove extraction can remove
+most of this overhead without modifying C, callbacks, other runners or timing boundaries. Exact validated
+Workload/Job values bypass duplicate per-element checks; duck-typed/subclass inputs retain the checked path.
+Results still materialize detached lists inside extraction timing, rather than returning cheaper views.
+
+Fresh before/after evidence: `results/binding-{before,after}.jsonl`, 24 cases each (original 16-case repeat
+plus eight tuned controls), five samples/case and separate cold/RSS probes. Same release library, historical
+input hashes and interpreters; all trajectories/recordings/counters agree. Both prototype suites pass 107
+tests before review and 111 after its boundary correction; ASan/UBSan and lint/format pass. Analysis and
+metadata are linked from the follow-up report. The first candidate's samples/source are retained in
+`results/binding-pre-review/`; final candidate timings were rerun after the correction. This is a
+correctness repair, not an additional optimization iteration.
+
+CPython native built-in none: 127.25 → 41.49 ms (3.07x); record: 137.52 → 48.33 ms (2.85x). Against the faster
+fresh compact PyPy engine: 2.22x → 6.89x without recording and 2.44x → 7.02x with recording. Hooked native
+improves 1.22–1.23x but stays at 0.92x / 1.02x the best PyPy baseline. Unchanged controls drift −0.18% to +2.41%,
+well below the built-in effect. Keep the actual list materialization cost visible; 35–40 ms / 8x was a
+review hypothesis, not a threshold. Stop after this iteration; no callback or C changes to chase a target.
+
+These conclusions cover only 50k/.95/SPT. The historical full-matrix report/evidence above stays unchanged.
+See the [binding follow-up report](../../specs/research/2026-11-01-native-engine-bindings.md) for phase data,
+limits, reproduction and the revised conditional-go assessment.
