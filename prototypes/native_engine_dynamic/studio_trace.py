@@ -97,9 +97,13 @@ class ProjectionKPIs(Collector):
 
 
 class Projection:
-    def __init__(self, servers, path, *, policy, provenance, parameters, limits, debug, max_pending_bytes):
+    def __init__(
+        self, servers, path, *, policy, provenance, parameters, limits, debug, max_pending_bytes, level="full"
+    ):
         self.env = ProjectionClock(seed=0, time_unit="time", provenance=provenance, parameters=parameters, debug=debug)
-        self.recorder = TraceRecorder(self.env, path, chunk_limits=limits, max_pending_bytes=max_pending_bytes)
+        self.recorder = TraceRecorder(
+            self.env, path, level=level, chunk_limits=limits, max_pending_bytes=max_pending_bytes
+        )
         self.state, self.jobs, self.offsets, self.phase = {}, [], [0], []
         self.policy, self.stages, self.queued_at, self.waits = policy, [], {}, []
         self.system = self.floor = 0
@@ -318,6 +322,7 @@ class TraceStream:
         chunk_limits=None,
         debug=False,
         max_pending_bytes=64 << 20,
+        level="full",
     ):
         self.base = self.projection = self.reader = None
         self.servers = servers
@@ -334,6 +339,7 @@ class TraceStream:
                 debug=debug,
                 max_pending_bytes=max_pending_bytes,
                 limits=chunk_limits or ChunkLimits(max_latency_s=float("inf")),
+                level=level,
             )
         except BaseException:
             self.close()

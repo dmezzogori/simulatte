@@ -187,3 +187,49 @@ margin through this bridge. At 5k, full native CPython takes 2.13/1.58 s indepen
 compact PyPy 1.83/1.48 s (0.85x/0.94x throughput). Relative to compact CPython it gains only 1.02x/1.03x.
 The kernel still helps untraced/rich-raw work; keep it experimental and address trace architecture or
 product needs before broader integration. No further kernel/binding/batch tuning here.
+
+## Direct production baseline and profiling
+
+The [production comparison](../../specs/research/2026-11-01-native-production.md)
+adds actual production actors, resources, ConWIP and direct TraceRecorder output.
+The previous full-trace study compared compact/native engines through the same
+bridge; it did not measure this direct production baseline. ProductionStream uses
+two public operation hooks only to export the native API's trajectory arrays.
+Exact generation, feedback, releases, operation timings and dispatch are checked;
+event digests differ because the production lifecycle records decisions/retirement.
+
+TraceStream now accepts level="kpi" as well as the default "full". Both use the
+same journal/projection; the KPI recorder still computes the semantic digest.
+The new comparison records identical scalar declarations and two WIP series.
+No production runtime, writer, viewer, policy or native kernel code is changed.
+
+```sh
+.venv/bin/python -m prototypes.native_engine_dynamic.production_benchmark matrix \
+  --output prototypes/native_engine_dynamic/production-results \
+  --pypy prototypes/native_engine/.build/pypy-env/bin/python
+for producer in independent feedback; do
+  for backend in production native; do
+    for mode in none kpi full; do
+      .venv/bin/python -m prototypes.native_engine_dynamic.production_benchmark profile \
+        --input prototypes/native_engine/.inputs/jobs-5000-load-0.95.json \
+        --producer "$producer" --backend "$backend" --mode "$mode" \
+        --output "prototypes/native_engine_dynamic/production-results/profiles/$producer-$mode-$backend.json"
+    done
+  done
+done
+.venv/bin/python specs/research/native-engine-data/production_analysis.py \
+  prototypes/native_engine_dynamic/production-results
+```
+
+The matrix has 24 cases at 5k jobs, five samples after CPython 1/PyPy 7 warmups and
+separate cold/RSS probes. Profiling is CPython-only, outside those measurements:
+separate simulation/writer thread CPU passes and an output-span/snapshot pass.
+Retained function self/cumulative CPU and snapshot/compression/output spans are
+diagnostics, not additive wall-time components. All runs require the recorded
+source/binary/input snapshot; previous results remain historical evidence.
+
+The completed comparison finds native CPython 23.36x/6.12x faster than production
+PyPy without recording, but full traces take 1.53x/1.50x as long. The bridge adds
+shadow replay and retains completed jobs: aggregate snapshot bytes are 4.63x/
+74.08x production. Lifecycle alignment is the proposed next experiment, with no
+production optimization or direct native serializer implemented here.

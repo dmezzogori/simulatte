@@ -1,0 +1,23 @@
+{
+  "cases": 24,
+  "timed_samples": 120,
+  "cold_probes": 24,
+  "exact_trajectory_generation_feedback_equivalence": true,
+  "kpi_tolerance_and_wip_series_equivalence": true,
+  "current_provenance": true,
+  "negative_checks_rejected": [
+    "case",
+    "source_sha256",
+    "libraries",
+    "trajectory_sha256",
+    "generated_sha256",
+    "decisions_sha256",
+    "kpis",
+    "series_values_sha256",
+    "samples",
+    "trace_signature"
+  ],
+  "profile_threads": 20,
+  "matrix_sha256": "e6a84b3719d8cd2fca3693ba587f2c3caa4af09728967d047c8d1add744532e9",
+  "metadata_sha256": "25cc6b2cedf6d3dcb7a2a0164b805b2acf3c67fe3db3a42565f2fb260971337b"
+}

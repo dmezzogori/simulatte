@@ -7,6 +7,11 @@ Pushed all four completed research commits through 0f20924 before starting this
 
 ## Outcome and architecture decision
 
+Scope: every compact/native full-trace case below uses the same journal/projection
+bridge. This study does not compare against ordinary production Simulatte writing
+directly to TraceRecorder. The subsequent [direct production baseline and profiling](2026-11-01-native-production.md)
+adds that control; preserve the timings below as evidence for this common-bridge experiment.
+
 **Compatibility passes; this bridge does not justify a general native backend on full-trace performance.**
 At 5,000 jobs, native CPython takes **2,134.63 ms independent** and **1,579.52 ms feedback**, versus the
 faster compact PyPy control **1,825.02/1,478.30 ms**: native throughput is **0.85x/0.94x** that alternative.

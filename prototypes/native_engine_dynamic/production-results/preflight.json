@@ -1,0 +1,1958 @@
+{
+  "created": "2026-11-01T19:54:44.851157+00:00",
+  "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+  "rows": [
+    {
+      "study": "direct-production",
+      "interpreter": "CPython",
+      "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+      "backend": "production",
+      "producer": "independent",
+      "mode": "none",
+      "jobs": 5000,
+      "operations": 27363,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "a797279ebc7340348dcbf6ee788fe3fb4f19dc47dbe75f9dba0561d4f474b2e0",
+      "generated_sha256": "658b9d182f813d885722735529863ef57ef6522cf6ae5fce1fe40d4afdbd8dff",
+      "decisions_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "kpis": null,
+      "series_values_sha256": null,
+      "trace_signature": null,
+      "trace_wire_sha256": null,
+      "counters": {
+        "completed": 5000,
+        "events": 204179,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 3945.6830952552405
+      },
+      "trace_bytes": 0,
+      "trace_sizes": [
+        0
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.00021620799088850617,
+          "feed": 0.29633325000759214,
+          "run": 0.08401849999791011,
+          "extract": 0.0002720839693211019,
+          "close": 0.006309333024546504,
+          "total": 0.38714937499025837,
+          "process_cpu": 0.38700100000000004
+        }
+      ],
+      "peak_rss_bytes": 51560448
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "CPython",
+      "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+      "backend": "native",
+      "producer": "independent",
+      "mode": "none",
+      "jobs": 5000,
+      "operations": 27363,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "a797279ebc7340348dcbf6ee788fe3fb4f19dc47dbe75f9dba0561d4f474b2e0",
+      "generated_sha256": "658b9d182f813d885722735529863ef57ef6522cf6ae5fce1fe40d4afdbd8dff",
+      "decisions_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "kpis": null,
+      "series_values_sha256": null,
+      "trace_signature": null,
+      "trace_wire_sha256": null,
+      "counters": {
+        "completed": 5000,
+        "events": 114452,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 3945.6830952552405
+      },
+      "trace_bytes": 0,
+      "trace_sizes": [
+        0
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 7.2499969974160194e-06,
+          "feed": 0.004348291025962681,
+          "run": 0.00043754198122769594,
+          "extract": 0.0005145419854670763,
+          "close": 0.001797083008568734,
+          "total": 0.007104707998223603,
+          "process_cpu": 0.007109999999999991
+        }
+      ],
+      "peak_rss_bytes": 43483136
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "CPython",
+      "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+      "backend": "production",
+      "producer": "independent",
+      "mode": "kpi",
+      "jobs": 5000,
+      "operations": 27363,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "a797279ebc7340348dcbf6ee788fe3fb4f19dc47dbe75f9dba0561d4f474b2e0",
+      "generated_sha256": "658b9d182f813d885722735529863ef57ef6522cf6ae5fce1fe40d4afdbd8dff",
+      "decisions_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 47191.98926473332,
+        "shopfloor/makespan": 3945.6830952552405,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 1294.0,
+        "shopfloor/total_flow": 2454398.464437131,
+        "shopfloor/total_pool_wait": 2407206.4751723977,
+        "shopfloor/total_tardiness": 2270812.6668271176,
+        "shopfloor/total_wait": 19824.083857909347,
+        "shopfloor/wip_area": 2454398.464437131
+      },
+      "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+      "stored_digest": "7f33b8c89a2a832abfb7b8dafe9b2a850c0b746e63e6a1a40886acb8a7f861e3",
+      "trace_signature": {
+        "digest": "7f33b8c89a2a832abfb7b8dafe9b2a850c0b746e63e6a1a40886acb8a7f861e3",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 47191.98926473332,
+          "shopfloor/makespan": 3945.6830952552405,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 1294.0,
+          "shopfloor/total_flow": 2454398.464437131,
+          "shopfloor/total_pool_wait": 2407206.4751723977,
+          "shopfloor/total_tardiness": 2270812.6668271176,
+          "shopfloor/total_wait": 19824.083857909347,
+          "shopfloor/wip_area": 2454398.464437131
+        },
+        "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+        "domain_events": 0,
+        "observer_events": 0,
+        "prelude_observer_events": 0,
+        "event_counts": {},
+        "chunks": 0
+      },
+      "trace_wire_sha256": "81acb74e8eff3e3056bab9e14084cf32013ab44b7a5dbd8068d438f25a6f4436",
+      "counters": {
+        "completed": 5000,
+        "events": 204179,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 3945.6830952552405
+      },
+      "trace_bytes": 889512,
+      "trace_sizes": [
+        889512
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.0013775830157101154,
+          "feed": 1.0944836249691434,
+          "run": 0.32063216698588803,
+          "extract": 0.005548791028559208,
+          "close": 0.007740584027487785,
+          "total": 1.4297827500267886,
+          "process_cpu": 1.429734
+        }
+      ],
+      "peak_rss_bytes": 55312384
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "CPython",
+      "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+      "backend": "native",
+      "producer": "independent",
+      "mode": "kpi",
+      "jobs": 5000,
+      "operations": 27363,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "a797279ebc7340348dcbf6ee788fe3fb4f19dc47dbe75f9dba0561d4f474b2e0",
+      "generated_sha256": "658b9d182f813d885722735529863ef57ef6522cf6ae5fce1fe40d4afdbd8dff",
+      "decisions_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 47191.98926473345,
+        "shopfloor/makespan": 3945.6830952552405,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 1294.0,
+        "shopfloor/total_flow": 2454398.4644371243,
+        "shopfloor/total_pool_wait": 2407206.4751723944,
+        "shopfloor/total_tardiness": 2270812.666827115,
+        "shopfloor/total_wait": 19824.083857909434,
+        "shopfloor/wip_area": 2454398.4644371266
+      },
+      "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+      "stored_digest": "dfc253f1f20b71158f85ddac8f647dfaecff8913061ef77ed377d2bafd80d249",
+      "trace_signature": {
+        "digest": "dfc253f1f20b71158f85ddac8f647dfaecff8913061ef77ed377d2bafd80d249",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 47191.98926473345,
+          "shopfloor/makespan": 3945.6830952552405,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 1294.0,
+          "shopfloor/total_flow": 2454398.4644371243,
+          "shopfloor/total_pool_wait": 2407206.4751723944,
+          "shopfloor/total_tardiness": 2270812.666827115,
+          "shopfloor/total_wait": 19824.083857909434,
+          "shopfloor/wip_area": 2454398.4644371266
+        },
+        "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+        "domain_events": 0,
+        "observer_events": 0,
+        "prelude_observer_events": 0,
+        "event_counts": {},
+        "chunks": 0
+      },
+      "trace_wire_sha256": "f9def84ce3ea8b79150ded0ec2b1266e2696c85e2751bf9092b64a9ecc0297a5",
+      "counters": {
+        "completed": 5000,
+        "events": 114452,
+        "callbacks": 0,
+        "records": 156815,
+        "makespan": 3945.6830952552405
+      },
+      "trace_bytes": 889250,
+      "trace_sizes": [
+        889250
+      ],
+      "source_bytes": 5018088,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.0015407500322908163,
+          "feed": 0.8142169999773614,
+          "run": 0.2508774999878369,
+          "extract": 0.0005838749930262566,
+          "close": 0.006198709015734494,
+          "total": 1.07341783400625,
+          "process_cpu": 1.0735000000000001
+        }
+      ],
+      "peak_rss_bytes": 58621952
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "CPython",
+      "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+      "backend": "production",
+      "producer": "independent",
+      "mode": "full",
+      "jobs": 5000,
+      "operations": 27363,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "a797279ebc7340348dcbf6ee788fe3fb4f19dc47dbe75f9dba0561d4f474b2e0",
+      "generated_sha256": "658b9d182f813d885722735529863ef57ef6522cf6ae5fce1fe40d4afdbd8dff",
+      "decisions_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 47191.98926473332,
+        "shopfloor/makespan": 3945.6830952552405,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 1294.0,
+        "shopfloor/total_flow": 2454398.464437131,
+        "shopfloor/total_pool_wait": 2407206.4751723977,
+        "shopfloor/total_tardiness": 2270812.6668271176,
+        "shopfloor/total_wait": 19824.083857909347,
+        "shopfloor/wip_area": 2454398.464437131
+      },
+      "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+      "stored_digest": "7f33b8c89a2a832abfb7b8dafe9b2a850c0b746e63e6a1a40886acb8a7f861e3",
+      "trace_signature": {
+        "digest": "7f33b8c89a2a832abfb7b8dafe9b2a850c0b746e63e6a1a40886acb8a7f861e3",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 47191.98926473332,
+          "shopfloor/makespan": 3945.6830952552405,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 1294.0,
+          "shopfloor/total_flow": 2454398.464437131,
+          "shopfloor/total_pool_wait": 2407206.4751723977,
+          "shopfloor/total_tardiness": 2270812.6668271176,
+          "shopfloor/total_wait": 19824.083857909347,
+          "shopfloor/wip_area": 2454398.464437131
+        },
+        "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+        "domain_events": 226541,
+        "observer_events": 20000,
+        "prelude_observer_events": 2,
+        "event_counts": {
+          "entity.created": 5000,
+          "psp.entered": 5000,
+          "policy.decision": 5000,
+          "psp.exited": 5000,
+          "shopfloor.entered": 5000,
+          "job.queued": 27363,
+          "job.granted": 27363,
+          "operation.started": 27363,
+          "server.work_credited": 27363,
+          "operation.completed": 27363,
+          "shopfloor.wip_updated": 27363,
+          "job.released": 27363,
+          "job.finished": 5000,
+          "entity.retired": 5000,
+          "kpi.sample": 20000
+        },
+        "chunks": 32
+      },
+      "trace_wire_sha256": "ef5958e2296705d35e9dac2bbf2314b3254b9cab18b7aea7ce908c4abc081c79",
+      "counters": {
+        "completed": 5000,
+        "events": 204179,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 3945.6830952552405
+      },
+      "trace_bytes": 10359047,
+      "trace_sizes": [
+        10359047
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.0017758749891072512,
+          "feed": 1.4627057500183582,
+          "run": 0.44251229200745,
+          "extract": 0.006010624987538904,
+          "close": 0.17008945799898356,
+          "total": 2.083094000001438,
+          "process_cpu": 2.380819
+        }
+      ],
+      "peak_rss_bytes": 91127808
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "CPython",
+      "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+      "backend": "native",
+      "producer": "independent",
+      "mode": "full",
+      "jobs": 5000,
+      "operations": 27363,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "a797279ebc7340348dcbf6ee788fe3fb4f19dc47dbe75f9dba0561d4f474b2e0",
+      "generated_sha256": "658b9d182f813d885722735529863ef57ef6522cf6ae5fce1fe40d4afdbd8dff",
+      "decisions_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 47191.98926473345,
+        "shopfloor/makespan": 3945.6830952552405,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 1294.0,
+        "shopfloor/total_flow": 2454398.4644371243,
+        "shopfloor/total_pool_wait": 2407206.4751723944,
+        "shopfloor/total_tardiness": 2270812.666827115,
+        "shopfloor/total_wait": 19824.083857909434,
+        "shopfloor/wip_area": 2454398.4644371266
+      },
+      "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+      "stored_digest": "dfc253f1f20b71158f85ddac8f647dfaecff8913061ef77ed377d2bafd80d249",
+      "trace_signature": {
+        "digest": "dfc253f1f20b71158f85ddac8f647dfaecff8913061ef77ed377d2bafd80d249",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 47191.98926473345,
+          "shopfloor/makespan": 3945.6830952552405,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 1294.0,
+          "shopfloor/total_flow": 2454398.4644371243,
+          "shopfloor/total_pool_wait": 2407206.4751723944,
+          "shopfloor/total_tardiness": 2270812.666827115,
+          "shopfloor/total_wait": 19824.083857909434,
+          "shopfloor/wip_area": 2454398.4644371266
+        },
+        "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+        "domain_events": 216541,
+        "observer_events": 20002,
+        "prelude_observer_events": 0,
+        "event_counts": {
+          "entity.created": 5000,
+          "psp.entered": 5000,
+          "psp.exited": 5000,
+          "shopfloor.entered": 5000,
+          "job.queued": 27363,
+          "job.granted": 27363,
+          "operation.started": 27363,
+          "server.work_credited": 27363,
+          "operation.completed": 27363,
+          "job.released": 27363,
+          "shopfloor.wip_updated": 27363,
+          "job.finished": 5000,
+          "kpi.sample": 20002
+        },
+        "chunks": 31
+      },
+      "trace_wire_sha256": "fb0c3776d20425fb46a94623f019816643a84e3b95041a9bfe232e081847cf4c",
+      "counters": {
+        "completed": 5000,
+        "events": 114452,
+        "callbacks": 0,
+        "records": 156815,
+        "makespan": 3945.6830952552405
+      },
+      "trace_bytes": 16659629,
+      "trace_sizes": [
+        16659629
+      ],
+      "source_bytes": 5018088,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.0015265840338543057,
+          "feed": 1.2648501659859903,
+          "run": 0.4029513749992475,
+          "extract": 0.00047070899745449424,
+          "close": 0.36520204099360853,
+          "total": 2.035000875010155,
+          "process_cpu": 2.44639
+        }
+      ],
+      "peak_rss_bytes": 127549440
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "CPython",
+      "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+      "backend": "production",
+      "producer": "feedback",
+      "mode": "none",
+      "jobs": 5000,
+      "operations": 20612,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "6b77f5b8b499e2e6b6f8c6048dcce1f7973078b19606017bf133c9e42b0b8e30",
+      "generated_sha256": "2ca4e1a37a79b5d364b60b1a6c3b8f9d743dcd150e3dc7830055fcab3036fa9c",
+      "decisions_sha256": "f9293c19cd1b7c8bcac5e765503af85fa78279d6a2e90bc7e6050854938baf42",
+      "kpis": null,
+      "series_values_sha256": null,
+      "trace_signature": null,
+      "trace_wire_sha256": null,
+      "counters": {
+        "completed": 5000,
+        "events": 163673,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 2939.10540097855
+      },
+      "trace_bytes": 0,
+      "trace_sizes": [
+        0
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.00020741700427606702,
+          "feed": 0.24945637496421114,
+          "run": 0.0010242920252494514,
+          "extract": 0.00024383299751207232,
+          "close": 0.006628000002820045,
+          "total": 0.25755991699406877,
+          "process_cpu": 0.25749799999999995
+        }
+      ],
+      "peak_rss_bytes": 52838400
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "CPython",
+      "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+      "backend": "native",
+      "producer": "feedback",
+      "mode": "none",
+      "jobs": 5000,
+      "operations": 20612,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "6b77f5b8b499e2e6b6f8c6048dcce1f7973078b19606017bf133c9e42b0b8e30",
+      "generated_sha256": "2ca4e1a37a79b5d364b60b1a6c3b8f9d743dcd150e3dc7830055fcab3036fa9c",
+      "decisions_sha256": "f9293c19cd1b7c8bcac5e765503af85fa78279d6a2e90bc7e6050854938baf42",
+      "kpis": null,
+      "series_values_sha256": null,
+      "trace_signature": null,
+      "trace_wire_sha256": null,
+      "counters": {
+        "completed": 5000,
+        "events": 87448,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 2939.10540097855
+      },
+      "trace_bytes": 0,
+      "trace_sizes": [
+        0
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 7.70896440371871e-06,
+          "feed": 0.017461624986026436,
+          "run": 8.833012543618679e-06,
+          "extract": 0.00046620803186669946,
+          "close": 0.0019655840005725622,
+          "total": 0.019909958995413035,
+          "process_cpu": 0.019903000000000004
+        }
+      ],
+      "peak_rss_bytes": 45776896
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "CPython",
+      "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+      "backend": "production",
+      "producer": "feedback",
+      "mode": "kpi",
+      "jobs": 5000,
+      "operations": 20612,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "6b77f5b8b499e2e6b6f8c6048dcce1f7973078b19606017bf133c9e42b0b8e30",
+      "generated_sha256": "2ca4e1a37a79b5d364b60b1a6c3b8f9d743dcd150e3dc7830055fcab3036fa9c",
+      "decisions_sha256": "f9293c19cd1b7c8bcac5e765503af85fa78279d6a2e90bc7e6050854938baf42",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 34987.029356552,
+        "shopfloor/makespan": 2939.10540097855,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 63.0,
+        "shopfloor/total_flow": 80093.36634187745,
+        "shopfloor/total_pool_wait": 45106.336985325455,
+        "shopfloor/total_tardiness": 162.97916943582018,
+        "shopfloor/total_wait": 14720.127082978286,
+        "shopfloor/wip_area": 80093.36634187745
+      },
+      "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+      "stored_digest": "2ab3497d03b02403d7485c4d67b26a01cab34eba352b6d273da59732586ce960",
+      "trace_signature": {
+        "digest": "2ab3497d03b02403d7485c4d67b26a01cab34eba352b6d273da59732586ce960",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 34987.029356552,
+          "shopfloor/makespan": 2939.10540097855,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 63.0,
+          "shopfloor/total_flow": 80093.36634187745,
+          "shopfloor/total_pool_wait": 45106.336985325455,
+          "shopfloor/total_tardiness": 162.97916943582018,
+          "shopfloor/total_wait": 14720.127082978286,
+          "shopfloor/wip_area": 80093.36634187745
+        },
+        "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+        "domain_events": 0,
+        "observer_events": 0,
+        "prelude_observer_events": 0,
+        "event_counts": {},
+        "chunks": 0
+      },
+      "trace_wire_sha256": "ff9b29c9ceacdfc44cbaf5476fe05504fe973edba81cb24f0c321dd3e8d119fa",
+      "counters": {
+        "completed": 5000,
+        "events": 163673,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 2939.10540097855
+      },
+      "trace_bytes": 887880,
+      "trace_sizes": [
+        887880
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.0014238330186344683,
+          "feed": 1.097948666953016,
+          "run": 0.005582707992289215,
+          "extract": 0.005268917011562735,
+          "close": 0.008102125022560358,
+          "total": 1.1183262499980628,
+          "process_cpu": 1.118549
+        }
+      ],
+      "peak_rss_bytes": 57032704
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "CPython",
+      "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+      "backend": "native",
+      "producer": "feedback",
+      "mode": "kpi",
+      "jobs": 5000,
+      "operations": 20612,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "6b77f5b8b499e2e6b6f8c6048dcce1f7973078b19606017bf133c9e42b0b8e30",
+      "generated_sha256": "2ca4e1a37a79b5d364b60b1a6c3b8f9d743dcd150e3dc7830055fcab3036fa9c",
+      "decisions_sha256": "f9293c19cd1b7c8bcac5e765503af85fa78279d6a2e90bc7e6050854938baf42",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 34987.02935655187,
+        "shopfloor/makespan": 2939.10540097855,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 63.0,
+        "shopfloor/total_flow": 80093.36634187757,
+        "shopfloor/total_pool_wait": 45106.33698532546,
+        "shopfloor/total_tardiness": 162.97916943582018,
+        "shopfloor/total_wait": 14720.127082978326,
+        "shopfloor/wip_area": 80093.36634187741
+      },
+      "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+      "stored_digest": "3007b2eeeb2ba7235cdc1c82e8fc05c0614873eedc08243989af3c45c9c62f37",
+      "trace_signature": {
+        "digest": "3007b2eeeb2ba7235cdc1c82e8fc05c0614873eedc08243989af3c45c9c62f37",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 34987.02935655187,
+          "shopfloor/makespan": 2939.10540097855,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 63.0,
+          "shopfloor/total_flow": 80093.36634187757,
+          "shopfloor/total_pool_wait": 45106.33698532546,
+          "shopfloor/total_tardiness": 162.97916943582018,
+          "shopfloor/total_wait": 14720.127082978326,
+          "shopfloor/wip_area": 80093.36634187741
+        },
+        "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+        "domain_events": 0,
+        "observer_events": 0,
+        "prelude_observer_events": 0,
+        "event_counts": {},
+        "chunks": 0
+      },
+      "trace_wire_sha256": "ff29ef22b37a67fee4915f58a9f927235a6e44317f46a8befacb2a72cf3fc7f9",
+      "counters": {
+        "completed": 5000,
+        "events": 87448,
+        "callbacks": 0,
+        "records": 123060,
+        "makespan": 2939.10540097855
+      },
+      "trace_bytes": 887372,
+      "trace_sizes": [
+        887372
+      ],
+      "source_bytes": 3937928,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.0014843749813735485,
+          "feed": 0.8638139999820851,
+          "run": 0.01539566699648276,
+          "extract": 0.0004896250320598483,
+          "close": 0.0062400829629041255,
+          "total": 0.8874237499549054,
+          "process_cpu": 0.887597
+        }
+      ],
+      "peak_rss_bytes": 59817984
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "CPython",
+      "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+      "backend": "production",
+      "producer": "feedback",
+      "mode": "full",
+      "jobs": 5000,
+      "operations": 20612,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "6b77f5b8b499e2e6b6f8c6048dcce1f7973078b19606017bf133c9e42b0b8e30",
+      "generated_sha256": "2ca4e1a37a79b5d364b60b1a6c3b8f9d743dcd150e3dc7830055fcab3036fa9c",
+      "decisions_sha256": "f9293c19cd1b7c8bcac5e765503af85fa78279d6a2e90bc7e6050854938baf42",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 34987.029356552,
+        "shopfloor/makespan": 2939.10540097855,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 63.0,
+        "shopfloor/total_flow": 80093.36634187745,
+        "shopfloor/total_pool_wait": 45106.336985325455,
+        "shopfloor/total_tardiness": 162.97916943582018,
+        "shopfloor/total_wait": 14720.127082978286,
+        "shopfloor/wip_area": 80093.36634187745
+      },
+      "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+      "stored_digest": "2ab3497d03b02403d7485c4d67b26a01cab34eba352b6d273da59732586ce960",
+      "trace_signature": {
+        "digest": "2ab3497d03b02403d7485c4d67b26a01cab34eba352b6d273da59732586ce960",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 34987.029356552,
+          "shopfloor/makespan": 2939.10540097855,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 63.0,
+          "shopfloor/total_flow": 80093.36634187745,
+          "shopfloor/total_pool_wait": 45106.336985325455,
+          "shopfloor/total_tardiness": 162.97916943582018,
+          "shopfloor/total_wait": 14720.127082978286,
+          "shopfloor/wip_area": 80093.36634187745
+        },
+        "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+        "domain_events": 179284,
+        "observer_events": 20000,
+        "prelude_observer_events": 2,
+        "event_counts": {
+          "entity.created": 5000,
+          "psp.entered": 5000,
+          "policy.decision": 5000,
+          "psp.exited": 5000,
+          "shopfloor.entered": 5000,
+          "job.queued": 20612,
+          "job.granted": 20612,
+          "operation.started": 20612,
+          "server.work_credited": 20612,
+          "operation.completed": 20612,
+          "shopfloor.wip_updated": 20612,
+          "job.released": 20612,
+          "job.finished": 5000,
+          "entity.retired": 5000,
+          "kpi.sample": 20000
+        },
+        "chunks": 26
+      },
+      "trace_wire_sha256": "61f1df725dae12845565841e5d6d456e88e673c93c49a05d16b603da4264883e",
+      "counters": {
+        "completed": 5000,
+        "events": 163673,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 2939.10540097855
+      },
+      "trace_bytes": 7458873,
+      "trace_sizes": [
+        7458873
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.00141887494828552,
+          "feed": 1.4468502910458483,
+          "run": 0.010694374970626086,
+          "extract": 0.006515374989248812,
+          "close": 0.10561675002099946,
+          "total": 1.5710956659750082,
+          "process_cpu": 1.7689679999999999
+        }
+      ],
+      "peak_rss_bytes": 87244800
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "CPython",
+      "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+      "backend": "native",
+      "producer": "feedback",
+      "mode": "full",
+      "jobs": 5000,
+      "operations": 20612,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "6b77f5b8b499e2e6b6f8c6048dcce1f7973078b19606017bf133c9e42b0b8e30",
+      "generated_sha256": "2ca4e1a37a79b5d364b60b1a6c3b8f9d743dcd150e3dc7830055fcab3036fa9c",
+      "decisions_sha256": "f9293c19cd1b7c8bcac5e765503af85fa78279d6a2e90bc7e6050854938baf42",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 34987.02935655187,
+        "shopfloor/makespan": 2939.10540097855,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 63.0,
+        "shopfloor/total_flow": 80093.36634187757,
+        "shopfloor/total_pool_wait": 45106.33698532546,
+        "shopfloor/total_tardiness": 162.97916943582018,
+        "shopfloor/total_wait": 14720.127082978326,
+        "shopfloor/wip_area": 80093.36634187741
+      },
+      "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+      "stored_digest": "3007b2eeeb2ba7235cdc1c82e8fc05c0614873eedc08243989af3c45c9c62f37",
+      "trace_signature": {
+        "digest": "3007b2eeeb2ba7235cdc1c82e8fc05c0614873eedc08243989af3c45c9c62f37",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 34987.02935655187,
+          "shopfloor/makespan": 2939.10540097855,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 63.0,
+          "shopfloor/total_flow": 80093.36634187757,
+          "shopfloor/total_pool_wait": 45106.33698532546,
+          "shopfloor/total_tardiness": 162.97916943582018,
+          "shopfloor/total_wait": 14720.127082978326,
+          "shopfloor/wip_area": 80093.36634187741
+        },
+        "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+        "domain_events": 169284,
+        "observer_events": 20002,
+        "prelude_observer_events": 0,
+        "event_counts": {
+          "entity.created": 5000,
+          "psp.entered": 5000,
+          "psp.exited": 5000,
+          "shopfloor.entered": 5000,
+          "job.queued": 20612,
+          "job.granted": 20612,
+          "operation.started": 20612,
+          "server.work_credited": 20612,
+          "operation.completed": 20612,
+          "job.released": 20612,
+          "shopfloor.wip_updated": 20612,
+          "job.finished": 5000,
+          "kpi.sample": 20002
+        },
+        "chunks": 25
+      },
+      "trace_wire_sha256": "738964645c4f33b2a799fcbfb2c843182aa4926d85a0c82cada2911282547403",
+      "counters": {
+        "completed": 5000,
+        "events": 87448,
+        "callbacks": 0,
+        "records": 123060,
+        "makespan": 2939.10540097855
+      },
+      "trace_bytes": 11928105,
+      "trace_sizes": [
+        11928105
+      ],
+      "source_bytes": 3937928,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.0016078329645097256,
+          "feed": 1.3281957079889253,
+          "run": 0.036434417008422315,
+          "extract": 0.00042275001760572195,
+          "close": 0.15370079199783504,
+          "total": 1.520361499977298,
+          "process_cpu": 1.860433
+        }
+      ],
+      "peak_rss_bytes": 98402304
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "PyPy",
+      "python": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+      "backend": "production",
+      "producer": "independent",
+      "mode": "none",
+      "jobs": 5000,
+      "operations": 27363,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "a797279ebc7340348dcbf6ee788fe3fb4f19dc47dbe75f9dba0561d4f474b2e0",
+      "generated_sha256": "658b9d182f813d885722735529863ef57ef6522cf6ae5fce1fe40d4afdbd8dff",
+      "decisions_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "kpis": null,
+      "series_values_sha256": null,
+      "trace_signature": null,
+      "trace_wire_sha256": null,
+      "counters": {
+        "completed": 5000,
+        "events": 204179,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 3945.6830952552405
+      },
+      "trace_bytes": 0,
+      "trace_sizes": [
+        0
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.000576208985876292,
+          "feed": 0.33704341598786414,
+          "run": 0.04355762503109872,
+          "extract": 0.000977249990683049,
+          "close": 0.006939624960068613,
+          "total": 0.3890941249555908,
+          "process_cpu": 0.38901899999999995
+        }
+      ],
+      "peak_rss_bytes": 131530752
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "PyPy",
+      "python": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+      "backend": "native",
+      "producer": "independent",
+      "mode": "none",
+      "jobs": 5000,
+      "operations": 27363,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "a797279ebc7340348dcbf6ee788fe3fb4f19dc47dbe75f9dba0561d4f474b2e0",
+      "generated_sha256": "658b9d182f813d885722735529863ef57ef6522cf6ae5fce1fe40d4afdbd8dff",
+      "decisions_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "kpis": null,
+      "series_values_sha256": null,
+      "trace_signature": null,
+      "trace_wire_sha256": null,
+      "counters": {
+        "completed": 5000,
+        "events": 114452,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 3945.6830952552405
+      },
+      "trace_bytes": 0,
+      "trace_sizes": [
+        0
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 5.429197335615754e-05,
+          "feed": 0.014484125014860183,
+          "run": 0.000471667037345469,
+          "extract": 0.0067374579957686365,
+          "close": 0.006993207964114845,
+          "total": 0.02874074998544529,
+          "process_cpu": 0.02876899999999999
+        }
+      ],
+      "peak_rss_bytes": 114556928
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "PyPy",
+      "python": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+      "backend": "production",
+      "producer": "independent",
+      "mode": "kpi",
+      "jobs": 5000,
+      "operations": 27363,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "a797279ebc7340348dcbf6ee788fe3fb4f19dc47dbe75f9dba0561d4f474b2e0",
+      "generated_sha256": "658b9d182f813d885722735529863ef57ef6522cf6ae5fce1fe40d4afdbd8dff",
+      "decisions_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 47191.98926473332,
+        "shopfloor/makespan": 3945.6830952552405,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 1294.0,
+        "shopfloor/total_flow": 2454398.464437131,
+        "shopfloor/total_pool_wait": 2407206.4751723977,
+        "shopfloor/total_tardiness": 2270812.6668271176,
+        "shopfloor/total_wait": 19824.083857909347,
+        "shopfloor/wip_area": 2454398.464437131
+      },
+      "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+      "stored_digest": "7f33b8c89a2a832abfb7b8dafe9b2a850c0b746e63e6a1a40886acb8a7f861e3",
+      "trace_signature": {
+        "digest": "7f33b8c89a2a832abfb7b8dafe9b2a850c0b746e63e6a1a40886acb8a7f861e3",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 47191.98926473332,
+          "shopfloor/makespan": 3945.6830952552405,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 1294.0,
+          "shopfloor/total_flow": 2454398.464437131,
+          "shopfloor/total_pool_wait": 2407206.4751723977,
+          "shopfloor/total_tardiness": 2270812.6668271176,
+          "shopfloor/total_wait": 19824.083857909347,
+          "shopfloor/wip_area": 2454398.464437131
+        },
+        "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+        "domain_events": 0,
+        "observer_events": 0,
+        "prelude_observer_events": 0,
+        "event_counts": {},
+        "chunks": 0
+      },
+      "trace_wire_sha256": "81acb74e8eff3e3056bab9e14084cf32013ab44b7a5dbd8068d438f25a6f4436",
+      "counters": {
+        "completed": 5000,
+        "events": 204179,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 3945.6830952552405
+      },
+      "trace_bytes": 889510,
+      "trace_sizes": [
+        889510
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.006952749972697347,
+          "feed": 1.5470361250336282,
+          "run": 0.2216975839692168,
+          "extract": 0.010926040995400399,
+          "close": 0.012701084022410214,
+          "total": 1.799313583993353,
+          "process_cpu": 1.7981550000000002
+        }
+      ],
+      "peak_rss_bytes": 131350528
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "PyPy",
+      "python": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+      "backend": "native",
+      "producer": "independent",
+      "mode": "kpi",
+      "jobs": 5000,
+      "operations": 27363,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "a797279ebc7340348dcbf6ee788fe3fb4f19dc47dbe75f9dba0561d4f474b2e0",
+      "generated_sha256": "658b9d182f813d885722735529863ef57ef6522cf6ae5fce1fe40d4afdbd8dff",
+      "decisions_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 47191.98926473345,
+        "shopfloor/makespan": 3945.6830952552405,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 1294.0,
+        "shopfloor/total_flow": 2454398.4644371243,
+        "shopfloor/total_pool_wait": 2407206.4751723944,
+        "shopfloor/total_tardiness": 2270812.666827115,
+        "shopfloor/total_wait": 19824.083857909434,
+        "shopfloor/wip_area": 2454398.4644371266
+      },
+      "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+      "stored_digest": "dfc253f1f20b71158f85ddac8f647dfaecff8913061ef77ed377d2bafd80d249",
+      "trace_signature": {
+        "digest": "dfc253f1f20b71158f85ddac8f647dfaecff8913061ef77ed377d2bafd80d249",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 47191.98926473345,
+          "shopfloor/makespan": 3945.6830952552405,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 1294.0,
+          "shopfloor/total_flow": 2454398.4644371243,
+          "shopfloor/total_pool_wait": 2407206.4751723944,
+          "shopfloor/total_tardiness": 2270812.666827115,
+          "shopfloor/total_wait": 19824.083857909434,
+          "shopfloor/wip_area": 2454398.4644371266
+        },
+        "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+        "domain_events": 0,
+        "observer_events": 0,
+        "prelude_observer_events": 0,
+        "event_counts": {},
+        "chunks": 0
+      },
+      "trace_wire_sha256": "f9def84ce3ea8b79150ded0ec2b1266e2696c85e2751bf9092b64a9ecc0297a5",
+      "counters": {
+        "completed": 5000,
+        "events": 114452,
+        "callbacks": 0,
+        "records": 156815,
+        "makespan": 3945.6830952552405
+      },
+      "trace_bytes": 889248,
+      "trace_sizes": [
+        889248
+      ],
+      "source_bytes": 5018088,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.00779137498466298,
+          "feed": 1.3293830420006998,
+          "run": 0.21355712501099333,
+          "extract": 0.0066064579878002405,
+          "close": 0.017336625023745,
+          "total": 1.5746746250079013,
+          "process_cpu": 1.5734910000000002
+        }
+      ],
+      "peak_rss_bytes": 150749184
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "PyPy",
+      "python": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+      "backend": "production",
+      "producer": "independent",
+      "mode": "full",
+      "jobs": 5000,
+      "operations": 27363,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "a797279ebc7340348dcbf6ee788fe3fb4f19dc47dbe75f9dba0561d4f474b2e0",
+      "generated_sha256": "658b9d182f813d885722735529863ef57ef6522cf6ae5fce1fe40d4afdbd8dff",
+      "decisions_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 47191.98926473332,
+        "shopfloor/makespan": 3945.6830952552405,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 1294.0,
+        "shopfloor/total_flow": 2454398.464437131,
+        "shopfloor/total_pool_wait": 2407206.4751723977,
+        "shopfloor/total_tardiness": 2270812.6668271176,
+        "shopfloor/total_wait": 19824.083857909347,
+        "shopfloor/wip_area": 2454398.464437131
+      },
+      "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+      "stored_digest": "7f33b8c89a2a832abfb7b8dafe9b2a850c0b746e63e6a1a40886acb8a7f861e3",
+      "trace_signature": {
+        "digest": "7f33b8c89a2a832abfb7b8dafe9b2a850c0b746e63e6a1a40886acb8a7f861e3",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 47191.98926473332,
+          "shopfloor/makespan": 3945.6830952552405,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 1294.0,
+          "shopfloor/total_flow": 2454398.464437131,
+          "shopfloor/total_pool_wait": 2407206.4751723977,
+          "shopfloor/total_tardiness": 2270812.6668271176,
+          "shopfloor/total_wait": 19824.083857909347,
+          "shopfloor/wip_area": 2454398.464437131
+        },
+        "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+        "domain_events": 226541,
+        "observer_events": 20000,
+        "prelude_observer_events": 2,
+        "event_counts": {
+          "entity.created": 5000,
+          "psp.entered": 5000,
+          "policy.decision": 5000,
+          "psp.exited": 5000,
+          "shopfloor.entered": 5000,
+          "job.queued": 27363,
+          "job.granted": 27363,
+          "operation.started": 27363,
+          "server.work_credited": 27363,
+          "operation.completed": 27363,
+          "shopfloor.wip_updated": 27363,
+          "job.released": 27363,
+          "job.finished": 5000,
+          "entity.retired": 5000,
+          "kpi.sample": 20000
+        },
+        "chunks": 32
+      },
+      "trace_wire_sha256": "ef5958e2296705d35e9dac2bbf2314b3254b9cab18b7aea7ce908c4abc081c79",
+      "counters": {
+        "completed": 5000,
+        "events": 204179,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 3945.6830952552405
+      },
+      "trace_bytes": 10359045,
+      "trace_sizes": [
+        10359045
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.008606333984062076,
+          "feed": 2.11961820803117,
+          "run": 0.32515454199165106,
+          "extract": 0.012431499955710024,
+          "close": 0.02253679104615003,
+          "total": 2.4883473750087433,
+          "process_cpu": 2.8715070000000003
+        }
+      ],
+      "peak_rss_bytes": 183123968
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "PyPy",
+      "python": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+      "backend": "native",
+      "producer": "independent",
+      "mode": "full",
+      "jobs": 5000,
+      "operations": 27363,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "a797279ebc7340348dcbf6ee788fe3fb4f19dc47dbe75f9dba0561d4f474b2e0",
+      "generated_sha256": "658b9d182f813d885722735529863ef57ef6522cf6ae5fce1fe40d4afdbd8dff",
+      "decisions_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 47191.98926473345,
+        "shopfloor/makespan": 3945.6830952552405,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 1294.0,
+        "shopfloor/total_flow": 2454398.4644371243,
+        "shopfloor/total_pool_wait": 2407206.4751723944,
+        "shopfloor/total_tardiness": 2270812.666827115,
+        "shopfloor/total_wait": 19824.083857909434,
+        "shopfloor/wip_area": 2454398.4644371266
+      },
+      "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+      "stored_digest": "dfc253f1f20b71158f85ddac8f647dfaecff8913061ef77ed377d2bafd80d249",
+      "trace_signature": {
+        "digest": "dfc253f1f20b71158f85ddac8f647dfaecff8913061ef77ed377d2bafd80d249",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 47191.98926473345,
+          "shopfloor/makespan": 3945.6830952552405,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 1294.0,
+          "shopfloor/total_flow": 2454398.4644371243,
+          "shopfloor/total_pool_wait": 2407206.4751723944,
+          "shopfloor/total_tardiness": 2270812.666827115,
+          "shopfloor/total_wait": 19824.083857909434,
+          "shopfloor/wip_area": 2454398.4644371266
+        },
+        "series_values_sha256": "1f347fa133856b341e6745a4013c7f3e809db307f781ce492856703a12a2a556",
+        "domain_events": 216541,
+        "observer_events": 20002,
+        "prelude_observer_events": 0,
+        "event_counts": {
+          "entity.created": 5000,
+          "psp.entered": 5000,
+          "psp.exited": 5000,
+          "shopfloor.entered": 5000,
+          "job.queued": 27363,
+          "job.granted": 27363,
+          "operation.started": 27363,
+          "server.work_credited": 27363,
+          "operation.completed": 27363,
+          "job.released": 27363,
+          "shopfloor.wip_updated": 27363,
+          "job.finished": 5000,
+          "kpi.sample": 20002
+        },
+        "chunks": 31
+      },
+      "trace_wire_sha256": "fb0c3776d20425fb46a94623f019816643a84e3b95041a9bfe232e081847cf4c",
+      "counters": {
+        "completed": 5000,
+        "events": 114452,
+        "callbacks": 0,
+        "records": 156815,
+        "makespan": 3945.6830952552405
+      },
+      "trace_bytes": 16659627,
+      "trace_sizes": [
+        16659627
+      ],
+      "source_bytes": 5018088,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.008403833024203777,
+          "feed": 1.9032822499866597,
+          "run": 0.3831177919637412,
+          "extract": 0.006546416028868407,
+          "close": 0.1370919169858098,
+          "total": 2.438442207989283,
+          "process_cpu": 2.9687390000000002
+        }
+      ],
+      "peak_rss_bytes": 201326592
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "PyPy",
+      "python": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+      "backend": "production",
+      "producer": "feedback",
+      "mode": "none",
+      "jobs": 5000,
+      "operations": 20612,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "6b77f5b8b499e2e6b6f8c6048dcce1f7973078b19606017bf133c9e42b0b8e30",
+      "generated_sha256": "2ca4e1a37a79b5d364b60b1a6c3b8f9d743dcd150e3dc7830055fcab3036fa9c",
+      "decisions_sha256": "f9293c19cd1b7c8bcac5e765503af85fa78279d6a2e90bc7e6050854938baf42",
+      "kpis": null,
+      "series_values_sha256": null,
+      "trace_signature": null,
+      "trace_wire_sha256": null,
+      "counters": {
+        "completed": 5000,
+        "events": 163673,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 2939.10540097855
+      },
+      "trace_bytes": 0,
+      "trace_sizes": [
+        0
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.0006236669723875821,
+          "feed": 0.4665106250322424,
+          "run": 0.0010122919920831919,
+          "extract": 0.0007802500040270388,
+          "close": 0.008637249993626028,
+          "total": 0.47756408399436623,
+          "process_cpu": 0.4774309999999999
+        }
+      ],
+      "peak_rss_bytes": 106856448
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "PyPy",
+      "python": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+      "backend": "native",
+      "producer": "feedback",
+      "mode": "none",
+      "jobs": 5000,
+      "operations": 20612,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "6b77f5b8b499e2e6b6f8c6048dcce1f7973078b19606017bf133c9e42b0b8e30",
+      "generated_sha256": "2ca4e1a37a79b5d364b60b1a6c3b8f9d743dcd150e3dc7830055fcab3036fa9c",
+      "decisions_sha256": "f9293c19cd1b7c8bcac5e765503af85fa78279d6a2e90bc7e6050854938baf42",
+      "kpis": null,
+      "series_values_sha256": null,
+      "trace_signature": null,
+      "trace_wire_sha256": null,
+      "counters": {
+        "completed": 5000,
+        "events": 87448,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 2939.10540097855
+      },
+      "trace_bytes": 0,
+      "trace_sizes": [
+        0
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 5.400000372901559e-05,
+          "feed": 0.05697212502127513,
+          "run": 1.0208983439952135e-05,
+          "extract": 0.011676541005726904,
+          "close": 0.007980624970514327,
+          "total": 0.07669349998468533,
+          "process_cpu": 0.07671900000000004
+        }
+      ],
+      "peak_rss_bytes": 115851264
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "PyPy",
+      "python": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+      "backend": "production",
+      "producer": "feedback",
+      "mode": "kpi",
+      "jobs": 5000,
+      "operations": 20612,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "6b77f5b8b499e2e6b6f8c6048dcce1f7973078b19606017bf133c9e42b0b8e30",
+      "generated_sha256": "2ca4e1a37a79b5d364b60b1a6c3b8f9d743dcd150e3dc7830055fcab3036fa9c",
+      "decisions_sha256": "f9293c19cd1b7c8bcac5e765503af85fa78279d6a2e90bc7e6050854938baf42",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 34987.029356552,
+        "shopfloor/makespan": 2939.10540097855,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 63.0,
+        "shopfloor/total_flow": 80093.36634187745,
+        "shopfloor/total_pool_wait": 45106.336985325455,
+        "shopfloor/total_tardiness": 162.97916943582018,
+        "shopfloor/total_wait": 14720.127082978286,
+        "shopfloor/wip_area": 80093.36634187745
+      },
+      "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+      "stored_digest": "2ab3497d03b02403d7485c4d67b26a01cab34eba352b6d273da59732586ce960",
+      "trace_signature": {
+        "digest": "2ab3497d03b02403d7485c4d67b26a01cab34eba352b6d273da59732586ce960",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 34987.029356552,
+          "shopfloor/makespan": 2939.10540097855,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 63.0,
+          "shopfloor/total_flow": 80093.36634187745,
+          "shopfloor/total_pool_wait": 45106.336985325455,
+          "shopfloor/total_tardiness": 162.97916943582018,
+          "shopfloor/total_wait": 14720.127082978286,
+          "shopfloor/wip_area": 80093.36634187745
+        },
+        "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+        "domain_events": 0,
+        "observer_events": 0,
+        "prelude_observer_events": 0,
+        "event_counts": {},
+        "chunks": 0
+      },
+      "trace_wire_sha256": "ff9b29c9ceacdfc44cbaf5476fe05504fe973edba81cb24f0c321dd3e8d119fa",
+      "counters": {
+        "completed": 5000,
+        "events": 163673,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 2939.10540097855
+      },
+      "trace_bytes": 887878,
+      "trace_sizes": [
+        887878
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.007094291970133781,
+          "feed": 1.6934867080417462,
+          "run": 0.004315333964768797,
+          "extract": 0.024338791030459106,
+          "close": 0.014045624993741512,
+          "total": 1.7432807500008494,
+          "process_cpu": 1.7422240000000002
+        }
+      ],
+      "peak_rss_bytes": 150437888
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "PyPy",
+      "python": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+      "backend": "native",
+      "producer": "feedback",
+      "mode": "kpi",
+      "jobs": 5000,
+      "operations": 20612,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "6b77f5b8b499e2e6b6f8c6048dcce1f7973078b19606017bf133c9e42b0b8e30",
+      "generated_sha256": "2ca4e1a37a79b5d364b60b1a6c3b8f9d743dcd150e3dc7830055fcab3036fa9c",
+      "decisions_sha256": "f9293c19cd1b7c8bcac5e765503af85fa78279d6a2e90bc7e6050854938baf42",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 34987.02935655187,
+        "shopfloor/makespan": 2939.10540097855,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 63.0,
+        "shopfloor/total_flow": 80093.36634187757,
+        "shopfloor/total_pool_wait": 45106.33698532546,
+        "shopfloor/total_tardiness": 162.97916943582018,
+        "shopfloor/total_wait": 14720.127082978326,
+        "shopfloor/wip_area": 80093.36634187741
+      },
+      "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+      "stored_digest": "3007b2eeeb2ba7235cdc1c82e8fc05c0614873eedc08243989af3c45c9c62f37",
+      "trace_signature": {
+        "digest": "3007b2eeeb2ba7235cdc1c82e8fc05c0614873eedc08243989af3c45c9c62f37",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 34987.02935655187,
+          "shopfloor/makespan": 2939.10540097855,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 63.0,
+          "shopfloor/total_flow": 80093.36634187757,
+          "shopfloor/total_pool_wait": 45106.33698532546,
+          "shopfloor/total_tardiness": 162.97916943582018,
+          "shopfloor/total_wait": 14720.127082978326,
+          "shopfloor/wip_area": 80093.36634187741
+        },
+        "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+        "domain_events": 0,
+        "observer_events": 0,
+        "prelude_observer_events": 0,
+        "event_counts": {},
+        "chunks": 0
+      },
+      "trace_wire_sha256": "ff29ef22b37a67fee4915f58a9f927235a6e44317f46a8befacb2a72cf3fc7f9",
+      "counters": {
+        "completed": 5000,
+        "events": 87448,
+        "callbacks": 0,
+        "records": 123060,
+        "makespan": 2939.10540097855
+      },
+      "trace_bytes": 887370,
+      "trace_sizes": [
+        887370
+      ],
+      "source_bytes": 3937928,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.007797708967700601,
+          "feed": 1.442370833014138,
+          "run": 0.01265970803797245,
+          "extract": 0.005816749995574355,
+          "close": 0.016400541993789375,
+          "total": 1.4850455420091748,
+          "process_cpu": 1.484387
+        }
+      ],
+      "peak_rss_bytes": 146259968
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "PyPy",
+      "python": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+      "backend": "production",
+      "producer": "feedback",
+      "mode": "full",
+      "jobs": 5000,
+      "operations": 20612,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "6b77f5b8b499e2e6b6f8c6048dcce1f7973078b19606017bf133c9e42b0b8e30",
+      "generated_sha256": "2ca4e1a37a79b5d364b60b1a6c3b8f9d743dcd150e3dc7830055fcab3036fa9c",
+      "decisions_sha256": "f9293c19cd1b7c8bcac5e765503af85fa78279d6a2e90bc7e6050854938baf42",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 34987.029356552,
+        "shopfloor/makespan": 2939.10540097855,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 63.0,
+        "shopfloor/total_flow": 80093.36634187745,
+        "shopfloor/total_pool_wait": 45106.336985325455,
+        "shopfloor/total_tardiness": 162.97916943582018,
+        "shopfloor/total_wait": 14720.127082978286,
+        "shopfloor/wip_area": 80093.36634187745
+      },
+      "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+      "stored_digest": "2ab3497d03b02403d7485c4d67b26a01cab34eba352b6d273da59732586ce960",
+      "trace_signature": {
+        "digest": "2ab3497d03b02403d7485c4d67b26a01cab34eba352b6d273da59732586ce960",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 34987.029356552,
+          "shopfloor/makespan": 2939.10540097855,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 63.0,
+          "shopfloor/total_flow": 80093.36634187745,
+          "shopfloor/total_pool_wait": 45106.336985325455,
+          "shopfloor/total_tardiness": 162.97916943582018,
+          "shopfloor/total_wait": 14720.127082978286,
+          "shopfloor/wip_area": 80093.36634187745
+        },
+        "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+        "domain_events": 179284,
+        "observer_events": 20000,
+        "prelude_observer_events": 2,
+        "event_counts": {
+          "entity.created": 5000,
+          "psp.entered": 5000,
+          "policy.decision": 5000,
+          "psp.exited": 5000,
+          "shopfloor.entered": 5000,
+          "job.queued": 20612,
+          "job.granted": 20612,
+          "operation.started": 20612,
+          "server.work_credited": 20612,
+          "operation.completed": 20612,
+          "shopfloor.wip_updated": 20612,
+          "job.released": 20612,
+          "job.finished": 5000,
+          "entity.retired": 5000,
+          "kpi.sample": 20000
+        },
+        "chunks": 26
+      },
+      "trace_wire_sha256": "61f1df725dae12845565841e5d6d456e88e673c93c49a05d16b603da4264883e",
+      "counters": {
+        "completed": 5000,
+        "events": 163673,
+        "callbacks": 0,
+        "records": 0,
+        "makespan": 2939.10540097855
+      },
+      "trace_bytes": 7458871,
+      "trace_sizes": [
+        7458871
+      ],
+      "source_bytes": 0,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.008535208005923778,
+          "feed": 2.1764772919705138,
+          "run": 0.0046551660052500665,
+          "extract": 0.012461334001272917,
+          "close": 0.020810083020478487,
+          "total": 2.222939083003439,
+          "process_cpu": 2.481147
+        }
+      ],
+      "peak_rss_bytes": 159809536
+    },
+    {
+      "study": "direct-production",
+      "interpreter": "PyPy",
+      "python": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+      "backend": "native",
+      "producer": "feedback",
+      "mode": "full",
+      "jobs": 5000,
+      "operations": 20612,
+      "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+      "libraries": {
+        "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+        "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+        "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+        "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+      },
+      "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+      "trajectory_sha256": "6b77f5b8b499e2e6b6f8c6048dcce1f7973078b19606017bf133c9e42b0b8e30",
+      "generated_sha256": "2ca4e1a37a79b5d364b60b1a6c3b8f9d743dcd150e3dc7830055fcab3036fa9c",
+      "decisions_sha256": "f9293c19cd1b7c8bcac5e765503af85fa78279d6a2e90bc7e6050854938baf42",
+      "kpis": {
+        "shopfloor/completed": 5000.0,
+        "shopfloor/floor_wip_area": 34987.02935655187,
+        "shopfloor/makespan": 2939.10540097855,
+        "shopfloor/max_floor_wip": 12.0,
+        "shopfloor/max_wip": 63.0,
+        "shopfloor/total_flow": 80093.36634187757,
+        "shopfloor/total_pool_wait": 45106.33698532546,
+        "shopfloor/total_tardiness": 162.97916943582018,
+        "shopfloor/total_wait": 14720.127082978326,
+        "shopfloor/wip_area": 80093.36634187741
+      },
+      "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+      "stored_digest": "3007b2eeeb2ba7235cdc1c82e8fc05c0614873eedc08243989af3c45c9c62f37",
+      "trace_signature": {
+        "digest": "3007b2eeeb2ba7235cdc1c82e8fc05c0614873eedc08243989af3c45c9c62f37",
+        "kpis": {
+          "shopfloor/completed": 5000.0,
+          "shopfloor/floor_wip_area": 34987.02935655187,
+          "shopfloor/makespan": 2939.10540097855,
+          "shopfloor/max_floor_wip": 12.0,
+          "shopfloor/max_wip": 63.0,
+          "shopfloor/total_flow": 80093.36634187757,
+          "shopfloor/total_pool_wait": 45106.33698532546,
+          "shopfloor/total_tardiness": 162.97916943582018,
+          "shopfloor/total_wait": 14720.127082978326,
+          "shopfloor/wip_area": 80093.36634187741
+        },
+        "series_values_sha256": "1e6616b1bd9341f945970515d82234c42d14a1c5c942206c1fafd2dfbda6967d",
+        "domain_events": 169284,
+        "observer_events": 20002,
+        "prelude_observer_events": 0,
+        "event_counts": {
+          "entity.created": 5000,
+          "psp.entered": 5000,
+          "psp.exited": 5000,
+          "shopfloor.entered": 5000,
+          "job.queued": 20612,
+          "job.granted": 20612,
+          "operation.started": 20612,
+          "server.work_credited": 20612,
+          "operation.completed": 20612,
+          "job.released": 20612,
+          "shopfloor.wip_updated": 20612,
+          "job.finished": 5000,
+          "kpi.sample": 20002
+        },
+        "chunks": 25
+      },
+      "trace_wire_sha256": "738964645c4f33b2a799fcbfb2c843182aa4926d85a0c82cada2911282547403",
+      "counters": {
+        "completed": 5000,
+        "events": 87448,
+        "callbacks": 0,
+        "records": 123060,
+        "makespan": 2939.10540097855
+      },
+      "trace_bytes": 11928103,
+      "trace_sizes": [
+        11928103
+      ],
+      "source_bytes": 3937928,
+      "versions": {
+        "simulatte": "0.17.0",
+        "simpy": "4.1.2",
+        "msgpack": "1.2.3"
+      },
+      "warmups": [],
+      "samples": [
+        {
+          "build": 0.008689458016306162,
+          "feed": 2.107907207973767,
+          "run": 0.024761374981608242,
+          "extract": 0.006250209000427276,
+          "close": 0.08726687502348796,
+          "total": 2.2348751249955967,
+          "process_cpu": 2.609922
+        }
+      ],
+      "peak_rss_bytes": 206569472
+    }
+  ]
+}
