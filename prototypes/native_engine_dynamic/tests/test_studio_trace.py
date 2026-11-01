@@ -12,6 +12,7 @@ from prototypes.native_engine_dynamic.feedback import feed, validate_feed
 from prototypes.native_engine_dynamic.reference import ReferenceStream
 from prototypes.native_engine_dynamic.tuned import TunedStream
 from prototypes.native_engine_dynamic.studio_trace import TraceStream, validate_trace
+from prototypes.native_engine_dynamic.direct_trace import DirectTraceStream
 
 
 def test_equal_time_grant_and_departure_states_are_not_inferred_from_start_end(tmp_path):
@@ -83,23 +84,25 @@ def test_trace_parity_dynamic_entities_kpis_snapshots_and_replay(tmp_path, produ
         Trace.open(path).check()
 
 
-def test_empty_rejected_future_and_close_before_run(tmp_path):
-    stream = TraceStream(CompiledStream, 1, raw_path=tmp_path / "source", trace_path=tmp_path / "empty.simtrace")
+@pytest.mark.parametrize("stream_type", [TraceStream, DirectTraceStream])
+def test_empty_rejected_future_and_close_before_run(tmp_path, stream_type):
+    stream = stream_type(CompiledStream, 1, raw_path=tmp_path / "source", trace_path=tmp_path / "empty.simtrace")
     with pytest.raises(ValueError, match="arrival"):
         stream.add(Job(1, (0,), (1,), 5))
     stream.run()
     result = stream.result()
     stream.close()
     validate_trace(tmp_path / "empty.simtrace", Workload(1, ()), result)
-    other = TraceStream(CompiledStream, 1, raw_path=tmp_path / "other", trace_path=tmp_path / "incomplete.simtrace")
+    other = stream_type(CompiledStream, 1, raw_path=tmp_path / "other", trace_path=tmp_path / "incomplete.simtrace")
     other.add(Job(0, (0,), (1,), 5))
     other.close()
     other.close()
     assert Trace.open(tmp_path / "incomplete.simtrace").outcome == "cancelled"
 
 
-def test_invalid_calls_remain_usable_and_native_failure_marks_trace_failed(tmp_path):
-    stream = TraceStream(CompiledStream, 1, raw_path=tmp_path / "raw", trace_path=tmp_path / "failed.simtrace")
+@pytest.mark.parametrize("stream_type", [TraceStream, DirectTraceStream])
+def test_invalid_calls_remain_usable_and_native_failure_marks_trace_failed(tmp_path, stream_type):
+    stream = stream_type(CompiledStream, 1, raw_path=tmp_path / "raw", trace_path=tmp_path / "failed.simtrace")
     for bad in (None, object()):
         with pytest.raises(TypeError):
             stream.add(bad)
@@ -115,7 +118,8 @@ def test_invalid_calls_remain_usable_and_native_failure_marks_trace_failed(tmp_p
     assert Trace.open(tmp_path / "failed.simtrace").outcome == "failed"
 
 
-def test_writer_failure_closes_all_owners_without_completed_footer(tmp_path, monkeypatch):
+@pytest.mark.parametrize("stream_type", [TraceStream, DirectTraceStream])
+def test_writer_failure_closes_all_owners_without_completed_footer(tmp_path, monkeypatch, stream_type):
     from simulatte.trace.sink import FileSink
 
     real = FileSink.write
@@ -127,7 +131,7 @@ def test_writer_failure_closes_all_owners_without_completed_footer(tmp_path, mon
 
     monkeypatch.setattr(FileSink, "write", fail)
     with pytest.raises(OSError, match="trace disk full"):
-        stream = TraceStream(CompiledStream, 1, raw_path=tmp_path / "raw", trace_path=tmp_path / "disk.simtrace")
+        stream = stream_type(CompiledStream, 1, raw_path=tmp_path / "raw", trace_path=tmp_path / "disk.simtrace")
         try:
             stream.add(Job(0, (0,), (1,), 1))
             stream.run()

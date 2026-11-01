@@ -9,7 +9,8 @@ from simulatte.trace import ChunkLimits
 from prototypes.native_engine.model import Job, Workload
 
 from .compiled import CompiledStream
-from .studio_trace import TraceStream, validate_trace
+from .studio_trace import validate_trace
+from .direct_trace import DirectTraceStream
 
 ROOT = Path(__file__).resolve().parent
 
@@ -22,7 +23,7 @@ def plain(value):
     return value
 
 
-def generate(destination, *, name="lifecycle"):
+def generate(destination, *, name="direct"):
     destination.mkdir(parents=True, exist_ok=True)
     jobs = tuple(Job(i // 3, (i % 2, (i + 1) % 2), (1 + i % 3, 0.5 + i % 2), i % 5 + 3) for i in range(12))
     data = Workload(2, jobs)
@@ -34,7 +35,7 @@ def generate(destination, *, name="lifecycle"):
         dependencies=hashlib.sha256((ROOT.parents[1] / "uv.lock").read_bytes()).hexdigest(),
     )
     path, raw = destination / f"{name}.simtrace", destination / f"{name}.source"
-    stream = TraceStream(
+    stream = DirectTraceStream(
         CompiledStream,
         2,
         raw_path=raw,

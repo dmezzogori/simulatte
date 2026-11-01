@@ -137,6 +137,9 @@ integration was implemented in this milestone. The no-recording accelerator
 opportunity remains separate from broader extension/semantic/packaging readiness.
 The proposed next candidate requires a further instruction to proceed.
 
+Follow-up: the [direct event emitter study](2026-11-01-native-direct.md) tests the
+next candidate with a contemporary aligned bridge control and fixed journal/core.
+
 ## Verification and retained evidence
 
 273 prototype tests pass CPython (one sanitizer-only skip);272 pass PyPy

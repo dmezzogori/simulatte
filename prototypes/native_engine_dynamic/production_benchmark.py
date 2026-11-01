@@ -30,6 +30,7 @@ from prototypes.native_engine.workloads import read
 
 from .benchmark import REPO, ROOT, PHASES
 from .compiled import CompiledStream, extension
+from .direct_trace import DirectTraceStream
 from .feedback import feed, validate_feed
 from .production import ProductionStream
 from .rich_recording import validate_records
@@ -48,6 +49,8 @@ def sources():
                 REPO / "specs/research/native-engine-data/production_analysis.py",
                 ROOT / "tests/test_production.py",
                 ROOT / "tests/test_trace_lifecycle.py",
+                ROOT / "tests/test_direct_trace.py",
+                ROOT / "tests/test_studio_trace.py",
             )
         },
     }
@@ -57,11 +60,11 @@ def source_hash():
     return digest(sources())
 
 
-def cases():
+def cases(*, backends=("production", "native", "direct")):
     return [
         dict(interpreter=i, producer=p, mode=m, backend=b, jobs=5000)
         for i, p, m, b in itertools.product(
-            ("CPython", "PyPy"), ("independent", "feedback"), ("none", "kpi", "full"), ("production", "native")
+            ("CPython", "PyPy"), ("independent", "feedback"), ("none", "kpi", "full"), backends
         )
     ]
 
@@ -72,6 +75,7 @@ def case_id(row):
 
 def equivalent(rows):
     groups = {}
+    encoded = {}
     for row in rows:
         group = groups.setdefault((row["producer"], row["jobs"], row["input_sha256"]), {})
         for key in ("trajectory_sha256", "generated_sha256", "decisions_sha256", "operations"):
@@ -85,6 +89,10 @@ def equivalent(rows):
         # Series include global seq, which legitimately differs between event streams.
         if row["series_values_sha256"] is not None:
             assert group.setdefault("series", row["series_values_sha256"]) == row["series_values_sha256"], "WIP series"
+        if row["backend"] in ("native", "direct") and row["mode"] != "none":
+            key = row["interpreter"], row["producer"], row["jobs"], row["mode"]
+            value = row["trace_signature"], row["trace_wire_sha256"]
+            assert encoded.setdefault(key, value) == value, "aligned/direct recorded parity"
 
 
 def validate_output(path, jobs, result, *, mode, backend):
@@ -179,7 +187,8 @@ def sample(templates, args, raw, path, provenance):
     elif args.mode == "none":
         stream = CompiledStream(templates.servers, wip_cap=12, policy="spt")
     else:
-        stream = TraceStream(
+        stream_type = DirectTraceStream if args.backend == "direct" else TraceStream
+        stream = stream_type(
             CompiledStream,
             templates.servers,
             raw_path=raw,
@@ -259,7 +268,7 @@ def worker(args):
                 if args.mode != "none":
                     signature = validate_output(path, jobs, result, mode=args.mode, backend=args.backend)
                     assert signature["chunks"] == chunks
-                    if args.backend == "native":
+                    if args.backend in ("native", "direct"):
                         validate_records(raw, Workload(templates.servers, jobs), result, cap=12, policy="spt")
                 expected = current
             assert expected == current, "result or trace drift"
@@ -303,7 +312,7 @@ def matrix(args):
     frozen, binaries = source_hash(), libraries()
     path = REPO / "prototypes/native_engine/.inputs/jobs-5000-load-0.95.json"
     order = cases()
-    random.Random(20261104).shuffle(order)
+    random.Random(20261106).shuffle(order)
     meta = dict(
         created=datetime.now(UTC).isoformat(),
         source_sha256=frozen,
@@ -311,7 +320,7 @@ def matrix(args):
         libraries=binaries,
         input=str(path.relative_to(REPO)),
         input_sha256=static.file_hash(path),
-        seed=20261104,
+        seed=20261106,
         platform=platform.platform(),
         host=platform.node(),
         case_order=[case_id(c) for c in order],
@@ -358,7 +367,7 @@ def matrix(args):
         equivalent(rows)
         with (args.output / "matrix.jsonl").open("a") as f:
             f.write(json.dumps(row, separators=(",", ":")) + "\n")
-        print(f"{len(rows)}/24 {row['case']}: {statistics.median(s['total'] for s in row['samples']):.6f}s", flush=True)
+        print(f"{len(rows)}/36 {row['case']}: {statistics.median(s['total'] for s in row['samples']):.6f}s", flush=True)
 
 
 def profile(args):
@@ -527,7 +536,7 @@ def main():
         run = sub.add_parser(name)
         run.add_argument("--input", type=Path, required=True)
         run.add_argument("--jobs", type=int, default=5000)
-        run.add_argument("--backend", choices=("native", "production"), required=True)
+        run.add_argument("--backend", choices=("native", "production", "direct"), required=True)
         run.add_argument("--producer", choices=("independent", "feedback"), required=True)
         run.add_argument("--mode", choices=("none", "kpi", "full"), required=True)
         run.add_argument("--warmups", type=int, default=1)

@@ -31,9 +31,10 @@ def file_hash(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def audit(rows, meta, *, current=True, lifecycle=True):
-    assert len(rows) == len({r["case"] for r in rows}) == 24, "unique cases"
-    assert {r["case"] for r in rows} == {case_id(c) for c in cases()}, "coverage"
+def audit(rows, meta, *, current=True, lifecycle=True, with_direct=True):
+    expected = cases(backends=("production", "native", "direct") if with_direct else ("production", "native"))
+    assert len(rows) == len({r["case"] for r in rows}) == len(expected), "unique cases"
+    assert {r["case"] for r in rows} == {case_id(c) for c in expected}, "coverage"
     assert [r["case"] for r in rows] == meta["case_order"], "order"
     semantic, software, raw = {}, {}, {}
     for row in rows:
@@ -59,7 +60,7 @@ def audit(rows, meta, *, current=True, lifecycle=True):
             assert sig["series_values_sha256"] == row["series_values_sha256"]
             key = row["producer"], row["backend"]
             assert semantic.setdefault(key, sig["digest"]) == sig["digest"], "backend digest"
-            records = 4 * row["jobs"] + 5 * row["operations"] if row["backend"] == "native" else 0
+            records = 4 * row["jobs"] + 5 * row["operations"] if row["backend"] != "production" else 0
             assert row["source_bytes"] == (8 + 32 * records if records else 0)
             if records:
                 assert raw.setdefault(row["producer"], row["source_bytes"]) == row["source_bytes"]
@@ -95,6 +96,7 @@ def negatives(rows, meta):
         "series_values_sha256",
         "samples",
         "trace_signature",
+        "trace_wire_sha256",
     ):
         bad = deepcopy(rows)
         target = next(r for r in bad if r["mode"] == "full")
@@ -106,6 +108,8 @@ def negatives(rows, meta):
             target[field]["shopfloor/total_flow"] += 100
         elif field == "trace_signature":
             target[field]["domain_events"] += 1
+        elif field == "trace_wire_sha256":
+            next(r for r in bad if r["backend"] == "direct" and r["mode"] == "full")[field] = "corrupt"
         elif field == "libraries":
             target[field]["dynamic"] = "corrupt"
         else:
@@ -127,6 +131,8 @@ def category(row):
         return "bridge_journal"
     if path.endswith("studio_trace.py"):
         return "bridge_projection"
+    if path.endswith("direct_trace.py"):
+        return "direct_emission"
     if name in ("apply_deltas", "apply_op"):
         return "delta_replay"
     if path.endswith("digest.py"):
@@ -173,6 +179,13 @@ def profile_audit(directory, rows, meta):
         covered.append(case_id(case))
         assert r["trajectory_sha256"] == measured[case_id(case)]["trajectory_sha256"]
         assert len(r["writers"]) == int(r["mode"] != "none")
+        replay_calls = sum(f["calls"] for f in r["simulation"]["functions"] if f["name"] == "apply_deltas")
+        if r["backend"] == "direct":
+            assert replay_calls == 0, "direct simulation replay"
+        elif r["backend"] == "native" and r["mode"] != "none":
+            assert replay_calls > 0, "aligned simulation replay"
+        if r["mode"] == "full":
+            assert any(f["name"] == "apply_deltas" and f["calls"] > 0 for f in r["writers"][0]["functions"])
         assert len(r["snapshots"]) == (
             measured[case_id(case)]["trace_signature"]["chunks"] if r["mode"] == "full" else 0
         )
@@ -200,7 +213,7 @@ def profile_audit(directory, rows, meta):
                     snapshots=r["snapshots"],
                 )
             )
-    assert len(covered) == len(set(covered)) == 12, "profile coverage"
+    assert len(covered) == len(set(covered)) == sum(r["interpreter"] == "CPython" for r in rows), "profile coverage"
     assert set(covered) == {r["case"] for r in rows if r["interpreter"] == "CPython"}
     return profiles
 
@@ -225,7 +238,9 @@ def verify_committed_files(expected, revision):
 def compare(directory, baseline, revision, rows, meta):
     old_rows = [json.loads(s) for s in (baseline / "matrix.jsonl").read_text().splitlines()]
     old_meta = json.loads((baseline / "metadata.json").read_text())
-    audit(old_rows, old_meta, current=False, lifecycle=False)
+    old_native = next(r for r in old_rows if r["backend"] == "native" and r["mode"] == "full")
+    lifecycle = old_native["trace_signature"]["event_counts"].get("entity.retired", 0) == old_native["jobs"]
+    audit(old_rows, old_meta, current=False, lifecycle=lifecycle, with_direct=False)
     assert digest(old_meta["files"]) == old_meta["source_sha256"]
     expected = dict(old_meta["files"])
     for path in baseline.rglob("*"):
@@ -233,12 +248,13 @@ def compare(directory, baseline, revision, rows, meta):
             expected[str(path.resolve().relative_to(REPO))] = file_hash(path)
     verify_committed_files(expected, revision)
     assert old_meta["libraries"] == meta["libraries"] and old_meta["input_sha256"] == meta["input_sha256"]
-    assert old_meta["writer"] == meta["writer"] and old_meta["case_order"] == meta["case_order"]
+    assert old_meta["writer"] == meta["writer"]
     equivalent([*old_rows, *rows])
     older = {r["case"]: r for r in old_rows}
     summary = []
     for row in rows:
-        before = older[row["case"]]
+        previous_case = case_id(dict(row, backend="native")) if row["backend"] == "direct" else row["case"]
+        before = older[previous_case]
         assert row["versions"] == before["versions"] and row["counters"] == before["counters"]
         assert row["source_bytes"] == before["source_bytes"]
         old_time = statistics.median(s["total"] for s in before["samples"])
@@ -246,6 +262,7 @@ def compare(directory, baseline, revision, rows, meta):
         summary.append(
             dict(
                 case=row["case"],
+                baseline_case=previous_case,
                 old_total=old_time,
                 new_total=new_time,
                 speedup=old_time / new_time,
@@ -278,7 +295,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
     parser.add_argument("--baseline", type=Path)
-    parser.add_argument("--baseline-revision", default="1b234fc")
+    parser.add_argument("--baseline-revision", default="27316bf")
     args = parser.parse_args()
     rows = [json.loads(s) for s in (args.directory / "matrix.jsonl").read_text().splitlines()]
     meta = json.loads((args.directory / "metadata.json").read_text())

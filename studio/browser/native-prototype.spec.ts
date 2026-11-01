@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { resolve } from "node:path";
 
-for (const fixture of ["native", "lifecycle"]) {
+for (const fixture of ["native", "lifecycle", "direct"]) {
   test(`${fixture} trace opens, steps both directions, seeks, plays and renders in the production viewer`, async ({page}) => {
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -9,7 +9,11 @@ for (const fixture of ["native", "lifecycle"]) {
     await page.locator("input[type=file]").setInputFiles(resolve(`../prototypes/native_engine_dynamic/fixtures/${fixture}.simtrace`));
     await expect(page.locator(".status")).toHaveText("paused");
     await expect(page.locator("output")).toContainText("activation");
-    for (let i = 0; i < 9; i++) await page.getByRole("button", {name: "Next event", exact: true}).click();
+    for (let i = 0; i < 9; i++) {
+      const before = await page.locator("output").textContent();
+      await page.getByRole("button", {name: "Next event", exact: true}).click();
+      await expect(page.locator("output")).not.toHaveText(before!);
+    }
     const after = await page.locator("output").textContent();
     await page.getByRole("button", {name: "Previous event", exact: true}).click();
     await expect(page.locator("output")).not.toHaveText(after!);

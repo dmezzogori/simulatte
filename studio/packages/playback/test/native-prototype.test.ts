@@ -12,7 +12,7 @@ type Expected = {
   checks: {cursor: Cursor; state: State; kpis: Record<string, number | null>}[];
 };
 
-it.each(["native", "lifecycle"])("replays and seeks the %s trace with production Python parity", async (fixture) => {
+it.each(["native", "lifecycle", "direct"])("replays and seeks the %s trace with production Python parity", async (fixture) => {
   const expected = JSON.parse(readFileSync(`${root}${fixture}.expected.json`, "utf8")) as Expected;
   const bytes = new Uint8Array(readFileSync(`${root}${fixture}.simtrace`));
   const recording = await openRecording(bytes.buffer);

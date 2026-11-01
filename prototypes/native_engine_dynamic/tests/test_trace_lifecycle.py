@@ -12,14 +12,16 @@ from prototypes.native_engine.model import Job
 from prototypes.native_engine_dynamic.compiled import CompiledStream
 from prototypes.native_engine_dynamic.reference import ReferenceStream
 from prototypes.native_engine_dynamic.studio_trace import TraceStream
+from prototypes.native_engine_dynamic.direct_trace import DirectTraceStream
 
 
 @pytest.mark.parametrize("factory", [CompiledStream, ReferenceStream])
+@pytest.mark.parametrize("stream_type", [TraceStream, DirectTraceStream])
 @pytest.mark.parametrize("cap", [None, 1])
 @pytest.mark.parametrize("level", ["kpi", "full"])
-def test_retirement_preserves_handles_results_and_historical_state(tmp_path, factory, cap, level):
+def test_retirement_preserves_handles_results_and_historical_state(tmp_path, factory, stream_type, cap, level):
     path = tmp_path / "lifecycle.simtrace"
-    stream = TraceStream(
+    stream = stream_type(
         factory,
         1,
         wip_cap=cap,
@@ -46,7 +48,10 @@ def test_retirement_preserves_handles_results_and_historical_state(tmp_path, fac
         assert observed["released"] == first["released"][index]
         assert observed["finished"] == first["finished"][index]
     assert stream.result() == first
-    assert not any(key.startswith("job-") for key in stream.projection.state)
+    if stream_type is TraceStream:
+        assert not any(key.startswith("job-") for key in stream.projection.state)
+    else:
+        assert not hasattr(stream.projection, "state")
     assert not any(actor.kind == "job" for actor in stream.projection.env.entities.live())
     gc.collect()
     assert len(references) == 2 and all(ref() is None for ref in references)

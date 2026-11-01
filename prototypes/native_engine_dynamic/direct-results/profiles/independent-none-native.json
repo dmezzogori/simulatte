@@ -1,0 +1,334 @@
+{
+  "study": "direct-production-profile",
+  "backend": "native",
+  "producer": "independent",
+  "mode": "none",
+  "jobs": 5000,
+  "source_sha256": "794b2c7d8c2f2549b6a49fb3e06a4d5aff999a8619321e2e6129a6f9d7908cfc",
+  "libraries": {
+    "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+    "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+    "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+    "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+  },
+  "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+  "trajectory_sha256": "a797279ebc7340348dcbf6ee788fe3fb4f19dc47dbe75f9dba0561d4f474b2e0",
+  "clock": "time.thread_time",
+  "timing": {
+    "build": 2.6332971174269915e-05,
+    "feed": 0.09469850000459701,
+    "run": 0.0005021669785492122,
+    "extract": 0.0005170000367797911,
+    "close": 0.0026512499898672104,
+    "total": 0.09839524998096749,
+    "process_cpu": 0.09823099999999997
+  },
+  "writer_pass_timing": null,
+  "separate_thread_passes": true,
+  "diagnostic_timing": null,
+  "spans": {},
+  "snapshots": [],
+  "simulation": {
+    "total_self_cpu": 0.038208538000001124,
+    "functions": [
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 53,
+        "name": "add",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.00656894900000056,
+        "cumulative_cpu": 0.013058389999999892
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 63,
+        "name": "advance",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0058446429999985255,
+        "cumulative_cpu": 0.017662061000001644
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "collect",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 0.0043054159999999925,
+        "cumulative_cpu": 0.0043054159999999925
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/native.py",
+        "line": 113,
+        "name": "_number",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.003388476999999959,
+        "cumulative_cpu": 0.005772244000001023
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "advance",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.002895901000001172,
+        "cumulative_cpu": 0.002895901000001172
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/feedback.py",
+        "line": 6,
+        "name": "feed",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 0.00208034199999943,
+        "cumulative_cpu": 0.032800793000000966
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "add",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0018700099999992698,
+        "cumulative_cpu": 0.0018700099999992698
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "__exit__",
+        "primitive_calls": 10004,
+        "calls": 10004,
+        "self_cpu": 0.00171831899999976,
+        "cumulative_cpu": 0.00171831899999976
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "__enter__",
+        "primitive_calls": 10004,
+        "calls": 10004,
+        "self_cpu": 0.001645163000000921,
+        "cumulative_cpu": 0.001645163000000921
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "isinstance",
+        "primitive_calls": 10004,
+        "calls": 10004,
+        "self_cpu": 0.001618905000000767,
+        "cumulative_cpu": 0.001618905000000767
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "accepting",
+        "primitive_calls": 10000,
+        "calls": 10000,
+        "self_cpu": 0.0015119929999993509,
+        "cumulative_cpu": 0.0015119929999993509
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 43,
+        "name": "_check",
+        "primitive_calls": 10002,
+        "calls": 10002,
+        "self_cpu": 0.0014766980000010393,
+        "cumulative_cpu": 0.0014766980000010393
+      },
+      {
+        "file": "<string>",
+        "line": 2,
+        "name": "__init__",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.001418363999999922,
+        "cumulative_cpu": 0.001418363999999922
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "isfinite",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0007656120000002903,
+        "cumulative_cpu": 0.0007656120000002903
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "result",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 0.0005038330000000091,
+        "cumulative_cpu": 0.0005038330000000091
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "run",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 0.0004887080000000044,
+        "cumulative_cpu": 0.0004887080000000044
+      },
+      {
+        "file": "profile",
+        "line": 0,
+        "name": "<function sample at 0x10151e350>",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.324900000001296e-05,
+        "cumulative_cpu": 0.038208538000001124
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production_benchmark.py",
+        "line": 180,
+        "name": "sample",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.7792000000026462e-05,
+        "cumulative_cpu": 0.038164247000001095
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "perf_counter",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 1.1293000000009434e-05,
+        "cumulative_cpu": 1.1293000000009434e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "setprofile",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.104200000001665e-05,
+        "cumulative_cpu": 1.104200000001665e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "getrusage",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 5.29200000000396e-06,
+        "cumulative_cpu": 5.29200000000396e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 26,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 4.291999999989082e-06,
+        "cumulative_cpu": 9.20699999999719e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "close",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.500000000016378e-06,
+        "cumulative_cpu": 2.500000000016378e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production_benchmark.py",
+        "line": 216,
+        "name": "<genexpr>",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 2.290000000043646e-06,
+        "cumulative_cpu": 2.290000000043646e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 89,
+        "name": "close",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 2.1660000000256474e-06,
+        "cumulative_cpu": 5.375000000057417e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "create",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.7499999999948113e-06,
+        "cumulative_cpu": 1.7499999999948113e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 79,
+        "name": "run",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.5409999999660418e-06,
+        "cumulative_cpu": 0.0004908319999999688
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/native.py",
+        "line": 105,
+        "name": "_count",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.3740000000261876e-06,
+        "cumulative_cpu": 2.1240000000199988e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 84,
+        "name": "result",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.167000000024121e-06,
+        "cumulative_cpu": 0.000505541000000026
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 126,
+        "name": "RLock",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 6.659999999963917e-07,
+        "cumulative_cpu": 6.659999999963917e-07
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 95,
+        "name": "__del__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 4.1600000000308057e-07,
+        "cumulative_cpu": 1.2490000000087154e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "index",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.749999999969056e-07,
+        "cumulative_cpu": 3.749999999969056e-07
+      },
+      {
+        "file": "profile",
+        "line": 0,
+        "name": "profiler",
+        "primitive_calls": 0,
+        "calls": 0,
+        "self_cpu": 0,
+        "cumulative_cpu": 0
+      }
+    ]
+  },
+  "writers": []
+}

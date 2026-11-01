@@ -264,3 +264,41 @@ bytes/file size close to production and reduces full native CPython whole-proces
 peak RSS from 120/94 to 80/62 MiB. Native PyPy still takes 17–20% longer than production
 PyPy for full traces. Native CPython KPI time rises 3–5%; none-mode paths/results
 remain unchanged. Extra Python shadow replay remains a proposed next candidate.
+
+## Direct typed event emitter
+
+The [direct-emission experiment](../../specs/research/2026-11-01-native-direct.md)
+adds opt-in DirectTraceStream. It uses the same native core, compiled boundary
+and rich journal, but builds typed events/deltas from small counters rather than
+applying every delta to a second complete entity-state map. The real writer is
+the sole generic replay owner. Native handles/results and exact aligned-bridge
+recording semantics remain intact.
+
+The internal publisher's registry binds identity/kind/lifecycle only. It supplies
+creation/activation state then explicitly rejects live snapshot requests; seek
+the resulting Trace for historical state. It is not a live model Environment.
+This limitation is part of the experimental boundary.
+
+The generator now writes direct.*, preserving native.* and lifecycle.*. All
+three fixtures are checked by the playback/scene/browser tests. The current
+matrix has 36 cases with production/native/direct backends and includes 18
+CPython profiling commands. Native/direct none cases use the same compiled
+engine as controls. Use direct-results as the output directory, then:
+
+```sh
+.venv/bin/python specs/research/native-engine-data/production_analysis.py \
+  prototypes/native_engine_dynamic/direct-results \
+  --baseline prototypes/native_engine_dynamic/lifecycle-results \
+  --baseline-revision 27316bf
+```
+
+The audit requires exact aligned/direct trace signatures and normalized wire,
+zero direct main-thread generic replay and continued full writer replay. Earlier
+audits/results require their recorded checkout. No earlier evidence is rewritten.
+
+The completed emitter study gains 1.087–1.105x full and 1.193–1.235x KPI throughput
+over the contemporary aligned bridge, with identical recorded output. Best native
+full is 0.6%/3.9% longer than production PyPy independent/feedback (near parity,
+not a consistent win). Full memory has no consistent improvement. Keep this
+path opt-in and validate larger/tie-heavy workloads and the observation contract
+before a public native interface; no production integration was attempted here.

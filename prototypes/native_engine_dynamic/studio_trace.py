@@ -325,6 +325,8 @@ class Projection:
 
 
 class TraceStream:
+    projection_type = Projection
+
     def __init__(
         self,
         factory,
@@ -347,7 +349,7 @@ class TraceStream:
         try:
             self.base = factory(servers, wip_cap=wip_cap, policy=policy, mode="studio", trace_path=raw_path)
             self.reader = Reader(raw_path)
-            self.projection = Projection(
+            self.projection = self.projection_type(
                 servers,
                 trace_path,
                 policy=policy,

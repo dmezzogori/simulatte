@@ -14,6 +14,7 @@ from prototypes.native_engine_dynamic.feedback import feed, validate_feed
 from prototypes.native_engine_dynamic.production import ProductionStream
 from prototypes.native_engine_dynamic.production_benchmark import equivalent, validate_output
 from prototypes.native_engine_dynamic.studio_trace import TraceStream
+from prototypes.native_engine_dynamic.direct_trace import DirectTraceStream
 from prototypes.native_engine_dynamic.validation import fingerprint, validate_result
 
 
@@ -22,7 +23,7 @@ def test_production_trajectory_and_real_trace_levels(tmp_path, producer):
     templates = generate(100, 0.95)
     expected = None
     series = None
-    for backend in ("native", "production"):
+    for backend in ("native", "production", "direct"):
         for mode in ("none", "kpi", "full"):
             path = tmp_path / f"{backend}-{mode}.simtrace"
             if backend == "production":
@@ -30,7 +31,8 @@ def test_production_trajectory_and_real_trace_levels(tmp_path, producer):
             elif mode == "none":
                 stream = CompiledStream(templates.servers, wip_cap=12, policy="spt")
             else:
-                stream = TraceStream(
+                cls = DirectTraceStream if backend == "direct" else TraceStream
+                stream = cls(
                     CompiledStream,
                     templates.servers,
                     wip_cap=12,
@@ -82,7 +84,7 @@ def test_workers_and_equivalence_reject_changed_feedback(tmp_path):
     path = tmp_path / "input.json"
     save(generate(20, 0.95), path)
     rows = []
-    for backend in ("production", "native"):
+    for backend in ("production", "native", "direct"):
         command = [
             sys.executable,
             "-m",

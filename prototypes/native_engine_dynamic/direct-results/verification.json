@@ -1,0 +1,26 @@
+{
+  "cases": 36,
+  "timed_samples": 180,
+  "cold_probes": 36,
+  "exact_trajectory_generation_feedback_equivalence": true,
+  "kpi_tolerance_and_wip_series_equivalence": true,
+  "current_provenance": true,
+  "negative_checks_rejected": [
+    "case",
+    "source_sha256",
+    "libraries",
+    "trajectory_sha256",
+    "generated_sha256",
+    "decisions_sha256",
+    "kpis",
+    "series_values_sha256",
+    "samples",
+    "trace_signature",
+    "trace_wire_sha256"
+  ],
+  "profile_threads": 30,
+  "matrix_sha256": "aa2ab0e4c14a3f681dc3e4b06ce2f8b7c31731a1a6e562d3a2c0d4e633b13dfa",
+  "metadata_sha256": "2d5cc736ed68b6d308d79321134e95b6179325164a310258004455e8ae816ce1",
+  "historical_baseline_verified_files": 233,
+  "historical_baseline_revision": "27316bf"
+}
