@@ -1,0 +1,112 @@
+{
+  "created": "2026-11-01T16:53:50.529228+01:00",
+  "base_revision": "281baa7832af4c1bc0a53f47a830115cc0073d5e",
+  "source_sha256": "49be0844a50eafd3b170ba6edf42d0d795938127ab62c7821b1fcc3ce7eb1aaf",
+  "files": {
+    "prototypes/native_engine/analyze.py": "9e61fb419286ede490f9f154fa4422359cfe9469cd4fccc08b49f3660dca3d11",
+    "prototypes/native_engine/baseline.py": "fedbcdc2301da868ecc1d75b417e964c62c807baf2e8e1b1a1e544f0375a21d8",
+    "prototypes/native_engine/benchmark.py": "bb08c822d8c0a5bc9ee9234ae1b2158c56fc59065992116d20e9f01d4a927577",
+    "prototypes/native_engine/build.py": "52af16e61c5b6de181d6514e083e5225bf186e9774e1af90d0f88fb3484f0ade",
+    "prototypes/native_engine/csrc/native_engine.c": "3ef9ff3a8a7722d0a35e0aa1001bdc0e9f7801135dd0404be493cd3801ea4ec7",
+    "prototypes/native_engine/csrc/native_engine.h": "aab5e20dcb57a62c45fb5c96f1955a41be8381a19b21a77311af5ed4271005af",
+    "prototypes/native_engine/hooks.py": "e8f097ff347ef36b74ff9483c7065166311bb555a4a74992fa0aab3f4b48c635",
+    "prototypes/native_engine/model.py": "bd6f81455a683d47f1c8964cdd845df408e21f722554be02bdbfcbbac830150f",
+    "prototypes/native_engine/native.py": "8b72c464dbb9672cc2082dd8377353adedc3251bc75aa1012c62b43c736d6f27",
+    "prototypes/native_engine/recording.py": "5a37000a9e32b2d629d4734103cd128cba0faae90d6032563e2a26222f07d476",
+    "prototypes/native_engine/reference.py": "a8a6a844db42d8c1bf06fceb06928a26086738cd646a64587b6bf8aed19b5c13",
+    "prototypes/native_engine/tuned.py": "1f03357fca709a48efa3e36f95ad207e8d931aa2c74f6b6a3ea1482631a30178",
+    "prototypes/native_engine/validation.py": "821c597806a2504d33e32b4f50a94ca1115cb4ee32f686a955917be71d5a91fc",
+    "prototypes/native_engine/workloads.py": "1490e36d0f61d0edc58c0895e9b1478bfeed9fd21560f7c86a632eb8b188fbf1",
+    "prototypes/native_engine_dynamic/benchmark.py": "7523534c461397b5f57382d79172541acda54f9e2ad6d1c4d06b9a8be2b540fa",
+    "prototypes/native_engine_dynamic/build.py": "0a9f70975a61638cef09ca0fef6f5165419439102d1a41d5a4aa4eca72a9662a",
+    "prototypes/native_engine_dynamic/csrc/dynamic_engine.c": "43a4cef03877f7822c9d1f6b9b19da8ca7b50423fb79ac7ca1770b74c0b8594c",
+    "prototypes/native_engine_dynamic/csrc/dynamic_engine.h": "f9e5eab99ccfd3862f339148acdda7939db86d2466bcba54f23831efeaff932c",
+    "prototypes/native_engine_dynamic/handles.py": "32baa1d957dd288dd576c5def239b58c72f3533cbbcbd3aa01cb1c01b5cb61aa",
+    "prototypes/native_engine_dynamic/native.py": "46b108dc812aa80da88293616189c5c20795d494855f9fde287e65c29cc09bf2",
+    "prototypes/native_engine_dynamic/recording.py": "733998f534687f5297d9e0afbbbfe5b091664b0d705f2b7456dc43241a69b924",
+    "prototypes/native_engine_dynamic/reference.py": "74797d67875c136287b2a984af82f62d93e6c4960f49cacd483eacb1f98c2f2e",
+    "prototypes/native_engine_dynamic/tuned.py": "0901d2ce461fb0aa1f002303341f9b696e8364bdaec2dd9d4cd57330e23d915f",
+    "prototypes/native_engine_dynamic/validation.py": "dff13339074a306833a744a76ac0f4e6631b8e27a22b4df44e5cd57713ea50a2"
+  },
+  "libraries": {
+    "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+    "dynamic": "845531e2a5227d4ea008c2e70a91106ae150155530f75f44921e650d838cc0aa"
+  },
+  "inputs": {
+    "jobs-5000-load-0.5.json": "9f62297959c8e889140aac6ed469c24f989132f9fcb73e0aa897dbcd22b65e9d",
+    "jobs-5000-load-0.95.json": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+    "jobs-50000-load-0.5.json": "04bbd870a60f47b2980d30cd5641421b6d88709b4a4a922693b6defed05c8017",
+    "jobs-50000-load-0.95.json": "2e45f12f28e425c4614aff714ceb35902bb64ced1b1878dde82e5b086926565b"
+  },
+  "platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+  "hardware": "Apple M4 Pro\n12\n51539607552",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.4.1.1)\nTarget: arm64-apple-darwin27.2.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+  "flags": [
+    "-std=c17",
+    "-O3",
+    "-fPIC",
+    "-Wall",
+    "-Wextra",
+    "-Wpedantic",
+    "-Werror",
+    "-dynamiclib"
+  ],
+  "cpython": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+  "pypy": "3.11.15 (dc0121776214, Apr 28 2026, 06:06:15)\n[PyPy 7.3.22 with GCC Apple LLVM 16.0.0 (clang-1600.0.26.6)]",
+  "dependencies": "anyio==4.15.1\nattrs==26.1.0\ncertifi==2026.7.22\ncfgv==3.5.0\nclick==8.5.0\ncloudpickle==3.1.2\ncontourpy==1.4.0\ncoverage==7.16.2\ncycler==0.12.1\ndeepmerge==3.0.1\ndistlib==0.4.3\nfarama-notifications==0.0.6\nfilelock==4.0.12\nfonttools==4.66.1\nghp-import==2.1.0\ngriffelib==2.3.2\ngymnasium==1.4.0\nh11==0.16.0\nhatchling==1.32.4\nhttpcore==1.0.9\nhttpx==0.28.1\nidentify==2.6.20\nidna==3.20\niniconfig==2.3.1\njinja2==3.1.6\njsonschema==4.26.0\njsonschema-specifications==2025.9.1\nkiwisolver==1.5.1\nmarkdown==3.11\nmarkupsafe==3.0.4\nmatplotlib==3.11.2\nmergedeep==1.3.4\nmkdocs==1.6.1\nmkdocs-autorefs==1.4.4\nmkdocs-get-deps==0.2.2\nmkdocstrings==1.0.6\nmkdocstrings-python==2.0.9\nmsgpack==1.2.3\nnodeenv==1.11.0\nnumpy==2.5.3\npackaging==26.3\npathspec==1.1.1\npillow==12.3.0\nplatformdirs==4.12.3\npluggy==1.6.0\npre-commit==4.7.0\npygments==2.21.0\npymdown-extensions==12.1\npyparsing==3.3.3\npytest==9.1.1\npytest-cov==7.1.0\npytest-timeout==2.4.0\npython-dateutil==2.9.0.post0\npython-discovery==1.6.1\npyyaml==6.0.3\npyyaml-env-tag==1.1\nreferencing==0.37.0\nrpds-py==2026.9.1\nruff==0.17.2\nsimpy==4.1.2\n-e file:///Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility\nsix==1.17.0\nstarlette==1.10.0\ntabulate==0.10.0\ntomli==2.4.1\ntomlkit==0.15.1\ntqdm==4.70.1\ntrove-classifiers==2026.9.21.13\nty==0.0.91\ntyping-extensions==4.16.0\nuvicorn==0.54.0\nvirtualenv==21.14.5\nwatchdog==6.0.0\nwatchfiles==1.3.0\nwebsockets==17.2\nzensical==0.0.73",
+  "pypy_dependencies": "iniconfig==2.3.1\nmsgpack==1.2.3\npackaging==26.3\npluggy==1.7.0\npygments==2.21.0\npytest==9.1.1\nsimpy==4.1.2\n-e file:///Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility\ntabulate==0.10.0\ntqdm==4.70.1",
+  "method": {
+    "hook_cases": 32,
+    "dynamic_cases": 48,
+    "samples_per_case": 5,
+    "warmups": {
+      "CPython": 1,
+      "PyPy": 7
+    },
+    "cold_probes": 80,
+    "serial": true,
+    "common_input_validation_outside_timing": true,
+    "dynamic_registration_advance_inside_timing": true,
+    "detached_lists_and_close_gc_inside_timing": true,
+    "retains_completed_state_until_close": true
+  },
+  "checks": {
+    "prototype_tests": {
+      "CPython": 190,
+      "PyPy": 190
+    },
+    "production_conwip_tests": 10,
+    "static_sanitizer": "passed: boundaries,120 randomized lifecycles,allocation faults",
+    "dynamic_sanitizer": "passed: randomized1025-job growth,143 allocation-failure positions",
+    "review": "one independent review; provenance enforcement and max-WIP validation repaired RED\u2192GREEN before timing",
+    "ruff_check": "pass",
+    "ruff_format": "passed for both prototypes and analysis script",
+    "static_C_and_release_binary_unchanged": true,
+    "production_diff_unchanged": true,
+    "negative_audit_checks": [
+      "duplicate case",
+      "wrong source",
+      "wrong library",
+      "trajectory mismatch",
+      "timing sum"
+    ],
+    "independent_system_peak_corruption_tests": "both trajectory and replay reject corrupted peak",
+    "final_source_unchanged": true,
+    "final_binary_unchanged": true,
+    "final_review": "same reviewer independently recomputed all80 medians/ratios, counts/sizes and hashes; no numerical errors/material overclaims; both evidence findings resolved",
+    "local_documentation_links": 21,
+    "production_conwip_interpreter": "CPython3.14.3"
+  },
+  "command": [
+    "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/.venv/bin/python",
+    "-m",
+    "prototypes.native_engine_dynamic.benchmark",
+    "matrix",
+    "--study",
+    "all",
+    "--output",
+    "prototypes/native_engine_dynamic/results/matrix.jsonl",
+    "--pypy",
+    "prototypes/native_engine/.build/pypy-env/bin/python"
+  ]
+}

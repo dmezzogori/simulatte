@@ -10,6 +10,11 @@ engine and detached-list API, with buffer-backed input conversion and bulk resul
 improve 3.07x without recording and 2.85x with recording for 50k/.95/SPT, reaching 6.89x / 7.02x the fastest
 compact PyPy baseline. Python hooks remain roughly at parity or slower than that baseline.
 
+The [hook/dynamic follow-up](../../specs/research/2026-11-01-native-hooks-dynamic.md) tests an opt-in
+owned-buffer hook representation and a separate dynamic-job/ConWIP engine. Default tuple callbacks and
+the static C engine stay unchanged. Dynamic registration substantially narrows the margin over compact
+PyPy; the new report keeps its contracts and measurements separate from the earlier static results.
+
 The four backends share inputs and results: actual current Simulatte with observation adapters; a small
 five-phase Python reference; the reference with specialized Python queues; and independent C17 state,
 calendar, resources, operation transitions, KPIs and recording, exposed with ctypes. Python authoring

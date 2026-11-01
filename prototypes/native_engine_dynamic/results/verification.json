@@ -1,0 +1,41 @@
+{
+  "cases": 80,
+  "hook_cases": 32,
+  "dynamic_cases": 48,
+  "measured_samples": 400,
+  "separate_cold_probes": 80,
+  "exact_coverage": true,
+  "all_equivalent_fingerprints": true,
+  "source_and_libraries_frozen": true,
+  "input_hashes_match": true,
+  "matrix_sha256": "ef3840e243d50880cfa9668ed3d07ede880af33ecd47e6bcef0a3bffff2f3342",
+  "metadata_sha256": "959839ff71d36b2c286c1727a6d23f770517870c96525870a1946eeae62cc0b7",
+  "analysis_sha256": "9bd8ce05fa3fff475d9049f1fd2ecb18fd654ee2fdca8efa0286a80f7e029c3a",
+  "checks": {
+    "prototype_tests": {
+      "CPython": 190,
+      "PyPy": 190
+    },
+    "production_conwip_tests": 10,
+    "static_sanitizer": "passed: boundaries,120 randomized lifecycles,allocation faults",
+    "dynamic_sanitizer": "passed: randomized1025-job growth,143 allocation-failure positions",
+    "review": "one independent review; provenance enforcement and max-WIP validation repaired RED\u2192GREEN before timing",
+    "ruff_check": "pass",
+    "ruff_format": "passed for both prototypes and analysis script",
+    "static_C_and_release_binary_unchanged": true,
+    "production_diff_unchanged": true,
+    "negative_audit_checks": [
+      "duplicate case",
+      "wrong source",
+      "wrong library",
+      "trajectory mismatch",
+      "timing sum"
+    ],
+    "independent_system_peak_corruption_tests": "both trajectory and replay reject corrupted peak",
+    "final_source_unchanged": true,
+    "final_binary_unchanged": true,
+    "final_review": "same reviewer independently recomputed all80 medians/ratios, counts/sizes and hashes; no numerical errors/material overclaims; both evidence findings resolved",
+    "local_documentation_links": 21,
+    "production_conwip_interpreter": "CPython3.14.3"
+  }
+}

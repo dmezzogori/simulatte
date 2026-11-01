@@ -1,7 +1,8 @@
 # Measured optimization ledger
 
-Budget: at most three iterations after a correct baseline. Two iterations used: Python queue specialization
-and the subsequently authorized binding-only follow-up. No native C algorithm optimization.
+Budget: at most three iterations after a correct baseline. Three iterations used: Python queue specialization,
+the subsequently authorized binding-only follow-up and the owned-buffer hook experiment. No static native
+C algorithm optimization. The separate dynamic/ConWIP milestone is a new functional slice and baseline.
 
 ## Baseline
 
@@ -75,3 +76,21 @@ review hypothesis, not a threshold. Stop after this iteration; no callback or C 
 These conclusions cover only 50k/.95/SPT. The historical full-matrix report/evidence above stays unchanged.
 See the [binding follow-up report](../../specs/research/2026-11-01-native-engine-bindings.md) for phase data,
 limits, reproduction and the revised conditional-go assessment.
+
+## Iteration 3: owned-buffer hook experiment (2026-11-01)
+
+Davide authorized testing the Python extension boundary before broader native work. Compare default
+tuple callbacks with an opt-in owned, read-only numeric-buffer snapshot, preserving candidate order and
+every grant call, including singletons. Borrowing unsafe pointers or silently skipping/batching decisions
+would change the contract. The default remains tuple; static C/ABI and its release binary are unchanged.
+
+Fresh equivalent-work hook cases include native built-in/tuple/buffers, reference built-in/tuple/buffers,
+tuned built-in/tuple, CPython/PyPy and none/record at 50k/.95/SPT. Owned-buffer native throughput improves
+1.06–1.07x on CPython but falls to 0.77–0.78x on PyPy. This representation alone does not resolve Python
+policy cost. Stop after this one alternative; no additional tuning to chase a target.
+
+The [hook/dynamic report](../../specs/research/2026-11-01-native-hooks-dynamic.md) retains all 80 fresh cases
+(32 hook +48 dynamic), independent validation, source/binary/input enforcement, cold/RSS and limitations.
+The separate dynamic C library demonstrates incremental registration, stable handles and ConWIP cap/EDD
+release. Its CPython-native lifecycle is 1.79–2.24x the best compact PyPy baseline on that slice; do not
+apply the earlier static roughly7x comparison to dynamically registered workloads.

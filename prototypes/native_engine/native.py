@@ -127,7 +127,7 @@ def _raise_native(message):
 
 
 class NativeRunner:
-    def __init__(self, workload, *, policy="fifo", mode="none", hook=None, trace_path=None):
+    def __init__(self, workload, *, policy="fifo", mode="none", hook=None, trace_path=None, hook_style="tuple"):
         self._engine = None
         self._lock = RLock()
         self._running = False
@@ -139,6 +139,8 @@ class NativeRunner:
             raise ValueError("invalid policy or observation mode")
         if hook is not None and not callable(hook):
             raise TypeError("hook must be callable")
+        if hook_style not in ("tuple", "buffers"):
+            raise ValueError("invalid hook style")
         if (mode == "record") != (trace_path is not None):
             raise ValueError("trace_path is required exactly in record mode")
         path = os.fsencode(trace_path) if mode == "record" else None
@@ -196,12 +198,21 @@ class NativeRunner:
 
             def callback(context, now, server, count, ids, lengths, selected):
                 try:
-                    candidates = tuple((ids[i], lengths[i]) for i in range(count))
-                    choice = hook(now, server, candidates)
+                    if hook_style == "tuple":
+                        candidates = tuple((ids[i], lengths[i]) for i in range(count))
+                        choice = hook(now, server, candidates)
+                    else:
+                        # Owned immutable snapshots: retaining a view never borrows engine storage.
+                        candidate_ids = memoryview(ct.string_at(ids, count * 4)).cast("I")
+                        candidate_lengths = memoryview(ct.string_at(lengths, count * 8)).cast("d")
+                        choice = hook(now, server, candidate_ids, candidate_lengths)
                     if isinstance(choice, bool):
                         raise TypeError("hook must return an integer operation ID (not bool)")
                     choice = operator.index(choice)
-                    if not any(choice == op for op, _ in candidates):
+                    valid = (
+                        any(choice == op for op, _ in candidates) if hook_style == "tuple" else choice in candidate_ids
+                    )
+                    if not valid:
                         raise ValueError("hook selected an operation outside its candidates")
                     selected[0] = choice
                     return 0

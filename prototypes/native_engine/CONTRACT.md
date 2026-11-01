@@ -72,6 +72,13 @@ Exceptions and invalid selections fail the run; all backends must close cleanly.
 FIFO/SPT must make identical choices. `callbacks` counts these explicit batch calls, not internal Python calls
 already present in Simulatte. Binding converts candidate data once per decision; its cost remains measured.
 
+2026-11-01 opt-in experiment: the native runner also accepts `hook_style='buffers'` (default remains
+`'tuple'`). Its hook receives `(now, server, ids, durations)`, two owned read-only memoryviews over copied
+numeric bytes, in enqueue order. Views remain valid after callback return and engine close; they never
+borrow C storage. `BufferReferenceRunner` in `hooks.py` provides the same representation on the compact
+Python baseline. Both interfaces call the policy once on every grant, including singleton choices;
+neither silently batches decisions or suppresses stateful policy side effects. No C ABI change.
+
 ## Recording and observation modes
 
 `none`: trajectory arrays/dispatch are still captured for verification, with no KPI accumulation or file.
