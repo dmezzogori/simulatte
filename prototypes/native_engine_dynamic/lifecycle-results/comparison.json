@@ -1,0 +1,252 @@
+{
+  "baseline": "prototypes/native_engine_dynamic/production-results",
+  "revision": "1b234fc",
+  "verified_files": 227,
+  "baseline_matrix_sha256": "e6a84b3719d8cd2fca3693ba587f2c3caa4af09728967d047c8d1add744532e9",
+  "source_sha256": "ca98256accb052511bc57c5e12f5d529fb4a87ee5d77d4b2617f754518472a30",
+  "current_matrix_sha256": "82054c8b21bb26624f87fc4aa8dff4c38f1392bbd260dcaac5b624b6df48f02d",
+  "invariant_results": true,
+  "counters_and_journal_sizes_unchanged": true,
+  "cases": [
+    {
+      "case": "CPython-independent-5000-full-production",
+      "old_total": 2.1263526249676943,
+      "new_total": 2.1058004579972476,
+      "speedup": 1.0097597884416802,
+      "old_trace_bytes": 10359047,
+      "new_trace_bytes": 10359047,
+      "old_peak_rss_bytes": 88932352,
+      "new_peak_rss_bytes": 90783744
+    },
+    {
+      "case": "PyPy-feedback-5000-none-production",
+      "old_total": 0.12622920802095905,
+      "new_total": 0.12518808303866535,
+      "speedup": 1.0083164863381775,
+      "old_trace_bytes": 0,
+      "new_trace_bytes": 0,
+      "old_peak_rss_bytes": 106299392,
+      "new_peak_rss_bytes": 131727360
+    },
+    {
+      "case": "CPython-independent-5000-kpi-production",
+      "old_total": 1.4865268749999814,
+      "new_total": 1.4810312500339933,
+      "speedup": 1.003710674549144,
+      "old_trace_bytes": 889512,
+      "new_trace_bytes": 889512,
+      "old_peak_rss_bytes": 56590336,
+      "new_peak_rss_bytes": 55263232
+    },
+    {
+      "case": "CPython-independent-5000-full-native",
+      "old_total": 2.104578499973286,
+      "new_total": 1.7325313329929486,
+      "speedup": 1.2147419558280805,
+      "old_trace_bytes": 16659629,
+      "new_trace_bytes": 10367812,
+      "old_peak_rss_bytes": 125468672,
+      "new_peak_rss_bytes": 83640320
+    },
+    {
+      "case": "PyPy-independent-5000-none-native",
+      "old_total": 0.023599957989063114,
+      "new_total": 0.0219613749650307,
+      "speedup": 1.0746120416705032,
+      "old_trace_bytes": 0,
+      "new_trace_bytes": 0,
+      "old_peak_rss_bytes": 114360320,
+      "new_peak_rss_bytes": 114540544
+    },
+    {
+      "case": "CPython-independent-5000-kpi-native",
+      "old_total": 1.129502959025558,
+      "new_total": 1.1654496249975637,
+      "speedup": 0.9691563966378378,
+      "old_trace_bytes": 889250,
+      "new_trace_bytes": 889692,
+      "old_peak_rss_bytes": 58949632,
+      "new_peak_rss_bytes": 52609024
+    },
+    {
+      "case": "PyPy-independent-5000-kpi-production",
+      "old_total": 0.9417862910195254,
+      "new_total": 0.9603285000193864,
+      "speedup": 0.9806918059815087,
+      "old_trace_bytes": 889510,
+      "new_trace_bytes": 889510,
+      "old_peak_rss_bytes": 137789440,
+      "new_peak_rss_bytes": 136232960
+    },
+    {
+      "case": "PyPy-feedback-5000-kpi-native",
+      "old_total": 0.9489762500161305,
+      "new_total": 0.9678010830539279,
+      "speedup": 0.9805488613647807,
+      "old_trace_bytes": 887370,
+      "new_trace_bytes": 888058,
+      "old_peak_rss_bytes": 161595392,
+      "new_peak_rss_bytes": 151486464
+    },
+    {
+      "case": "PyPy-independent-5000-full-production",
+      "old_total": 1.3715616670087911,
+      "new_total": 1.356152749969624,
+      "speedup": 1.011362228214714,
+      "old_trace_bytes": 10359045,
+      "new_trace_bytes": 10359045,
+      "old_peak_rss_bytes": 186646528,
+      "new_peak_rss_bytes": 169721856
+    },
+    {
+      "case": "CPython-independent-5000-none-native",
+      "old_total": 0.007237958023324609,
+      "new_total": 0.007320541946683079,
+      "speedup": 0.9887188784710278,
+      "old_trace_bytes": 0,
+      "new_trace_bytes": 0,
+      "old_peak_rss_bytes": 43319296,
+      "new_peak_rss_bytes": 43139072
+    },
+    {
+      "case": "PyPy-feedback-5000-none-native",
+      "old_total": 0.036691791960038245,
+      "new_total": 0.03626949997851625,
+      "speedup": 1.0116431707570308,
+      "old_trace_bytes": 0,
+      "new_trace_bytes": 0,
+      "old_peak_rss_bytes": 112345088,
+      "new_peak_rss_bytes": 114966528
+    },
+    {
+      "case": "CPython-feedback-5000-kpi-native",
+      "old_total": 0.92206316703232,
+      "new_total": 0.9655967919970863,
+      "speedup": 0.9549153173192216,
+      "old_trace_bytes": 887372,
+      "new_trace_bytes": 888060,
+      "old_peak_rss_bytes": 59129856,
+      "new_peak_rss_bytes": 52969472
+    },
+    {
+      "case": "CPython-feedback-5000-kpi-production",
+      "old_total": 1.173730999988038,
+      "new_total": 1.174508625001181,
+      "speedup": 0.9993379145996973,
+      "old_trace_bytes": 887880,
+      "new_trace_bytes": 887880,
+      "old_peak_rss_bytes": 56983552,
+      "new_peak_rss_bytes": 56967168
+    },
+    {
+      "case": "PyPy-feedback-5000-full-production",
+      "old_total": 1.0646297089988366,
+      "new_total": 1.0773807090008631,
+      "speedup": 0.9881648150041117,
+      "old_trace_bytes": 7458871,
+      "new_trace_bytes": 7458871,
+      "old_peak_rss_bytes": 149094400,
+      "new_peak_rss_bytes": 147701760
+    },
+    {
+      "case": "PyPy-independent-5000-full-native",
+      "old_total": 1.910724624991417,
+      "new_total": 1.5889700830448419,
+      "speedup": 1.2024925109540245,
+      "old_trace_bytes": 16659627,
+      "new_trace_bytes": 10367810,
+      "old_peak_rss_bytes": 208093184,
+      "new_peak_rss_bytes": 172343296
+    },
+    {
+      "case": "PyPy-independent-5000-none-production",
+      "old_total": 0.16906558303162456,
+      "new_total": 0.16406437498517334,
+      "speedup": 1.0304832054302049,
+      "old_trace_bytes": 0,
+      "new_trace_bytes": 0,
+      "old_peak_rss_bytes": 106496000,
+      "new_peak_rss_bytes": 106446848
+    },
+    {
+      "case": "CPython-feedback-5000-none-native",
+      "old_total": 0.020634374988730997,
+      "new_total": 0.020517957978881896,
+      "speedup": 1.0056739081914936,
+      "old_trace_bytes": 0,
+      "new_trace_bytes": 0,
+      "old_peak_rss_bytes": 45858816,
+      "new_peak_rss_bytes": 45940736
+    },
+    {
+      "case": "CPython-independent-5000-none-production",
+      "old_total": 0.40516595798544586,
+      "new_total": 0.40941029199166223,
+      "speedup": 0.9896330549347724,
+      "old_trace_bytes": 0,
+      "new_trace_bytes": 0,
+      "old_peak_rss_bytes": 51560448,
+      "new_peak_rss_bytes": 51249152
+    },
+    {
+      "case": "PyPy-independent-5000-kpi-native",
+      "old_total": 1.1232821670128033,
+      "new_total": 1.141684999980498,
+      "speedup": 0.9838809890924298,
+      "old_trace_bytes": 889248,
+      "new_trace_bytes": 889690,
+      "old_peak_rss_bytes": 150945792,
+      "new_peak_rss_bytes": 172261376
+    },
+    {
+      "case": "CPython-feedback-5000-full-native",
+      "old_total": 1.5964969160268083,
+      "new_total": 1.380715791019611,
+      "speedup": 1.1562820722488083,
+      "old_trace_bytes": 11928105,
+      "new_trace_bytes": 7464392,
+      "old_peak_rss_bytes": 98304000,
+      "new_peak_rss_bytes": 64733184
+    },
+    {
+      "case": "CPython-feedback-5000-full-production",
+      "old_total": 1.6549790410208516,
+      "new_total": 1.676000917039346,
+      "speedup": 0.9874571214103931,
+      "old_trace_bytes": 7458873,
+      "new_trace_bytes": 7458873,
+      "old_peak_rss_bytes": 82542592,
+      "new_peak_rss_bytes": 79495168
+    },
+    {
+      "case": "CPython-feedback-5000-none-production",
+      "old_total": 0.2718272909987718,
+      "new_total": 0.2685977079672739,
+      "speedup": 1.0120238666812875,
+      "old_trace_bytes": 0,
+      "new_trace_bytes": 0,
+      "old_peak_rss_bytes": 53051392,
+      "new_peak_rss_bytes": 53051392
+    },
+    {
+      "case": "PyPy-feedback-5000-kpi-production",
+      "old_total": 0.768779749982059,
+      "new_total": 0.7827545000473037,
+      "speedup": 0.9821467010864834,
+      "old_trace_bytes": 887878,
+      "new_trace_bytes": 887878,
+      "old_peak_rss_bytes": 131170304,
+      "new_peak_rss_bytes": 129335296
+    },
+    {
+      "case": "PyPy-feedback-5000-full-native",
+      "old_total": 1.4810552499839105,
+      "new_total": 1.2953390839975327,
+      "speedup": 1.1433726259638834,
+      "old_trace_bytes": 11928103,
+      "new_trace_bytes": 7464390,
+      "old_peak_rss_bytes": 197378048,
+      "new_peak_rss_bytes": 154615808
+    }
+  ]
+}

@@ -57,7 +57,7 @@ def test_production_trajectory_and_real_trace_levels(tmp_path, producer):
                 assert sig["series_values_sha256"] == series
                 operations = sum(len(j.route) for j in jobs)
                 if mode == "full":
-                    assert sig["domain_events"] == (7 if backend == "production" else 5) * len(jobs) + 7 * operations
+                    assert sig["domain_events"] == 7 * len(jobs) + 7 * operations
                     assert sig["observer_events"] == 4 * len(jobs) + (0 if backend == "production" else 2)
 
 

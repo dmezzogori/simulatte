@@ -133,6 +133,9 @@ the immediate next step. Keep the strong no-recording result as a separate
 optional-backend opportunity, subject to extension/semantic/packaging gates.
 These are recommendations, not work implemented or newly adopted commitments.
 
+Follow-up: the [lifecycle experiment](2026-11-01-native-lifecycle.md) tests the
+first recommendation while preserving this study's source/evidence snapshot.
+
 ## Verification and retained evidence
 
 265 prototype tests pass CPython (one sanitizer-only skip);264 pass PyPy

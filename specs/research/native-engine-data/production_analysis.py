@@ -10,6 +10,7 @@ import json
 import math
 from pathlib import Path
 import statistics
+import subprocess
 import sys
 
 REPO = Path(__file__).resolve().parents[3]
@@ -22,6 +23,7 @@ from prototypes.native_engine_dynamic.production_benchmark import (  # noqa:E402
     libraries,
     source_hash,
     sources,
+    digest,
 )
 
 
@@ -29,7 +31,7 @@ def file_hash(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def audit(rows, meta, *, current=True):
+def audit(rows, meta, *, current=True, lifecycle=True):
     assert len(rows) == len({r["case"] for r in rows}) == 24, "unique cases"
     assert {r["case"] for r in rows} == {case_id(c) for c in cases()}, "coverage"
     assert [r["case"] for r in rows] == meta["case_order"], "order"
@@ -62,10 +64,12 @@ def audit(rows, meta, *, current=True):
             if records:
                 assert raw.setdefault(row["producer"], row["source_bytes"]) == row["source_bytes"]
             if row["mode"] == "full":
-                assert (
-                    sig["domain_events"]
-                    == (7 if row["backend"] == "production" else 5) * row["jobs"] + 7 * row["operations"]
-                )
+                multiplier = 7 if lifecycle or row["backend"] == "production" else 5
+                assert sig["domain_events"] == multiplier * row["jobs"] + 7 * row["operations"]
+                if lifecycle or row["backend"] == "production":
+                    assert (
+                        sig["event_counts"]["entity.retired"] == sig["event_counts"]["policy.decision"] == row["jobs"]
+                    )
                 assert sig["observer_events"] == 4 * row["jobs"] + (0 if row["backend"] == "production" else 2)
                 assert sig["prelude_observer_events"] == (2 if row["backend"] == "production" else 0)
                 assert sig["chunks"] > 1
@@ -201,9 +205,80 @@ def profile_audit(directory, rows, meta):
     return profiles
 
 
+def verify_committed_files(expected, revision):
+    """Check historical measured sources/evidence against the actual commit."""
+    names = list(expected)
+    request = "".join(f"{revision}:{name}\n" for name in names).encode()
+    data = subprocess.check_output(["git", "cat-file", "--batch"], input=request, cwd=REPO)
+    offset = 0
+    for name in names:
+        end = data.index(b"\n", offset)
+        header = data[offset:end].split()
+        assert len(header) == 3 and header[1] == b"blob", ("historical blob", name)
+        size = int(header[2])
+        blob = data[end + 1 : end + 1 + size]
+        assert len(blob) == size and hashlib.sha256(blob).hexdigest() == expected[name], ("historical file", name)
+        offset = end + size + 2
+    assert offset == len(data)
+
+
+def compare(directory, baseline, revision, rows, meta):
+    old_rows = [json.loads(s) for s in (baseline / "matrix.jsonl").read_text().splitlines()]
+    old_meta = json.loads((baseline / "metadata.json").read_text())
+    audit(old_rows, old_meta, current=False, lifecycle=False)
+    assert digest(old_meta["files"]) == old_meta["source_sha256"]
+    expected = dict(old_meta["files"])
+    for path in baseline.rglob("*"):
+        if path.is_file():
+            expected[str(path.resolve().relative_to(REPO))] = file_hash(path)
+    verify_committed_files(expected, revision)
+    assert old_meta["libraries"] == meta["libraries"] and old_meta["input_sha256"] == meta["input_sha256"]
+    assert old_meta["writer"] == meta["writer"] and old_meta["case_order"] == meta["case_order"]
+    equivalent([*old_rows, *rows])
+    older = {r["case"]: r for r in old_rows}
+    summary = []
+    for row in rows:
+        before = older[row["case"]]
+        assert row["versions"] == before["versions"] and row["counters"] == before["counters"]
+        assert row["source_bytes"] == before["source_bytes"]
+        old_time = statistics.median(s["total"] for s in before["samples"])
+        new_time = statistics.median(s["total"] for s in row["samples"])
+        summary.append(
+            dict(
+                case=row["case"],
+                old_total=old_time,
+                new_total=new_time,
+                speedup=old_time / new_time,
+                old_trace_bytes=before["trace_bytes"],
+                new_trace_bytes=row["trace_bytes"],
+                old_peak_rss_bytes=before["peak_rss_bytes"],
+                new_peak_rss_bytes=row["peak_rss_bytes"],
+            )
+        )
+    with (directory / "comparison.csv").open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(summary[0]), lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(summary)
+    result = dict(
+        baseline=str(baseline.resolve().relative_to(REPO)),
+        revision=revision,
+        verified_files=len(expected),
+        baseline_matrix_sha256=file_hash(baseline / "matrix.jsonl"),
+        source_sha256=old_meta["source_sha256"],
+        current_matrix_sha256=file_hash(directory / "matrix.jsonl"),
+        invariant_results=True,
+        counters_and_journal_sizes_unchanged=True,
+        cases=summary,
+    )
+    (directory / "comparison.json").write_text(json.dumps(result, indent=2) + "\n")
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
+    parser.add_argument("--baseline", type=Path)
+    parser.add_argument("--baseline-revision", default="1b234fc")
     args = parser.parse_args()
     rows = [json.loads(s) for s in (args.directory / "matrix.jsonl").read_text().splitlines()]
     meta = json.loads((args.directory / "metadata.json").read_text())
@@ -252,6 +327,10 @@ def main():
         matrix_sha256=file_hash(args.directory / "matrix.jsonl"),
         metadata_sha256=file_hash(args.directory / "metadata.json"),
     )
+    if args.baseline is not None:
+        comparison = compare(args.directory, args.baseline, args.baseline_revision, rows, meta)
+        result["historical_baseline_verified_files"] = comparison["verified_files"]
+        result["historical_baseline_revision"] = comparison["revision"]
     (args.directory / "verification.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))
 

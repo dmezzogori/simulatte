@@ -22,7 +22,7 @@ def plain(value):
     return value
 
 
-def generate(destination):
+def generate(destination, *, name="lifecycle"):
     destination.mkdir(parents=True, exist_ok=True)
     jobs = tuple(Job(i // 3, (i % 2, (i + 1) % 2), (1 + i % 3, 0.5 + i % 2), i % 5 + 3) for i in range(12))
     data = Workload(2, jobs)
@@ -33,7 +33,7 @@ def generate(destination):
         inputs=hashed,
         dependencies=hashlib.sha256((ROOT.parents[1] / "uv.lock").read_bytes()).hexdigest(),
     )
-    path, raw = destination / "native.simtrace", destination / "native.source"
+    path, raw = destination / f"{name}.simtrace", destination / f"{name}.source"
     stream = TraceStream(
         CompiledStream,
         2,
@@ -68,6 +68,8 @@ def generate(destination):
         "operation.completed",
         "job.released",
         "job.finished",
+        "policy.decision",
+        "entity.retired",
     ):
         event = next(e for e in events if e.type == kind)
         chosen.add((event.t, event.seq))
@@ -88,7 +90,7 @@ def generate(destination):
         scalars=trace.kpis(),
         source_sha256=hashlib.sha256(raw.read_bytes()).hexdigest(),
     )
-    (destination / "native.expected.json").write_text(json.dumps(plain(expected), indent=2, sort_keys=True) + "\n")
+    (destination / f"{name}.expected.json").write_text(json.dumps(plain(expected), indent=2, sort_keys=True) + "\n")
     print(json.dumps(signature, indent=2))
 
 

@@ -6,14 +6,15 @@ import { Session } from "../src/index";
 import { Projector } from "../../scene/src/project";
 
 const root = fileURLToPath(new URL("../../../../prototypes/native_engine_dynamic/fixtures/", import.meta.url));
-const expected = JSON.parse(readFileSync(`${root}native.expected.json`, "utf8")) as {
+type Expected = {
   cursor_range: [Cursor, Cursor]; outcome: string; scalars: Record<string, number>;
   events: [number, number, string][];
   checks: {cursor: Cursor; state: State; kpis: Record<string, number | null>}[];
 };
 
-it("replays and seeks a real native trace with production Python parity", async () => {
-  const bytes = new Uint8Array(readFileSync(`${root}native.simtrace`));
+it.each(["native", "lifecycle"])("replays and seeks the %s trace with production Python parity", async (fixture) => {
+  const expected = JSON.parse(readFileSync(`${root}${fixture}.expected.json`, "utf8")) as Expected;
+  const bytes = new Uint8Array(readFileSync(`${root}${fixture}.simtrace`));
   const recording = await openRecording(bytes.buffer);
   expect(recording.trace.cursorRange).toEqual(expected.cursor_range);
   expect(recording.trace.outcome).toBe(expected.outcome);
@@ -36,6 +37,7 @@ it("replays and seeks a real native trace with production Python parity", async 
     if (Array.isArray(users) && users.includes("job-0")) {
       expect(scene.glyphs.some(g => g.id === "job-0" && !g.unplaced)).toBe(true);
     }
+    if (!check.state["job-0"]) expect(scene.glyphs.some(g => g.id === "job-0")).toBe(false);
   }
   session.dispose();
 });

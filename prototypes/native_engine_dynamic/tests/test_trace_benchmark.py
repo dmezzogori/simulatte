@@ -40,7 +40,7 @@ def test_trace_workers_preserve_results_decisions_and_real_trace_signatures(tmp_
                 assert (row["trace_signature"] is not None) == (mode == "full")
                 assert row["source_bytes"] == (8 + 32 * row["counters"]["records"] if mode != "none" else 0)
                 if mode == "full":
-                    assert row["trace_signature"]["domain_events"] == 5 * 30 + 7 * row["operations"]
+                    assert row["trace_signature"]["domain_events"] == 7 * 30 + 7 * row["operations"]
                     assert row["trace_signature"]["observer_events"] == 4 * 30 + 2
                     assert row["trace_bytes"] > 0
                 rows.append(row)

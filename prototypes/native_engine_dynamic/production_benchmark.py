@@ -47,6 +47,7 @@ def sources():
             for p in (
                 REPO / "specs/research/native-engine-data/production_analysis.py",
                 ROOT / "tests/test_production.py",
+                ROOT / "tests/test_trace_lifecycle.py",
             )
         },
     }
@@ -110,8 +111,9 @@ def validate_output(path, jobs, result, *, mode, backend):
             fields = state[f"server-{sid}"]
             assert fields["queue"] == fields["users"] == ()
             assert math.isclose(fields["worked_time"], result["kpis"]["busy"][sid], rel_tol=2e-11, abs_tol=1e-8)
-        assert sum(k.startswith("job-") for k in state) == (len(jobs) if backend == "native" else 0)
+        assert not any(k.startswith("job-") for k in state)
         offsets, starts, ends, releases, finishes = [0], [], [], [], []
+        decided, departed_pool, finished_jobs, retired_jobs = set(), set(), set(), set()
         for job in jobs:
             offsets.append(offsets[-1] + len(job.route))
         for event in trace.events():
@@ -128,13 +130,33 @@ def validate_output(path, jobs, result, *, mode, backend):
                 expected = result["released"] if event.type == "shopfloor.entered" else result["finished"]
                 assert event.t == expected[identity]
                 (releases if event.type == "shopfloor.entered" else finishes).append(identity)
+                if event.type == "job.finished":
+                    finished_jobs.add(identity)
+            elif event.type == "policy.decision":
+                identity = int(event.payload["job"].split("-")[1])
+                assert identity not in decided and event.t == result["released"][identity]
+                assert event.payload["policy"] == "ConWIP" and event.payload["action"] == "release"
+                decided.add(identity)
+            elif event.type == "psp.exited":
+                identity = int(event.payload["job"].split("-")[1])
+                assert identity in decided and identity not in departed_pool
+                assert event.t == result["released"][identity]
+                departed_pool.add(identity)
+            elif event.type == "entity.retired":
+                identity = int(event.payload["entity"].split("-")[1])
+                assert identity in finished_jobs and identity not in retired_jobs
+                assert event.t == result["finished"][identity]
+                assert event.deltas == (("retire", f"job-{identity}"),)
+                retired_jobs.add(identity)
         assert sorted(starts) == sorted(ends) == list(range(offsets[-1]))
         assert starts == result["dispatch"] and sorted(releases) == sorted(finishes) == list(range(len(jobs)))
+        assert len(decided) == len(departed_pool) == len(retired_jobs) == len(jobs)
         for event in trace.observer_events():
             observers += 1
             event_counts[event.type] = event_counts.get(event.type, 0) + 1
         prelude_observers = sum(1 for _ in trace.observer_events(prelude=True))
-        assert event_counts.get("entity.retired", 0) == (len(jobs) if backend == "production" else 0)
+        assert event_counts.get("entity.retired", 0) == len(jobs)
+        assert event_counts.get("policy.decision", 0) == len(jobs)
     return dict(
         digest=trace.fingerprint.digest,
         kpis=scalars,

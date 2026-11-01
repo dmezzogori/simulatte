@@ -1,0 +1,4647 @@
+{
+  "study": "direct-production-profile",
+  "backend": "native",
+  "producer": "feedback",
+  "mode": "kpi",
+  "jobs": 5000,
+  "source_sha256": "7f60b8c16f55a542328dce6771ea89935f8f3d9e5f3e663aaa09e924e13c9370",
+  "libraries": {
+    "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+    "dynamic": "46a60b463fbb61689a72bbccadb665710b6273ededfd721ecdcedba7438148ba",
+    "_nd_scalar.cpython-314-darwin.so": "1515dde3719a91c6f56a58c74a2ba1a70487884a8740753d04c11be1b05a40fc",
+    "_nd_scalar.pypy311-pp73-darwin.so": "7101be040962ca30b1c99ef0258ece908c0d6adbba58fcf3fb9435b5d7bbf1d7"
+  },
+  "input_sha256": "045b1de997f783c28ba9bc3c27fa2fb03fa4e07b06d434b22e24ed4c20219229",
+  "trajectory_sha256": "6b77f5b8b499e2e6b6f8c6048dcce1f7973078b19606017bf133c9e42b0b8e30",
+  "clock": "time.thread_time",
+  "timing": {
+    "build": 0.015686624974478036,
+    "feed": 13.69331083301222,
+    "run": 0.23775404202751815,
+    "extract": 0.0005338749615475535,
+    "close": 0.008166083018295467,
+    "total": 13.955451457994059,
+    "process_cpu": 13.954101
+  },
+  "writer_pass_timing": {
+    "build": 0.0016836250433698297,
+    "feed": 1.4238321660086513,
+    "run": 0.02528662496479228,
+    "extract": 0.0005408750148490071,
+    "close": 0.0053417920134961605,
+    "total": 1.4566850830451585,
+    "process_cpu": 1.4569089999999996
+  },
+  "separate_thread_passes": true,
+  "diagnostic_timing": {
+    "build": 0.0014684580382891,
+    "feed": 0.9584766670013778,
+    "run": 0.017158957954961807,
+    "extract": 0.0004010830307379365,
+    "close": 0.004944249987602234,
+    "total": 0.9824494160129689,
+    "process_cpu": 0.9827909999999989
+  },
+  "spans": {
+    "file_write": {
+      "calls": 18,
+      "wall": 0.000227669021114707,
+      "cpu": 0.00014400299999999997
+    },
+    "file_commit": {
+      "calls": 8,
+      "wall": 0.00017891597235575318,
+      "cpu": 0.00010687499999999994
+    },
+    "file_close": {
+      "calls": 1,
+      "wall": 4.395801806822419e-05,
+      "cpu": 4.34580000003848e-05
+    }
+  },
+  "snapshots": [],
+  "simulation": {
+    "total_self_cpu": 5.234670697998311,
+    "functions": [
+      {
+        "file": "src/simulatte/digest.py",
+        "line": 301,
+        "name": "_on_event",
+        "primitive_calls": 179296,
+        "calls": 179296,
+        "self_cpu": 0.8025905179998511,
+        "cumulative_cpu": 1.8356822889996591
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 151,
+        "name": "apply_deltas",
+        "primitive_calls": 169284,
+        "calls": 169284,
+        "self_cpu": 0.44858000499955164,
+        "cumulative_cpu": 0.8787342780000249
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 155,
+        "name": "consume",
+        "primitive_calls": 123060,
+        "calls": 123060,
+        "self_cpu": 0.32159024900054867,
+        "cumulative_cpu": 4.8171636789973915
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "get",
+        "primitive_calls": 1341873,
+        "calls": 1341873,
+        "self_cpu": 0.25828516299990856,
+        "cumulative_cpu": 0.25828516299990856
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 150,
+        "name": "emit",
+        "primitive_calls": 169284,
+        "calls": 169284,
+        "self_cpu": 0.24235991199911733,
+        "cumulative_cpu": 3.5486817149992085
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 178,
+        "name": "emit",
+        "primitive_calls": 199298,
+        "calls": 199298,
+        "self_cpu": 0.23508406299870588,
+        "cumulative_cpu": 2.7207271119990337
+      },
+      {
+        "file": "<string>",
+        "line": 2,
+        "name": "__init__",
+        "primitive_calls": 388604,
+        "calls": 388604,
+        "self_cpu": 0.19228873000055424,
+        "cumulative_cpu": 0.2864169590003838
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "len",
+        "primitive_calls": 1117449,
+        "calls": 1117449,
+        "self_cpu": 0.1914948379992918,
+        "cumulative_cpu": 0.1914948379992918
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 791,
+        "name": "_dispatch",
+        "primitive_calls": 199298,
+        "calls": 199298,
+        "self_cpu": 0.1410286660004083,
+        "cumulative_cpu": 2.2672779410000357
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 773,
+        "name": "publish",
+        "primitive_calls": 199298,
+        "calls": 199298,
+        "self_cpu": 0.11793425300032911,
+        "cumulative_cpu": 2.42046419900024
+      },
+      {
+        "file": "src/simulatte/digest.py",
+        "line": 350,
+        "name": "_tail_offset",
+        "primitive_calls": 174284,
+        "calls": 174284,
+        "self_cpu": 0.11112696300022051,
+        "cumulative_cpu": 0.17331013599991452
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 447,
+        "name": "_prepare",
+        "primitive_calls": 40622,
+        "calls": 142137,
+        "self_cpu": 0.10955738799995052,
+        "cumulative_cpu": 0.27739082899978307
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "getattr",
+        "primitive_calls": 574030,
+        "calls": 574030,
+        "self_cpu": 0.10007874000021344,
+        "cumulative_cpu": 0.10007874000021344
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 369,
+        "name": "prepared_op",
+        "primitive_calls": 291732,
+        "calls": 291732,
+        "self_cpu": 0.09875901900034068,
+        "cumulative_cpu": 0.09875901900034068
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 173,
+        "name": "presentation_of",
+        "primitive_calls": 286744,
+        "calls": 286744,
+        "self_cpu": 0.0972088650001417,
+        "cumulative_cpu": 0.1482332160001265
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "update",
+        "primitive_calls": 358577,
+        "calls": 358577,
+        "self_cpu": 0.0879216140003416,
+        "cumulative_cpu": 0.0879216140003416
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/rich_recording.py",
+        "line": 24,
+        "name": "take",
+        "primitive_calls": 128062,
+        "calls": 128062,
+        "self_cpu": 0.08667094500033246,
+        "cumulative_cpu": 0.11333381800049924
+      },
+      {
+        "file": "<frozen _collections_abc>",
+        "line": 857,
+        "name": "__iter__",
+        "primitive_calls": 453464,
+        "calls": 453464,
+        "self_cpu": 0.08060214599970017,
+        "cumulative_cpu": 0.10273670699986392
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 81,
+        "name": "__getitem__",
+        "primitive_calls": 453574,
+        "calls": 453574,
+        "self_cpu": 0.07766386600030484,
+        "cumulative_cpu": 0.07766386600030484
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 76,
+        "name": "at",
+        "primitive_calls": 123061,
+        "calls": 123061,
+        "self_cpu": 0.06957780700024441,
+        "cumulative_cpu": 0.11021730900033777
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "append",
+        "primitive_calls": 378253,
+        "calls": 378253,
+        "self_cpu": 0.06936387700018543,
+        "cumulative_cpu": 0.06936387700018543
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "isinstance",
+        "primitive_calls": 382801,
+        "calls": 382801,
+        "self_cpu": 0.06798118299926248,
+        "cumulative_cpu": 0.06803056499925653
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 370,
+        "name": "_consume",
+        "primitive_calls": 5002,
+        "calls": 5002,
+        "self_cpu": 0.0620595670004469,
+        "cumulative_cpu": 4.992557063998338
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 105,
+        "name": "freeze",
+        "primitive_calls": 5087,
+        "calls": 96645,
+        "self_cpu": 0.05388149499949346,
+        "cumulative_cpu": 0.09378992799941765
+      },
+      {
+        "file": "src/simulatte/trace/writer.py",
+        "line": 424,
+        "name": "_on_sample",
+        "primitive_calls": 20002,
+        "calls": 20002,
+        "self_cpu": 0.04837464499974731,
+        "cumulative_cpu": 0.24929727799958257
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "isfinite",
+        "primitive_calls": 286733,
+        "calls": 286733,
+        "self_cpu": 0.04805790000032295,
+        "cumulative_cpu": 0.04805790000032295
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "issubclass",
+        "primitive_calls": 225890,
+        "calls": 225890,
+        "self_cpu": 0.042160810999897214,
+        "cumulative_cpu": 0.05399009699992563
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "pack",
+        "primitive_calls": 179285,
+        "calls": 179285,
+        "self_cpu": 0.03544837000010315,
+        "cumulative_cpu": 0.03544837000010315
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "clear",
+        "primitive_calls": 199319,
+        "calls": 199319,
+        "self_cpu": 0.03525654599987371,
+        "cumulative_cpu": 0.03525654599987371
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 401,
+        "name": "sample",
+        "primitive_calls": 20002,
+        "calls": 20002,
+        "self_cpu": 0.0318783560000242,
+        "cumulative_cpu": 0.3709644129997578
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 161,
+        "name": "_builtin_items",
+        "primitive_calls": 40880,
+        "calls": 40880,
+        "self_cpu": 0.03126634399994943,
+        "cumulative_cpu": 0.06889841799995922
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 727,
+        "name": "delivering",
+        "primitive_calls": 179296,
+        "calls": 179296,
+        "self_cpu": 0.029756256000458725,
+        "cumulative_cpu": 0.029756256000458725
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 350,
+        "name": "prepared",
+        "primitive_calls": 87448,
+        "calls": 87448,
+        "self_cpu": 0.029712871999795665,
+        "cumulative_cpu": 0.20249884599928114
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 286,
+        "name": "_index_of",
+        "primitive_calls": 46224,
+        "calls": 46224,
+        "self_cpu": 0.028968404000089043,
+        "cumulative_cpu": 0.05069193000033412
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 143,
+        "name": "_builtin_scalar",
+        "primitive_calls": 40880,
+        "calls": 40880,
+        "self_cpu": 0.027712716999984677,
+        "cumulative_cpu": 0.04808178099984528
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/msgpack/__init__.py",
+        "line": 30,
+        "name": "packb",
+        "primitive_calls": 20010,
+        "calls": 20010,
+        "self_cpu": 0.027476379999947564,
+        "cumulative_cpu": 0.02748071499994742
+      },
+      {
+        "file": "prototypes/native_engine/model.py",
+        "line": 26,
+        "name": "__post_init__",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.02351013300028648,
+        "cumulative_cpu": 0.09412635299982997
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 281,
+        "name": "_without",
+        "primitive_calls": 46224,
+        "calls": 46224,
+        "self_cpu": 0.022241091999887663,
+        "cumulative_cpu": 0.07293302200022178
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 260,
+        "name": "_list",
+        "primitive_calls": 92448,
+        "calls": 92448,
+        "self_cpu": 0.021686634000105176,
+        "cumulative_cpu": 0.021686634000105176
+      },
+      {
+        "file": "prototypes/native_engine/model.py",
+        "line": 10,
+        "name": "finite",
+        "primitive_calls": 30612,
+        "calls": 30612,
+        "self_cpu": 0.0210791629996796,
+        "cumulative_cpu": 0.036933816999561886
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/core.py",
+        "line": 116,
+        "name": "now",
+        "primitive_calls": 123063,
+        "calls": 123063,
+        "self_cpu": 0.01985037699994252,
+        "cumulative_cpu": 0.01985037699994252
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 284,
+        "name": "attach",
+        "primitive_calls": 5012,
+        "calls": 5012,
+        "self_cpu": 0.01969370299984896,
+        "cumulative_cpu": 0.24450781099857233
+      },
+      {
+        "file": "<frozen _collections_abc>",
+        "line": 807,
+        "name": "keys",
+        "primitive_calls": 41224,
+        "calls": 41224,
+        "self_cpu": 0.017939654999725496,
+        "cumulative_cpu": 0.024740832999582407
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 324,
+        "name": "<genexpr>",
+        "primitive_calls": 50000,
+        "calls": 50000,
+        "self_cpu": 0.016327057999973693,
+        "cumulative_cpu": 0.02389864999981217
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 76,
+        "name": "__init__",
+        "primitive_calls": 61960,
+        "calls": 61960,
+        "self_cpu": 0.01612326799990993,
+        "cumulative_cpu": 0.01612326799990993
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 126,
+        "name": "<genexpr>",
+        "primitive_calls": 51266,
+        "calls": 51266,
+        "self_cpu": 0.015878478999832968,
+        "cumulative_cpu": 0.023534035999848824
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/feedback.py",
+        "line": 6,
+        "name": "feed",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 0.0152109740000137,
+        "cumulative_cpu": 5.131201419998159
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 84,
+        "name": "__iter__",
+        "primitive_calls": 41232,
+        "calls": 41232,
+        "self_cpu": 0.014216966000240472,
+        "cumulative_cpu": 0.022138852000159304
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 346,
+        "name": "retire",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.013731498000044251,
+        "cumulative_cpu": 0.09120128999980248
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 427,
+        "name": "_check_key",
+        "primitive_calls": 71741,
+        "calls": 71741,
+        "self_cpu": 0.013373298000099787,
+        "cumulative_cpu": 0.013373298000099787
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 396,
+        "name": "pack",
+        "primitive_calls": 20009,
+        "calls": 20009,
+        "self_cpu": 0.01280411599980269,
+        "cumulative_cpu": 0.15397129699994383
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 378,
+        "name": "add",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.01216180200011352,
+        "cumulative_cpu": 0.04777394500011867
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "startswith",
+        "primitive_calls": 66554,
+        "calls": 66554,
+        "self_cpu": 0.011694555999734568,
+        "cumulative_cpu": 0.011694555999734568
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 319,
+        "name": "_canonical_sorted",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.011371190999874159,
+        "cumulative_cpu": 0.03628732199961937
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 248,
+        "name": "wire_equal",
+        "primitive_calls": 46224,
+        "calls": 46224,
+        "self_cpu": 0.011308943000074123,
+        "cumulative_cpu": 0.011308943000074123
+      },
+      {
+        "file": "prototypes/native_engine/model.py",
+        "line": 35,
+        "name": "<genexpr>",
+        "primitive_calls": 25612,
+        "calls": 25612,
+        "self_cpu": 0.011166045000214897,
+        "cumulative_cpu": 0.01776930099991203
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "index",
+        "primitive_calls": 46226,
+        "calls": 46226,
+        "self_cpu": 0.010415082000170717,
+        "cumulative_cpu": 0.010415082000170717
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 436,
+        "name": "_packb",
+        "primitive_calls": 20010,
+        "calls": 20010,
+        "self_cpu": 0.009355017999893134,
+        "cumulative_cpu": 0.036835732999840554
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "__enter__",
+        "primitive_calls": 45029,
+        "calls": 45029,
+        "self_cpu": 0.009201298000246272,
+        "cumulative_cpu": 0.009201298000246272
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "sort",
+        "primitive_calls": 20625,
+        "calls": 20625,
+        "self_cpu": 0.009083216999935972,
+        "cumulative_cpu": 0.020961332000051014
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 272,
+        "name": "_index",
+        "primitive_calls": 46224,
+        "calls": 46224,
+        "self_cpu": 0.008966934000041782,
+        "cumulative_cpu": 0.008966934000041782
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 176,
+        "name": "wire_float",
+        "primitive_calls": 20002,
+        "calls": 20002,
+        "self_cpu": 0.008767000999925889,
+        "cumulative_cpu": 0.0140052789998808
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 47,
+        "name": "now",
+        "primitive_calls": 10001,
+        "calls": 10001,
+        "self_cpu": 0.008675943999961744,
+        "cumulative_cpu": 0.015686870000027442
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 266,
+        "name": "_map",
+        "primitive_calls": 41224,
+        "calls": 41224,
+        "self_cpu": 0.008487497000158495,
+        "cumulative_cpu": 0.008487497000158495
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 254,
+        "name": "_text",
+        "primitive_calls": 41224,
+        "calls": 41224,
+        "self_cpu": 0.008451929000085512,
+        "cumulative_cpu": 0.008451929000085512
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 331,
+        "name": "escape_key",
+        "primitive_calls": 21407,
+        "calls": 21407,
+        "self_cpu": 0.008396190999928388,
+        "cumulative_cpu": 0.01249349599982752
+      },
+      {
+        "file": "prototypes/native_engine/model.py",
+        "line": 30,
+        "name": "<genexpr>",
+        "primitive_calls": 25612,
+        "calls": 25612,
+        "self_cpu": 0.00810577700019599,
+        "cumulative_cpu": 0.032899279999840436
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "__exit__",
+        "primitive_calls": 45029,
+        "calls": 45029,
+        "self_cpu": 0.008042767999914435,
+        "cumulative_cpu": 0.008042767999914435
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "iter",
+        "primitive_calls": 41235,
+        "calls": 41235,
+        "self_cpu": 0.007922467999920135,
+        "cumulative_cpu": 0.007922467999920135
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 304,
+        "name": "_canonical_map",
+        "primitive_calls": 5033,
+        "calls": 5033,
+        "self_cpu": 0.0077966620000906595,
+        "cumulative_cpu": 0.014239541000112377
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 474,
+        "name": "<lambda>",
+        "primitive_calls": 20680,
+        "calls": 20680,
+        "self_cpu": 0.007528443000075269,
+        "cumulative_cpu": 0.011878115000115042
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/native.py",
+        "line": 113,
+        "name": "_number",
+        "primitive_calls": 10000,
+        "calls": 10000,
+        "self_cpu": 0.007243713000077978,
+        "cumulative_cpu": 0.012290770000076945
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 313,
+        "name": "__enter__",
+        "primitive_calls": 20020,
+        "calls": 20020,
+        "self_cpu": 0.007217749000224316,
+        "cumulative_cpu": 0.011852457000429029
+      },
+      {
+        "file": "src/simulatte/trace/writer.py",
+        "line": 447,
+        "name": "_sync_kpi_declarations",
+        "primitive_calls": 20004,
+        "calls": 20004,
+        "self_cpu": 0.007215282999854189,
+        "cumulative_cpu": 0.011431524999811371
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 316,
+        "name": "__exit__",
+        "primitive_calls": 20020,
+        "calls": 20020,
+        "self_cpu": 0.007179271999759651,
+        "cumulative_cpu": 0.010603311999737963
+      },
+      {
+        "file": "src/simulatte/digest.py",
+        "line": 144,
+        "name": "_project_op",
+        "primitive_calls": 10000,
+        "calls": 10000,
+        "self_cpu": 0.007156719999998895,
+        "cumulative_cpu": 0.05422949399946142
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 53,
+        "name": "add",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.00712735399988329,
+        "cumulative_cpu": 0.01455735399985758
+      },
+      {
+        "file": "<frozen abc>",
+        "line": 121,
+        "name": "__subclasscheck__",
+        "primitive_calls": 20732,
+        "calls": 20732,
+        "self_cpu": 0.007020409000008554,
+        "cumulative_cpu": 0.011829286000028416
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "items",
+        "primitive_calls": 35889,
+        "calls": 35889,
+        "self_cpu": 0.006963152999994948,
+        "cumulative_cpu": 0.006963152999994948
+      },
+      {
+        "file": "<frozen _collections_abc>",
+        "line": 834,
+        "name": "__init__",
+        "primitive_calls": 41232,
+        "calls": 41232,
+        "self_cpu": 0.006802927999855601,
+        "cumulative_cpu": 0.006802927999855601
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 69,
+        "name": "inspect",
+        "primitive_calls": 4999,
+        "calls": 4999,
+        "self_cpu": 0.00663851499988799,
+        "cumulative_cpu": 0.01707055499978849
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 63,
+        "name": "advance",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.006091545999906023,
+        "cumulative_cpu": 0.020193666000007493
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 398,
+        "name": "advance",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.005866079999997664,
+        "cumulative_cpu": 4.943988340998233
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "read",
+        "primitive_calls": 5075,
+        "calls": 5075,
+        "self_cpu": 0.005863873999998104,
+        "cumulative_cpu": 0.005875790999998243
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 169,
+        "name": "<genexpr>",
+        "primitive_calls": 25612,
+        "calls": 25612,
+        "self_cpu": 0.005766725999868161,
+        "cumulative_cpu": 0.005766725999868161
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 142,
+        "name": "done",
+        "primitive_calls": 10012,
+        "calls": 10012,
+        "self_cpu": 0.005644979999980926,
+        "cumulative_cpu": 0.008462719000002172
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "__getitem__",
+        "primitive_calls": 30014,
+        "calls": 30014,
+        "self_cpu": 0.005634620999968698,
+        "cumulative_cpu": 0.005645996999968039
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 98,
+        "name": "without",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.005248758999937042,
+        "cumulative_cpu": 0.042448329999524415
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 194,
+        "name": "wire_float_or_none",
+        "primitive_calls": 20005,
+        "calls": 20005,
+        "self_cpu": 0.00523927799995505,
+        "cumulative_cpu": 0.00523927799995505
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 86,
+        "name": "build",
+        "primitive_calls": 10012,
+        "calls": 10012,
+        "self_cpu": 0.004897748999951768,
+        "cumulative_cpu": 0.006792003999928964
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 54,
+        "name": "_snapshot",
+        "primitive_calls": 5024,
+        "calls": 5024,
+        "self_cpu": 0.0048605199999745,
+        "cumulative_cpu": 0.0059141950000676236
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "collect",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 0.004842998999999626,
+        "cumulative_cpu": 0.004844373999999707
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "_abc_subclasscheck",
+        "primitive_calls": 20732,
+        "calls": 20732,
+        "self_cpu": 0.004808877000019862,
+        "cumulative_cpu": 0.004808877000019862
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 422,
+        "name": "_check_int",
+        "primitive_calls": 20068,
+        "calls": 20068,
+        "self_cpu": 0.0046665300000243715,
+        "cumulative_cpu": 0.0046665300000243715
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "advance",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.004631719000000922,
+        "cumulative_cpu": 0.004631719000000922
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 232,
+        "name": "<genexpr>",
+        "primitive_calls": 25612,
+        "calls": 25612,
+        "self_cpu": 0.00450366600000307,
+        "cumulative_cpu": 0.00450366600000307
+      },
+      {
+        "file": "prototypes/native_engine/model.py",
+        "line": 31,
+        "name": "<genexpr>",
+        "primitive_calls": 25612,
+        "calls": 25612,
+        "self_cpu": 0.004369052999884326,
+        "cumulative_cpu": 0.004369052999884326
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "encode",
+        "primitive_calls": 20687,
+        "calls": 20687,
+        "self_cpu": 0.0043604640000409756,
+        "cumulative_cpu": 0.0043604640000409756
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 385,
+        "name": "<genexpr>",
+        "primitive_calls": 25612,
+        "calls": 25612,
+        "self_cpu": 0.004322468000095059,
+        "cumulative_cpu": 0.004322468000095059
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/weakref.py",
+        "line": 138,
+        "name": "__setitem__",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.004170024999981425,
+        "cumulative_cpu": 0.00977407799983121
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 213,
+        "name": "wire_time",
+        "primitive_calls": 20004,
+        "calls": 20004,
+        "self_cpu": 0.00414694399995108,
+        "cumulative_cpu": 0.00414794399995122
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 43,
+        "name": "_check",
+        "primitive_calls": 25002,
+        "calls": 25002,
+        "self_cpu": 0.004031773999994881,
+        "cumulative_cpu": 0.004031773999994881
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 140,
+        "name": "_create",
+        "primitive_calls": 5012,
+        "calls": 5012,
+        "self_cpu": 0.0036353239999944442,
+        "cumulative_cpu": 0.2512003969986074
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 328,
+        "name": "env",
+        "primitive_calls": 20003,
+        "calls": 20003,
+        "self_cpu": 0.003597402999945931,
+        "cumulative_cpu": 0.003597402999945931
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 146,
+        "name": "input",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0034427060000423726,
+        "cumulative_cpu": 0.006058243999993662
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "__new__",
+        "primitive_calls": 15044,
+        "calls": 15044,
+        "self_cpu": 0.003391532999847513,
+        "cumulative_cpu": 0.003391532999847513
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 134,
+        "name": "create",
+        "primitive_calls": 5012,
+        "calls": 5012,
+        "self_cpu": 0.0032659290000791596,
+        "cumulative_cpu": 0.09769916599957273
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 48,
+        "name": "_initialize",
+        "primitive_calls": 5012,
+        "calls": 5012,
+        "self_cpu": 0.003057262000040639,
+        "cumulative_cpu": 0.24756507299861297
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/native.py",
+        "line": 105,
+        "name": "_count",
+        "primitive_calls": 5001,
+        "calls": 5001,
+        "self_cpu": 0.0027933309999117473,
+        "cumulative_cpu": 0.004463452999967421
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "now",
+        "primitive_calls": 15001,
+        "calls": 15001,
+        "self_cpu": 0.0027222450001183063,
+        "cumulative_cpu": 0.0027222450001183063
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/weakref.py",
+        "line": 294,
+        "name": "__init__",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0024067469999320412,
+        "cumulative_cpu": 0.0024067469999320412
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/weakref.py",
+        "line": 105,
+        "name": "remove",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0023608109999453397,
+        "cumulative_cpu": 0.0034362629999276084
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "inspect",
+        "primitive_calls": 4999,
+        "calls": 4999,
+        "self_cpu": 0.0023451289999638636,
+        "cumulative_cpu": 0.0023451289999638636
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "add",
+        "primitive_calls": 5003,
+        "calls": 5003,
+        "self_cpu": 0.0022282079999209614,
+        "cumulative_cpu": 0.0022282079999209614
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/weakref.py",
+        "line": 289,
+        "name": "__new__",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.001983556999980207,
+        "cumulative_cpu": 0.0031973059999177433
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "sorted",
+        "primitive_calls": 5057,
+        "calls": 5057,
+        "self_cpu": 0.0019521149999883747,
+        "cumulative_cpu": 0.0019521149999883747
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 138,
+        "name": "retire",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0019439689999272147,
+        "cumulative_cpu": 0.0028957669999569724
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 440,
+        "name": "_pack_default",
+        "primitive_calls": 5008,
+        "calls": 5008,
+        "self_cpu": 0.001925733000069707,
+        "cumulative_cpu": 0.002751935000046668
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 410,
+        "name": "inspect",
+        "primitive_calls": 4999,
+        "calls": 4999,
+        "self_cpu": 0.0018993769999571253,
+        "cumulative_cpu": 0.018969931999745615
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 106,
+        "name": "__init__",
+        "primitive_calls": 10012,
+        "calls": 10012,
+        "self_cpu": 0.0018942549999771963,
+        "cumulative_cpu": 0.0018942549999771963
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 374,
+        "name": "_open",
+        "primitive_calls": 10001,
+        "calls": 10001,
+        "self_cpu": 0.0018531320000116924,
+        "cumulative_cpu": 0.0018531320000116924
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/feedback.py",
+        "line": 31,
+        "name": "<genexpr>",
+        "primitive_calls": 10675,
+        "calls": 10675,
+        "self_cpu": 0.0018380600000225122,
+        "cumulative_cpu": 0.0018380600000225122
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 407,
+        "name": "get",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0018175199999697078,
+        "cumulative_cpu": 0.0029052309999741954
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "accepting",
+        "primitive_calls": 10000,
+        "calls": 10000,
+        "self_cpu": 0.0017120240001200493,
+        "cumulative_cpu": 0.0017120240001200493
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/feedback.py",
+        "line": 29,
+        "name": "<genexpr>",
+        "primitive_calls": 8361,
+        "calls": 8361,
+        "self_cpu": 0.0014898079999643432,
+        "cumulative_cpu": 0.0014898079999643432
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "isdisjoint",
+        "primitive_calls": 5033,
+        "calls": 5033,
+        "self_cpu": 0.0014137510000167275,
+        "cumulative_cpu": 0.0014137510000167275
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "max",
+        "primitive_calls": 7316,
+        "calls": 7316,
+        "self_cpu": 0.0013747110000419394,
+        "cumulative_cpu": 0.0013747110000419394
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "pop",
+        "primitive_calls": 5010,
+        "calls": 5010,
+        "self_cpu": 0.0011777949999363102,
+        "cumulative_cpu": 0.0011777949999363102
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "extend",
+        "primitive_calls": 5012,
+        "calls": 5012,
+        "self_cpu": 0.0011140249999648244,
+        "cumulative_cpu": 0.0011140249999648244
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "bisect_left",
+        "primitive_calls": 5033,
+        "calls": 5033,
+        "self_cpu": 0.001085262000039,
+        "cumulative_cpu": 0.001085262000039
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "_remove_dead_weakref",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0010754519999822687,
+        "cumulative_cpu": 0.0010754519999822687
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 361,
+        "name": "layout",
+        "primitive_calls": 5013,
+        "calls": 5013,
+        "self_cpu": 0.0009794469999377942,
+        "cumulative_cpu": 0.0009794469999377942
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production_benchmark.py",
+        "line": 172,
+        "name": "sample",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 0.0007005829999986446,
+        "cumulative_cpu": 5.23462932299831
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "result",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 0.0005157080000000036,
+        "cumulative_cpu": 0.0005157080000000036
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 218,
+        "name": "_parsegen",
+        "primitive_calls": 9,
+        "calls": 9,
+        "self_cpu": 0.0003111740000087959,
+        "cumulative_cpu": 0.0018179120000150206
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "join",
+        "primitive_calls": 151,
+        "calls": 151,
+        "self_cpu": 0.0002972900000004497,
+        "cumulative_cpu": 0.0002972900000004497
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 79,
+        "name": "readline",
+        "primitive_calls": 732,
+        "calls": 732,
+        "self_cpu": 0.00028508599999788053,
+        "cumulative_cpu": 0.00039967800000417775
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 129,
+        "name": "__next__",
+        "primitive_calls": 732,
+        "calls": 732,
+        "self_cpu": 0.0002636570000187355,
+        "cumulative_cpu": 0.0006633350000229132
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "close",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 0.00025958300000183954,
+        "cumulative_cpu": 0.00025958300000183954
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "open",
+        "primitive_calls": 8,
+        "calls": 8,
+        "self_cpu": 0.00024145900000371867,
+        "cumulative_cpu": 0.0002932130000121713
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/message.py",
+        "line": 506,
+        "name": "get",
+        "primitive_calls": 18,
+        "calls": 18,
+        "self_cpu": 0.00013557899998883904,
+        "cumulative_cpu": 0.00026191899998551094
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "create",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 0.00013466699999997722,
+        "cumulative_cpu": 0.00013466699999997722
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 472,
+        "name": "_parse_headers",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 0.00012905399998963674,
+        "cumulative_cpu": 0.0004853949999905627
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/_policybase.py",
+        "line": 310,
+        "name": "header_source_parse",
+        "primitive_calls": 141,
+        "calls": 141,
+        "self_cpu": 0.0001279829999940585,
+        "cumulative_cpu": 0.00023553100000239802
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "lower",
+        "primitive_calls": 744,
+        "calls": 744,
+        "self_cpu": 0.00012325999999562853,
+        "cumulative_cpu": 0.00012325999999562853
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "popleft",
+        "primitive_calls": 723,
+        "calls": 723,
+        "self_cpu": 0.00011459200000629721,
+        "cumulative_cpu": 0.00011459200000629721
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/dataclasses.py",
+        "line": 1499,
+        "name": "_asdict_inner",
+        "primitive_calls": 14,
+        "calls": 188,
+        "self_cpu": 0.00010967299999786739,
+        "cumulative_cpu": 0.00021658000000313038
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "stat",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 8.55419999994389e-05,
+        "cumulative_cpu": 8.55419999994389e-05
+      },
+      {
+        "file": "src/simulatte/trace/writer.py",
+        "line": 478,
+        "name": "_flush_samples",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 7.350100000635962e-05,
+        "cumulative_cpu": 0.0004347860000102344
+      },
+      {
+        "file": "src/simulatte/trace/writer.py",
+        "line": 472,
+        "name": "_seal_samples_locked",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 6.554199999619925e-05,
+        "cumulative_cpu": 0.0003249559999982665
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 334,
+        "name": "__new__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 6.503699999749202e-05,
+        "cumulative_cpu": 0.0001402790000113452
+      },
+      {
+        "file": "src/simulatte/provenance.py",
+        "line": 138,
+        "name": "_contains_unavailable",
+        "primitive_calls": 1,
+        "calls": 89,
+        "self_cpu": 5.095399999355266e-05,
+        "cumulative_cpu": 0.0002353139999886622
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "readlines",
+        "primitive_calls": 9,
+        "calls": 9,
+        "self_cpu": 4.879300000215636e-05,
+        "cumulative_cpu": 4.879300000215636e-05
+      },
+      {
+        "file": "src/simulatte/provenance.py",
+        "line": 142,
+        "name": "<genexpr>",
+        "primitive_calls": 6,
+        "calls": 94,
+        "self_cpu": 4.750600001024452e-05,
+        "cumulative_cpu": 0.00022710399998970843
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/message.py",
+        "line": 523,
+        "name": "set_raw",
+        "primitive_calls": 141,
+        "calls": 141,
+        "self_cpu": 4.683200000132892e-05,
+        "cumulative_cpu": 7.115700000404068e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "match",
+        "primitive_calls": 147,
+        "calls": 147,
+        "self_cpu": 4.0082999994917046e-05,
+        "cumulative_cpu": 4.0082999994917046e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/dataclasses.py",
+        "line": 1445,
+        "name": "fields",
+        "primitive_calls": 14,
+        "calls": 14,
+        "self_cpu": 3.9250999999795866e-05,
+        "cumulative_cpu": 7.466100000064202e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "run",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.591699999994091e-05,
+        "cumulative_cpu": 3.591699999994091e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/_adapters.py",
+        "line": 63,
+        "name": "_repair_headers",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 3.453699998834381e-05,
+        "cumulative_cpu": 0.00013472299997840942
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "split",
+        "primitive_calls": 153,
+        "calls": 153,
+        "self_cpu": 3.429800000276373e-05,
+        "cumulative_cpu": 3.429800000276373e-05
+      },
+      {
+        "file": "src/simulatte/trace/writer.py",
+        "line": 144,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.354699999946753e-05,
+        "cumulative_cpu": 0.0028747479999962078
+      },
+      {
+        "file": "<frozen _collections_abc>",
+        "line": 900,
+        "name": "__iter__",
+        "primitive_calls": 94,
+        "calls": 94,
+        "self_cpu": 3.2678000005503804e-05,
+        "cumulative_cpu": 5.076700000472556e-05
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 376,
+        "name": "to_wire",
+        "primitive_calls": 18,
+        "calls": 18,
+        "self_cpu": 3.204200000062052e-05,
+        "cumulative_cpu": 8.174999999854826e-05
+      },
+      {
+        "file": "profile",
+        "line": 0,
+        "name": "<function sample at 0x107079bc0>",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.170800000074081e-05,
+        "cumulative_cpu": 5.234670697998311
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/dataclasses.py",
+        "line": 1460,
+        "name": "<genexpr>",
+        "primitive_calls": 176,
+        "calls": 176,
+        "self_cpu": 3.0202000000700835e-05,
+        "cumulative_cpu": 3.0202000000700835e-05
+      },
+      {
+        "file": "<frozen abc>",
+        "line": 117,
+        "name": "__instancecheck__",
+        "primitive_calls": 91,
+        "calls": 91,
+        "self_cpu": 2.9583000007438187e-05,
+        "cumulative_cpu": 4.938199999404702e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "lstrip",
+        "primitive_calls": 141,
+        "calls": 141,
+        "self_cpu": 2.7464000008858847e-05,
+        "cumulative_cpu": 2.7464000008858847e-05
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 101,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.7335000000405785e-05,
+        "cumulative_cpu": 0.005669852999986125
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 759,
+        "name": "mtime",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 2.666699999109845e-05,
+        "cumulative_cpu": 0.00012395699998912768
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 382,
+        "name": "<genexpr>",
+        "primitive_calls": 72,
+        "calls": 72,
+        "self_cpu": 2.612699999748891e-05,
+        "cumulative_cpu": 3.733399999727993e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "rstrip",
+        "primitive_calls": 141,
+        "calls": 141,
+        "self_cpu": 2.5955000000577044e-05,
+        "cumulative_cpu": 2.5955000000577044e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "find",
+        "primitive_calls": 141,
+        "calls": 141,
+        "self_cpu": 2.5243999998370015e-05,
+        "cumulative_cpu": 2.5243999998370015e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/_adapters.py",
+        "line": 64,
+        "name": "redent",
+        "primitive_calls": 141,
+        "calls": 141,
+        "self_cpu": 2.4675999997336717e-05,
+        "cumulative_cpu": 2.4675999997336717e-05
+      },
+      {
+        "file": "src/simulatte/provenance.py",
+        "line": 80,
+        "name": "build_requested",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.2460999996365416e-05,
+        "cumulative_cpu": 0.0033713130000001534
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "start_joinable_thread",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.1832999999915614e-05,
+        "cumulative_cpu": 2.1832999999915614e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 804,
+        "name": "search",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 2.1622999993198277e-05,
+        "cumulative_cpu": 6.0960999989534415e-05
+      },
+      {
+        "file": "src/simulatte/trace/writer.py",
+        "line": 513,
+        "name": "_on_initial_state",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.149699999964838e-05,
+        "cumulative_cpu": 0.001929117999990293
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 423,
+        "name": "snapshot",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.036900000024211e-05,
+        "cumulative_cpu": 7.308100000158468e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/_collections.py",
+        "line": 20,
+        "name": "__missing__",
+        "primitive_calls": 27,
+        "calls": 27,
+        "self_cpu": 2.0121999997346762e-05,
+        "cumulative_cpu": 3.196100000080193e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "_abc_instancecheck",
+        "primitive_calls": 91,
+        "calls": 91,
+        "self_cpu": 1.9798999986608834e-05,
+        "cumulative_cpu": 1.9798999986608834e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "iter_unpack",
+        "primitive_calls": 60,
+        "calls": 60,
+        "self_cpu": 1.9495000002978102e-05,
+        "cumulative_cpu": 1.9495000002978102e-05
+      },
+      {
+        "file": "src/simulatte/trace/writer.py",
+        "line": 648,
+        "name": "close",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.8543000001258747e-05,
+        "cumulative_cpu": 0.001679639000007782
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 178,
+        "name": "_call_parse",
+        "primitive_calls": 9,
+        "calls": 9,
+        "self_cpu": 1.6625999999408947e-05,
+        "cumulative_cpu": 0.0018345380000144296
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 811,
+        "name": "<genexpr>",
+        "primitive_calls": 30,
+        "calls": 30,
+        "self_cpu": 1.620499999921421e-05,
+        "cumulative_cpu": 2.6039000000865897e-05
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 810,
+        "name": "_route",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 1.56669999995529e-05,
+        "cumulative_cpu": 4.17060000004188e-05
+      },
+      {
+        "file": "src/simulatte/trace/writer.py",
+        "line": 574,
+        "name": "_enqueue",
+        "primitive_calls": 8,
+        "calls": 8,
+        "self_cpu": 1.5500999997586362e-05,
+        "cumulative_cpu": 6.891699999922452e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 756,
+        "name": "search",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 1.541499999624385e-05,
+        "cumulative_cpu": 0.00030645799997719436
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 890,
+        "name": "<genexpr>",
+        "primitive_calls": 18,
+        "calls": 18,
+        "self_cpu": 1.5335000003391386e-05,
+        "cumulative_cpu": 0.00032453999998049987
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "release",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 1.5332999997896835e-05,
+        "cumulative_cpu": 1.5332999997896835e-05
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 68,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.508200000022164e-05,
+        "cumulative_cpu": 8.217299999913052e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 448,
+        "name": "metadata",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.4419000002430238e-05,
+        "cumulative_cpu": 0.0024556280000145314
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 434,
+        "name": "close",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.3582000001122196e-05,
+        "cumulative_cpu": 0.001970921000010506
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "next",
+        "primitive_calls": 5,
+        "calls": 5,
+        "self_cpu": 1.3500000001220869e-05,
+        "cumulative_cpu": 0.0005402029999925784
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 102,
+        "name": "push",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 1.3164999997261617e-05,
+        "cumulative_cpu": 8.316099999539084e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 742,
+        "name": "children",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.2998999997293481e-05,
+        "cumulative_cpu": 8.117000000251728e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "hasattr",
+        "primitive_calls": 59,
+        "calls": 59,
+        "self_cpu": 1.2833000003542594e-05,
+        "cumulative_cpu": 1.2833000003542594e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/parser.py",
+        "line": 56,
+        "name": "parsestr",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.2293000001939447e-05,
+        "cumulative_cpu": 0.002037732000013115
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 336,
+        "name": "attach",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.1420000000317287e-05,
+        "cumulative_cpu": 2.021399999985185e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 393,
+        "name": "from_name",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.1414000001153113e-05,
+        "cumulative_cpu": 0.0005665709999931323
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 907,
+        "name": "read_text",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.1290999996527162e-05,
+        "cumulative_cpu": 0.00024754400001536503
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 382,
+        "name": "activate",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.125000000001819e-05,
+        "cumulative_cpu": 0.00232785699998872
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "listdir",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.1166999998701854e-05,
+        "cumulative_cpu": 1.1166999998701854e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/dataclasses.py",
+        "line": 1475,
+        "name": "asdict",
+        "primitive_calls": 14,
+        "calls": 14,
+        "self_cpu": 1.112700000027722e-05,
+        "cumulative_cpu": 0.0002356230000004622
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 408,
+        "name": "notify",
+        "primitive_calls": 14,
+        "calls": 14,
+        "self_cpu": 1.1038000003349424e-05,
+        "cumulative_cpu": 3.0455000000095822e-05
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 732,
+        "name": "subscribe",
+        "primitive_calls": 4,
+        "calls": 4,
+        "self_cpu": 1.0749999999726256e-05,
+        "cumulative_cpu": 1.9250999999886886e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "gethostname",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.0249000000461805e-05,
+        "cumulative_cpu": 1.0249000000461805e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/parser.py",
+        "line": 41,
+        "name": "parse",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.0168000005972289e-05,
+        "cumulative_cpu": 0.0020254390000111755
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 775,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 9.833999997210796e-06,
+        "cumulative_cpu": 0.00010241700000168663
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 127,
+        "name": "to_wire",
+        "primitive_calls": 4,
+        "calls": 4,
+        "self_cpu": 9.711999999995058e-06,
+        "cumulative_cpu": 1.596600000008941e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "setprofile",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 9.667000000490589e-06,
+        "cumulative_cpu": 9.667000000490589e-06
+      },
+      {
+        "file": "<frozen _collections_abc>",
+        "line": 881,
+        "name": "__iter__",
+        "primitive_calls": 24,
+        "calls": 24,
+        "self_cpu": 9.375999999949869e-06,
+        "cumulative_cpu": 1.4622000000574786e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "utf_8_decode",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 9.16600000033796e-06,
+        "cumulative_cpu": 9.16600000033796e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 438,
+        "name": "notify_all",
+        "primitive_calls": 14,
+        "calls": 14,
+        "self_cpu": 9.125000006049433e-06,
+        "cumulative_cpu": 4.228900000358138e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/message.py",
+        "line": 608,
+        "name": "get_content_type",
+        "primitive_calls": 12,
+        "calls": 12,
+        "self_cpu": 9.12500000249672e-06,
+        "cumulative_cpu": 0.000209335999995508
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/zipfile/__init__.py",
+        "line": 1414,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 9.044999999652248e-06,
+        "cumulative_cpu": 3.0087999999484083e-05
+      },
+      {
+        "file": "src/simulatte/digest.py",
+        "line": 52,
+        "name": "project_state",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 9.041999999848116e-06,
+        "cumulative_cpu": 0.00029269599999626195
+      },
+      {
+        "file": "<frozen importlib._bootstrap_external>",
+        "line": 1308,
+        "name": "find_distributions",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 8.917000002384157e-06,
+        "cumulative_cpu": 5.0837999996611316e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "urandom",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 8.915999999858926e-06,
+        "cumulative_cpu": 8.915999999858926e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 328,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 8.87599999987998e-06,
+        "cumulative_cpu": 0.005857228999985198
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 578,
+        "name": "manifest",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 8.874999997798838e-06,
+        "cumulative_cpu": 0.0036201259999846247
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/pathlib/__init__.py",
+        "line": 251,
+        "name": "__str__",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 8.834000001067821e-06,
+        "cumulative_cpu": 4.5797000007175015e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "acquire",
+        "primitive_calls": 4,
+        "calls": 4,
+        "self_cpu": 8.584000000366743e-06,
+        "cumulative_cpu": 8.584000000366743e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "vars",
+        "primitive_calls": 27,
+        "calls": 27,
+        "self_cpu": 8.290000000021891e-06,
+        "cumulative_cpu": 8.290000000021891e-06
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 631,
+        "name": "close",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 8.08399999918663e-06,
+        "cumulative_cpu": 3.053500000227416e-05
+      },
+      {
+        "file": "src/simulatte/trace/writer.py",
+        "line": 623,
+        "name": "_admit_locked",
+        "primitive_calls": 8,
+        "calls": 8,
+        "self_cpu": 7.750999999611707e-06,
+        "cumulative_cpu": 4.162500000148839e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "write",
+        "primitive_calls": 9,
+        "calls": 9,
+        "self_cpu": 7.75000000063919e-06,
+        "cumulative_cpu": 7.75000000063919e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 411,
+        "name": "discover",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 7.74900000055645e-06,
+        "cumulative_cpu": 1.5247999997081152e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/message.py",
+        "line": 249,
+        "name": "get_payload",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 7.629000003284148e-06,
+        "cumulative_cpu": 7.425899999402574e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 866,
+        "name": "__bool__",
+        "primitive_calls": 30,
+        "calls": 30,
+        "self_cpu": 7.376999995534206e-06,
+        "cumulative_cpu": 7.376999995534206e-06
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 495,
+        "name": "run",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 7.206999999453956e-06,
+        "cumulative_cpu": 2.8663999994904543e-05
+      },
+      {
+        "file": "<frozen posixpath>",
+        "line": 72,
+        "name": "join",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 6.921999999631723e-06,
+        "cumulative_cpu": 1.2382000000421556e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 483,
+        "name": "version",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 6.875000001960174e-06,
+        "cumulative_cpu": 0.0024789990000160245
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 450,
+        "name": "__exit__",
+        "primitive_calls": 24,
+        "calls": 24,
+        "self_cpu": 6.7940000023636316e-06,
+        "cumulative_cpu": 8.668000002431953e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 26,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 6.790000000256313e-06,
+        "cumulative_cpu": 0.00014858199999956412
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 173,
+        "name": "feed",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 6.790000000256313e-06,
+        "cumulative_cpu": 0.0018980730000164314
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 425,
+        "name": "to_wire",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 6.664000000711212e-06,
+        "cumulative_cpu": 9.016499999914274e-05
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 566,
+        "name": "fingerprint",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 6.542000001275028e-06,
+        "cumulative_cpu": 1.850100000488908e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/zipfile/_path/__init__.py",
+        "line": 88,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 6.499000000381727e-06,
+        "cumulative_cpu": 3.658699999986581e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/pathlib/__init__.py",
+        "line": 341,
+        "name": "drive",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 6.416000001507882e-06,
+        "cumulative_cpu": 3.250600000703763e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/_collections.py",
+        "line": 24,
+        "name": "<lambda>",
+        "primitive_calls": 27,
+        "calls": 27,
+        "self_cpu": 6.294999997935591e-06,
+        "cumulative_cpu": 6.294999997935591e-06
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 133,
+        "name": "attach",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 6.042999999955612e-06,
+        "cumulative_cpu": 3.700299999920276e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 139,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 5.998999999645704e-06,
+        "cumulative_cpu": 9.081999998716839e-06
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 451,
+        "name": "scalars",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 5.750000003246214e-06,
+        "cumulative_cpu": 6.292000005458931e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/__init__.py",
+        "line": 31,
+        "name": "message_from_string",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 5.708999999631814e-06,
+        "cumulative_cpu": 0.002044150000012346
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "getrusage",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 5.665999998960558e-06,
+        "cumulative_cpu": 5.665999998960558e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/pathlib/__init__.py",
+        "line": 780,
+        "name": "read_text",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 5.4579999999582185e-06,
+        "cumulative_cpu": 0.00021658700001170317
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/message.py",
+        "line": 632,
+        "name": "get_content_maintype",
+        "primitive_calls": 9,
+        "calls": 9,
+        "self_cpu": 5.377000000361676e-06,
+        "cumulative_cpu": 0.00016258899999477272
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/pathlib/__init__.py",
+        "line": 135,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 5.249000003981763e-06,
+        "cumulative_cpu": 8.87400000793015e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "sub",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 5.166000000000892e-06,
+        "cumulative_cpu": 5.166000000000892e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 851,
+        "name": "normalize",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 5.043000000926057e-06,
+        "cumulative_cpu": 2.0000000001463292e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 975,
+        "name": "start",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 5.000999999893452e-06,
+        "cumulative_cpu": 4.796099999970771e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/dataclasses.py",
+        "line": 1463,
+        "name": "_is_dataclass_instance",
+        "primitive_calls": 14,
+        "calls": 14,
+        "self_cpu": 4.9589999979726684e-06,
+        "cumulative_cpu": 7.915999997054612e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 427,
+        "name": "<genexpr>",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 4.792000001474506e-06,
+        "cumulative_cpu": 6.15080000014867e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/zipfile/_path/__init__.py",
+        "line": 146,
+        "name": "make",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 4.583000002833515e-06,
+        "cumulative_cpu": 4.237800000517211e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/pathlib/__init__.py",
+        "line": 281,
+        "name": "_parse_path",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 4.334000001326999e-06,
+        "cumulative_cpu": 9.41700000267609e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 886,
+        "name": "_search_paths",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 4.291999999406215e-06,
+        "cumulative_cpu": 3.158599999864009e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 184,
+        "name": "close",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 4.249999996153164e-06,
+        "cumulative_cpu": 9.653299999001774e-05
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 423,
+        "name": "result",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 4.248999999845182e-06,
+        "cumulative_cpu": 0.0005224570000006423
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 443,
+        "name": "<genexpr>",
+        "primitive_calls": 12,
+        "calls": 12,
+        "self_cpu": 4.210000001725334e-06,
+        "cumulative_cpu": 6.503000002933135e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/pathlib/__init__.py",
+        "line": 157,
+        "name": "with_segments",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 4.168000000470684e-06,
+        "cumulative_cpu": 1.5291000007300326e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/platform.py",
+        "line": 1083,
+        "name": "system",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 4.168000000470684e-06,
+        "cumulative_cpu": 4.7939999998636296e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 844,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 4.1679999991384165e-06,
+        "cumulative_cpu": 2.6710999999846052e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 444,
+        "name": "__init__",
+        "primitive_calls": 24,
+        "calls": 24,
+        "self_cpu": 4.124000000604866e-06,
+        "cumulative_cpu": 4.124000000604866e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/pathlib/__init__.py",
+        "line": 190,
+        "name": "__fspath__",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 4.083000002541581e-06,
+        "cumulative_cpu": 4.9880000009716596e-05
+      },
+      {
+        "file": "<frozen posixpath>",
+        "line": 166,
+        "name": "basename",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 4.082000000682484e-06,
+        "cumulative_cpu": 7.996000003673842e-06
+      },
+      {
+        "file": "<frozen importlib._bootstrap>",
+        "line": 1401,
+        "name": "_handle_fromlist",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 4.0410000015089764e-06,
+        "cumulative_cpu": 6.793000002502936e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 290,
+        "name": "__init__",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 4.038999999567139e-06,
+        "cumulative_cpu": 6.03799999954191e-06
+      },
+      {
+        "file": "src/simulatte/digest.py",
+        "line": 189,
+        "name": "feed_state",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 4.000999999531629e-06,
+        "cumulative_cpu": 0.0003005719999962242
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 197,
+        "name": "_new_message",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 3.916999997688464e-06,
+        "cumulative_cpu": 5.4169999981201755e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/uuid.py",
+        "line": 774,
+        "name": "uuid4",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 3.8749999997644835e-06,
+        "cumulative_cpu": 1.5663999999526723e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "fspath",
+        "primitive_calls": 16,
+        "calls": 16,
+        "self_cpu": 3.835000000673716e-06,
+        "cumulative_cpu": 5.128000000631516e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 571,
+        "name": "__exit__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.7910000010299427e-06,
+        "cumulative_cpu": 1.5162000002177933e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 447,
+        "name": "__enter__",
+        "primitive_calls": 24,
+        "calls": 24,
+        "self_cpu": 3.750999998830551e-06,
+        "cumulative_cpu": 3.750999998830551e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/re/__init__.py",
+        "line": 183,
+        "name": "sub",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 3.750000000746212e-06,
+        "cumulative_cpu": 1.2747999999618287e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 765,
+        "name": "lookup",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 3.7080000006017855e-06,
+        "cumulative_cpu": 0.00010612500000228842
+      },
+      {
+        "file": "src/simulatte/provenance.py",
+        "line": 76,
+        "name": "volatile_metadata",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 3.7080000001576963e-06,
+        "cumulative_cpu": 1.5208000000876964e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 880,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.66700000009601e-06,
+        "cumulative_cpu": 8.707999999968408e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/pathlib/__init__.py",
+        "line": 330,
+        "name": "_raw_path",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 3.6660000011234928e-06,
+        "cumulative_cpu": 1.6673000002853655e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 71,
+        "name": "close",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 3.625000002616119e-06,
+        "cumulative_cpu": 7.955000004722379e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "isoformat",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.624999999729539e-06,
+        "cumulative_cpu": 3.624999999729539e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 123,
+        "name": "pushlines",
+        "primitive_calls": 9,
+        "calls": 9,
+        "self_cpu": 3.622999998009746e-06,
+        "cumulative_cpu": 8.954999996646507e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 534,
+        "name": "callback",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 3.5850000017489947e-06,
+        "cumulative_cpu": 6.28999999996438e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/_adapters.py",
+        "line": 41,
+        "name": "__new__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 3.5820000003905506e-06,
+        "cumulative_cpu": 7.873999999574721e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 871,
+        "name": "find_distributions",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 3.5020000002106144e-06,
+        "cumulative_cpu": 3.8336999995891574e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/platform.py",
+        "line": 1249,
+        "name": "python_implementation",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 3.459000000205492e-06,
+        "cumulative_cpu": 6.000000000616623e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 749,
+        "name": "zip_children",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 3.4589999993173137e-06,
+        "cumulative_cpu": 4.866900000521923e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 1097,
+        "name": "join",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.417000002059467e-06,
+        "cumulative_cpu": 1.625099999991164e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 337,
+        "name": "wait",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.3749999996945945e-06,
+        "cumulative_cpu": 1.4749999999619234e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "seek",
+        "primitive_calls": 18,
+        "calls": 18,
+        "self_cpu": 3.3720000005565964e-06,
+        "cumulative_cpu": 3.3720000005565964e-06
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 457,
+        "name": "_run_initializer",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.334000000299042e-06,
+        "cumulative_cpu": 1.1959000000505426e-05
+      },
+      {
+        "file": "src/simulatte/digest.py",
+        "line": 260,
+        "name": "attach",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.3319999996894722e-06,
+        "cumulative_cpu": 1.254099999936642e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "endswith",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 3.2930000006814453e-06,
+        "cumulative_cpu": 3.2930000006814453e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 651,
+        "name": "wait",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.2930000000153115e-06,
+        "cumulative_cpu": 1.9917999999563563e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "truncate",
+        "primitive_calls": 9,
+        "calls": 9,
+        "self_cpu": 3.248999998595181e-06,
+        "cumulative_cpu": 3.248999998595181e-06
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 103,
+        "name": "__init__",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 3.208999999948503e-06,
+        "cumulative_cpu": 7.584000000449009e-06
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 815,
+        "name": "_remove",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 3.1670000044670132e-06,
+        "cumulative_cpu": 6.959000002026983e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "values",
+        "primitive_calls": 16,
+        "calls": 16,
+        "self_cpu": 3.1239999991328204e-06,
+        "cumulative_cpu": 3.1239999991328204e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 413,
+        "name": "run",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.0849999994586597e-06,
+        "cumulative_cpu": 0.08952054700016454
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 54,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 3.0829999990711343e-06,
+        "cumulative_cpu": 3.0829999990711343e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "remove",
+        "primitive_calls": 8,
+        "calls": 8,
+        "self_cpu": 2.999999998198888e-06,
+        "cumulative_cpu": 2.999999998198888e-06
+      },
+      {
+        "file": "<frozen _collections_abc>",
+        "line": 815,
+        "name": "values",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 2.9599999997742543e-06,
+        "cumulative_cpu": 4.167999998472283e-06
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 163,
+        "name": "close",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 2.9579999978324167e-06,
+        "cumulative_cpu": 7.871999995856527e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 89,
+        "name": "close",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.917000001545489e-06,
+        "cumulative_cpu": 0.00020533200000372176
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 391,
+        "name": "new_packer",
+        "primitive_calls": 5,
+        "calls": 5,
+        "self_cpu": 2.87499999984675e-06,
+        "cumulative_cpu": 2.87499999984675e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/pathlib/__init__.py",
+        "line": 164,
+        "name": "joinpath",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.874000000652188e-06,
+        "cumulative_cpu": 1.8165000007952514e-05
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 354,
+        "name": "<genexpr>",
+        "primitive_calls": 13,
+        "calls": 13,
+        "self_cpu": 2.8340000000071086e-06,
+        "cumulative_cpu": 2.8340000000071086e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/zipfile/_path/__init__.py",
+        "line": 309,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.8320000007298063e-06,
+        "cumulative_cpu": 4.521000000590192e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 980,
+        "name": "version",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.751999998995558e-06,
+        "cumulative_cpu": 0.003050987000006833
+      },
+      {
+        "file": "<frozen codecs>",
+        "line": 322,
+        "name": "decode",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.750999999800996e-06,
+        "cumulative_cpu": 1.1917000000138955e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 736,
+        "name": "__init__",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 2.7469999999141237e-06,
+        "cumulative_cpu": 2.7469999999141237e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "_is_owned",
+        "primitive_calls": 14,
+        "calls": 14,
+        "self_cpu": 2.6669999992900983e-06,
+        "cumulative_cpu": 2.6669999992900983e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/platform.py",
+        "line": 1145,
+        "name": "_sys_version",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 2.6669999990680537e-06,
+        "cumulative_cpu": 4.208999999422147e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 954,
+        "name": "distribution",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.6649999986805284e-06,
+        "cumulative_cpu": 0.0005692359999918128
+      },
+      {
+        "file": "<frozen codecs>",
+        "line": 312,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.6269999988670634e-06,
+        "cumulative_cpu": 3.1669999986938535e-06
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 611,
+        "name": "step",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.5829999987792007e-06,
+        "cumulative_cpu": 5.9159999956648335e-06
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 703,
+        "name": "__missing__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.5819999998066834e-06,
+        "cumulative_cpu": 1.1375999999341246e-05
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/core.py",
+        "line": 214,
+        "name": "run",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.4999999990171773e-06,
+        "cumulative_cpu": 8.41599999468201e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "perf_counter",
+        "primitive_calls": 8,
+        "calls": 8,
+        "self_cpu": 2.499999998573088e-06,
+        "cumulative_cpu": 2.499999998573088e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/_adapters.py",
+        "line": 46,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.4600000017027668e-06,
+        "cumulative_cpu": 0.00013718299998011219
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/utils.py",
+        "line": 47,
+        "name": "_has_surrogates",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 2.376000001858003e-06,
+        "cumulative_cpu": 1.2668000002991064e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "_path_splitroot_ex",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.3740000010263884e-06,
+        "cumulative_cpu": 2.3740000010263884e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 481,
+        "name": "_exit_wrapper",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.3740000010263884e-06,
+        "cumulative_cpu": 1.0495999998028083e-05
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 745,
+        "name": "<genexpr>",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 2.334000000381309e-06,
+        "cumulative_cpu": 3.2920000003766603e-06
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 336,
+        "name": "_check_name",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 2.334000000381309e-06,
+        "cumulative_cpu": 4.125000000909651e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 440,
+        "name": "_discover_resolvers",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.333000000520613e-06,
+        "cumulative_cpu": 2.333000000520613e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/_adapters.py",
+        "line": 53,
+        "name": "__getitem__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.250999999731107e-06,
+        "cumulative_cpu": 1.6495999999532884e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/zipfile/__init__.py",
+        "line": 2057,
+        "name": "__del__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.249999998316099e-06,
+        "cumulative_cpu": 2.916999997992775e-06
+      },
+      {
+        "file": "src/simulatte/provenance.py",
+        "line": 121,
+        "name": "build_final",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.2489999995656262e-06,
+        "cumulative_cpu": 0.0002378969999874414
+      },
+      {
+        "file": "<frozen posixpath>",
+        "line": 42,
+        "name": "_get_sep",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 2.2080000015023415e-06,
+        "cumulative_cpu": 3.5800000022234713e-06
+      },
+      {
+        "file": "src/simulatte/provenance.py",
+        "line": 146,
+        "name": "_simulatte_version",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.20799999950394e-06,
+        "cumulative_cpu": 0.003053195000006337
+      },
+      {
+        "file": "src/simulatte/digest.py",
+        "line": 185,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.1670000001083878e-06,
+        "cumulative_cpu": 2.1670000001083878e-06
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/core.py",
+        "line": 182,
+        "name": "step",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.1669999981099863e-06,
+        "cumulative_cpu": 3.166999997361586e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/re/__init__.py",
+        "line": 330,
+        "name": "_compile",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.1659999993595136e-06,
+        "cumulative_cpu": 3.831999998871183e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/weakref.py",
+        "line": 104,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.125999999824657e-06,
+        "cumulative_cpu": 4.251999999871359e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "cache_clear",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.123999999215087e-06,
+        "cumulative_cpu": 2.123999999215087e-06
+      },
+      {
+        "file": "<frozen _collections_abc>",
+        "line": 819,
+        "name": "__eq__",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 2.0860000020661573e-06,
+        "cumulative_cpu": 8.214000001061095e-06
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 215,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.083999999902275e-06,
+        "cumulative_cpu": 6.66699999984921e-06
+      },
+      {
+        "file": "src/simulatte/trace/writer.py",
+        "line": 568,
+        "name": "_check_pending_size",
+        "primitive_calls": 8,
+        "calls": 8,
+        "self_cpu": 2.0429999989524106e-06,
+        "cumulative_cpu": 2.0429999989524106e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/pathlib/__init__.py",
+        "line": 763,
+        "name": "open",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 2.000999999918207e-06,
+        "cumulative_cpu": 0.00017213000001237155
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 691,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.9979999981156737e-06,
+        "cumulative_cpu": 4.58199999675557e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/_policybase.py",
+        "line": 298,
+        "name": "_sanitize_header",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.9579999983587726e-06,
+        "cumulative_cpu": 4.166000000083159e-06
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 718,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.9170000000734433e-06,
+        "cumulative_cpu": 2.876000000151535e-06
+      },
+      {
+        "file": "src/simulatte/digest.py",
+        "line": 252,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.9169999998513987e-06,
+        "cumulative_cpu": 4.875999999987002e-06
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/core.py",
+        "line": 105,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.915999999990703e-06,
+        "cumulative_cpu": 4.123999999716688e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/message.py",
+        "line": 650,
+        "name": "get_default_type",
+        "primitive_calls": 12,
+        "calls": 12,
+        "self_cpu": 1.915999999990703e-06,
+        "cumulative_cpu": 1.915999999990703e-06
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/core.py",
+        "line": 62,
+        "name": "bind_early",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.8749999999290168e-06,
+        "cumulative_cpu": 2.2079999997259847e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 694,
+        "name": "path",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.8749999985967492e-06,
+        "cumulative_cpu": 3.248999997040869e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/_collections.py",
+        "line": 23,
+        "name": "freeze",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 1.8739999998462764e-06,
+        "cumulative_cpu": 1.8739999998462764e-06
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 275,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.8339999998673306e-06,
+        "cumulative_cpu": 6.085999999738689e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "replace",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 1.7920000012772164e-06,
+        "cumulative_cpu": 1.7920000012772164e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/pathlib/__init__.py",
+        "line": 261,
+        "name": "_format_parsed_parts",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.7919999999449487e-06,
+        "cumulative_cpu": 3.3329999999942572e-06
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 683,
+        "name": "cancel",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.7899999988912896e-06,
+        "cumulative_cpu": 8.749000000918272e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 79,
+        "name": "run",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.7510000009934856e-06,
+        "cumulative_cpu": 3.82099999995944e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "upper",
+        "primitive_calls": 4,
+        "calls": 4,
+        "self_cpu": 1.708000000100185e-06,
+        "cumulative_cpu": 1.708000000100185e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 84,
+        "name": "result",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.6679999994551054e-06,
+        "cumulative_cpu": 0.0005182080000007971
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/_policybase.py",
+        "line": 329,
+        "name": "header_fetch_parse",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.6650000003171073e-06,
+        "cumulative_cpu": 5.831000000400266e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/uuid.py",
+        "line": 267,
+        "name": "_from_int",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.6650000000950627e-06,
+        "cumulative_cpu": 2.040000000036457e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production_benchmark.py",
+        "line": 207,
+        "name": "<genexpr>",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 1.6649999992068842e-06,
+        "cumulative_cpu": 1.6649999992068842e-06
+      },
+      {
+        "file": "src/simulatte/trace/writer.py",
+        "line": 341,
+        "name": "_flush_observers",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.6249999996720277e-06,
+        "cumulative_cpu": 4.000999996867094e-06
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 48,
+        "name": "_level_priority",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.58400000049852e-06,
+        "cumulative_cpu": 4.042000000481494e-06
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 557,
+        "name": "enable_digest",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.5840000000544308e-06,
+        "cumulative_cpu": 1.412499999942085e-05
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 315,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.5420000001320489e-06,
+        "cumulative_cpu": 2.000000000279556e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 858,
+        "name": "legacy_normalize",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.5009999985160505e-06,
+        "cumulative_cpu": 2.542999999244344e-06
+      },
+      {
+        "file": "src/simulatte/digest.py",
+        "line": 226,
+        "name": "feed",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.500000000209667e-06,
+        "cumulative_cpu": 3.6670000003180547e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/platform.py",
+        "line": 1261,
+        "name": "python_version",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.4580000005093297e-06,
+        "cumulative_cpu": 3.125999999520346e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/platform.py",
+        "line": 1120,
+        "name": "machine",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.4580000005093297e-06,
+        "cumulative_cpu": 1.9580000001351294e-06
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 467,
+        "name": "_scheduling_blocked",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.4580000000652404e-06,
+        "cumulative_cpu": 1.9580000001351294e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/weakref.py",
+        "line": 235,
+        "name": "update",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.4169999997815097e-06,
+        "cumulative_cpu": 2.1260000000467016e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/message.py",
+        "line": 343,
+        "name": "set_payload",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.3769999989143855e-06,
+        "cumulative_cpu": 2.3769999979439405e-06
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 345,
+        "name": "canonical_pack",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.3759999997198236e-06,
+        "cumulative_cpu": 0.0002747829999967255
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/message.py",
+        "line": 217,
+        "name": "is_multipart",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.3759999986096005e-06,
+        "cumulative_cpu": 2.1259999980483e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 92,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.3750000000811724e-06,
+        "cumulative_cpu": 3.3750000003607283e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 303,
+        "name": "helper",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.3750000000811724e-06,
+        "cumulative_cpu": 3.0829999999593127e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 108,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.3749999998591278e-06,
+        "cumulative_cpu": 1.7079999998781403e-06
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 607,
+        "name": "volatile_metadata",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.3739999995543428e-06,
+        "cumulative_cpu": 1.6582000000431307e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/message.py",
+        "line": 422,
+        "name": "__getitem__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.3329999986044783e-06,
+        "cumulative_cpu": 1.4244999999801777e-05
+      },
+      {
+        "file": "src/simulatte/trace/writer.py",
+        "line": 86,
+        "name": "__post_init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.2919999998750598e-06,
+        "cumulative_cpu": 1.875999999567668e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/uuid.py",
+        "line": 398,
+        "name": "hex",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.2919999998750598e-06,
+        "cumulative_cpu": 3.291999999932571e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/pathlib/__init__.py",
+        "line": 632,
+        "name": "__new__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.2499999986204102e-06,
+        "cumulative_cpu": 2.2489999988994924e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "text_encoding",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 1.2490000005360713e-06,
+        "cumulative_cpu": 1.2490000005360713e-06
+      },
+      {
+        "file": "<frozen _collections_abc>",
+        "line": 811,
+        "name": "items",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.249000000091982e-06,
+        "cumulative_cpu": 1.791000000084253e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 210,
+        "name": "_pop_message",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.2479999988990187e-06,
+        "cumulative_cpu": 1.9979999981156737e-06
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 422,
+        "name": "names",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.2089999996689471e-06,
+        "cumulative_cpu": 3.2089999997264584e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "rfind",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.167000000412699e-06,
+        "cumulative_cpu": 1.167000000412699e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "fullmatch",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.1669999999686098e-06,
+        "cumulative_cpu": 1.1669999999686098e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "from_iterable",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 1.1669999986363422e-06,
+        "cumulative_cpu": 1.1669999986363422e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 126,
+        "name": "RLock",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.1659999998858694e-06,
+        "cumulative_cpu": 1.1659999998858694e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 552,
+        "name": "_push_exit_callback",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.1639999986101657e-06,
+        "cumulative_cpu": 1.7889999988085492e-06
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 669,
+        "name": "__init__",
+        "primitive_calls": 4,
+        "calls": 4,
+        "self_cpu": 1.1260000001289683e-06,
+        "cumulative_cpu": 1.1260000001289683e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/platform.py",
+        "line": 985,
+        "name": "uname",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 1.1259999990187453e-06,
+        "cumulative_cpu": 1.1259999990187453e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "monotonic",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.1250000016005401e-06,
+        "cumulative_cpu": 1.1250000016005401e-06
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 494,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.125000000046228e-06,
+        "cumulative_cpu": 4.418000000505629e-06
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 87,
+        "name": "__len__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.1249999991580495e-06,
+        "cumulative_cpu": 1.7509999987730396e-06
+      },
+      {
+        "file": "src/simulatte/trace/writer.py",
+        "line": 95,
+        "name": "to_wire",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.0839999999845418e-06,
+        "cumulative_cpu": 1.3340000000194863e-06
+      },
+      {
+        "file": "src/simulatte/digest.py",
+        "line": 297,
+        "name": "_on_initial_state",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.0839999999845418e-06,
+        "cumulative_cpu": 0.00030165599999620873
+      },
+      {
+        "file": "<frozen os>",
+        "line": 851,
+        "name": "fsencode",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.0829999996797568e-06,
+        "cumulative_cpu": 3.917999999769606e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 1470,
+        "name": "current_thread",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.082999999013623e-06,
+        "cumulative_cpu": 1.3749999983048156e-06
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 360,
+        "name": "<genexpr>",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.0429999999228556e-06,
+        "cumulative_cpu": 1.0429999999228556e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 145,
+        "name": "__exit__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.0420000000621599e-06,
+        "cumulative_cpu": 2.4590000002877588e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "hexdigest",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.0419999991739815e-06,
+        "cumulative_cpu": 1.0419999991739815e-06
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 402,
+        "name": "is_live",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 9.999999999177334e-07,
+        "cumulative_cpu": 1.4169999997815097e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "heappop",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 9.999999992515995e-07,
+        "cumulative_cpu": 9.999999992515995e-07
+      },
+      {
+        "file": "src/simulatte/digest.py",
+        "line": 232,
+        "name": "hexdigest",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 9.999999992515995e-07,
+        "cumulative_cpu": 2.041999998425581e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/_weakrefset.py",
+        "line": 15,
+        "name": "_remove",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 9.999999992515995e-07,
+        "cumulative_cpu": 1.3750000000811724e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/feedparser.py",
+        "line": 126,
+        "name": "__iter__",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 9.590000022985379e-07,
+        "cumulative_cpu": 9.590000022985379e-07
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/rich_recording.py",
+        "line": 53,
+        "name": "close",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 9.590000011883149e-07,
+        "cumulative_cpu": 9.084000001990944e-06
+      },
+      {
+        "file": "src/simulatte/trace/sink.py",
+        "line": 37,
+        "name": "close",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 9.590000011883149e-07,
+        "cumulative_cpu": 5.1501000001508146e-05
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 699,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 9.590000000780918e-07,
+        "cumulative_cpu": 9.590000000780918e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/message.py",
+        "line": 156,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 9.170000010438883e-07,
+        "cumulative_cpu": 9.170000010438883e-07
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 349,
+        "name": "request_projection",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 9.170000001557099e-07,
+        "cumulative_cpu": 1.4170000004476435e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/inspect.py",
+        "line": 657,
+        "name": "getmro",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 9.169999990454869e-07,
+        "cumulative_cpu": 9.169999990454869e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 479,
+        "name": "_create_cb_wrapper",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 9.159999994068357e-07,
+        "cumulative_cpu": 9.159999994068357e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/typing.py",
+        "line": 2300,
+        "name": "cast",
+        "primitive_calls": 5,
+        "calls": 5,
+        "self_cpu": 9.150000011004522e-07,
+        "cumulative_cpu": 9.150000011004522e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/zipfile/__init__.py",
+        "line": 823,
+        "name": "_check_compression",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 8.750000006774172e-07,
+        "cumulative_cpu": 8.750000006774172e-07
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 336,
+        "name": "on_activate",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 8.750000000112834e-07,
+        "cumulative_cpu": 1.0409999999794195e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "from_bytes",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 8.329999998668569e-07,
+        "cumulative_cpu": 8.329999998668569e-07
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "callable",
+        "primitive_calls": 4,
+        "calls": 4,
+        "self_cpu": 7.920000000272154e-07,
+        "cumulative_cpu": 7.920000000272154e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/_weakrefset.py",
+        "line": 45,
+        "name": "add",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 7.920000000272154e-07,
+        "cumulative_cpu": 1.2090000001130363e-06
+      },
+      {
+        "file": "src/simulatte/digest.py",
+        "line": 277,
+        "name": "hexdigest",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 7.919999998051708e-07,
+        "cumulative_cpu": 2.8339999982307518e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 485,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 7.910000014987872e-07,
+        "cumulative_cpu": 7.910000014987872e-07
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/rich_recording.py",
+        "line": 19,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 7.90999999944475e-07,
+        "cumulative_cpu": 2.5417000000027556e-05
+      },
+      {
+        "file": "src/simulatte/trace/sink.py",
+        "line": 25,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 7.509999999655292e-07,
+        "cumulative_cpu": 8.520800000022533e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "strip",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 7.500000009930119e-07,
+        "cumulative_cpu": 7.500000009930119e-07
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "to_bytes",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 7.499999998827889e-07,
+        "cumulative_cpu": 7.499999998827889e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 602,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 7.499999998827889e-07,
+        "cumulative_cpu": 2.956999999748078e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/email/parser.py",
+        "line": 17,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 7.089999995990581e-07,
+        "cumulative_cpu": 7.089999995990581e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 322,
+        "name": "_release_save",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 7.07999999960407e-07,
+        "cumulative_cpu": 1.0409999999794195e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 325,
+        "name": "_acquire_restore",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 7.07999999960407e-07,
+        "cumulative_cpu": 9.579999999953515e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 136,
+        "name": "__enter__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 6.669999998987208e-07,
+        "cumulative_cpu": 2.8329999999243682e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/zipfile/__init__.py",
+        "line": 2061,
+        "name": "close",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 6.669999996766762e-07,
+        "cumulative_cpu": 6.669999996766762e-07
+      },
+      {
+        "file": "<frozen importlib._bootstrap>",
+        "line": 648,
+        "name": "parent",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 6.669999994546316e-07,
+        "cumulative_cpu": 6.669999994546316e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/uuid.py",
+        "line": 335,
+        "name": "bytes",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 6.660000002600697e-07,
+        "cumulative_cpu": 1.4160000001428585e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 1308,
+        "name": "_make_invoke_excepthook",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 6.249999999763389e-07,
+        "cumulative_cpu": 6.249999999763389e-07
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "hex",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 5.839999999146528e-07,
+        "cumulative_cpu": 5.839999999146528e-07
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 370,
+        "name": "_guard_layout_advance",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 5.830000007200908e-07,
+        "cumulative_cpu": 5.830000007200908e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/pathlib/__init__.py",
+        "line": 350,
+        "name": "root",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 5.829999996098678e-07,
+        "cumulative_cpu": 5.829999996098678e-07
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/compiled.py",
+        "line": 95,
+        "name": "__del__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 5.430000005191005e-07,
+        "cumulative_cpu": 1.9189999971302996e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/pathlib/__init__.py",
+        "line": 359,
+        "name": "_tail",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 5.409999994654413e-07,
+        "cumulative_cpu": 5.409999994654413e-07
+      },
+      {
+        "file": "<frozen codecs>",
+        "line": 263,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 5.399999998267901e-07,
+        "cumulative_cpu": 5.399999998267901e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/importlib/metadata/__init__.py",
+        "line": 900,
+        "name": "__init__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 4.999999996257998e-07,
+        "cumulative_cpu": 4.999999996257998e-07
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 465,
+        "name": "__del__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 4.999999987376214e-07,
+        "cumulative_cpu": 7.079999981840501e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 328,
+        "name": "_is_owned",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 4.579999999254625e-07,
+        "cumulative_cpu": 8.330000000889015e-07
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 320,
+        "name": "activated",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 4.5799999970341787e-07,
+        "cumulative_cpu": 4.5799999970341787e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 615,
+        "name": "is_set",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 3.759999995800456e-07,
+        "cumulative_cpu": 3.759999995800456e-07
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "discard",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.7500000082957285e-07,
+        "cumulative_cpu": 3.7500000082957285e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+        "line": 1188,
+        "name": "daemon",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.7500000016343904e-07,
+        "cumulative_cpu": 3.7500000016343904e-07
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "allocate_lock",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.339999998797083e-07,
+        "cumulative_cpu": 3.339999998797083e-07
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 193,
+        "name": "_reserved_pattern",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 3.3300000024105714e-07,
+        "cumulative_cpu": 3.3300000024105714e-07
+      },
+      {
+        "file": "src/simulatte/rng.py",
+        "line": 64,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.3300000001901253e-07,
+        "cumulative_cpu": 3.3300000001901253e-07
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 234,
+        "name": "_open",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.919999999573264e-07,
+        "cumulative_cpu": 2.919999999573264e-07
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "get_ident",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.919999992911926e-07,
+        "cumulative_cpu": 2.919999992911926e-07
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 239,
+        "name": "_release",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.909999992084522e-07,
+        "cumulative_cpu": 2.909999992084522e-07
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "exception",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.500000011451675e-07,
+        "cumulative_cpu": 2.500000011451675e-07
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "daemon_threads_allowed",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.500000000349445e-07,
+        "cumulative_cpu": 2.500000000349445e-07
+      },
+      {
+        "file": "src/simulatte/digest.py",
+        "line": 281,
+        "name": "share_tails",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.500000000349445e-07,
+        "cumulative_cpu": 2.500000000349445e-07
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 387,
+        "name": "on_activate",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.500000000349445e-07,
+        "cumulative_cpu": 2.500000000349445e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 568,
+        "name": "__enter__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.0799999944642877e-07,
+        "cumulative_cpu": 2.0799999944642877e-07
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 96,
+        "name": "scalar_values",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.6700000138314408e-07,
+        "cumulative_cpu": 1.6700000138314408e-07
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 199,
+        "name": "_open",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.6599999996813608e-07,
+        "cumulative_cpu": 1.6599999996813608e-07
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 202,
+        "name": "_release",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.6599999952404687e-07,
+        "cumulative_cpu": 1.6599999952404687e-07
+      },
+      {
+        "file": "profile",
+        "line": 0,
+        "name": "profiler",
+        "primitive_calls": 0,
+        "calls": 0,
+        "self_cpu": 0,
+        "cumulative_cpu": 0
+      }
+    ]
+  },
+  "writers": [
+    {
+      "total_self_cpu": 0.0005833649999999992,
+      "functions": [
+        {
+          "file": "",
+          "line": 0,
+          "name": "write",
+          "primitive_calls": 18,
+          "calls": 18,
+          "self_cpu": 0.0001029190000000001,
+          "cumulative_cpu": 0.0001029190000000001
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "flush",
+          "primitive_calls": 8,
+          "calls": 8,
+          "self_cpu": 0.00010141799999999993,
+          "cumulative_cpu": 0.00010141799999999993
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "acquire",
+          "primitive_calls": 10,
+          "calls": 10,
+          "self_cpu": 8.108099999999998e-05,
+          "cumulative_cpu": 8.108099999999998e-05
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "crc32",
+          "primitive_calls": 8,
+          "calls": 8,
+          "self_cpu": 3.937399999999994e-05,
+          "cumulative_cpu": 3.937399999999994e-05
+        },
+        {
+          "file": "src/simulatte/_wire.py",
+          "line": 447,
+          "name": "_prepare",
+          "primitive_calls": 1,
+          "calls": 30,
+          "self_cpu": 3.090999999999988e-05,
+          "cumulative_cpu": 7.270299999999992e-05
+        },
+        {
+          "file": "src/simulatte/trace/writer.py",
+          "line": 724,
+          "name": "_run",
+          "primitive_calls": 1,
+          "calls": 1,
+          "self_cpu": 2.7079999999999517e-05,
+          "cumulative_cpu": 0.0005421569999999993
+        },
+        {
+          "file": "profile",
+          "line": 0,
+          "name": "<function TraceRecorder._run at 0x101ce8e00>",
+          "primitive_calls": 1,
+          "calls": 1,
+          "self_cpu": 2.512499999999992e-05,
+          "cumulative_cpu": 0.0005833649999999993
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "setprofile",
+          "primitive_calls": 1,
+          "calls": 1,
+          "self_cpu": 1.608300000000007e-05,
+          "cumulative_cpu": 1.608300000000007e-05
+        },
+        {
+          "file": "src/simulatte/trace/writer.py",
+          "line": 749,
+          "name": "_next_item_locked",
+          "primitive_calls": 8,
+          "calls": 8,
+          "self_cpu": 1.3500000000000003e-05,
+          "cumulative_cpu": 0.00011841300000000035
+        },
+        {
+          "file": "src/simulatte/trace/format.py",
+          "line": 77,
+          "name": "write_record",
+          "primitive_calls": 8,
+          "calls": 8,
+          "self_cpu": 1.3419999999999922e-05,
+          "cumulative_cpu": 0.0001669199999999996
+        },
+        {
+          "file": "src/simulatte/trace/writer.py",
+          "line": 792,
+          "name": "_write_item",
+          "primitive_calls": 8,
+          "calls": 8,
+          "self_cpu": 1.3040999999999972e-05,
+          "cumulative_cpu": 0.00036583399999999945
+        },
+        {
+          "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+          "line": 337,
+          "name": "wait",
+          "primitive_calls": 5,
+          "calls": 5,
+          "self_cpu": 1.0626000000000023e-05,
+          "cumulative_cpu": 0.00010158000000000022
+        },
+        {
+          "file": "src/simulatte/_wire.py",
+          "line": 331,
+          "name": "escape_key",
+          "primitive_calls": 26,
+          "calls": 26,
+          "self_cpu": 8.37900000000009e-06,
+          "cumulative_cpu": 1.2209000000000221e-05
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "issubclass",
+          "primitive_calls": 54,
+          "calls": 54,
+          "self_cpu": 8.04400000000002e-06,
+          "cumulative_cpu": 9.001999999999925e-06
+        },
+        {
+          "file": "src/simulatte/trace/sink.py",
+          "line": 28,
+          "name": "write",
+          "primitive_calls": 18,
+          "calls": 18,
+          "self_cpu": 7.166000000000006e-06,
+          "cumulative_cpu": 0.00011008500000000011
+        },
+        {
+          "file": "src/simulatte/_wire.py",
+          "line": 161,
+          "name": "_builtin_items",
+          "primitive_calls": 10,
+          "calls": 10,
+          "self_cpu": 6.876000000000061e-06,
+          "cumulative_cpu": 1.2669999999999999e-05
+        },
+        {
+          "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+          "line": 316,
+          "name": "__exit__",
+          "primitive_calls": 16,
+          "calls": 16,
+          "self_cpu": 6.4979999999999774e-06,
+          "cumulative_cpu": 9.583000000000169e-06
+        },
+        {
+          "file": "src/simulatte/_wire.py",
+          "line": 143,
+          "name": "_builtin_scalar",
+          "primitive_calls": 10,
+          "calls": 10,
+          "self_cpu": 5.999999999999929e-06,
+          "cumulative_cpu": 1.0250999999999858e-05
+        },
+        {
+          "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+          "line": 313,
+          "name": "__enter__",
+          "primitive_calls": 16,
+          "calls": 16,
+          "self_cpu": 5.747999999999925e-06,
+          "cumulative_cpu": 9.70700000000002e-06
+        },
+        {
+          "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+          "line": 438,
+          "name": "notify_all",
+          "primitive_calls": 8,
+          "calls": 8,
+          "self_cpu": 5.245999999999712e-06,
+          "cumulative_cpu": 1.1539999999999717e-05
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "_acquire_restore",
+          "primitive_calls": 5,
+          "calls": 5,
+          "self_cpu": 4.499999999999933e-06,
+          "cumulative_cpu": 4.499999999999933e-06
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "pack",
+          "primitive_calls": 10,
+          "calls": 10,
+          "self_cpu": 4.376e-06,
+          "cumulative_cpu": 4.376e-06
+        },
+        {
+          "file": "src/simulatte/_wire.py",
+          "line": 427,
+          "name": "_check_key",
+          "primitive_calls": 26,
+          "calls": 26,
+          "self_cpu": 4.246999999999758e-06,
+          "cumulative_cpu": 4.246999999999758e-06
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "__enter__",
+          "primitive_calls": 16,
+          "calls": 16,
+          "self_cpu": 3.959000000000095e-06,
+          "cumulative_cpu": 3.959000000000095e-06
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "startswith",
+          "primitive_calls": 26,
+          "calls": 26,
+          "self_cpu": 3.830000000000131e-06,
+          "cumulative_cpu": 3.830000000000131e-06
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "len",
+          "primitive_calls": 16,
+          "calls": 16,
+          "self_cpu": 3.5409999999998226e-06,
+          "cumulative_cpu": 3.5409999999998226e-06
+        },
+        {
+          "file": "src/simulatte/trace/sink.py",
+          "line": 34,
+          "name": "commit",
+          "primitive_calls": 8,
+          "calls": 8,
+          "self_cpu": 3.1249999999998456e-06,
+          "cumulative_cpu": 0.00010454299999999977
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "__exit__",
+          "primitive_calls": 16,
+          "calls": 16,
+          "self_cpu": 3.0850000000001915e-06,
+          "cumulative_cpu": 3.0850000000001915e-06
+        },
+        {
+          "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/threading.py",
+          "line": 408,
+          "name": "notify",
+          "primitive_calls": 8,
+          "calls": 8,
+          "self_cpu": 3.0429999999998555e-06,
+          "cumulative_cpu": 4.585000000000065e-06
+        },
+        {
+          "file": ".venv/lib/python3.14/site-packages/msgpack/__init__.py",
+          "line": 30,
+          "name": "packb",
+          "primitive_calls": 1,
+          "calls": 1,
+          "self_cpu": 3.0409999999999595e-06,
+          "cumulative_cpu": 3.0409999999999595e-06
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "_is_owned",
+          "primitive_calls": 13,
+          "calls": 13,
+          "self_cpu": 2.4160000000002357e-06,
+          "cumulative_cpu": 2.4160000000002357e-06
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "_release_save",
+          "primitive_calls": 5,
+          "calls": 5,
+          "self_cpu": 2.124000000000158e-06,
+          "cumulative_cpu": 2.124000000000158e-06
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "isinstance",
+          "primitive_calls": 10,
+          "calls": 10,
+          "self_cpu": 1.832000000000114e-06,
+          "cumulative_cpu": 1.832000000000114e-06
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "popleft",
+          "primitive_calls": 8,
+          "calls": 8,
+          "self_cpu": 1.8310000000001117e-06,
+          "cumulative_cpu": 1.8310000000001117e-06
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "allocate_lock",
+          "primitive_calls": 5,
+          "calls": 5,
+          "self_cpu": 1.458000000000107e-06,
+          "cumulative_cpu": 1.458000000000107e-06
+        },
+        {
+          "file": "src/simulatte/_wire.py",
+          "line": 396,
+          "name": "pack",
+          "primitive_calls": 1,
+          "calls": 1,
+          "self_cpu": 1.1259999999999482e-06,
+          "cumulative_cpu": 7.74539999999998e-05
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "append",
+          "primitive_calls": 6,
+          "calls": 6,
+          "self_cpu": 1.1249999999999867e-06,
+          "cumulative_cpu": 1.1249999999999867e-06
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "items",
+          "primitive_calls": 6,
+          "calls": 6,
+          "self_cpu": 1.0429999999999424e-06,
+          "cumulative_cpu": 1.0429999999999424e-06
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "monotonic",
+          "primitive_calls": 3,
+          "calls": 3,
+          "self_cpu": 9.1799999999998e-07,
+          "cumulative_cpu": 9.1799999999998e-07
+        },
+        {
+          "file": "src/simulatte/trace/format.py",
+          "line": 72,
+          "name": "write_preamble",
+          "primitive_calls": 1,
+          "calls": 1,
+          "self_cpu": 8.350000000000013e-07,
+          "cumulative_cpu": 2.0430000000000074e-06
+        },
+        {
+          "file": "src/simulatte/trace/format.py",
+          "line": 83,
+          "name": "write_trailer",
+          "primitive_calls": 1,
+          "calls": 1,
+          "self_cpu": 6.66000000000078e-07,
+          "cumulative_cpu": 1.625000000000324e-06
+        },
+        {
+          "file": "src/simulatte/_wire.py",
+          "line": 422,
+          "name": "_check_int",
+          "primitive_calls": 2,
+          "calls": 2,
+          "self_cpu": 5.840000000000879e-07,
+          "cumulative_cpu": 5.840000000000879e-07
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "isfinite",
+          "primitive_calls": 3,
+          "calls": 3,
+          "self_cpu": 5.840000000000337e-07,
+          "cumulative_cpu": 5.840000000000337e-07
+        },
+        {
+          "file": "src/simulatte/_wire.py",
+          "line": 436,
+          "name": "_packb",
+          "primitive_calls": 1,
+          "calls": 1,
+          "self_cpu": 5.839999999999795e-07,
+          "cumulative_cpu": 3.624999999999939e-06
+        },
+        {
+          "file": "<frozen abc>",
+          "line": 121,
+          "name": "__subclasscheck__",
+          "primitive_calls": 2,
+          "calls": 2,
+          "self_cpu": 5.40999999999953e-07,
+          "cumulative_cpu": 9.579999999999051e-07
+        },
+        {
+          "file": "",
+          "line": 0,
+          "name": "_abc_subclasscheck",
+          "primitive_calls": 2,
+          "calls": 2,
+          "self_cpu": 4.1699999999995213e-07,
+          "cumulative_cpu": 4.1699999999995213e-07
+        },
+        {
+          "file": "profile",
+          "line": 0,
+          "name": "profiler",
+          "primitive_calls": 0,
+          "calls": 0,
+          "self_cpu": 0,
+          "cumulative_cpu": 0
+        }
+      ]
+    }
+  ]
+}

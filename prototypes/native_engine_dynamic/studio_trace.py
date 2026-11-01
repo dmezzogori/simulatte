@@ -14,6 +14,7 @@ from simulatte._wire import FrozenMap, pack
 from simulatte.events import Deltas, apply_deltas
 from simulatte.job import ProductionJob
 from simulatte.kpi import Collector, KPI
+from simulatte.policies.events import PolicyDecision
 from simulatte.psp import PreShopPool, PspEntered, PspExited
 from simulatte.server import Server, JobQueued, JobGranted, JobReleased, ServerWorkCredited
 from simulatte.shopfloor import (
@@ -98,7 +99,18 @@ class ProjectionKPIs(Collector):
 
 class Projection:
     def __init__(
-        self, servers, path, *, policy, provenance, parameters, limits, debug, max_pending_bytes, level="full"
+        self,
+        servers,
+        path,
+        *,
+        policy,
+        provenance,
+        parameters,
+        limits,
+        debug,
+        max_pending_bytes,
+        level="full",
+        wip_cap=None,
     ):
         self.env = ProjectionClock(seed=0, time_unit="time", provenance=provenance, parameters=parameters, debug=debug)
         self.recorder = TraceRecorder(
@@ -106,6 +118,7 @@ class Projection:
         )
         self.state, self.jobs, self.offsets, self.phase = {}, [], [0], []
         self.policy, self.stages, self.queued_at, self.waits = policy, [], {}, []
+        self.capped = wip_cap is not None
         self.system = self.floor = 0
         try:
             floor = self._create(
@@ -193,6 +206,8 @@ class Projection:
         if kind == 6:
             if self.stages[identity] != "pool":
                 raise ValueError("release without pool membership")
+            if self.capped:
+                self.emit(PolicyDecision, policy="ConWIP", job=jid, action="release")
             self.emit(
                 PspExited,
                 (("remove", "psp", "jobs", jid), ("set", jid, "location", "transit")),
@@ -236,6 +251,8 @@ class Projection:
             self.system -= 1
             self.kpis.sample("system_wip", self.system)
             self.kpis.sample("floor_wip", self.floor)
+            self.env.entities.retire(self.env.entities.get(jid))
+            del self.state[jid]
             return
         local = op - self.offsets[identity]
         if self.stages[identity] != "active" or not 0 <= local < len(job.route) or job.route[local] != server:
@@ -340,6 +357,7 @@ class TraceStream:
                 max_pending_bytes=max_pending_bytes,
                 limits=chunk_limits or ChunkLimits(max_latency_s=float("inf")),
                 level=level,
+                wip_cap=wip_cap,
             )
         except BaseException:
             self.close()
@@ -461,12 +479,7 @@ def validate_trace(path, workload, result, *, wip_cap=None):
     last = trace.cursor_range[1]
     state = trace.state_at(last)
     assert state["shopfloor"]["jobs_in_system"] == 0 and state["psp"]["jobs"] == ()
-    for index, job in enumerate(workload.jobs):
-        fields = state[f"job-{index}"]
-        assert fields["location"] == "done" and fields["finished_at"] == result["finished"][index]
-        assert fields["created_at"] == job.arrival and fields["processing_times"] == job.durations
-        assert fields["routing"] == tuple(f"server-{s}" for s in job.route)
-        assert fields["op_index"] == len(job.route) - 1
+    assert not any(key.startswith("job-") for key in state)
     for server in range(workload.servers):
         fields = state[f"server-{server}"]
         assert fields["queue"] == fields["users"] == ()
@@ -476,6 +489,7 @@ def validate_trace(path, workload, result, *, wip_cap=None):
     for job in workload.jobs:
         offsets.append(offsets[-1] + len(job.route))
     events_hash, count, starts, ends = hashlib.sha256(), 0, 0, 0
+    created, finished, retired, decisions = set(), set(), set(), set()
     for event in trace.events():
         events_hash.update(pack((event.t, event.seq, event.ordinal, event.type, event.payload, event.deltas)))
         count += 1
@@ -486,8 +500,39 @@ def validate_trace(path, workload, result, *, wip_cap=None):
             assert event.t == expected[op]
             starts += event.type == "operation.started"
             ends += event.type == "operation.completed"
+        elif event.type == "entity.created":
+            jid = event.payload["entity"]
+            identity = int(jid.split("-")[1])
+            source = workload.jobs[identity]
+            fields = event.deltas[0][3]
+            assert jid not in created and event.t == source.arrival
+            assert fields["created_at"] == source.arrival and fields["due_date"] == source.due
+            assert fields["processing_times"] == source.durations
+            assert fields["routing"] == tuple(f"server-{s}" for s in source.route)
+            created.add(jid)
+        elif event.type == "job.finished":
+            jid = event.payload["job"]
+            identity = int(jid.split("-")[1])
+            assert jid in created and jid not in finished and event.t == result["finished"][identity]
+            assert ("set", jid, "finished_at", event.t) in event.deltas
+            assert ("set", jid, "location", "done") in event.deltas
+            finished.add(jid)
+        elif event.type == "entity.retired":
+            jid = event.payload["entity"]
+            assert jid in finished and jid not in retired
+            assert event.t == result["finished"][int(jid.split("-")[1])]
+            assert event.deltas == (("retire", jid),)
+            retired.add(jid)
+        elif event.type == "policy.decision":
+            jid = event.payload["job"]
+            assert wip_cap is not None and jid not in decisions
+            assert event.payload["policy"] == "ConWIP" and event.payload["action"] == "release"
+            assert event.t == result["released"][int(jid.split("-")[1])]
+            decisions.add(jid)
     assert starts == ends == workload.operation_count
-    assert count == 5 * len(workload.jobs) + 7 * workload.operation_count
+    assert len(created) == len(finished) == len(retired) == len(workload.jobs)
+    assert len(decisions) == (len(workload.jobs) if wip_cap is not None else 0)
+    assert count == (7 if wip_cap is not None else 6) * len(workload.jobs) + 7 * workload.operation_count
     observers = sum(1 for _ in trace.observer_events())
     assert observers == 4 * len(workload.jobs) + 2
     scalars = trace.kpis()

@@ -233,3 +233,34 @@ PyPy without recording, but full traces take 1.53x/1.50x as long. The bridge add
 shadow replay and retains completed jobs: aggregate snapshot bytes are 4.63x/
 74.08x production. Lifecycle alignment is the proposed next experiment, with no
 production optimization or direct native serializer implemented here.
+
+## Production lifecycle in the trace bridge
+
+The [lifecycle experiment](../../specs/research/2026-11-01-native-lifecycle.md)
+adds ConWIP release decisions when a cap is configured and retires completed
+shadow jobs from the actual entity registry/projection state. Completed native
+handles and results remain available; historical trace state is retained in
+events and earlier snapshots. Uncapped release does not claim a ConWIP policy.
+The journal/core/bindings and production runtime remain unchanged.
+
+The generator now writes lifecycle.*; the older native.* fixture is preserved.
+Both fixtures pass TypeScript seek/playback/scene parity and the browser smoke.
+Use the preceding matrix/profile commands with lifecycle-results as destination,
+then compare against the committed historical baseline:
+
+```sh
+.venv/bin/python specs/research/native-engine-data/production_analysis.py \
+  prototypes/native_engine_dynamic/lifecycle-results \
+  --baseline prototypes/native_engine_dynamic/production-results \
+  --baseline-revision 1b234fc
+```
+
+Earlier measurement audits require their recorded checkout. The new audit can
+also verify the historical source/evidence bytes against that commit and report
+runtime/file/RSS changes alongside drift in unchanged production controls.
+
+The lifecycle candidate improves full native throughput 1.14–1.21x, brings snapshot
+bytes/file size close to production and reduces full native CPython whole-process
+peak RSS from 120/94 to 80/62 MiB. Native PyPy still takes 17–20% longer than production
+PyPy for full traces. Native CPython KPI time rises 3–5%; none-mode paths/results
+remain unchanged. Extra Python shadow replay remains a proposed next candidate.
