@@ -13,6 +13,11 @@ are 1.087–1.105x; KPI gains are 1.193–1.235x. Keep it opt-in: the best nativ
 path is effectively tied with production PyPy for independent jobs and takes
 3.9% longer with feedback. There is no consistent cross-workload native win.
 
+Follow-up: the [scaling and semantics gate](2026-11-01-native-gate.md) finds
+equal-time job-outcome differences against production and unsupported standard
+live collectors in both publishers. Exact aligned/direct parity remains valid;
+production equivalence here covers the tested continuous-time workload family.
+
 Full lifecycle medians, milliseconds; production uses the row's interpreter:
 
 | Producer | Interpreter | Aligned bridge | Direct emitter | Throughput gain | Production |

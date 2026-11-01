@@ -1,0 +1,43 @@
+{
+  "status": "failed-production-equivalence-and-live-observers",
+  "source_sha256": "fe6f37016b77730351c0ebada4d3eba3078cb7dd26210b4866766c8226d4546e",
+  "interpreters": 2,
+  "comparisons_per_interpreter": 288,
+  "streams_per_interpreter": 864,
+  "full_traces_per_interpreter": 288,
+  "kpi_traces_per_interpreter": 288,
+  "cross_interpreter_semantics_exact": true,
+  "aligned_direct_exact": true,
+  "summary": {
+    "comparisons": 288,
+    "changed": 67,
+    "changed_times": 33,
+    "difference_counts": {
+      "kpi:max_floor_wip": 4,
+      "series": 42,
+      "dispatch": 51,
+      "starts": 33,
+      "ends": 33,
+      "finished": 33,
+      "released": 21,
+      "kpi:total_flow": 14,
+      "kpi:wip_area": 14,
+      "kpi:total_pool_wait": 10,
+      "kpi:total_wait": 10,
+      "kpi:floor_wip_area": 10,
+      "kpi:total_tardiness": 8
+    },
+    "exported_floor_peak_mismatches": {
+      "production": 4,
+      "native": 0,
+      "direct": 0
+    }
+  },
+  "known_error_message_format_difference_count": 2,
+  "historical_verified_files": 245,
+  "unchanged_measured_source_files": 219,
+  "evidence": {
+    "semantics-cpython.json": "0056c854284a31516c8b726bae8da02462a61c2c42e7f344f6ca66f03ae5b70b",
+    "semantics-pypy.json": "e70846230678d88fe7950a0078270de3ae12fcc034099dbf8d8ad40cdf35ba5d"
+  }
+}

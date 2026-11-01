@@ -1,0 +1,300 @@
+{
+  "source_sha256": "fe6f37016b77730351c0ebada4d3eba3078cb7dd26210b4866766c8226d4546e",
+  "best_measured": [
+    {
+      "jobs": 5000,
+      "producer": "independent",
+      "mode": "none",
+      "production_case": "PyPy-independent-5000-none-production",
+      "native_case": "CPython-independent-5000-none-direct",
+      "production_s": 0.1859186670044437,
+      "native_s": 0.010085374990012497,
+      "throughput_ratio": 18.43448232599761
+    },
+    {
+      "jobs": 5000,
+      "producer": "independent",
+      "mode": "kpi",
+      "production_case": "PyPy-independent-5000-kpi-production",
+      "native_case": "PyPy-independent-5000-kpi-direct",
+      "production_s": 0.9559308330062777,
+      "native_s": 0.9459813749999739,
+      "throughput_ratio": 1.0105176045419542
+    },
+    {
+      "jobs": 5000,
+      "producer": "independent",
+      "mode": "full",
+      "production_case": "PyPy-independent-5000-full-production",
+      "native_case": "PyPy-independent-5000-full-direct",
+      "production_s": 1.4707399579929188,
+      "native_s": 1.416975416999776,
+      "throughput_ratio": 1.0379431713127254
+    },
+    {
+      "jobs": 5000,
+      "producer": "feedback",
+      "mode": "none",
+      "production_case": "PyPy-feedback-5000-none-production",
+      "native_case": "CPython-feedback-5000-none-direct",
+      "production_s": 0.1313943749992177,
+      "native_s": 0.024526416964363307,
+      "throughput_ratio": 5.3572592845556155
+    },
+    {
+      "jobs": 5000,
+      "producer": "feedback",
+      "mode": "kpi",
+      "production_case": "PyPy-feedback-5000-kpi-production",
+      "native_case": "CPython-feedback-5000-kpi-direct",
+      "production_s": 0.8011674580047838,
+      "native_s": 0.818136667017825,
+      "throughput_ratio": 0.9792587110477577
+    },
+    {
+      "jobs": 5000,
+      "producer": "feedback",
+      "mode": "full",
+      "production_case": "PyPy-feedback-5000-full-production",
+      "native_case": "PyPy-feedback-5000-full-direct",
+      "production_s": 1.1153650420019403,
+      "native_s": 1.165973208961077,
+      "throughput_ratio": 0.9565957720381668
+    },
+    {
+      "jobs": 20000,
+      "producer": "independent",
+      "mode": "none",
+      "production_case": "PyPy-independent-20000-none-production",
+      "native_case": "CPython-independent-20000-none-direct",
+      "production_s": 1.105893665982876,
+      "native_s": 0.029272292042151093,
+      "throughput_ratio": 37.779537878018814
+    },
+    {
+      "jobs": 20000,
+      "producer": "independent",
+      "mode": "kpi",
+      "production_case": "PyPy-independent-20000-kpi-production",
+      "native_case": "PyPy-independent-20000-kpi-direct",
+      "production_s": 4.304236833006144,
+      "native_s": 3.850419666036032,
+      "throughput_ratio": 1.1178617414026746
+    },
+    {
+      "jobs": 20000,
+      "producer": "independent",
+      "mode": "full",
+      "production_case": "PyPy-independent-20000-full-production",
+      "native_case": "PyPy-independent-20000-full-direct",
+      "production_s": 7.231516500003636,
+      "native_s": 7.065764040977228,
+      "throughput_ratio": 1.0234585330142842
+    },
+    {
+      "jobs": 20000,
+      "producer": "feedback",
+      "mode": "none",
+      "production_case": "PyPy-feedback-20000-none-production",
+      "native_case": "CPython-feedback-20000-none-direct",
+      "production_s": 0.5527982499916106,
+      "native_s": 0.08353079098742455,
+      "throughput_ratio": 6.617897944661313
+    },
+    {
+      "jobs": 20000,
+      "producer": "feedback",
+      "mode": "kpi",
+      "production_case": "PyPy-feedback-20000-kpi-production",
+      "native_case": "CPython-feedback-20000-kpi-direct",
+      "production_s": 3.1947940409881994,
+      "native_s": 3.2237587079871446,
+      "throughput_ratio": 0.9910152497061325
+    },
+    {
+      "jobs": 20000,
+      "producer": "feedback",
+      "mode": "full",
+      "production_case": "PyPy-feedback-20000-full-production",
+      "native_case": "PyPy-feedback-20000-full-direct",
+      "production_s": 4.517684584017843,
+      "native_s": 4.668382000003476,
+      "throughput_ratio": 0.9677195619412635
+    }
+  ],
+  "growth": [
+    {
+      "case": "PyPy-feedback-20000-kpi-direct",
+      "time_ratio": 3.803557166193774,
+      "operation_ratio": 3.976858140888803,
+      "trace_bytes_ratio": 4.006702264942155,
+      "rss_ratio": 1.4595784109335186
+    },
+    {
+      "case": "CPython-independent-20000-full-direct",
+      "time_ratio": 4.977358037018232,
+      "operation_ratio": 4.0222197858421955,
+      "trace_bytes_ratio": 6.102935412023289,
+      "rss_ratio": 2.9734464823432796
+    },
+    {
+      "case": "CPython-feedback-20000-kpi-production",
+      "time_ratio": 4.178780077883334,
+      "operation_ratio": 3.976858140888803,
+      "trace_bytes_ratio": 4.0073050412217865,
+      "rss_ratio": 1.3553047404063205
+    },
+    {
+      "case": "PyPy-independent-20000-full-production",
+      "time_ratio": 4.916923933903517,
+      "operation_ratio": 4.0222197858421955,
+      "trace_bytes_ratio": 6.1060683682714,
+      "rss_ratio": 1.776731674512441
+    },
+    {
+      "case": "CPython-independent-20000-kpi-production",
+      "time_ratio": 4.8741542969704295,
+      "operation_ratio": 4.0222197858421955,
+      "trace_bytes_ratio": 4.001787496964628,
+      "rss_ratio": 1.303179579041648
+    },
+    {
+      "case": "CPython-independent-20000-none-production",
+      "time_ratio": 7.483917430973527,
+      "operation_ratio": 4.0222197858421955,
+      "trace_bytes_ratio": null,
+      "rss_ratio": 1.2469268592501537
+    },
+    {
+      "case": "CPython-feedback-20000-full-production",
+      "time_ratio": 3.987761913198958,
+      "operation_ratio": 3.976858140888803,
+      "trace_bytes_ratio": 3.995799633537131,
+      "rss_ratio": 1.8283483324510323
+    },
+    {
+      "case": "CPython-feedback-20000-none-production",
+      "time_ratio": 4.065354621773957,
+      "operation_ratio": 3.976858140888803,
+      "trace_bytes_ratio": null,
+      "rss_ratio": 1.2778539856729156
+    },
+    {
+      "case": "PyPy-feedback-20000-full-direct",
+      "time_ratio": 4.00385014348929,
+      "operation_ratio": 3.976858140888803,
+      "trace_bytes_ratio": 3.99446545531517,
+      "rss_ratio": 1.358536066387687
+    },
+    {
+      "case": "CPython-feedback-20000-full-direct",
+      "time_ratio": 3.919998896417865,
+      "operation_ratio": 3.976858140888803,
+      "trace_bytes_ratio": 3.9944646529817835,
+      "rss_ratio": 1.2193119071216196
+    },
+    {
+      "case": "PyPy-independent-20000-none-production",
+      "time_ratio": 5.9482658939053366,
+      "operation_ratio": 4.0222197858421955,
+      "trace_bytes_ratio": null,
+      "rss_ratio": 1.2328538283062644
+    },
+    {
+      "case": "PyPy-independent-20000-kpi-production",
+      "time_ratio": 4.502665553186396,
+      "operation_ratio": 4.0222197858421955,
+      "trace_bytes_ratio": 4.001794246270419,
+      "rss_ratio": 1.2717549087019635
+    },
+    {
+      "case": "PyPy-feedback-20000-kpi-production",
+      "time_ratio": 3.9876732499151544,
+      "operation_ratio": 3.976858140888803,
+      "trace_bytes_ratio": 4.00731181536202,
+      "rss_ratio": 1.1809553690485528
+    },
+    {
+      "case": "CPython-feedback-20000-kpi-direct",
+      "time_ratio": 3.940366980174607,
+      "operation_ratio": 3.976858140888803,
+      "trace_bytes_ratio": 4.006695493547733,
+      "rss_ratio": 1.1044621749408983
+    },
+    {
+      "case": "CPython-independent-20000-none-direct",
+      "time_ratio": 2.902449544130914,
+      "operation_ratio": 4.0222197858421955,
+      "trace_bytes_ratio": null,
+      "rss_ratio": 1.068069306930693
+    },
+    {
+      "case": "CPython-independent-20000-full-production",
+      "time_ratio": 5.453625962391535,
+      "operation_ratio": 4.0222197858421955,
+      "trace_bytes_ratio": 6.106067382453231,
+      "rss_ratio": 2.6186440677966103
+    },
+    {
+      "case": "PyPy-independent-20000-none-direct",
+      "time_ratio": 3.264219105226767,
+      "operation_ratio": 4.0222197858421955,
+      "trace_bytes_ratio": null,
+      "rss_ratio": 1.1244387971198644
+    },
+    {
+      "case": "PyPy-independent-20000-kpi-direct",
+      "time_ratio": 4.070291200010295,
+      "operation_ratio": 4.0222197858421955,
+      "trace_bytes_ratio": 4.001186930279086,
+      "rss_ratio": 1.1140581764189783
+    },
+    {
+      "case": "PyPy-feedback-20000-none-direct",
+      "time_ratio": 3.958205377674195,
+      "operation_ratio": 3.976858140888803,
+      "trace_bytes_ratio": null,
+      "rss_ratio": 1.1753783878915876
+    },
+    {
+      "case": "PyPy-feedback-20000-full-production",
+      "time_ratio": 4.050408981717022,
+      "operation_ratio": 3.976858140888803,
+      "trace_bytes_ratio": 3.995800436822141,
+      "rss_ratio": 1.3724350695939158
+    },
+    {
+      "case": "PyPy-independent-20000-full-direct",
+      "time_ratio": 4.986511379243177,
+      "operation_ratio": 4.0222197858421955,
+      "trace_bytes_ratio": 6.102936396403869,
+      "rss_ratio": 1.5352446081009994
+    },
+    {
+      "case": "CPython-feedback-20000-none-direct",
+      "time_ratio": 3.4057478150515887,
+      "operation_ratio": 3.976858140888803,
+      "trace_bytes_ratio": null,
+      "rss_ratio": 1.0671503550478543
+    },
+    {
+      "case": "CPython-independent-20000-kpi-direct",
+      "time_ratio": 4.017224444867211,
+      "operation_ratio": 4.0222197858421955,
+      "trace_bytes_ratio": 4.001180183704023,
+      "rss_ratio": 1.0987047789191604
+    },
+    {
+      "case": "PyPy-feedback-20000-none-production",
+      "time_ratio": 4.207168305301517,
+      "operation_ratio": 3.976858140888803,
+      "trace_bytes_ratio": null,
+      "rss_ratio": 1.2003331174238918
+    }
+  ],
+  "historical_5000_exact_cases": 24,
+  "historical_revision": "62b1f85",
+  "historical_verified_files": 245,
+  "unchanged_runtime_files": 219,
+  "matrix_sha256": "b677a0f0b0eda4283675c2a91bfc44007a30cd2b60917877a5bdef01248602f5"
+}
