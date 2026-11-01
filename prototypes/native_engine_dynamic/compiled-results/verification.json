@@ -1,0 +1,23 @@
+{
+  "cases": 64,
+  "measured_samples": 320,
+  "separate_cold_probes": 64,
+  "exact_coverage": true,
+  "source_and_libraries_frozen": true,
+  "engine_DSO_unchanged": true,
+  "independent_historical_parity": true,
+  "feedback_decisions_and_generated_jobs_equivalent": true,
+  "negative_checks_rejected": [
+    "case",
+    "source_sha256",
+    "libraries",
+    "trajectory_sha256",
+    "generated_sha256",
+    "decisions_sha256",
+    "observations",
+    "samples"
+  ],
+  "matrix_sha256": "b4b54aedeb8559b82208c928d40f06ce07097cbe71d0dd83e2a12567232d8d60",
+  "metadata_sha256": "f51e3a1e8b2b72744f0c6ae19a6c5685f187930c4c62b309f26bbc57120706a1",
+  "analysis_sha256": "fa5dc99c39e4b487537c03594b2abaf2a27c222461e51d1383a298ed8e55d0cb"
+}

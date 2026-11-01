@@ -51,6 +51,20 @@ Registering future arrivals ahead of time is optional producer lookahead. It pre
 order and records for independent predetermined inputs, but future handles become visible to Python
 earlier. It cannot replace per-job feedback-dependent registration without additional semantic work.
 
+The [compiled scalar experiment](../../specs/research/2026-11-01-native-compiled-plan.md) adds opt-in
+`CompiledStream`, implementing the scalar interface above without `add_many`. Its Python C API extension
+links the same unchanged engine shared library. A thin Python wrapper retains exact Job validation,
+owner/id JobHandles and per-stream RLock serialization. C converts primitive route/duration tuples into
+temporary copied buffers and owns independent counts/lifecycle state in an opaque capsule. Native calls
+release the GIL; a busy guard rejects concurrent/reentrant direct capsule calls, including close, and
+protects detached result copying. Public methods serialize through the RLock as in ctypes.
+
+Python-invalid input is rejected before engine mutation and leaves the stream usable. Native allocation,
+time/recording failure poisons the stream, with close still valid. Capsule destruction and close are
+idempotent with respect to engine ownership. Results and inspections contain detached primitives/lists.
+This is a GIL-enabled, local Python C API prototype measured on CPython and PyPy's cpyext compatibility
+path, not a stable ABI, free-threading, subinterpreter, wheel or CFFI certification.
+
 `inspect` returns `id`, `arrival`, `released`, `finished`, `state`, with None for unavailable times and
 state one of `scheduled`, `pool`, `active`, `finished`. Inspections are detached snapshots. No mutable
 native storage is exposed. Allocation failure fails the stream safely; close remains valid.

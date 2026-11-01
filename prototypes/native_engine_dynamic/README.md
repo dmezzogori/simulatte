@@ -106,3 +106,42 @@ The [completed registration report](../../specs/research/2026-11-01-native-regis
 per-job advancement/admission. Against the strongest compact PyPy control across all schedules, the
 selected native paths are 3.71–4.54x faster. Producer lookahead and the 15.28% spread in the fastest PyPy
 recording case qualify that result; scalar remains the default.
+
+## Compiled scalar and feedback experiment
+
+The [plan](../../specs/research/2026-11-01-native-compiled-plan.md) and
+[report](../../specs/research/2026-11-01-native-compiled.md) compare a minimal Python C API boundary with
+ctypes and compact controls under the original per-job schedule. Both extensions link the exact existing
+dynamic engine DSO; no kernel or original binding changes. Use `CompiledStream` from `compiled.py` for
+the scalar API; batching remains an independent opt-in path in `NativeStream`.
+
+```sh
+.venv/bin/python -m prototypes.native_engine_dynamic.compiled_build
+prototypes/native_engine/.build/pypy-env/bin/python -m prototypes.native_engine_dynamic.compiled_build
+.venv/bin/python -m prototypes.native_engine_dynamic.tests.run_scalar_sanitizer
+.venv/bin/python -m prototypes.native_engine_dynamic.scalar_benchmark matrix \
+  --output prototypes/native_engine_dynamic/compiled-results \
+  --pypy prototypes/native_engine/.build/pypy-env/bin/python
+.venv/bin/python specs/research/native-engine-data/scalar_analysis.py \
+  prototypes/native_engine_dynamic/compiled-results
+```
+
+Build/imports/DSO loading are outside timing for both native boundaries, including cold probes; engine
+construction, copies, handles, all processing, detached results and close/GC remain inside. The feedback
+producer also includes every inspect, decision, generated Job and decision-log materialization. It keeps
+generated inputs/logs for validation after timing; all backends pay that cost. It chooses a new job only
+after inspecting a prior handle, and replay independently reconstructs those strict-before-time states.
+Independent/feedback producers are different workloads; compare within a producer only.
+
+The 64-case matrix fixes 5k/50k templates, cap 12, SPT, none/record, both interpreters and four scalar
+backends. Five samples after one CPython/seven PyPy warmups, separate cold/RSS probes and frozen
+source/engine/two-extension/input hashes. PyPy C API measurements exercise cpyext, not CFFI. No production
+packaging or free-threaded/subinterpreter support is implied. The sanitizer runner is a separate CPython
+build with ASan/UBSan, malloc-backed Python allocation and three scratch/state fault positions; leak
+detection is disabled. It does not replace the standalone engine sanitizer or certify PyPy internals.
+
+The completed 64-case study finds CPython compiled scalar lifecycle 2.69–2.91x faster than ctypes for 50k
+independent jobs and 1.64–1.68x with live feedback/Job creation. Margins over best compact PyPy narrow from
+4.90–5.15x to 1.56–1.83x. This C API candidate on PyPy improves ctypes but loses to compact PyPy at 50k
+feedback and uses materially more whole-process memory. Keep it opt-in; see the report for uncertainty
+and remaining production trace/extension gates.
