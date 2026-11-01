@@ -353,6 +353,33 @@ int nd_add(nd_engine *e, double arrival, double due, uint32_t count,
     return 0;
 }
 
+int nd_add_many(nd_engine *e, uint32_t jobs,
+                const double *arrivals, size_t arrival_length,
+                const double *due, size_t due_length,
+                const uint32_t *offsets, size_t offset_length,
+                const uint32_t *routes, size_t route_length,
+                const double *durations, size_t duration_length, uint32_t *first_id) {
+    if (!e) return -1;
+    if (e->state) return fail(e, "engine is sealed or failed");
+    if (!jobs || jobs >= NONE - e->jobs || arrival_length != jobs || due_length != jobs ||
+        offset_length != (size_t)jobs + 1 || !route_length || route_length >= NONE - e->operations ||
+        duration_length != route_length || !arrivals || !due || !offsets || !routes || !durations || !first_id)
+        return fail(e, "invalid batch counts or array lengths");
+    if (offsets[0] || offsets[jobs] != route_length)
+        return fail(e, "invalid batch offsets");
+    for (uint32_t j = 0; j < jobs; ++j)
+        if (offsets[j] >= offsets[j + 1] || offsets[j + 1] > route_length)
+            return fail(e, "invalid batch offsets");
+    uint32_t first = e->jobs, identity;
+    for (uint32_t j = 0; j < jobs; ++j) {
+        uint32_t begin = offsets[j], count = offsets[j + 1] - begin;
+        if (nd_add(e, arrivals[j], due[j], count, routes + begin, count,
+                   durations + begin, count, &identity)) return -1;
+    }
+    *first_id = first;
+    return 0;
+}
+
 nd_engine *nd_create(uint32_t servers, uint32_t cap, int policy, int mode,
                      const char *path, char *error, size_t error_capacity) {
     nd_engine *e = calloc(1, sizeof(*e));

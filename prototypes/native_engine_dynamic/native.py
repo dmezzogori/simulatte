@@ -69,6 +69,24 @@ def _load_library():
                     [ct.c_void_p, ct.c_double, ct.c_double, _U32, _U32P, ct.c_size_t, _DoubleP, ct.c_size_t, _U32P],
                     ct.c_int,
                 ),
+                "nd_add_many": (
+                    [
+                        ct.c_void_p,
+                        _U32,
+                        _DoubleP,
+                        ct.c_size_t,
+                        _DoubleP,
+                        ct.c_size_t,
+                        _U32P,
+                        ct.c_size_t,
+                        _U32P,
+                        ct.c_size_t,
+                        _DoubleP,
+                        ct.c_size_t,
+                        _U32P,
+                    ],
+                    ct.c_int,
+                ),
                 "nd_advance": ([ct.c_void_p, ct.c_double], ct.c_int),
                 "nd_run": ([ct.c_void_p], ct.c_int),
                 "nd_inspect": ([ct.c_void_p, _U32, ct.POINTER(_Snapshot)], ct.c_int),
@@ -207,6 +225,68 @@ class NativeStream:
             self._operations += count
             self._last_arrival = job.arrival
             return JobHandle(self._owner, identity.value)
+
+    def add_many(self, jobs):
+        """Copy an exact tuple of validated Jobs in one native call.
+
+        Input validation finishes before C mutation. Each job still receives
+        its own arrival event and stable handle. Future inputs must already be
+        known; this call does not advance time or run Python producer code.
+        """
+        with self._lock:
+            self._check(accepting=True)
+            if type(jobs) is not tuple:
+                raise TypeError("add_many requires an exact tuple of Jobs")
+            count = _count(len(jobs), "jobs")
+            _count(self._jobs + count, "jobs")
+            if not count:
+                return []
+            now = self._library.nd_now(self._engine)
+            last = self._last_arrival
+            arrivals, dues = array("d"), array("d")
+            offsets, routes, durations = array("I", [0]), array("I"), array("d")
+            for job in jobs:
+                if type(job) is not Job:
+                    raise TypeError("add_many requires exact validated Jobs")
+                operations = _count(len(job.route), "operations", positive=True)
+                _count(self._operations + len(routes) + operations, "operations")
+                if len(job.durations) != operations or any(server >= self._servers for server in job.route):
+                    raise ValueError("invalid route or duration lengths")
+                if job.arrival < last or job.arrival < now:
+                    raise ValueError("arrival precedes stream time or previous registration")
+                arrivals.append(job.arrival)
+                dues.append(job.due)
+                routes.extend(job.route)
+                durations.extend(job.durations)
+                offsets.append(len(routes))
+                last = job.arrival
+            c_arrivals = (ct.c_double * count).from_buffer(arrivals)
+            c_dues = (ct.c_double * count).from_buffer(dues)
+            c_offsets = (_U32 * len(offsets)).from_buffer(offsets)
+            c_routes = (_U32 * len(routes)).from_buffer(routes)
+            c_durations = (ct.c_double * len(durations)).from_buffer(durations)
+            first = _U32()
+            self._status(
+                self._library.nd_add_many(
+                    self._engine,
+                    count,
+                    c_arrivals,
+                    len(arrivals),
+                    c_dues,
+                    len(dues),
+                    c_offsets,
+                    len(offsets),
+                    c_routes,
+                    len(routes),
+                    c_durations,
+                    len(durations),
+                    ct.byref(first),
+                )
+            )
+            self._jobs += count
+            self._operations += len(routes)
+            self._last_arrival = last
+            return [JobHandle(self._owner, first.value + index) for index in range(count)]
 
     def advance(self, until):
         with self._lock:

@@ -1,0 +1,19 @@
+{
+  "cases": 64,
+  "measured_samples": 320,
+  "separate_cold_probes": 64,
+  "exact_coverage": true,
+  "source_and_libraries_frozen": true,
+  "prior_trajectory_and_record_parity": true,
+  "negative_checks_rejected": [
+    "case",
+    "source_sha256",
+    "libraries",
+    "trajectory_sha256",
+    "registration_calls",
+    "samples"
+  ],
+  "matrix_sha256": "deb0316257a69c2b91bcd22a5f2c944290fcdfc558160ef4f673e1b53ceb464f",
+  "metadata_sha256": "585cc40a4391a460432da092bd83731171d8acb16cf7bf976d9c1871fecc5be6",
+  "analysis_sha256": "cfcc42ad7cb1de8bfccd828d2a7b784b946ade865334c6ec4a558261462993f3"
+}

@@ -70,6 +70,94 @@ static nd_engine *fresh(void) {
     return e;
 }
 
+static int exercise_batch(const char *path, size_t nth) {
+    nd_test_fail_allocation(nth);
+    char error[256];
+    nd_engine *e = nd_create(8, 3, 1, path ? 2 : 1, path, error, sizeof(error));
+    if (!e) { assert(strstr(error, "allocation")); return -1; }
+    double arrivals[33], dues[33], durations[264], at = 0;
+    uint32_t offsets[34], routes[264], first;
+    random_state = 981;
+    for (uint32_t begin = 0; begin < 1025; begin += 33) {
+        uint32_t jobs = 1025 - begin < 33 ? 1025 - begin : 33, operations = 0;
+        offsets[0] = 0;
+        for (uint32_t j = 0; j < jobs; ++j) {
+            at += (random_u32() % 4) / 16.0;
+            arrivals[j] = at;
+            dues[j] = (double)(random_u32() % 100);
+            uint32_t n = 1 + random_u32() % 8;
+            for (uint32_t k = 0; k < n; ++k) {
+                routes[operations] = (j + k) % 8;
+                durations[operations++] = (1 + random_u32() % 32) / 16.0;
+            }
+            offsets[j + 1] = operations;
+        }
+        if (nd_advance(e, arrivals[0]) ||
+            nd_add_many(e, jobs, arrivals, jobs, dues, jobs, offsets, jobs + 1,
+                        routes, operations, durations, operations, &first)) goto failed;
+        assert(first == begin);
+        nd_snapshot snapshot;
+        assert(!nd_inspect(e, 0, &snapshot));
+    }
+    if (nd_run(e)) goto failed;
+    const nd_result *result = nd_get_result(e);
+    assert(result && result->completed == 1025 && result->max_floor_wip <= 3);
+    double floor = 0, flow = 0;
+    for (uint32_t j = 0; j < 1025; ++j) {
+        nd_snapshot snapshot;
+        assert(!nd_inspect(e, j, &snapshot) && snapshot.state == 3);
+        floor += snapshot.finished - snapshot.released;
+        flow += snapshot.finished - snapshot.arrival;
+    }
+    assert(result->floor_wip_area == floor && result->wip_area == flow);
+    nd_destroy(e);
+    return 0;
+failed:
+    assert(strstr(nd_error(e), "allocation"));
+    assert(!nd_get_result(e));
+    nd_destroy(e);
+    return -1;
+}
+
+static void batch_boundaries(void) {
+    double arrivals[2] = {0, 0}, dues[2] = {1, 1}, durations[2] = {1, 1};
+    uint32_t offsets[3] = {0, 1, 2}, routes[2] = {0, 1}, first;
+    nd_engine *e;
+    /* Validate all declared lengths before touching any input arrays. */
+    for (unsigned field = 0; field < 5; ++field) {
+        e = fresh();
+        assert(nd_add_many(e, 2, (const double *)(uintptr_t)1, field == 0 ? 1 : 2,
+                           (const double *)(uintptr_t)1, field == 1 ? 1 : 2,
+                           (const uint32_t *)(uintptr_t)1, field == 2 ? 2 : 3,
+                           (const uint32_t *)(uintptr_t)1, field == 3 ? 1 : 2,
+                           (const double *)(uintptr_t)1, field == 4 ? 1 : 2, &first));
+        nd_destroy(e);
+    }
+    e = fresh();
+    assert(nd_add_many(e, UINT32_MAX, (const double *)(uintptr_t)1, UINT32_MAX,
+                       dues, 2, offsets, 3, routes, 2, durations, 2, &first)); nd_destroy(e);
+    for (unsigned field = 0; field < 6; ++field) {
+        e = fresh();
+        assert(nd_add_many(e, 2, field == 0 ? NULL : arrivals, 2, field == 1 ? NULL : dues, 2,
+                           field == 2 ? NULL : offsets, 3, field == 3 ? NULL : routes, 2,
+                           field == 4 ? NULL : durations, 2, field == 5 ? NULL : &first)); nd_destroy(e);
+    }
+    for (unsigned field = 0; field < 3; ++field) {
+        uint32_t bad[3] = {0, 1, 2};
+        bad[field] = field == 1 ? UINT32_MAX : 1;
+        e = fresh();
+        assert(nd_add_many(e, 2, arrivals, 2, dues, 2, bad, 3, routes, 2, durations, 2, &first)); nd_destroy(e);
+    }
+    e = fresh(); arrivals[1] = -1;
+    assert(nd_add_many(e, 2, arrivals, 2, dues, 2, offsets, 3, routes, 2, durations, 2, &first));
+    nd_snapshot snapshot;
+    assert(nd_inspect(e, 0, &snapshot)); assert(!nd_get_result(e)); nd_destroy(e);
+    e = fresh(); arrivals[1] = 0;
+    nd_test_sequence(e, UINT64_MAX - 1);
+    assert(nd_add_many(e, 2, arrivals, 2, dues, 2, offsets, 3, routes, 2, durations, 2, &first));
+    nd_destroy(e);
+}
+
 static void boundaries(void) {
     char error[256];
     uint32_t route[2] = {0, 1}, id;
@@ -125,6 +213,7 @@ static void boundaries(void) {
 int main(int argc, char **argv) {
     assert(argc == 2);
     boundaries();
+    batch_boundaries();
     assert(exercise(NULL, 0) == 0);
     size_t failure = 1;
     while (exercise(argv[1], failure)) {
@@ -132,5 +221,12 @@ int main(int argc, char **argv) {
         ++failure;
     }
     printf("dynamic sanitizer passed: %zu allocation failure positions, randomized growth and boundary cases\n", failure - 1);
+    assert(exercise_batch(NULL, 0) == 0);
+    failure = 1;
+    while (exercise_batch(argv[1], failure)) {
+        assert(failure < 512);
+        ++failure;
+    }
+    printf("bulk sanitizer passed: %zu allocation failure positions, 1025 copied jobs and boundary cases\n", failure - 1);
     return 0;
 }

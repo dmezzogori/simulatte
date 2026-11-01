@@ -77,3 +77,32 @@ Common model validation/input parsing and imports are outside timing. Dynamic re
 advance, native copies and handle creation, execution, detached lists, close and explicit GC are inside.
 Peak RSS includes interpreter, input/model, temporaries and output; it is not engine-only memory. Models
 are streamed one job at a time in timing; no model data is registered with C before the measured lifecycle.
+
+## Registration experiment
+
+The [follow-up plan](../../specs/research/2026-11-01-native-registration-plan.md) compares advancement
+granularity and opt-in native `add_many(tuple_of_jobs)` at identical producer windows. The original
+scalar API and independent Python controls remain available. Bulk registration still creates every
+arrival and stable handle, and copies all data. Future jobs must already be known to the producer;
+this is not a general substitution for Python feedback at each arrival.
+
+```sh
+.venv/bin/python -m prototypes.native_engine_dynamic.registration_benchmark matrix \
+  --output prototypes/native_engine_dynamic/registration-results \
+  --pypy prototypes/native_engine/.build/pypy-env/bin/python
+.venv/bin/python specs/research/native-engine-data/registration_analysis.py \
+  prototypes/native_engine_dynamic/registration-results
+```
+
+Use a new output directory per source/build snapshot. The 64-case matrix has interleaved windows of
+1/32/256 jobs and an eager diagnostic separating feed from execution, fixed at 50k jobs, load 0.95,
+SPT, cap 12, none/record, both interpreters. All lifecycle costs remain timed. Larger windows change
+producer visibility, and eager feed changes calendar population; compare matched schedules and avoid
+treating interleaved feed as isolated FFI cost. Historical results require their recorded source/build
+snapshot for provenance audits; they are not overwritten by this experiment.
+
+The [completed registration report](../../specs/research/2026-11-01-native-registration.md) audits all
+64 cases. Bulk windows improve native lifecycle by 1.94–2.06x on CPython and 3.95–3.98x on PyPy over
+per-job advancement/admission. Against the strongest compact PyPy control across all schedules, the
+selected native paths are 3.71–4.54x faster. Producer lookahead and the 15.28% spread in the fastest PyPy
+recording case qualify that result; scalar remains the default.

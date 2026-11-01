@@ -26,6 +26,15 @@ nd_engine *nd_create(uint32_t servers, uint32_t cap, int policy, int mode,
 int nd_add(nd_engine *, double arrival, double due, uint32_t count,
            const uint32_t *routes, size_t route_length,
            const double *durations, size_t duration_length, uint32_t *id);
+/* Copied contiguous batch; no advancement or callbacks between registrations.
+ * Offsets start at zero and end at route_length. On failure the engine is
+ * poisoned, including when earlier jobs in this batch were already copied. */
+int nd_add_many(nd_engine *, uint32_t jobs,
+                const double *arrivals, size_t arrival_length,
+                const double *due, size_t due_length,
+                const uint32_t *offsets, size_t offset_length,
+                const uint32_t *routes, size_t route_length,
+                const double *durations, size_t duration_length, uint32_t *first_id);
 int nd_advance(nd_engine *, double until);
 int nd_run(nd_engine *);
 int nd_inspect(const nd_engine *, uint32_t id, nd_snapshot *);

@@ -38,6 +38,19 @@ handles after close. C owns copies of all registered job/operation data, queues,
 Growth does not invalidate existing handles. This milestone retains completed state until close; it
 does not demonstrate slot recycling, cancellation or bounded memory over an infinite stream.
 
+The subsequent [registration experiment](../../specs/research/2026-11-01-native-registration-plan.md)
+adds native-only `add_many(jobs: tuple[Job, ...]) -> list[JobHandle]`. The tuple and every Job must be
+exact types. It validates the whole Python batch before native mutation; rejected input leaves the
+stream usable. Empty tuples return an empty list but still require an accepting stream. C copies all
+inputs before returning, assigns contiguous IDs, and schedules every individual arrival in scalar
+registration order. It does not advance time. C allocation/admission failure may leave partial internal
+copies and poisons the stream; only close remains valid. C validates explicit array lengths before
+dereferencing and offsets before pointer arithmetic. Scalar add and the event loop are unchanged.
+
+Registering future arrivals ahead of time is optional producer lookahead. It preserves final event
+order and records for independent predetermined inputs, but future handles become visible to Python
+earlier. It cannot replace per-job feedback-dependent registration without additional semantic work.
+
 `inspect` returns `id`, `arrival`, `released`, `finished`, `state`, with None for unavailable times and
 state one of `scheduled`, `pool`, `active`, `finished`. Inspections are detached snapshots. No mutable
 native storage is exposed. Allocation failure fails the stream safely; close remains valid.
