@@ -1,0 +1,30 @@
+[
+  {
+    "producer": "independent",
+    "jobs": 5000,
+    "production_s": 4.201609957963228,
+    "native_s": 2.4975209580152296,
+    "speedup": 1.682312192207681
+  },
+  {
+    "producer": "independent",
+    "jobs": 20000,
+    "production_s": 14.995577958005015,
+    "native_s": 2.9705699579790235,
+    "speedup": 5.048047401720511
+  },
+  {
+    "producer": "feedback",
+    "jobs": 5000,
+    "production_s": 3.533357625012286,
+    "native_s": 2.5088072920334525,
+    "speedup": 1.4083814393525655
+  },
+  {
+    "producer": "feedback",
+    "jobs": 20000,
+    "production_s": 8.335255042009521,
+    "native_s": 3.1426052500028163,
+    "speedup": 2.6523391832308723
+  }
+]

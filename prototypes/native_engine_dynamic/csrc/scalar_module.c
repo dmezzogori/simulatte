@@ -303,6 +303,30 @@ static PyObject *stock_kpis(PyObject *self, PyObject *capsule) {
     return Py_BuildValue("{s:(ddO),s:N}", "window", snapshot.start, snapshot.end,
                          snapshot.closed ? Py_True : Py_False, "scalars", values);
 }
+static PyObject *state_bytes(PyObject *self, PyObject *capsule) {
+    (void)self;
+    scalar *s = get(capsule, 0);
+    if (!s) return NULL;
+    size_t size;
+    if (nd_state_size(s->engine, &size) || size > (size_t)PY_SSIZE_T_MAX) {
+        PyErr_SetString(PyExc_RuntimeError, "native state size unavailable"); return NULL;
+    }
+    s->busy = 1;
+    PyObject *bytes = PyBytes_FromStringAndSize(NULL, (Py_ssize_t)size);
+    if (!bytes) { s->busy = 0; return NULL; }
+    unsigned char *destination = (unsigned char *)PyBytes_AS_STRING(bytes);
+    int rc;
+    Py_BEGIN_ALLOW_THREADS
+    rc = nd_state_write(s->engine, destination, size);
+    Py_END_ALLOW_THREADS
+    s->busy = 0;
+    if (rc) {
+        Py_DECREF(bytes);
+        if (rc == -2) return PyErr_NoMemory();
+        PyErr_SetString(PyExc_RuntimeError, "native state unavailable"); return NULL;
+    }
+    return bytes;
+}
 static PyObject *close_stream(PyObject *self, PyObject *capsule) {
     (void)self;
     scalar *s = PyCapsule_GetPointer(capsule, CAPSULE);
@@ -326,6 +350,7 @@ static PyMethodDef methods[] = {
     {"flush", flush, METH_O, NULL},
     {"enable_stock_kpis", enable_stock_kpis, METH_VARARGS, NULL},
     {"stock_kpis", stock_kpis, METH_O, NULL},
+    {"state_bytes", state_bytes, METH_O, NULL},
     {"now", now, METH_O, NULL}, {"result", result, METH_O, NULL},
     {"close", close_stream, METH_O, NULL}, {NULL, NULL, 0, NULL}
 };

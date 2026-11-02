@@ -91,6 +91,12 @@ class CompiledStream:
             self._check()
             return self._module.result(self._engine)
 
+    def state_bytes(self):
+        """Detached NSTA0001 logical state, without advancing or observing events."""
+        with self._lock:
+            self._check()
+            return self._module.state_bytes(self._engine)
+
     def close(self):
         with self._lock:
             if self._engine is not None:

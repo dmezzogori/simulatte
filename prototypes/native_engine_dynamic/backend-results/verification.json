@@ -1,0 +1,26 @@
+{
+  "source_sha256": "97921c21c118c848485d0e1965b42461e7ff83775d3ce64bcde794514ec5305b",
+  "main_gate_runs": 72,
+  "sensitivity_runs": 4,
+  "reproductions": 2,
+  "timing_runs": 72,
+  "rejected_corruptions": [
+    "backend_state",
+    "fingerprint_digest",
+    "kpis",
+    "seed"
+  ],
+  "historical_evidence_files": 18,
+  "evidence": {
+    "checks.json": "2ff1035a433585be25acfc08ae99bbc7ac90136509a92c3e8daf82173426c099",
+    "gate/metadata.json": "2598c684a59b2b9642b3ce84bf25945269ef245653211f573c88255be3960344",
+    "gate/runs.json": "533b3028a0d1e90b39b47b5da739774c39638b096a748b79fb0a59ef80bf9b95",
+    "gate/sensitivity.json": "751c4563b8fd19c257d50d203acfaf95d83b18863dc00389f97f5be72cca7291",
+    "gate/verification.json": "cd4d5c04544f592577ce8afa4801b7297fb04f09d228fab216ae4f3af6f654eb",
+    "scaling/matrix.jsonl": "3fe1d7f172fe1fed997a8fbf128d566a63c6f785647a798946d2a4f9accfa15a",
+    "scaling/metadata.json": "eed66ec9f89b97ba0f6d600d019bec6026d13c094368263e565f11b80cbc577b",
+    "scaling/state-cost.json": "3ea9eadfeb1de6f9b07548b64faaf8b8a6edc62269c4232782dc1bc38bfe48db",
+    "scaling/summary.json": "70eb91fe024b43dea118b89acea77effa8ae4bcb1b913c4c3c57cc38dac8028e",
+    "scaling/verification.json": "8a939011a061069c422a8d16adb9e5c59b710d58ac3f3910e7d15fa6c5649d5a"
+  }
+}

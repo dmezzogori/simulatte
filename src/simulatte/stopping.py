@@ -179,6 +179,9 @@ def execute_until(env: Any, policy: Horizon | FinitePopulation, control: Any = N
         raise ValueError("Unsupported stopping policy")
     if env.activated:
         raise ValueError("Execution requires a fresh environment")
+    backend = getattr(env, "_execution_backend", None)
+    if backend is not None:
+        backend.validate_stopping(policy)
     population = env._population
     if isinstance(policy, FinitePopulation) and (population is None or population.policy != policy):
         raise ValueError("Finite execution requires its matching Population")
@@ -228,7 +231,11 @@ def execute_until(env: Any, policy: Horizon | FinitePopulation, control: Any = N
                 ):
                     raise StoppingError("population_incomplete: event queue exhausted before drain")
             elif reached:
+                if backend is not None:
+                    backend.finish()
                 return StopResult(policy, "horizon", float(env.now))
+            if backend is not None:
+                backend.advance(float(env.peek()))
             env.step()
     except BaseException:
         env._run_failed = True

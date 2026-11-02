@@ -1,0 +1,13 @@
+{
+  "source_sha256": "97921c21c118c848485d0e1965b42461e7ff83775d3ce64bcde794514ec5305b",
+  "experiments": 24,
+  "replications": 72,
+  "exact_shared_outputs": true,
+  "fingerprints_repeat_exactly": true,
+  "evidence": {
+    "metadata.json": "eed66ec9f89b97ba0f6d600d019bec6026d13c094368263e565f11b80cbc577b",
+    "matrix.jsonl": "3fe1d7f172fe1fed997a8fbf128d566a63c6f785647a798946d2a4f9accfa15a",
+    "summary.json": "70eb91fe024b43dea118b89acea77effa8ae4bcb1b913c4c3c57cc38dac8028e",
+    "state-cost.json": "3ea9eadfeb1de6f9b07548b64faaf8b8a6edc62269c4232782dc1bc38bfe48db"
+  }
+}

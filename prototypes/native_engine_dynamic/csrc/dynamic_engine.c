@@ -513,6 +513,90 @@ int nd_inspect(const nd_engine *e, uint32_t id, nd_snapshot *out) {
     out->state = e->job_state[id];
     return 0;
 }
+static int state_size_add(size_t *size, size_t count, size_t width) {
+    if (count > (SIZE_MAX - *size) / width) return -1;
+    *size += count * width;
+    return 0;
+}
+int nd_state_size(const nd_engine *e, size_t *out) {
+    if (!e || e->state == 1 || !out) return -1;
+    size_t size = 108; /* magic, seven u32s, now, seven u64s, makespan */
+    if (state_size_add(&size, e->servers, 12) || state_size_add(&size, e->jobs, 36) ||
+        state_size_add(&size, (size_t)e->jobs + 1, 4) || state_size_add(&size, e->operations, 44) ||
+        state_size_add(&size, e->dispatched, 4) || state_size_add(&size, e->pool_size, 4) ||
+        state_size_add(&size, e->heap_size, 24)) return -1;
+    *out = size;
+    return 0;
+}
+static int state_event_compare(const void *left, const void *right) {
+    event a = *(const event *)left, b = *(const event *)right;
+    if (before(a, b)) return -1;
+    if (before(b, a)) return 1;
+    if (a.kind != b.kind) return a.kind < b.kind ? -1 : 1;
+    return a.id < b.id ? -1 : a.id > b.id;
+}
+static int state_id_compare(const void *left, const void *right) {
+    uint32_t a = *(const uint32_t *)left, b = *(const uint32_t *)right;
+    return a < b ? -1 : a > b;
+}
+static void state_double(unsigned char *p, double value) {
+    uint64_t bits;
+    if (value == 0) value = 0; /* canonicalize signed zero */
+    memcpy(&bits, &value, sizeof(bits));
+    put64(p, bits);
+}
+int nd_state_write(const nd_engine *e, unsigned char *destination, size_t capacity) {
+    size_t size;
+    if (nd_state_size(e, &size) || capacity != size || !destination) return -1;
+    event *calendar = NULL;
+    uint32_t *pool = NULL;
+    /* Canonicalize logical membership/order without changing live heaps. */
+    if (e->heap_size) {
+        if (e->heap_size > SIZE_MAX / sizeof(event)) return -2;
+        calendar = calloc(e->heap_size, sizeof(event));
+        if (!calendar) return -2;
+        memcpy(calendar, e->heap, e->heap_size * sizeof(event));
+        qsort(calendar, e->heap_size, sizeof(event), state_event_compare);
+    }
+    if (e->pool_size) {
+        pool = calloc(e->pool_size, sizeof(uint32_t));
+        if (!pool) { free(calendar); return -2; }
+        memcpy(pool, e->pool, e->pool_size * sizeof(uint32_t));
+        qsort(pool, e->pool_size, sizeof(uint32_t), state_id_compare);
+    }
+    unsigned char *p = destination;
+    memcpy(p, "NSTA0001", 8); p += 8;
+#define S32(value) do { put32(p, (uint32_t)(value)); p += 4; } while (0)
+#define S64(value) do { put64(p, (uint64_t)(value)); p += 8; } while (0)
+#define SD(value) do { state_double(p, (value)); p += 8; } while (0)
+    S32(e->servers); S32(e->cap); S32(e->policy); S32(e->state);
+    S32(e->jobs); S32(e->operations); S32(e->policy_pending);
+    SD(e->now);
+    S64(e->sequence); S64(e->floor_wip); S64(e->dispatched);
+    S64(e->result.completed); S64(e->result.events); S64(e->heap_size); S64(e->pool_size);
+    SD(e->result.makespan);
+    for (uint32_t i = 0; i < e->servers; ++i) {
+        S32(e->head[i]); S32(e->tail[i]); S32(e->occupied[i]);
+    }
+    for (uint32_t i = 0; i < e->jobs; ++i) {
+        SD(e->arrivals[i]); SD(e->due[i]); SD(e->released[i]); SD(e->finished[i]); S32(e->job_state[i]);
+    }
+    for (size_t i = 0; i <= e->jobs; ++i) S32(e->jobs ? e->offsets[i] : 0);
+    for (uint32_t i = 0; i < e->operations; ++i) {
+        S32(e->job_of[i]); S32(e->routes[i]); S32(e->next[i]);
+        SD(e->durations[i]); SD(e->queued[i]); SD(e->starts[i]); SD(e->ends[i]);
+    }
+    for (size_t i = 0; i < e->dispatched; ++i) S32(e->dispatch[i]);
+    for (size_t i = 0; i < e->pool_size; ++i) S32(pool[i]);
+    for (size_t i = 0; i < e->heap_size; ++i) {
+        SD(calendar[i].time); S64(calendar[i].sequence); S32(calendar[i].kind); S32(calendar[i].id);
+    }
+#undef S32
+#undef S64
+#undef SD
+    free(calendar); free(pool);
+    return 0;
+}
 double nd_now(const nd_engine *e) { return e ? e->now : NAN; }
 const nd_result *nd_get_result(const nd_engine *e) { return e && e->state == 2 ? &e->result : NULL; }
 const char *nd_error(const nd_engine *e) { return e ? e->error : "null engine"; }

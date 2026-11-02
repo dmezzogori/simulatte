@@ -34,6 +34,7 @@ from simulatte.provenance import (
 from simulatte.rng import BindingKind, CountingRandom, DrawCounter, derive_seed, resolve_binding
 
 if TYPE_CHECKING:  # pragma: no cover
+    from simulatte.execution.backend import BackendBinding, ExecutionBackend
     from simulatte.kpi import Collector
     from simulatte.trace.writer import TraceRecorder
 
@@ -118,6 +119,7 @@ class Environment(simpy.Environment):
         self._ready_callbacks: list[Callable[[], None]] = []
         self._population = None
         self._execution_policy = None
+        self._execution_backend: BackendBinding | None = None
         self._digest: SemanticDigest | None = None
         self._requested: FrozenMap | None = None
         self._requested_inputs: tuple[int, str | None, Provenance | None, float] | None = None
@@ -492,12 +494,25 @@ class Environment(simpy.Environment):
             if blocked is not None:
                 self.__dict__["schedule"] = blocked
 
+    def attach_execution_backend(self, backend: ExecutionBackend, *, scope: str = "shopfloor") -> None:
+        """Register an opt-in managed scalar backend before activation.
+
+        The managed stopping loop owns advancement; close owns cleanup. Normal
+        run()/manual stepping are not a backend execution interface. See
+        simulatte.execution.backend.ExecutionBackend for the initial contract.
+        """
+        from simulatte.execution.backend import bind_backend
+
+        bind_backend(self, backend, scope)
+
     def run(self, until: float | simpy.Event | None = None) -> Any:
         """Activate the environment on first use (see :meth:`activate`), then run the simulation.
 
         The stopping policy of the manifest is the one of the last call: a horizon for a numeric `until`,
         exhaustion for ``None``. If it raises, trace recorders report the run as ``failed``.
         """
+        if self._execution_backend is not None:
+            raise RuntimeError("execution backend requires managed execution")
         self._guard_layout_advance()
         try:
             if not self._activated:
@@ -629,7 +644,7 @@ class Environment(simpy.Environment):
             raise StopSimulation("KeyboardInterrupt")
 
     def close(self) -> None:
-        """Close the trace recorders attached to this environment, then its log sinks. Idempotent.
+        """Close trace recorders, log sinks and an owned execution backend. Idempotent.
 
         Every recorder and sink is closed even if one raises; the exception propagates afterwards. A closed sink
         receives no further event; :attr:`log_history` keeps its records. After closing, :meth:`emit`
@@ -638,6 +653,8 @@ class Environment(simpy.Environment):
         self._closed = True
         recorders, self._recorders = self._recorders, []
         with contextlib.ExitStack() as stack:
+            if self._execution_backend is not None:
+                stack.callback(self._execution_backend.close)
             for sink in reversed(self._sinks):
                 stack.callback(sink.close)
             for recorder in reversed(recorders):

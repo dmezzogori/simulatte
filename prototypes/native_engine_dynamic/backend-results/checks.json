@@ -1,0 +1,71 @@
+{
+  "source_sha256": "97921c21c118c848485d0e1965b42461e7ff83775d3ce64bcde794514ec5305b",
+  "files": 276,
+  "libraries": {
+    "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+    "dynamic": "638eb4b10466535a200e7497e7b38da0d882ba52910865d3d4de24f48b31a75c",
+    "_nd_scalar.cpython-314-darwin.so": "9cc13fcbfe7d8be90faf6589fcdfba655aba3a92ed0d3743635a941f4eacf87e",
+    "_nd_scalar.pypy311-pp73-darwin.so": "f036a45db93c799e58c91ade5b96d6300ff585457f85fc8f6263e445d774997b"
+  },
+  "tests": [
+    {
+      "command": "pytest tests/core tests/execution -o addopts= -q --tb=short -x",
+      "passed": 2307,
+      "skipped": 1,
+      "warnings": 3,
+      "note": "broad regression before final single-use guard; final targeted suite below"
+    },
+    {
+      "command": "pytest tests/intralogistics tests/experimental tests/layout -o addopts= -q --tb=short -x",
+      "passed": 1105
+    },
+    {
+      "command": "pytest prototypes/native_engine/tests prototypes/native_engine_dynamic/tests -o addopts= --import-mode=importlib -q --tb=short -x",
+      "passed": 500,
+      "skipped": 1
+    },
+    {
+      "command": "pytest tests/execution/test_backend.py + test_execution_adapter.py + test_state_codec.py",
+      "passed": 34,
+      "note": "final single-use/lifecycle/hidden-state/codec suite"
+    },
+    {
+      "command": "PyPy compatibility: same targeted suite before final ownership guard",
+      "passed": 33,
+      "warnings": [
+        "existing timeout config",
+        "existing timeout_method config"
+      ]
+    },
+    {
+      "command": "ASan/UBSan C API boundary: backend + adapter + codec + compiled; PYTHONMALLOC=malloc ASAN_OPTIONS=detect_leaks=0",
+      "passed": 65,
+      "note": "instrumented extension, release DSO; relocated subprocess ordinary build"
+    },
+    {
+      "command": "standalone ASan/UBSan native_sanitizer",
+      "passed": true,
+      "state_copy_allocation_failures": 2,
+      "stock_mutation_failures": 90,
+      "stock_snapshot_failures": 2,
+      "scalar_failures": 143,
+      "rich_failures": 143,
+      "bulk_failures": 144
+    },
+    {
+      "command": "ruff check changed Python; ty check src; zensical build",
+      "passed": true
+    },
+    {
+      "command": "pnpm --filter @simulatte/trace test; pnpm --filter @simulatte/trace typecheck",
+      "passed": 301,
+      "typecheck": true
+    }
+  ],
+  "independent_checks": {
+    "old_raw_sources_and_normalized_traces_preserved": true,
+    "old_native_transition_source_exact_after_removing_new_getter": true,
+    "actual_native_kpi_trace_opened_in_unchanged_typescript_reader": true
+  },
+  "superseded": "Pre-single-use gate/matrix retained under ignored .build/backend-before-ownership-guard; final evidence regenerated with guard."
+}

@@ -23,6 +23,7 @@ nav = [
     { "Events, Traces & KPIs" = "guides/events-and-traces.md" },
     { "Layouts & Networks" = "guides/layout.md" },
     { "Experiments & Comparisons" = "guides/experiments.md" },
+    { "Execution Backends" = "guides/execution-backends.md" },
     { "Remote Workers" = "guides/remote-workers.md" },
     { "Reinforcement Learning" = "guides/reinforcement-learning.md" },
     { "Troubleshooting" = "guides/troubleshooting.md" },

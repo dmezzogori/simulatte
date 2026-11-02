@@ -50,6 +50,11 @@ int nd_advance(nd_engine *, double until);
 int nd_flush(nd_engine *);
 int nd_run(nd_engine *);
 int nd_inspect(const nd_engine *, uint32_t id, nd_snapshot *);
+/* Pure versioned logical-state encoding, excluding observer/allocator details.
+ * Exact capacity from size() is required; -2 means temporary allocation failure.
+ * Caller serializes access and owns the writable destination. No pointers escape. */
+int nd_state_size(const nd_engine *, size_t *);
+int nd_state_write(const nd_engine *, unsigned char *, size_t capacity);
 double nd_now(const nd_engine *);
 const nd_result *nd_get_result(const nd_engine *);
 const char *nd_error(const nd_engine *);

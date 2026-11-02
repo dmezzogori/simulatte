@@ -192,3 +192,34 @@ a private integration experiment, not a general Environment implementation.
 Source capture includes relocatable native binary bytes and their integrity
 manifest, so library changes change request identity and cannot silently reuse
 old results. The model checks those hashes before loading the native runtime.
+
+
+## Explicit backend and NSTA0001 state identity
+
+The adapter now implements `simulatte.execution.backend.ExecutionBackend` and
+registers through `Environment.attach_execution_backend`. No research code
+replaces environment lifecycle methods. The managed stopping loop owns backend
+advancement and successful finalization; environment close owns resource cleanup.
+The initial/final hash is projected through a typed entity/event and thus enters
+ordinary result fingerprints without a result-file format change.
+
+NSTA0001 is a pure identity encoding, not a restore format. It excludes observer
+modes/aggregates/files, pointers, capacities and volatile metadata. The backend
+hash additionally covers all future producer templates, input/controller position
+and dispatch/release configuration. Different simulator schemas have independent
+hashes; paired verification compares shared outcomes. Full native tracing and
+arbitrary actor support remain outside this contract.
+
+The binary layout is little-endian, with signed zero normalized. Header:
+`8s7Id7Qd` (108 bytes): magic, servers/cap/policy/lifecycle/jobs/operations/
+policy_pending, now, sequence/floor_wip/dispatched/completed/events/calendar_count/
+pool_count, makespan. Then server `(head,tail,occupied)` u32 triples; job
+`(arrival,due,released,finished,state)` as four doubles/u32; jobs+1 u32 offsets;
+operation `(job,server,next,duration,queued,start,end)` as three u32/four doubles;
+dispatched u32 operation IDs; sorted u32 pool membership; calendar
+`(time,sequence,kind,id)` as double/u64/two u32 sorted by scheduler order.
+Queue links and operation IDs preserve order; pool priority is derived from input
+due dates and IDs. Exact size is checked before writing and scratch allocation
+failure does not poison or advance the engine. The native state schema includes
+retained trajectory/history arrays but excludes KPI accumulator internals, which
+are observer state. Public fingerprints include the current KPI vector separately.

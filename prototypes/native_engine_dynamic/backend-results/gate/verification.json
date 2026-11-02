@@ -1,0 +1,27 @@
+{
+  "main_replications": 72,
+  "sensitivity_replications": 4,
+  "reproduced_backends": [
+    "production",
+    "native"
+  ],
+  "reused": 6,
+  "ordinary_request_reuse": true,
+  "rejected": [
+    {
+      "feature": "full",
+      "message": "unsupported full tracing for scalar backend"
+    },
+    {
+      "feature": "population",
+      "message": "unsupported backend stopping policy: Horizon required"
+    },
+    {
+      "feature": "unknown_kpi",
+      "message": "Unknown requested KPI: shopfloor/unknown"
+    }
+  ],
+  "exact_shared_outcomes": true,
+  "state_projection_checked": true,
+  "source_sha256": "97921c21c118c848485d0e1965b42461e7ff83775d3ce64bcde794514ec5305b"
+}

@@ -168,7 +168,15 @@ def execute(config, raw_request, key, control, spool, send):
             dependencies=dependencies,
             imports=policy.audit(),
             layout=layout.prepare().bundle.manifest(),
-            capabilities={"fresh_process": True, "ready_barrier": True},
+            capabilities={
+                "fresh_process": True,
+                "ready_barrier": True,
+                **(
+                    {"execution_backend": env._execution_backend.capabilities.to_dict()}
+                    if env._execution_backend is not None
+                    else {}
+                ),
+            },
             warnings=warnings,
         )
         return resolved.to_dict()

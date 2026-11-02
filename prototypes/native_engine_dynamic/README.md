@@ -432,3 +432,19 @@ startup, model/input preparation, real managed execution, result validation,
 statistical reporting and coordinator cleanup. One-time native compilation and
 project creation/copying are outside execution timing. No installed backend or
 production source changes are required by this gate.
+
+
+The explicit backend gate replaces the research adapter's private step/close
+wrappers with `Environment.attach_execution_backend` and the managed
+`ExecutionBackend` contract. The core owns advance/finalize/close. Initial/final
+state hashes enter the ordinary typed projection and semantic fingerprint.
+Native `NSTA0001` bytes include queued/pending work and configuration; the model
+hash also covers future Python input/controller state. Production control hashes
+use a different schema. This opaque projection remains KPI/Horizon-only and does
+not establish per-actor full tracing or restore/checkpoint support.
+
+```sh
+.venv/bin/python -m prototypes.native_engine_dynamic.backend_experiment gate --output /tmp/native-backend/gate
+.venv/bin/python -m prototypes.native_engine_dynamic.backend_experiment matrix --output /tmp/native-backend/scaling
+.venv/bin/python -m prototypes.native_engine_dynamic.backend_experiment audit-experiment --output /tmp/native-backend
+```

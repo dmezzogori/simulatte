@@ -1,21 +1,18 @@
-"""Restricted research adapter for unmodified managed experiment execution.
+"""Restricted production backend using explicit managed ownership and state hashing.
 
-This is not an Environment replacement. Its shell has a scalar result scope,
-not a projection of native actors. Full traces and replay are unsupported.
+The opaque hash projection does not establish per-actor event tracing/replay.
 """
 
 from dataclasses import dataclass
 import hashlib
 import json
 import math
-import time
 from typing import Annotated, Literal
 
 from simulatte.collectors import ShopFloorKPIs
-from simulatte.entities import Entity, StateSchema
-from simulatte.kpi import Collector
 from simulatte.model import Range
-from simulatte.stopping import Horizon
+from simulatte._wire import canonical_pack, freeze
+from simulatte.execution.backend import BackendCapabilities, ExecutionBackend
 from prototypes.native_engine.model import Job, Workload
 from .native_kpis import NativeKPIStream, ProductionKPIStream
 
@@ -64,90 +61,46 @@ def templates(env, params):
     return Workload(params.servers, tuple(jobs))
 
 
-class ResultScope(Entity, kind="execution_slice"):
-    state_schema = StateSchema({})
-
-    def __init__(self, env):
-        env.entities.attach(self, name="shopfloor", label="Scalar execution result scope")
-
-
-class ScalarBridge(Collector):
-    kpis = ShopFloorKPIs.kpis
-
-    def __init__(self, scope, adapter):
-        super().__init__(scope)
-        self.adapter = adapter
-
-    def scalar_values(self):
-        return {key.partition("/")[2]: value for key, value in self.adapter.scalars()["scalars"].items()}
-
-
 def _digest(value):
     return hashlib.sha256(json.dumps(value, separators=(",", ":"), sort_keys=True).encode()).hexdigest()
 
 
-class ExecutionAdapter:
+class ExecutionAdapter(ExecutionBackend):
+    kpis = ShopFloorKPIs.kpis
+
     def __init__(self, env, layout, params, data, *, generation_s=0):
         if type(params) is not Parameters or type(data) is not Workload or data.servers != params.servers:
             raise ValueError("unsupported parameters or workload")
-        if type(env._execution_policy) is not Horizon:
-            raise ValueError("unsupported stopping policy: Horizon required")
-        if env.activated or env.now != 0 or env.collectors or env.entities.live() or env._queue:
-            raise ValueError("unsupported nonempty execution environment")
-        if "close" in env.__dict__:
-            raise ValueError("unsupported environment lifecycle overrides")
-        if layout.to_dict() != {"schema_version": "1.0"}:
-            raise ValueError("unsupported layout: this slice requires an empty layout")
-        if any(recorder._level != "kpi" for recorder in env._recorders):
-            raise ValueError("unsupported full tracing: scalar KPI level required")
-        if env.warmup != env._execution_policy.warmup:
-            raise ValueError("unsupported warm-up mismatch")
         self.env, self.params, self.data = env, params, data
-        self.closed, self._snapshot, self._states = False, None, None
+        self.closed = self.finished = False
+        self.stream = self._snapshot = self._states = self._state = None
         self.handles, self.generated, self.decisions = [], [], []
-        self.times = dict(
-            generation_s=generation_s, setup_s=0.0, advance_s=0.0, producer_s=0.0, export_s=0.0, close_s=0.0
-        )
         self.steps = 0
-        start = time.perf_counter()
-        self.stream = FACTORIES[params.backend](
-            params.servers, wip_cap=params.wip_cap, policy=params.policy, warmup=env.warmup
+        self.capabilities = BackendCapabilities(
+            params.backend + "-production",
+            "native-production-state-v1" if params.backend == "native" else "production-domain-state-v1",
         )
-        self.times["setup_s"] = time.perf_counter() - start
-        self._step, self._close = None, env.close
-        # Private research integration points; no production API changes.
-        env.close = self.close
-        env.on_activate(self.install_step)
-        try:
-            self.collector = ScalarBridge(ResultScope(env), self).attach(env)
-            env.process(self.produce())
-        except BaseException:
-            self.close()
-            raise
+        env.attach_execution_backend(self)
 
-    def install_step(self):
-        # The managed build guard temporarily shadows step and restores it on
-        # exit. Install only at activation, after that guard has finished.
-        if "step" in self.env.__dict__:
-            raise ValueError("unsupported environment step override")
-        self._step = self.env.step
-        self.env.step = self.step
+    def prepare(self, context):
+        self.stream = FACTORIES[self.params.backend](
+            self.params.servers,
+            wip_cap=self.params.wip_cap,
+            policy=self.params.policy,
+            warmup=context.stopping.warmup,
+        )
+        self._templates_digest = _digest([(j.arrival, j.route, j.durations, j.due) for j in self.data.jobs])
+        context.env.process(self.produce())
 
-    def step(self):
-        at = float(self.env.peek())
-        if math.isfinite(at):
-            started = time.perf_counter()
-            try:
-                self.stream.advance(at)
-            finally:
-                self.times["advance_s"] += time.perf_counter() - started
-            self.steps += 1
-        self._step()
+    def advance(self, until):
+        if self.closed or self.finished:
+            raise RuntimeError("backend is closed or finalized")
+        self.stream.advance(until)
+        self.steps += 1
 
     def produce(self):
         for index, base in enumerate(self.data.jobs):
             yield self.env.timeout(base.arrival - self.env.now)
-            started = time.perf_counter()
             choice = "seed"
             decision = (None, None, None, None, None, choice)
             if self.params.producer == "feedback" and index:
@@ -175,53 +128,87 @@ class ExecutionAdapter:
                 job = base
             self.handles.append(self.stream.add(job))
             self.generated.append(job)
-            self.times["producer_s"] += time.perf_counter() - started
 
     def scalars(self):
-        if self.closed:
-            if self._snapshot is None:
-                raise RuntimeError("backend closed after a failure")
+        if self._snapshot is not None:
             return dict(window=self._snapshot["window"], scalars=dict(self._snapshot["scalars"]))
+        if self.closed:
+            raise RuntimeError("backend closed after a failure")
         if self.stream.now != self.env.now:
             raise RuntimeError("unsupported observation outside a synchronized execution boundary")
         return self.stream.snapshot()
 
+    def kpi_values(self):
+        return {key.partition("/")[2]: value for key, value in self.scalars()["scalars"].items()}
+
     def states(self):
         return self._states if self.closed else [self.stream.inspect(handle) for handle in self.handles]
+
+    def state_digest(self):
+        if self._state is not None:
+            return self._state
+        if self.closed:
+            raise RuntimeError("backend closed after a failure")
+        if self.stream.now != self.env.now:
+            raise RuntimeError("unsupported state observation outside a synchronized boundary")
+        if self.params.backend == "native":
+            engine = {"schema": "NSTA0001", "sha256": hashlib.sha256(self.stream.state_bytes()).hexdigest()}
+        else:
+            # This oracle schema is a domain projection, not a serialization of
+            # Python generator frames or a cross-simulator state identity.
+            engine = dict(
+                now=float(self.stream.now),
+                entities=self.stream.env.entities.snapshot(include_presentation=False),
+                starts=self.stream.starts,
+                ends=self.stream.ends,
+                dispatch=self.stream.dispatch,
+                jobs=self.states(),
+            )
+        state = dict(
+            schema=self.capabilities.state_schema,
+            engine=engine,
+            templates=self._templates_digest,
+            config={"servers": self.params.servers, "wip_cap": self.params.wip_cap, "policy": self.params.policy},
+            producer=self.params.producer,
+            admitted=len(self.handles),
+            generated=_digest([(j.arrival, j.route, j.durations, j.due) for j in self.generated]),
+            decisions=_digest(self.decisions),
+        )
+        return hashlib.sha256(canonical_pack(freeze(state))).hexdigest()
+
+    def finish(self):
+        if self.closed or self.finished:
+            raise RuntimeError("backend is closed or finalized")
+        self._state = self.state_digest()
+        self._snapshot = self.scalars()
+        if self.params.verify:
+            self._states = self.states()
+        self.finished = True
+        if self.env.artifacts_dir is not None:
+            proof = None
+            if self.params.verify:
+                proof = dict(
+                    generated=_digest([(j.arrival, j.route, j.durations, j.due) for j in self.generated]),
+                    decisions=_digest(self.decisions),
+                    states=_digest(self._states),
+                )
+            result = dict(
+                snapshot=self._snapshot,
+                proof=proof,
+                admitted=len(self.handles),
+                steps=self.steps,
+                backend=self.params.backend,
+                backend_state={"schema": self.capabilities.state_schema, "digest": self._state},
+            )
+            (self.env.artifacts_dir / "native-scalar-result.json").write_text(json.dumps(result) + "\n")
 
     def close(self):
         if self.closed:
             return
         try:
-            started = time.perf_counter()
-            try:
+            if self.stream is not None and self._snapshot is None:
                 self._snapshot = self.scalars()
-                if self.params.verify:
-                    self._states = self.states()
-            finally:
-                self.times["export_s"] += time.perf_counter() - started
-                started = time.perf_counter()
-                self.stream.close()
-                self.times["close_s"] = time.perf_counter() - started
-                self.closed = True
-            if self.env.artifacts_dir is not None:
-                proof = None
-                if self.params.verify:
-                    proof = dict(
-                        generated=_digest([(j.arrival, j.route, j.durations, j.due) for j in self.generated]),
-                        decisions=_digest(self.decisions),
-                        states=_digest(self._states),
-                    )
-                result = dict(
-                    snapshot=self._snapshot,
-                    proof=proof,
-                    admitted=len(self.handles),
-                    steps=self.steps,
-                    backend=self.params.backend,
-                )
-                (self.env.artifacts_dir / "native-scalar-result.json").write_text(json.dumps(result) + "\n")
         finally:
-            if self._step is not None:
-                self.env.step = self._step
-            self.env.close = self._close
-            self._close()
+            self.closed = True
+            if self.stream is not None:
+                self.stream.close()

@@ -5,6 +5,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static uint32_t random_state = 2398;
@@ -317,8 +318,49 @@ static void stock_boundaries(void) {
     nd_test_fail_allocation(0);
 }
 
+static void state_boundaries(void) {
+    char error[256];
+    nd_test_fail_allocation(0);
+    nd_engine *e = nd_create(1, 1, 0, 0, NULL, error, sizeof(error));
+    assert(e);
+    size_t size = 0;
+    assert(nd_state_size(NULL, &size) == -1 && nd_state_size(e, NULL) == -1);
+    uint32_t route = 0, id;
+    double duration = 2;
+    assert(!nd_add(e, 0, 1, 1, &route, 1, &duration, 1, &id));
+    duration = 1;
+    assert(!nd_add(e, 0, 4, 1, &route, 1, &duration, 1, &id));
+    assert(!nd_advance(e, 1));
+    assert(!nd_state_size(e, &size) && size > 108);
+    unsigned char *expected = malloc(size), *actual = malloc(size);
+    assert(expected && actual);
+    assert(nd_state_write(e, NULL, size) == -1);
+    assert(nd_state_write(e, (unsigned char *)(uintptr_t)1, size - 1) == -1);
+    assert(!nd_state_write(e, expected, size));
+    for (size_t nth = 1; nth <= 2; ++nth) {
+        nd_test_fail_allocation(nth);
+        assert(nd_state_write(e, actual, size) == -2);
+        nd_test_fail_allocation(0);
+        assert(!nd_state_write(e, actual, size));
+        assert(!memcmp(expected, actual, size) && nd_now(e) == 1);
+    }
+    free(expected); free(actual);
+    assert(!nd_run(e) && nd_get_result(e)->completed == 2);
+    assert(!nd_state_size(e, &size));
+    actual = malloc(size);
+    assert(actual && !nd_state_write(e, actual, size));
+    free(actual);
+    nd_destroy(e);
+    e = fresh();
+    assert(nd_advance(e, -1));
+    assert(nd_state_size(e, &size) == -1);
+    nd_destroy(e);
+    puts("native state sanitizer passed: exact capacity, pure allocation failures, failed/completed lifetimes");
+}
+
 int main(int argc, char **argv) {
     assert(argc == 2);
+    state_boundaries();
     stock_boundaries();
     assert(exercise_stock(0) == 0);
     size_t stock_failure = 1;

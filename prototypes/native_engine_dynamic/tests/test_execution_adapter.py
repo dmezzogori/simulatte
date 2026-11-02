@@ -175,3 +175,59 @@ def test_result_artifacts_exclude_volatile_timings_and_reproduce_exactly(tmp_pat
         assert "times" not in json.loads(artifact)
         assert expected is None or expected == artifact
         expected = artifact
+
+
+def test_future_python_input_changes_native_fingerprint_with_equal_kpis(tmp_path):
+    results, raw = [], []
+    for due in (10, 100):
+        env = Environment(seed=0)
+        env._execution_policy = Horizon(1)
+        TraceRecorder(env, tmp_path / str(due), level="kpi")
+        adapter = ExecutionAdapter(
+            env,
+            Layout.from_dict(env, {"schema_version": "1.0"}),
+            Parameters(servers=1),
+            Workload(1, (Job(5, (0,), (1,), due),)),
+        )
+        try:
+            assert "step" not in env.__dict__ and "close" not in env.__dict__
+            execute_until(env, Horizon(1))
+            raw.append(adapter.stream.state_bytes())
+            results.append(env.fingerprint())
+            assert env.entities.get("shopfloor").state_digest == adapter.state_digest()
+        finally:
+            env.close()
+    # Nothing has entered C yet. Future producer input is still model state.
+    assert raw[0] == raw[1] and results[0].kpis == results[1].kpis
+    assert results[0].digest != results[1].digest
+
+
+def test_final_fingerprint_covers_native_state_beyond_python_bookkeeping(tmp_path):
+    initial, final = [], []
+    for due in (4, 100):
+        env = Environment(seed=0)
+        env._execution_policy = Horizon(1)
+        TraceRecorder(env, tmp_path / f"engine-{due}", level="kpi")
+        adapter = ExecutionAdapter(
+            env,
+            Layout.from_dict(env, {"schema_version": "1.0"}),
+            Parameters(servers=1, wip_cap=1, policy="fifo"),
+            Workload(1, ()),
+        )
+
+        def inject():
+            # Exercise actual C state independently of producer bookkeeping.
+            adapter.stream.add(Job(0, (0,), (2,), 1))
+            adapter.stream.add(Job(0, (0,), (1,), due))
+            if False:
+                yield
+
+        env.process(inject())
+        env.request_projection(lambda state: initial.append(env.fingerprint()))
+        try:
+            execute_until(env, Horizon(1))
+            final.append(env.fingerprint())
+        finally:
+            env.close()
+    assert initial[0] == initial[1] and final[0].kpis == final[1].kpis
+    assert final[0].digest != final[1].digest
