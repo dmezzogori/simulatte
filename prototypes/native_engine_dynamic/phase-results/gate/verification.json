@@ -1,0 +1,8 @@
+{
+  "source_sha256": "50d2cf7b6d4970dd3a1b89f1eab70e9c940875114b924ed78b3ad3ebe039784b",
+  "main_runs": 20,
+  "reproductions": 8,
+  "active_dormant_request_fingerprint_identity": true,
+  "original_shared_state_identity": true,
+  "diagnostics_outside_results": true
+}

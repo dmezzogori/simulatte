@@ -1,0 +1,26 @@
+{
+  "source_sha256": "50d2cf7b6d4970dd3a1b89f1eab70e9c940875114b924ed78b3ad3ebe039784b",
+  "historical_evidence_files": 29,
+  "production_and_native_sources_unchanged": true,
+  "rejected_corruptions": [
+    "backend_state",
+    "fingerprint_digest",
+    "artifact_sha256",
+    "kpis",
+    "seed",
+    "profile"
+  ],
+  "evidence": {
+    "analysis.json": "bec51d392fcd24b04fd15da3148efdcf259c8da734c26928771121b3705ea9b6",
+    "checks.json": "3afef80bf637b1c382863ece5c41477ef6fe78874022c8c754a90a2dbfeb9323",
+    "gate/metadata.json": "bea3e28912aa61552a4744e792af6777cec80597c428523146c60dee9c8f2a1c",
+    "gate/runs.json": "6ef100fce23828f6f9be8f0df2f182f112a17f6213e179e062945047110be50d",
+    "gate/verification.json": "45778f7f2a72cd9921d1005b808bda243a0b56d19da605a1f0893b0a01e0fdbe",
+    "original-control-check.py": "a829bb66bf0ca9e14de34cb62c8d3540b2d56c493b8bbea7616e0dc328f407d0",
+    "original-controls.json": "f0f5b5c39be1c222847eb1069f2d291b7fcb4dd5ceb9bcbaa29dbad4e715c2f4",
+    "scaling/matrix.jsonl": "b2aa758bc23c87356617075ac1cef2e6331a9e1ac0f6048460dc0c7d4d026686",
+    "scaling/metadata.json": "609e7783efbe759e204584f9c903772f67bd6b756399f13320844695877cbb4b",
+    "scaling/summary.json": "b8f3460d2cdb284d40eaeeb2c7f9779223227c091fda46c045f20b1703f70dd8",
+    "scaling/verification.json": "019d7d7464e7e3255cb98f4a9b9fcf3327ea07af03128b03ba1c5b4c6fe5b3e7"
+  }
+}

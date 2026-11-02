@@ -1,0 +1,1538 @@
+[
+  {
+    "backend": "production",
+    "producer": "independent",
+    "jobs": 5000,
+    "wall_s": {
+      "dormant": 4.114790042,
+      "active": 4.196829958
+    },
+    "overhead_fraction": 0.01993781339086853,
+    "phases": {
+      "activation.total": {
+        "inclusive_s": 0.253917709,
+        "exclusive_s": 0.018901125
+      },
+      "artifacts.transfer": {
+        "inclusive_s": 0.001209168,
+        "exclusive_s": 0.001209168
+      },
+      "assignment.total": {
+        "inclusive_s": 3.70642954,
+        "exclusive_s": 3.576971581
+      },
+      "backend.advance": {
+        "inclusive_s": 1.780041035,
+        "exclusive_s": 1.780041035
+      },
+      "backend.close": {
+        "inclusive_s": 2.4041e-05,
+        "exclusive_s": 2.4041e-05
+      },
+      "backend.finish": {
+        "inclusive_s": 0.068943167,
+        "exclusive_s": 0.000908042
+      },
+      "backend.prepare": {
+        "inclusive_s": 0.030563918,
+        "exclusive_s": 0.030270418
+      },
+      "backend.state_digest": {
+        "inclusive_s": 0.068246498,
+        "exclusive_s": 0.068246498
+      },
+      "binding.activate": {
+        "inclusive_s": 0.000199876,
+        "exclusive_s": 2.325e-05
+      },
+      "binding.close": {
+        "inclusive_s": 3.3332e-05,
+        "exclusive_s": 9.334e-06
+      },
+      "binding.finish": {
+        "inclusive_s": 0.069088833,
+        "exclusive_s": 0.000144376
+      },
+      "binding.prepare": {
+        "inclusive_s": 0.030640042,
+        "exclusive_s": 7.6124e-05
+      },
+      "child.execute": {
+        "inclusive_s": 2.750093292,
+        "exclusive_s": 0.077111458
+      },
+      "child.serve": {
+        "inclusive_s": 3.050642749,
+        "exclusive_s": 0.236598835
+      },
+      "coordinator.close": {
+        "inclusive_s": 0.109274292,
+        "exclusive_s": 0.109274292
+      },
+      "coordinator.open": {
+        "inclusive_s": 0.186661666,
+        "exclusive_s": 0.003086832
+      },
+      "coordinator.prepare": {
+        "inclusive_s": 0.394237959,
+        "exclusive_s": 0.338169
+      },
+      "environment.create": {
+        "inclusive_s": 0.000411042,
+        "exclusive_s": 0.000411042
+      },
+      "experiment.start": {
+        "inclusive_s": 0.395774375,
+        "exclusive_s": 0.001458625
+      },
+      "experiment.wait": {
+        "inclusive_s": 3.3689465,
+        "exclusive_s": 3.3689465
+      },
+      "fingerprint.query": {
+        "inclusive_s": 7.7374e-05,
+        "exclusive_s": 7.7374e-05
+      },
+      "imports.audit": {
+        "inclusive_s": 0.155339916,
+        "exclusive_s": 0.155339916
+      },
+      "inputs.capture": {
+        "inclusive_s": 0.024121708,
+        "exclusive_s": 0.024121708
+      },
+      "inputs.generate": {
+        "inclusive_s": 0.054323293,
+        "exclusive_s": 0.054323293
+      },
+      "managed.execute": {
+        "inclusive_s": 2.2497585,
+        "exclusive_s": 0.053665204
+      },
+      "managed.python_step": {
+        "inclusive_s": 0.089865595,
+        "exclusive_s": 0.089865595
+      },
+      "metadata.transfer": {
+        "inclusive_s": 0.003819749,
+        "exclusive_s": 0.003819749
+      },
+      "model.build": {
+        "inclusive_s": 0.086527959,
+        "exclusive_s": 0.000559
+      },
+      "model.import": {
+        "inclusive_s": 0.210074333,
+        "exclusive_s": 0.151465541
+      },
+      "model.resolve": {
+        "inclusive_s": 0.049365917,
+        "exclusive_s": 0.000738542
+      },
+      "native.assets_verify": {
+        "inclusive_s": 0.001386792,
+        "exclusive_s": 0.001386792
+      },
+      "ready.barrier": {
+        "inclusive_s": 0.184949251,
+        "exclusive_s": 0.183850542
+      },
+      "result.assemble": {
+        "inclusive_s": 0.002524291,
+        "exclusive_s": 0.002524291
+      },
+      "result.publish": {
+        "inclusive_s": 0.01716525,
+        "exclusive_s": 0.014721167
+      },
+      "result.read_report": {
+        "inclusive_s": 0.033308833,
+        "exclusive_s": 0.033308833
+      },
+      "runtime.distributions": {
+        "inclusive_s": 0.181820958,
+        "exclusive_s": 0.181820958
+      },
+      "runtime.freeze": {
+        "inclusive_s": 0.183574834,
+        "exclusive_s": 0.091022251
+      },
+      "runtime.supervisor_check": {
+        "inclusive_s": 0.09234675,
+        "exclusive_s": 0.09234675
+      },
+      "runtime.verify": {
+        "inclusive_s": 0.164972584,
+        "exclusive_s": 0.003604623
+      },
+      "source.capture": {
+        "inclusive_s": 0.010999834,
+        "exclusive_s": 0.010999834
+      },
+      "source.materialize": {
+        "inclusive_s": 0.018856625,
+        "exclusive_s": 0.018856625
+      },
+      "supervisor.start": {
+        "inclusive_s": 0.093124333,
+        "exclusive_s": 0.093124333
+      },
+      "trace.close": {
+        "inclusive_s": 0.002759875,
+        "exclusive_s": 0.002711458
+      },
+      "trace.open": {
+        "inclusive_s": 0.003255083,
+        "exclusive_s": 0.003255083
+      }
+    }
+  },
+  {
+    "backend": "production",
+    "producer": "independent",
+    "jobs": 20000,
+    "wall_s": {
+      "dormant": 14.695684917,
+      "active": 14.941160083
+    },
+    "overhead_fraction": 0.016703894196590685,
+    "phases": {
+      "activation.total": {
+        "inclusive_s": 0.250005249,
+        "exclusive_s": 0.019361626
+      },
+      "artifacts.transfer": {
+        "inclusive_s": 0.00119675,
+        "exclusive_s": 0.00119675
+      },
+      "assignment.total": {
+        "inclusive_s": 14.468068334,
+        "exclusive_s": 14.339901754
+      },
+      "backend.advance": {
+        "inclusive_s": 11.468686667,
+        "exclusive_s": 11.468686667
+      },
+      "backend.close": {
+        "inclusive_s": 2.6583e-05,
+        "exclusive_s": 2.6583e-05
+      },
+      "backend.finish": {
+        "inclusive_s": 0.309288209,
+        "exclusive_s": 0.001201793
+      },
+      "backend.prepare": {
+        "inclusive_s": 0.126533041,
+        "exclusive_s": 0.125931541
+      },
+      "backend.state_digest": {
+        "inclusive_s": 0.308280749,
+        "exclusive_s": 0.308280749
+      },
+      "binding.activate": {
+        "inclusive_s": 0.000222959,
+        "exclusive_s": 2.4791e-05
+      },
+      "binding.close": {
+        "inclusive_s": 3.675e-05,
+        "exclusive_s": 1.0335e-05
+      },
+      "binding.finish": {
+        "inclusive_s": 0.309463959,
+        "exclusive_s": 0.000174917
+      },
+      "binding.prepare": {
+        "inclusive_s": 0.126632041,
+        "exclusive_s": 9.4459e-05
+      },
+      "child.execute": {
+        "inclusive_s": 13.383138416,
+        "exclusive_s": 0.078224829
+      },
+      "child.serve": {
+        "inclusive_s": 13.698991041,
+        "exclusive_s": 0.219583378
+      },
+      "coordinator.close": {
+        "inclusive_s": 0.109889667,
+        "exclusive_s": 0.109889667
+      },
+      "coordinator.open": {
+        "inclusive_s": 0.181422792,
+        "exclusive_s": 0.002968666
+      },
+      "coordinator.prepare": {
+        "inclusive_s": 0.399411041,
+        "exclusive_s": 0.345090957
+      },
+      "environment.create": {
+        "inclusive_s": 0.000571666,
+        "exclusive_s": 0.000571666
+      },
+      "experiment.start": {
+        "inclusive_s": 0.400922167,
+        "exclusive_s": 0.001511292
+      },
+      "experiment.wait": {
+        "inclusive_s": 14.129751625,
+        "exclusive_s": 14.129751625
+      },
+      "fingerprint.query": {
+        "inclusive_s": 8.8417e-05,
+        "exclusive_s": 8.8417e-05
+      },
+      "imports.audit": {
+        "inclusive_s": 0.1582865,
+        "exclusive_s": 0.1582865
+      },
+      "inputs.capture": {
+        "inclusive_s": 0.023279582,
+        "exclusive_s": 0.023279582
+      },
+      "inputs.generate": {
+        "inclusive_s": 0.217940999,
+        "exclusive_s": 0.217940999
+      },
+      "managed.execute": {
+        "inclusive_s": 12.611331292,
+        "exclusive_s": 0.221884831
+      },
+      "managed.python_step": {
+        "inclusive_s": 0.369920797,
+        "exclusive_s": 0.369920797
+      },
+      "metadata.transfer": {
+        "inclusive_s": 0.0036695,
+        "exclusive_s": 0.0036695
+      },
+      "model.build": {
+        "inclusive_s": 0.346662458,
+        "exclusive_s": 0.00064504
+      },
+      "model.import": {
+        "inclusive_s": 0.212772458,
+        "exclusive_s": 0.153401041
+      },
+      "model.resolve": {
+        "inclusive_s": 0.048895541,
+        "exclusive_s": 0.000759083
+      },
+      "native.assets_verify": {
+        "inclusive_s": 0.00138625,
+        "exclusive_s": 0.00138625
+      },
+      "ready.barrier": {
+        "inclusive_s": 0.182140834,
+        "exclusive_s": 0.181039209
+      },
+      "result.assemble": {
+        "inclusive_s": 0.002443958,
+        "exclusive_s": 0.002443958
+      },
+      "result.publish": {
+        "inclusive_s": 0.016100834,
+        "exclusive_s": 0.013656876
+      },
+      "result.read_report": {
+        "inclusive_s": 0.022828333,
+        "exclusive_s": 0.022828333
+      },
+      "runtime.distributions": {
+        "inclusive_s": 0.185996293,
+        "exclusive_s": 0.185996293
+      },
+      "runtime.freeze": {
+        "inclusive_s": 0.178421875,
+        "exclusive_s": 0.087390792
+      },
+      "runtime.supervisor_check": {
+        "inclusive_s": 0.091481375,
+        "exclusive_s": 0.091481375
+      },
+      "runtime.verify": {
+        "inclusive_s": 0.168663292,
+        "exclusive_s": 0.003698166
+      },
+      "source.capture": {
+        "inclusive_s": 0.009972709,
+        "exclusive_s": 0.009972709
+      },
+      "source.materialize": {
+        "inclusive_s": 0.018297375,
+        "exclusive_s": 0.018297375
+      },
+      "supervisor.start": {
+        "inclusive_s": 0.093522791,
+        "exclusive_s": 0.093522791
+      },
+      "trace.close": {
+        "inclusive_s": 0.003154957,
+        "exclusive_s": 0.003102374
+      },
+      "trace.open": {
+        "inclusive_s": 0.003274332,
+        "exclusive_s": 0.003274332
+      }
+    }
+  },
+  {
+    "backend": "production",
+    "producer": "feedback",
+    "jobs": 5000,
+    "wall_s": {
+      "dormant": 3.57717,
+      "active": 3.621699708
+    },
+    "overhead_fraction": 0.012448306342723425,
+    "phases": {
+      "activation.total": {
+        "inclusive_s": 0.216807958,
+        "exclusive_s": 0.018800833
+      },
+      "artifacts.transfer": {
+        "inclusive_s": 0.001168501,
+        "exclusive_s": 0.001168501
+      },
+      "assignment.total": {
+        "inclusive_s": 3.117691083,
+        "exclusive_s": 2.988660502
+      },
+      "backend.advance": {
+        "inclusive_s": 1.18189982,
+        "exclusive_s": 1.18189982
+      },
+      "backend.close": {
+        "inclusive_s": 2.3793e-05,
+        "exclusive_s": 2.3793e-05
+      },
+      "backend.finish": {
+        "inclusive_s": 0.065747624,
+        "exclusive_s": 0.000934499
+      },
+      "backend.prepare": {
+        "inclusive_s": 0.030493917,
+        "exclusive_s": 0.030213376
+      },
+      "backend.state_digest": {
+        "inclusive_s": 0.064993123,
+        "exclusive_s": 0.064993123
+      },
+      "binding.activate": {
+        "inclusive_s": 0.000203334,
+        "exclusive_s": 2.3293e-05
+      },
+      "binding.close": {
+        "inclusive_s": 3.2792e-05,
+        "exclusive_s": 9.206e-06
+      },
+      "binding.finish": {
+        "inclusive_s": 0.065881666,
+        "exclusive_s": 0.000132834
+      },
+      "binding.prepare": {
+        "inclusive_s": 0.030568666,
+        "exclusive_s": 8.1167e-05
+      },
+      "child.execute": {
+        "inclusive_s": 2.179824249,
+        "exclusive_s": 0.076919786
+      },
+      "child.serve": {
+        "inclusive_s": 2.512651291,
+        "exclusive_s": 0.238041334
+      },
+      "coordinator.close": {
+        "inclusive_s": 0.106923625,
+        "exclusive_s": 0.106923625
+      },
+      "coordinator.open": {
+        "inclusive_s": 0.187544333,
+        "exclusive_s": 0.003292792
+      },
+      "coordinator.prepare": {
+        "inclusive_s": 0.40421775,
+        "exclusive_s": 0.347068125
+      },
+      "environment.create": {
+        "inclusive_s": 0.000374999,
+        "exclusive_s": 0.000374999
+      },
+      "experiment.start": {
+        "inclusive_s": 0.405847583,
+        "exclusive_s": 0.001497417
+      },
+      "experiment.wait": {
+        "inclusive_s": 2.817269417,
+        "exclusive_s": 2.817269417
+      },
+      "fingerprint.query": {
+        "inclusive_s": 7.4125e-05,
+        "exclusive_s": 7.4125e-05
+      },
+      "imports.audit": {
+        "inclusive_s": 0.157552041,
+        "exclusive_s": 0.157552041
+      },
+      "inputs.capture": {
+        "inclusive_s": 0.025397792,
+        "exclusive_s": 0.025397792
+      },
+      "inputs.generate": {
+        "inclusive_s": 0.054260499,
+        "exclusive_s": 0.054260499
+      },
+      "managed.execute": {
+        "inclusive_s": 1.673082667,
+        "exclusive_s": 0.056963515
+      },
+      "managed.python_step": {
+        "inclusive_s": 0.151667166,
+        "exclusive_s": 0.151667166
+      },
+      "metadata.transfer": {
+        "inclusive_s": 0.003619415,
+        "exclusive_s": 0.003619415
+      },
+      "model.build": {
+        "inclusive_s": 0.086877166,
+        "exclusive_s": 0.000565
+      },
+      "model.import": {
+        "inclusive_s": 0.2089855,
+        "exclusive_s": 0.150580542
+      },
+      "model.resolve": {
+        "inclusive_s": 0.048824875,
+        "exclusive_s": 0.000752791
+      },
+      "native.assets_verify": {
+        "inclusive_s": 0.001378833,
+        "exclusive_s": 0.001378833
+      },
+      "ready.barrier": {
+        "inclusive_s": 0.148548082,
+        "exclusive_s": 0.147477165
+      },
+      "result.assemble": {
+        "inclusive_s": 0.002543418,
+        "exclusive_s": 0.002543418
+      },
+      "result.publish": {
+        "inclusive_s": 0.017170793,
+        "exclusive_s": 0.014627375
+      },
+      "result.read_report": {
+        "inclusive_s": 0.032757834,
+        "exclusive_s": 0.032757834
+      },
+      "runtime.distributions": {
+        "inclusive_s": 0.183646459,
+        "exclusive_s": 0.183646459
+      },
+      "runtime.freeze": {
+        "inclusive_s": 0.184251541,
+        "exclusive_s": 0.092506
+      },
+      "runtime.supervisor_check": {
+        "inclusive_s": 0.091745541,
+        "exclusive_s": 0.091745541
+      },
+      "runtime.verify": {
+        "inclusive_s": 0.166801874,
+        "exclusive_s": 0.003550919
+      },
+      "source.capture": {
+        "inclusive_s": 0.010857667,
+        "exclusive_s": 0.010857667
+      },
+      "source.materialize": {
+        "inclusive_s": 0.020066041,
+        "exclusive_s": 0.020066041
+      },
+      "supervisor.start": {
+        "inclusive_s": 0.09367975,
+        "exclusive_s": 0.09367975
+      },
+      "trace.close": {
+        "inclusive_s": 0.002783459,
+        "exclusive_s": 0.002744542
+      },
+      "trace.open": {
+        "inclusive_s": 0.003326542,
+        "exclusive_s": 0.003326542
+      }
+    }
+  },
+  {
+    "backend": "production",
+    "producer": "feedback",
+    "jobs": 20000,
+    "wall_s": {
+      "dormant": 8.227857042,
+      "active": 8.394777333
+    },
+    "overhead_fraction": 0.020287213322732534,
+    "phases": {
+      "activation.total": {
+        "inclusive_s": 0.239590917,
+        "exclusive_s": 0.019045708
+      },
+      "artifacts.transfer": {
+        "inclusive_s": 0.001224167,
+        "exclusive_s": 0.001224167
+      },
+      "assignment.total": {
+        "inclusive_s": 7.899174457,
+        "exclusive_s": 7.772686334
+      },
+      "backend.advance": {
+        "inclusive_s": 4.699381303,
+        "exclusive_s": 4.699381303
+      },
+      "backend.close": {
+        "inclusive_s": 2.4874e-05,
+        "exclusive_s": 2.4874e-05
+      },
+      "backend.finish": {
+        "inclusive_s": 0.310291751,
+        "exclusive_s": 0.001105874
+      },
+      "backend.prepare": {
+        "inclusive_s": 0.124715958,
+        "exclusive_s": 0.124339166
+      },
+      "backend.state_digest": {
+        "inclusive_s": 0.309297334,
+        "exclusive_s": 0.309297334
+      },
+      "binding.activate": {
+        "inclusive_s": 0.000215833,
+        "exclusive_s": 2.5626e-05
+      },
+      "binding.close": {
+        "inclusive_s": 3.4166e-05,
+        "exclusive_s": 9.375e-06
+      },
+      "binding.finish": {
+        "inclusive_s": 0.310465166,
+        "exclusive_s": 0.000168919
+      },
+      "binding.prepare": {
+        "inclusive_s": 0.124803667,
+        "exclusive_s": 9.1041e-05
+      },
+      "child.execute": {
+        "inclusive_s": 6.822607915,
+        "exclusive_s": 0.07525475
+      },
+      "child.serve": {
+        "inclusive_s": 7.143421126,
+        "exclusive_s": 0.220017668
+      },
+      "coordinator.close": {
+        "inclusive_s": 0.105527291,
+        "exclusive_s": 0.105527291
+      },
+      "coordinator.open": {
+        "inclusive_s": 0.18092725,
+        "exclusive_s": 0.002870417
+      },
+      "coordinator.prepare": {
+        "inclusive_s": 0.356998333,
+        "exclusive_s": 0.302888584
+      },
+      "environment.create": {
+        "inclusive_s": 0.000466751,
+        "exclusive_s": 0.000466751
+      },
+      "experiment.start": {
+        "inclusive_s": 0.358456291,
+        "exclusive_s": 0.001457958
+      },
+      "experiment.wait": {
+        "inclusive_s": 7.603430291,
+        "exclusive_s": 7.603430291
+      },
+      "fingerprint.query": {
+        "inclusive_s": 8.7875e-05,
+        "exclusive_s": 8.7875e-05
+      },
+      "imports.audit": {
+        "inclusive_s": 0.154580043,
+        "exclusive_s": 0.154580043
+      },
+      "inputs.capture": {
+        "inclusive_s": 0.022769126,
+        "exclusive_s": 0.022769126
+      },
+      "inputs.generate": {
+        "inclusive_s": 0.213141834,
+        "exclusive_s": 0.213141834
+      },
+      "managed.execute": {
+        "inclusive_s": 6.070225541,
+        "exclusive_s": 0.222172275
+      },
+      "managed.python_step": {
+        "inclusive_s": 0.591162006,
+        "exclusive_s": 0.591162006
+      },
+      "metadata.transfer": {
+        "inclusive_s": 0.003488083,
+        "exclusive_s": 0.003488083
+      },
+      "model.build": {
+        "inclusive_s": 0.339934959,
+        "exclusive_s": 0.000650167
+      },
+      "model.import": {
+        "inclusive_s": 0.206360459,
+        "exclusive_s": 0.148854833
+      },
+      "model.resolve": {
+        "inclusive_s": 0.047210376,
+        "exclusive_s": 0.000733417
+      },
+      "native.assets_verify": {
+        "inclusive_s": 0.001335917,
+        "exclusive_s": 0.001335917
+      },
+      "ready.barrier": {
+        "inclusive_s": 0.173648209,
+        "exclusive_s": 0.172592667
+      },
+      "result.assemble": {
+        "inclusive_s": 0.00243275,
+        "exclusive_s": 0.00243275
+      },
+      "result.publish": {
+        "inclusive_s": 0.016576207,
+        "exclusive_s": 0.014143457
+      },
+      "result.read_report": {
+        "inclusive_s": 0.031543958,
+        "exclusive_s": 0.031543958
+      },
+      "runtime.distributions": {
+        "inclusive_s": 0.180127292,
+        "exclusive_s": 0.180127292
+      },
+      "runtime.freeze": {
+        "inclusive_s": 0.178056833,
+        "exclusive_s": 0.087417416
+      },
+      "runtime.supervisor_check": {
+        "inclusive_s": 0.09088225,
+        "exclusive_s": 0.09088225
+      },
+      "runtime.verify": {
+        "inclusive_s": 0.163771251,
+        "exclusive_s": 0.00354829
+      },
+      "source.capture": {
+        "inclusive_s": 0.009998708,
+        "exclusive_s": 0.009998708
+      },
+      "source.materialize": {
+        "inclusive_s": 0.018767791,
+        "exclusive_s": 0.018767791
+      },
+      "supervisor.start": {
+        "inclusive_s": 0.092033541,
+        "exclusive_s": 0.092033541
+      },
+      "trace.close": {
+        "inclusive_s": 0.002880165,
+        "exclusive_s": 0.002833916
+      },
+      "trace.open": {
+        "inclusive_s": 0.00342175,
+        "exclusive_s": 0.00342175
+      }
+    }
+  },
+  {
+    "backend": "native",
+    "producer": "independent",
+    "jobs": 5000,
+    "wall_s": {
+      "dormant": 2.474551042,
+      "active": 2.473211125
+    },
+    "overhead_fraction": -0.0005414788287885219,
+    "phases": {
+      "activation.total": {
+        "inclusive_s": 0.242573209,
+        "exclusive_s": 0.024120999
+      },
+      "artifacts.transfer": {
+        "inclusive_s": 0.001086874,
+        "exclusive_s": 0.001086874
+      },
+      "assignment.total": {
+        "inclusive_s": 1.984812875,
+        "exclusive_s": 1.85689046
+      },
+      "backend.advance": {
+        "inclusive_s": 0.018527863,
+        "exclusive_s": 0.018527863
+      },
+      "backend.close": {
+        "inclusive_s": 1.3333e-05,
+        "exclusive_s": 1.3333e-05
+      },
+      "backend.finish": {
+        "inclusive_s": 0.034464417,
+        "exclusive_s": 0.000583333
+      },
+      "backend.prepare": {
+        "inclusive_s": 0.27307,
+        "exclusive_s": 0.040787708
+      },
+      "backend.state_digest": {
+        "inclusive_s": 0.033980544,
+        "exclusive_s": 0.03367446
+      },
+      "binding.activate": {
+        "inclusive_s": 0.000122917,
+        "exclusive_s": 2.6082e-05
+      },
+      "binding.close": {
+        "inclusive_s": 2.2875e-05,
+        "exclusive_s": 9.375e-06
+      },
+      "binding.finish": {
+        "inclusive_s": 0.034619084,
+        "exclusive_s": 0.000153291
+      },
+      "binding.prepare": {
+        "inclusive_s": 0.273169501,
+        "exclusive_s": 9.9501e-05
+      },
+      "child.execute": {
+        "inclusive_s": 1.112079249,
+        "exclusive_s": 0.077266165
+      },
+      "child.serve": {
+        "inclusive_s": 1.419922793,
+        "exclusive_s": 0.215480503
+      },
+      "coordinator.close": {
+        "inclusive_s": 0.108014209,
+        "exclusive_s": 0.108014209
+      },
+      "coordinator.open": {
+        "inclusive_s": 0.1806725,
+        "exclusive_s": 0.002818
+      },
+      "coordinator.prepare": {
+        "inclusive_s": 0.397514042,
+        "exclusive_s": 0.344424041
+      },
+      "environment.create": {
+        "inclusive_s": 0.000224709,
+        "exclusive_s": 0.000224709
+      },
+      "experiment.start": {
+        "inclusive_s": 0.398956084,
+        "exclusive_s": 0.001422959
+      },
+      "experiment.wait": {
+        "inclusive_s": 1.646904417,
+        "exclusive_s": 1.646904417
+      },
+      "fingerprint.query": {
+        "inclusive_s": 8.9959e-05,
+        "exclusive_s": 8.9959e-05
+      },
+      "imports.audit": {
+        "inclusive_s": 0.164941665,
+        "exclusive_s": 0.164941665
+      },
+      "inputs.capture": {
+        "inclusive_s": 0.023168708,
+        "exclusive_s": 0.023168708
+      },
+      "inputs.generate": {
+        "inclusive_s": 0.054540584,
+        "exclusive_s": 0.054540584
+      },
+      "managed.execute": {
+        "inclusive_s": 0.359312125,
+        "exclusive_s": 0.036867172
+      },
+      "managed.python_step": {
+        "inclusive_s": 0.027109463,
+        "exclusive_s": 0.027109463
+      },
+      "metadata.transfer": {
+        "inclusive_s": 0.003620915,
+        "exclusive_s": 0.003620915
+      },
+      "model.build": {
+        "inclusive_s": 0.329831625,
+        "exclusive_s": 0.000551748
+      },
+      "model.import": {
+        "inclusive_s": 0.210480958,
+        "exclusive_s": 0.152218958
+      },
+      "model.resolve": {
+        "inclusive_s": 0.056264793,
+        "exclusive_s": 0.00082821
+      },
+      "native.assets_verify": {
+        "inclusive_s": 0.001401957,
+        "exclusive_s": 0.001401957
+      },
+      "native.extension_load": {
+        "inclusive_s": 0.232282292,
+        "exclusive_s": 0.232282292
+      },
+      "native.state_bytes": {
+        "inclusive_s": 0.000328,
+        "exclusive_s": 0.000328
+      },
+      "ready.barrier": {
+        "inclusive_s": 0.160976041,
+        "exclusive_s": 0.159782665
+      },
+      "result.assemble": {
+        "inclusive_s": 0.002251041,
+        "exclusive_s": 0.002251041
+      },
+      "result.publish": {
+        "inclusive_s": 0.0156185,
+        "exclusive_s": 0.013367459
+      },
+      "result.read_report": {
+        "inclusive_s": 0.028331625,
+        "exclusive_s": 0.028331625
+      },
+      "runtime.distributions": {
+        "inclusive_s": 0.185735085,
+        "exclusive_s": 0.185735085
+      },
+      "runtime.freeze": {
+        "inclusive_s": 0.177859792,
+        "exclusive_s": 0.086560334
+      },
+      "runtime.supervisor_check": {
+        "inclusive_s": 0.091299458,
+        "exclusive_s": 0.091299458
+      },
+      "runtime.verify": {
+        "inclusive_s": 0.168707877,
+        "exclusive_s": 0.003628542
+      },
+      "source.capture": {
+        "inclusive_s": 0.009737959,
+        "exclusive_s": 0.009737959
+      },
+      "source.materialize": {
+        "inclusive_s": 0.018774584,
+        "exclusive_s": 0.018774584
+      },
+      "supervisor.start": {
+        "inclusive_s": 0.093450708,
+        "exclusive_s": 0.093450708
+      },
+      "trace.close": {
+        "inclusive_s": 0.00263146,
+        "exclusive_s": 0.002581251
+      },
+      "trace.open": {
+        "inclusive_s": 0.003276167,
+        "exclusive_s": 0.003276167
+      }
+    }
+  },
+  {
+    "backend": "native",
+    "producer": "independent",
+    "jobs": 20000,
+    "wall_s": {
+      "dormant": 2.982355459,
+      "active": 3.116146583
+    },
+    "overhead_fraction": 0.04486089127848669,
+    "phases": {
+      "activation.total": {
+        "inclusive_s": 0.2332975,
+        "exclusive_s": 0.020682498
+      },
+      "artifacts.transfer": {
+        "inclusive_s": 0.001113625,
+        "exclusive_s": 0.001113625
+      },
+      "assignment.total": {
+        "inclusive_s": 2.623472917,
+        "exclusive_s": 2.495739416
+      },
+      "backend.advance": {
+        "inclusive_s": 0.065407831,
+        "exclusive_s": 0.065407831
+      },
+      "backend.close": {
+        "inclusive_s": 1.6792e-05,
+        "exclusive_s": 1.6792e-05
+      },
+      "backend.finish": {
+        "inclusive_s": 0.132461542,
+        "exclusive_s": 0.000757376
+      },
+      "backend.prepare": {
+        "inclusive_s": 0.388955083,
+        "exclusive_s": 0.149057875
+      },
+      "backend.state_digest": {
+        "inclusive_s": 0.131716878,
+        "exclusive_s": 0.130073003
+      },
+      "binding.activate": {
+        "inclusive_s": 0.00010725,
+        "exclusive_s": 2.2875e-05
+      },
+      "binding.close": {
+        "inclusive_s": 2.6666e-05,
+        "exclusive_s": 9.874e-06
+      },
+      "binding.finish": {
+        "inclusive_s": 0.1326215,
+        "exclusive_s": 0.000158499
+      },
+      "binding.prepare": {
+        "inclusive_s": 0.389052917,
+        "exclusive_s": 9.7834e-05
+      },
+      "child.execute": {
+        "inclusive_s": 1.678919875,
+        "exclusive_s": 0.075777629
+      },
+      "child.serve": {
+        "inclusive_s": 1.994246375,
+        "exclusive_s": 0.229563001
+      },
+      "coordinator.close": {
+        "inclusive_s": 0.103264042,
+        "exclusive_s": 0.103264042
+      },
+      "coordinator.open": {
+        "inclusive_s": 0.18016475,
+        "exclusive_s": 0.002838708
+      },
+      "coordinator.prepare": {
+        "inclusive_s": 0.362377084,
+        "exclusive_s": 0.308933958
+      },
+      "environment.create": {
+        "inclusive_s": 0.000224,
+        "exclusive_s": 0.000224
+      },
+      "experiment.start": {
+        "inclusive_s": 0.363657709,
+        "exclusive_s": 0.001309708
+      },
+      "experiment.wait": {
+        "inclusive_s": 2.321877917,
+        "exclusive_s": 2.321877917
+      },
+      "fingerprint.query": {
+        "inclusive_s": 8.6709e-05,
+        "exclusive_s": 8.6709e-05
+      },
+      "imports.audit": {
+        "inclusive_s": 0.1523725,
+        "exclusive_s": 0.1523725
+      },
+      "inputs.capture": {
+        "inclusive_s": 0.021697125,
+        "exclusive_s": 0.021697125
+      },
+      "inputs.generate": {
+        "inclusive_s": 0.213280501,
+        "exclusive_s": 0.213280501
+      },
+      "managed.execute": {
+        "inclusive_s": 0.661704249,
+        "exclusive_s": 0.127551982
+      },
+      "managed.python_step": {
+        "inclusive_s": 0.097900597,
+        "exclusive_s": 0.097900597
+      },
+      "metadata.transfer": {
+        "inclusive_s": 0.003607083,
+        "exclusive_s": 0.003607083
+      },
+      "model.build": {
+        "inclusive_s": 0.604352041,
+        "exclusive_s": 0.000619957
+      },
+      "model.import": {
+        "inclusive_s": 0.2052355,
+        "exclusive_s": 0.148269209
+      },
+      "model.resolve": {
+        "inclusive_s": 0.049194084,
+        "exclusive_s": 0.000728583
+      },
+      "native.assets_verify": {
+        "inclusive_s": 0.001362207,
+        "exclusive_s": 0.001362207
+      },
+      "native.extension_load": {
+        "inclusive_s": 0.239897208,
+        "exclusive_s": 0.239897208
+      },
+      "native.state_bytes": {
+        "inclusive_s": 0.00165075,
+        "exclusive_s": 0.00165075
+      },
+      "ready.barrier": {
+        "inclusive_s": 0.163210501,
+        "exclusive_s": 0.162139835
+      },
+      "result.assemble": {
+        "inclusive_s": 0.002454127,
+        "exclusive_s": 0.002454127
+      },
+      "result.publish": {
+        "inclusive_s": 0.017124459,
+        "exclusive_s": 0.014670332
+      },
+      "result.read_report": {
+        "inclusive_s": 0.033118417,
+        "exclusive_s": 0.033118417
+      },
+      "runtime.distributions": {
+        "inclusive_s": 0.177640456,
+        "exclusive_s": 0.177640456
+      },
+      "runtime.freeze": {
+        "inclusive_s": 0.177180167,
+        "exclusive_s": 0.086672709
+      },
+      "runtime.supervisor_check": {
+        "inclusive_s": 0.090507458,
+        "exclusive_s": 0.090507458
+      },
+      "runtime.verify": {
+        "inclusive_s": 0.161078084,
+        "exclusive_s": 0.00354
+      },
+      "source.capture": {
+        "inclusive_s": 0.010110833,
+        "exclusive_s": 0.010110833
+      },
+      "source.materialize": {
+        "inclusive_s": 0.018306042,
+        "exclusive_s": 0.018306042
+      },
+      "supervisor.start": {
+        "inclusive_s": 0.091097042,
+        "exclusive_s": 0.091097042
+      },
+      "trace.close": {
+        "inclusive_s": 0.002632291,
+        "exclusive_s": 0.002585
+      },
+      "trace.open": {
+        "inclusive_s": 0.003288958,
+        "exclusive_s": 0.003288958
+      }
+    }
+  },
+  {
+    "backend": "native",
+    "producer": "feedback",
+    "jobs": 5000,
+    "wall_s": {
+      "dormant": 2.66069575,
+      "active": 2.492218417
+    },
+    "overhead_fraction": -0.06332078104007188,
+    "phases": {
+      "activation.total": {
+        "inclusive_s": 0.229730832,
+        "exclusive_s": 0.023223788
+      },
+      "artifacts.transfer": {
+        "inclusive_s": 0.001212376,
+        "exclusive_s": 0.001212376
+      },
+      "assignment.total": {
+        "inclusive_s": 1.998278791,
+        "exclusive_s": 1.873228917
+      },
+      "backend.advance": {
+        "inclusive_s": 0.015133716,
+        "exclusive_s": 0.015133716
+      },
+      "backend.close": {
+        "inclusive_s": 1.2541e-05,
+        "exclusive_s": 1.2541e-05
+      },
+      "backend.finish": {
+        "inclusive_s": 0.036308209,
+        "exclusive_s": 0.000693418
+      },
+      "backend.prepare": {
+        "inclusive_s": 0.237864959,
+        "exclusive_s": 0.038757126
+      },
+      "backend.state_digest": {
+        "inclusive_s": 0.03569375,
+        "exclusive_s": 0.035424042
+      },
+      "binding.activate": {
+        "inclusive_s": 0.000119418,
+        "exclusive_s": 2.4916e-05
+      },
+      "binding.close": {
+        "inclusive_s": 2.1291e-05,
+        "exclusive_s": 8.751e-06
+      },
+      "binding.finish": {
+        "inclusive_s": 0.0364735,
+        "exclusive_s": 0.000163832
+      },
+      "binding.prepare": {
+        "inclusive_s": 0.237960875,
+        "exclusive_s": 9.5916e-05
+      },
+      "child.execute": {
+        "inclusive_s": 1.100139167,
+        "exclusive_s": 0.07742821
+      },
+      "child.serve": {
+        "inclusive_s": 1.396314416,
+        "exclusive_s": 0.202233791
+      },
+      "coordinator.close": {
+        "inclusive_s": 0.110941,
+        "exclusive_s": 0.110941
+      },
+      "coordinator.open": {
+        "inclusive_s": 0.18376475,
+        "exclusive_s": 0.002860042
+      },
+      "coordinator.prepare": {
+        "inclusive_s": 0.393231042,
+        "exclusive_s": 0.336936375
+      },
+      "environment.create": {
+        "inclusive_s": 0.000232208,
+        "exclusive_s": 0.000232208
+      },
+      "experiment.start": {
+        "inclusive_s": 0.394631709,
+        "exclusive_s": 0.001383416
+      },
+      "experiment.wait": {
+        "inclusive_s": 1.676730583,
+        "exclusive_s": 1.676730583
+      },
+      "fingerprint.query": {
+        "inclusive_s": 8.6167e-05,
+        "exclusive_s": 8.6167e-05
+      },
+      "imports.audit": {
+        "inclusive_s": 0.162909957,
+        "exclusive_s": 0.162909957
+      },
+      "inputs.capture": {
+        "inclusive_s": 0.022197875,
+        "exclusive_s": 0.022197875
+      },
+      "inputs.generate": {
+        "inclusive_s": 0.054868251,
+        "exclusive_s": 0.054868251
+      },
+      "managed.execute": {
+        "inclusive_s": 0.391716124,
+        "exclusive_s": 0.036582699
+      },
+      "managed.python_step": {
+        "inclusive_s": 0.073795377,
+        "exclusive_s": 0.073795377
+      },
+      "metadata.transfer": {
+        "inclusive_s": 0.003882499,
+        "exclusive_s": 0.003882499
+      },
+      "model.build": {
+        "inclusive_s": 0.294017376,
+        "exclusive_s": 0.000589999
+      },
+      "model.import": {
+        "inclusive_s": 0.21348854,
+        "exclusive_s": 0.153356374
+      },
+      "model.resolve": {
+        "inclusive_s": 0.054468417,
+        "exclusive_s": 0.000819709
+      },
+      "native.assets_verify": {
+        "inclusive_s": 0.001397166,
+        "exclusive_s": 0.001397166
+      },
+      "native.extension_load": {
+        "inclusive_s": 0.199633791,
+        "exclusive_s": 0.199633791
+      },
+      "native.state_bytes": {
+        "inclusive_s": 0.000208958,
+        "exclusive_s": 0.000208958
+      },
+      "ready.barrier": {
+        "inclusive_s": 0.151919209,
+        "exclusive_s": 0.150519793
+      },
+      "result.assemble": {
+        "inclusive_s": 0.002345625,
+        "exclusive_s": 0.002345625
+      },
+      "result.publish": {
+        "inclusive_s": 0.016245583,
+        "exclusive_s": 0.013899958
+      },
+      "result.read_report": {
+        "inclusive_s": 0.031419625,
+        "exclusive_s": 0.031419625
+      },
+      "runtime.distributions": {
+        "inclusive_s": 0.185281752,
+        "exclusive_s": 0.185281752
+      },
+      "runtime.freeze": {
+        "inclusive_s": 0.180904708,
+        "exclusive_s": 0.088096791
+      },
+      "runtime.supervisor_check": {
+        "inclusive_s": 0.092807917,
+        "exclusive_s": 0.092807917
+      },
+      "runtime.verify": {
+        "inclusive_s": 0.168114874,
+        "exclusive_s": 0.003618705
+      },
+      "source.capture": {
+        "inclusive_s": 0.009881,
+        "exclusive_s": 0.009881
+      },
+      "source.materialize": {
+        "inclusive_s": 0.019436501,
+        "exclusive_s": 0.019436501
+      },
+      "supervisor.start": {
+        "inclusive_s": 0.094084916,
+        "exclusive_s": 0.094084916
+      },
+      "trace.close": {
+        "inclusive_s": 0.002727458,
+        "exclusive_s": 0.002676791
+      },
+      "trace.open": {
+        "inclusive_s": 0.003296792,
+        "exclusive_s": 0.003296792
+      }
+    }
+  },
+  {
+    "backend": "native",
+    "producer": "feedback",
+    "jobs": 20000,
+    "wall_s": {
+      "dormant": 3.192629916,
+      "active": 3.241566083
+    },
+    "overhead_fraction": 0.01532785455487784,
+    "phases": {
+      "activation.total": {
+        "inclusive_s": 0.230420418,
+        "exclusive_s": 0.02081875
+      },
+      "artifacts.transfer": {
+        "inclusive_s": 0.001137792,
+        "exclusive_s": 0.001137792
+      },
+      "assignment.total": {
+        "inclusive_s": 2.749745251,
+        "exclusive_s": 2.623278749
+      },
+      "backend.advance": {
+        "inclusive_s": 0.055275206,
+        "exclusive_s": 0.055275206
+      },
+      "backend.close": {
+        "inclusive_s": 1.4917e-05,
+        "exclusive_s": 1.4917e-05
+      },
+      "backend.finish": {
+        "inclusive_s": 0.133757042,
+        "exclusive_s": 0.000817167
+      },
+      "backend.prepare": {
+        "inclusive_s": 0.378238709,
+        "exclusive_s": 0.148947917
+      },
+      "backend.state_digest": {
+        "inclusive_s": 0.133018457,
+        "exclusive_s": 0.131711831
+      },
+      "binding.activate": {
+        "inclusive_s": 0.000107625,
+        "exclusive_s": 2.3084e-05
+      },
+      "binding.close": {
+        "inclusive_s": 2.35e-05,
+        "exclusive_s": 8.876e-06
+      },
+      "binding.finish": {
+        "inclusive_s": 0.133935458,
+        "exclusive_s": 0.0001735
+      },
+      "binding.prepare": {
+        "inclusive_s": 0.378344001,
+        "exclusive_s": 0.000102166
+      },
+      "child.execute": {
+        "inclusive_s": 1.8187155,
+        "exclusive_s": 0.075532208
+      },
+      "child.serve": {
+        "inclusive_s": 2.133788666,
+        "exclusive_s": 0.222887583
+      },
+      "coordinator.close": {
+        "inclusive_s": 0.108523125,
+        "exclusive_s": 0.108523125
+      },
+      "coordinator.open": {
+        "inclusive_s": 0.178848875,
+        "exclusive_s": 0.002886042
+      },
+      "coordinator.prepare": {
+        "inclusive_s": 0.363588834,
+        "exclusive_s": 0.312327958
+      },
+      "environment.create": {
+        "inclusive_s": 0.000221209,
+        "exclusive_s": 0.000221209
+      },
+      "experiment.start": {
+        "inclusive_s": 0.3649345,
+        "exclusive_s": 0.001345666
+      },
+      "experiment.wait": {
+        "inclusive_s": 2.454495458,
+        "exclusive_s": 2.454495458
+      },
+      "fingerprint.query": {
+        "inclusive_s": 8.6458e-05,
+        "exclusive_s": 8.6458e-05
+      },
+      "imports.audit": {
+        "inclusive_s": 0.151124585,
+        "exclusive_s": 0.151124585
+      },
+      "inputs.capture": {
+        "inclusive_s": 0.02148425,
+        "exclusive_s": 0.02148425
+      },
+      "inputs.generate": {
+        "inclusive_s": 0.21079675,
+        "exclusive_s": 0.21079675
+      },
+      "managed.execute": {
+        "inclusive_s": 0.828650459,
+        "exclusive_s": 0.128282595
+      },
+      "managed.python_step": {
+        "inclusive_s": 0.277769677,
+        "exclusive_s": 0.277769677
+      },
+      "metadata.transfer": {
+        "inclusive_s": 0.003607751,
+        "exclusive_s": 0.003607751
+      },
+      "model.build": {
+        "inclusive_s": 0.590776958,
+        "exclusive_s": 0.000606667
+      },
+      "model.import": {
+        "inclusive_s": 0.203963584,
+        "exclusive_s": 0.147067875
+      },
+      "model.resolve": {
+        "inclusive_s": 0.048433083,
+        "exclusive_s": 0.000732832
+      },
+      "native.assets_verify": {
+        "inclusive_s": 0.001380125,
+        "exclusive_s": 0.001380125
+      },
+      "native.extension_load": {
+        "inclusive_s": 0.229290792,
+        "exclusive_s": 0.229290792
+      },
+      "native.state_bytes": {
+        "inclusive_s": 0.001261791,
+        "exclusive_s": 0.001261791
+      },
+      "ready.barrier": {
+        "inclusive_s": 0.161717626,
+        "exclusive_s": 0.160571834
+      },
+      "result.assemble": {
+        "inclusive_s": 0.002502749,
+        "exclusive_s": 0.002502749
+      },
+      "result.publish": {
+        "inclusive_s": 0.016956916,
+        "exclusive_s": 0.014454167
+      },
+      "result.read_report": {
+        "inclusive_s": 0.033170667,
+        "exclusive_s": 0.033170667
+      },
+      "runtime.distributions": {
+        "inclusive_s": 0.178448334,
+        "exclusive_s": 0.178448334
+      },
+      "runtime.freeze": {
+        "inclusive_s": 0.175962833,
+        "exclusive_s": 0.085478666
+      },
+      "runtime.supervisor_check": {
+        "inclusive_s": 0.090187,
+        "exclusive_s": 0.090187
+      },
+      "runtime.verify": {
+        "inclusive_s": 0.161736707,
+        "exclusive_s": 0.003497873
+      },
+      "source.capture": {
+        "inclusive_s": 0.009922,
+        "exclusive_s": 0.009922
+      },
+      "source.materialize": {
+        "inclusive_s": 0.018696042,
+        "exclusive_s": 0.018696042
+      },
+      "supervisor.start": {
+        "inclusive_s": 0.091564,
+        "exclusive_s": 0.091564
+      },
+      "trace.close": {
+        "inclusive_s": 0.002527292,
+        "exclusive_s": 0.002475376
+      },
+      "trace.open": {
+        "inclusive_s": 0.003231915,
+        "exclusive_s": 0.003231915
+      }
+    }
+  }
+]

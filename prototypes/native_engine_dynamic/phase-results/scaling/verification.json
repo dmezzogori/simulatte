@@ -1,0 +1,12 @@
+{
+  "source_sha256": "50d2cf7b6d4970dd3a1b89f1eab70e9c940875114b924ed78b3ad3ebe039784b",
+  "experiments": 48,
+  "replications": 144,
+  "exact_shared_results": true,
+  "active_dormant_fingerprints_equal": true,
+  "evidence": {
+    "metadata.json": "609e7783efbe759e204584f9c903772f67bd6b756399f13320844695877cbb4b",
+    "matrix.jsonl": "b2aa758bc23c87356617075ac1cef2e6331a9e1ac0f6048460dc0c7d4d026686",
+    "summary.json": "b8f3460d2cdb284d40eaeeb2c7f9779223227c091fda46c045f20b1703f70dd8"
+  }
+}

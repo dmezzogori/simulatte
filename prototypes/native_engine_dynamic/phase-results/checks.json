@@ -1,0 +1,50 @@
+{
+  "source_sha256": "50d2cf7b6d4970dd3a1b89f1eab70e9c940875114b924ed78b3ad3ebe039784b",
+  "files": 281,
+  "platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+  "libraries": {
+    "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+    "dynamic": "638eb4b10466535a200e7497e7b38da0d882ba52910865d3d4de24f48b31a75c",
+    "_nd_scalar.cpython-314-darwin.so": "9cc13fcbfe7d8be90faf6589fcdfba655aba3a92ed0d3743635a941f4eacf87e",
+    "_nd_scalar.pypy311-pp73-darwin.so": "f036a45db93c799e58c91ade5b96d6300ff585457f85fc8f6263e445d774997b"
+  },
+  "checks": [
+    {
+      "command": ".venv/bin/ruff check phase_probe.py phase_instrument.py phase_experiment.py tests/test_phase_probe.py",
+      "passed": true
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/execution/test_backend.py prototypes/native_engine/tests prototypes/native_engine_dynamic/tests -o addopts= --import-mode=importlib -q --tb=short -x",
+      "passed": 514,
+      "skipped": 1,
+      "seconds": 21.76
+    },
+    {
+      "command": "phase_experiment gate",
+      "main_runs": 20,
+      "reproductions": 8,
+      "active_dormant_requests_fingerprints_artifacts_equal": true
+    },
+    {
+      "command": "phase_experiment matrix",
+      "experiments": 48,
+      "replications": 144,
+      "active_dormant_fingerprints_artifacts_equal": true
+    },
+    {
+      "command": "PYTHONPATH=. .venv/bin/python prototypes/native_engine_dynamic/phase-results/original-control-check.py",
+      "runs": 8,
+      "both_producers_and_backends": true,
+      "shared_outcomes_state_and_semantic_fingerprints_equal": true,
+      "source_and_request_ids_differ_as_expected": true
+    }
+  ],
+  "notes": [
+    "Diagnostics stored outside result/artifact/trace data.",
+    "Disposable instrumented copies only; production and C source byte identity checked against fee446b.",
+    "Four dedicated timer/transform tests are included in the 514 passed.",
+    "Timed matrix did not run concurrently with regression tests.",
+    "Medians of active/dormant controls quantify probe overhead plus scheduling/load noise; negative differences are not a speedup.",
+    "analysis.json separates parent, run and inspection roles; nested/cross-process durations must not be added to wall time."
+  ]
+}

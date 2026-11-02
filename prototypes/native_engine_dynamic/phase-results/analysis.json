@@ -1,0 +1,2374 @@
+{
+  "source_sha256": "50d2cf7b6d4970dd3a1b89f1eab70e9c940875114b924ed78b3ad3ebe039784b",
+  "method": "Per experiment sum within each process role, then median over three repeats. Inclusive/exclusive are nested; roles and phases must not be added to wall time. Dormant controls quantify whole-process probe cost.",
+  "rows": [
+    {
+      "backend": "native",
+      "producer": "independent",
+      "jobs": 5000,
+      "wall_s": {
+        "active": {
+          "samples": [
+            2.473211125,
+            2.556529333,
+            2.463290417
+          ],
+          "median": 2.473211125,
+          "min": 2.463290417,
+          "max": 2.556529333
+        },
+        "dormant": {
+          "samples": [
+            2.474551042,
+            2.415642833,
+            2.516775
+          ],
+          "median": 2.474551042,
+          "min": 2.415642833,
+          "max": 2.516775
+        }
+      },
+      "phases": {
+        "parent": {
+          "assignment.total": {
+            "calls": 4,
+            "inclusive_s": 1.984812875,
+            "exclusive_s": 1.85689046
+          },
+          "coordinator.close": {
+            "calls": 1,
+            "inclusive_s": 0.108014209,
+            "exclusive_s": 0.108014209
+          },
+          "coordinator.open": {
+            "calls": 1,
+            "inclusive_s": 0.1806725,
+            "exclusive_s": 0.002818
+          },
+          "coordinator.prepare": {
+            "calls": 1,
+            "inclusive_s": 0.397514042,
+            "exclusive_s": 0.344424041
+          },
+          "experiment.start": {
+            "calls": 1,
+            "inclusive_s": 0.398956084,
+            "exclusive_s": 0.001422959
+          },
+          "experiment.wait": {
+            "calls": 1,
+            "inclusive_s": 1.646904417,
+            "exclusive_s": 1.646904417
+          },
+          "inputs.capture": {
+            "calls": 2,
+            "inclusive_s": 0.023168708,
+            "exclusive_s": 0.023168708
+          },
+          "result.assemble": {
+            "calls": 6,
+            "inclusive_s": 0.002251041,
+            "exclusive_s": 0.002251041
+          },
+          "result.publish": {
+            "calls": 3,
+            "inclusive_s": 0.0156185,
+            "exclusive_s": 0.013367459
+          },
+          "result.read_report": {
+            "calls": 1,
+            "inclusive_s": 0.028331625,
+            "exclusive_s": 0.028331625
+          },
+          "runtime.distributions": {
+            "calls": 1,
+            "inclusive_s": 0.02065575,
+            "exclusive_s": 0.02065575
+          },
+          "runtime.freeze": {
+            "calls": 1,
+            "inclusive_s": 0.177859792,
+            "exclusive_s": 0.086560334
+          },
+          "runtime.supervisor_check": {
+            "calls": 1,
+            "inclusive_s": 0.091299458,
+            "exclusive_s": 0.091299458
+          },
+          "source.capture": {
+            "calls": 1,
+            "inclusive_s": 0.009737959,
+            "exclusive_s": 0.009737959
+          },
+          "source.materialize": {
+            "calls": 4,
+            "inclusive_s": 0.018774584,
+            "exclusive_s": 0.018774584
+          },
+          "supervisor.start": {
+            "calls": 4,
+            "inclusive_s": 0.093450708,
+            "exclusive_s": 0.093450708
+          }
+        },
+        "run:": {
+          "activation.total": {
+            "calls": 3,
+            "inclusive_s": 0.242573209,
+            "exclusive_s": 0.024120999
+          },
+          "artifacts.transfer": {
+            "calls": 3,
+            "inclusive_s": 0.001086874,
+            "exclusive_s": 0.001086874
+          },
+          "backend.advance": {
+            "calls": 15009,
+            "inclusive_s": 0.018527863,
+            "exclusive_s": 0.018527863
+          },
+          "backend.close": {
+            "calls": 3,
+            "inclusive_s": 1.3333e-05,
+            "exclusive_s": 1.3333e-05
+          },
+          "backend.finish": {
+            "calls": 3,
+            "inclusive_s": 0.034464417,
+            "exclusive_s": 0.000583333
+          },
+          "backend.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.27307,
+            "exclusive_s": 0.040787708
+          },
+          "backend.state_digest": {
+            "calls": 9,
+            "inclusive_s": 0.033980544,
+            "exclusive_s": 0.03367446
+          },
+          "binding.activate": {
+            "calls": 3,
+            "inclusive_s": 0.000122917,
+            "exclusive_s": 2.6082e-05
+          },
+          "binding.close": {
+            "calls": 6,
+            "inclusive_s": 2.2875e-05,
+            "exclusive_s": 9.375e-06
+          },
+          "binding.finish": {
+            "calls": 3,
+            "inclusive_s": 0.034619084,
+            "exclusive_s": 0.000153291
+          },
+          "binding.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.273169501,
+            "exclusive_s": 9.9501e-05
+          },
+          "child.execute": {
+            "calls": 3,
+            "inclusive_s": 1.112079249,
+            "exclusive_s": 0.077266165
+          },
+          "child.serve": {
+            "calls": 3,
+            "inclusive_s": 1.261195668,
+            "exclusive_s": 0.149116419
+          },
+          "environment.create": {
+            "calls": 3,
+            "inclusive_s": 0.000224709,
+            "exclusive_s": 0.000224709
+          },
+          "fingerprint.query": {
+            "calls": 6,
+            "inclusive_s": 8.9959e-05,
+            "exclusive_s": 8.9959e-05
+          },
+          "imports.audit": {
+            "calls": 9,
+            "inclusive_s": 0.15206704,
+            "exclusive_s": 0.15206704
+          },
+          "inputs.generate": {
+            "calls": 3,
+            "inclusive_s": 0.054540584,
+            "exclusive_s": 0.054540584
+          },
+          "managed.execute": {
+            "calls": 3,
+            "inclusive_s": 0.359312125,
+            "exclusive_s": 0.036867172
+          },
+          "managed.python_step": {
+            "calls": 15009,
+            "inclusive_s": 0.027109463,
+            "exclusive_s": 0.027109463
+          },
+          "metadata.transfer": {
+            "calls": 6,
+            "inclusive_s": 0.002823456,
+            "exclusive_s": 0.002823456
+          },
+          "model.build": {
+            "calls": 3,
+            "inclusive_s": 0.329831625,
+            "exclusive_s": 0.000551748
+          },
+          "model.import": {
+            "calls": 3,
+            "inclusive_s": 0.157396,
+            "exclusive_s": 0.112008625
+          },
+          "model.resolve": {
+            "calls": 3,
+            "inclusive_s": 0.056264793,
+            "exclusive_s": 0.00082821
+          },
+          "native.assets_verify": {
+            "calls": 3,
+            "inclusive_s": 0.001401957,
+            "exclusive_s": 0.001401957
+          },
+          "native.extension_load": {
+            "calls": 3,
+            "inclusive_s": 0.232282292,
+            "exclusive_s": 0.232282292
+          },
+          "native.state_bytes": {
+            "calls": 6,
+            "inclusive_s": 0.000328,
+            "exclusive_s": 0.000328
+          },
+          "ready.barrier": {
+            "calls": 3,
+            "inclusive_s": 0.160976041,
+            "exclusive_s": 0.159782665
+          },
+          "runtime.distributions": {
+            "calls": 6,
+            "inclusive_s": 0.125149083,
+            "exclusive_s": 0.125149083
+          },
+          "runtime.verify": {
+            "calls": 6,
+            "inclusive_s": 0.127889834,
+            "exclusive_s": 0.002706001
+          },
+          "trace.close": {
+            "calls": 6,
+            "inclusive_s": 0.00263146,
+            "exclusive_s": 0.002581251
+          },
+          "trace.open": {
+            "calls": 3,
+            "inclusive_s": 0.003276167,
+            "exclusive_s": 0.003276167
+          }
+        },
+        "inspect:": {
+          "child.serve": {
+            "calls": 1,
+            "inclusive_s": 0.158727125,
+            "exclusive_s": 0.066364084
+          },
+          "imports.audit": {
+            "calls": 1,
+            "inclusive_s": 0.012874625,
+            "exclusive_s": 0.012874625
+          },
+          "metadata.transfer": {
+            "calls": 1,
+            "inclusive_s": 0.000803708,
+            "exclusive_s": 0.000803708
+          },
+          "model.import": {
+            "calls": 1,
+            "inclusive_s": 0.053084958,
+            "exclusive_s": 0.040210333
+          },
+          "runtime.distributions": {
+            "calls": 2,
+            "inclusive_s": 0.039534709,
+            "exclusive_s": 0.039534709
+          },
+          "runtime.verify": {
+            "calls": 2,
+            "inclusive_s": 0.04045725,
+            "exclusive_s": 0.000922541
+          }
+        }
+      },
+      "active_minus_dormant_fraction": -0.0005414788287885219
+    },
+    {
+      "backend": "native",
+      "producer": "independent",
+      "jobs": 20000,
+      "wall_s": {
+        "active": {
+          "samples": [
+            3.116146583,
+            3.004979584,
+            3.127207209
+          ],
+          "median": 3.116146583,
+          "min": 3.004979584,
+          "max": 3.127207209
+        },
+        "dormant": {
+          "samples": [
+            2.982355459,
+            3.250775792,
+            2.752960334
+          ],
+          "median": 2.982355459,
+          "min": 2.752960334,
+          "max": 3.250775792
+        }
+      },
+      "phases": {
+        "parent": {
+          "assignment.total": {
+            "calls": 4,
+            "inclusive_s": 2.623472917,
+            "exclusive_s": 2.495739416
+          },
+          "coordinator.close": {
+            "calls": 1,
+            "inclusive_s": 0.103264042,
+            "exclusive_s": 0.103264042
+          },
+          "coordinator.open": {
+            "calls": 1,
+            "inclusive_s": 0.18016475,
+            "exclusive_s": 0.002838708
+          },
+          "coordinator.prepare": {
+            "calls": 1,
+            "inclusive_s": 0.362377084,
+            "exclusive_s": 0.308933958
+          },
+          "experiment.start": {
+            "calls": 1,
+            "inclusive_s": 0.363657709,
+            "exclusive_s": 0.001309708
+          },
+          "experiment.wait": {
+            "calls": 1,
+            "inclusive_s": 2.321877917,
+            "exclusive_s": 2.321877917
+          },
+          "inputs.capture": {
+            "calls": 2,
+            "inclusive_s": 0.021697125,
+            "exclusive_s": 0.021697125
+          },
+          "result.assemble": {
+            "calls": 6,
+            "inclusive_s": 0.002454127,
+            "exclusive_s": 0.002454127
+          },
+          "result.publish": {
+            "calls": 3,
+            "inclusive_s": 0.017124459,
+            "exclusive_s": 0.014670332
+          },
+          "result.read_report": {
+            "calls": 1,
+            "inclusive_s": 0.033118417,
+            "exclusive_s": 0.033118417
+          },
+          "runtime.distributions": {
+            "calls": 1,
+            "inclusive_s": 0.020062333,
+            "exclusive_s": 0.020062333
+          },
+          "runtime.freeze": {
+            "calls": 1,
+            "inclusive_s": 0.177180167,
+            "exclusive_s": 0.086672709
+          },
+          "runtime.supervisor_check": {
+            "calls": 1,
+            "inclusive_s": 0.090507458,
+            "exclusive_s": 0.090507458
+          },
+          "source.capture": {
+            "calls": 1,
+            "inclusive_s": 0.010110833,
+            "exclusive_s": 0.010110833
+          },
+          "source.materialize": {
+            "calls": 4,
+            "inclusive_s": 0.018306042,
+            "exclusive_s": 0.018306042
+          },
+          "supervisor.start": {
+            "calls": 4,
+            "inclusive_s": 0.091097042,
+            "exclusive_s": 0.091097042
+          }
+        },
+        "run:": {
+          "activation.total": {
+            "calls": 3,
+            "inclusive_s": 0.2332975,
+            "exclusive_s": 0.020682498
+          },
+          "artifacts.transfer": {
+            "calls": 3,
+            "inclusive_s": 0.001113625,
+            "exclusive_s": 0.001113625
+          },
+          "backend.advance": {
+            "calls": 60009,
+            "inclusive_s": 0.065407831,
+            "exclusive_s": 0.065407831
+          },
+          "backend.close": {
+            "calls": 3,
+            "inclusive_s": 1.6792e-05,
+            "exclusive_s": 1.6792e-05
+          },
+          "backend.finish": {
+            "calls": 3,
+            "inclusive_s": 0.132461542,
+            "exclusive_s": 0.000757376
+          },
+          "backend.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.388955083,
+            "exclusive_s": 0.149057875
+          },
+          "backend.state_digest": {
+            "calls": 9,
+            "inclusive_s": 0.131716878,
+            "exclusive_s": 0.130073003
+          },
+          "binding.activate": {
+            "calls": 3,
+            "inclusive_s": 0.00010725,
+            "exclusive_s": 2.2875e-05
+          },
+          "binding.close": {
+            "calls": 6,
+            "inclusive_s": 2.6666e-05,
+            "exclusive_s": 9.874e-06
+          },
+          "binding.finish": {
+            "calls": 3,
+            "inclusive_s": 0.1326215,
+            "exclusive_s": 0.000158499
+          },
+          "binding.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.389052917,
+            "exclusive_s": 9.7834e-05
+          },
+          "child.execute": {
+            "calls": 3,
+            "inclusive_s": 1.678919875,
+            "exclusive_s": 0.075777629
+          },
+          "child.serve": {
+            "calls": 3,
+            "inclusive_s": 1.846461292,
+            "exclusive_s": 0.150556834
+          },
+          "environment.create": {
+            "calls": 3,
+            "inclusive_s": 0.000224,
+            "exclusive_s": 0.000224
+          },
+          "fingerprint.query": {
+            "calls": 6,
+            "inclusive_s": 8.6709e-05,
+            "exclusive_s": 8.6709e-05
+          },
+          "imports.audit": {
+            "calls": 9,
+            "inclusive_s": 0.139770667,
+            "exclusive_s": 0.139770667
+          },
+          "inputs.generate": {
+            "calls": 3,
+            "inclusive_s": 0.213280501,
+            "exclusive_s": 0.213280501
+          },
+          "managed.execute": {
+            "calls": 3,
+            "inclusive_s": 0.661704249,
+            "exclusive_s": 0.127551982
+          },
+          "managed.python_step": {
+            "calls": 60009,
+            "inclusive_s": 0.097900597,
+            "exclusive_s": 0.097900597
+          },
+          "metadata.transfer": {
+            "calls": 6,
+            "inclusive_s": 0.002863959,
+            "exclusive_s": 0.002863959
+          },
+          "model.build": {
+            "calls": 3,
+            "inclusive_s": 0.604352041,
+            "exclusive_s": 0.000619957
+          },
+          "model.import": {
+            "calls": 3,
+            "inclusive_s": 0.153557459,
+            "exclusive_s": 0.109193001
+          },
+          "model.resolve": {
+            "calls": 3,
+            "inclusive_s": 0.049194084,
+            "exclusive_s": 0.000728583
+          },
+          "native.assets_verify": {
+            "calls": 3,
+            "inclusive_s": 0.001362207,
+            "exclusive_s": 0.001362207
+          },
+          "native.extension_load": {
+            "calls": 3,
+            "inclusive_s": 0.239897208,
+            "exclusive_s": 0.239897208
+          },
+          "native.state_bytes": {
+            "calls": 6,
+            "inclusive_s": 0.00165075,
+            "exclusive_s": 0.00165075
+          },
+          "ready.barrier": {
+            "calls": 3,
+            "inclusive_s": 0.163210501,
+            "exclusive_s": 0.162139835
+          },
+          "runtime.distributions": {
+            "calls": 6,
+            "inclusive_s": 0.118978791,
+            "exclusive_s": 0.118978791
+          },
+          "runtime.verify": {
+            "calls": 6,
+            "inclusive_s": 0.121621041,
+            "exclusive_s": 0.002641914
+          },
+          "trace.close": {
+            "calls": 6,
+            "inclusive_s": 0.002632291,
+            "exclusive_s": 0.002585
+          },
+          "trace.open": {
+            "calls": 3,
+            "inclusive_s": 0.003288958,
+            "exclusive_s": 0.003288958
+          }
+        },
+        "inspect:": {
+          "child.serve": {
+            "calls": 1,
+            "inclusive_s": 0.154991792,
+            "exclusive_s": 0.059168582
+          },
+          "imports.audit": {
+            "calls": 1,
+            "inclusive_s": 0.012747084,
+            "exclusive_s": 0.012747084
+          },
+          "metadata.transfer": {
+            "calls": 1,
+            "inclusive_s": 0.00079125,
+            "exclusive_s": 0.00079125
+          },
+          "model.import": {
+            "calls": 1,
+            "inclusive_s": 0.051678041,
+            "exclusive_s": 0.039076208
+          },
+          "runtime.distributions": {
+            "calls": 2,
+            "inclusive_s": 0.039088583,
+            "exclusive_s": 0.039088583
+          },
+          "runtime.verify": {
+            "calls": 2,
+            "inclusive_s": 0.039979709,
+            "exclusive_s": 0.00089775
+          }
+        }
+      },
+      "active_minus_dormant_fraction": 0.04486089127848669
+    },
+    {
+      "backend": "native",
+      "producer": "feedback",
+      "jobs": 5000,
+      "wall_s": {
+        "active": {
+          "samples": [
+            2.492218417,
+            2.599702833,
+            2.407838708
+          ],
+          "median": 2.492218417,
+          "min": 2.407838708,
+          "max": 2.599702833
+        },
+        "dormant": {
+          "samples": [
+            2.664445458,
+            2.66069575,
+            2.49100375
+          ],
+          "median": 2.66069575,
+          "min": 2.49100375,
+          "max": 2.664445458
+        }
+      },
+      "phases": {
+        "parent": {
+          "assignment.total": {
+            "calls": 4,
+            "inclusive_s": 1.998278791,
+            "exclusive_s": 1.873228917
+          },
+          "coordinator.close": {
+            "calls": 1,
+            "inclusive_s": 0.110941,
+            "exclusive_s": 0.110941
+          },
+          "coordinator.open": {
+            "calls": 1,
+            "inclusive_s": 0.18376475,
+            "exclusive_s": 0.002860042
+          },
+          "coordinator.prepare": {
+            "calls": 1,
+            "inclusive_s": 0.393231042,
+            "exclusive_s": 0.336936375
+          },
+          "experiment.start": {
+            "calls": 1,
+            "inclusive_s": 0.394631709,
+            "exclusive_s": 0.001383416
+          },
+          "experiment.wait": {
+            "calls": 1,
+            "inclusive_s": 1.676730583,
+            "exclusive_s": 1.676730583
+          },
+          "inputs.capture": {
+            "calls": 2,
+            "inclusive_s": 0.022197875,
+            "exclusive_s": 0.022197875
+          },
+          "result.assemble": {
+            "calls": 6,
+            "inclusive_s": 0.002345625,
+            "exclusive_s": 0.002345625
+          },
+          "result.publish": {
+            "calls": 3,
+            "inclusive_s": 0.016245583,
+            "exclusive_s": 0.013899958
+          },
+          "result.read_report": {
+            "calls": 1,
+            "inclusive_s": 0.031419625,
+            "exclusive_s": 0.031419625
+          },
+          "runtime.distributions": {
+            "calls": 1,
+            "inclusive_s": 0.020785583,
+            "exclusive_s": 0.020785583
+          },
+          "runtime.freeze": {
+            "calls": 1,
+            "inclusive_s": 0.180904708,
+            "exclusive_s": 0.088096791
+          },
+          "runtime.supervisor_check": {
+            "calls": 1,
+            "inclusive_s": 0.092807917,
+            "exclusive_s": 0.092807917
+          },
+          "source.capture": {
+            "calls": 1,
+            "inclusive_s": 0.009881,
+            "exclusive_s": 0.009881
+          },
+          "source.materialize": {
+            "calls": 4,
+            "inclusive_s": 0.019436501,
+            "exclusive_s": 0.019436501
+          },
+          "supervisor.start": {
+            "calls": 4,
+            "inclusive_s": 0.094084916,
+            "exclusive_s": 0.094084916
+          }
+        },
+        "run:": {
+          "activation.total": {
+            "calls": 3,
+            "inclusive_s": 0.229730832,
+            "exclusive_s": 0.023223788
+          },
+          "artifacts.transfer": {
+            "calls": 3,
+            "inclusive_s": 0.001212376,
+            "exclusive_s": 0.001212376
+          },
+          "backend.advance": {
+            "calls": 15009,
+            "inclusive_s": 0.015133716,
+            "exclusive_s": 0.015133716
+          },
+          "backend.close": {
+            "calls": 3,
+            "inclusive_s": 1.2541e-05,
+            "exclusive_s": 1.2541e-05
+          },
+          "backend.finish": {
+            "calls": 3,
+            "inclusive_s": 0.036308209,
+            "exclusive_s": 0.000693418
+          },
+          "backend.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.237864959,
+            "exclusive_s": 0.038757126
+          },
+          "backend.state_digest": {
+            "calls": 9,
+            "inclusive_s": 0.03569375,
+            "exclusive_s": 0.035424042
+          },
+          "binding.activate": {
+            "calls": 3,
+            "inclusive_s": 0.000119418,
+            "exclusive_s": 2.4916e-05
+          },
+          "binding.close": {
+            "calls": 6,
+            "inclusive_s": 2.1291e-05,
+            "exclusive_s": 8.751e-06
+          },
+          "binding.finish": {
+            "calls": 3,
+            "inclusive_s": 0.0364735,
+            "exclusive_s": 0.000163832
+          },
+          "binding.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.237960875,
+            "exclusive_s": 9.5916e-05
+          },
+          "child.execute": {
+            "calls": 3,
+            "inclusive_s": 1.100139167,
+            "exclusive_s": 0.07742821
+          },
+          "child.serve": {
+            "calls": 3,
+            "inclusive_s": 1.238552916,
+            "exclusive_s": 0.138413749
+          },
+          "environment.create": {
+            "calls": 3,
+            "inclusive_s": 0.000232208,
+            "exclusive_s": 0.000232208
+          },
+          "fingerprint.query": {
+            "calls": 6,
+            "inclusive_s": 8.6167e-05,
+            "exclusive_s": 8.6167e-05
+          },
+          "imports.audit": {
+            "calls": 9,
+            "inclusive_s": 0.149034374,
+            "exclusive_s": 0.149034374
+          },
+          "inputs.generate": {
+            "calls": 3,
+            "inclusive_s": 0.054868251,
+            "exclusive_s": 0.054868251
+          },
+          "managed.execute": {
+            "calls": 3,
+            "inclusive_s": 0.391716124,
+            "exclusive_s": 0.036582699
+          },
+          "managed.python_step": {
+            "calls": 15009,
+            "inclusive_s": 0.073795377,
+            "exclusive_s": 0.073795377
+          },
+          "metadata.transfer": {
+            "calls": 6,
+            "inclusive_s": 0.003082583,
+            "exclusive_s": 0.003082583
+          },
+          "model.build": {
+            "calls": 3,
+            "inclusive_s": 0.294017376,
+            "exclusive_s": 0.000589999
+          },
+          "model.import": {
+            "calls": 3,
+            "inclusive_s": 0.159181874,
+            "exclusive_s": 0.112559208
+          },
+          "model.resolve": {
+            "calls": 3,
+            "inclusive_s": 0.054468417,
+            "exclusive_s": 0.000819709
+          },
+          "native.assets_verify": {
+            "calls": 3,
+            "inclusive_s": 0.001397166,
+            "exclusive_s": 0.001397166
+          },
+          "native.extension_load": {
+            "calls": 3,
+            "inclusive_s": 0.199633791,
+            "exclusive_s": 0.199633791
+          },
+          "native.state_bytes": {
+            "calls": 6,
+            "inclusive_s": 0.000208958,
+            "exclusive_s": 0.000208958
+          },
+          "ready.barrier": {
+            "calls": 3,
+            "inclusive_s": 0.151919209,
+            "exclusive_s": 0.150519793
+          },
+          "runtime.distributions": {
+            "calls": 6,
+            "inclusive_s": 0.12377096,
+            "exclusive_s": 0.12377096
+          },
+          "runtime.verify": {
+            "calls": 6,
+            "inclusive_s": 0.126460833,
+            "exclusive_s": 0.002689873
+          },
+          "trace.close": {
+            "calls": 6,
+            "inclusive_s": 0.002727458,
+            "exclusive_s": 0.002676791
+          },
+          "trace.open": {
+            "calls": 3,
+            "inclusive_s": 0.003296792,
+            "exclusive_s": 0.003296792
+          }
+        },
+        "inspect:": {
+          "child.serve": {
+            "calls": 1,
+            "inclusive_s": 0.174799917,
+            "exclusive_s": 0.076353293
+          },
+          "imports.audit": {
+            "calls": 1,
+            "inclusive_s": 0.0135095,
+            "exclusive_s": 0.0135095
+          },
+          "metadata.transfer": {
+            "calls": 1,
+            "inclusive_s": 0.000799916,
+            "exclusive_s": 0.000799916
+          },
+          "model.import": {
+            "calls": 1,
+            "inclusive_s": 0.054306666,
+            "exclusive_s": 0.040797166
+          },
+          "runtime.distributions": {
+            "calls": 2,
+            "inclusive_s": 0.040725209,
+            "exclusive_s": 0.040725209
+          },
+          "runtime.verify": {
+            "calls": 2,
+            "inclusive_s": 0.041654041,
+            "exclusive_s": 0.000928832
+          }
+        }
+      },
+      "active_minus_dormant_fraction": -0.06332078104007188
+    },
+    {
+      "backend": "native",
+      "producer": "feedback",
+      "jobs": 20000,
+      "wall_s": {
+        "active": {
+          "samples": [
+            3.231533,
+            3.241566083,
+            3.281739834
+          ],
+          "median": 3.241566083,
+          "min": 3.231533,
+          "max": 3.281739834
+        },
+        "dormant": {
+          "samples": [
+            3.192629916,
+            3.220059,
+            3.090480042
+          ],
+          "median": 3.192629916,
+          "min": 3.090480042,
+          "max": 3.220059
+        }
+      },
+      "phases": {
+        "parent": {
+          "assignment.total": {
+            "calls": 4,
+            "inclusive_s": 2.749745251,
+            "exclusive_s": 2.623278749
+          },
+          "coordinator.close": {
+            "calls": 1,
+            "inclusive_s": 0.108523125,
+            "exclusive_s": 0.108523125
+          },
+          "coordinator.open": {
+            "calls": 1,
+            "inclusive_s": 0.178848875,
+            "exclusive_s": 0.002886042
+          },
+          "coordinator.prepare": {
+            "calls": 1,
+            "inclusive_s": 0.363588834,
+            "exclusive_s": 0.312327958
+          },
+          "experiment.start": {
+            "calls": 1,
+            "inclusive_s": 0.3649345,
+            "exclusive_s": 0.001345666
+          },
+          "experiment.wait": {
+            "calls": 1,
+            "inclusive_s": 2.454495458,
+            "exclusive_s": 2.454495458
+          },
+          "inputs.capture": {
+            "calls": 2,
+            "inclusive_s": 0.02148425,
+            "exclusive_s": 0.02148425
+          },
+          "result.assemble": {
+            "calls": 6,
+            "inclusive_s": 0.002502749,
+            "exclusive_s": 0.002502749
+          },
+          "result.publish": {
+            "calls": 3,
+            "inclusive_s": 0.016956916,
+            "exclusive_s": 0.014454167
+          },
+          "result.read_report": {
+            "calls": 1,
+            "inclusive_s": 0.033170667,
+            "exclusive_s": 0.033170667
+          },
+          "runtime.distributions": {
+            "calls": 1,
+            "inclusive_s": 0.0202095,
+            "exclusive_s": 0.0202095
+          },
+          "runtime.freeze": {
+            "calls": 1,
+            "inclusive_s": 0.175962833,
+            "exclusive_s": 0.085478666
+          },
+          "runtime.supervisor_check": {
+            "calls": 1,
+            "inclusive_s": 0.090187,
+            "exclusive_s": 0.090187
+          },
+          "source.capture": {
+            "calls": 1,
+            "inclusive_s": 0.009922,
+            "exclusive_s": 0.009922
+          },
+          "source.materialize": {
+            "calls": 4,
+            "inclusive_s": 0.018696042,
+            "exclusive_s": 0.018696042
+          },
+          "supervisor.start": {
+            "calls": 4,
+            "inclusive_s": 0.091564,
+            "exclusive_s": 0.091564
+          }
+        },
+        "run:": {
+          "activation.total": {
+            "calls": 3,
+            "inclusive_s": 0.230420418,
+            "exclusive_s": 0.02081875
+          },
+          "artifacts.transfer": {
+            "calls": 3,
+            "inclusive_s": 0.001137792,
+            "exclusive_s": 0.001137792
+          },
+          "backend.advance": {
+            "calls": 60009,
+            "inclusive_s": 0.055275206,
+            "exclusive_s": 0.055275206
+          },
+          "backend.close": {
+            "calls": 3,
+            "inclusive_s": 1.4917e-05,
+            "exclusive_s": 1.4917e-05
+          },
+          "backend.finish": {
+            "calls": 3,
+            "inclusive_s": 0.133757042,
+            "exclusive_s": 0.000817167
+          },
+          "backend.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.378238709,
+            "exclusive_s": 0.148947917
+          },
+          "backend.state_digest": {
+            "calls": 9,
+            "inclusive_s": 0.133018457,
+            "exclusive_s": 0.131711831
+          },
+          "binding.activate": {
+            "calls": 3,
+            "inclusive_s": 0.000107625,
+            "exclusive_s": 2.3084e-05
+          },
+          "binding.close": {
+            "calls": 6,
+            "inclusive_s": 2.35e-05,
+            "exclusive_s": 8.876e-06
+          },
+          "binding.finish": {
+            "calls": 3,
+            "inclusive_s": 0.133935458,
+            "exclusive_s": 0.0001735
+          },
+          "binding.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.378344001,
+            "exclusive_s": 0.000102166
+          },
+          "child.execute": {
+            "calls": 3,
+            "inclusive_s": 1.8187155,
+            "exclusive_s": 0.075532208
+          },
+          "child.serve": {
+            "calls": 3,
+            "inclusive_s": 1.983604666,
+            "exclusive_s": 0.164889166
+          },
+          "environment.create": {
+            "calls": 3,
+            "inclusive_s": 0.000221209,
+            "exclusive_s": 0.000221209
+          },
+          "fingerprint.query": {
+            "calls": 6,
+            "inclusive_s": 8.6458e-05,
+            "exclusive_s": 8.6458e-05
+          },
+          "imports.audit": {
+            "calls": 9,
+            "inclusive_s": 0.138313793,
+            "exclusive_s": 0.138313793
+          },
+          "inputs.generate": {
+            "calls": 3,
+            "inclusive_s": 0.21079675,
+            "exclusive_s": 0.21079675
+          },
+          "managed.execute": {
+            "calls": 3,
+            "inclusive_s": 0.828650459,
+            "exclusive_s": 0.128282595
+          },
+          "managed.python_step": {
+            "calls": 60009,
+            "inclusive_s": 0.277769677,
+            "exclusive_s": 0.277769677
+          },
+          "metadata.transfer": {
+            "calls": 6,
+            "inclusive_s": 0.002823083,
+            "exclusive_s": 0.002823083
+          },
+          "model.build": {
+            "calls": 3,
+            "inclusive_s": 0.590776958,
+            "exclusive_s": 0.000606667
+          },
+          "model.import": {
+            "calls": 3,
+            "inclusive_s": 0.152332042,
+            "exclusive_s": 0.108247125
+          },
+          "model.resolve": {
+            "calls": 3,
+            "inclusive_s": 0.048433083,
+            "exclusive_s": 0.000732832
+          },
+          "native.assets_verify": {
+            "calls": 3,
+            "inclusive_s": 0.001380125,
+            "exclusive_s": 0.001380125
+          },
+          "native.extension_load": {
+            "calls": 3,
+            "inclusive_s": 0.229290792,
+            "exclusive_s": 0.229290792
+          },
+          "native.state_bytes": {
+            "calls": 6,
+            "inclusive_s": 0.001261791,
+            "exclusive_s": 0.001261791
+          },
+          "ready.barrier": {
+            "calls": 3,
+            "inclusive_s": 0.161717626,
+            "exclusive_s": 0.160571834
+          },
+          "runtime.distributions": {
+            "calls": 6,
+            "inclusive_s": 0.119101167,
+            "exclusive_s": 0.119101167
+          },
+          "runtime.verify": {
+            "calls": 6,
+            "inclusive_s": 0.121711249,
+            "exclusive_s": 0.002610082
+          },
+          "trace.close": {
+            "calls": 6,
+            "inclusive_s": 0.002527292,
+            "exclusive_s": 0.002475376
+          },
+          "trace.open": {
+            "calls": 3,
+            "inclusive_s": 0.003231915,
+            "exclusive_s": 0.003231915
+          }
+        },
+        "inspect:": {
+          "child.serve": {
+            "calls": 1,
+            "inclusive_s": 0.150184,
+            "exclusive_s": 0.057998417
+          },
+          "imports.audit": {
+            "calls": 1,
+            "inclusive_s": 0.012810792,
+            "exclusive_s": 0.012810792
+          },
+          "metadata.transfer": {
+            "calls": 1,
+            "inclusive_s": 0.00077325,
+            "exclusive_s": 0.00077325
+          },
+          "model.import": {
+            "calls": 1,
+            "inclusive_s": 0.051631542,
+            "exclusive_s": 0.03882075
+          },
+          "runtime.distributions": {
+            "calls": 2,
+            "inclusive_s": 0.039137667,
+            "exclusive_s": 0.039137667
+          },
+          "runtime.verify": {
+            "calls": 2,
+            "inclusive_s": 0.040025458,
+            "exclusive_s": 0.000887791
+          }
+        }
+      },
+      "active_minus_dormant_fraction": 0.01532785455487784
+    },
+    {
+      "backend": "production",
+      "producer": "independent",
+      "jobs": 5000,
+      "wall_s": {
+        "active": {
+          "samples": [
+            4.196829958,
+            4.172897834,
+            4.274569792
+          ],
+          "median": 4.196829958,
+          "min": 4.172897834,
+          "max": 4.274569792
+        },
+        "dormant": {
+          "samples": [
+            4.0795255,
+            4.114790042,
+            4.15225625
+          ],
+          "median": 4.114790042,
+          "min": 4.0795255,
+          "max": 4.15225625
+        }
+      },
+      "phases": {
+        "parent": {
+          "assignment.total": {
+            "calls": 4,
+            "inclusive_s": 3.70642954,
+            "exclusive_s": 3.576971581
+          },
+          "coordinator.close": {
+            "calls": 1,
+            "inclusive_s": 0.109274292,
+            "exclusive_s": 0.109274292
+          },
+          "coordinator.open": {
+            "calls": 1,
+            "inclusive_s": 0.186661666,
+            "exclusive_s": 0.003086832
+          },
+          "coordinator.prepare": {
+            "calls": 1,
+            "inclusive_s": 0.394237959,
+            "exclusive_s": 0.338169
+          },
+          "experiment.start": {
+            "calls": 1,
+            "inclusive_s": 0.395774375,
+            "exclusive_s": 0.001458625
+          },
+          "experiment.wait": {
+            "calls": 1,
+            "inclusive_s": 3.3689465,
+            "exclusive_s": 3.3689465
+          },
+          "inputs.capture": {
+            "calls": 2,
+            "inclusive_s": 0.024121708,
+            "exclusive_s": 0.024121708
+          },
+          "result.assemble": {
+            "calls": 6,
+            "inclusive_s": 0.002524291,
+            "exclusive_s": 0.002524291
+          },
+          "result.publish": {
+            "calls": 3,
+            "inclusive_s": 0.01716525,
+            "exclusive_s": 0.014721167
+          },
+          "result.read_report": {
+            "calls": 1,
+            "inclusive_s": 0.033308833,
+            "exclusive_s": 0.033308833
+          },
+          "runtime.distributions": {
+            "calls": 1,
+            "inclusive_s": 0.020512125,
+            "exclusive_s": 0.020512125
+          },
+          "runtime.freeze": {
+            "calls": 1,
+            "inclusive_s": 0.183574834,
+            "exclusive_s": 0.091022251
+          },
+          "runtime.supervisor_check": {
+            "calls": 1,
+            "inclusive_s": 0.09234675,
+            "exclusive_s": 0.09234675
+          },
+          "source.capture": {
+            "calls": 1,
+            "inclusive_s": 0.010999834,
+            "exclusive_s": 0.010999834
+          },
+          "source.materialize": {
+            "calls": 4,
+            "inclusive_s": 0.018856625,
+            "exclusive_s": 0.018856625
+          },
+          "supervisor.start": {
+            "calls": 4,
+            "inclusive_s": 0.093124333,
+            "exclusive_s": 0.093124333
+          }
+        },
+        "run:": {
+          "activation.total": {
+            "calls": 6,
+            "inclusive_s": 0.253917709,
+            "exclusive_s": 0.018901125
+          },
+          "artifacts.transfer": {
+            "calls": 3,
+            "inclusive_s": 0.001209168,
+            "exclusive_s": 0.001209168
+          },
+          "backend.advance": {
+            "calls": 15009,
+            "inclusive_s": 1.780041035,
+            "exclusive_s": 1.780041035
+          },
+          "backend.close": {
+            "calls": 3,
+            "inclusive_s": 2.4041e-05,
+            "exclusive_s": 2.4041e-05
+          },
+          "backend.finish": {
+            "calls": 3,
+            "inclusive_s": 0.068943167,
+            "exclusive_s": 0.000908042
+          },
+          "backend.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.030563918,
+            "exclusive_s": 0.030270418
+          },
+          "backend.state_digest": {
+            "calls": 9,
+            "inclusive_s": 0.068246498,
+            "exclusive_s": 0.068246498
+          },
+          "binding.activate": {
+            "calls": 3,
+            "inclusive_s": 0.000199876,
+            "exclusive_s": 2.325e-05
+          },
+          "binding.close": {
+            "calls": 6,
+            "inclusive_s": 3.3332e-05,
+            "exclusive_s": 9.334e-06
+          },
+          "binding.finish": {
+            "calls": 3,
+            "inclusive_s": 0.069088833,
+            "exclusive_s": 0.000144376
+          },
+          "binding.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.030640042,
+            "exclusive_s": 7.6124e-05
+          },
+          "child.execute": {
+            "calls": 3,
+            "inclusive_s": 2.750093292,
+            "exclusive_s": 0.077111458
+          },
+          "child.serve": {
+            "calls": 3,
+            "inclusive_s": 2.891626874,
+            "exclusive_s": 0.152292792
+          },
+          "environment.create": {
+            "calls": 6,
+            "inclusive_s": 0.000411042,
+            "exclusive_s": 0.000411042
+          },
+          "fingerprint.query": {
+            "calls": 6,
+            "inclusive_s": 7.7374e-05,
+            "exclusive_s": 7.7374e-05
+          },
+          "imports.audit": {
+            "calls": 9,
+            "inclusive_s": 0.142646875,
+            "exclusive_s": 0.142646875
+          },
+          "inputs.generate": {
+            "calls": 3,
+            "inclusive_s": 0.054323293,
+            "exclusive_s": 0.054323293
+          },
+          "managed.execute": {
+            "calls": 3,
+            "inclusive_s": 2.2497585,
+            "exclusive_s": 0.053665204
+          },
+          "managed.python_step": {
+            "calls": 15009,
+            "inclusive_s": 0.089865595,
+            "exclusive_s": 0.089865595
+          },
+          "metadata.transfer": {
+            "calls": 6,
+            "inclusive_s": 0.00277729,
+            "exclusive_s": 0.00277729
+          },
+          "model.build": {
+            "calls": 3,
+            "inclusive_s": 0.086527959,
+            "exclusive_s": 0.000559
+          },
+          "model.import": {
+            "calls": 3,
+            "inclusive_s": 0.157682417,
+            "exclusive_s": 0.111664667
+          },
+          "model.resolve": {
+            "calls": 3,
+            "inclusive_s": 0.049365917,
+            "exclusive_s": 0.000738542
+          },
+          "native.assets_verify": {
+            "calls": 3,
+            "inclusive_s": 0.001386792,
+            "exclusive_s": 0.001386792
+          },
+          "ready.barrier": {
+            "calls": 3,
+            "inclusive_s": 0.184949251,
+            "exclusive_s": 0.183850542
+          },
+          "runtime.distributions": {
+            "calls": 6,
+            "inclusive_s": 0.121490999,
+            "exclusive_s": 0.121490999
+          },
+          "runtime.verify": {
+            "calls": 6,
+            "inclusive_s": 0.124206208,
+            "exclusive_s": 0.00268125
+          },
+          "trace.close": {
+            "calls": 6,
+            "inclusive_s": 0.002759875,
+            "exclusive_s": 0.002711458
+          },
+          "trace.open": {
+            "calls": 3,
+            "inclusive_s": 0.003255083,
+            "exclusive_s": 0.003255083
+          }
+        },
+        "inspect:": {
+          "child.serve": {
+            "calls": 1,
+            "inclusive_s": 0.170469417,
+            "exclusive_s": 0.075936958
+          },
+          "imports.audit": {
+            "calls": 1,
+            "inclusive_s": 0.012693041,
+            "exclusive_s": 0.012693041
+          },
+          "metadata.transfer": {
+            "calls": 1,
+            "inclusive_s": 0.000896791,
+            "exclusive_s": 0.000896791
+          },
+          "model.import": {
+            "calls": 1,
+            "inclusive_s": 0.052391916,
+            "exclusive_s": 0.039800874
+          },
+          "runtime.distributions": {
+            "calls": 2,
+            "inclusive_s": 0.039817834,
+            "exclusive_s": 0.039817834
+          },
+          "runtime.verify": {
+            "calls": 2,
+            "inclusive_s": 0.040766376,
+            "exclusive_s": 0.000923373
+          }
+        }
+      },
+      "active_minus_dormant_fraction": 0.01993781339086853
+    },
+    {
+      "backend": "production",
+      "producer": "independent",
+      "jobs": 20000,
+      "wall_s": {
+        "active": {
+          "samples": [
+            14.659878041,
+            14.941160083,
+            15.101768167
+          ],
+          "median": 14.941160083,
+          "min": 14.659878041,
+          "max": 15.101768167
+        },
+        "dormant": {
+          "samples": [
+            14.453875375,
+            14.762218,
+            14.695684917
+          ],
+          "median": 14.695684917,
+          "min": 14.453875375,
+          "max": 14.762218
+        }
+      },
+      "phases": {
+        "parent": {
+          "assignment.total": {
+            "calls": 4,
+            "inclusive_s": 14.468068334,
+            "exclusive_s": 14.339901754
+          },
+          "coordinator.close": {
+            "calls": 1,
+            "inclusive_s": 0.109889667,
+            "exclusive_s": 0.109889667
+          },
+          "coordinator.open": {
+            "calls": 1,
+            "inclusive_s": 0.181422792,
+            "exclusive_s": 0.002968666
+          },
+          "coordinator.prepare": {
+            "calls": 1,
+            "inclusive_s": 0.399411041,
+            "exclusive_s": 0.345090957
+          },
+          "experiment.start": {
+            "calls": 1,
+            "inclusive_s": 0.400922167,
+            "exclusive_s": 0.001511292
+          },
+          "experiment.wait": {
+            "calls": 1,
+            "inclusive_s": 14.129751625,
+            "exclusive_s": 14.129751625
+          },
+          "inputs.capture": {
+            "calls": 2,
+            "inclusive_s": 0.023279582,
+            "exclusive_s": 0.023279582
+          },
+          "result.assemble": {
+            "calls": 6,
+            "inclusive_s": 0.002443958,
+            "exclusive_s": 0.002443958
+          },
+          "result.publish": {
+            "calls": 3,
+            "inclusive_s": 0.016100834,
+            "exclusive_s": 0.013656876
+          },
+          "result.read_report": {
+            "calls": 1,
+            "inclusive_s": 0.022828333,
+            "exclusive_s": 0.022828333
+          },
+          "runtime.distributions": {
+            "calls": 1,
+            "inclusive_s": 0.021031167,
+            "exclusive_s": 0.021031167
+          },
+          "runtime.freeze": {
+            "calls": 1,
+            "inclusive_s": 0.178421875,
+            "exclusive_s": 0.087390792
+          },
+          "runtime.supervisor_check": {
+            "calls": 1,
+            "inclusive_s": 0.091481375,
+            "exclusive_s": 0.091481375
+          },
+          "source.capture": {
+            "calls": 1,
+            "inclusive_s": 0.009972709,
+            "exclusive_s": 0.009972709
+          },
+          "source.materialize": {
+            "calls": 4,
+            "inclusive_s": 0.018297375,
+            "exclusive_s": 0.018297375
+          },
+          "supervisor.start": {
+            "calls": 4,
+            "inclusive_s": 0.093522791,
+            "exclusive_s": 0.093522791
+          }
+        },
+        "run:": {
+          "activation.total": {
+            "calls": 6,
+            "inclusive_s": 0.250005249,
+            "exclusive_s": 0.019361626
+          },
+          "artifacts.transfer": {
+            "calls": 3,
+            "inclusive_s": 0.00119675,
+            "exclusive_s": 0.00119675
+          },
+          "backend.advance": {
+            "calls": 60009,
+            "inclusive_s": 11.468686667,
+            "exclusive_s": 11.468686667
+          },
+          "backend.close": {
+            "calls": 3,
+            "inclusive_s": 2.6583e-05,
+            "exclusive_s": 2.6583e-05
+          },
+          "backend.finish": {
+            "calls": 3,
+            "inclusive_s": 0.309288209,
+            "exclusive_s": 0.001201793
+          },
+          "backend.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.126533041,
+            "exclusive_s": 0.125931541
+          },
+          "backend.state_digest": {
+            "calls": 9,
+            "inclusive_s": 0.308280749,
+            "exclusive_s": 0.308280749
+          },
+          "binding.activate": {
+            "calls": 3,
+            "inclusive_s": 0.000222959,
+            "exclusive_s": 2.4791e-05
+          },
+          "binding.close": {
+            "calls": 6,
+            "inclusive_s": 3.675e-05,
+            "exclusive_s": 1.0335e-05
+          },
+          "binding.finish": {
+            "calls": 3,
+            "inclusive_s": 0.309463959,
+            "exclusive_s": 0.000174917
+          },
+          "binding.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.126632041,
+            "exclusive_s": 9.4459e-05
+          },
+          "child.execute": {
+            "calls": 3,
+            "inclusive_s": 13.383138416,
+            "exclusive_s": 0.078224829
+          },
+          "child.serve": {
+            "calls": 3,
+            "inclusive_s": 13.540059833,
+            "exclusive_s": 0.151197875
+          },
+          "environment.create": {
+            "calls": 6,
+            "inclusive_s": 0.000571666,
+            "exclusive_s": 0.000571666
+          },
+          "fingerprint.query": {
+            "calls": 6,
+            "inclusive_s": 8.8417e-05,
+            "exclusive_s": 8.8417e-05
+          },
+          "imports.audit": {
+            "calls": 9,
+            "inclusive_s": 0.145183293,
+            "exclusive_s": 0.145183293
+          },
+          "inputs.generate": {
+            "calls": 3,
+            "inclusive_s": 0.217940999,
+            "exclusive_s": 0.217940999
+          },
+          "managed.execute": {
+            "calls": 3,
+            "inclusive_s": 12.611331292,
+            "exclusive_s": 0.221884831
+          },
+          "managed.python_step": {
+            "calls": 60009,
+            "inclusive_s": 0.369920797,
+            "exclusive_s": 0.369920797
+          },
+          "metadata.transfer": {
+            "calls": 6,
+            "inclusive_s": 0.002849792,
+            "exclusive_s": 0.002849792
+          },
+          "model.build": {
+            "calls": 3,
+            "inclusive_s": 0.346662458,
+            "exclusive_s": 0.00064504
+          },
+          "model.import": {
+            "calls": 3,
+            "inclusive_s": 0.158899624,
+            "exclusive_s": 0.112722082
+          },
+          "model.resolve": {
+            "calls": 3,
+            "inclusive_s": 0.048895541,
+            "exclusive_s": 0.000759083
+          },
+          "native.assets_verify": {
+            "calls": 3,
+            "inclusive_s": 0.00138625,
+            "exclusive_s": 0.00138625
+          },
+          "ready.barrier": {
+            "calls": 3,
+            "inclusive_s": 0.182140834,
+            "exclusive_s": 0.181039209
+          },
+          "runtime.distributions": {
+            "calls": 6,
+            "inclusive_s": 0.124640459,
+            "exclusive_s": 0.124640459
+          },
+          "runtime.verify": {
+            "calls": 6,
+            "inclusive_s": 0.127341376,
+            "exclusive_s": 0.002744501
+          },
+          "trace.close": {
+            "calls": 6,
+            "inclusive_s": 0.003154957,
+            "exclusive_s": 0.003102374
+          },
+          "trace.open": {
+            "calls": 3,
+            "inclusive_s": 0.003274332,
+            "exclusive_s": 0.003274332
+          }
+        },
+        "inspect:": {
+          "child.serve": {
+            "calls": 1,
+            "inclusive_s": 0.158931208,
+            "exclusive_s": 0.062920916
+          },
+          "imports.audit": {
+            "calls": 1,
+            "inclusive_s": 0.013039625,
+            "exclusive_s": 0.013039625
+          },
+          "metadata.transfer": {
+            "calls": 1,
+            "inclusive_s": 0.000815542,
+            "exclusive_s": 0.000815542
+          },
+          "model.import": {
+            "calls": 1,
+            "inclusive_s": 0.053459709,
+            "exclusive_s": 0.040420084
+          },
+          "runtime.distributions": {
+            "calls": 2,
+            "inclusive_s": 0.040324667,
+            "exclusive_s": 0.040324667
+          },
+          "runtime.verify": {
+            "calls": 2,
+            "inclusive_s": 0.041321916,
+            "exclusive_s": 0.000938292
+          }
+        }
+      },
+      "active_minus_dormant_fraction": 0.016703894196590685
+    },
+    {
+      "backend": "production",
+      "producer": "feedback",
+      "jobs": 5000,
+      "wall_s": {
+        "active": {
+          "samples": [
+            3.605924833,
+            3.621699708,
+            3.728215625
+          ],
+          "median": 3.621699708,
+          "min": 3.605924833,
+          "max": 3.728215625
+        },
+        "dormant": {
+          "samples": [
+            3.57717,
+            3.429709709,
+            3.595807625
+          ],
+          "median": 3.57717,
+          "min": 3.429709709,
+          "max": 3.595807625
+        }
+      },
+      "phases": {
+        "parent": {
+          "assignment.total": {
+            "calls": 4,
+            "inclusive_s": 3.117691083,
+            "exclusive_s": 2.988660502
+          },
+          "coordinator.close": {
+            "calls": 1,
+            "inclusive_s": 0.106923625,
+            "exclusive_s": 0.106923625
+          },
+          "coordinator.open": {
+            "calls": 1,
+            "inclusive_s": 0.187544333,
+            "exclusive_s": 0.003292792
+          },
+          "coordinator.prepare": {
+            "calls": 1,
+            "inclusive_s": 0.40421775,
+            "exclusive_s": 0.347068125
+          },
+          "experiment.start": {
+            "calls": 1,
+            "inclusive_s": 0.405847583,
+            "exclusive_s": 0.001497417
+          },
+          "experiment.wait": {
+            "calls": 1,
+            "inclusive_s": 2.817269417,
+            "exclusive_s": 2.817269417
+          },
+          "inputs.capture": {
+            "calls": 2,
+            "inclusive_s": 0.025397792,
+            "exclusive_s": 0.025397792
+          },
+          "result.assemble": {
+            "calls": 6,
+            "inclusive_s": 0.002543418,
+            "exclusive_s": 0.002543418
+          },
+          "result.publish": {
+            "calls": 3,
+            "inclusive_s": 0.017170793,
+            "exclusive_s": 0.014627375
+          },
+          "result.read_report": {
+            "calls": 1,
+            "inclusive_s": 0.032757834,
+            "exclusive_s": 0.032757834
+          },
+          "runtime.distributions": {
+            "calls": 1,
+            "inclusive_s": 0.020387917,
+            "exclusive_s": 0.020387917
+          },
+          "runtime.freeze": {
+            "calls": 1,
+            "inclusive_s": 0.184251541,
+            "exclusive_s": 0.092506
+          },
+          "runtime.supervisor_check": {
+            "calls": 1,
+            "inclusive_s": 0.091745541,
+            "exclusive_s": 0.091745541
+          },
+          "source.capture": {
+            "calls": 1,
+            "inclusive_s": 0.010857667,
+            "exclusive_s": 0.010857667
+          },
+          "source.materialize": {
+            "calls": 4,
+            "inclusive_s": 0.020066041,
+            "exclusive_s": 0.020066041
+          },
+          "supervisor.start": {
+            "calls": 4,
+            "inclusive_s": 0.09367975,
+            "exclusive_s": 0.09367975
+          }
+        },
+        "run:": {
+          "activation.total": {
+            "calls": 6,
+            "inclusive_s": 0.216807958,
+            "exclusive_s": 0.018800833
+          },
+          "artifacts.transfer": {
+            "calls": 3,
+            "inclusive_s": 0.001168501,
+            "exclusive_s": 0.001168501
+          },
+          "backend.advance": {
+            "calls": 15009,
+            "inclusive_s": 1.18189982,
+            "exclusive_s": 1.18189982
+          },
+          "backend.close": {
+            "calls": 3,
+            "inclusive_s": 2.3793e-05,
+            "exclusive_s": 2.3793e-05
+          },
+          "backend.finish": {
+            "calls": 3,
+            "inclusive_s": 0.065747624,
+            "exclusive_s": 0.000934499
+          },
+          "backend.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.030493917,
+            "exclusive_s": 0.030213376
+          },
+          "backend.state_digest": {
+            "calls": 9,
+            "inclusive_s": 0.064993123,
+            "exclusive_s": 0.064993123
+          },
+          "binding.activate": {
+            "calls": 3,
+            "inclusive_s": 0.000203334,
+            "exclusive_s": 2.3293e-05
+          },
+          "binding.close": {
+            "calls": 6,
+            "inclusive_s": 3.2792e-05,
+            "exclusive_s": 9.206e-06
+          },
+          "binding.finish": {
+            "calls": 3,
+            "inclusive_s": 0.065881666,
+            "exclusive_s": 0.000132834
+          },
+          "binding.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.030568666,
+            "exclusive_s": 8.1167e-05
+          },
+          "child.execute": {
+            "calls": 3,
+            "inclusive_s": 2.179824249,
+            "exclusive_s": 0.076919786
+          },
+          "child.serve": {
+            "calls": 3,
+            "inclusive_s": 2.355837375,
+            "exclusive_s": 0.167930042
+          },
+          "environment.create": {
+            "calls": 6,
+            "inclusive_s": 0.000374999,
+            "exclusive_s": 0.000374999
+          },
+          "fingerprint.query": {
+            "calls": 6,
+            "inclusive_s": 7.4125e-05,
+            "exclusive_s": 7.4125e-05
+          },
+          "imports.audit": {
+            "calls": 9,
+            "inclusive_s": 0.144509583,
+            "exclusive_s": 0.144509583
+          },
+          "inputs.generate": {
+            "calls": 3,
+            "inclusive_s": 0.054260499,
+            "exclusive_s": 0.054260499
+          },
+          "managed.execute": {
+            "calls": 3,
+            "inclusive_s": 1.673082667,
+            "exclusive_s": 0.056963515
+          },
+          "managed.python_step": {
+            "calls": 15009,
+            "inclusive_s": 0.151667166,
+            "exclusive_s": 0.151667166
+          },
+          "metadata.transfer": {
+            "calls": 6,
+            "inclusive_s": 0.002770582,
+            "exclusive_s": 0.002770582
+          },
+          "model.build": {
+            "calls": 3,
+            "inclusive_s": 0.086877166,
+            "exclusive_s": 0.000565
+          },
+          "model.import": {
+            "calls": 3,
+            "inclusive_s": 0.156312708,
+            "exclusive_s": 0.111013458
+          },
+          "model.resolve": {
+            "calls": 3,
+            "inclusive_s": 0.048824875,
+            "exclusive_s": 0.000752791
+          },
+          "native.assets_verify": {
+            "calls": 3,
+            "inclusive_s": 0.001378833,
+            "exclusive_s": 0.001378833
+          },
+          "ready.barrier": {
+            "calls": 3,
+            "inclusive_s": 0.148548082,
+            "exclusive_s": 0.147477165
+          },
+          "runtime.distributions": {
+            "calls": 6,
+            "inclusive_s": 0.123082958,
+            "exclusive_s": 0.123082958
+          },
+          "runtime.verify": {
+            "calls": 6,
+            "inclusive_s": 0.125739083,
+            "exclusive_s": 0.002662252
+          },
+          "trace.close": {
+            "calls": 6,
+            "inclusive_s": 0.002783459,
+            "exclusive_s": 0.002744542
+          },
+          "trace.open": {
+            "calls": 3,
+            "inclusive_s": 0.003326542,
+            "exclusive_s": 0.003326542
+          }
+        },
+        "inspect:": {
+          "child.serve": {
+            "calls": 1,
+            "inclusive_s": 0.161012625,
+            "exclusive_s": 0.066428209
+          },
+          "imports.audit": {
+            "calls": 1,
+            "inclusive_s": 0.013042458,
+            "exclusive_s": 0.013042458
+          },
+          "metadata.transfer": {
+            "calls": 1,
+            "inclusive_s": 0.000837375,
+            "exclusive_s": 0.000837375
+          },
+          "model.import": {
+            "calls": 1,
+            "inclusive_s": 0.052672792,
+            "exclusive_s": 0.039567084
+          },
+          "runtime.distributions": {
+            "calls": 2,
+            "inclusive_s": 0.040175584,
+            "exclusive_s": 0.040175584
+          },
+          "runtime.verify": {
+            "calls": 2,
+            "inclusive_s": 0.041062791,
+            "exclusive_s": 0.000888667
+          }
+        }
+      },
+      "active_minus_dormant_fraction": 0.012448306342723425
+    },
+    {
+      "backend": "production",
+      "producer": "feedback",
+      "jobs": 20000,
+      "wall_s": {
+        "active": {
+          "samples": [
+            8.383885167,
+            8.394777333,
+            8.423355333
+          ],
+          "median": 8.394777333,
+          "min": 8.383885167,
+          "max": 8.423355333
+        },
+        "dormant": {
+          "samples": [
+            8.08520075,
+            8.227857042,
+            8.278744375
+          ],
+          "median": 8.227857042,
+          "min": 8.08520075,
+          "max": 8.278744375
+        }
+      },
+      "phases": {
+        "parent": {
+          "assignment.total": {
+            "calls": 4,
+            "inclusive_s": 7.899174457,
+            "exclusive_s": 7.772686334
+          },
+          "coordinator.close": {
+            "calls": 1,
+            "inclusive_s": 0.105527291,
+            "exclusive_s": 0.105527291
+          },
+          "coordinator.open": {
+            "calls": 1,
+            "inclusive_s": 0.18092725,
+            "exclusive_s": 0.002870417
+          },
+          "coordinator.prepare": {
+            "calls": 1,
+            "inclusive_s": 0.356998333,
+            "exclusive_s": 0.302888584
+          },
+          "experiment.start": {
+            "calls": 1,
+            "inclusive_s": 0.358456291,
+            "exclusive_s": 0.001457958
+          },
+          "experiment.wait": {
+            "calls": 1,
+            "inclusive_s": 7.603430291,
+            "exclusive_s": 7.603430291
+          },
+          "inputs.capture": {
+            "calls": 2,
+            "inclusive_s": 0.022769126,
+            "exclusive_s": 0.022769126
+          },
+          "result.assemble": {
+            "calls": 6,
+            "inclusive_s": 0.00243275,
+            "exclusive_s": 0.00243275
+          },
+          "result.publish": {
+            "calls": 3,
+            "inclusive_s": 0.016576207,
+            "exclusive_s": 0.014143457
+          },
+          "result.read_report": {
+            "calls": 1,
+            "inclusive_s": 0.031543958,
+            "exclusive_s": 0.031543958
+          },
+          "runtime.distributions": {
+            "calls": 1,
+            "inclusive_s": 0.020049125,
+            "exclusive_s": 0.020049125
+          },
+          "runtime.freeze": {
+            "calls": 1,
+            "inclusive_s": 0.178056833,
+            "exclusive_s": 0.087417416
+          },
+          "runtime.supervisor_check": {
+            "calls": 1,
+            "inclusive_s": 0.09088225,
+            "exclusive_s": 0.09088225
+          },
+          "source.capture": {
+            "calls": 1,
+            "inclusive_s": 0.009998708,
+            "exclusive_s": 0.009998708
+          },
+          "source.materialize": {
+            "calls": 4,
+            "inclusive_s": 0.018767791,
+            "exclusive_s": 0.018767791
+          },
+          "supervisor.start": {
+            "calls": 4,
+            "inclusive_s": 0.092033541,
+            "exclusive_s": 0.092033541
+          }
+        },
+        "run:": {
+          "activation.total": {
+            "calls": 6,
+            "inclusive_s": 0.239590917,
+            "exclusive_s": 0.019045708
+          },
+          "artifacts.transfer": {
+            "calls": 3,
+            "inclusive_s": 0.001224167,
+            "exclusive_s": 0.001224167
+          },
+          "backend.advance": {
+            "calls": 60009,
+            "inclusive_s": 4.699381303,
+            "exclusive_s": 4.699381303
+          },
+          "backend.close": {
+            "calls": 3,
+            "inclusive_s": 2.4874e-05,
+            "exclusive_s": 2.4874e-05
+          },
+          "backend.finish": {
+            "calls": 3,
+            "inclusive_s": 0.310291751,
+            "exclusive_s": 0.001105874
+          },
+          "backend.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.124715958,
+            "exclusive_s": 0.124339166
+          },
+          "backend.state_digest": {
+            "calls": 9,
+            "inclusive_s": 0.309297334,
+            "exclusive_s": 0.309297334
+          },
+          "binding.activate": {
+            "calls": 3,
+            "inclusive_s": 0.000215833,
+            "exclusive_s": 2.5626e-05
+          },
+          "binding.close": {
+            "calls": 6,
+            "inclusive_s": 3.4166e-05,
+            "exclusive_s": 9.375e-06
+          },
+          "binding.finish": {
+            "calls": 3,
+            "inclusive_s": 0.310465166,
+            "exclusive_s": 0.000168919
+          },
+          "binding.prepare": {
+            "calls": 3,
+            "inclusive_s": 0.124803667,
+            "exclusive_s": 9.1041e-05
+          },
+          "child.execute": {
+            "calls": 3,
+            "inclusive_s": 6.822607915,
+            "exclusive_s": 0.07525475
+          },
+          "child.serve": {
+            "calls": 3,
+            "inclusive_s": 6.991540501,
+            "exclusive_s": 0.141538127
+          },
+          "environment.create": {
+            "calls": 6,
+            "inclusive_s": 0.000466751,
+            "exclusive_s": 0.000466751
+          },
+          "fingerprint.query": {
+            "calls": 6,
+            "inclusive_s": 8.7875e-05,
+            "exclusive_s": 8.7875e-05
+          },
+          "imports.audit": {
+            "calls": 9,
+            "inclusive_s": 0.141512918,
+            "exclusive_s": 0.141512918
+          },
+          "inputs.generate": {
+            "calls": 3,
+            "inclusive_s": 0.213141834,
+            "exclusive_s": 0.213141834
+          },
+          "managed.execute": {
+            "calls": 3,
+            "inclusive_s": 6.070225541,
+            "exclusive_s": 0.222172275
+          },
+          "managed.python_step": {
+            "calls": 60009,
+            "inclusive_s": 0.591162006,
+            "exclusive_s": 0.591162006
+          },
+          "metadata.transfer": {
+            "calls": 6,
+            "inclusive_s": 0.002689958,
+            "exclusive_s": 0.002689958
+          },
+          "model.build": {
+            "calls": 3,
+            "inclusive_s": 0.339934959,
+            "exclusive_s": 0.000650167
+          },
+          "model.import": {
+            "calls": 3,
+            "inclusive_s": 0.154067126,
+            "exclusive_s": 0.109628625
+          },
+          "model.resolve": {
+            "calls": 3,
+            "inclusive_s": 0.047210376,
+            "exclusive_s": 0.000733417
+          },
+          "native.assets_verify": {
+            "calls": 3,
+            "inclusive_s": 0.001335917,
+            "exclusive_s": 0.001335917
+          },
+          "ready.barrier": {
+            "calls": 3,
+            "inclusive_s": 0.173648209,
+            "exclusive_s": 0.172592667
+          },
+          "runtime.distributions": {
+            "calls": 6,
+            "inclusive_s": 0.120977291,
+            "exclusive_s": 0.120977291
+          },
+          "runtime.verify": {
+            "calls": 6,
+            "inclusive_s": 0.123592251,
+            "exclusive_s": 0.002625999
+          },
+          "trace.close": {
+            "calls": 6,
+            "inclusive_s": 0.002880165,
+            "exclusive_s": 0.002833916
+          },
+          "trace.open": {
+            "calls": 3,
+            "inclusive_s": 0.00342175,
+            "exclusive_s": 0.00342175
+          }
+        },
+        "inspect:": {
+          "child.serve": {
+            "calls": 1,
+            "inclusive_s": 0.151880625,
+            "exclusive_s": 0.059163291
+          },
+          "imports.audit": {
+            "calls": 1,
+            "inclusive_s": 0.012763041,
+            "exclusive_s": 0.012763041
+          },
+          "metadata.transfer": {
+            "calls": 1,
+            "inclusive_s": 0.000819209,
+            "exclusive_s": 0.000819209
+          },
+          "model.import": {
+            "calls": 1,
+            "inclusive_s": 0.052293333,
+            "exclusive_s": 0.039226208
+          },
+          "runtime.distributions": {
+            "calls": 2,
+            "inclusive_s": 0.039288501,
+            "exclusive_s": 0.039288501
+          },
+          "runtime.verify": {
+            "calls": 2,
+            "inclusive_s": 0.040179,
+            "exclusive_s": 0.000919126
+          }
+        }
+      },
+      "active_minus_dormant_fraction": 0.020287213322732534
+    }
+  ]
+}
