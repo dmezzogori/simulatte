@@ -1,0 +1,31 @@
+{
+  "experiments": 12,
+  "successful_replications": 72,
+  "exact_outputs": true,
+  "request_reuse": true,
+  "content_reuse": 6,
+  "reproduced_backends": [
+    "production",
+    "native"
+  ],
+  "rejected": [
+    {
+      "feature": "full",
+      "status": "validation_failed",
+      "message": "unsupported full tracing: scalar KPI level required"
+    },
+    {
+      "feature": "population",
+      "status": "validation_failed",
+      "message": "unsupported stopping policy: Horizon required"
+    },
+    {
+      "feature": "unknown_kpi",
+      "status": "validation_failed",
+      "message": "Unknown requested KPI: shopfloor/unknown"
+    }
+  ],
+  "native_asset_changes_source_identity": true,
+  "corrupted_asset_rejected": true,
+  "source_sha256": "080608ed067f1c6b2ac6fcdf3bfa12cedea2066700b06d60f7b406a3ac24d0de"
+}

@@ -172,3 +172,23 @@ unit server capacities for the run. It has no Python event publication, journal,
 trace, per-event callbacks, history or EMA. The engine still retains trajectory
 arrays; this is not a bounded-memory engine claim. The legacy observer path is
 separate. It does not permit arbitrary event-time inspection of native state.
+
+
+## Managed scalar execution research adapter
+
+The research model accepts only a fresh managed Horizon environment, fixed unit
+server capacities, FIFO/SPT, EDD ConWIP and independent/feedback arrival input.
+Warm-up and right-open horizons match the managed stopping policy. The native
+stream advances immediately before each outer step, including the stop marker;
+scalar reads never execute model work. The adapter installs its step wrapper at
+activation, after the build guard, and restores lifecycle methods on close.
+Managed ready/close/error handling remains unchanged. Close releases backend
+state even when scalar export fails.
+
+A scalar-only Collector exposes the eight existing estimands to the unchanged
+KPI result file and result store. The shell's semantic state and event counter
+do not describe native actors; full domain tracing/replay are rejected. This is
+a private integration experiment, not a general Environment implementation.
+Source capture includes relocatable native binary bytes and their integrity
+manifest, so library changes change request identity and cannot silently reuse
+old results. The model checks those hashes before loading the native runtime.

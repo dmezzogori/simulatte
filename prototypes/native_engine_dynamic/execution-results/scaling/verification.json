@@ -1,0 +1,11 @@
+{
+  "source_sha256": "080608ed067f1c6b2ac6fcdf3bfa12cedea2066700b06d60f7b406a3ac24d0de",
+  "experiments": 24,
+  "replications": 72,
+  "exact_outputs": true,
+  "evidence": {
+    "metadata.json": "9cef1685c7a6b3baf2bf1cbef626b72115475d59149203ca01559b5a2d41cc28",
+    "matrix.jsonl": "b62b911a7935702b93beec01b9fbd2c20e8270f4ec86c85bcea0a81cfc5ef20f",
+    "summary.json": "5e0a2ebbb283d2820b93d305b8fcd897339a0762b6ce4c34bdec5ec2697598f2"
+  }
+}

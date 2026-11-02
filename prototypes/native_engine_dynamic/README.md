@@ -409,3 +409,26 @@ CPython timings request the same eight scalars on both sides, either finally
 or at every arrival boundary. They include construction, simulation, scalar
 export and close/collection. Trajectory extraction and validation are outside
 timing. This gate does not cover history, EMA, custom observers or trace output.
+
+
+The execution integration gate adds a restricted research adapter and a small
+relocatable project builder. The ordinary `simulatte.experiments.run` path owns
+replications, readiness, result transfer/storage and `ExperimentReport`; native
+state and scalar aggregation remain in the separate C stream. A scalar Collector
+bridges final results without advancing the engine. The managed environment's
+step and close lifecycle are wrapped only by this research model. Full tracing,
+finite-population stopping and nonempty layouts are rejected. The mandatory KPI
+result file describes a scalar scope, not native actor state or replay.
+
+```sh
+.venv/bin/python -m prototypes.native_engine_dynamic.execution_experiment gate --output /tmp/native-execution/gate
+.venv/bin/python -m prototypes.native_engine_dynamic.execution_experiment matrix --output /tmp/native-execution/scaling
+.venv/bin/python -m prototypes.native_engine_dynamic.execution_experiment audit-experiment --output /tmp/native-execution
+```
+
+Native binaries are built once into the captured project with relative loader
+references and integrity hashes. Experiment timings include fresh interpreter
+startup, model/input preparation, real managed execution, result validation,
+statistical reporting and coordinator cleanup. One-time native compilation and
+project creation/copying are outside execution timing. No installed backend or
+production source changes are required by this gate.

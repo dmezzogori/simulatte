@@ -1,0 +1,23 @@
+{
+  "source_sha256": "080608ed067f1c6b2ac6fcdf3bfa12cedea2066700b06d60f7b406a3ac24d0de",
+  "gate_replications": 72,
+  "timing_replications": 72,
+  "historical_files": 156,
+  "rejected_corruptions": [
+    "kpis",
+    "snapshot",
+    "admitted",
+    "seed"
+  ],
+  "production_and_c_engine_unchanged": true,
+  "evidence": {
+    "checks.json": "3fa02cf0f8f732d75e9880b4cefa6bce6d53bf37fa78ccbae15add8c0cef6dda",
+    "gate/metadata.json": "40dd5e8c92810f31c68ca9c0a451d037a3ef83d390fa2d57ee88e76dbf79386d",
+    "gate/runs.json": "bb7d9356f2f5ca78f43a285ca17a2880ee484e3cda1633e3a917bc864b432775",
+    "gate/verification.json": "96029866bdfc653538f786a9959694ee95570aba0fe318100c7941d285ba465f",
+    "scaling/matrix.jsonl": "b62b911a7935702b93beec01b9fbd2c20e8270f4ec86c85bcea0a81cfc5ef20f",
+    "scaling/metadata.json": "9cef1685c7a6b3baf2bf1cbef626b72115475d59149203ca01559b5a2d41cc28",
+    "scaling/summary.json": "5e0a2ebbb283d2820b93d305b8fcd897339a0762b6ce4c34bdec5ec2697598f2",
+    "scaling/verification.json": "74e7f4d55d912b22f7102e1d7bd5bb154000547ce7067c7adc4f449397829759"
+  }
+}

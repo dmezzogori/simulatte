@@ -1,0 +1,34 @@
+[
+  {
+    "producer": "independent",
+    "jobs": 5000,
+    "replications_per_experiment": 3,
+    "production_s": 3.9200447499752045,
+    "native_s": 2.3664908340433612,
+    "speedup": 1.6564800055774809
+  },
+  {
+    "producer": "independent",
+    "jobs": 20000,
+    "replications_per_experiment": 3,
+    "production_s": 14.151889708009548,
+    "native_s": 2.7512012909865007,
+    "speedup": 5.143894688612585
+  },
+  {
+    "producer": "feedback",
+    "jobs": 5000,
+    "replications_per_experiment": 3,
+    "production_s": 3.4361832499853335,
+    "native_s": 2.4790963329724036,
+    "speedup": 1.3860628182469197
+  },
+  {
+    "producer": "feedback",
+    "jobs": 20000,
+    "replications_per_experiment": 3,
+    "production_s": 7.648445374972653,
+    "native_s": 2.922971082967706,
+    "speedup": 2.6166681632741815
+  }
+]

@@ -1,0 +1,48 @@
+{
+  "source_sha256": "080608ed067f1c6b2ac6fcdf3bfa12cedea2066700b06d60f7b406a3ac24d0de",
+  "frozen_files": 267,
+  "libraries": {
+    "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+    "dynamic": "55768ef73a81b219e422a15d60610c88e5b3568df49a53a9615386c92d02dea4",
+    "_nd_scalar.cpython-314-darwin.so": "ecc3dfeecea9abf3564197b9c23555d2f6ee1fcf43bf9aa9f97c88a6023dc6dc",
+    "_nd_scalar.pypy311-pp73-darwin.so": "61c6eacfc6c9f980526150a76737847c1764cbef1ea328edea833bc31532abbb"
+  },
+  "tests": [
+    {
+      "command": "pytest prototypes/native_engine/tests prototypes/native_engine_dynamic/tests -o addopts= --import-mode=importlib -q --tb=short -x",
+      "passed": 491,
+      "skipped": 1
+    },
+    {
+      "command": "pytest tests/execution/test_driver.py tests/execution/test_child.py tests/execution/test_ready_boundary.py tests/execution/test_scheduler.py tests/execution/test_experiment_cli.py tests/core/test_experiments.py tests/core/test_experiment_results.py tests/core/test_statistics.py -o addopts= -q --tb=short -x",
+      "passed": 194
+    },
+    {
+      "command": "ASan/UBSan compiled boundary; PYTHONMALLOC=malloc ASAN_OPTIONS=detect_leaks=0; pytest test_execution_adapter.py",
+      "passed": 15,
+      "scope": "instrumented boundary with unchanged release engine; relocated asset subprocess uses its own ordinary build"
+    },
+    {
+      "command": "ruff check/format execution_*.py and tests/test_execution_adapter.py",
+      "passed": true
+    }
+  ],
+  "additional_checks": {
+    "all_72_managed_windows_match_requested_stopping": true,
+    "zero_paired_statistics": 96,
+    "actual_imported_runtime_matches_frozen_source": true
+  },
+  "superseded": "Pre-reproduction matrix and gate retained only in ignored .build/execution-before-reproduce; timing artifact removed before final source freeze.",
+  "native_assets": {
+    "schema": 1,
+    "files": {
+      "prototypes/native_engine_dynamic/.build/_nd_scalar.cpython-314-darwin.so": "caf222fa57a3eca381109227edad65c8f9b7aae6a1e28e9bf65099b846a844fa",
+      "prototypes/native_engine_dynamic/.build/dynamic_engine.dylib": "4a56f01721ebf05361e4248b93861bd224f0fae5fe250e59f7650178351b0394",
+      "prototypes/native_engine_dynamic/csrc/dynamic_engine.c": "315710acc07648115ade81072c5e5b087dfa43adfcf314ea46d7fa33d9dafef1",
+      "prototypes/native_engine_dynamic/csrc/dynamic_engine.h": "b144b4f12be1f405d34b266f564add52fe3082fb3bb015c0dcab3aa16e45156a",
+      "prototypes/native_engine_dynamic/csrc/scalar_module.c": "8480e61dde4eef510c3eb9470c502a8dcc286b53d698e2e6400c65063945891e",
+      "prototypes/native_engine_dynamic/csrc/stock_kpi.c": "72bfd40a9d7d6b0258717f8432bbb3eabbf4d75a1a113e5aafc04ad2fe6ddc3f",
+      "prototypes/native_engine_dynamic/csrc/stock_kpi.h": "89f0c6311aff7a0b2d5ab4baf7406557b951e8530c66277e3342e156cf2e3bc1"
+    }
+  }
+}
