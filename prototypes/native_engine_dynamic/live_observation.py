@@ -202,8 +202,9 @@ class ObservationProjection(DirectProjection):
     clock_type = ObservationClock
     kpi_type = ProjectionSeries
 
-    def __init__(self, *args, warmup=0, stock=True, **kwargs):
+    def __init__(self, *args, warmup=0, stock=True, interest_checks=False, **kwargs):
         self.warmup, self.stock = warmup, stock
+        self.interest_checks = interest_checks and kwargs.get("level", "full") == "none"
         self.server_views, self.work_order, self.work_seen = [], [], set()
         self.server_tuple = ()
         self.view_floor = self.view_completed = 0
@@ -258,6 +259,8 @@ class ObservationProjection(DirectProjection):
                 self.finished_view[identity] = self.env.now
                 self.view_floor -= 1
                 self.view_completed += 1
+        if self.interest_checks and not self.env.wants(cls):
+            return
         super().emit(cls, ops, **payload)
 
     def consume(self, row):
@@ -322,11 +325,13 @@ class ProductionLiveStream(ProductionStream):
 
 
 class LiveTraceStream(TraceStream):
-    def __init__(self, *args, warmup=0, stock=True, delivery="boundary", **kwargs):
+    def __init__(self, *args, warmup=0, stock=True, delivery="boundary", interest_checks=False, **kwargs):
         if delivery not in ("boundary", "buffered"):
             raise ValueError("delivery must be boundary or buffered")
         self.delivery, self._delivering = delivery, False
-        self.projection_type = partial(ObservationProjection, warmup=warmup, stock=stock)
+        self.projection_type = partial(
+            ObservationProjection, warmup=warmup, stock=stock, interest_checks=interest_checks
+        )
         super().__init__(*args, **kwargs)
 
     @property

@@ -84,6 +84,7 @@ def sample(templates, args, raw, path, provenance):
             raw_path=raw,
             delivery=args.backend,
             provenance=provenance,
+            interest_checks=getattr(args, "interest_checks", False),
         )
     )
     built = time.perf_counter()
@@ -93,6 +94,10 @@ def sample(templates, args, raw, path, provenance):
         stream.run()
         ran = time.perf_counter()
         result, observed = stream.result(), values(stream)
+        emission_counts = getattr(args, "emission_counts", None)
+        if emission_counts is not None:
+            env = stream.env if args.backend == "production" else stream.projection.env
+            emission_counts.append(env._seq)
         extracted = time.perf_counter()
     finally:
         stream.close()

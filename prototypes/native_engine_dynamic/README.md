@@ -365,3 +365,27 @@ CPython uses 15–46% less time than production CPython, but takes 68–142% lon
 than production PyPy with the same collector bundle. Profiles identify about
 43% excess native event publication without extra stock deliveries. An opt-in
 subscriber-interest check is the next proposed experiment; it is not included.
+
+The [subscriber-interest study](../../specs/research/2026-11-02-native-interest.md)
+adds opt-in `LiveTraceStream(..., interest_checks=True)`. It is active only for
+`level="none"`, updates views/counters before checking the existing bus interest,
+and skips typed construction/publication only for unrequested classes. Dynamic
+and wildcard subscribers keep their normal behavior. Recorded modes bypass the
+guard; the original publisher remains the default/control.
+
+```sh
+.venv/bin/python -m prototypes.native_engine_dynamic.untraced_gate --interest-checks --output /tmp/interest-gate
+.venv/bin/python -m prototypes.native_engine_dynamic.interest_benchmark matrix \
+  --output /tmp/interest-scaling --pypy prototypes/native_engine/.build/pypy-env/bin/python
+.venv/bin/python -m prototypes.native_engine_dynamic.interest_benchmark audit-experiment \
+  --output prototypes/native_engine_dynamic/interest-results
+```
+
+The linked report documents sequence-number semantics, the unchanged journal
+transport, complete collector/count checks and the paired 40-case measurement.
+
+The completed experiment preserves all 1,536 gate configurations per interpreter
+and reduces native publication by 32–33%. Paired CPython live time falls
+10.5–11.9%; buffered time falls 11.0–13.3%. PyPy changes are small or mixed,
+including a buffered regression. Keep the flag explicit/default-off; production
+PyPy remains the fastest stock-observation control in this slice.

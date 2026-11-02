@@ -1,0 +1,2736 @@
+{
+  "interpreter": "CPython",
+  "producer": "independent",
+  "jobs": 5000,
+  "level": "none",
+  "backend": "production",
+  "source_sha256": "d6c58de9a67bdaf78c917b13f2656da70d36ddc88adb5ebf12137c541fb16203",
+  "libraries": {
+    "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+    "dynamic": "39a8bca371a6246fd37068a982cd2294dd183098cf6a2f1b8e3917f8194e6be4",
+    "_nd_scalar.cpython-314-darwin.so": "abb890f1203835e099a1f33fe0651425397e1654a961a80b770364a25fcced88",
+    "_nd_scalar.pypy311-pp73-darwin.so": "1fd2dacd4a2b94d470ca6b114c01bca0564e4242bda841c114088288b216482c"
+  },
+  "input_sha256": "2e45f12f28e425c4614aff714ceb35902bb64ced1b1878dde82e5b086926565b",
+  "trajectory": "a797279ebc7340348dcbf6ee788fe3fb4f19dc47dbe75f9dba0561d4f474b2e0",
+  "generated": "658b9d182f813d885722735529863ef57ef6522cf6ae5fce1fe40d4afdbd8dff",
+  "decisions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "observations_sha256": "82b23ab64cecace89f7d91200ab0f09e662b541e7810186b6cebe11a940820ba",
+  "scalars": {
+    "shopfloor/makespan": 490.8796928874262,
+    "shopfloor/lateness": 453.3515493346058,
+    "shopfloor/tardiness": 454.1625333654235,
+    "shopfloor/tardy_fraction": 0.9548,
+    "shopfloor/total_queue_time": 3.9648167715818694,
+    "shopfloor/throughput": 1.26720769998295,
+    "shopfloor/utilization": 0.693616409278647,
+    "shopfloor/jobs_in_system": 11.960410434756554
+  },
+  "model_kpis": {
+    "total_flow": 2454398.464437131,
+    "total_wait": 19824.083857909347,
+    "total_tardiness": 2270812.6668271176,
+    "wip_area": 2454398.464437131,
+    "max_wip": 1294,
+    "total_pool_wait": 2407206.4751723977,
+    "floor_wip_area": 47191.98926473332,
+    "max_floor_wip": 12,
+    "busy": [
+      2725.271610935501,
+      2734.735357332027,
+      2710.3443474704063,
+      2749.392712064964,
+      2689.8439093869574,
+      2742.0968149832233,
+      2753.1597416611316,
+      2783.9480268916986,
+      2724.6991758143104,
+      2754.4137102837667
+    ]
+  },
+  "no_recording_guard": true,
+  "clock": "time.thread_time",
+  "separate_thread_passes": true,
+  "timing": {
+    "build": 0.001671584032010287,
+    "feed": 16.16647383297095,
+    "run": 5.4766059999819845,
+    "extract": 0.07627229200443253,
+    "close": 0.020335291046649218,
+    "total": 21.741359000036027,
+    "process_cpu": 21.739031
+  },
+  "writer_pass_timing": null,
+  "simulation": {
+    "total_self_cpu": 7.393094427996689,
+    "functions": [
+      {
+        "file": "",
+        "line": 0,
+        "name": "min",
+        "primitive_calls": 29966,
+        "calls": 29966,
+        "self_cpu": 0.9340759959981995,
+        "cumulative_cpu": 1.8155059479969677
+      },
+      {
+        "file": "src/simulatte/psp.py",
+        "line": 110,
+        "name": "jobs",
+        "primitive_calls": 3048646,
+        "calls": 3048646,
+        "self_cpu": 0.44432115600023425,
+        "cumulative_cpu": 0.44432115600023425
+      },
+      {
+        "file": "src/simulatte/policies/conwip.py",
+        "line": 81,
+        "name": "<lambda>",
+        "primitive_calls": 3043680,
+        "calls": 3043680,
+        "self_cpu": 0.437108795998534,
+        "cumulative_cpu": 0.437108795998534
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 377,
+        "name": "deliver",
+        "primitive_calls": 960342,
+        "calls": 960342,
+        "self_cpu": 0.35243720499791054,
+        "cumulative_cpu": 1.4357755409989632
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 791,
+        "name": "_dispatch",
+        "primitive_calls": 151815,
+        "calls": 151815,
+        "self_cpu": 0.2501314529999086,
+        "cumulative_cpu": 1.7697175099996814
+      },
+      {
+        "file": "src/simulatte/shopfloor.py",
+        "line": 711,
+        "name": "main",
+        "primitive_calls": 59726,
+        "calls": 59726,
+        "self_cpu": 0.19959963499967825,
+        "cumulative_cpu": 3.2738126299958026
+      },
+      {
+        "file": "src/simulatte/server.py",
+        "line": 466,
+        "name": "_trigger_put",
+        "primitive_calls": 54726,
+        "calls": 54726,
+        "self_cpu": 0.19852066599920914,
+        "cumulative_cpu": 1.5026516729993586
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 169,
+        "name": "add",
+        "primitive_calls": 112142,
+        "calls": 112142,
+        "self_cpu": 0.19066655099933438,
+        "cumulative_cpu": 0.32253920199907915
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 178,
+        "name": "emit",
+        "primitive_calls": 151815,
+        "calls": 151815,
+        "self_cpu": 0.16253387900018845,
+        "cumulative_cpu": 2.0952159610009256
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "getattr",
+        "primitive_calls": 980428,
+        "calls": 980428,
+        "self_cpu": 0.1530932150002542,
+        "cumulative_cpu": 0.1530932150002542
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 611,
+        "name": "step",
+        "primitive_calls": 204180,
+        "calls": 204180,
+        "self_cpu": 0.14583661900072986,
+        "cumulative_cpu": 7.155768259995915
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "append",
+        "primitive_calls": 823958,
+        "calls": 823958,
+        "self_cpu": 0.14420404299990297,
+        "cumulative_cpu": 0.14420404299990297
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/core.py",
+        "line": 182,
+        "name": "step",
+        "primitive_calls": 204180,
+        "calls": 204180,
+        "self_cpu": 0.1431265220006288,
+        "cumulative_cpu": 6.9787777889951155
+      },
+      {
+        "file": "<string>",
+        "line": 2,
+        "name": "__init__",
+        "primitive_calls": 281270,
+        "calls": 281270,
+        "self_cpu": 0.14211202800030853,
+        "cumulative_cpu": 0.14211202800030853
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "len",
+        "primitive_calls": 809060,
+        "calls": 809060,
+        "self_cpu": 0.1257361370013641,
+        "cumulative_cpu": 0.1257361370013641
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/core.py",
+        "line": 165,
+        "name": "schedule",
+        "primitive_calls": 204179,
+        "calls": 204179,
+        "self_cpu": 0.1051668059999642,
+        "cumulative_cpu": 0.17766580500009144
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/events.py",
+        "line": 388,
+        "name": "_resume",
+        "primitive_calls": 146816,
+        "calls": 146816,
+        "self_cpu": 0.10394053300042683,
+        "cumulative_cpu": 6.154428709993531
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "isinstance",
+        "primitive_calls": 590284,
+        "calls": 590284,
+        "self_cpu": 0.09829742400009489,
+        "cumulative_cpu": 0.09830017500009514
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 105,
+        "name": "freeze",
+        "primitive_calls": 303687,
+        "calls": 331050,
+        "self_cpu": 0.09372940699949939,
+        "cumulative_cpu": 0.1638602749989848
+      },
+      {
+        "file": "src/simulatte/server.py",
+        "line": 343,
+        "name": "release",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.08974887199941683,
+        "cumulative_cpu": 0.8824149530000245
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 773,
+        "name": "publish",
+        "primitive_calls": 151815,
+        "calls": 151815,
+        "self_cpu": 0.08752892200096518,
+        "cumulative_cpu": 1.8840121020001752
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 293,
+        "name": "on_event",
+        "primitive_calls": 82089,
+        "calls": 82089,
+        "self_cpu": 0.08745851300030272,
+        "cumulative_cpu": 0.20715425399981857
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 421,
+        "name": "on_event",
+        "primitive_calls": 64726,
+        "calls": 64726,
+        "self_cpu": 0.0861375969998468,
+        "cumulative_cpu": 0.41609163500048796
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "abs",
+        "primitive_calls": 541426,
+        "calls": 541426,
+        "self_cpu": 0.07634817000060101,
+        "cumulative_cpu": 0.07634817000060101
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/core.py",
+        "line": 116,
+        "name": "now",
+        "primitive_calls": 371007,
+        "calls": 371007,
+        "self_cpu": 0.05801608999864616,
+        "cumulative_cpu": 0.05801608999864616
+      },
+      {
+        "file": "src/simulatte/shopfloor.py",
+        "line": 639,
+        "name": "_wip_deltas",
+        "primitive_calls": 32363,
+        "calls": 32363,
+        "self_cpu": 0.05782287499975736,
+        "cumulative_cpu": 0.12273884100020416
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "send",
+        "primitive_calls": 146816,
+        "calls": 146816,
+        "self_cpu": 0.05618706900033055,
+        "cumulative_cpu": 5.992234670993179
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "isfinite",
+        "primitive_calls": 382856,
+        "calls": 382856,
+        "self_cpu": 0.055524772999143934,
+        "cumulative_cpu": 0.055524772999143934
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 142,
+        "name": "done",
+        "primitive_calls": 119452,
+        "calls": 119452,
+        "self_cpu": 0.05472051800043021,
+        "cumulative_cpu": 0.08485066000099972
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/core.py",
+        "line": 214,
+        "name": "run",
+        "primitive_calls": 5001,
+        "calls": 5001,
+        "self_cpu": 0.05460422299993262,
+        "cumulative_cpu": 7.219628979996024
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 109,
+        "name": "set",
+        "primitive_calls": 107089,
+        "calls": 107089,
+        "self_cpu": 0.053594911999941486,
+        "cumulative_cpu": 0.09290006899912373
+      },
+      {
+        "file": "src/simulatte/shopfloor.py",
+        "line": 656,
+        "name": "_operate",
+        "primitive_calls": 54726,
+        "calls": 54726,
+        "self_cpu": 0.05351740300035712,
+        "cumulative_cpu": 0.39195452699911115
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 86,
+        "name": "build",
+        "primitive_calls": 119452,
+        "calls": 119452,
+        "self_cpu": 0.04985392999955707,
+        "cumulative_cpu": 0.0685890649996268
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 247,
+        "name": "on_event",
+        "primitive_calls": 37363,
+        "calls": 37363,
+        "self_cpu": 0.048359681000569754,
+        "cumulative_cpu": 0.23406598900018571
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "__getitem__",
+        "primitive_calls": 262548,
+        "calls": 262548,
+        "self_cpu": 0.04740237399980596,
+        "cumulative_cpu": 0.04752342199980175
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "heappop",
+        "primitive_calls": 204180,
+        "calls": 204180,
+        "self_cpu": 0.045260418000317326,
+        "cumulative_cpu": 0.045260418000317326
+      },
+      {
+        "file": "src/simulatte/server.py",
+        "line": 409,
+        "name": "sort_queue",
+        "primitive_calls": 54726,
+        "calls": 54726,
+        "self_cpu": 0.044289285999976835,
+        "cumulative_cpu": 0.10746991899929959
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/base.py",
+        "line": 217,
+        "name": "_trigger_put",
+        "primitive_calls": 54726,
+        "calls": 54726,
+        "self_cpu": 0.043685296000115725,
+        "cumulative_cpu": 0.1645095869995865
+      },
+      {
+        "file": "src/simulatte/server.py",
+        "line": 311,
+        "name": "_update_queue_history",
+        "primitive_calls": 54726,
+        "calls": 54726,
+        "self_cpu": 0.04198976100011076,
+        "cumulative_cpu": 0.06658349199961111
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/events.py",
+        "line": 171,
+        "name": "succeed",
+        "primitive_calls": 92089,
+        "calls": 92089,
+        "self_cpu": 0.04191155599958041,
+        "cumulative_cpu": 0.12247454199989471
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 145,
+        "name": "on_event",
+        "primitive_calls": 37363,
+        "calls": 37363,
+        "self_cpu": 0.04079140600004583,
+        "cumulative_cpu": 0.07681070200009965
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "get",
+        "primitive_calls": 216867,
+        "calls": 216867,
+        "self_cpu": 0.040778092000327115,
+        "cumulative_cpu": 0.040778092000327115
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/resource.py",
+        "line": 213,
+        "name": "_do_put",
+        "primitive_calls": 45154,
+        "calls": 45154,
+        "self_cpu": 0.04001811700019964,
+        "cumulative_cpu": 0.09938456099993376
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "heappush",
+        "primitive_calls": 204179,
+        "calls": 204179,
+        "self_cpu": 0.03986168699989179,
+        "cumulative_cpu": 0.03986168699989179
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/base.py",
+        "line": 48,
+        "name": "__init__",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.03753686300032699,
+        "cumulative_cpu": 1.0200098609981572
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/base.py",
+        "line": 255,
+        "name": "_trigger_get",
+        "primitive_calls": 54726,
+        "calls": 54726,
+        "self_cpu": 0.03544912400004652,
+        "cumulative_cpu": 0.10880580900038161
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/base.py",
+        "line": 99,
+        "name": "__init__",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.03510991000004582,
+        "cumulative_cpu": 0.1495250790007152
+      },
+      {
+        "file": "src/simulatte/server.py",
+        "line": 317,
+        "name": "request",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.034407055999653435,
+        "cumulative_cpu": 1.1684005059977602
+      },
+      {
+        "file": "src/simulatte/job.py",
+        "line": 349,
+        "name": "priority",
+        "primitive_calls": 95388,
+        "calls": 95388,
+        "self_cpu": 0.03400872399997934,
+        "cumulative_cpu": 0.05152573899955981
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "next",
+        "primitive_calls": 204210,
+        "calls": 204210,
+        "self_cpu": 0.03264839400023356,
+        "cumulative_cpu": 0.03266481200023197
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 304,
+        "name": "_canonical_map",
+        "primitive_calls": 27365,
+        "calls": 27365,
+        "self_cpu": 0.03194103899984535,
+        "cumulative_cpu": 0.058873662999745724
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 370,
+        "name": "_guard_layout_advance",
+        "primitive_calls": 209182,
+        "calls": 209182,
+        "self_cpu": 0.03193099000011057,
+        "cumulative_cpu": 0.03193099000011057
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 289,
+        "name": "_utilization",
+        "primitive_calls": 54736,
+        "calls": 54736,
+        "self_cpu": 0.031921888000223,
+        "cumulative_cpu": 0.06542791800023373
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 113,
+        "name": "insert",
+        "primitive_calls": 59726,
+        "calls": 59726,
+        "self_cpu": 0.03151481599979422,
+        "cumulative_cpu": 0.057315170999855836
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 176,
+        "name": "wire_float",
+        "primitive_calls": 179191,
+        "calls": 179191,
+        "self_cpu": 0.03146268799990093,
+        "cumulative_cpu": 0.031464811999900144
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "collect",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 0.030521999999999272,
+        "cumulative_cpu": 0.030521999999999272
+      },
+      {
+        "file": "src/simulatte/server.py",
+        "line": 379,
+        "name": "process_job",
+        "primitive_calls": 54726,
+        "calls": 54726,
+        "self_cpu": 0.029191909999462418,
+        "cumulative_cpu": 0.07435068099916076
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 117,
+        "name": "remove",
+        "primitive_calls": 54726,
+        "calls": 54726,
+        "self_cpu": 0.028978676000075865,
+        "cumulative_cpu": 0.04922111500010984
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 126,
+        "name": "put",
+        "primitive_calls": 54726,
+        "calls": 54726,
+        "self_cpu": 0.028398849000120352,
+        "cumulative_cpu": 0.04922535400067907
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 413,
+        "name": "observe",
+        "primitive_calls": 25000,
+        "calls": 25000,
+        "self_cpu": 0.027613229000222894,
+        "cumulative_cpu": 0.15233963900019964
+      },
+      {
+        "file": "src/simulatte/server.py",
+        "line": 146,
+        "name": "__init__",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.026906532999575905,
+        "cumulative_cpu": 1.0914175329980296
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "clear",
+        "primitive_calls": 151872,
+        "calls": 151872,
+        "self_cpu": 0.026775712999537626,
+        "cumulative_cpu": 0.026775712999537626
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "fsum",
+        "primitive_calls": 69738,
+        "calls": 69738,
+        "self_cpu": 0.026200161999546223,
+        "cumulative_cpu": 0.06462477099948605
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/core.py",
+        "line": 53,
+        "name": "__get__",
+        "primitive_calls": 129456,
+        "calls": 129456,
+        "self_cpu": 0.025777616000270287,
+        "cumulative_cpu": 0.025777616000270287
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/events.py",
+        "line": 333,
+        "name": "__init__",
+        "primitive_calls": 37364,
+        "calls": 37364,
+        "self_cpu": 0.025288246999884745,
+        "cumulative_cpu": 0.08302707499966488
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 258,
+        "name": "update",
+        "primitive_calls": 64726,
+        "calls": 64726,
+        "self_cpu": 0.024957482000017794,
+        "cumulative_cpu": 0.11724344499964867
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "sort",
+        "primitive_calls": 43356,
+        "calls": 43356,
+        "self_cpu": 0.024178333999551826,
+        "cumulative_cpu": 0.035436575999599595
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 727,
+        "name": "delivering",
+        "primitive_calls": 151815,
+        "calls": 151815,
+        "self_cpu": 0.02359922600056441,
+        "cumulative_cpu": 0.02359922600056441
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 123,
+        "name": "now",
+        "primitive_calls": 69726,
+        "calls": 69726,
+        "self_cpu": 0.02231331699968675,
+        "cumulative_cpu": 0.033101921999348916
+      },
+      {
+        "file": "src/simulatte/shopfloor.py",
+        "line": 604,
+        "name": "add",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.021769597999835133,
+        "cumulative_cpu": 0.296263064001018
+      },
+      {
+        "file": "src/simulatte/policies/conwip.py",
+        "line": 67,
+        "name": "on_completion_release",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.021754429999850666,
+        "cumulative_cpu": 2.1517210729980283
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/resource.py",
+        "line": 155,
+        "name": "append",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.02140558700009776,
+        "cumulative_cpu": 0.044675751000097685
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/resource.py",
+        "line": 85,
+        "name": "__exit__",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.02103254200010296,
+        "cumulative_cpu": 0.9289779540002363
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 142,
+        "name": "add",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.020885482999981386,
+        "cumulative_cpu": 0.07698997000008889
+      },
+      {
+        "file": "src/simulatte/shopfloor.py",
+        "line": 848,
+        "name": "<genexpr>",
+        "primitive_calls": 32363,
+        "calls": 32363,
+        "self_cpu": 0.020647835999889175,
+        "cumulative_cpu": 0.03367877999999225
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/resource.py",
+        "line": 123,
+        "name": "__init__",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.019895076000338907,
+        "cumulative_cpu": 1.0440205099984639
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 127,
+        "name": "_start",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.019147922000219086,
+        "cumulative_cpu": 0.03636326100001952
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 106,
+        "name": "__init__",
+        "primitive_calls": 119452,
+        "calls": 119452,
+        "self_cpu": 0.018735135000069736,
+        "cumulative_cpu": 0.018735135000069736
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 408,
+        "name": "_servers",
+        "primitive_calls": 54726,
+        "calls": 54726,
+        "self_cpu": 0.018430341000204242,
+        "cumulative_cpu": 0.02658985200038
+      },
+      {
+        "file": "src/simulatte/psp.py",
+        "line": 97,
+        "name": "__contains__",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.018004950999978675,
+        "cumulative_cpu": 0.018004950999978675
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/events.py",
+        "line": 87,
+        "name": "__init__",
+        "primitive_calls": 97092,
+        "calls": 97092,
+        "self_cpu": 0.0179285010001784,
+        "cumulative_cpu": 0.0179285010001784
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/events.py",
+        "line": 102,
+        "name": "triggered",
+        "primitive_calls": 99880,
+        "calls": 99880,
+        "self_cpu": 0.017736484000123287,
+        "cumulative_cpu": 0.017736484000123287
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/events.py",
+        "line": 260,
+        "name": "__init__",
+        "primitive_calls": 37364,
+        "calls": 37364,
+        "self_cpu": 0.0175603790000165,
+        "cumulative_cpu": 0.050667282999862895
+      },
+      {
+        "file": "src/simulatte/dispatching_rules/processing.py",
+        "line": 17,
+        "name": "shortest_processing_time",
+        "primitive_calls": 95388,
+        "calls": 95388,
+        "self_cpu": 0.01751701499958047,
+        "cumulative_cpu": 0.01751701499958047
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 215,
+        "name": "add",
+        "primitive_calls": 25000,
+        "calls": 25000,
+        "self_cpu": 0.017512696000374195,
+        "cumulative_cpu": 0.1086824160002946
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/resource.py",
+        "line": 194,
+        "name": "count",
+        "primitive_calls": 54746,
+        "calls": 54746,
+        "self_cpu": 0.016714699000255573,
+        "cumulative_cpu": 0.024854999000213818
+      },
+      {
+        "file": "src/simulatte/job.py",
+        "line": 128,
+        "name": "server_processing_times",
+        "primitive_calls": 64726,
+        "calls": 64726,
+        "self_cpu": 0.016367886999864467,
+        "cumulative_cpu": 0.016367886999864467
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/base.py",
+        "line": 181,
+        "name": "capacity",
+        "primitive_calls": 99910,
+        "calls": 99910,
+        "self_cpu": 0.015812824999888564,
+        "cumulative_cpu": 0.015812824999888564
+      },
+      {
+        "file": "src/simulatte/psp.py",
+        "line": 115,
+        "name": "add",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.01551921699998915,
+        "cumulative_cpu": 0.1047696490000023
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/resource.py",
+        "line": 219,
+        "name": "_do_get",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.01463442500001566,
+        "cumulative_cpu": 0.05522568800029792
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/resource.py",
+        "line": 105,
+        "name": "__init__",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.014078338000107271,
+        "cumulative_cpu": 0.16360341700082248
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 132,
+        "name": "_end",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.012944673000066409,
+        "cumulative_cpu": 0.02645514999998655
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 33,
+        "name": "on_event",
+        "primitive_calls": 15000,
+        "calls": 15000,
+        "self_cpu": 0.012607324000399434,
+        "cumulative_cpu": 0.03530709000017862
+      },
+      {
+        "file": "src/simulatte/shopfloor.py",
+        "line": 209,
+        "name": "add_job",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.01232011700057667,
+        "cumulative_cpu": 0.024944868000437825
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/events.py",
+        "line": 230,
+        "name": "__init__",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.01225355300005404,
+        "cumulative_cpu": 0.03525222700000974
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "items",
+        "primitive_calls": 64757,
+        "calls": 64757,
+        "self_cpu": 0.011646574999787385,
+        "cumulative_cpu": 0.011646574999787385
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 401,
+        "name": "sample",
+        "primitive_calls": 20002,
+        "calls": 20002,
+        "self_cpu": 0.011623744999939456,
+        "cumulative_cpu": 0.01859938199974298
+      },
+      {
+        "file": "src/simulatte/policies/triggers.py",
+        "line": 97,
+        "name": "on_completion_trigger",
+        "primitive_calls": 27364,
+        "calls": 27364,
+        "self_cpu": 0.011512732999851893,
+        "cumulative_cpu": 2.16323380599788
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 196,
+        "name": "value",
+        "primitive_calls": 32370,
+        "calls": 32370,
+        "self_cpu": 0.011220944999982496,
+        "cumulative_cpu": 0.0176586950001405
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/base.py",
+        "line": 60,
+        "name": "__exit__",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.01090037500011709,
+        "cumulative_cpu": 0.025530459000108863
+      },
+      {
+        "file": "src/simulatte/server.py",
+        "line": 535,
+        "name": "_wire_priority",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.010668426000271847,
+        "cumulative_cpu": 0.016186702000395847
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "pop",
+        "primitive_calls": 54743,
+        "calls": 54743,
+        "self_cpu": 0.010578566999673633,
+        "cumulative_cpu": 0.010578566999673633
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 495,
+        "name": "run",
+        "primitive_calls": 5001,
+        "calls": 5001,
+        "self_cpu": 0.010160218000174304,
+        "cumulative_cpu": 7.235486578996339
+      },
+      {
+        "file": "src/simulatte/server.py",
+        "line": 165,
+        "name": "cancel",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.009794756999782717,
+        "cumulative_cpu": 0.014630083999991772
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 328,
+        "name": "env",
+        "primitive_calls": 55006,
+        "calls": 55006,
+        "self_cpu": 0.009517301999746763,
+        "cumulative_cpu": 0.009517301999746763
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 284,
+        "name": "attach",
+        "primitive_calls": 5012,
+        "calls": 5012,
+        "self_cpu": 0.009385585000288632,
+        "cumulative_cpu": 0.015050878000224976
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/core.py",
+        "line": 121,
+        "name": "active_process",
+        "primitive_calls": 54726,
+        "calls": 54726,
+        "self_cpu": 0.008819920999695752,
+        "cumulative_cpu": 0.008819920999695752
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "max",
+        "primitive_calls": 55004,
+        "calls": 55004,
+        "self_cpu": 0.008597901000023,
+        "cumulative_cpu": 0.008597901000023
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 47,
+        "name": "totals",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 0.008561518000050228,
+        "cumulative_cpu": 0.0285292660002483
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 253,
+        "name": "value",
+        "primitive_calls": 54726,
+        "calls": 54726,
+        "self_cpu": 0.008517447000104372,
+        "cumulative_cpu": 0.008517447000104372
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "setprofile",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 0.00809420799999927,
+        "cumulative_cpu": 0.00809420799999927
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 93,
+        "name": "on_event",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.008042555000449036,
+        "cumulative_cpu": 0.019376110000496105
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "sorted",
+        "primitive_calls": 27368,
+        "calls": 27368,
+        "self_cpu": 0.007613645000025038,
+        "cumulative_cpu": 0.007613645000025038
+      },
+      {
+        "file": "src/simulatte/job.py",
+        "line": 61,
+        "name": "__init__",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.007561578999945029,
+        "cumulative_cpu": 0.011269908999839817
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "hasattr",
+        "primitive_calls": 37365,
+        "calls": 37365,
+        "self_cpu": 0.007072127999917299,
+        "cumulative_cpu": 0.007072127999917299
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "__new__",
+        "primitive_calls": 32367,
+        "calls": 32367,
+        "self_cpu": 0.006932333000032376,
+        "cumulative_cpu": 0.006932333000032376
+      },
+      {
+        "file": "src/simulatte/shopfloor.py",
+        "line": 215,
+        "name": "complete_operation",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.006563845000260082,
+        "cumulative_cpu": 0.006563845000260082
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "remove",
+        "primitive_calls": 32365,
+        "calls": 32365,
+        "self_cpu": 0.00642513700007985,
+        "cumulative_cpu": 0.00642513700007985
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "index",
+        "primitive_calls": 32364,
+        "calls": 32364,
+        "self_cpu": 0.0062452210001271435,
+        "cumulative_cpu": 0.0062452210001271435
+      },
+      {
+        "file": "src/simulatte/psp.py",
+        "line": 214,
+        "name": "_signal_new_job",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.006084651999954893,
+        "cumulative_cpu": 0.038975022000122594
+      },
+      {
+        "file": "src/simulatte/job.py",
+        "line": 177,
+        "name": "time_in_system",
+        "primitive_calls": 10000,
+        "calls": 10000,
+        "self_cpu": 0.005784795999906667,
+        "cumulative_cpu": 0.009312003000102376
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 346,
+        "name": "retire",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.005779360999848215,
+        "cumulative_cpu": 0.01907582199975555
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "values",
+        "primitive_calls": 32378,
+        "calls": 32378,
+        "self_cpu": 0.005680903000178317,
+        "cumulative_cpu": 0.005680903000178317
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/resource.py",
+        "line": 165,
+        "name": "<lambda>",
+        "primitive_calls": 38967,
+        "calls": 38967,
+        "self_cpu": 0.00563083600015335,
+        "cumulative_cpu": 0.00563083600015335
+      },
+      {
+        "file": "src/simulatte/server.py",
+        "line": 531,
+        "name": "_request_key",
+        "primitive_calls": 38864,
+        "calls": 38864,
+        "self_cpu": 0.005627405999894419,
+        "cumulative_cpu": 0.005627405999894419
+      },
+      {
+        "file": "src/simulatte/psp.py",
+        "line": 105,
+        "name": "empty",
+        "primitive_calls": 32329,
+        "calls": 32329,
+        "self_cpu": 0.005548291000087691,
+        "cumulative_cpu": 0.005548291000087691
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 194,
+        "name": "wire_float_or_none",
+        "primitive_calls": 27374,
+        "calls": 27374,
+        "self_cpu": 0.005520400000123216,
+        "cumulative_cpu": 0.005520400000123216
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "isdisjoint",
+        "primitive_calls": 27365,
+        "calls": 27365,
+        "self_cpu": 0.0054245519999831515,
+        "cumulative_cpu": 0.0054245519999831515
+      },
+      {
+        "file": "src/simulatte/psp.py",
+        "line": 147,
+        "name": "remove",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.005112538000049849,
+        "cumulative_cpu": 0.008090591999963204
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "bisect_left",
+        "primitive_calls": 27365,
+        "calls": 27365,
+        "self_cpu": 0.004995802999783416,
+        "cumulative_cpu": 0.004995802999783416
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/weakref.py",
+        "line": 138,
+        "name": "__setitem__",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.004980123000078551,
+        "cumulative_cpu": 0.010382928000019831
+      },
+      {
+        "file": "src/simulatte/job.py",
+        "line": 399,
+        "name": "__init__",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.004921701000102363,
+        "cumulative_cpu": 0.03119882700016685
+      },
+      {
+        "file": "src/simulatte/shopfloor.py",
+        "line": 671,
+        "name": "_fire_processing_end_callbacks",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.0048951019999401435,
+        "cumulative_cpu": 0.0048951019999401435
+      },
+      {
+        "file": "src/simulatte/shopfloor.py",
+        "line": 686,
+        "name": "signal_job_finished",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.004816714999869687,
+        "cumulative_cpu": 0.013907187000043342
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 427,
+        "name": "_check_key",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.004776272999849951,
+        "cumulative_cpu": 0.004776272999849951
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "setdefault",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.00460840999981138,
+        "cumulative_cpu": 0.00460840999981138
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 539,
+        "name": "warmup",
+        "primitive_calls": 30003,
+        "calls": 30003,
+        "self_cpu": 0.0045647839998685935,
+        "cumulative_cpu": 0.0045647839998685935
+      },
+      {
+        "file": "src/simulatte/psp.py",
+        "line": 188,
+        "name": "release",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.004494890999911183,
+        "cumulative_cpu": 0.30884854700089237
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/typing.py",
+        "line": 2300,
+        "name": "cast",
+        "primitive_calls": 27364,
+        "calls": 27364,
+        "self_cpu": 0.004259201999823992,
+        "cumulative_cpu": 0.004259201999823992
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 164,
+        "name": "advance",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.004208270000063408,
+        "cumulative_cpu": 5.411104661995579
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 59,
+        "name": "peak",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 0.0040946240000785394,
+        "cumulative_cpu": 0.007978088000164973
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/base.py",
+        "line": 57,
+        "name": "__enter__",
+        "primitive_calls": 27363,
+        "calls": 27363,
+        "self_cpu": 0.004045568000007771,
+        "cumulative_cpu": 0.004045568000007771
+      },
+      {
+        "file": "src/simulatte/shopfloor.py",
+        "line": 845,
+        "name": "_wire_total_queue_time",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.003763597999986601,
+        "cumulative_cpu": 0.044836504999627325
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/core.py",
+        "line": 80,
+        "name": "callback",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.003575089999916514,
+        "cumulative_cpu": 0.005254586999860367
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 407,
+        "name": "get",
+        "primitive_calls": 10000,
+        "calls": 10000,
+        "self_cpu": 0.0033241109999129215,
+        "cumulative_cpu": 0.005334304999913497
+      },
+      {
+        "file": "src/simulatte/policies/conwip.py",
+        "line": 87,
+        "name": "on_arrival_release",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0031679850001040677,
+        "cumulative_cpu": 0.024161622000129945
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "fromkeys",
+        "primitive_calls": 10000,
+        "calls": 10000,
+        "self_cpu": 0.002913965999957968,
+        "cumulative_cpu": 0.002913965999957968
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/feedback.py",
+        "line": 6,
+        "name": "feed",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 0.002698465000010586,
+        "cumulative_cpu": 5.490793096995679
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "perf_counter",
+        "primitive_calls": 10008,
+        "calls": 10008,
+        "self_cpu": 0.0024984640000065284,
+        "cumulative_cpu": 0.0024984640000065284
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/weakref.py",
+        "line": 294,
+        "name": "__init__",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0022778529999345487,
+        "cumulative_cpu": 0.0022778529999345487
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 135,
+        "name": "_arrival",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.002276990000052548,
+        "cumulative_cpu": 0.10704663900005484
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "extend",
+        "primitive_calls": 10000,
+        "calls": 10000,
+        "self_cpu": 0.0019076609999773009,
+        "cumulative_cpu": 0.0019076609999773009
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/weakref.py",
+        "line": 289,
+        "name": "__new__",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0018631739999266372,
+        "cumulative_cpu": 0.003124952000006731
+      },
+      {
+        "file": "src/simulatte/job.py",
+        "line": 196,
+        "name": "time_in_shopfloor",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.001852815999992874,
+        "cumulative_cpu": 0.006273200000155077
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 71,
+        "name": "<genexpr>",
+        "primitive_calls": 5001,
+        "calls": 5001,
+        "self_cpu": 0.001586929000101378,
+        "cumulative_cpu": 0.0023274630000571506
+      },
+      {
+        "file": "src/simulatte/job.py",
+        "line": 288,
+        "name": "is_finished_in_due_date_window",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0015661309999084327,
+        "cumulative_cpu": 0.0015661309999084327
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 422,
+        "name": "_check_int",
+        "primitive_calls": 5011,
+        "calls": 5011,
+        "self_cpu": 0.0015054179999314243,
+        "cumulative_cpu": 0.0015054179999314243
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 76,
+        "name": "__init__",
+        "primitive_calls": 5001,
+        "calls": 5001,
+        "self_cpu": 0.0014341620000579702,
+        "cumulative_cpu": 0.0014341620000579702
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "add",
+        "primitive_calls": 5002,
+        "calls": 5002,
+        "self_cpu": 0.0013385330000506013,
+        "cumulative_cpu": 0.0013385330000506013
+      },
+      {
+        "file": "src/simulatte/job.py",
+        "line": 118,
+        "name": "processing_times",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0010501570000813754,
+        "cumulative_cpu": 0.0010501570000813754
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "discard",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0009770620000102426,
+        "cumulative_cpu": 0.0009770620000102426
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/events.py",
+        "line": 146,
+        "name": "value",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0009084289999510275,
+        "cumulative_cpu": 0.0009084289999510275
+      },
+      {
+        "file": "src/simulatte/job.py",
+        "line": 213,
+        "name": "time_in_psp",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0008986609999883655,
+        "cumulative_cpu": 0.0008986609999883655
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 361,
+        "name": "layout",
+        "primitive_calls": 5012,
+        "calls": 5012,
+        "self_cpu": 0.0008431260000003604,
+        "cumulative_cpu": 0.0008431260000003604
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 50,
+        "name": "<genexpr>",
+        "primitive_calls": 5001,
+        "calls": 5001,
+        "self_cpu": 0.0008310579999317724,
+        "cumulative_cpu": 0.0008310579999317724
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 49,
+        "name": "<genexpr>",
+        "primitive_calls": 5001,
+        "calls": 5001,
+        "self_cpu": 0.0007981949999518179,
+        "cumulative_cpu": 0.0007981949999518179
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 75,
+        "name": "<genexpr>",
+        "primitive_calls": 5001,
+        "calls": 5001,
+        "self_cpu": 0.0007891130000068358,
+        "cumulative_cpu": 0.0007891130000068358
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/events.py",
+        "line": 114,
+        "name": "ok",
+        "primitive_calls": 5000,
+        "calls": 5000,
+        "self_cpu": 0.0007710679999928249,
+        "cumulative_cpu": 0.0007710679999928249
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/live_observation.py",
+        "line": 437,
+        "name": "values",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 0.0005191639999999609,
+        "cumulative_cpu": 0.000587922999994106
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 191,
+        "name": "result",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 0.0005153339999957041,
+        "cumulative_cpu": 0.02907647600024177
+      },
+      {
+        "file": "profile",
+        "line": 0,
+        "name": "<function sample at 0x10b637740>",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 5.2167000002212305e-05,
+        "cumulative_cpu": 7.39309442799669
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 336,
+        "name": "attach",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 5.1543999999958956e-05,
+        "cumulative_cpu": 0.00018211900000331127
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 811,
+        "name": "<genexpr>",
+        "primitive_calls": 61,
+        "calls": 61,
+        "self_cpu": 5.1042999995365435e-05,
+        "cumulative_cpu": 9.062999999565058e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "issubclass",
+        "primitive_calls": 330,
+        "calls": 330,
+        "self_cpu": 4.808600000072438e-05,
+        "cumulative_cpu": 4.808600000072438e-05
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/observation_benchmark.py",
+        "line": 62,
+        "name": "sample",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 4.179099999546132e-05,
+        "cumulative_cpu": 7.384948052996688
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 732,
+        "name": "subscribe",
+        "primitive_calls": 17,
+        "calls": 17,
+        "self_cpu": 4.1458000000105244e-05,
+        "cumulative_cpu": 0.00010399200000166253
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 745,
+        "name": "<genexpr>",
+        "primitive_calls": 73,
+        "calls": 73,
+        "self_cpu": 2.741400000139116e-05,
+        "cumulative_cpu": 4.366100000230411e-05
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 88,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.2623000000221438e-05,
+        "cumulative_cpu": 0.0006931560000049686
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 68,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.1168000000626463e-05,
+        "cumulative_cpu": 0.00011312200000346273
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 423,
+        "name": "snapshot",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.108199999972804e-05,
+        "cumulative_cpu": 6.72519999973531e-05
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 810,
+        "name": "_route",
+        "primitive_calls": 17,
+        "calls": 17,
+        "self_cpu": 1.9540999999900777e-05,
+        "cumulative_cpu": 0.00011017099999555136
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/core.py",
+        "line": 62,
+        "name": "bind_early",
+        "primitive_calls": 11,
+        "calls": 11,
+        "self_cpu": 1.883299999949628e-05,
+        "cumulative_cpu": 2.224799999961391e-05
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 457,
+        "name": "_run_initializer",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 1.7714000000390584e-05,
+        "cumulative_cpu": 0.00010888399999897658
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "urandom",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.2375000000064418e-05,
+        "cumulative_cpu": 1.2375000000064418e-05
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/live_observation.py",
+        "line": 175,
+        "name": "attach_stock",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.1875999999855225e-05,
+        "cumulative_cpu": 0.00021636400000368816
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 382,
+        "name": "activate",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.1872999999384959e-05,
+        "cumulative_cpu": 0.0001908859999959489
+      },
+      {
+        "file": "src/simulatte/server.py",
+        "line": 218,
+        "name": "__init__",
+        "primitive_calls": 10,
+        "calls": 10,
+        "self_cpu": 1.1584000001230166e-05,
+        "cumulative_cpu": 7.391300000048062e-05
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 315,
+        "name": "__init__",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 1.1285000000027523e-05,
+        "cumulative_cpu": 1.574600000031623e-05
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 467,
+        "name": "_scheduling_blocked",
+        "primitive_calls": 30,
+        "calls": 30,
+        "self_cpu": 1.1166999999590033e-05,
+        "cumulative_cpu": 1.6417999998408206e-05
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 703,
+        "name": "__missing__",
+        "primitive_calls": 17,
+        "calls": 17,
+        "self_cpu": 1.0877000000242276e-05,
+        "cumulative_cpu": 0.00012104799999579363
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 134,
+        "name": "observation_window",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.012299999736399e-05,
+        "cumulative_cpu": 2.4750000001017014e-05
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 283,
+        "name": "__init__",
+        "primitive_calls": 10,
+        "calls": 10,
+        "self_cpu": 9.463000000042854e-06,
+        "cumulative_cpu": 3.1789999999976004e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "getrusage",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 9.041999999626071e-06,
+        "cumulative_cpu": 9.041999999626071e-06
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 451,
+        "name": "scalars",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 8.876999995521828e-06,
+        "cumulative_cpu": 4.983999999907951e-05
+      },
+      {
+        "file": "src/simulatte/shopfloor.py",
+        "line": 396,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 8.625000000428429e-06,
+        "cumulative_cpu": 2.8955000000996378e-05
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 631,
+        "name": "close",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 8.376000003806894e-06,
+        "cumulative_cpu": 3.117000000685266e-05
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/base.py",
+        "line": 170,
+        "name": "__init__",
+        "primitive_calls": 10,
+        "calls": 10,
+        "self_cpu": 8.291000000104631e-06,
+        "cumulative_cpu": 2.578999999980347e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 303,
+        "name": "helper",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 7.3339999995258864e-06,
+        "cumulative_cpu": 1.6331999999064095e-05
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 402,
+        "name": "is_live",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 7.045000000038826e-06,
+        "cumulative_cpu": 1.183300000073828e-05
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 133,
+        "name": "attach",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 6.998000000368876e-06,
+        "cumulative_cpu": 4.583000000080162e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 108,
+        "name": "__init__",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 6.707999999688852e-06,
+        "cumulative_cpu": 8.997999999538209e-06
+      },
+      {
+        "file": "src/simulatte/server.py",
+        "line": 262,
+        "name": "snapshot",
+        "primitive_calls": 10,
+        "calls": 10,
+        "self_cpu": 6.543999999442107e-06,
+        "cumulative_cpu": 1.3083999998109164e-05
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 440,
+        "name": "scalar_values",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 6.417000005143336e-06,
+        "cumulative_cpu": 3.479800000150135e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "isoformat",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 6.16600000014067e-06,
+        "cumulative_cpu": 6.16600000014067e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/live_observation.py",
+        "line": 320,
+        "name": "configure_observers",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 5.749000000276894e-06,
+        "cumulative_cpu": 0.00024774100000457544
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 145,
+        "name": "__exit__",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 5.5820000006701065e-06,
+        "cumulative_cpu": 1.886999999900496e-05
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 369,
+        "name": "_handler",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 5.541999999802982e-06,
+        "cumulative_cpu": 5.541999999802982e-06
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/resource.py",
+        "line": 180,
+        "name": "__init__",
+        "primitive_calls": 10,
+        "calls": 10,
+        "self_cpu": 5.288999999519817e-06,
+        "cumulative_cpu": 3.107899999932329e-05
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 136,
+        "name": "__enter__",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 5.210000000532844e-06,
+        "cumulative_cpu": 1.8963999999899173e-05
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/live_observation.py",
+        "line": 316,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 5.124999999939206e-06,
+        "cumulative_cpu": 0.0006982810000049078
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/uuid.py",
+        "line": 774,
+        "name": "uuid4",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 5.12400000007851e-06,
+        "cumulative_cpu": 2.1415000000413187e-05
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 354,
+        "name": "<genexpr>",
+        "primitive_calls": 25,
+        "calls": 25,
+        "self_cpu": 5.000999999671407e-06,
+        "cumulative_cpu": 5.000999999671407e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "sum",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 4.9189999975496335e-06,
+        "cumulative_cpu": 1.7751999995541112e-05
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 336,
+        "name": "on_activate",
+        "primitive_calls": 15,
+        "calls": 15,
+        "self_cpu": 4.7919999999201934e-06,
+        "cumulative_cpu": 7.167000000585233e-06
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/resource.py",
+        "line": 244,
+        "name": "__init__",
+        "primitive_calls": 10,
+        "calls": 10,
+        "self_cpu": 4.666000000153048e-06,
+        "cumulative_cpu": 3.5744999999476335e-05
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "now",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 4.500000000184912e-06,
+        "cumulative_cpu": 4.500000000184912e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 534,
+        "name": "callback",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 4.0000000041118255e-06,
+        "cumulative_cpu": 5.751000003328954e-06
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 444,
+        "name": "<genexpr>",
+        "primitive_calls": 11,
+        "calls": 11,
+        "self_cpu": 3.832999997399611e-06,
+        "cumulative_cpu": 5.4169999970099525e-06
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/core.py",
+        "line": 105,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.5000000000451337e-06,
+        "cumulative_cpu": 1.1331999999919518e-05
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 268,
+        "name": "mean",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 3.333000005767417e-06,
+        "cumulative_cpu": 1.3417999998210917e-05
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 418,
+        "name": "<genexpr>",
+        "primitive_calls": 11,
+        "calls": 11,
+        "self_cpu": 3.2910000005159645e-06,
+        "cumulative_cpu": 7.416000000981526e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 571,
+        "name": "__exit__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.249999998899966e-06,
+        "cumulative_cpu": 1.546100000027195e-05
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 163,
+        "name": "close",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 3.126000002851015e-06,
+        "cumulative_cpu": 9.671000007926978e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "startswith",
+        "primitive_calls": 17,
+        "calls": 17,
+        "self_cpu": 3.124999999215561e-06,
+        "cumulative_cpu": 3.124999999215561e-06
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 360,
+        "name": "<genexpr>",
+        "primitive_calls": 17,
+        "calls": 17,
+        "self_cpu": 3.1229999999382585e-06,
+        "cumulative_cpu": 3.1229999999382585e-06
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 103,
+        "name": "__init__",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 3.084999999902749e-06,
+        "cumulative_cpu": 7.209000000951704e-06
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 415,
+        "name": "on_activate",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.084000000042053e-06,
+        "cumulative_cpu": 2.4373000002242406e-05
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 396,
+        "name": "window",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 3.083999995601161e-06,
+        "cumulative_cpu": 2.833499999943534e-05
+      },
+      {
+        "file": ".venv/lib/python3.14/site-packages/simpy/resources/resource.py",
+        "line": 150,
+        "name": "__init__",
+        "primitive_calls": 10,
+        "calls": 10,
+        "self_cpu": 3.0829999999593127e-06,
+        "cumulative_cpu": 3.0829999999593127e-06
+      },
+      {
+        "file": "src/simulatte/policies/conwip.py",
+        "line": 49,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.0819999998765724e-06,
+        "cumulative_cpu": 9.082999999243668e-06
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 718,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.0419999998976266e-06,
+        "cumulative_cpu": 5.000999999893452e-06
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 126,
+        "name": "<genexpr>",
+        "primitive_calls": 21,
+        "calls": 21,
+        "self_cpu": 3.0399999999541905e-06,
+        "cumulative_cpu": 3.0399999999541905e-06
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 669,
+        "name": "__init__",
+        "primitive_calls": 17,
+        "calls": 17,
+        "self_cpu": 3.0390000003155393e-06,
+        "cumulative_cpu": 3.0390000003155393e-06
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 275,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.0000000001972893e-06,
+        "cumulative_cpu": 8.751000000195575e-06
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 336,
+        "name": "_check_name",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 2.9999999999752447e-06,
+        "cumulative_cpu": 5.874000000183344e-06
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 215,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.8340000002291532e-06,
+        "cumulative_cpu": 8.167000000725011e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/weakref.py",
+        "line": 104,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.8329999999243682e-06,
+        "cumulative_cpu": 5.750999999998285e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/uuid.py",
+        "line": 267,
+        "name": "_from_int",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 2.708000000239963e-06,
+        "cumulative_cpu": 3.16600000038747e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/observation_benchmark.py",
+        "line": 109,
+        "name": "<genexpr>",
+        "primitive_calls": 6,
+        "calls": 6,
+        "self_cpu": 2.5419999971632024e-06,
+        "cumulative_cpu": 2.5419999971632024e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "callable",
+        "primitive_calls": 17,
+        "calls": 17,
+        "self_cpu": 2.540000000106346e-06,
+        "cumulative_cpu": 2.540000000106346e-06
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 207,
+        "name": "__init__",
+        "primitive_calls": 5,
+        "calls": 5,
+        "self_cpu": 2.2920000000148377e-06,
+        "cumulative_cpu": 3.0410000002589754e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "fullmatch",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 2.291000000154142e-06,
+        "cumulative_cpu": 2.291000000154142e-06
+      },
+      {
+        "file": "<frozen _collections_abc>",
+        "line": 792,
+        "name": "get",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 2.207999997949628e-06,
+        "cumulative_cpu": 4.165999996530445e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 220,
+        "name": "close",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.1660000015799596e-06,
+        "cumulative_cpu": 3.333600000843262e-05
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 815,
+        "name": "_remove",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 2.1260000018230585e-06,
+        "cumulative_cpu": 4.711000009649524e-06
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 190,
+        "name": "copy",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 2.125999998270345e-06,
+        "cumulative_cpu": 2.625999997007966e-06
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 221,
+        "name": "result",
+        "primitive_calls": 5,
+        "calls": 5,
+        "self_cpu": 2.03899999817736e-06,
+        "cumulative_cpu": 4.747999998500063e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/weakref.py",
+        "line": 235,
+        "name": "update",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.0010000001402517e-06,
+        "cumulative_cpu": 2.918000000073917e-06
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 699,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.958999999995825e-06,
+        "cumulative_cpu": 1.958999999995825e-06
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 387,
+        "name": "on_activate",
+        "primitive_calls": 13,
+        "calls": 13,
+        "self_cpu": 1.9579999994689956e-06,
+        "cumulative_cpu": 1.9579999994689956e-06
+      },
+      {
+        "file": "src/simulatte/_wire.py",
+        "line": 81,
+        "name": "__getitem__",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.957999998580817e-06,
+        "cumulative_cpu": 1.957999998580817e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 481,
+        "name": "_exit_wrapper",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.9579999950281035e-06,
+        "cumulative_cpu": 1.1629000002955081e-05
+      },
+      {
+        "file": "src/simulatte/psp.py",
+        "line": 66,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.9169999998513987e-06,
+        "cumulative_cpu": 6.833000000039391e-06
+      },
+      {
+        "file": "src/simulatte/environment.py",
+        "line": 526,
+        "name": "configure_kpis",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.8749999999290168e-06,
+        "cumulative_cpu": 2.1670000001083878e-06
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 165,
+        "name": "__init__",
+        "primitive_calls": 10,
+        "calls": 10,
+        "self_cpu": 1.8309999989529757e-06,
+        "cumulative_cpu": 1.8309999989529757e-06
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 48,
+        "name": "_level_priority",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.7490000003839157e-06,
+        "cumulative_cpu": 3.7900000009472024e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "update",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.7079999992120065e-06,
+        "cumulative_cpu": 1.7079999992120065e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "_abc_instancecheck",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.6670000000384988e-06,
+        "cumulative_cpu": 1.6670000000384988e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 187,
+        "name": "run",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.666999999372365e-06,
+        "cumulative_cpu": 1.8331786080007646
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 241,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.666000000177803e-06,
+        "cumulative_cpu": 3.083000000403402e-06
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 411,
+        "name": "<genexpr>",
+        "primitive_calls": 11,
+        "calls": 11,
+        "self_cpu": 1.5829999997496458e-06,
+        "cumulative_cpu": 1.5829999997496458e-06
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 494,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.4170000000035543e-06,
+        "cumulative_cpu": 3.876000000513358e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/uuid.py",
+        "line": 398,
+        "name": "hex",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.4160000001428585e-06,
+        "cumulative_cpu": 3.874999999986528e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 485,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.415999999920814e-06,
+        "cumulative_cpu": 1.415999999920814e-06
+      },
+      {
+        "file": "src/simulatte/psp.py",
+        "line": 89,
+        "name": "snapshot",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.3750000000811724e-06,
+        "cumulative_cpu": 1.3750000000811724e-06
+      },
+      {
+        "file": "src/simulatte/events.py",
+        "line": 683,
+        "name": "cancel",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.3339999966888172e-06,
+        "cumulative_cpu": 6.045000006338341e-06
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 246,
+        "name": "__init__",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 1.333000000380835e-06,
+        "cumulative_cpu": 1.6650000003171073e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "vars",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.292000000319149e-06,
+        "cumulative_cpu": 1.292000000319149e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/studio_trace.py",
+        "line": 92,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.208000000030296e-06,
+        "cumulative_cpu": 3.1260000001864796e-06
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 80,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.1670000001906544e-06,
+        "cumulative_cpu": 2.416000000060592e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 29,
+        "name": "on_activate",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.1259999999069237e-06,
+        "cumulative_cpu": 1.0672999998906363e-05
+      },
+      {
+        "file": "<frozen abc>",
+        "line": 117,
+        "name": "__instancecheck__",
+        "primitive_calls": 3,
+        "calls": 3,
+        "self_cpu": 1.0840000002065864e-06,
+        "cumulative_cpu": 2.751000000245085e-06
+      },
+      {
+        "file": "src/simulatte/shopfloor.py",
+        "line": 471,
+        "name": "snapshot",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.0839999999845418e-06,
+        "cumulative_cpu": 1.3759999999418682e-06
+      },
+      {
+        "file": "prototypes/native_engine_dynamic/production.py",
+        "line": 25,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.083000000123846e-06,
+        "cumulative_cpu": 4.209000000310326e-06
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 137,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.0409999999794195e-06,
+        "cumulative_cpu": 2.164999999942907e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "upper",
+        "primitive_calls": 4,
+        "calls": 4,
+        "self_cpu": 1.0000000003618226e-06,
+        "cumulative_cpu": 1.0000000003618226e-06
+      },
+      {
+        "file": "src/simulatte/collectors.py",
+        "line": 399,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.000000000139778e-06,
+        "cumulative_cpu": 2.1670000003304324e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "to_bytes",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 9.589999998560472e-07,
+        "cumulative_cpu": 9.589999998560472e-07
+      },
+      {
+        "file": "src/simulatte/shopfloor.py",
+        "line": 479,
+        "name": "_normalize_hooks",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 9.170000001557099e-07,
+        "cumulative_cpu": 4.418000000283584e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "hex",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 8.340000001716419e-07,
+        "cumulative_cpu": 8.340000001716419e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 552,
+        "name": "_push_exit_callback",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 8.330000014211691e-07,
+        "cumulative_cpu": 1.1670000006347436e-06
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "from_bytes",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 7.499999998827889e-07,
+        "cumulative_cpu": 7.499999998827889e-07
+      },
+      {
+        "file": "src/simulatte/psp.py",
+        "line": 229,
+        "name": "on_arrival",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 6.669999998987208e-07,
+        "cumulative_cpu": 8.749999997892388e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/uuid.py",
+        "line": 335,
+        "name": "bytes",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 6.659999998159805e-07,
+        "cumulative_cpu": 1.6249999996720277e-06
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 479,
+        "name": "_create_cb_wrapper",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 5.839999985823852e-07,
+        "cumulative_cpu": 5.839999985823852e-07
+      },
+      {
+        "file": "src/simulatte/rng.py",
+        "line": 64,
+        "name": "__init__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 4.579999999254625e-07,
+        "cumulative_cpu": 4.579999999254625e-07
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 239,
+        "name": "_release",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.74999999053216e-07,
+        "cumulative_cpu": 3.74999999053216e-07
+      },
+      {
+        "file": "src/simulatte/kpi.py",
+        "line": 125,
+        "name": "length",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 3.339999992135745e-07,
+        "cumulative_cpu": 3.339999992135745e-07
+      },
+      {
+        "file": "src/simulatte/entities.py",
+        "line": 193,
+        "name": "_reserved_pattern",
+        "primitive_calls": 2,
+        "calls": 2,
+        "self_cpu": 2.90999999874586e-07,
+        "cumulative_cpu": 2.90999999874586e-07
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 234,
+        "name": "_open",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.080000001125626e-07,
+        "cumulative_cpu": 2.080000001125626e-07
+      },
+      {
+        "file": "",
+        "line": 0,
+        "name": "exception",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 2.0799999944642877e-07,
+        "cumulative_cpu": 2.0799999944642877e-07
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 199,
+        "name": "_open",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.6700000005087645e-07,
+        "cumulative_cpu": 1.6700000005087645e-07
+      },
+      {
+        "file": "src/simulatte/shopfloor.py",
+        "line": 491,
+        "name": "_normalize_callbacks",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.6700000005087645e-07,
+        "cumulative_cpu": 1.6700000005087645e-07
+      },
+      {
+        "file": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py",
+        "line": 568,
+        "name": "__enter__",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.6599999952404687e-07,
+        "cumulative_cpu": 1.6599999952404687e-07
+      },
+      {
+        "file": "src/simulatte/logsinks.py",
+        "line": 202,
+        "name": "_release",
+        "primitive_calls": 1,
+        "calls": 1,
+        "self_cpu": 1.2499999968440534e-07,
+        "cumulative_cpu": 1.2499999968440534e-07
+      },
+      {
+        "file": "profile",
+        "line": 0,
+        "name": "profiler",
+        "primitive_calls": 0,
+        "calls": 0,
+        "self_cpu": 0,
+        "cumulative_cpu": 0
+      }
+    ]
+  },
+  "writers": [],
+  "interest_checks": false,
+  "python_emissions": 151815
+}

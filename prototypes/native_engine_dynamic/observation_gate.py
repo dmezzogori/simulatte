@@ -118,7 +118,19 @@ class Checkpoints:
         return self.stream.inspect(handle)
 
 
-def case(templates, directory, *, cap, policy, producer, level, warmup, horizon=None, delivery="boundary"):
+def case(
+    templates,
+    directory,
+    *,
+    cap,
+    policy,
+    producer,
+    level,
+    warmup,
+    horizon=None,
+    delivery="boundary",
+    interest_checks=False,
+):
     results = []
     for backend in ("production", "native"):
         path = directory / f"{backend}.simtrace" if level != "none" else None
@@ -138,6 +150,7 @@ def case(templates, directory, *, cap, policy, producer, level, warmup, horizon=
                 warmup=warmup,
                 delivery=delivery,
                 debug=True,
+                interest_checks=interest_checks,
             )
         )
         env = stream.env if backend == "production" else stream.projection.env

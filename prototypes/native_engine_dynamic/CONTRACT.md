@@ -18,6 +18,12 @@ adds live `level="none"`: the final recorder/digest is absent, but the rich
 journal remains its observation transport. This differs from the bare engine's
 `mode="none"`, which has no Python live collectors or journal.
 
+The [subscriber-interest experiment](../../specs/research/2026-11-02-native-interest.md)
+adds optional `interest_checks=True` for untraced live publication. Mandatory view
+updates precede the guard. Requested payloads/times remain available; partial
+untraced streams can have compressed local sequence numbers. Recording bypasses
+the guard, and the original publisher remains the default.
+
 ## Interfaces and ownership
 
 `NativeStream` in `native.py` and independent `ReferenceStream` in `reference.py` implement:

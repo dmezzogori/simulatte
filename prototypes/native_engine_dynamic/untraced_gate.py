@@ -43,11 +43,15 @@ def check_rows(rows):
             assert row[field] == previous[field], (key, field)
 
 
-def gate(output):
+def gate(output, *, interest_checks=False):
     output.mkdir(parents=True, exist_ok=False)
     frozen, binaries = source_hash(), libraries()
     metadata = dict(
-        source_sha256=frozen, files=sources(), libraries=binaries, interpreter=platform.python_implementation()
+        source_sha256=frozen,
+        files=sources(),
+        libraries=binaries,
+        interpreter=platform.python_implementation(),
+        interest_checks=interest_checks,
     )
     (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     templates = {**workloads(), **{f"wide-{i}": quantized(i, jobs=24) for i in range(8)}}
@@ -63,6 +67,7 @@ def gate(output):
                 level=level,
                 warmup=warmup,
                 horizon=horizon,
+                interest_checks=interest_checks,
             )
             row = dict(
                 case=name,
@@ -93,4 +98,6 @@ def gate(output):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
-    gate(parser.parse_args().output)
+    parser.add_argument("--interest-checks", action="store_true")
+    args = parser.parse_args()
+    gate(args.output, interest_checks=args.interest_checks)

@@ -345,3 +345,7 @@ Native journal I/O and PyPy boundary behavior remain separate possible targets,
 but the profiles do not justify choosing a transport rewrite first. No public
 backend, packaging, transport replacement or collector optimization is included.
 The recommended follow-up has not been implemented or adopted as a commitment.
+
+Follow-up: Davide authorized the
+[subscriber-interest experiment](2026-11-02-native-interest.md), retaining the
+original publisher as a paired control and testing requested-event/view fidelity.
