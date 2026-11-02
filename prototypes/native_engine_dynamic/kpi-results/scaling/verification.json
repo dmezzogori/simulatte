@@ -1,0 +1,11 @@
+{
+  "cases": 32,
+  "samples": 160,
+  "exact_outputs": true,
+  "source_sha256": "bd7a4c14b28a387ec436653b85de778f053d6fe3699c92898b793b441f85e65b",
+  "evidence": {
+    "metadata.json": "14ec0ebb19c1c5fe497d1e3966648fefac57630c54e950aefc7eba76cde9f32e",
+    "matrix.jsonl": "fd977117241bb4738b6ad0fb9c309cfef2ada5ddd0dfc237048dbab312b7e927",
+    "summary.json": "54f08e0917be41fc3c41e2793bcfa5b29ad89c6be625e7575b9c71eb7e773d8f"
+  }
+}

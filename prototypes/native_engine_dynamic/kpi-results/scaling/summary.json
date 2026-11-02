@@ -1,0 +1,146 @@
+[
+  {
+    "producer": "feedback",
+    "jobs": 5000,
+    "warmup": 500.0,
+    "polling": "boundary",
+    "native_s": 0.02469141798792407,
+    "production_s": 0.4715026250923984,
+    "speedup": 19.095809941859073
+  },
+  {
+    "producer": "independent",
+    "jobs": 5000,
+    "warmup": 500.0,
+    "polling": "final",
+    "native_s": 0.00760854099644348,
+    "production_s": 0.5957505839760415,
+    "speedup": 78.30023972460921
+  },
+  {
+    "producer": "feedback",
+    "jobs": 20000,
+    "warmup": 500.0,
+    "polling": "boundary",
+    "native_s": 0.09587524994276464,
+    "production_s": 1.9118183759273961,
+    "speedup": 19.94068726880721
+  },
+  {
+    "producer": "feedback",
+    "jobs": 5000,
+    "warmup": 500.0,
+    "polling": "final",
+    "native_s": 0.02086104202317074,
+    "production_s": 0.43238316604401916,
+    "speedup": 20.726824938263547
+  },
+  {
+    "producer": "independent",
+    "jobs": 5000,
+    "warmup": 0.0,
+    "polling": "final",
+    "native_s": 0.007745500013697892,
+    "production_s": 0.6066409170161933,
+    "speedup": 78.3217243487639
+  },
+  {
+    "producer": "feedback",
+    "jobs": 5000,
+    "warmup": 0.0,
+    "polling": "final",
+    "native_s": 0.020863041980192065,
+    "production_s": 0.4346238750149496,
+    "speedup": 20.83223891451655
+  },
+  {
+    "producer": "independent",
+    "jobs": 20000,
+    "warmup": 500.0,
+    "polling": "boundary",
+    "native_s": 0.04382358299335465,
+    "production_s": 3.991090916970279,
+    "speedup": 91.07176192269543
+  },
+  {
+    "producer": "feedback",
+    "jobs": 5000,
+    "warmup": 0.0,
+    "polling": "boundary",
+    "native_s": 0.026072457956615835,
+    "production_s": 0.47231700096745044,
+    "speedup": 18.115553269023525
+  },
+  {
+    "producer": "feedback",
+    "jobs": 20000,
+    "warmup": 500.0,
+    "polling": "final",
+    "native_s": 0.07911195995984599,
+    "production_s": 1.7638376669492573,
+    "speedup": 22.295461619766588
+  },
+  {
+    "producer": "independent",
+    "jobs": 20000,
+    "warmup": 500.0,
+    "polling": "final",
+    "native_s": 0.028539332910440862,
+    "production_s": 3.922554459015373,
+    "speedup": 137.44380330558957
+  },
+  {
+    "producer": "independent",
+    "jobs": 5000,
+    "warmup": 0.0,
+    "polling": "boundary",
+    "native_s": 0.011887040978763252,
+    "production_s": 0.6410773329553194,
+    "speedup": 53.93077504322848
+  },
+  {
+    "producer": "feedback",
+    "jobs": 20000,
+    "warmup": 0.0,
+    "polling": "boundary",
+    "native_s": 0.09826774901011959,
+    "production_s": 1.95511295896722,
+    "speedup": 19.89577433757929
+  },
+  {
+    "producer": "independent",
+    "jobs": 5000,
+    "warmup": 500.0,
+    "polling": "boundary",
+    "native_s": 0.011260917002800852,
+    "production_s": 0.6348105830256827,
+    "speedup": 56.37290310085675
+  },
+  {
+    "producer": "independent",
+    "jobs": 20000,
+    "warmup": 0.0,
+    "polling": "boundary",
+    "native_s": 0.04449545795796439,
+    "production_s": 4.1324397509451956,
+    "speedup": 92.87329405282627
+  },
+  {
+    "producer": "feedback",
+    "jobs": 20000,
+    "warmup": 0.0,
+    "polling": "final",
+    "native_s": 0.07958366704406217,
+    "production_s": 1.7899434168939479,
+    "speedup": 22.491341293722122
+  },
+  {
+    "producer": "independent",
+    "jobs": 20000,
+    "warmup": 0.0,
+    "polling": "final",
+    "native_s": 0.028756916988641024,
+    "production_s": 4.047922625031788,
+    "speedup": 140.7634422921872
+  }
+]

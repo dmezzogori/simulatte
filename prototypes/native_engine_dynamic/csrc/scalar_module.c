@@ -273,6 +273,36 @@ failed:
 #undef DOUBLE
 #undef INTEGER
 }
+static PyObject *enable_stock_kpis(PyObject *self, PyObject *args) {
+    (void)self;
+    PyObject *capsule;
+    double warmup;
+    if (!PyArg_ParseTuple(args, "Od", &capsule, &warmup)) return NULL;
+    scalar *s = get(capsule, 1);
+    if (!s) return NULL;
+    return status(s, nd_enable_stock_kpis(s->engine, warmup));
+}
+static PyObject *stock_kpis(PyObject *self, PyObject *capsule) {
+    (void)self;
+    scalar *s = get(capsule, 0);
+    if (!s) return NULL;
+    nd_kpi_snapshot snapshot;
+    int rc = nd_stock_kpis(s->engine, &snapshot);
+    if (rc == -2) return PyErr_NoMemory();
+    if (rc) { PyErr_SetString(PyExc_RuntimeError, "stock KPIs unavailable"); return NULL; }
+    const char *names[] = {"shopfloor/makespan", "shopfloor/lateness", "shopfloor/tardiness",
+        "shopfloor/tardy_fraction", "shopfloor/total_queue_time", "shopfloor/throughput",
+        "shopfloor/utilization", "shopfloor/jobs_in_system"};
+    PyObject *values = PyDict_New();
+    if (!values) return NULL;
+    for (unsigned i = 0; i < 8; ++i) {
+        if ((snapshot.present & (1u << i)) && put(values, names[i], PyFloat_FromDouble(snapshot.values[i]))) {
+            Py_DECREF(values); return NULL;
+        }
+    }
+    return Py_BuildValue("{s:(ddO),s:N}", "window", snapshot.start, snapshot.end,
+                         snapshot.closed ? Py_True : Py_False, "scalars", values);
+}
 static PyObject *close_stream(PyObject *self, PyObject *capsule) {
     (void)self;
     scalar *s = PyCapsule_GetPointer(capsule, CAPSULE);
@@ -294,6 +324,8 @@ static PyMethodDef methods[] = {
     {"add", add, METH_VARARGS, NULL}, {"advance", advance, METH_VARARGS, NULL},
     {"run", run, METH_O, NULL}, {"inspect", inspect, METH_VARARGS, NULL},
     {"flush", flush, METH_O, NULL},
+    {"enable_stock_kpis", enable_stock_kpis, METH_VARARGS, NULL},
+    {"stock_kpis", stock_kpis, METH_O, NULL},
     {"now", now, METH_O, NULL}, {"result", result, METH_O, NULL},
     {"close", close_stream, METH_O, NULL}, {NULL, NULL, 0, NULL}
 };

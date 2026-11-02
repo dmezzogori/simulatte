@@ -1,4 +1,5 @@
 #include "dynamic_engine.h"
+#include "stock_kpi.h"
 
 #include <float.h>
 #include <math.h>
@@ -9,16 +10,16 @@
 #ifdef ND_TEST_ALLOCATIONS
 static size_t allocation_attempt, allocation_failure;
 void nd_test_fail_allocation(size_t nth) { allocation_attempt = 0; allocation_failure = nth; }
-static void *test_calloc(size_t count, size_t size) {
+void *nd_test_calloc(size_t count, size_t size) {
     if (++allocation_attempt == allocation_failure) return NULL;
     return calloc(count, size);
 }
-static void *test_realloc(void *p, size_t size) {
+void *nd_test_realloc(void *p, size_t size) {
     if (++allocation_attempt == allocation_failure) return NULL;
     return realloc(p, size);
 }
-#define calloc test_calloc
-#define realloc test_realloc
+#define calloc nd_test_calloc
+#define realloc nd_test_realloc
 #endif
 
 _Static_assert(sizeof(double) == 8 && DBL_MANT_DIG == 53 && DBL_MAX_EXP == 1024,
@@ -46,6 +47,8 @@ struct nd_engine {
     FILE *file;
     unsigned char *record_buffer;
     size_t record_used;
+    nd_stock_state *stock;
+    int stock_horizon;
     nd_result result;
     char error[256];
 };
@@ -175,6 +178,7 @@ static int grant(nd_engine *e, uint32_t server) {
     else e->next[previous] = e->next[chosen];
     if (e->tail[server] == chosen) e->tail[server] = previous;
     e->next[chosen] = NONE;
+    if (e->stock && nd_stock_busy(e->stock, e->now, 1)) return fail(e, "KPI allocation failed");
     e->occupied[server] = 1;
     if (e->mode == 3 && record(e, 8, e->job_of[chosen], chosen, server)) return -1;
     return schedule(e, e->now, START, chosen);
@@ -216,7 +220,8 @@ static uint32_t pool_pop(nd_engine *e) {
     if (e->pool_size) e->pool[i] = last;
     return first;
 }
-static void floor_change(nd_engine *e, int delta) {
+static int floor_change(nd_engine *e, int delta) {
+    if (e->stock && nd_stock_floor(e->stock, e->now, delta)) return fail(e, "KPI allocation failed");
     if (e->mode) {
         e->result.floor_wip_area += (e->now - e->last_floor_time) * (double)e->floor_wip;
         e->last_floor_time = e->now;
@@ -224,13 +229,14 @@ static void floor_change(nd_engine *e, int delta) {
     if (delta > 0) ++e->floor_wip;
     else --e->floor_wip;
     if (e->floor_wip > e->result.max_floor_wip) e->result.max_floor_wip = e->floor_wip;
+    return 0;
 }
 static int release_pending(nd_engine *e) {
     while (e->pool_size && (!e->cap || e->floor_wip < e->cap)) {
         uint32_t job = pool_pop(e);
         e->job_state[job] = 2;
         e->released[job] = e->now;
-        floor_change(e, 1);
+        if (floor_change(e, 1)) return -1;
         if (e->mode) e->result.total_pool_wait += e->now - e->arrivals[job];
         if (record(e, 6, job, NONE, NONE) || schedule(e, e->now, INITIALIZE, e->offsets[job])) return -1;
     }
@@ -267,6 +273,7 @@ static int process(nd_engine *e, event ev) {
         if (record(e, 4, job, op, server)) return -1;
         return schedule(e, e->now, ADVANCE, op);
     }
+    if (e->stock && nd_stock_busy(e->stock, e->now, -1)) return fail(e, "KPI allocation failed");
     e->occupied[server] = 0;
     if (e->mode == 3 && record(e, 9, job, op, server)) return -1;
     /* main() signals job_processing_end before constructing the Release.
@@ -288,8 +295,13 @@ static int process(nd_engine *e, event ev) {
         e->result.total_tardiness += e->now > e->due[job] ? e->now - e->due[job] : 0;
     }
     if (record(e, 5, job, NONE, NONE) || wip_change(e, -1)) return -1;
-    floor_change(e, -1);
-    return 0;
+    if (e->stock) {
+        uint32_t begin = e->offsets[job];
+        int rc = nd_stock_finish(e->stock, e->now, e->arrivals[job], e->due[job],
+            e->offsets[job + 1] - begin, e->ends + begin, e->queued + begin, e->durations + begin);
+        if (rc) return fail(e, rc == -2 ? "job queue sum overflow" : "KPI allocation failed");
+    }
+    return floor_change(e, -1);
 }
 
 /* Each successful realloc is installed immediately. A later failure poisons
@@ -452,7 +464,9 @@ static int drain(nd_engine *e, double until) {
 int nd_advance(nd_engine *e, double until) {
     if (!e) return -1;
     if (e->state || !isfinite(until) || until < e->now) return fail(e, "invalid advance or engine state");
+    double previous = e->now;
     if (drain(e, until)) return -1;
+    if (until > previous) e->stock_horizon = 1;
     e->now = until;
     return 0;
 }
@@ -477,7 +491,19 @@ int nd_run(nd_engine *e) {
     e->result.dispatch = e->dispatch;
     e->result.busy = e->busy;
     e->state = 2;
+    e->stock_horizon = 0;
     return 0;
+}
+int nd_enable_stock_kpis(nd_engine *e, double warmup) {
+    if (!e) return -1;
+    if (e->state || e->stock || e->jobs || e->now != 0 || e->stock_horizon ||
+        !isfinite(warmup) || warmup < 0) return fail(e, "invalid stock KPI configuration");
+    e->stock = nd_stock_create(warmup);
+    return e->stock ? 0 : fail(e, "KPI allocation failed");
+}
+int nd_stock_kpis(const nd_engine *e, nd_kpi_snapshot *out) {
+    if (!e || e->state == 1 || !e->stock || !out) return -1;
+    return nd_stock_snapshot(e->stock, e->now, e->servers, e->stock_horizon, out) ? -2 : 0;
 }
 int nd_inspect(const nd_engine *e, uint32_t id, nd_snapshot *out) {
     if (!e || e->state == 1 || id >= e->jobs || !out) return -1;
@@ -498,5 +524,6 @@ void nd_destroy(nd_engine *e) {
     free(e->head); free(e->tail); free(e->occupied);
     free(e->starts); free(e->ends); free(e->finished); free(e->busy); free(e->dispatch);
     free(e->heap); free(e->record_buffer);
+    nd_stock_destroy(e->stock);
     free(e);
 }

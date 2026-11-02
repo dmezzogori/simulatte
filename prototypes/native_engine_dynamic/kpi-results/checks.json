@@ -1,0 +1,64 @@
+{
+  "source_sha256": "bd7a4c14b28a387ec436653b85de778f053d6fe3699c92898b793b441f85e65b",
+  "libraries": {
+    "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+    "dynamic": "55768ef73a81b219e422a15d60610c88e5b3568df49a53a9615386c92d02dea4",
+    "_nd_scalar.cpython-314-darwin.so": "ecc3dfeecea9abf3564197b9c23555d2f6ee1fcf43bf9aa9f97c88a6023dc6dc",
+    "_nd_scalar.pypy311-pp73-darwin.so": "61c6eacfc6c9f980526150a76737847c1764cbef1ea328edea833bc31532abbb"
+  },
+  "checks": [
+    {
+      "command": ".venv/bin/python -m pytest prototypes/native_engine/tests prototypes/native_engine_dynamic/tests -o addopts= --import-mode=importlib -q --tb=short -x",
+      "passed": 476,
+      "skipped": 1
+    },
+    {
+      "command": "prototypes/native_engine/.build/pypy-env/bin/python -m pytest prototypes/native_engine/tests prototypes/native_engine_dynamic/tests -o addopts= --import-mode=importlib -q --tb=short -x",
+      "passed": 473,
+      "skipped": 4,
+      "warnings": [
+        "existing unknown timeout config",
+        "existing unknown timeout_method config"
+      ]
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/core/test_trace_reader.py tests/core/test_trace_writer.py tests/core/test_trace_sink.py tests/core/test_conwip.py tests/core/test_invariance.py -o addopts= -q --tb=short",
+      "passed": 156
+    },
+    {
+      "command": "ASan/UBSan extension; compiled EXTENSION redirected to scalar-sanitize; PYTHONMALLOC=malloc ASAN_OPTIONS=detect_leaks=0; test_compiled.py + test_native_kpis.py",
+      "passed": 96,
+      "scope": "instrumented C API boundary, release engine DSO; standalone harness separately instruments engine and stock KPI helper"
+    },
+    {
+      "command": ".venv/bin/python -m prototypes.native_engine_dynamic.build --sanitize; .build/native_sanitizer .build/kpi-sanitizer.bin",
+      "passed": true,
+      "stock_mutation_allocation_failures": 90,
+      "snapshot_allocation_failures": 2,
+      "expansion_growth_failures": 3,
+      "legacy_scalar_failures": 143,
+      "legacy_rich_failures": 143,
+      "legacy_bulk_failures": 144
+    },
+    {
+      "command": "ruff check/format: build.py, compiled_build.py, native_kpis.py, kpi_experiment.py, tests/test_native_kpis.py",
+      "passed": true
+    }
+  ],
+  "sanitizers": {
+    "prototypes/native_engine_dynamic/.build/native_sanitizer": "cce6925dd5a3bb28b241d580b7cda6ebb72770f4f38150e7c51e3ef7b8dd2800",
+    "prototypes/native_engine_dynamic/.build/scalar-sanitize/_nd_scalar.cpython-314-darwin.so": "40f39dc3c7be96e9651d511645c2a5bb9b925feca307b3f847d8f9fcd8723a42"
+  },
+  "corrected_attempts": [
+    "initial helper type signal conflicted with macOS headers; renamed nd_signal",
+    "initial CPython extension linked before successful engine build; rebuilt in dependency order",
+    "initial test expected same rate after a longer idle horizon; aligned the final horizon",
+    "gate normalized int/float feedback timestamp representations before hashing"
+  ],
+  "timing_phases": [
+    "construction",
+    "simulation",
+    "scalar_export",
+    "cleanup"
+  ]
+}

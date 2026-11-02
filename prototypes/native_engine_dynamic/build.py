@@ -25,6 +25,31 @@ def build(*, sanitize: bool = False) -> Path:
     compiler = shlex.split(os.environ.get("CC", "cc"))
     flags = ["-std=c17", "-Wall", "-Wextra", "-Wpedantic", "-Werror"]
     source = ROOT / "csrc" / "dynamic_engine.c"
+    # Isolate strict KPI arithmetic from legacy engine code generation.
+    stock_object = BUILD / ("stock_kpi-sanitize.o" if sanitize else "stock_kpi.o")
+    stock_command = [
+        *compiler,
+        *flags,
+        "-ffp-contract=off",
+        *(
+            [
+                "-O1",
+                "-g",
+                "-fsanitize=address,undefined",
+                "-fno-sanitize-recover=all",
+                "-fno-omit-frame-pointer",
+                "-DND_TEST_ALLOCATIONS",
+            ]
+            if sanitize
+            else ["-O3", "-fPIC"]
+        ),
+        "-c",
+        str(ROOT / "csrc" / "stock_kpi.c"),
+        "-o",
+        str(stock_object),
+    ]
+    print(shlex.join(stock_command), flush=True)
+    subprocess.run(stock_command, check=True)
     if sanitize:
         target = BUILD / "native_sanitizer"
         command = [
@@ -37,6 +62,7 @@ def build(*, sanitize: bool = False) -> Path:
             "-fno-sanitize-recover=all",
             "-DND_TEST_ALLOCATIONS",
             str(source),
+            str(stock_object),
             str(ROOT / "tests" / "native_sanitizer.c"),
             "-lm",
             "-o",
@@ -51,6 +77,7 @@ def build(*, sanitize: bool = False) -> Path:
             "-fPIC",
             "-dynamiclib" if sys.platform == "darwin" else "-shared",
             str(source),
+            str(stock_object),
             "-lm",
             "-o",
             str(target),

@@ -148,3 +148,27 @@ footer/manifest/KPIs. Source queue order and actual SPT removals are represented
 micro-event ordering to SimPy's scheduler. Intermediate I/O, shadow state and complete writer close are
 timed. Record buffering can defer projection; completed-file compatibility is not bounded live delivery
 or managed Studio integration. Latency sealing is disabled; other production limits remain unchanged.
+
+
+## Native stock scalars (opt-in research path)
+
+`NativeKPIStream` keeps the eight `ShopFloorKPIs` in C: makespan, lateness,
+tardiness, tardy fraction, total queue time, throughput, utilization and jobs in
+system. Here makespan is mean creation-to-completion time and jobs in system
+counts the shop floor, excluding the pool. Warm-up applies to the completion
+cohort and clips busy/floor signals independently. Unfinished jobs are excluded
+from job means but contribute to time-weighted signals. Empty values are omitted;
+non-finite scalar values follow the production collector.
+
+Snapshots are detached, read-only queries between external calls. An advance to
+`t` processes events strictly before `t` and returns a right-open window; a run
+to exhaustion closes it, including an already-advanced idle tail. Repeating a
+snapshot does not split integral intervals or change later results. Close frees
+state without executing pending events. A failed mutation poisons the stream;
+a temporary snapshot allocation failure leaves it usable.
+
+This path configures before jobs/time advancement and fixes the shop floor and
+unit server capacities for the run. It has no Python event publication, journal,
+trace, per-event callbacks, history or EMA. The engine still retains trajectory
+arrays; this is not a bounded-memory engine claim. The legacy observer path is
+separate. It does not permit arbitrary event-time inspection of native state.

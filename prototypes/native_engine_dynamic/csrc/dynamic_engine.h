@@ -17,6 +17,16 @@ typedef struct {
     uint64_t max_floor_wip;
 } nd_result;
 typedef struct { double arrival, released, finished; uint32_t state; } nd_snapshot;
+typedef struct {
+    double start, end, values[8];
+    uint32_t present;
+    int closed;
+} nd_kpi_snapshot;
+/* Configure only before registration/advancement. Scalars use the production
+ * ShopFloorKPIs declaration order. Getter returns -2 for temporary allocation
+ * failure without poisoning; -1 for unavailable/failed state. */
+int nd_enable_stock_kpis(nd_engine *, double warmup);
+int nd_stock_kpis(const nd_engine *, nd_kpi_snapshot *);
 /* cap == 0 means unlimited. Every failed mutating call poisons the engine.
  * Caller supplies readable arrays of exactly the declared lengths; lengths are
  * checked against count before either array is read. IDs exclude UINT32_MAX.

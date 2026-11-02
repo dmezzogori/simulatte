@@ -1,4 +1,5 @@
 #include "../csrc/dynamic_engine.h"
+#include "../csrc/stock_kpi.h"
 
 #include <assert.h>
 #include <math.h>
@@ -248,8 +249,81 @@ static void simultaneous(void) {
     }
 }
 
+static int exercise_stock(size_t nth) {
+    nd_test_fail_allocation(nth);
+    char error[256];
+    nd_engine *e = nd_create(3, 2, 1, 0, NULL, error, sizeof(error));
+    if (!e) { assert(strstr(error, "allocation")); return -1; }
+    if (nd_enable_stock_kpis(e, 0.25)) goto failed;
+    for (uint32_t j = 0; j < 127; ++j) {
+        uint32_t routes[3] = {j % 3, (j + 1) % 3, (j + 2) % 3}, id;
+        double durations[3] = {0.1, 0.2, 0.3};
+        double arrival = (double)j / 100;
+        if (nd_advance(e, arrival) || nd_add(e, arrival, 1, 3, routes, 3, durations, 3, &id)) goto failed;
+    }
+    if (nd_run(e)) goto failed;
+    nd_test_fail_allocation(0);
+    nd_kpi_snapshot snapshot;
+    assert(!nd_stock_kpis(e, &snapshot) && snapshot.present == 255 && snapshot.closed);
+    assert(nd_get_result(e)->records == 0);
+    nd_destroy(e);
+    return 0;
+failed:
+    assert(strstr(nd_error(e), "allocation"));
+    nd_kpi_snapshot invalid;
+    assert(nd_stock_kpis(e, &invalid) == -1);
+    nd_destroy(e);
+    return -1;
+}
+static void stock_boundaries(void) {
+    nd_engine *e = fresh();
+    nd_kpi_snapshot snapshot, expected;
+    assert(nd_stock_kpis(e, &snapshot) == -1);
+    assert(!nd_enable_stock_kpis(e, 0));
+    assert(!nd_stock_kpis(e, &snapshot) && !snapshot.present && snapshot.closed);
+    uint32_t route = 0, id;
+    double duration = 1;
+    assert(!nd_add(e, 0, 0, 1, &route, 1, &duration, 1, &id));
+    assert(!nd_advance(e, 0.5));
+    assert(!nd_stock_kpis(e, &expected));
+    for (size_t nth = 1; nth <= 2; ++nth) {
+        nd_test_fail_allocation(nth);
+        assert(nd_stock_kpis(e, &snapshot) == -2);
+        nd_test_fail_allocation(0);
+        assert(!nd_stock_kpis(e, &snapshot));
+        assert(!memcmp(&snapshot, &expected, sizeof(snapshot)));
+    }
+    assert(!nd_run(e) && !nd_stock_kpis(e, &snapshot));
+    assert(snapshot.present == 255 && snapshot.values[0] == 1 && snapshot.values[6] == 0.5);
+    nd_destroy(e);
+    for (unsigned i = 0; i < 4; ++i) {
+        e = fresh();
+        if (i == 0) assert(nd_enable_stock_kpis(e, NAN));
+        if (i == 1) assert(nd_enable_stock_kpis(e, -1));
+        if (i == 2) { assert(!nd_advance(e, 1)); assert(nd_enable_stock_kpis(e, 0)); }
+        if (i == 3) { assert(!nd_enable_stock_kpis(e, 0)); assert(nd_enable_stock_kpis(e, 0)); }
+        assert(nd_stock_kpis(e, &snapshot) == -1);
+        nd_destroy(e);
+    }
+    /* Expansion allocation/growth failures own their original storage. */
+    for (size_t nth = 1; nth <= 3; ++nth) {
+        nd_sum sum = {0};
+        nd_test_fail_allocation(nth);
+        int rc = 0;
+        for (unsigned i = 0; i < 20 && !rc; ++i) rc = nd_sum_add(&sum, ldexp(1, -(int)(54 * i)));
+        assert(rc);
+        nd_sum_destroy(&sum);
+    }
+    nd_test_fail_allocation(0);
+}
+
 int main(int argc, char **argv) {
     assert(argc == 2);
+    stock_boundaries();
+    assert(exercise_stock(0) == 0);
+    size_t stock_failure = 1;
+    while (exercise_stock(stock_failure)) { assert(stock_failure < 512); ++stock_failure; }
+    printf("stock KPI sanitizer passed: %zu mutating allocation failures, read-only snapshot failures\n", stock_failure - 1);
     boundaries();
     batch_boundaries();
     simultaneous();

@@ -389,3 +389,23 @@ and reduces native publication by 32–33%. Paired CPython live time falls
 10.5–11.9%; buffered time falls 11.0–13.3%. PyPy changes are small or mixed,
 including a buffered regression. Keep the flag explicit/default-off; production
 PyPy remains the fastest stock-observation control in this slice.
+
+
+The scalar-only experiment adds `NativeKPIStream(..., warmup=0)`. Its C state
+computes the eight production `ShopFloorKPIs`; `snapshot()` returns detached
+scalars and `(start, end, closed)` at an external boundary. It creates no
+Python publisher or observation journal. `ProductionKPIStream` attaches only
+the unmodified production scalar collector as the reference. Existing modes
+and the Python-observer adapter remain available.
+
+```sh
+.venv/bin/python -m prototypes.native_engine_dynamic.build
+.venv/bin/python -m prototypes.native_engine_dynamic.compiled_build
+.venv/bin/python -m prototypes.native_engine_dynamic.kpi_experiment gate --output /tmp/kpi-gate
+.venv/bin/python -m prototypes.native_engine_dynamic.kpi_experiment matrix --output /tmp/kpi-scaling
+```
+
+CPython timings request the same eight scalars on both sides, either finally
+or at every arrival boundary. They include construction, simulation, scalar
+export and close/collection. Trajectory extraction and validation are outside
+timing. This gate does not cover history, EMA, custom observers or trace output.

@@ -1,4 +1,4 @@
-"""Build one Python C API boundary linked to the existing, unchanged engine DSO."""
+"""Build one Python C API boundary linked to the dynamic engine DSO."""
 
 from __future__ import annotations
 
