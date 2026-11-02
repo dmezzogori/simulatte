@@ -24,6 +24,10 @@ parity remains valid; earlier production equivalence is limited to its tested
 continuous-time workload family. Valid, self-consistent trace files certify the
 native execution they describe, while model equivalence requires separate checks.
 
+Follow-up: the [simultaneous-event experiment](2026-11-02-native-semantics.md)
+corrects the scheduling mismatch in an expanded differential suite. The live
+observation limitations described here remain unresolved.
+
 ## Event ordering
 
 Both interpreters run 288 comparisons: eight deterministic workload families ×

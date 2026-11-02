@@ -1,0 +1,20 @@
+{
+  "source_sha256": "bf56492e7f2b882129db4035406688327080226fc818f4e40733550c514f0160",
+  "cases": 48,
+  "measured_samples": 240,
+  "cold_probes": 48,
+  "aligned_parity_probes": 8,
+  "corruption_rejected": [
+    "source_sha256",
+    "trajectory_sha256",
+    "trace_wire_sha256",
+    "counters",
+    "trace_bytes"
+  ],
+  "evidence": {
+    "metadata.json": "5c23c5707c80a673242c42a28c5f6a7a2293f843b4e30e8ca014b0461e7b1a8c",
+    "matrix.jsonl": "bb42d2033dd7234b05ade5c5cfdd63d2ed069f51e34dcae0ad3adbc00c0a35ea",
+    "parity.jsonl": "e20cb00c1381f741053048dba40603cb4079c7fad8d535bf1b4658d688c34f45",
+    "summary.csv": "fe3ac9e7bc8f155bfa3097ef47820894ab6c32e9cda5c9ed8d1c11e882141708"
+  }
+}

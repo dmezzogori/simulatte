@@ -23,7 +23,7 @@ def plain(value):
     return value
 
 
-def generate(destination, *, name="direct"):
+def generate(destination, *, name="semantics"):
     destination.mkdir(parents=True, exist_ok=True)
     jobs = tuple(Job(i // 3, (i % 2, (i + 1) % 2), (1 + i % 3, 0.5 + i % 2), i % 5 + 3) for i in range(12))
     data = Workload(2, jobs)

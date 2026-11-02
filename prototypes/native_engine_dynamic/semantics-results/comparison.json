@@ -1,0 +1,434 @@
+[
+  {
+    "case": "CPython-feedback-5000-kpi-production",
+    "previous_s": 1.134209165989887,
+    "current_s": 1.1314798339735717,
+    "current_over_previous": 0.9975936254985797,
+    "previous_events": 163673,
+    "current_events": 163673,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-feedback-20000-kpi-direct",
+    "previous_s": 3.232364624971524,
+    "current_s": 3.32465108303586,
+    "current_over_previous": 1.028550757346922,
+    "previous_events": 347884,
+    "current_events": 449855,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-independent-20000-full-direct",
+    "previous_s": 7.937189207994379,
+    "current_s": 7.9128832089481875,
+    "current_over_previous": 0.9969377069880468,
+    "previous_events": 460240,
+    "current_events": 590300,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-feedback-20000-kpi-production",
+    "previous_s": 4.7396106669912115,
+    "current_s": 4.673231541004498,
+    "current_over_previous": 0.9859948146270731,
+    "previous_events": 651827,
+    "current_events": 651827,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-independent-5000-kpi-production",
+    "previous_s": 0.9559308330062777,
+    "current_s": 0.9344753749901429,
+    "current_over_previous": 0.9775554284103797,
+    "previous_events": 204179,
+    "current_events": 204179,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-independent-5000-none-direct",
+    "previous_s": 0.010085374990012497,
+    "current_s": 0.010365583002567291,
+    "current_over_previous": 1.0277835988084016,
+    "previous_events": 114452,
+    "current_events": 146815,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-independent-20000-full-production",
+    "previous_s": 7.231516500003636,
+    "current_s": 7.096790749987122,
+    "current_over_previous": 0.9813696407916035,
+    "previous_events": 820361,
+    "current_events": 820361,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-feedback-5000-kpi-direct",
+    "previous_s": 0.8498267499962822,
+    "current_s": 0.8305258749751374,
+    "current_over_previous": 0.9772884590638866,
+    "previous_events": 87448,
+    "current_events": 113060,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-feedback-5000-none-production",
+    "previous_s": 0.2762416250188835,
+    "current_s": 0.28932408295804635,
+    "current_over_previous": 1.047358749566683,
+    "previous_events": 163673,
+    "current_events": 163673,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-independent-20000-kpi-production",
+    "previous_s": 7.695176499953959,
+    "current_s": 7.856608124973718,
+    "current_over_previous": 1.0209782875052607,
+    "previous_events": 820361,
+    "current_events": 820361,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-independent-20000-none-production",
+    "previous_s": 3.123453165986575,
+    "current_s": 3.1791852499591187,
+    "current_over_previous": 1.0178430989711797,
+    "previous_events": 820361,
+    "current_events": 820361,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-feedback-20000-full-production",
+    "previous_s": 6.849727957975119,
+    "current_s": 6.91539737500716,
+    "current_over_previous": 1.0095871569549828,
+    "previous_events": 651827,
+    "current_events": 651827,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-feedback-20000-none-production",
+    "previous_s": 1.1230201669968665,
+    "current_s": 1.1495075830025598,
+    "current_over_previous": 1.0235858774259816,
+    "previous_events": 651827,
+    "current_events": 651827,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-feedback-20000-full-direct",
+    "previous_s": 4.668382000003476,
+    "current_s": 4.945340875012334,
+    "current_over_previous": 1.0593265236239564,
+    "previous_events": 347884,
+    "current_events": 449855,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-independent-5000-kpi-direct",
+    "previous_s": 0.9643199580023065,
+    "current_s": 0.963085499999579,
+    "current_over_previous": 0.9987198667905984,
+    "previous_events": 114452,
+    "current_events": 146815,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-feedback-20000-full-direct",
+    "previous_s": 4.819519083015621,
+    "current_s": 4.911537833977491,
+    "current_over_previous": 1.0190929321737,
+    "previous_events": 347884,
+    "current_events": 449855,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-feedback-5000-full-production",
+    "previous_s": 1.717687291034963,
+    "current_s": 1.7068127500242554,
+    "current_over_previous": 0.9936690798916283,
+    "previous_events": 163673,
+    "current_events": 163673,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-independent-20000-none-production",
+    "previous_s": 1.105893665982876,
+    "current_s": 1.1027416250435635,
+    "current_over_previous": 0.9971497793718612,
+    "previous_events": 820361,
+    "current_events": 820361,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-independent-5000-none-production",
+    "previous_s": 0.41735537501517683,
+    "current_s": 0.421286083990708,
+    "current_over_previous": 1.009418134306736,
+    "previous_events": 204179,
+    "current_events": 204179,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-independent-20000-kpi-production",
+    "previous_s": 4.304236833006144,
+    "current_s": 4.2887193750357255,
+    "current_over_previous": 0.9963948410432656,
+    "previous_events": 820361,
+    "current_events": 820361,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-feedback-20000-kpi-production",
+    "previous_s": 3.1947940409881994,
+    "current_s": 3.1197477499954402,
+    "current_over_previous": 0.976509818777067,
+    "previous_events": 651827,
+    "current_events": 651827,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-feedback-20000-kpi-direct",
+    "previous_s": 3.2237587079871446,
+    "current_s": 3.200732833996881,
+    "current_over_previous": 0.9928574449653397,
+    "previous_events": 347884,
+    "current_events": 449855,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-independent-5000-full-direct",
+    "previous_s": 1.416975416999776,
+    "current_s": 1.3640155000030063,
+    "current_over_previous": 0.962624674809882,
+    "previous_events": 114452,
+    "current_events": 146815,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-independent-20000-none-direct",
+    "previous_s": 0.029272292042151093,
+    "current_s": 0.03126749995863065,
+    "current_over_previous": 1.0681602900656542,
+    "previous_events": 460240,
+    "current_events": 590300,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-feedback-5000-full-direct",
+    "previous_s": 1.2294694999582134,
+    "current_s": 1.2343720420030877,
+    "current_over_previous": 1.0039875263640463,
+    "previous_events": 87448,
+    "current_events": 113060,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-independent-5000-kpi-direct",
+    "previous_s": 0.9459813749999739,
+    "current_s": 0.9736672920407727,
+    "current_over_previous": 1.0292668732942016,
+    "previous_events": 114452,
+    "current_events": 146815,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-independent-20000-full-production",
+    "previous_s": 12.292108207999263,
+    "current_s": 12.275200415984727,
+    "current_over_previous": 0.9986245002298684,
+    "previous_events": 820361,
+    "current_events": 820361,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-independent-5000-full-direct",
+    "previous_s": 1.5946590839885175,
+    "current_s": 1.5947770420461893,
+    "current_over_previous": 1.0000739707056236,
+    "previous_events": 114452,
+    "current_events": 146815,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-independent-20000-none-direct",
+    "previous_s": 0.08727066696155816,
+    "current_s": 0.08797904202947393,
+    "current_over_previous": 1.0081169892769102,
+    "previous_events": 460240,
+    "current_events": 590300,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-independent-20000-kpi-direct",
+    "previous_s": 3.850419666036032,
+    "current_s": 4.026006583007984,
+    "current_over_previous": 1.0456020206110979,
+    "previous_events": 460240,
+    "current_events": 590300,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-feedback-20000-none-direct",
+    "previous_s": 0.16565270797582343,
+    "current_s": 0.16619162500137463,
+    "current_over_previous": 1.003253294390031,
+    "previous_events": 347884,
+    "current_events": 449855,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-independent-5000-none-direct",
+    "previous_s": 0.0267355419928208,
+    "current_s": 0.027317875006701797,
+    "current_over_previous": 1.0217812309186538,
+    "previous_events": 114452,
+    "current_events": 146815,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-feedback-5000-full-direct",
+    "previous_s": 1.165973208961077,
+    "current_s": 1.139614125015214,
+    "current_over_previous": 0.9773930620847199,
+    "previous_events": 87448,
+    "current_events": 113060,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-feedback-20000-full-production",
+    "previous_s": 4.517684584017843,
+    "current_s": 4.439628749969415,
+    "current_over_previous": 0.9827221594166701,
+    "previous_events": 651827,
+    "current_events": 651827,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-feedback-5000-none-direct",
+    "previous_s": 0.041850458015687764,
+    "current_s": 0.0428514169761911,
+    "current_over_previous": 1.0239175150754176,
+    "previous_events": 87448,
+    "current_events": 113060,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-feedback-5000-full-production",
+    "previous_s": 1.1153650420019403,
+    "current_s": 1.0835812499863096,
+    "current_over_previous": 0.9715036863997613,
+    "previous_events": 163673,
+    "current_events": 163673,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-independent-20000-full-direct",
+    "previous_s": 7.065764040977228,
+    "current_s": 7.146729666972533,
+    "current_over_previous": 1.011458863546214,
+    "previous_events": 460240,
+    "current_events": 590300,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-independent-5000-full-production",
+    "previous_s": 2.2539331250009127,
+    "current_s": 2.2488979999907315,
+    "current_over_previous": 0.9977660716929305,
+    "previous_events": 204179,
+    "current_events": 204179,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-feedback-5000-none-direct",
+    "previous_s": 0.024526416964363307,
+    "current_s": 0.025385875022038817,
+    "current_over_previous": 1.0350421367672373,
+    "previous_events": 87448,
+    "current_events": 113060,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-feedback-5000-kpi-direct",
+    "previous_s": 0.818136667017825,
+    "current_s": 0.8217885409831069,
+    "current_over_previous": 1.0044636478384392,
+    "previous_events": 87448,
+    "current_events": 113060,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-feedback-20000-none-direct",
+    "previous_s": 0.08353079098742455,
+    "current_s": 0.08358308300375938,
+    "current_over_previous": 1.000626020844729,
+    "previous_events": 347884,
+    "current_events": 449855,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-feedback-5000-kpi-production",
+    "previous_s": 0.8011674580047838,
+    "current_s": 0.8106358330114745,
+    "current_over_previous": 1.0118182221607834,
+    "previous_events": 163673,
+    "current_events": 163673,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-independent-20000-kpi-direct",
+    "previous_s": 3.8738897079601884,
+    "current_s": 3.8676615840522572,
+    "current_over_previous": 0.9983922815626027,
+    "previous_events": 460240,
+    "current_events": 590300,
+    "changed_record_fields": []
+  },
+  {
+    "case": "CPython-independent-5000-kpi-production",
+    "previous_s": 1.5787716250051744,
+    "current_s": 1.5685534580261447,
+    "current_over_previous": 0.9935277738608987,
+    "previous_events": 204179,
+    "current_events": 204179,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-independent-5000-full-production",
+    "previous_s": 1.4707399579929188,
+    "current_s": 1.4362422080012038,
+    "current_over_previous": 0.9765439499999761,
+    "previous_events": 204179,
+    "current_events": 204179,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-independent-5000-none-production",
+    "previous_s": 0.1859186670044437,
+    "current_s": 0.17751900001894683,
+    "current_over_previous": 0.9548207443564765,
+    "previous_events": 204179,
+    "current_events": 204179,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-feedback-20000-none-production",
+    "previous_s": 0.5527982499916106,
+    "current_s": 0.5312517920392565,
+    "current_over_previous": 0.9610229266234451,
+    "previous_events": 651827,
+    "current_events": 651827,
+    "changed_record_fields": []
+  },
+  {
+    "case": "PyPy-feedback-5000-none-production",
+    "previous_s": 0.1313943749992177,
+    "current_s": 0.12977337499614805,
+    "current_over_previous": 0.9876630943822421,
+    "previous_events": 163673,
+    "current_events": 163673,
+    "changed_record_fields": []
+  }
+]

@@ -1,4 +1,4 @@
-"""Gate characterization: known production differences must remain visible."""
+"""Production ordering parity and the remaining observation limits."""
 
 import copy
 import json
@@ -23,7 +23,7 @@ from prototypes.native_engine.workloads import generate, save
 
 
 @pytest.mark.parametrize("mode", ["none", "kpi", "full"])
-def test_four_job_production_difference_is_not_hidden(tmp_path, mode):
+def test_four_job_production_equivalence(tmp_path, mode):
     rows = {
         backend: run_case(
             backend, workloads()["reduced"], tmp_path, cap=2, policy="spt", producer="independent", mode=mode
@@ -33,8 +33,8 @@ def test_four_job_production_difference_is_not_hidden(tmp_path, mode):
     assert rows["native"] == rows["direct"]
     assert rows["production"]["values"]["released"] == rows["direct"]["values"]["released"] == [5, 6, 9, 10]
     assert rows["production"]["values"]["finished"] == [9, 10, 11, 12]
-    assert rows["direct"]["values"]["finished"] == [9, 10, 12, 11]
-    assert {"starts", "ends", "finished", "dispatch"} <= set(differences(rows["production"], rows["direct"]))
+    assert rows["direct"]["values"]["finished"] == [9, 10, 11, 12]
+    assert differences(rows["production"], rows["direct"]) == []
 
 
 @pytest.mark.parametrize("backend", BACKENDS)

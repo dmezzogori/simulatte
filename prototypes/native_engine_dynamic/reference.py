@@ -10,7 +10,7 @@ from .handles import JobHandle
 from .recording import ARRIVAL, END, FINISH, QUEUE, RELEASE, START, Writer
 from .rich_recording import REGISTER, GRANT, DEPART, Writer as RichWriter
 
-FEED_EVENT, START_EVENT, END_EVENT, ADVANCE_EVENT, DISPATCH_EVENT = range(5)
+FEED_EVENT, START_EVENT, END_EVENT, ADVANCE_EVENT, DISPATCH_EVENT, INIT_EVENT, POLICY_EVENT = range(7)
 
 
 def count(value, name):
@@ -42,6 +42,7 @@ class ReferenceStream:
         self.total_flow = self.total_wait = self.total_tardiness = self.pool_wait = 0.0
         self.completed = self.events = self.sequence = 0
         self.makespan = 0.0
+        self.policy_pending = False
         self.writer = Writer(trace_path) if mode == "record" else RichWriter(trace_path) if mode == "studio" else None
 
     def _open(self):
@@ -51,7 +52,7 @@ class ReferenceStream:
     def _schedule(self, at, kind, value):
         if not math.isfinite(at) or at < self.now:
             raise ValueError("invalid event time")
-        heapq.heappush(self.heap, (at, int(kind != FEED_EVENT), self.sequence, kind, value))
+        heapq.heappush(self.heap, (at, int(kind not in (FEED_EVENT, INIT_EVENT)), self.sequence, kind, value))
         self.sequence += 1
 
     def add(self, job):
@@ -110,7 +111,8 @@ class ReferenceStream:
         if self.mode != "none":
             self.pool_wait += self.now - self.jobs[job].arrival
         self._record(RELEASE, job)
-        self._enqueue(self.offsets[job])
+        # ShopFloor.add spawns its main process at SimPy URGENT priority.
+        self._schedule(self.now, INIT_EVENT, self.offsets[job])
 
     def _grant(self, server):
         queue = self.queues[server]
@@ -144,6 +146,17 @@ class ReferenceStream:
         if kind == DISPATCH_EVENT:
             self._grant(value)
             return
+        if kind == INIT_EVENT:
+            self._enqueue(value)
+            return
+        if kind == POLICY_EVENT:
+            # One waiting trigger resumes on the first completion signal and
+            # then subscribes to the latest event. Signals before it resumes
+            # are coalesced, just like on_completion_trigger's yield loop.
+            while self.pool and self.floor < self.cap:
+                self._release(heapq.heappop(self.pool)[1])
+            self.policy_pending = False
+            return
         op = value
         job, server = self.owners[op], self.routes[op]
         if kind == START_EVENT:
@@ -166,6 +179,9 @@ class ReferenceStream:
             self.busy_server[server] = False
             if self.mode == "studio":
                 self._record(DEPART, job, op, server)
+            if self.cap is not None and not self.policy_pending:
+                self._schedule(self.now, POLICY_EVENT, 0)
+                self.policy_pending = True
             self._schedule(self.now, DISPATCH_EVENT, server)
             if op + 1 < self.offsets[job + 1]:
                 self._enqueue(op + 1)
@@ -180,8 +196,6 @@ class ReferenceStream:
                 self._record(FINISH, job)
                 self._system(-1)
                 self._floor(-1)
-                while self.pool and (self.cap is None or self.floor < self.cap):
-                    self._release(heapq.heappop(self.pool)[1])
 
     def _drive(self, until=None):
         while self.heap and (until is None or self.heap[0][0] < until):

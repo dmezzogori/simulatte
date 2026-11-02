@@ -210,10 +210,41 @@ static void boundaries(void) {
     nd_destroy(NULL);
 }
 
+static void simultaneous(void) {
+    const double arrivals[] = {5, 6, 6, 7};
+    const uint32_t offsets[] = {0, 2, 5, 7, 8};
+    const uint32_t routes[] = {1, 0, 0, 2, 1, 0, 1, 1};
+    const double durations[] = {1, 2, 1, 2, 1, 1, 1, 1};
+    const double releases[] = {5, 6, 9, 10};
+    const double finishes[] = {9, 10, 11, 12};
+    char error[256];
+    nd_test_fail_allocation(0);
+    for (int policy = 0; policy < 2; ++policy) {
+        nd_engine *e = nd_create(3, 2, policy, 1, NULL, error, sizeof(error));
+        assert(e);
+        for (uint32_t j = 0; j < 4; ++j) {
+            uint32_t first = offsets[j], n = offsets[j + 1] - first, id;
+            assert(!nd_advance(e, arrivals[j]));
+            assert(!nd_add(e, arrivals[j], 10, n, routes + first, n, durations + first, n, &id));
+            assert(id == j);
+        }
+        assert(!nd_run(e));
+        const nd_result *result = nd_get_result(e);
+        assert(result && result->completed == 4);
+        for (uint32_t j = 0; j < 4; ++j) {
+            assert(result->released[j] == releases[j]);
+            assert(result->finished[j] == finishes[j]);
+        }
+        assert(result->starts[6] == 10 && result->starts[7] == 11);
+        nd_destroy(e);
+    }
+}
+
 int main(int argc, char **argv) {
     assert(argc == 2);
     boundaries();
     batch_boundaries();
+    simultaneous();
     assert(exercise(NULL, 0, 0) == 0);
     size_t failure = 1;
     while (exercise(argv[1], failure, 0)) {

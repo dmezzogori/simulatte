@@ -25,12 +25,13 @@ _Static_assert(sizeof(double) == 8 && DBL_MANT_DIG == 53 && DBL_MAX_EXP == 1024,
                "native engine requires IEEE binary64 doubles");
 #define NONE UINT32_MAX
 #define RECORD_BUFFER_SIZE 65536u
-enum { ARRIVAL, START, END, ADVANCE, RELEASE_DISPATCH };
+enum { ARRIVAL, START, END, ADVANCE, RELEASE_DISPATCH, INITIALIZE, POLICY_WAKE };
 typedef struct { double time; uint64_t sequence; uint32_t kind, id; } event;
 
 struct nd_engine {
     uint32_t servers, jobs, operations, cap;
     int policy, mode, state; /* 0 accepting, 1 sealed/failed, 2 successful */
+    int policy_pending;
     double now;
     uint64_t sequence, wip, floor_wip;
     double last_wip_time, last_floor_time;
@@ -70,7 +71,11 @@ static void *allocate(nd_engine *e, size_t count, size_t size) {
 
 static int before(event a, event b) {
     if (a.time != b.time) return a.time < b.time;
-    if ((a.kind == ARRIVAL) != (b.kind == ARRIVAL)) return a.kind == ARRIVAL;
+    /* SimPy process initializations use URGENT priority. Preserve sequence
+     * order between arrival processes and newly released job processes. */
+    int urgent_a = a.kind == ARRIVAL || a.kind == INITIALIZE;
+    int urgent_b = b.kind == ARRIVAL || b.kind == INITIALIZE;
+    if (urgent_a != urgent_b) return urgent_a;
     return a.sequence < b.sequence;
 }
 
@@ -227,7 +232,7 @@ static int release_pending(nd_engine *e) {
         e->released[job] = e->now;
         floor_change(e, 1);
         if (e->mode) e->result.total_pool_wait += e->now - e->arrivals[job];
-        if (record(e, 6, job, NONE, NONE) || enqueue(e, e->offsets[job])) return -1;
+        if (record(e, 6, job, NONE, NONE) || schedule(e, e->now, INITIALIZE, e->offsets[job])) return -1;
     }
     return 0;
 }
@@ -240,6 +245,12 @@ static int process(nd_engine *e, event ev) {
         return release_pending(e);
     }
     if (ev.kind == RELEASE_DISPATCH) return grant(e, op);
+    if (ev.kind == INITIALIZE) return enqueue(e, op);
+    if (ev.kind == POLICY_WAKE) {
+        if (release_pending(e)) return -1;
+        e->policy_pending = 0;
+        return 0;
+    }
     uint32_t job = e->job_of[op], server = e->routes[op];
     if (ev.kind == START) {
         e->starts[op] = e->now;
@@ -258,6 +269,14 @@ static int process(nd_engine *e, event ev) {
     }
     e->occupied[server] = 0;
     if (e->mode == 3 && record(e, 9, job, op, server)) return -1;
+    /* main() signals job_processing_end before constructing the Release.
+     * The waiting policy process resumes later at NORMAL priority. Multiple
+     * signals before that resume wake it once, then it waits on the latest
+     * signal event. This must also run for non-final operations. */
+    if (e->cap && !e->policy_pending) {
+        if (schedule(e, e->now, POLICY_WAKE, 0)) return -1;
+        e->policy_pending = 1;
+    }
     if (schedule(e, e->now, RELEASE_DISPATCH, server)) return -1;
     if (op + 1 < e->offsets[job + 1]) return enqueue(e, op + 1);
     e->finished[job] = e->now;
@@ -270,7 +289,7 @@ static int process(nd_engine *e, event ev) {
     }
     if (record(e, 5, job, NONE, NONE) || wip_change(e, -1)) return -1;
     floor_change(e, -1);
-    return release_pending(e);
+    return 0;
 }
 
 /* Each successful realloc is installed immediately. A later failure poisons
