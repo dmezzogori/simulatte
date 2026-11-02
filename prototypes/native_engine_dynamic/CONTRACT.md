@@ -13,6 +13,11 @@ Later refinements are documented in the
 sections below retain the initial milestone's scope; use those reports for the
 subsequent semantics and evidence.
 
+The [no-recording observation study](../../specs/research/2026-11-02-native-observation-untraced.md)
+adds live `level="none"`: the final recorder/digest is absent, but the rich
+journal remains its observation transport. This differs from the bare engine's
+`mode="none"`, which has no Python live collectors or journal.
+
 ## Interfaces and ownership
 
 `NativeStream` in `native.py` and independent `ReferenceStream` in `reference.py` implement:

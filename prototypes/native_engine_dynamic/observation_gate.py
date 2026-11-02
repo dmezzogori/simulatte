@@ -121,7 +121,7 @@ class Checkpoints:
 def case(templates, directory, *, cap, policy, producer, level, warmup, horizon=None, delivery="boundary"):
     results = []
     for backend in ("production", "native"):
-        path = directory / f"{backend}.simtrace"
+        path = directory / f"{backend}.simtrace" if level != "none" else None
         stream = (
             ProductionLiveStream(
                 templates.servers, wip_cap=cap, policy=policy, mode=level, trace_path=path, warmup=warmup
@@ -164,11 +164,18 @@ def case(templates, directory, *, cap, policy, producer, level, warmup, horizon=
         finally:
             stream.close()
         equivalent(final, values(stream))
-        trace = Trace.open(path)
-        trace.check()
-        assert trace.verify() == (True if level == "full" else "not_verifiable")
-        assert trace.outcome == "completed"
-        equivalent(final["scalars"], trace.kpis())
+        if level == "none":
+            recorder = stream.recorder if backend == "production" else stream.projection.recorder
+            assert recorder is None and env._digest is None and not env._projection_active
+            assert not env._projection_listeners
+            stored, series = final["scalars"], {}
+        else:
+            trace = Trace.open(path)
+            trace.check()
+            assert trace.verify() == (True if level == "full" else "not_verifiable")
+            assert trace.outcome == "completed"
+            equivalent(final["scalars"], trace.kpis())
+            stored, series = trace.kpis(), trace.kpi_series()
         results.append(
             dict(
                 trajectory=trajectory,
@@ -177,8 +184,8 @@ def case(templates, directory, *, cap, policy, producer, level, warmup, horizon=
                 final=final,
                 checkpoints=checkpoints.snapshots,
                 probes=events,
-                stored=trace.kpis(),
-                series=trace.kpi_series(),
+                stored=stored,
+                series=series,
             )
         )
     a, b = results

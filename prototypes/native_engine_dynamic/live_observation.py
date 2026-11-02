@@ -221,6 +221,13 @@ class ObservationProjection(DirectProjection):
             return JobView(self, fields, name)
         return super().bind(cls, fields, name)
 
+    def make_recorder(self, path, *, level, **options):
+        if level == "none":
+            if path is not None:
+                raise ValueError("untraced observation requires trace_path=None")
+            return None
+        return super().make_recorder(path, level=level, **options)
+
     def configure_observers(self):
         self.server_tuple = tuple(self.server_views)
         self.env.configure_kpis(warmup=self.warmup)
@@ -301,6 +308,7 @@ class ObservationProjection(DirectProjection):
 
 class ProductionLiveStream(ProductionStream):
     kpi_type = ProductionSeries
+    always_export_totals = True
 
     def __init__(self, *args, warmup=0, stock=True, **kwargs):
         self.warmup, self.stock = warmup, stock
@@ -308,6 +316,8 @@ class ProductionLiveStream(ProductionStream):
 
     def configure_observers(self):
         self.env.configure_kpis(warmup=self.warmup)
+        if self.kpis is None:
+            self.kpis = self.kpi_type(self.shop).attach(self.env)
         self.bundle = attach_stock(self.env, self.shop, self.servers) if self.stock else None
 
 

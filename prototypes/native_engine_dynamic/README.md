@@ -338,3 +338,30 @@ native live CPython uses 12–26% less time than production CPython, while the b
 native live path takes 17–40% longer than production PyPy. Boundary-delivery cost
 is much larger on PyPy. Keep it experimental; the recommended next control is
 the same live stock workload without trace recording, with profiling.
+
+The [no-recording study](../../specs/research/2026-11-02-native-observation-untraced.md)
+adds `LiveTraceStream(..., level="none", trace_path=None)`. It keeps the same
+stock collectors and live reads while omitting the final TraceRecorder, its
+worker and semantic digest. Native rich journal I/O remains the observation
+transport. Actual production uses `ProductionLiveStream(..., mode="none")`;
+both modes retain identical detached result/collector export work.
+
+```sh
+.venv/bin/python -m prototypes.native_engine_dynamic.untraced_gate --output /tmp/untraced-gate
+.venv/bin/python -m prototypes.native_engine_dynamic.untraced_benchmark matrix \
+  --output /tmp/untraced-scaling --pypy prototypes/native_engine/.build/pypy-env/bin/python
+.venv/bin/python -m prototypes.native_engine_dynamic.untraced_benchmark audit-experiment \
+  --output prototypes/native_engine_dynamic/untraced-results
+```
+
+The matrix has contemporary none/full controls, 5k/20k jobs, both producers,
+interpreters and delivery modes. Separate CPython thread-CPU profiles are
+diagnostics, not timing samples. The linked report gives the exact scope and
+reproduction commands.
+
+The completed no-recording gate preserves stock observations across all 1,536
+configurations per interpreter. Its 48-case cost matrix finds native live
+CPython uses 15–46% less time than production CPython, but takes 68–142% longer
+than production PyPy with the same collector bundle. Profiles identify about
+43% excess native event publication without extra stock deliveries. An opt-in
+subscriber-interest check is the next proposed experiment; it is not included.

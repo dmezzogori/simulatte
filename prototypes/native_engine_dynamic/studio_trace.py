@@ -461,7 +461,8 @@ class TraceStream:
                 outcome = self._outcome(error)
                 try:
                     self.projection.env.run()  # Empty projection calendar: declares exhaustion, no model replay.
-                    self.projection.recorder.close(outcome=outcome)
+                    if self.projection.recorder is not None:
+                        self.projection.recorder.close(outcome=outcome)
                 finally:
                     self.projection.env.close()
         if error:

@@ -80,6 +80,7 @@ def totals(jobs, offsets, starts, ends, released, finished, servers):
 
 class ProductionStream:
     kpi_type = ProductionKPIs
+    always_export_totals = False
 
     def configure_observers(self):
         pass
@@ -194,7 +195,7 @@ class ProductionStream:
         finished = [j.finished_at for j in self.actors]
         kpis = (
             totals(self.jobs, self.offsets, self.starts, self.ends, released, finished, self.servers_count)
-            if self.mode != "none"
+            if self.mode != "none" or self.always_export_totals
             else None
         )
         result = dict(

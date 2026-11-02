@@ -68,6 +68,9 @@ class DirectProjection:
     def configure_observers(self):
         pass
 
+    def make_recorder(self, path, **options):
+        return TraceRecorder(self.env, path, **options)
+
     def __init__(
         self,
         servers,
@@ -83,9 +86,7 @@ class DirectProjection:
         wip_cap=None,
     ):
         self.env = self.clock_type(seed=0, time_unit="time", provenance=provenance, parameters=parameters, debug=debug)
-        self.recorder = TraceRecorder(
-            self.env, path, level=level, chunk_limits=limits, max_pending_bytes=max_pending_bytes
-        )
+        self.recorder = self.make_recorder(path, level=level, chunk_limits=limits, max_pending_bytes=max_pending_bytes)
         self.jobs, self.offsets, self.phase = [], [0], []
         self.policy, self.capped = policy, wip_cap is not None
         self.stages, self.queued_at, self.waits = [], [], []
@@ -110,7 +111,8 @@ class DirectProjection:
             self.kpis.sample("floor_wip", 0)
         except BaseException:
             try:
-                self.recorder.close(outcome="failed")
+                if self.recorder is not None:
+                    self.recorder.close(outcome="failed")
             finally:
                 self.env.close()
             raise

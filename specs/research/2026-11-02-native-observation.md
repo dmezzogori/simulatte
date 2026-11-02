@@ -368,3 +368,8 @@ of observation alone. Only after that control should a profile justify a fused
 boundary call, in-memory record transport or another focused change. No new
 kernel tuning, broader actor API, packaging or public integration is justified
 by this gate alone. This is a recommendation, not additional implemented work.
+
+Follow-up: Davide authorized the
+[no-recording observation experiment](2026-11-02-native-observation-untraced.md),
+which measures the same collectors with the final writer/digest disabled and
+retains the native journal as observation transport.

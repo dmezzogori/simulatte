@@ -66,7 +66,12 @@ def sample(templates, args, raw, path, provenance):
     begin = time.perf_counter()
     stream = (
         ProductionLiveStream(
-            templates.servers, wip_cap=12, policy="spt", mode=args.level, trace_path=path, provenance=provenance
+            templates.servers,
+            wip_cap=12,
+            policy="spt",
+            mode=args.level,
+            trace_path=path if args.level != "none" else None,
+            provenance=provenance,
         )
         if args.backend == "production"
         else LiveTraceStream(
@@ -75,7 +80,7 @@ def sample(templates, args, raw, path, provenance):
             wip_cap=12,
             policy="spt",
             level=args.level,
-            trace_path=path,
+            trace_path=path if args.level != "none" else None,
             raw_path=raw,
             delivery=args.backend,
             provenance=provenance,

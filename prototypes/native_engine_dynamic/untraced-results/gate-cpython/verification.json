@@ -1,0 +1,11 @@
+{
+  "source_sha256": "3e91986452f4112bc4513c80192ac72cd57fb693efc14a12167c74d28ba4f317",
+  "configurations": 1536,
+  "model_runs": 3072,
+  "native_production_values_and_probes_exact": true,
+  "recording_values_and_probes_exact": true,
+  "evidence": {
+    "metadata.json": "0434fad4da5e2d2bf660963e2fd21ee2d17702e0d56660a432497d9004a6f5dd",
+    "rows.jsonl": "e3bf8d686716b7f2eb03b129a3a48e8af1031a92f970c4fb6fdaed5e7f35814f"
+  }
+}

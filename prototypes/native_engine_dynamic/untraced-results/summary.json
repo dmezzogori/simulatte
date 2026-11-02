@@ -1,0 +1,482 @@
+[
+  {
+    "case": "CPython-feedback-20000-full-boundary",
+    "median_s": 6.798435459029861,
+    "min_s": 6.7625075410469435,
+    "max_s": 6.835815459024161,
+    "cold_s": 6.755895000009332,
+    "rss_mib": 205.15625,
+    "trace_bytes": 29803779,
+    "source_bytes": 15675368
+  },
+  {
+    "case": "CPython-feedback-20000-full-buffered",
+    "median_s": 6.33589787496021,
+    "min_s": 6.329374541004654,
+    "max_s": 6.33868641598383,
+    "cold_s": 6.279239957977552,
+    "rss_mib": 205.875,
+    "trace_bytes": 29803779,
+    "source_bytes": 15675368
+  },
+  {
+    "case": "CPython-feedback-20000-full-production",
+    "median_s": 7.773950541974045,
+    "min_s": 7.769926832988858,
+    "max_s": 7.783249959000386,
+    "cold_s": 7.769335040997248,
+    "rss_mib": 240.578125,
+    "trace_bytes": 29803940,
+    "source_bytes": 0
+  },
+  {
+    "case": "CPython-feedback-20000-none-boundary",
+    "median_s": 2.631446082959883,
+    "min_s": 2.623490416968707,
+    "max_s": 2.7249017499852926,
+    "cold_s": 2.6743543749907985,
+    "rss_mib": 185.390625,
+    "trace_bytes": 0,
+    "source_bytes": 15675368
+  },
+  {
+    "case": "CPython-feedback-20000-none-buffered",
+    "median_s": 2.152115041972138,
+    "min_s": 2.140080583980307,
+    "max_s": 2.162694874976296,
+    "cold_s": 2.170893458998762,
+    "rss_mib": 182.921875,
+    "trace_bytes": 0,
+    "source_bytes": 15675368
+  },
+  {
+    "case": "CPython-feedback-20000-none-production",
+    "median_s": 3.0877998340292834,
+    "min_s": 3.0776164589915425,
+    "max_s": 3.0979288750095293,
+    "cold_s": 3.0766438340069726,
+    "rss_mib": 199.140625,
+    "trace_bytes": 0,
+    "source_bytes": 0
+  },
+  {
+    "case": "CPython-feedback-5000-full-boundary",
+    "median_s": 1.7026084159733728,
+    "min_s": 1.699127999949269,
+    "max_s": 1.7039005830301903,
+    "cold_s": 1.6935424580005929,
+    "rss_mib": 118.875,
+    "trace_bytes": 7459479,
+    "source_bytes": 3937928
+  },
+  {
+    "case": "CPython-feedback-5000-full-buffered",
+    "median_s": 1.5771894589997828,
+    "min_s": 1.5744517919956706,
+    "max_s": 1.5847363750217482,
+    "cold_s": 1.585977290989831,
+    "rss_mib": 124.546875,
+    "trace_bytes": 7459479,
+    "source_bytes": 3937928
+  },
+  {
+    "case": "CPython-feedback-5000-full-production",
+    "median_s": 1.899806917004753,
+    "min_s": 1.8959237500093877,
+    "max_s": 1.9146762089803815,
+    "cold_s": 1.8989315410144627,
+    "rss_mib": 128.578125,
+    "trace_bytes": 7458651,
+    "source_bytes": 0
+  },
+  {
+    "case": "CPython-feedback-5000-none-boundary",
+    "median_s": 0.6535496659926139,
+    "min_s": 0.6474862080067396,
+    "max_s": 0.6555030419840477,
+    "cold_s": 0.6507777079823427,
+    "rss_mib": 107.421875,
+    "trace_bytes": 0,
+    "source_bytes": 3937928
+  },
+  {
+    "case": "CPython-feedback-5000-none-buffered",
+    "median_s": 0.5612321659573354,
+    "min_s": 0.5593920000246726,
+    "max_s": 0.5635696669924073,
+    "cold_s": 0.5606949999928474,
+    "rss_mib": 107.359375,
+    "trace_bytes": 0,
+    "source_bytes": 3937928
+  },
+  {
+    "case": "CPython-feedback-5000-none-production",
+    "median_s": 0.7681323330034502,
+    "min_s": 0.7591206670040265,
+    "max_s": 0.7986052079941146,
+    "cold_s": 0.7636061660014093,
+    "rss_mib": 108.953125,
+    "trace_bytes": 0,
+    "source_bytes": 0
+  },
+  {
+    "case": "CPython-independent-20000-full-boundary",
+    "median_s": 9.90340820804704,
+    "min_s": 9.882445709023159,
+    "max_s": 10.086908375029452,
+    "cold_s": 9.901613207999617,
+    "rss_mib": 342.875,
+    "trace_bytes": 63256552,
+    "source_bytes": 20169608
+  },
+  {
+    "case": "CPython-independent-20000-full-buffered",
+    "median_s": 9.745990000024904,
+    "min_s": 9.721384292002767,
+    "max_s": 9.781544916972052,
+    "cold_s": 9.718124583014287,
+    "rss_mib": 378.140625,
+    "trace_bytes": 63256552,
+    "source_bytes": 20169608
+  },
+  {
+    "case": "CPython-independent-20000-full-production",
+    "median_s": 13.449182499956805,
+    "min_s": 13.410859083000105,
+    "max_s": 13.52132012497168,
+    "cold_s": 13.360671582981013,
+    "rss_mib": 380.96875,
+    "trace_bytes": 63252817,
+    "source_bytes": 0
+  },
+  {
+    "case": "CPython-independent-20000-none-boundary",
+    "median_s": 3.02887883404037,
+    "min_s": 3.017745124991052,
+    "max_s": 3.0484822500147857,
+    "cold_s": 3.050143708998803,
+    "rss_mib": 196.03125,
+    "trace_bytes": 0,
+    "source_bytes": 20169608
+  },
+  {
+    "case": "CPython-independent-20000-none-buffered",
+    "median_s": 2.737852042017039,
+    "min_s": 2.692125208035577,
+    "max_s": 2.7510375840356573,
+    "cold_s": 2.7065433329553343,
+    "rss_mib": 194.828125,
+    "trace_bytes": 0,
+    "source_bytes": 20169608
+  },
+  {
+    "case": "CPython-independent-20000-none-production",
+    "median_s": 5.605477040982805,
+    "min_s": 5.591284291993361,
+    "max_s": 5.62662100000307,
+    "cold_s": 5.599158665980212,
+    "rss_mib": 215.1875,
+    "trace_bytes": 0,
+    "source_bytes": 0
+  },
+  {
+    "case": "CPython-independent-5000-full-boundary",
+    "median_s": 2.1159270830103196,
+    "min_s": 2.114654792007059,
+    "max_s": 2.122337083972525,
+    "cold_s": 2.1212244590278715,
+    "rss_mib": 133.640625,
+    "trace_bytes": 10360268,
+    "source_bytes": 5018088
+  },
+  {
+    "case": "CPython-independent-5000-full-buffered",
+    "median_s": 2.0065047499956563,
+    "min_s": 1.9973030410474166,
+    "max_s": 2.0195412089815363,
+    "cold_s": 2.003415875020437,
+    "rss_mib": 134.46875,
+    "trace_bytes": 10360268,
+    "source_bytes": 5018088
+  },
+  {
+    "case": "CPython-independent-5000-full-production",
+    "median_s": 2.5223538339487277,
+    "min_s": 2.5140657090232708,
+    "max_s": 2.5279048339580186,
+    "cold_s": 2.5204892919864506,
+    "rss_mib": 136.390625,
+    "trace_bytes": 10358825,
+    "source_bytes": 0
+  },
+  {
+    "case": "CPython-independent-5000-none-boundary",
+    "median_s": 0.784099041018635,
+    "min_s": 0.7609828749555163,
+    "max_s": 0.7849239170318469,
+    "cold_s": 0.7694054170278832,
+    "rss_mib": 109.078125,
+    "trace_bytes": 0,
+    "source_bytes": 5018088
+  },
+  {
+    "case": "CPython-independent-5000-none-buffered",
+    "median_s": 0.6730444999993779,
+    "min_s": 0.6702287920052186,
+    "max_s": 0.6787223750143312,
+    "cold_s": 0.6782808340503834,
+    "rss_mib": 109.15625,
+    "trace_bytes": 0,
+    "source_bytes": 5018088
+  },
+  {
+    "case": "CPython-independent-5000-none-production",
+    "median_s": 1.001002833014354,
+    "min_s": 0.9971833330346271,
+    "max_s": 1.0063095840159804,
+    "cold_s": 1.0058274160255678,
+    "rss_mib": 113.75,
+    "trace_bytes": 0,
+    "source_bytes": 0
+  },
+  {
+    "case": "PyPy-feedback-20000-full-boundary",
+    "median_s": 15.946006999991369,
+    "min_s": 15.79693995800335,
+    "max_s": 15.98257041699253,
+    "cold_s": 17.348850000009406,
+    "rss_mib": 373.453125,
+    "trace_bytes": 29803777,
+    "source_bytes": 15675368
+  },
+  {
+    "case": "PyPy-feedback-20000-full-buffered",
+    "median_s": 6.341570249991491,
+    "min_s": 6.311405249987729,
+    "max_s": 6.372250584012363,
+    "cold_s": 7.430314083991107,
+    "rss_mib": 370.734375,
+    "trace_bytes": 29803777,
+    "source_bytes": 15675368
+  },
+  {
+    "case": "PyPy-feedback-20000-full-production",
+    "median_s": 5.317263500008266,
+    "min_s": 5.296192582987715,
+    "max_s": 5.374296583002433,
+    "cold_s": 6.613155332976021,
+    "rss_mib": 362.828125,
+    "trace_bytes": 29803938,
+    "source_bytes": 0
+  },
+  {
+    "case": "PyPy-feedback-20000-none-boundary",
+    "median_s": 8.823319624993019,
+    "min_s": 8.794051875011064,
+    "max_s": 8.86396116699325,
+    "cold_s": 9.377808583027218,
+    "rss_mib": 341.328125,
+    "trace_bytes": 0,
+    "source_bytes": 15675368
+  },
+  {
+    "case": "PyPy-feedback-20000-none-buffered",
+    "median_s": 2.354594750038814,
+    "min_s": 2.3350750419776887,
+    "max_s": 2.3716879169805907,
+    "cold_s": 2.8124147499911487,
+    "rss_mib": 284.078125,
+    "trace_bytes": 0,
+    "source_bytes": 15675368
+  },
+  {
+    "case": "PyPy-feedback-20000-none-production",
+    "median_s": 1.1716367499902844,
+    "min_s": 1.1669519159477204,
+    "max_s": 1.1760732919792645,
+    "cold_s": 2.2166533750132658,
+    "rss_mib": 299.140625,
+    "trace_bytes": 0,
+    "source_bytes": 0
+  },
+  {
+    "case": "PyPy-feedback-5000-full-boundary",
+    "median_s": 2.8467224999913014,
+    "min_s": 2.834463917009998,
+    "max_s": 2.8652432920061983,
+    "cold_s": 4.220540916954633,
+    "rss_mib": 235.046875,
+    "trace_bytes": 7459477,
+    "source_bytes": 3937928
+  },
+  {
+    "case": "PyPy-feedback-5000-full-buffered",
+    "median_s": 1.3983487919904292,
+    "min_s": 1.3962407499784604,
+    "max_s": 1.4136126250377856,
+    "cold_s": 2.5474068750045262,
+    "rss_mib": 247.515625,
+    "trace_bytes": 7459477,
+    "source_bytes": 3937928
+  },
+  {
+    "case": "PyPy-feedback-5000-full-production",
+    "median_s": 1.2498874999582767,
+    "min_s": 1.236123041016981,
+    "max_s": 1.2556050419807434,
+    "cold_s": 2.728150957962498,
+    "rss_mib": 231.75,
+    "trace_bytes": 7458649,
+    "source_bytes": 0
+  },
+  {
+    "case": "PyPy-feedback-5000-none-boundary",
+    "median_s": 1.4725742919836193,
+    "min_s": 1.464548541000113,
+    "max_s": 1.515214915969409,
+    "cold_s": 1.9595491670188494,
+    "rss_mib": 198.734375,
+    "trace_bytes": 0,
+    "source_bytes": 3937928
+  },
+  {
+    "case": "PyPy-feedback-5000-none-buffered",
+    "median_s": 0.4804250419838354,
+    "min_s": 0.47860987501917407,
+    "max_s": 0.48356383404461667,
+    "cold_s": 0.8888140419730917,
+    "rss_mib": 189.0,
+    "trace_bytes": 0,
+    "source_bytes": 3937928
+  },
+  {
+    "case": "PyPy-feedback-5000-none-production",
+    "median_s": 0.26998245797585696,
+    "min_s": 0.2665342920226976,
+    "max_s": 0.27452512498712167,
+    "cold_s": 1.254101584025193,
+    "rss_mib": 186.296875,
+    "trace_bytes": 0,
+    "source_bytes": 0
+  },
+  {
+    "case": "PyPy-independent-20000-full-boundary",
+    "median_s": 17.923117958009243,
+    "min_s": 17.839531750010792,
+    "max_s": 18.035604375007097,
+    "cold_s": 19.8447226670105,
+    "rss_mib": 393.296875,
+    "trace_bytes": 63256550,
+    "source_bytes": 20169608
+  },
+  {
+    "case": "PyPy-independent-20000-full-buffered",
+    "median_s": 8.850738791981712,
+    "min_s": 8.806797874975018,
+    "max_s": 8.882903040968813,
+    "cold_s": 10.18262783298269,
+    "rss_mib": 411.78125,
+    "trace_bytes": 63256550,
+    "source_bytes": 20169608
+  },
+  {
+    "case": "PyPy-independent-20000-full-production",
+    "median_s": 8.503919499984477,
+    "min_s": 8.446487208013423,
+    "max_s": 8.590477999998257,
+    "cold_s": 10.452303165977355,
+    "rss_mib": 450.875,
+    "trace_bytes": 63252815,
+    "source_bytes": 0
+  },
+  {
+    "case": "PyPy-independent-20000-none-boundary",
+    "median_s": 8.88969345804071,
+    "min_s": 8.85966095799813,
+    "max_s": 8.965819165983703,
+    "cold_s": 9.31945262500085,
+    "rss_mib": 331.3125,
+    "trace_bytes": 0,
+    "source_bytes": 20169608
+  },
+  {
+    "case": "PyPy-independent-20000-none-buffered",
+    "median_s": 2.3360752079752274,
+    "min_s": 2.328143334016204,
+    "max_s": 2.344220250030048,
+    "cold_s": 2.7540416669799015,
+    "rss_mib": 301.875,
+    "trace_bytes": 0,
+    "source_bytes": 20169608
+  },
+  {
+    "case": "PyPy-independent-20000-none-production",
+    "median_s": 1.8017272499855608,
+    "min_s": 1.7894847500137985,
+    "max_s": 1.8093499169917777,
+    "cold_s": 2.2927736670244485,
+    "rss_mib": 288.609375,
+    "trace_bytes": 0,
+    "source_bytes": 0
+  },
+  {
+    "case": "PyPy-independent-5000-full-boundary",
+    "median_s": 3.1376081670168787,
+    "min_s": 3.123298165970482,
+    "max_s": 3.1749779590172693,
+    "cold_s": 4.363650000013877,
+    "rss_mib": 266.21875,
+    "trace_bytes": 10360266,
+    "source_bytes": 5018088
+  },
+  {
+    "case": "PyPy-independent-5000-full-buffered",
+    "median_s": 1.7648635000223294,
+    "min_s": 1.7552285839919932,
+    "max_s": 1.7756346669630148,
+    "cold_s": 2.5981641659745947,
+    "rss_mib": 241.109375,
+    "trace_bytes": 10360266,
+    "source_bytes": 5018088
+  },
+  {
+    "case": "PyPy-independent-5000-full-production",
+    "median_s": 1.6225146250217222,
+    "min_s": 1.5956802919972688,
+    "max_s": 1.6288467909907922,
+    "cold_s": 3.037276750023011,
+    "rss_mib": 267.703125,
+    "trace_bytes": 10358823,
+    "source_bytes": 0
+  },
+  {
+    "case": "PyPy-independent-5000-none-boundary",
+    "median_s": 1.445605415967293,
+    "min_s": 1.4219295420334674,
+    "max_s": 1.4481023749685846,
+    "cold_s": 1.8801992089720443,
+    "rss_mib": 209.875,
+    "trace_bytes": 0,
+    "source_bytes": 5018088
+  },
+  {
+    "case": "PyPy-independent-5000-none-buffered",
+    "median_s": 0.5082209589891136,
+    "min_s": 0.502423917001579,
+    "max_s": 0.5327072500367649,
+    "cold_s": 0.8247199169709347,
+    "rss_mib": 187.65625,
+    "trace_bytes": 0,
+    "source_bytes": 5018088
+  },
+  {
+    "case": "PyPy-independent-5000-none-production",
+    "median_s": 0.35167579201515764,
+    "min_s": 0.34932354203192517,
+    "max_s": 0.3544731249567121,
+    "cold_s": 0.9449669999885373,
+    "rss_mib": 182.703125,
+    "trace_bytes": 0,
+    "source_bytes": 0
+  }
+]
