@@ -1,0 +1,4372 @@
+{
+  "checks": [
+    {
+      "cursor": [
+        0.0,
+        -1
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": null,
+        "shopfloor/system_wip": null
+      },
+      "state": {
+        "psp": {
+          "$kind": "psp",
+          "jobs": [],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 0,
+          "label": "shopfloor",
+          "wip": {}
+        }
+      }
+    },
+    {
+      "cursor": [
+        0.0,
+        5
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 0.0,
+        "shopfloor/system_wip": 0.0
+      },
+      "state": {
+        "psp": {
+          "$kind": "psp",
+          "jobs": [],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 0,
+          "label": "shopfloor",
+          "wip": {}
+        }
+      }
+    },
+    {
+      "cursor": [
+        0.0,
+        6
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 0.0,
+        "shopfloor/system_wip": 0.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": null,
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": null,
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 0,
+          "label": "shopfloor",
+          "wip": {}
+        }
+      }
+    },
+    {
+      "cursor": [
+        0.0,
+        8
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 0.0,
+        "shopfloor/system_wip": 0.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": null,
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": null,
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": null,
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": null,
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": null,
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": null,
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 0,
+          "label": "shopfloor",
+          "wip": {}
+        }
+      }
+    },
+    {
+      "cursor": [
+        0.0,
+        9
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 0.0,
+        "shopfloor/system_wip": 0.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": null,
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": null,
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": null,
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": null,
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-0"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 0,
+          "label": "shopfloor",
+          "wip": {}
+        }
+      }
+    },
+    {
+      "cursor": [
+        0.0,
+        10
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 0.0,
+        "shopfloor/system_wip": 1.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": null,
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": null,
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": null,
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": null,
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-0"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 0,
+          "label": "shopfloor",
+          "wip": {}
+        }
+      }
+    },
+    {
+      "cursor": [
+        0.0,
+        11
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 0.0,
+        "shopfloor/system_wip": 1.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": null,
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": null,
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": null,
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": null,
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-0"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 0,
+          "label": "shopfloor",
+          "wip": {}
+        }
+      }
+    },
+    {
+      "cursor": [
+        0.0,
+        12
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 0.0,
+        "shopfloor/system_wip": 1.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "transit",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": null,
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": null,
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": null,
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": null,
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 0,
+          "label": "shopfloor",
+          "wip": {}
+        }
+      }
+    },
+    {
+      "cursor": [
+        0.0,
+        13
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 0.0,
+        "shopfloor/system_wip": 1.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "transit",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": null,
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": null,
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": null,
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": null,
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 1,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 1.0,
+            "server-1": 0.5
+          }
+        }
+      }
+    },
+    {
+      "cursor": [
+        0.0,
+        22
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 2.0,
+        "shopfloor/system_wip": 3.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "transit",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": "transit",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-2"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 2,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 2.5,
+            "server-1": 2.5
+          }
+        }
+      }
+    },
+    {
+      "cursor": [
+        0.0,
+        23
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 2.0,
+        "shopfloor/system_wip": 3.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "queue:server-0",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": "transit",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-2"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [
+            "job-0"
+          ],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 2,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 2.5,
+            "server-1": 2.5
+          }
+        }
+      }
+    },
+    {
+      "cursor": [
+        0.0,
+        24
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 2.0,
+        "shopfloor/system_wip": 3.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "server:server-0",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": "transit",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-2"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [
+            "job-0"
+          ],
+          "worked_time": 0.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 2,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 2.5,
+            "server-1": 2.5
+          }
+        }
+      }
+    },
+    {
+      "cursor": [
+        0.0,
+        26
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 2.0,
+        "shopfloor/system_wip": 3.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "server:server-0",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": "server:server-1",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-2"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [
+            "job-0"
+          ],
+          "worked_time": 0.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [
+            "job-1"
+          ],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 2,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 2.5,
+            "server-1": 2.5
+          }
+        }
+      }
+    },
+    {
+      "cursor": [
+        0.0,
+        27
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 2.0,
+        "shopfloor/system_wip": 3.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "server:server-0",
+          "op_index": 0,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": "server:server-1",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-2"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [
+            "job-0"
+          ],
+          "worked_time": 0.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [
+            "job-1"
+          ],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 2,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 2.5,
+            "server-1": 2.5
+          }
+        }
+      }
+    },
+    {
+      "cursor": [
+        1.0,
+        38
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 2.0,
+        "shopfloor/system_wip": 6.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "server:server-0",
+          "op_index": 0,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": "server:server-1",
+          "op_index": 0,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-3": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 6.0,
+          "finished_at": null,
+          "label": "job-3",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-4": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 7.0,
+          "finished_at": null,
+          "label": "job-4",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-5": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-5",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-2",
+            "job-3",
+            "job-4",
+            "job-5"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [
+            "job-0"
+          ],
+          "worked_time": 1.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [
+            "job-1"
+          ],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 2,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 2.5,
+            "server-1": 2.5
+          }
+        }
+      }
+    },
+    {
+      "cursor": [
+        1.0,
+        39
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 2.0,
+        "shopfloor/system_wip": 6.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "server:server-0",
+          "op_index": 0,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": "server:server-1",
+          "op_index": 0,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-3": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 6.0,
+          "finished_at": null,
+          "label": "job-3",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-4": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 7.0,
+          "finished_at": null,
+          "label": "job-4",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-5": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-5",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-2",
+            "job-3",
+            "job-4",
+            "job-5"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [
+            "job-0"
+          ],
+          "worked_time": 1.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [
+            "job-1"
+          ],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 2,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 2.5,
+            "server-1": 2.5
+          }
+        }
+      }
+    },
+    {
+      "cursor": [
+        1.0,
+        40
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 2.0,
+        "shopfloor/system_wip": 6.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "server:server-0",
+          "op_index": 0,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": "server:server-1",
+          "op_index": 0,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-3": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 6.0,
+          "finished_at": null,
+          "label": "job-3",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-4": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 7.0,
+          "finished_at": null,
+          "label": "job-4",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-5": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-5",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-2",
+            "job-3",
+            "job-4",
+            "job-5"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [
+            "job-0"
+          ],
+          "worked_time": 1.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [
+            "job-1"
+          ],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 2,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 1.5,
+            "server-1": 2.5
+          }
+        }
+      }
+    },
+    {
+      "cursor": [
+        1.0,
+        41
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 2.0,
+        "shopfloor/system_wip": 6.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "transit",
+          "op_index": 0,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": "server:server-1",
+          "op_index": 0,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-3": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 6.0,
+          "finished_at": null,
+          "label": "job-3",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-4": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 7.0,
+          "finished_at": null,
+          "label": "job-4",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-5": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-5",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-2",
+            "job-3",
+            "job-4",
+            "job-5"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [],
+          "worked_time": 1.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [
+            "job-1"
+          ],
+          "worked_time": 0.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 2,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 1.5,
+            "server-1": 2.5
+          }
+        }
+      }
+    },
+    {
+      "cursor": [
+        2.5,
+        64
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 2.0,
+        "shopfloor/system_wip": 9.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-0",
+          "location": "transit",
+          "op_index": 1,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": "server:server-0",
+          "op_index": 1,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-3": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 6.0,
+          "finished_at": null,
+          "label": "job-3",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-4": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 7.0,
+          "finished_at": null,
+          "label": "job-4",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-5": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-5",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-6": {
+          "$kind": "job",
+          "created_at": 2.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-6",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-7": {
+          "$kind": "job",
+          "created_at": 2.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-7",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-8": {
+          "$kind": "job",
+          "created_at": 2.0,
+          "due_date": 6.0,
+          "finished_at": null,
+          "label": "job-8",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-2",
+            "job-3",
+            "job-4",
+            "job-5",
+            "job-6",
+            "job-7",
+            "job-8"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [
+            "job-1"
+          ],
+          "worked_time": 1.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 2.5
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 2,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 1.5,
+            "server-1": 0.0
+          }
+        }
+      }
+    },
+    {
+      "cursor": [
+        2.5,
+        65
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 2.0,
+        "shopfloor/system_wip": 9.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": 2.5,
+          "label": "job-0",
+          "location": "done",
+          "op_index": 1,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": "server:server-0",
+          "op_index": 1,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-3": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 6.0,
+          "finished_at": null,
+          "label": "job-3",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-4": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 7.0,
+          "finished_at": null,
+          "label": "job-4",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-5": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-5",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-6": {
+          "$kind": "job",
+          "created_at": 2.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-6",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-7": {
+          "$kind": "job",
+          "created_at": 2.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-7",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-8": {
+          "$kind": "job",
+          "created_at": 2.0,
+          "due_date": 6.0,
+          "finished_at": null,
+          "label": "job-8",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-2",
+            "job-3",
+            "job-4",
+            "job-5",
+            "job-6",
+            "job-7",
+            "job-8"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [
+            "job-1"
+          ],
+          "worked_time": 1.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 2.5
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 1,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 1.5,
+            "server-1": 0.0
+          }
+        }
+      }
+    },
+    {
+      "cursor": [
+        2.5,
+        67
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 1.0,
+        "shopfloor/system_wip": 8.0
+      },
+      "state": {
+        "job-0": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 3.0,
+          "finished_at": 2.5,
+          "label": "job-0",
+          "location": "done",
+          "op_index": 1,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": "server:server-0",
+          "op_index": 1,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-3": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 6.0,
+          "finished_at": null,
+          "label": "job-3",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-4": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 7.0,
+          "finished_at": null,
+          "label": "job-4",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-5": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-5",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-6": {
+          "$kind": "job",
+          "created_at": 2.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-6",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-7": {
+          "$kind": "job",
+          "created_at": 2.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-7",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-8": {
+          "$kind": "job",
+          "created_at": 2.0,
+          "due_date": 6.0,
+          "finished_at": null,
+          "label": "job-8",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-2",
+            "job-3",
+            "job-4",
+            "job-5",
+            "job-6",
+            "job-7",
+            "job-8"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [
+            "job-1"
+          ],
+          "worked_time": 1.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 2.5
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 1,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 1.5,
+            "server-1": 0.0
+          }
+        }
+      }
+    },
+    {
+      "cursor": [
+        2.5,
+        68
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 1.0,
+        "shopfloor/system_wip": 8.0
+      },
+      "state": {
+        "job-1": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-1",
+          "location": "server:server-0",
+          "op_index": 1,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-2": {
+          "$kind": "job",
+          "created_at": 0.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-2",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-3": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 6.0,
+          "finished_at": null,
+          "label": "job-3",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-4": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 7.0,
+          "finished_at": null,
+          "label": "job-4",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-5": {
+          "$kind": "job",
+          "created_at": 1.0,
+          "due_date": 3.0,
+          "finished_at": null,
+          "label": "job-5",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-6": {
+          "$kind": "job",
+          "created_at": 2.0,
+          "due_date": 4.0,
+          "finished_at": null,
+          "label": "job-6",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            1.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-7": {
+          "$kind": "job",
+          "created_at": 2.0,
+          "due_date": 5.0,
+          "finished_at": null,
+          "label": "job-7",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            2.0,
+            1.5
+          ],
+          "routing": [
+            "server-1",
+            "server-0"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "job-8": {
+          "$kind": "job",
+          "created_at": 2.0,
+          "due_date": 6.0,
+          "finished_at": null,
+          "label": "job-8",
+          "location": "psp:psp",
+          "op_index": null,
+          "processing_times": [
+            3.0,
+            0.5
+          ],
+          "routing": [
+            "server-0",
+            "server-1"
+          ],
+          "shopfloor": "shopfloor",
+          "sku": "native"
+        },
+        "psp": {
+          "$kind": "psp",
+          "jobs": [
+            "job-2",
+            "job-3",
+            "job-4",
+            "job-5",
+            "job-6",
+            "job-7",
+            "job-8"
+          ],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [
+            "job-1"
+          ],
+          "worked_time": 1.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 2.5
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 1,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 1.5,
+            "server-1": 0.0
+          }
+        }
+      }
+    },
+    {
+      "cursor": [
+        24.0,
+        305
+      ],
+      "kpis": {
+        "shopfloor/floor_wip": 0.0,
+        "shopfloor/system_wip": 0.0
+      },
+      "state": {
+        "psp": {
+          "$kind": "psp",
+          "jobs": [],
+          "label": "psp",
+          "shopfloor": "shopfloor"
+        },
+        "server-0": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-0",
+          "queue": [],
+          "users": [],
+          "worked_time": 21.0
+        },
+        "server-1": {
+          "$kind": "server",
+          "capacity": 1,
+          "label": "server-1",
+          "queue": [],
+          "users": [],
+          "worked_time": 15.0
+        },
+        "shopfloor": {
+          "$kind": "shopfloor",
+          "jobs_in_system": 0,
+          "label": "shopfloor",
+          "wip": {
+            "server-0": 0.0,
+            "server-1": 0.0
+          }
+        }
+      }
+    }
+  ],
+  "cursor_range": [
+    [
+      0.0,
+      -1
+    ],
+    [
+      24.0,
+      305
+    ]
+  ],
+  "digest": "181bad5ae056b96b2d773992193197549243c822810ccb65cfcc4a5bcf500cc7",
+  "events": [
+    [
+      0.0,
+      4,
+      "kpi.sample"
+    ],
+    [
+      0.0,
+      5,
+      "kpi.sample"
+    ],
+    [
+      0.0,
+      6,
+      "entity.created"
+    ],
+    [
+      0.0,
+      7,
+      "entity.created"
+    ],
+    [
+      0.0,
+      8,
+      "entity.created"
+    ],
+    [
+      0.0,
+      9,
+      "psp.entered"
+    ],
+    [
+      0.0,
+      10,
+      "kpi.sample"
+    ],
+    [
+      0.0,
+      11,
+      "policy.decision"
+    ],
+    [
+      0.0,
+      12,
+      "psp.exited"
+    ],
+    [
+      0.0,
+      13,
+      "shopfloor.entered"
+    ],
+    [
+      0.0,
+      14,
+      "kpi.sample"
+    ],
+    [
+      0.0,
+      15,
+      "psp.entered"
+    ],
+    [
+      0.0,
+      16,
+      "kpi.sample"
+    ],
+    [
+      0.0,
+      17,
+      "policy.decision"
+    ],
+    [
+      0.0,
+      18,
+      "psp.exited"
+    ],
+    [
+      0.0,
+      19,
+      "shopfloor.entered"
+    ],
+    [
+      0.0,
+      20,
+      "kpi.sample"
+    ],
+    [
+      0.0,
+      21,
+      "psp.entered"
+    ],
+    [
+      0.0,
+      22,
+      "kpi.sample"
+    ],
+    [
+      0.0,
+      23,
+      "job.queued"
+    ],
+    [
+      0.0,
+      24,
+      "job.granted"
+    ],
+    [
+      0.0,
+      25,
+      "job.queued"
+    ],
+    [
+      0.0,
+      26,
+      "job.granted"
+    ],
+    [
+      0.0,
+      27,
+      "operation.started"
+    ],
+    [
+      0.0,
+      28,
+      "operation.started"
+    ],
+    [
+      1.0,
+      29,
+      "entity.created"
+    ],
+    [
+      1.0,
+      30,
+      "entity.created"
+    ],
+    [
+      1.0,
+      31,
+      "entity.created"
+    ],
+    [
+      1.0,
+      32,
+      "psp.entered"
+    ],
+    [
+      1.0,
+      33,
+      "kpi.sample"
+    ],
+    [
+      1.0,
+      34,
+      "psp.entered"
+    ],
+    [
+      1.0,
+      35,
+      "kpi.sample"
+    ],
+    [
+      1.0,
+      36,
+      "psp.entered"
+    ],
+    [
+      1.0,
+      37,
+      "kpi.sample"
+    ],
+    [
+      1.0,
+      38,
+      "server.work_credited"
+    ],
+    [
+      1.0,
+      39,
+      "operation.completed"
+    ],
+    [
+      1.0,
+      40,
+      "shopfloor.wip_updated"
+    ],
+    [
+      1.0,
+      41,
+      "job.released"
+    ],
+    [
+      1.0,
+      42,
+      "job.queued"
+    ],
+    [
+      2.0,
+      43,
+      "entity.created"
+    ],
+    [
+      2.0,
+      44,
+      "entity.created"
+    ],
+    [
+      2.0,
+      45,
+      "entity.created"
+    ],
+    [
+      2.0,
+      46,
+      "psp.entered"
+    ],
+    [
+      2.0,
+      47,
+      "kpi.sample"
+    ],
+    [
+      2.0,
+      48,
+      "psp.entered"
+    ],
+    [
+      2.0,
+      49,
+      "kpi.sample"
+    ],
+    [
+      2.0,
+      50,
+      "psp.entered"
+    ],
+    [
+      2.0,
+      51,
+      "kpi.sample"
+    ],
+    [
+      2.0,
+      52,
+      "server.work_credited"
+    ],
+    [
+      2.0,
+      53,
+      "operation.completed"
+    ],
+    [
+      2.0,
+      54,
+      "shopfloor.wip_updated"
+    ],
+    [
+      2.0,
+      55,
+      "job.released"
+    ],
+    [
+      2.0,
+      56,
+      "job.queued"
+    ],
+    [
+      2.0,
+      57,
+      "job.granted"
+    ],
+    [
+      2.0,
+      58,
+      "job.granted"
+    ],
+    [
+      2.0,
+      59,
+      "operation.started"
+    ],
+    [
+      2.0,
+      60,
+      "operation.started"
+    ],
+    [
+      2.5,
+      61,
+      "server.work_credited"
+    ],
+    [
+      2.5,
+      62,
+      "operation.completed"
+    ],
+    [
+      2.5,
+      63,
+      "shopfloor.wip_updated"
+    ],
+    [
+      2.5,
+      64,
+      "job.released"
+    ],
+    [
+      2.5,
+      65,
+      "job.finished"
+    ],
+    [
+      2.5,
+      66,
+      "kpi.sample"
+    ],
+    [
+      2.5,
+      67,
+      "kpi.sample"
+    ],
+    [
+      2.5,
+      68,
+      "entity.retired"
+    ],
+    [
+      2.5,
+      69,
+      "policy.decision"
+    ],
+    [
+      2.5,
+      70,
+      "psp.exited"
+    ],
+    [
+      2.5,
+      71,
+      "shopfloor.entered"
+    ],
+    [
+      2.5,
+      72,
+      "kpi.sample"
+    ],
+    [
+      2.5,
+      73,
+      "job.queued"
+    ],
+    [
+      2.5,
+      74,
+      "job.granted"
+    ],
+    [
+      2.5,
+      75,
+      "operation.started"
+    ],
+    [
+      3.0,
+      76,
+      "entity.created"
+    ],
+    [
+      3.0,
+      77,
+      "entity.created"
+    ],
+    [
+      3.0,
+      78,
+      "entity.created"
+    ],
+    [
+      3.0,
+      79,
+      "psp.entered"
+    ],
+    [
+      3.0,
+      80,
+      "kpi.sample"
+    ],
+    [
+      3.0,
+      81,
+      "psp.entered"
+    ],
+    [
+      3.0,
+      82,
+      "kpi.sample"
+    ],
+    [
+      3.0,
+      83,
+      "psp.entered"
+    ],
+    [
+      3.0,
+      84,
+      "kpi.sample"
+    ],
+    [
+      3.5,
+      85,
+      "server.work_credited"
+    ],
+    [
+      3.5,
+      86,
+      "operation.completed"
+    ],
+    [
+      3.5,
+      87,
+      "shopfloor.wip_updated"
+    ],
+    [
+      3.5,
+      88,
+      "job.released"
+    ],
+    [
+      3.5,
+      89,
+      "job.finished"
+    ],
+    [
+      3.5,
+      90,
+      "kpi.sample"
+    ],
+    [
+      3.5,
+      91,
+      "kpi.sample"
+    ],
+    [
+      3.5,
+      92,
+      "entity.retired"
+    ],
+    [
+      3.5,
+      93,
+      "policy.decision"
+    ],
+    [
+      3.5,
+      94,
+      "psp.exited"
+    ],
+    [
+      3.5,
+      95,
+      "shopfloor.entered"
+    ],
+    [
+      3.5,
+      96,
+      "kpi.sample"
+    ],
+    [
+      3.5,
+      97,
+      "job.queued"
+    ],
+    [
+      3.5,
+      98,
+      "job.granted"
+    ],
+    [
+      3.5,
+      99,
+      "operation.started"
+    ],
+    [
+      5.5,
+      100,
+      "server.work_credited"
+    ],
+    [
+      5.5,
+      101,
+      "operation.completed"
+    ],
+    [
+      5.5,
+      102,
+      "server.work_credited"
+    ],
+    [
+      5.5,
+      103,
+      "operation.completed"
+    ],
+    [
+      5.5,
+      104,
+      "shopfloor.wip_updated"
+    ],
+    [
+      5.5,
+      105,
+      "job.released"
+    ],
+    [
+      5.5,
+      106,
+      "job.queued"
+    ],
+    [
+      5.5,
+      107,
+      "shopfloor.wip_updated"
+    ],
+    [
+      5.5,
+      108,
+      "job.released"
+    ],
+    [
+      5.5,
+      109,
+      "job.queued"
+    ],
+    [
+      5.5,
+      110,
+      "job.granted"
+    ],
+    [
+      5.5,
+      111,
+      "job.granted"
+    ],
+    [
+      5.5,
+      112,
+      "operation.started"
+    ],
+    [
+      5.5,
+      113,
+      "operation.started"
+    ],
+    [
+      6.0,
+      114,
+      "server.work_credited"
+    ],
+    [
+      6.0,
+      115,
+      "operation.completed"
+    ],
+    [
+      6.0,
+      116,
+      "shopfloor.wip_updated"
+    ],
+    [
+      6.0,
+      117,
+      "job.released"
+    ],
+    [
+      6.0,
+      118,
+      "job.finished"
+    ],
+    [
+      6.0,
+      119,
+      "kpi.sample"
+    ],
+    [
+      6.0,
+      120,
+      "kpi.sample"
+    ],
+    [
+      6.0,
+      121,
+      "entity.retired"
+    ],
+    [
+      6.0,
+      122,
+      "policy.decision"
+    ],
+    [
+      6.0,
+      123,
+      "psp.exited"
+    ],
+    [
+      6.0,
+      124,
+      "shopfloor.entered"
+    ],
+    [
+      6.0,
+      125,
+      "kpi.sample"
+    ],
+    [
+      6.0,
+      126,
+      "job.queued"
+    ],
+    [
+      7.0,
+      127,
+      "server.work_credited"
+    ],
+    [
+      7.0,
+      128,
+      "operation.completed"
+    ],
+    [
+      7.0,
+      129,
+      "shopfloor.wip_updated"
+    ],
+    [
+      7.0,
+      130,
+      "job.released"
+    ],
+    [
+      7.0,
+      131,
+      "job.finished"
+    ],
+    [
+      7.0,
+      132,
+      "kpi.sample"
+    ],
+    [
+      7.0,
+      133,
+      "kpi.sample"
+    ],
+    [
+      7.0,
+      134,
+      "entity.retired"
+    ],
+    [
+      7.0,
+      135,
+      "policy.decision"
+    ],
+    [
+      7.0,
+      136,
+      "psp.exited"
+    ],
+    [
+      7.0,
+      137,
+      "shopfloor.entered"
+    ],
+    [
+      7.0,
+      138,
+      "kpi.sample"
+    ],
+    [
+      7.0,
+      139,
+      "job.queued"
+    ],
+    [
+      7.0,
+      140,
+      "job.granted"
+    ],
+    [
+      7.0,
+      141,
+      "job.granted"
+    ],
+    [
+      7.0,
+      142,
+      "operation.started"
+    ],
+    [
+      7.0,
+      143,
+      "operation.started"
+    ],
+    [
+      8.0,
+      144,
+      "server.work_credited"
+    ],
+    [
+      8.0,
+      145,
+      "operation.completed"
+    ],
+    [
+      8.0,
+      146,
+      "shopfloor.wip_updated"
+    ],
+    [
+      8.0,
+      147,
+      "job.released"
+    ],
+    [
+      8.0,
+      148,
+      "job.queued"
+    ],
+    [
+      10.0,
+      149,
+      "server.work_credited"
+    ],
+    [
+      10.0,
+      150,
+      "operation.completed"
+    ],
+    [
+      10.0,
+      151,
+      "shopfloor.wip_updated"
+    ],
+    [
+      10.0,
+      152,
+      "job.released"
+    ],
+    [
+      10.0,
+      153,
+      "job.queued"
+    ],
+    [
+      10.0,
+      154,
+      "job.granted"
+    ],
+    [
+      10.0,
+      155,
+      "job.granted"
+    ],
+    [
+      10.0,
+      156,
+      "operation.started"
+    ],
+    [
+      10.0,
+      157,
+      "operation.started"
+    ],
+    [
+      10.5,
+      158,
+      "server.work_credited"
+    ],
+    [
+      10.5,
+      159,
+      "operation.completed"
+    ],
+    [
+      10.5,
+      160,
+      "shopfloor.wip_updated"
+    ],
+    [
+      10.5,
+      161,
+      "job.released"
+    ],
+    [
+      10.5,
+      162,
+      "job.finished"
+    ],
+    [
+      10.5,
+      163,
+      "kpi.sample"
+    ],
+    [
+      10.5,
+      164,
+      "kpi.sample"
+    ],
+    [
+      10.5,
+      165,
+      "entity.retired"
+    ],
+    [
+      10.5,
+      166,
+      "policy.decision"
+    ],
+    [
+      10.5,
+      167,
+      "psp.exited"
+    ],
+    [
+      10.5,
+      168,
+      "shopfloor.entered"
+    ],
+    [
+      10.5,
+      169,
+      "kpi.sample"
+    ],
+    [
+      10.5,
+      170,
+      "job.queued"
+    ],
+    [
+      11.5,
+      171,
+      "server.work_credited"
+    ],
+    [
+      11.5,
+      172,
+      "operation.completed"
+    ],
+    [
+      11.5,
+      173,
+      "shopfloor.wip_updated"
+    ],
+    [
+      11.5,
+      174,
+      "job.released"
+    ],
+    [
+      11.5,
+      175,
+      "job.finished"
+    ],
+    [
+      11.5,
+      176,
+      "kpi.sample"
+    ],
+    [
+      11.5,
+      177,
+      "kpi.sample"
+    ],
+    [
+      11.5,
+      178,
+      "entity.retired"
+    ],
+    [
+      11.5,
+      179,
+      "policy.decision"
+    ],
+    [
+      11.5,
+      180,
+      "psp.exited"
+    ],
+    [
+      11.5,
+      181,
+      "shopfloor.entered"
+    ],
+    [
+      11.5,
+      182,
+      "kpi.sample"
+    ],
+    [
+      11.5,
+      183,
+      "job.queued"
+    ],
+    [
+      11.5,
+      184,
+      "job.granted"
+    ],
+    [
+      11.5,
+      185,
+      "job.granted"
+    ],
+    [
+      11.5,
+      186,
+      "operation.started"
+    ],
+    [
+      11.5,
+      187,
+      "operation.started"
+    ],
+    [
+      13.5,
+      188,
+      "server.work_credited"
+    ],
+    [
+      13.5,
+      189,
+      "operation.completed"
+    ],
+    [
+      13.5,
+      190,
+      "shopfloor.wip_updated"
+    ],
+    [
+      13.5,
+      191,
+      "job.released"
+    ],
+    [
+      13.5,
+      192,
+      "job.queued"
+    ],
+    [
+      14.5,
+      193,
+      "server.work_credited"
+    ],
+    [
+      14.5,
+      194,
+      "operation.completed"
+    ],
+    [
+      14.5,
+      195,
+      "shopfloor.wip_updated"
+    ],
+    [
+      14.5,
+      196,
+      "job.released"
+    ],
+    [
+      14.5,
+      197,
+      "job.queued"
+    ],
+    [
+      14.5,
+      198,
+      "job.granted"
+    ],
+    [
+      14.5,
+      199,
+      "job.granted"
+    ],
+    [
+      14.5,
+      200,
+      "operation.started"
+    ],
+    [
+      14.5,
+      201,
+      "operation.started"
+    ],
+    [
+      15.0,
+      202,
+      "server.work_credited"
+    ],
+    [
+      15.0,
+      203,
+      "operation.completed"
+    ],
+    [
+      15.0,
+      204,
+      "shopfloor.wip_updated"
+    ],
+    [
+      15.0,
+      205,
+      "job.released"
+    ],
+    [
+      15.0,
+      206,
+      "job.finished"
+    ],
+    [
+      15.0,
+      207,
+      "kpi.sample"
+    ],
+    [
+      15.0,
+      208,
+      "kpi.sample"
+    ],
+    [
+      15.0,
+      209,
+      "entity.retired"
+    ],
+    [
+      15.0,
+      210,
+      "policy.decision"
+    ],
+    [
+      15.0,
+      211,
+      "psp.exited"
+    ],
+    [
+      15.0,
+      212,
+      "shopfloor.entered"
+    ],
+    [
+      15.0,
+      213,
+      "kpi.sample"
+    ],
+    [
+      15.0,
+      214,
+      "job.queued"
+    ],
+    [
+      15.0,
+      215,
+      "job.granted"
+    ],
+    [
+      15.0,
+      216,
+      "operation.started"
+    ],
+    [
+      16.0,
+      217,
+      "server.work_credited"
+    ],
+    [
+      16.0,
+      218,
+      "operation.completed"
+    ],
+    [
+      16.0,
+      219,
+      "server.work_credited"
+    ],
+    [
+      16.0,
+      220,
+      "operation.completed"
+    ],
+    [
+      16.0,
+      221,
+      "shopfloor.wip_updated"
+    ],
+    [
+      16.0,
+      222,
+      "job.released"
+    ],
+    [
+      16.0,
+      223,
+      "job.finished"
+    ],
+    [
+      16.0,
+      224,
+      "kpi.sample"
+    ],
+    [
+      16.0,
+      225,
+      "kpi.sample"
+    ],
+    [
+      16.0,
+      226,
+      "entity.retired"
+    ],
+    [
+      16.0,
+      227,
+      "shopfloor.wip_updated"
+    ],
+    [
+      16.0,
+      228,
+      "job.released"
+    ],
+    [
+      16.0,
+      229,
+      "job.queued"
+    ],
+    [
+      16.0,
+      230,
+      "job.granted"
+    ],
+    [
+      16.0,
+      231,
+      "policy.decision"
+    ],
+    [
+      16.0,
+      232,
+      "psp.exited"
+    ],
+    [
+      16.0,
+      233,
+      "shopfloor.entered"
+    ],
+    [
+      16.0,
+      234,
+      "kpi.sample"
+    ],
+    [
+      16.0,
+      235,
+      "job.queued"
+    ],
+    [
+      16.0,
+      236,
+      "operation.started"
+    ],
+    [
+      17.5,
+      237,
+      "server.work_credited"
+    ],
+    [
+      17.5,
+      238,
+      "operation.completed"
+    ],
+    [
+      17.5,
+      239,
+      "shopfloor.wip_updated"
+    ],
+    [
+      17.5,
+      240,
+      "job.released"
+    ],
+    [
+      17.5,
+      241,
+      "job.finished"
+    ],
+    [
+      17.5,
+      242,
+      "kpi.sample"
+    ],
+    [
+      17.5,
+      243,
+      "kpi.sample"
+    ],
+    [
+      17.5,
+      244,
+      "entity.retired"
+    ],
+    [
+      17.5,
+      245,
+      "policy.decision"
+    ],
+    [
+      17.5,
+      246,
+      "psp.exited"
+    ],
+    [
+      17.5,
+      247,
+      "shopfloor.entered"
+    ],
+    [
+      17.5,
+      248,
+      "kpi.sample"
+    ],
+    [
+      17.5,
+      249,
+      "job.queued"
+    ],
+    [
+      17.5,
+      250,
+      "job.granted"
+    ],
+    [
+      17.5,
+      251,
+      "operation.started"
+    ],
+    [
+      19.5,
+      252,
+      "server.work_credited"
+    ],
+    [
+      19.5,
+      253,
+      "operation.completed"
+    ],
+    [
+      19.5,
+      254,
+      "shopfloor.wip_updated"
+    ],
+    [
+      19.5,
+      255,
+      "job.released"
+    ],
+    [
+      19.5,
+      256,
+      "job.queued"
+    ],
+    [
+      19.5,
+      257,
+      "job.granted"
+    ],
+    [
+      19.5,
+      258,
+      "job.granted"
+    ],
+    [
+      19.5,
+      259,
+      "operation.started"
+    ],
+    [
+      19.5,
+      260,
+      "operation.started"
+    ],
+    [
+      20.0,
+      261,
+      "server.work_credited"
+    ],
+    [
+      20.0,
+      262,
+      "operation.completed"
+    ],
+    [
+      20.0,
+      263,
+      "shopfloor.wip_updated"
+    ],
+    [
+      20.0,
+      264,
+      "job.released"
+    ],
+    [
+      20.0,
+      265,
+      "job.finished"
+    ],
+    [
+      20.0,
+      266,
+      "kpi.sample"
+    ],
+    [
+      20.0,
+      267,
+      "kpi.sample"
+    ],
+    [
+      20.0,
+      268,
+      "entity.retired"
+    ],
+    [
+      20.0,
+      269,
+      "policy.decision"
+    ],
+    [
+      20.0,
+      270,
+      "psp.exited"
+    ],
+    [
+      20.0,
+      271,
+      "shopfloor.entered"
+    ],
+    [
+      20.0,
+      272,
+      "kpi.sample"
+    ],
+    [
+      20.0,
+      273,
+      "job.queued"
+    ],
+    [
+      20.0,
+      274,
+      "job.granted"
+    ],
+    [
+      20.0,
+      275,
+      "operation.started"
+    ],
+    [
+      21.0,
+      276,
+      "server.work_credited"
+    ],
+    [
+      21.0,
+      277,
+      "operation.completed"
+    ],
+    [
+      21.0,
+      278,
+      "shopfloor.wip_updated"
+    ],
+    [
+      21.0,
+      279,
+      "job.released"
+    ],
+    [
+      21.0,
+      280,
+      "job.queued"
+    ],
+    [
+      22.5,
+      281,
+      "server.work_credited"
+    ],
+    [
+      22.5,
+      282,
+      "operation.completed"
+    ],
+    [
+      22.5,
+      283,
+      "shopfloor.wip_updated"
+    ],
+    [
+      22.5,
+      284,
+      "job.released"
+    ],
+    [
+      22.5,
+      285,
+      "job.queued"
+    ],
+    [
+      22.5,
+      286,
+      "job.granted"
+    ],
+    [
+      22.5,
+      287,
+      "job.granted"
+    ],
+    [
+      22.5,
+      288,
+      "operation.started"
+    ],
+    [
+      22.5,
+      289,
+      "operation.started"
+    ],
+    [
+      23.0,
+      290,
+      "server.work_credited"
+    ],
+    [
+      23.0,
+      291,
+      "operation.completed"
+    ],
+    [
+      23.0,
+      292,
+      "shopfloor.wip_updated"
+    ],
+    [
+      23.0,
+      293,
+      "job.released"
+    ],
+    [
+      23.0,
+      294,
+      "job.finished"
+    ],
+    [
+      23.0,
+      295,
+      "kpi.sample"
+    ],
+    [
+      23.0,
+      296,
+      "kpi.sample"
+    ],
+    [
+      23.0,
+      297,
+      "entity.retired"
+    ],
+    [
+      24.0,
+      298,
+      "server.work_credited"
+    ],
+    [
+      24.0,
+      299,
+      "operation.completed"
+    ],
+    [
+      24.0,
+      300,
+      "shopfloor.wip_updated"
+    ],
+    [
+      24.0,
+      301,
+      "job.released"
+    ],
+    [
+      24.0,
+      302,
+      "job.finished"
+    ],
+    [
+      24.0,
+      303,
+      "kpi.sample"
+    ],
+    [
+      24.0,
+      304,
+      "kpi.sample"
+    ],
+    [
+      24.0,
+      305,
+      "entity.retired"
+    ]
+  ],
+  "outcome": "completed",
+  "scalars": {
+    "shopfloor/jobs_in_system": 1.9545454545454546,
+    "shopfloor/lateness": 8.291666666666666,
+    "shopfloor/makespan": 11.541666666666666,
+    "shopfloor/tardiness": 8.375,
+    "shopfloor/tardy_fraction": 0.8333333333333334,
+    "shopfloor/throughput": 0.5454545454545454,
+    "shopfloor/total_queue_time": 0.9166666666666666,
+    "shopfloor/utilization": 0.75
+  }
+}

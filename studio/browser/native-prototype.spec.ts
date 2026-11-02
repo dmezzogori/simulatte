@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { resolve } from "node:path";
 
-for (const fixture of ["native", "lifecycle", "direct", "semantics"]) {
+for (const fixture of ["native", "lifecycle", "direct", "semantics", "observed"]) {
   test(`${fixture} trace opens, steps both directions, seeks, plays and renders in the production viewer`, async ({page}) => {
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));

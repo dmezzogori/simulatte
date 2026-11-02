@@ -81,6 +81,11 @@ class CompiledStream:
             self._check()
             self._module.run(self._engine)
 
+    def flush(self):
+        with self._lock:
+            self._check()
+            self._module.flush(self._engine)
+
     def result(self):
         with self._lock:
             self._check()

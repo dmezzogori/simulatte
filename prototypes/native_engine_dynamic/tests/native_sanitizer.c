@@ -32,6 +32,7 @@ static int exercise(const char *path, size_t nth, int rich) {
         arrival += (random_u32() % 4) / 16.0;
         if (j % 13 == 0 && nd_advance(e, arrival)) goto failed;
         if (nd_add(e, arrival, (double)(random_u32() % 100), n, routes, n, durations, n, &id)) goto failed;
+        if (j % 13 == 0 && nd_flush(e)) goto failed;
         assert(id == j);
         nd_snapshot snapshot;
         assert(nd_inspect(e, 0, &snapshot) == 0);
@@ -208,6 +209,13 @@ static void boundaries(void) {
     assert(!nd_add(e, 2, 1, 1, route, 1, duration, 1, &id));
     assert(!nd_run(e)); assert(nd_get_result(e)->completed == 2); nd_destroy(e);
     nd_destroy(NULL);
+    assert(nd_flush(NULL));
+    e = fresh();
+    assert(!nd_flush(e));
+    assert(nd_now(e) == 0);
+    assert(!nd_run(e));
+    assert(!nd_flush(e));
+    nd_destroy(e);
 }
 
 static void simultaneous(void) {

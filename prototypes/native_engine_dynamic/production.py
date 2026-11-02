@@ -79,6 +79,11 @@ def totals(jobs, offsets, starts, ends, released, finished, servers):
 
 
 class ProductionStream:
+    kpi_type = ProductionKPIs
+
+    def configure_observers(self):
+        pass
+
     def __init__(self, servers, *, wip_cap=12, policy="spt", mode="none", trace_path=None, provenance=None):
         if mode not in ("none", "kpi", "full") or policy not in ("spt", "fifo"):
             raise ValueError("invalid production mode or policy")
@@ -110,7 +115,8 @@ class ProductionStream:
         self.servers = [Server(env=self.env, capacity=1, shopfloor=self.shop) for _ in range(servers)]
         self.policy = ConWIP(shopfloor=self.shop, psp=self.psp, wip_cap=wip_cap)
         self.priority = shortest_processing_time if policy == "spt" else first_come_first_served
-        self.kpis = ProductionKPIs(self.shop).attach(self.env) if mode != "none" else None
+        self.kpis = self.kpi_type(self.shop).attach(self.env) if mode != "none" else None
+        self.configure_observers()
         self.env.activate()
 
     @property

@@ -5,6 +5,14 @@ This is an isolated research milestone. Production runtime, existing static C en
 evidence remain unchanged. Production Studio encoding is the subsequent separate gate, not part of this
 milestone. Design choices below are implementation decisions within that bounded authorization.
 
+Later refinements are documented in the
+[simultaneous-event report](../../specs/research/2026-11-02-native-semantics.md)
+(initialization and deferred release-policy wake ordering) and the
+[live observation contract](../../specs/research/2026-11-02-native-observation.md)
+(opt-in event-time views, synchronous boundary delivery and `nd_flush`). The
+sections below retain the initial milestone's scope; use those reports for the
+subsequent semantics and evidence.
+
 ## Interfaces and ownership
 
 `NativeStream` in `native.py` and independent `ReferenceStream` in `reference.py` implement:

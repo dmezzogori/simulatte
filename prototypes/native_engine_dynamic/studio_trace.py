@@ -433,6 +433,9 @@ class TraceStream:
         }
         return result
 
+    def _outcome(self, error):
+        return "failed" if self.failed or error else "completed" if self.ran else "cancelled"
+
     def close(self):
         if self.closed:
             return
@@ -455,7 +458,7 @@ class TraceStream:
             if self.reader is not None:
                 self.reader.close()
             if self.projection is not None:
-                outcome = "failed" if self.failed or error else "completed" if self.ran else "cancelled"
+                outcome = self._outcome(error)
                 try:
                     self.projection.env.run()  # Empty projection calendar: declares exhaustion, no model replay.
                     self.projection.recorder.close(outcome=outcome)

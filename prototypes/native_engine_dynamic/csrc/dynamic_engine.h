@@ -36,6 +36,8 @@ int nd_add_many(nd_engine *, uint32_t jobs,
                 const uint32_t *routes, size_t route_length,
                 const double *durations, size_t duration_length, uint32_t *first_id);
 int nd_advance(nd_engine *, double until);
+/* Flush already-produced journal bytes; no scheduling or time advancement. */
+int nd_flush(nd_engine *);
 int nd_run(nd_engine *);
 int nd_inspect(const nd_engine *, uint32_t id, nd_snapshot *);
 double nd_now(const nd_engine *);

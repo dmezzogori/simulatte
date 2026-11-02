@@ -183,6 +183,17 @@ static PyObject *run(PyObject *self, PyObject *capsule) {
     s->busy = 0; s->success = !rc;
     return status(s, rc);
 }
+static PyObject *flush(PyObject *self, PyObject *capsule) {
+    (void)self;
+    scalar *s = get(capsule, 0);
+    if (!s) return NULL;
+    int rc; s->busy = 1;
+    Py_BEGIN_ALLOW_THREADS
+    rc = nd_flush(s->engine);
+    Py_END_ALLOW_THREADS
+    s->busy = 0;
+    return status(s, rc);
+}
 static PyObject *inspect(PyObject *self, PyObject *args) {
     (void)self;
     PyObject *capsule, *identity;
@@ -282,6 +293,7 @@ static PyMethodDef methods[] = {
     {"create", create, METH_VARARGS, NULL}, {"accepting", accepting, METH_O, NULL},
     {"add", add, METH_VARARGS, NULL}, {"advance", advance, METH_VARARGS, NULL},
     {"run", run, METH_O, NULL}, {"inspect", inspect, METH_VARARGS, NULL},
+    {"flush", flush, METH_O, NULL},
     {"now", now, METH_O, NULL}, {"result", result, METH_O, NULL},
     {"close", close_stream, METH_O, NULL}, {NULL, NULL, 0, NULL}
 };

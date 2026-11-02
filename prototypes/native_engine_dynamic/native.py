@@ -88,6 +88,7 @@ def _load_library():
                     ct.c_int,
                 ),
                 "nd_advance": ([ct.c_void_p, ct.c_double], ct.c_int),
+                "nd_flush": ([ct.c_void_p], ct.c_int),
                 "nd_run": ([ct.c_void_p], ct.c_int),
                 "nd_inspect": ([ct.c_void_p, _U32, ct.POINTER(_Snapshot)], ct.c_int),
                 "nd_now": ([ct.c_void_p], ct.c_double),
@@ -316,6 +317,11 @@ class NativeStream:
                 "finished": snapshot.finished if snapshot.state == 3 else None,
                 "state": ("scheduled", "pool", "active", "finished")[snapshot.state],
             }
+
+    def flush(self):
+        with self._lock:
+            self._check()
+            self._status(self._library.nd_flush(self._engine))
 
     def run(self):
         with self._lock:

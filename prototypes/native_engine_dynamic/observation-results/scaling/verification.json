@@ -1,0 +1,12 @@
+{
+  "source_sha256": "0e8478b0a7bc9f6ae7b6df6dffdffe080bd924c5055584a2ae0a09d8e5124948",
+  "cases": 36,
+  "samples": 180,
+  "cold_probes": 36,
+  "stock_series_and_scalars_equivalent": true,
+  "native_delivery_output_exact": true,
+  "evidence": {
+    "metadata.json": "329dd611873c75a7a56ea95cfdfbbc0375cdc12fec928d24c4c9deb5b07ac54b",
+    "matrix.jsonl": "5001e77eee4fd2c8480ad7358a18910abe3f4bf14fb173e001d283b2e80219a0"
+  }
+}

@@ -456,6 +456,12 @@ int nd_advance(nd_engine *e, double until) {
     e->now = until;
     return 0;
 }
+int nd_flush(nd_engine *e) {
+    if (!e) return -1;
+    if (e->state == 1) return fail(e, "engine is running or failed");
+    if (e->file && (flush_records(e) || fflush(e->file))) return fail(e, "record flush failed");
+    return 0;
+}
 int nd_run(nd_engine *e) {
     if (!e) return -1;
     if (e->state) return fail(e, "engine can only run once");

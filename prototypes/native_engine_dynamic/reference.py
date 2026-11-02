@@ -277,6 +277,16 @@ class ReferenceStream:
             kpis=kpis,
         )
 
+    def flush(self):
+        if self.state not in ("open", "done"):
+            raise RuntimeError("stream is closed or failed")
+        try:
+            if self.writer:
+                self.writer.flush()
+        except BaseException:
+            self.state = "failed"
+            raise
+
     def close(self):
         if self.state != "closed":
             try:

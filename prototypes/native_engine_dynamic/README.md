@@ -302,3 +302,39 @@ full is 0.6%/3.9% longer than production PyPy independent/feedback (near parity,
 not a consistent win). Full memory has no consistent improvement. Keep this
 path opt-in and validate larger/tie-heavy workloads and the observation contract
 before a public native interface; no production integration was attempted here.
+
+## Live observation contract
+
+The [observation report](../../specs/research/2026-11-02-native-observation.md)
+defines opt-in `LiveTraceStream` over the
+[corrected simultaneous-event scheduler](../../specs/research/2026-11-02-native-semantics.md).
+Boundary delivery flushes produced journal records after `add()` and `advance(t)`;
+callbacks see read-only event-time views, and return from `advance(t)` exposes
+clock `t` with scheduled events at `t` still pending. Callbacks cannot control the
+model. `nd_flush()` changes transport visibility only, not calendar semantics.
+
+The adapter supports the limited job timing, floor workload/count and server
+queue/count/worked-time reads used by five unmodified stock collector classes.
+General actors, mutable policies, queue iteration and live snapshots are outside
+the contract. A buffered delivery variant uses the same views/collectors as a
+cost control. The old `DirectTraceStream` and production package stay unchanged.
+
+```sh
+.venv/bin/python -m prototypes.native_engine_dynamic.observation_gate --output /tmp/observation-gate-cpython
+prototypes/native_engine/.build/pypy-env/bin/python -m prototypes.native_engine_dynamic.observation_gate --output /tmp/observation-gate-pypy
+.venv/bin/python -m prototypes.native_engine_dynamic.observation_benchmark matrix \
+  --output /tmp/observation-scaling --pypy prototypes/native_engine/.build/pypy-env/bin/python
+.venv/bin/python -m prototypes.native_engine_dynamic.observation_benchmark audit-experiment \
+  --output prototypes/native_engine_dynamic/observation-results
+```
+
+Use fresh destinations for new measurements. The retained audit expects the
+committed `gate-cpython`, `gate-pypy` and `scaling` layout. Stock scalar definitions
+differ from earlier benchmark totals; compare matched paths within this study.
+
+The completed gate passes 1,536 configurations per interpreter, including live
+stock reads and intermediate windows. Its 36-case matched trace matrix finds
+native live CPython uses 12–26% less time than production CPython, while the best
+native live path takes 17–40% longer than production PyPy. Boundary-delivery cost
+is much larger on PyPy. Keep it experimental; the recommended next control is
+the same live stock workload without trace recording, with profiling.

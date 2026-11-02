@@ -1,0 +1,12 @@
+{
+  "source_sha256": "0e8478b0a7bc9f6ae7b6df6dffdffe080bd924c5055584a2ae0a09d8e5124948",
+  "configurations": 1536,
+  "model_runs": 3072,
+  "collector_value_mismatches": 0,
+  "event_time_probe_mismatches": 0,
+  "boundary_checkpoint_mismatches": 0,
+  "evidence": {
+    "metadata.json": "8671045ece196e3b7402893b16c2016caab175f0314be287daef5f224aed7e82",
+    "rows.jsonl": "3951eb9aa137489126cc32f222c823c1b4855764c6895d07d6491dea9d5a9b03"
+  }
+}

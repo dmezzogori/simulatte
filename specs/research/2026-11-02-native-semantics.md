@@ -288,3 +288,8 @@ observer remains invariant after journal drain, and callbacks remain delayed at
 native `advance()` boundaries. Choosing/providing actor compatibility or a narrower
 event/polling interface is a separate experiment. No serializer, binding tuning,
 packaging or public backend integration is included here.
+
+Follow-up: the [live observation contract experiment](2026-11-02-native-observation.md)
+tests an opt-in read-only view with synchronous boundary delivery and unmodified
+stock collectors. Its matched collector workload is different from the timings
+above; use that experiment's own controls when assessing observation cost.

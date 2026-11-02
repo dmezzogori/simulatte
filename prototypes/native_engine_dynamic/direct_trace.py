@@ -59,6 +59,15 @@ class PoolBinding(PoolState):
 
 
 class DirectProjection:
+    clock_type = ProjectionClock
+    kpi_type = ProjectionKPIs
+
+    def bind(self, cls, fields, name=None):
+        return cls(self.env, fields, name)
+
+    def configure_observers(self):
+        pass
+
     def __init__(
         self,
         servers,
@@ -73,7 +82,7 @@ class DirectProjection:
         level="full",
         wip_cap=None,
     ):
-        self.env = ProjectionClock(seed=0, time_unit="time", provenance=provenance, parameters=parameters, debug=debug)
+        self.env = self.clock_type(seed=0, time_unit="time", provenance=provenance, parameters=parameters, debug=debug)
         self.recorder = TraceRecorder(
             self.env, path, level=level, chunk_limits=limits, max_pending_bytes=max_pending_bytes
         )
@@ -84,15 +93,16 @@ class DirectProjection:
         self.worked, self.wip = [0.0] * servers, [0.0] * servers
         self.system = self.floor = 0
         try:
-            floor = FloorBinding(
-                self.env,
+            floor = self.bind(
+                FloorBinding,
                 dict(wip=FrozenMap({f"server-{s}": 0.0 for s in range(servers)}), jobs_in_system=0),
                 "shopfloor",
             )
-            PoolBinding(self.env, dict(jobs=(), shopfloor=floor.id), "psp")
+            self.bind(PoolBinding, dict(jobs=(), shopfloor=floor.id), "psp")
             for _ in range(servers):
-                ServerBinding(self.env, dict(capacity=1, users=(), queue=(), worked_time=0.0))
-            self.kpis = ProjectionKPIs(floor).attach(self.env)
+                self.bind(ServerBinding, dict(capacity=1, users=(), queue=(), worked_time=0.0))
+            self.kpis = self.kpi_type(floor).attach(self.env)
+            self.configure_observers()
             self.env.activate()
             for binding in self.env.entities.live():
                 binding._creation_fields = None
@@ -122,8 +132,8 @@ class DirectProjection:
         if kind == REGISTER:
             if identity != len(self.stages) or now != job.arrival:
                 raise ValueError("full projection requires scalar registration at arrival")
-            binding = JobBinding(
-                self.env,
+            binding = self.bind(
+                JobBinding,
                 dict(
                     sku="native",
                     routing=tuple(f"server-{s}" for s in job.route),
