@@ -1,0 +1,48 @@
+{
+  "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+  "packages": {
+    "simpy": {
+      "version": "4.1.2",
+      "record_sha256": "e3d24f02f80d984d9e64c3c138532a27ac764458efd65e09533f9a58d1ab99ed"
+    },
+    "simulatte": {
+      "version": "0.17.0",
+      "record_sha256": "3e059b526c714f57ea61a59c8c2cad7dff8a19a2a3223f67a120b4a72ca80622"
+    },
+    "simulatte-native": {
+      "version": "0.17.0",
+      "record_sha256": "53e86e8b626c2bdfa6235c90e18448164929f9f6e8941c516041bd99b76465d1"
+    },
+    "tqdm": {
+      "version": "4.70.1",
+      "record_sha256": "9842694f7a011ca2c4285245b269a7bccff1d31e915d330491a60ceaf11e2d0d"
+    },
+    "tabulate": {
+      "version": "0.10.0",
+      "record_sha256": "f1c9f561e2d221e3e82dcd560cb52adab27245c84ffda9638af61f944ae82f9a"
+    },
+    "msgpack": {
+      "version": "1.2.4",
+      "record_sha256": "08ca25d69ec92b60ba39d95643d50d2d1fb9991c57cff37671698619dca5a755"
+    }
+  },
+  "gc_threshold": [
+    2000,
+    10,
+    0
+  ],
+  "clocks": {
+    "perf_counter": {
+      "implementation": "mach_absolute_time()",
+      "monotonic": true,
+      "adjustable": false,
+      "resolution": 4.166666666666666e-08
+    },
+    "thread_time": {
+      "implementation": "clock_gettime(CLOCK_THREAD_CPUTIME_ID)",
+      "monotonic": true,
+      "adjustable": false,
+      "resolution": 4.2000000000000006e-08
+    }
+  }
+}

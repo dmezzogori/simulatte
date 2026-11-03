@@ -1,0 +1,20 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility
+configfile: pyproject.toml
+plugins: cov-7.1.0, timeout-2.4.0, platformdirs-4.12.3, anyio-4.15.1
+timeout: 60.0s
+timeout method: thread
+timeout func_only: False
+collected 132 items
+
+tests/experimental/test_native.py ...................................... [ 28%]
+.......                                                                  [ 34%]
+tests/experimental/test_native_retention.py ............................ [ 55%]
+..........                                                               [ 62%]
+tests/experimental/test_native_projection.py ........................... [ 83%]
+.......                                                                  [ 88%]
+prototypes/native_provider_projection/tests/test_hook_fixture.py ......  [ 93%]
+prototypes/native_projection_profile/tests/test_measurement.py ......... [100%]
+
+============================= 132 passed in 2.32s ==============================

@@ -1,0 +1,704 @@
+[
+  {
+    "cell": 0,
+    "parameters": {
+      "kind": "callback",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 101,
+      "jobs": 128,
+      "padding": 16
+    },
+    "pid": 55111
+  },
+  {
+    "cell": 1,
+    "parameters": {
+      "kind": "live",
+      "fixture": "fixed",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 102,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55123
+  },
+  {
+    "cell": 2,
+    "parameters": {
+      "kind": "callback",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 100,
+      "jobs": 128,
+      "padding": 256
+    },
+    "pid": 55141
+  },
+  {
+    "cell": 3,
+    "parameters": {
+      "kind": "live",
+      "fixture": "coupled",
+      "retention": "full",
+      "policy": "fifo",
+      "seed": 100,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55163
+  },
+  {
+    "cell": 4,
+    "parameters": {
+      "kind": "callback",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 101,
+      "jobs": 128,
+      "padding": 16
+    },
+    "pid": 55167
+  },
+  {
+    "cell": 5,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 102,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55187
+  },
+  {
+    "cell": 6,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 102,
+      "jobs": 8192,
+      "padding": 0
+    },
+    "pid": 55191
+  },
+  {
+    "cell": 7,
+    "parameters": {
+      "kind": "live",
+      "fixture": "coupled",
+      "retention": "bounded",
+      "policy": "fifo",
+      "seed": 101,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55199
+  },
+  {
+    "cell": 8,
+    "parameters": {
+      "kind": "callback",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 102,
+      "jobs": 128,
+      "padding": 16
+    },
+    "pid": 55217
+  },
+  {
+    "cell": 9,
+    "parameters": {
+      "kind": "callback",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 100,
+      "jobs": 128,
+      "padding": 256
+    },
+    "pid": 55268
+  },
+  {
+    "cell": 10,
+    "parameters": {
+      "kind": "live",
+      "fixture": "fixed",
+      "retention": "full",
+      "policy": "fifo",
+      "seed": 102,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55273
+  },
+  {
+    "cell": 11,
+    "parameters": {
+      "kind": "live",
+      "fixture": "fixed",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 102,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55277
+  },
+  {
+    "cell": 12,
+    "parameters": {
+      "kind": "live",
+      "fixture": "fixed",
+      "retention": "bounded",
+      "policy": "fifo",
+      "seed": 101,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55282
+  },
+  {
+    "cell": 13,
+    "parameters": {
+      "kind": "live",
+      "fixture": "fixed",
+      "retention": "bounded",
+      "policy": "fifo",
+      "seed": 102,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55288
+  },
+  {
+    "cell": 14,
+    "parameters": {
+      "kind": "live",
+      "fixture": "coupled",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 100,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55294
+  },
+  {
+    "cell": 15,
+    "parameters": {
+      "kind": "live",
+      "fixture": "coupled",
+      "retention": "bounded",
+      "policy": "fifo",
+      "seed": 100,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55297
+  },
+  {
+    "cell": 16,
+    "parameters": {
+      "kind": "callback",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 100,
+      "jobs": 128,
+      "padding": 16
+    },
+    "pid": 55304
+  },
+  {
+    "cell": 17,
+    "parameters": {
+      "kind": "live",
+      "fixture": "coupled",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 101,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55313
+  },
+  {
+    "cell": 18,
+    "parameters": {
+      "kind": "live",
+      "fixture": "coupled",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 102,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55317
+  },
+  {
+    "cell": 19,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 100,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55321
+  },
+  {
+    "cell": 20,
+    "parameters": {
+      "kind": "callback",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 100,
+      "jobs": 128,
+      "padding": 16
+    },
+    "pid": 55327
+  },
+  {
+    "cell": 21,
+    "parameters": {
+      "kind": "live",
+      "fixture": "fixed",
+      "retention": "bounded",
+      "policy": "fifo",
+      "seed": 100,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55331
+  },
+  {
+    "cell": 22,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 101,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55335
+  },
+  {
+    "cell": 23,
+    "parameters": {
+      "kind": "live",
+      "fixture": "coupled",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 101,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55371
+  },
+  {
+    "cell": 24,
+    "parameters": {
+      "kind": "live",
+      "fixture": "fixed",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 100,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55374
+  },
+  {
+    "cell": 25,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 100,
+      "jobs": 8192,
+      "padding": 0
+    },
+    "pid": 55379
+  },
+  {
+    "cell": 26,
+    "parameters": {
+      "kind": "live",
+      "fixture": "fixed",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 100,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55383
+  },
+  {
+    "cell": 27,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 100,
+      "jobs": 8192,
+      "padding": 0
+    },
+    "pid": 55387
+  },
+  {
+    "cell": 28,
+    "parameters": {
+      "kind": "callback",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 101,
+      "jobs": 128,
+      "padding": 256
+    },
+    "pid": 55391
+  },
+  {
+    "cell": 29,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 102,
+      "jobs": 65536,
+      "padding": 0
+    },
+    "pid": 55400
+  },
+  {
+    "cell": 30,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 102,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55407
+  },
+  {
+    "cell": 31,
+    "parameters": {
+      "kind": "live",
+      "fixture": "coupled",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 100,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55411
+  },
+  {
+    "cell": 32,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 100,
+      "jobs": 65536,
+      "padding": 0
+    },
+    "pid": 55415
+  },
+  {
+    "cell": 33,
+    "parameters": {
+      "kind": "live",
+      "fixture": "fixed",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 101,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55420
+  },
+  {
+    "cell": 34,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 101,
+      "jobs": 8192,
+      "padding": 0
+    },
+    "pid": 55425
+  },
+  {
+    "cell": 35,
+    "parameters": {
+      "kind": "callback",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 101,
+      "jobs": 128,
+      "padding": 256
+    },
+    "pid": 55430
+  },
+  {
+    "cell": 36,
+    "parameters": {
+      "kind": "callback",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 102,
+      "jobs": 128,
+      "padding": 16
+    },
+    "pid": 55450
+  },
+  {
+    "cell": 37,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 102,
+      "jobs": 8192,
+      "padding": 0
+    },
+    "pid": 55454
+  },
+  {
+    "cell": 38,
+    "parameters": {
+      "kind": "live",
+      "fixture": "fixed",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 101,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55460
+  },
+  {
+    "cell": 39,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 100,
+      "jobs": 65536,
+      "padding": 0
+    },
+    "pid": 55465
+  },
+  {
+    "cell": 40,
+    "parameters": {
+      "kind": "callback",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 102,
+      "jobs": 128,
+      "padding": 256
+    },
+    "pid": 55482
+  },
+  {
+    "cell": 41,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 101,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55504
+  },
+  {
+    "cell": 42,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 102,
+      "jobs": 65536,
+      "padding": 0
+    },
+    "pid": 55509
+  },
+  {
+    "cell": 43,
+    "parameters": {
+      "kind": "live",
+      "fixture": "fixed",
+      "retention": "full",
+      "policy": "fifo",
+      "seed": 100,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55515
+  },
+  {
+    "cell": 44,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 100,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55519
+  },
+  {
+    "cell": 45,
+    "parameters": {
+      "kind": "live",
+      "fixture": "coupled",
+      "retention": "full",
+      "policy": "fifo",
+      "seed": 102,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55523
+  },
+  {
+    "cell": 46,
+    "parameters": {
+      "kind": "live",
+      "fixture": "fixed",
+      "retention": "full",
+      "policy": "fifo",
+      "seed": 101,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55563
+  },
+  {
+    "cell": 47,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 101,
+      "jobs": 8192,
+      "padding": 0
+    },
+    "pid": 55566
+  },
+  {
+    "cell": 48,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 101,
+      "jobs": 65536,
+      "padding": 0
+    },
+    "pid": 55574
+  },
+  {
+    "cell": 49,
+    "parameters": {
+      "kind": "live",
+      "fixture": "coupled",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 102,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55579
+  },
+  {
+    "cell": 50,
+    "parameters": {
+      "kind": "live",
+      "fixture": "coupled",
+      "retention": "bounded",
+      "policy": "fifo",
+      "seed": 102,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55584
+  },
+  {
+    "cell": 51,
+    "parameters": {
+      "kind": "live",
+      "fixture": "coupled",
+      "retention": "full",
+      "policy": "fifo",
+      "seed": 101,
+      "jobs": 128,
+      "padding": 0
+    },
+    "pid": 55588
+  },
+  {
+    "cell": 52,
+    "parameters": {
+      "kind": "history",
+      "fixture": "synthetic",
+      "retention": "bounded",
+      "policy": "spt",
+      "seed": 101,
+      "jobs": 65536,
+      "padding": 0
+    },
+    "pid": 55593
+  },
+  {
+    "cell": 53,
+    "parameters": {
+      "kind": "callback",
+      "fixture": "synthetic",
+      "retention": "full",
+      "policy": "spt",
+      "seed": 102,
+      "jobs": 128,
+      "padding": 256
+    },
+    "pid": 55612
+  }
+]
