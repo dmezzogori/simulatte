@@ -1,0 +1,22 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_inspect_configuration_data_only_roundtrip_and_errors ___________
+tests/execution/test_imports.py:162: in test_inspect_configuration_data_only_roundtrip_and_errors
+    result = inspect_configuration(
+src/simulatte/execution/bootstrap.py:121: in inspect_configuration
+    return load_configuration(config)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/simulatte/execution/bootstrap.py:114: in load_configuration
+    result["imports"] = policy.audit()
+                        ^^^^^^^^^^^^^^
+src/simulatte/execution/imports.py:103: in audit
+    self._check(name, spec)
+src/simulatte/execution/imports.py:82: in _check
+    self.observed[name] = self._origin(name, spec.origin)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/simulatte/execution/imports.py:74: in _origin
+    raise ImportError(f"{name}: origin outside declared runtime and snapshot roots")
+E   ImportError: sitecustomize: origin outside declared runtime and snapshot roots
+=========================== short test summary info ============================
+FAILED tests/execution/test_imports.py::test_inspect_configuration_data_only_roundtrip_and_errors
+1 failed in 0.07s

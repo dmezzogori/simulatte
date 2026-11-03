@@ -1,0 +1,38 @@
+........................................................................ [ 13%]
+........................................................................ [ 26%]
+...............................................................s........ [ 39%]
+........................................................................ [ 52%]
+....F
+=================================== FAILURES ===================================
+____ test_interest_benchmark_counts_actual_emissions_and_preserves_exports _____
+prototypes/native_engine_dynamic/tests/test_interest.py:220: in test_interest_benchmark_counts_actual_emissions_and_preserves_exports
+    row = json.loads(subprocess.check_output(command, text=True))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/subprocess.py:473: in check_output
+    return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,
+/usr/lib/python3.14/subprocess.py:578: in run
+    raise CalledProcessError(retcode, process.args,
+E   subprocess.CalledProcessError: Command '['/home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/.venv/bin/python', '-m', 'prototypes.native_engine_dynamic.interest_benchmark', 'worker', '--input', '/tmp/pytest-of-davide/pytest-0/test_interest_benchmark_counts0/input', '--jobs', '20', '--observations', '/tmp/pytest-of-davide/pytest-0/test_interest_benchmark_counts0/production.gz', '--producer', 'feedback', '--backend', 'production', '--probe']' returned non-zero exit status 1.
+----------------------------- Captured stderr call -----------------------------
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/prototypes/native_engine_dynamic/interest_benchmark.py", line 428, in <module>
+    main()
+    ~~~~^^
+  File "/home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/prototypes/native_engine_dynamic/interest_benchmark.py", line 414, in main
+    print(json.dumps(worker(args)))
+                     ~~~~~~^^^^^^
+  File "/home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/prototypes/native_engine_dynamic/interest_benchmark.py", line 66, in worker
+    result = baseline.worker(args)
+  File "/home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/prototypes/native_engine_dynamic/untraced_benchmark.py", line 127, in worker
+    frozen, binaries = source_hash(), libraries()
+                                      ~~~~~~~~~^^
+  File "/home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/prototypes/native_engine_dynamic/scalar_benchmark.py", line 36, in libraries
+    assert len(extensions) == 2, "build CPython and PyPy extensions first"
+           ^^^^^^^^^^^^^^^^^^^^
+AssertionError: build CPython and PyPy extensions first
+=========================== short test summary info ============================
+FAILED prototypes/native_engine_dynamic/tests/test_interest.py::test_interest_benchmark_counts_actual_emissions_and_preserves_exports
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 291 passed, 1 skipped in 28.10s

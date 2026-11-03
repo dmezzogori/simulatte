@@ -1,0 +1,30 @@
+{
+  "files": {
+    "audit-linux.log": "ab7050dd9dc6f901581f3da672230d8b900f54f6eab769fbcfd452992c277dd5",
+    "build.log": "8134b91f3c18cd65713fd25d18bca0694661a936caac2cebb16b2f75015811d6",
+    "checks.json": "a0e0c68844795ead2b176e2ee5ddcd8f04942c5e06db558b68d965c86086429f",
+    "environment.txt": "89a7c0b7040d016a4fad5ca89d5afb7dec63ce2f1f3a175939e70d8a13c8afc6",
+    "gate/lifecycle.json": "57ba28a69a1fa545ce95ca9ce5ac980c2549abfe783b63968d7113d8b1ea3793",
+    "gate/metadata.json": "e55a4bf8ffc6758524916b3beef033aa67050cfbccee1bd16c8b9e59fb4a60e5",
+    "gate/runs.json": "7c7331b071a93dd0007486d358c90273d3c330aff4291b0128a9513393012b01",
+    "gate/verification.json": "296e6aeed6f9a38dd71a5c3c4a79ab4de0f3f630e9ecc1263e7ca63ce0be207f",
+    "gate.log": "adbb9e2b49cebb15ddc9841a1299cc29f910e13b49db0c8dbf3fa857251356fd",
+    "import-clean-start.log": "59907462a8d5fd93406cdf4c7d1eb2f7b7a96664ae85c4ec202693d419cd019e",
+    "import-isolated-failure.log": "81ff82387c87dd982e2ae1a59cd940854a528289fcab32c6dbc2a9b0982cd887",
+    "isolated_pytest.py": "5e709dde0792d210d48aac93a9e6b030d2891d2ea3afa8daf0aa74906cc788cf",
+    "launcher-regressions.log": "c2f48776b3d719cf5090b9e3f0f78a460e95ce21a6f9ff9a7e05b2b53cad3f74",
+    "launcher-stdin-failure.log.gz": "8fcb82a896e06dd9c9999be784f956cad57e3f3ef5ee95ad44b3d9af1f099bb2",
+    "machine.txt": "9ed3d1e26a76d3a60a3c92793ca3214f1ba028966605b397451894ee463e7d6a",
+    "regressions-final.log": "5f8196b50a85810ac5585d88d7674cb6e4e8e664495ce539d8d92b819c32b437",
+    "regressions-system-startup-failure.log": "e481a5a7442eacf35cabec3e27ec28751145bad75a7a48ba47a7b722cdfb5a0d",
+    "regressions.xml": "8e39ac9d2d5bfd10d52a9eede25473ab37cbdd98e1ecbcebf3228dfcd3a8cd5d",
+    "ruff.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "sanitizer.log": "45758271529cbb4b014c29ff4780724a2c7d0847429fd983a37cfb2a77eb8669",
+    "sitecustomize.log": "9bf9f35058cc0abd233898c74bf8d0b08fe659c44755632002c8f78d9e281abf",
+    "targeted-final.log": "1a862c813e9194a63713c2fc344a923c593cfb9977fa41232f933d9e0bf8bc63",
+    "targeted-missing-companion-failure.log": "c6040706bbf70ba7c09059e24293db7e5134c61226a42fff5f624b48f6bf73c0",
+    "ty.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+  },
+  "host": "strangelove",
+  "source_sha256": "0f5ebeb6b15a4b291223c12a981442c824597d54ae2e80fd4ae72470f019db43"
+}

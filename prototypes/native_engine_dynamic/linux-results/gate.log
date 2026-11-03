@@ -1,0 +1,13 @@
+Linux native gate 1/12 exact outputs, state, fingerprints and artifacts
+Linux native gate 2/12 exact outputs, state, fingerprints and artifacts
+Linux native gate 3/12 exact outputs, state, fingerprints and artifacts
+Linux native gate 4/12 exact outputs, state, fingerprints and artifacts
+Linux native gate 5/12 exact outputs, state, fingerprints and artifacts
+Linux native gate 6/12 exact outputs, state, fingerprints and artifacts
+Linux native gate 7/12 exact outputs, state, fingerprints and artifacts
+Linux native gate 8/12 exact outputs, state, fingerprints and artifacts
+Linux native gate 9/12 exact outputs, state, fingerprints and artifacts
+Linux native gate 10/12 exact outputs, state, fingerprints and artifacts
+Linux native gate 11/12 exact outputs, state, fingerprints and artifacts
+Linux native gate 12/12 exact outputs, state, fingerprints and artifacts
+{"source_sha256": "0f5ebeb6b15a4b291223c12a981442c824597d54ae2e80fd4ae72470f019db43", "main_runs": 96, "mode_pairs": 48, "concurrent_native_runs": 4, "fresh_deleted_source_reproductions": 2, "native_dependency_probe_children": 2, "rejected_corruptions": ["fingerprint_digest", "artifact_sha256", "backend_state", "kpis", "native_origin", "native_assets", "mapped_dependency_rejection"], "historical_evidence_files": 65}

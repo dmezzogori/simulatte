@@ -1,0 +1,59 @@
+........................................................................ [  2%]
+........................................................................ [  4%]
+........................................................................ [  6%]
+........................................................................ [  8%]
+........................................................................ [ 10%]
+........................................................................ [ 12%]
+........................................................................ [ 14%]
+...................s.................................................... [ 16%]
+........................................................................ [ 18%]
+........................................................................ [ 20%]
+........................................................................ [ 23%]
+........................................................................ [ 25%]
+........................................................................ [ 27%]
+........................................................................ [ 29%]
+........................................................................ [ 31%]
+......................................ss................................ [ 33%]
+........................................................................ [ 35%]
+........................................................................ [ 37%]
+........................................................................ [ 39%]
+........................................................................ [ 41%]
+........................................................................ [ 44%]
+........................................................................ [ 46%]
+................F
+=================================== FAILURES ===================================
+__________ test_inspect_configuration_data_only_roundtrip_and_errors ___________
+tests/execution/test_imports.py:162: in test_inspect_configuration_data_only_roundtrip_and_errors
+    result = inspect_configuration(
+src/simulatte/execution/bootstrap.py:121: in inspect_configuration
+    return load_configuration(config)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/simulatte/execution/bootstrap.py:114: in load_configuration
+    result["imports"] = policy.audit()
+                        ^^^^^^^^^^^^^^
+src/simulatte/execution/imports.py:103: in audit
+    self._check(name, spec)
+src/simulatte/execution/imports.py:82: in _check
+    self.observed[name] = self._origin(name, spec.origin)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/simulatte/execution/imports.py:74: in _origin
+    raise ImportError(f"{name}: origin outside declared runtime and snapshot roots")
+E   ImportError: sitecustomize: origin outside declared runtime and snapshot roots
+=============================== warnings summary ===============================
+tests/core/test_studio.py:11
+  /home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/tests/core/test_studio.py:11: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient
+
+.venv/lib/python3.14/site-packages/websockets/legacy/__init__.py:6
+  /home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/.venv/lib/python3.14/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+.venv/lib/python3.14/site-packages/uvicorn/protocols/websockets/websockets_impl.py:41
+  /home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/.venv/lib/python3.14/site-packages/uvicorn/protocols/websockets/websockets_impl.py:41: UvicornDeprecationWarning: The `websockets` implementation is deprecated, and `--ws websockets` will point at the `websockets-sansio` implementation in a future release. Use `--ws websockets-sansio` or `--ws auto` to switch now.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/execution/test_imports.py::test_inspect_configuration_data_only_roundtrip_and_errors
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 1597 passed, 3 skipped, 3 warnings in 181.31s (0:03:01)

@@ -1,0 +1,8 @@
+cc -std=c17 -Wall -Wextra -Wpedantic -Werror -ffp-contract=off -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -DND_TEST_ALLOCATIONS -c /home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/prototypes/native_engine_dynamic/csrc/stock_kpi.c -o /home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/prototypes/native_engine_dynamic/.build/stock_kpi-sanitize.o
+cc -std=c17 -Wall -Wextra -Wpedantic -Werror -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all -DND_TEST_ALLOCATIONS /home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/prototypes/native_engine_dynamic/csrc/dynamic_engine.c /home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/prototypes/native_engine_dynamic/.build/stock_kpi-sanitize.o /home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/prototypes/native_engine_dynamic/tests/native_sanitizer.c -lm -o /home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/prototypes/native_engine_dynamic/.build/native_sanitizer
+/home/davide/Developer/simulatte-linux-gate-20261103-0bc4d39/prototypes/native_engine_dynamic/.build/native_sanitizer
+native state sanitizer passed: exact capacity, pure allocation failures, failed/completed lifetimes
+stock KPI sanitizer passed: 90 mutating allocation failures, read-only snapshot failures
+dynamic sanitizer passed: 143 allocation failure positions, randomized growth and boundary cases
+rich recording sanitizer passed: 143 allocation failure positions
+bulk sanitizer passed: 144 allocation failure positions, 1025 copied jobs and boundary cases

@@ -1,0 +1,608 @@
+{
+  "loads": [
+    {
+      "rejected": false,
+      "origin": "/tmp/linux-native-gate-o8jg6q2l/managed/.simulatte/native-assets/9f10686972deecf9103165c575b299931d8e875696bc80a9e4147ec3feb6dade/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "pid": 978974,
+      "expected_directory": "/tmp/linux-native-gate-o8jg6q2l/managed/.simulatte/native-assets/9f10686972deecf9103165c575b299931d8e875696bc80a9e4147ec3feb6dade",
+      "images": [
+        "/tmp/linux-native-gate-o8jg6q2l/managed/.simulatte/native-assets/9f10686972deecf9103165c575b299931d8e875696bc80a9e4147ec3feb6dade/dynamic_engine.so"
+      ],
+      "byte_identities_unchanged": true
+    },
+    {
+      "rejected": true,
+      "error": "Native dependency loaded from an unexpected origin",
+      "origin": null,
+      "pid": 978977,
+      "expected_directory": "/tmp/linux-native-gate-o8jg6q2l/managed/.simulatte/native-assets/9f10686972deecf9103165c575b299931d8e875696bc80a9e4147ec3feb6dade",
+      "images": [
+        "/tmp/linux-native-gate-o8jg6q2l/managed/prototypes/native_engine_dynamic/.build/dynamic_engine.so"
+      ],
+      "byte_identities_unchanged": true
+    }
+  ],
+  "concurrent": {
+    "maximum_simultaneous_leases": 2,
+    "prune_while_active": [
+      {
+        "active": {
+          "9f10686972deecf9103165c575b299931d8e875696bc80a9e4147ec3feb6dade": 2
+        },
+        "dry_run": {
+          "results": [],
+          "snapshots": [],
+          "native_assets": []
+        },
+        "actual": {
+          "results": [],
+          "snapshots": [],
+          "native_assets": []
+        }
+      }
+    ],
+    "slots": [
+      "local-1",
+      "local-2"
+    ],
+    "leases_after_cleanup": 0,
+    "observed": {
+      "run_id": "5f580ccb4f55f1810d94d098d6952f3ceb3530e52db7f977d33c69720ded5475",
+      "replications": [
+        {
+          "configuration": 0,
+          "index": 0,
+          "seed": 100,
+          "request_id": "e54be5a4151c4ba52cf64adfae4efb71b1fb9afc4796d9b92c611a7234b57900",
+          "content_id": "b69c68363353927e1f33ee08744afa17022e586d00b614d58fb4670865ea52de",
+          "trace_sha256": "c6cbb8e0642d586faea5280a8006a13ebf8d8b124def19bfe1c9afbc72990ed2",
+          "trace_bytes": 55408,
+          "times": {
+            "managed_run_s": 0.47337696199974744
+          },
+          "kpis": {
+            "shopfloor/jobs_in_system": 4.491429114520509,
+            "shopfloor/lateness": -20.93799722920545,
+            "shopfloor/makespan": 16.56405946799189,
+            "shopfloor/tardiness": 0.05406845076012429,
+            "shopfloor/tardy_fraction": 0.012281432139883431,
+            "shopfloor/throughput": 0.6513898305084745,
+            "shopfloor/total_queue_time": 2.914001675251799,
+            "shopfloor/utilization": 0.2594721904152258
+          },
+          "snapshot": {
+            "window": [
+              500.0,
+              30000.0,
+              false
+            ],
+            "scalars": {
+              "shopfloor/makespan": 16.56405946799189,
+              "shopfloor/lateness": -20.93799722920545,
+              "shopfloor/tardiness": 0.05406845076012429,
+              "shopfloor/tardy_fraction": 0.012281432139883431,
+              "shopfloor/total_queue_time": 2.914001675251799,
+              "shopfloor/throughput": 0.6513898305084745,
+              "shopfloor/utilization": 0.2594721904152258,
+              "shopfloor/jobs_in_system": 4.491429114520509
+            }
+          },
+          "proof": null,
+          "admitted": 20000,
+          "steps": 20003,
+          "backend": "native",
+          "backend_state": {
+            "schema": "native-production-state-v1",
+            "digest": "5f4f5ef9653bf3b5a1ca21986659bf82d9e0e56daac69da3dc35f0c6fd4df0f9"
+          },
+          "fingerprint_digest": "c13e50d71f2b1bf0e50ff028671b628d18c1b3b23889240494e5569447172c12",
+          "initial_state_digest": "6d675e54627e6a973275f1e1fc0db99f1065d3b328aef7f76ff59d119f4bec2d",
+          "source_hash": "259044bb436f3a333e3538c667a8754bbd05d56069551fa78729c90cafc23663",
+          "artifact_sha256": "c0592e0be35b9589bd9fee5168dcac063238febfc120fc2cf08643b21bc919ca",
+          "attempt_id": "dd182ffce1e43a87f4dfb41a0444997a",
+          "native_origin": "external:/tmp/linux-native-gate-o8jg6q2l/managed/.simulatte/native-assets/9f10686972deecf9103165c575b299931d8e875696bc80a9e4147ec3feb6dade/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+          "native_assets": {
+            "bundles": [
+              {
+                "abi": {
+                  "abi": "cpython-314-x86_64-linux-gnu",
+                  "cache_tag": "cpython-314",
+                  "implementation": "cpython",
+                  "platform": "linux"
+                },
+                "address": "9f10686972deecf9103165c575b299931d8e875696bc80a9e4147ec3feb6dade",
+                "files": [
+                  {
+                    "name": "_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+                    "sha256": "af85c6680be4f0414f825083954787bc3e7ec6201cf98d6e0cd90ba0102e2cbd",
+                    "size": 32064,
+                    "source": "prototypes/native_engine_dynamic/.build/_nd_scalar.cpython-314-x86_64-linux-gnu.so"
+                  },
+                  {
+                    "name": "dynamic_engine.so",
+                    "sha256": "bfd94b5e30a68c71fc273deaedca2d7693013049931b3ce89db38761d6a7b53a",
+                    "size": 33984,
+                    "source": "prototypes/native_engine_dynamic/.build/dynamic_engine.so"
+                  }
+                ],
+                "name": "engine"
+              }
+            ],
+            "schema": 1
+          }
+        },
+        {
+          "configuration": 0,
+          "index": 1,
+          "seed": 101,
+          "request_id": "e7894f69202e73711d1807cf6ce400b3068f80b15d6abc4a91ddd6862dd206cc",
+          "content_id": "6db73d167157b4555b678e629ce58088070c93908dfe142ee9e79cfdd8a3b637",
+          "trace_sha256": "6ec4c39f5077ecc6a18970f2640fd43abb611f0a9c36a3355a9b319ba78d5e17",
+          "trace_bytes": 55408,
+          "times": {
+            "managed_run_s": 0.481670032000693
+          },
+          "kpis": {
+            "shopfloor/jobs_in_system": 4.5116339847325815,
+            "shopfloor/lateness": -21.016151580626584,
+            "shopfloor/makespan": 16.460954411882717,
+            "shopfloor/tardiness": 0.05584747955189145,
+            "shopfloor/tardy_fraction": 0.011641261223637503,
+            "shopfloor/throughput": 0.6493559322033898,
+            "shopfloor/total_queue_time": 2.9357788507429703,
+            "shopfloor/utilization": 0.2606062096358763
+          },
+          "snapshot": {
+            "window": [
+              500.0,
+              30000.0,
+              false
+            ],
+            "scalars": {
+              "shopfloor/makespan": 16.460954411882717,
+              "shopfloor/lateness": -21.016151580626584,
+              "shopfloor/tardiness": 0.05584747955189145,
+              "shopfloor/tardy_fraction": 0.011641261223637503,
+              "shopfloor/total_queue_time": 2.9357788507429703,
+              "shopfloor/throughput": 0.6493559322033898,
+              "shopfloor/utilization": 0.2606062096358763,
+              "shopfloor/jobs_in_system": 4.5116339847325815
+            }
+          },
+          "proof": null,
+          "admitted": 20000,
+          "steps": 20003,
+          "backend": "native",
+          "backend_state": {
+            "schema": "native-production-state-v1",
+            "digest": "9b5f80e6127a3c3031361bca5bc5d9009adf466ff76088dd814b43af014365ba"
+          },
+          "fingerprint_digest": "4a3492611380fd349cc698961545d540e6474d737ccbf2d714fc80ad5bb3f2fb",
+          "initial_state_digest": "99c88b7d553a9e7fc998efd34e169500580976f8d79c9205dfeaae28ac22ec6b",
+          "source_hash": "259044bb436f3a333e3538c667a8754bbd05d56069551fa78729c90cafc23663",
+          "artifact_sha256": "c749c12dbbeb5d8bf1040df60ebfae4a4813a5050915a9a828a82d623279de8d",
+          "attempt_id": "b058e585524877a358c8f34757d280a0",
+          "native_origin": "external:/tmp/linux-native-gate-o8jg6q2l/managed/.simulatte/native-assets/9f10686972deecf9103165c575b299931d8e875696bc80a9e4147ec3feb6dade/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+          "native_assets": {
+            "bundles": [
+              {
+                "abi": {
+                  "abi": "cpython-314-x86_64-linux-gnu",
+                  "cache_tag": "cpython-314",
+                  "implementation": "cpython",
+                  "platform": "linux"
+                },
+                "address": "9f10686972deecf9103165c575b299931d8e875696bc80a9e4147ec3feb6dade",
+                "files": [
+                  {
+                    "name": "_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+                    "sha256": "af85c6680be4f0414f825083954787bc3e7ec6201cf98d6e0cd90ba0102e2cbd",
+                    "size": 32064,
+                    "source": "prototypes/native_engine_dynamic/.build/_nd_scalar.cpython-314-x86_64-linux-gnu.so"
+                  },
+                  {
+                    "name": "dynamic_engine.so",
+                    "sha256": "bfd94b5e30a68c71fc273deaedca2d7693013049931b3ce89db38761d6a7b53a",
+                    "size": 33984,
+                    "source": "prototypes/native_engine_dynamic/.build/dynamic_engine.so"
+                  }
+                ],
+                "name": "engine"
+              }
+            ],
+            "schema": 1
+          }
+        },
+        {
+          "configuration": 0,
+          "index": 2,
+          "seed": 102,
+          "request_id": "e051c9396cd874c975356fdad879e59872072521ddb03002c6af23b5c9522bec",
+          "content_id": "83a33ce0806fa926ee9149d4471d602144dc74770e3792ca161b5980f815ebad",
+          "trace_sha256": "2e6c3ff7c055cf04738d906d1676543c06096bcb63452b534270037f0fea58b0",
+          "trace_bytes": 55408,
+          "times": {
+            "managed_run_s": 0.5079935769972508
+          },
+          "kpis": {
+            "shopfloor/jobs_in_system": 4.537260313983997,
+            "shopfloor/lateness": -20.823432820209508,
+            "shopfloor/makespan": 16.682948253303373,
+            "shopfloor/tardiness": 0.058301138670171136,
+            "shopfloor/tardy_fraction": 0.013928739110021389,
+            "shopfloor/throughput": 0.6497966101694915,
+            "shopfloor/total_queue_time": 2.952444260510407,
+            "shopfloor/utilization": 0.26197251239988106
+          },
+          "snapshot": {
+            "window": [
+              500.0,
+              30000.0,
+              false
+            ],
+            "scalars": {
+              "shopfloor/makespan": 16.682948253303373,
+              "shopfloor/lateness": -20.823432820209508,
+              "shopfloor/tardiness": 0.058301138670171136,
+              "shopfloor/tardy_fraction": 0.013928739110021389,
+              "shopfloor/total_queue_time": 2.952444260510407,
+              "shopfloor/throughput": 0.6497966101694915,
+              "shopfloor/utilization": 0.26197251239988106,
+              "shopfloor/jobs_in_system": 4.537260313983997
+            }
+          },
+          "proof": null,
+          "admitted": 20000,
+          "steps": 20003,
+          "backend": "native",
+          "backend_state": {
+            "schema": "native-production-state-v1",
+            "digest": "2b9454cb139c12df353df1c43d69d633465ddff732a508de32f8f2845718236a"
+          },
+          "fingerprint_digest": "cf899a3a6c28af8cf8abda03cc849ea4efa52d4a45a3e4021272c05a162dcc2c",
+          "initial_state_digest": "066b3d658bd0e93b05492027b8121d7f0b8cb3d1d4ef987eccd4e9cd606cdd57",
+          "source_hash": "259044bb436f3a333e3538c667a8754bbd05d56069551fa78729c90cafc23663",
+          "artifact_sha256": "c7d76df328a2785c8a8867f3e7824467fa2d0bb76bd246405428cd5405b3433a",
+          "attempt_id": "edfa44d84a5fad0bbf4ffa3958e95cfb",
+          "native_origin": "external:/tmp/linux-native-gate-o8jg6q2l/managed/.simulatte/native-assets/9f10686972deecf9103165c575b299931d8e875696bc80a9e4147ec3feb6dade/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+          "native_assets": {
+            "bundles": [
+              {
+                "abi": {
+                  "abi": "cpython-314-x86_64-linux-gnu",
+                  "cache_tag": "cpython-314",
+                  "implementation": "cpython",
+                  "platform": "linux"
+                },
+                "address": "9f10686972deecf9103165c575b299931d8e875696bc80a9e4147ec3feb6dade",
+                "files": [
+                  {
+                    "name": "_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+                    "sha256": "af85c6680be4f0414f825083954787bc3e7ec6201cf98d6e0cd90ba0102e2cbd",
+                    "size": 32064,
+                    "source": "prototypes/native_engine_dynamic/.build/_nd_scalar.cpython-314-x86_64-linux-gnu.so"
+                  },
+                  {
+                    "name": "dynamic_engine.so",
+                    "sha256": "bfd94b5e30a68c71fc273deaedca2d7693013049931b3ce89db38761d6a7b53a",
+                    "size": 33984,
+                    "source": "prototypes/native_engine_dynamic/.build/dynamic_engine.so"
+                  }
+                ],
+                "name": "engine"
+              }
+            ],
+            "schema": 1
+          }
+        },
+        {
+          "configuration": 0,
+          "index": 3,
+          "seed": 103,
+          "request_id": "4a10ac2d83e5e70862d715631d279291f75a22a99a37e9b9ea445dc2ddd12751",
+          "content_id": "e479a7236223f106951d000377e29794694e76c89d62f9c52596a5946d997bea",
+          "trace_sha256": "bd8cc363b2c68c949fdbd207b14c34e449198036868683dd171a3573d342ef4b",
+          "trace_bytes": 55408,
+          "times": {
+            "managed_run_s": 0.4807968949971837
+          },
+          "kpis": {
+            "shopfloor/jobs_in_system": 4.519570642207199,
+            "shopfloor/lateness": -20.900889493048542,
+            "shopfloor/makespan": 16.585768406400017,
+            "shopfloor/tardiness": 0.04926477934292363,
+            "shopfloor/tardy_fraction": 0.011162111412476527,
+            "shopfloor/throughput": 0.6498983050847458,
+            "shopfloor/total_queue_time": 2.934226270429112,
+            "shopfloor/utilization": 0.2614233765195629
+          },
+          "snapshot": {
+            "window": [
+              500.0,
+              30000.0,
+              false
+            ],
+            "scalars": {
+              "shopfloor/makespan": 16.585768406400017,
+              "shopfloor/lateness": -20.900889493048542,
+              "shopfloor/tardiness": 0.04926477934292363,
+              "shopfloor/tardy_fraction": 0.011162111412476527,
+              "shopfloor/total_queue_time": 2.934226270429112,
+              "shopfloor/throughput": 0.6498983050847458,
+              "shopfloor/utilization": 0.2614233765195629,
+              "shopfloor/jobs_in_system": 4.519570642207199
+            }
+          },
+          "proof": null,
+          "admitted": 20000,
+          "steps": 20003,
+          "backend": "native",
+          "backend_state": {
+            "schema": "native-production-state-v1",
+            "digest": "3b0aee000ab785d15f9a189c31ff933c9f771c829bac1c2cc1ff91b2fb25c20f"
+          },
+          "fingerprint_digest": "8869d2511e09fbf30f4f4ba07896d0e8b8cd67ebd968ccbc2770b59d800141cf",
+          "initial_state_digest": "7046be253b8d1d46374953e8114e01df1bfd95ecc961c976ee130aecb03aea38",
+          "source_hash": "259044bb436f3a333e3538c667a8754bbd05d56069551fa78729c90cafc23663",
+          "artifact_sha256": "5e63d536e20bdf82ff9ede199ea4979f7270d9256afe94748d4b8da236e86ca2",
+          "attempt_id": "f06092215934af8d1f1b58d7fc91975d",
+          "native_origin": "external:/tmp/linux-native-gate-o8jg6q2l/managed/.simulatte/native-assets/9f10686972deecf9103165c575b299931d8e875696bc80a9e4147ec3feb6dade/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+          "native_assets": {
+            "bundles": [
+              {
+                "abi": {
+                  "abi": "cpython-314-x86_64-linux-gnu",
+                  "cache_tag": "cpython-314",
+                  "implementation": "cpython",
+                  "platform": "linux"
+                },
+                "address": "9f10686972deecf9103165c575b299931d8e875696bc80a9e4147ec3feb6dade",
+                "files": [
+                  {
+                    "name": "_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+                    "sha256": "af85c6680be4f0414f825083954787bc3e7ec6201cf98d6e0cd90ba0102e2cbd",
+                    "size": 32064,
+                    "source": "prototypes/native_engine_dynamic/.build/_nd_scalar.cpython-314-x86_64-linux-gnu.so"
+                  },
+                  {
+                    "name": "dynamic_engine.so",
+                    "sha256": "bfd94b5e30a68c71fc273deaedca2d7693013049931b3ce89db38761d6a7b53a",
+                    "size": 33984,
+                    "source": "prototypes/native_engine_dynamic/.build/dynamic_engine.so"
+                  }
+                ],
+                "name": "engine"
+              }
+            ],
+            "schema": 1
+          }
+        }
+      ],
+      "report": {
+        "run_id": "5f580ccb4f55f1810d94d098d6952f3ceb3530e52db7f977d33c69720ded5475",
+        "name": "native scalar execution",
+        "status": "completed",
+        "level": 0.95,
+        "effective_level": 0.95,
+        "pointwise": true,
+        "m": 8,
+        "configurations": [
+          {
+            "index": 0,
+            "label": "native/base",
+            "parameters": {
+              "backend": "native",
+              "jobs": 20000,
+              "load": 0.95,
+              "policy": "spt",
+              "producer": "feedback",
+              "servers": 10,
+              "verify": false,
+              "wip_cap": 12
+            },
+            "counts": {
+              "pending": 0,
+              "dispatched": 0,
+              "succeeded": 4,
+              "failed": 0,
+              "lost": 0,
+              "cancelled": 0,
+              "reused": 0
+            },
+            "mixed_runtime": false
+          }
+        ],
+        "rows": [
+          {
+            "configuration": 0,
+            "label": "native/base",
+            "kpi": "shopfloor/jobs_in_system",
+            "n_succeeded": 4,
+            "estimate": {
+              "n": 4,
+              "mean": 4.514973513861071,
+              "sd": 0.01900286157273796,
+              "half_width": 0.03023779330098813,
+              "lower": 4.484735720560083,
+              "upper": 4.5452113071620595,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "native/base",
+            "kpi": "shopfloor/lateness",
+            "n_succeeded": 4,
+            "estimate": {
+              "n": 4,
+              "mean": -20.91961778077252,
+              "sd": 0.08012256036544586,
+              "half_width": 0.12749287310243904,
+              "lower": -21.04711065387496,
+              "upper": -20.79212490767008,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "native/base",
+            "kpi": "shopfloor/makespan",
+            "n_succeeded": 4,
+            "estimate": {
+              "n": 4,
+              "mean": 16.5734326348945,
+              "sd": 0.09107697997442721,
+              "half_width": 0.1449237992080037,
+              "lower": 16.428508835686493,
+              "upper": 16.718356434102503,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "native/base",
+            "kpi": "shopfloor/tardiness",
+            "n_succeeded": 4,
+            "estimate": {
+              "n": 4,
+              "mean": 0.054370462081277625,
+              "sd": 0.003820602313676241,
+              "half_width": 0.0060794308585585275,
+              "lower": 0.0482910312227191,
+              "upper": 0.06044989293983615,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "native/base",
+            "kpi": "shopfloor/tardy_fraction",
+            "n_succeeded": 4,
+            "estimate": {
+              "n": 4,
+              "mean": 0.012253385971504712,
+              "sd": 0.0012073623588125285,
+              "half_width": 0.0019211829389707321,
+              "lower": 0.01033220303253398,
+              "upper": 0.014174568910475444,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "native/base",
+            "kpi": "shopfloor/throughput",
+            "n_succeeded": 4,
+            "estimate": {
+              "n": 4,
+              "mean": 0.6501101694915254,
+              "sd": 0.0008849881694892571,
+              "half_width": 0.0014082136651054063,
+              "lower": 0.6487019558264201,
+              "upper": 0.6515183831566308,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "native/base",
+            "kpi": "shopfloor/total_queue_time",
+            "n_succeeded": 4,
+            "estimate": {
+              "n": 4,
+              "mean": 2.9341127642335723,
+              "sd": 0.015740482666187196,
+              "half_width": 0.02504662045219426,
+              "lower": 2.909066143781378,
+              "upper": 2.9591593846857664,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "native/base",
+            "kpi": "shopfloor/utilization",
+            "n_succeeded": 4,
+            "estimate": {
+              "n": 4,
+              "mean": 0.2608685722426365,
+              "sd": 0.0010870768144925558,
+              "half_width": 0.0017297817959206682,
+              "lower": 0.25913879044671584,
+              "upper": 0.26259835403855714,
+              "state": "ok",
+              "level": 0.95
+            }
+          }
+        ],
+        "missing": [],
+        "missing_total": 0,
+        "replications": [
+          {
+            "configuration": 0,
+            "index": 0,
+            "status": "succeeded",
+            "attempt": "dd182ffce1e43a87f4dfb41a0444997a"
+          },
+          {
+            "configuration": 0,
+            "index": 1,
+            "status": "succeeded",
+            "attempt": "b058e585524877a358c8f34757d280a0"
+          },
+          {
+            "configuration": 0,
+            "index": 2,
+            "status": "succeeded",
+            "attempt": "edfa44d84a5fad0bbf4ffa3958e95cfb"
+          },
+          {
+            "configuration": 0,
+            "index": 3,
+            "status": "succeeded",
+            "attempt": "f06092215934af8d1f1b58d7fc91975d"
+          }
+        ],
+        "replications_total": 4
+      },
+      "statistics_s": 0.014876118002575822
+    }
+  },
+  "ready_preview": true,
+  "corruption": {
+    "error": "Native asset length differs from captured source",
+    "results_before": 52,
+    "results_after": 52
+  },
+  "pruned": {
+    "results": [],
+    "snapshots": [],
+    "native_assets": [
+      "9f10686972deecf9103165c575b299931d8e875696bc80a9e4147ec3feb6dade"
+    ]
+  },
+  "live_source_deleted": true,
+  "reproduced": [
+    {
+      "backend": "production",
+      "fingerprint": "4d55e6b03e88faba2ebe5a0717c74b684cdc5c11e5a611dff69ee8ca8bd02fad",
+      "artifact_sha256": "c814de5d2335c1728921396add513d165c64454dfe7abe114d76f796409bfc94",
+      "original_attempt": "a04cf31b28f6631658c33d98f60bfeac",
+      "repeated_attempt": "9c66e76498391ca291b4ee9083a2e5c1"
+    },
+    {
+      "backend": "native",
+      "fingerprint": "5fb990252b539969ddb57c9e7a1e7977b1b74b5df973161715cf4a3067821ec2",
+      "artifact_sha256": "7da94ac62d8f649256fab8a625853bc016c13db9d22d8faef2b20a94bfa0ff5e",
+      "original_attempt": "9f31f48831e852fc7159fe60fd67faf0",
+      "repeated_attempt": "ce37296616acb110ee486c0c2bd6d94e"
+    }
+  ]
+}

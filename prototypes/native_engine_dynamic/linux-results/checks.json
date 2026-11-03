@@ -1,0 +1,58 @@
+{
+  "source_sha256": "0f5ebeb6b15a4b291223c12a981442c824597d54ae2e80fd4ae72470f019db43",
+  "base": "0bc4d391fa13554893551670c3268c1f2e036137",
+  "gate": {
+    "command": ".venv/bin/python -m prototypes.native_engine_dynamic.linux_gate gate --output prototypes/native_engine_dynamic/linux-results/gate",
+    "passed": true,
+    "final_source_frozen": true
+  },
+  "broad": {
+    "command": ".venv/bin/python -I -S prototypes/native_engine_dynamic/linux-results/isolated_pytest.py tests/core tests/execution tests/intralogistics tests/experimental tests/layout -o addopts= -q --tb=short -x -ra --junitxml=prototypes/native_engine_dynamic/linux-results/regressions.xml",
+    "tests": 3433,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 4,
+    "passed": 3429,
+    "seconds": 413.82,
+    "skips": [
+      "golden values are pinned on macOS arm64 for CPython and PyPy (libm-dependent samples)",
+      "Node is not available",
+      "Node is not available",
+      "Requires native Windows Job API"
+    ]
+  },
+  "targeted": {
+    "command": ".venv/bin/python -m pytest tests/execution/test_native_assets.py tests/execution/test_native_assets_integration.py tests/execution/test_backend.py prototypes/native_engine/tests prototypes/native_engine_dynamic/tests -o addopts= --import-mode=importlib -q --tb=short -x",
+    "passed": 548,
+    "skipped": 1,
+    "seconds": 52.89,
+    "skip_reason": "Release extension lacks sanitizer allocation hooks; standalone sanitizer covers engine faults."
+  },
+  "sanitizer": {
+    "command": ".venv/bin/python -m prototypes.native_engine_dynamic.build --sanitize; ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 prototypes/native_engine_dynamic/.build/native_sanitizer prototypes/native_engine_dynamic/.build/linux-sanitizer-trace.bin",
+    "passed": true,
+    "scope": "Standalone GCC ASan/UBSan engine and stock helper; release CPython extension",
+    "stock_failure_positions": 90,
+    "dynamic_failure_positions": 143,
+    "rich_recording_failure_positions": 143,
+    "bulk_failure_positions": 144
+  },
+  "quality": {
+    "ruff": true,
+    "ty_check_src": true
+  },
+  "startup_diagnosis": {
+    "normal_startup": "Ubuntu sitecustomize resolves from stdlib symlink to /etc/python3.14/sitecustomize.py, outside declared roots. Original in-process inspection test fails alone and in broad run. No policy/test/system configuration change.",
+    "isolated_startup": "Same interpreter/dependencies with -I -S passes inspection; real-file guarded launcher also passes multiprocessing Runner test. Two focused launcher regressions passed in0.93s.",
+    "failed_stdin_launcher": "Multiprocessing cannot respawn <stdin>; timed out before suite completion. Full log gzip retained. Replaced with guarded file, complete broad rerun only is final."
+  },
+  "superseded_attempts": {
+    "targeted-missing-companion-failure.log": "291 passed/1 skipped before historical benchmark inventory required companion PyPy extension. Supplied from installed PyPy3.11.16; full rerun548pass. No PyPy performance/diagnostics.",
+    "regressions-system-startup-failure.log": "1597passed/3skip/1failed from Ubuntu sitecustomize origin.",
+    "import-isolated-failure.log": "Single-test normal-startup reproduction fails.",
+    "launcher-stdin-failure.log.gz": "Superseded stdin launcher, no final pass claim.",
+    ".build/linux-before-seed-fix": "First gate concurrency seed200 incompatible with old result reader seed100+i. New harness corrected, entire96-run gate regenerated."
+  },
+  "scope": "Linux x86_64/glibc, GIL CPython3.14.4; local managed coordinator. No performance claim, packaging, remote native slots or broader feature support.",
+  "tracked_source_changes_on_linux": false
+}
