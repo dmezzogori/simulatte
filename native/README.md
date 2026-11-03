@@ -34,6 +34,16 @@ Full state remains NSTA0001/native-production-v1; bounded state is the distinct
 NRST0001/native-production-bounded-v1 commitment. It includes a rolling history
 hash and live/KPI state. Provider API 2 and matching core code are required.
 
+The additive experimental `state_projection()` hook on `NativeStream` and
+`NativeProduction` requires companion projection v1 within provider API 2.
+The provider atomically captures native trajectory material and stock reporting
+state. Managed queries add scope/configuration and the existing full controller
+authority under the owner lock. They return detached, explicitly versioned data;
+consumers need no private owner access or binary-layout parsing. Trajectory alone
+does not authorize reuse/reproduction, and full/bounded encodings remain distinct.
+See the core native-engine guide for return fields and a Python example. Build and
+reinstall matching local wheels to obtain this hook; no package release is implied.
+
 The package shares validated event transitions through a private C engine
 interface and separate retention/stock/binding translation units; see
 `sources.json`. The build manifest pins ABI and binary bytes. Installed files are

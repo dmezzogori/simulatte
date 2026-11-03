@@ -15,7 +15,7 @@ import math
 from threading import RLock
 from typing import Any
 
-from simulatte._wire import canonical_pack, freeze
+from simulatte._wire import canonical_pack, freeze, FrozenMap
 from simulatte.collectors import ShopFloorKPIs
 from simulatte.execution.backend import BackendCapabilities, BackendContext, ExecutionBackend
 
@@ -86,6 +86,14 @@ def _retention(value: str) -> str:
     return value
 
 
+def _detached(value: Any) -> Any:
+    if isinstance(value, FrozenMap):
+        return {k: _detached(v) for k, v in value.items()}
+    if type(value) is tuple:
+        return [_detached(v) for v in value]
+    return value
+
+
 class NativeStream:
     """Owned scalar stream. ``advance(t)`` leaves events exactly at t pending.
 
@@ -99,6 +107,7 @@ class NativeStream:
     ):
         self._engine: Any = None
         self._lock, self._owner = RLock(), object()
+        self._generation = 0
         self._retention = _retention(retention)
         self._history = hashlib.sha256()
         n, cap, policy = _configuration(servers, wip_cap, policy)
@@ -145,6 +154,7 @@ class NativeStream:
             if type(job) is not Job:
                 raise TypeError("add requires a validated native Job")
             add = self._module.retention_add if self.retention == "bounded" else self._module.add
+            self._generation += 1
             identity = add(self._engine, job.arrival, job.due, job.route, job.durations)
             return JobHandle(self._owner, identity)
 
@@ -152,6 +162,7 @@ class NativeStream:
         with self._lock:
             self._check()
             until = _number(until, "until")
+            self._generation += 1
             if self.retention == "bounded":
                 self._commit(self._module.retention_advance(self._engine, until))
             else:
@@ -173,6 +184,7 @@ class NativeStream:
     def run(self) -> None:
         with self._lock:
             self._check()
+            self._generation += 1
             if self.retention == "bounded":
                 self._commit(self._module.retention_run(self._engine))
             else:
@@ -200,6 +212,28 @@ class NativeStream:
             if self.retention == "bounded":
                 raise RuntimeError("Full trajectories require retention='full'; use snapshot() for bounded streams")
             return self._module.result(self._engine)
+
+    def state_projection(self) -> dict[str, Any]:
+        """Detached versioned trajectory material, stock snapshot and native hash.
+
+        Observes one owner boundary without advancing. Requires companion projection
+        v1; full/bounded trajectory material has different encoding identities.
+        The trajectory alone does not commit to future Python inputs or authorize
+        reuse, reproduction or restoration.
+        """
+        with self._lock:
+            self._check()
+            project = getattr(self._provider, "project_state", None)
+            if not callable(project):
+                raise ImportError("Rebuild/install the matching native provider with state projection v1")
+            value = project(
+                self._engine,
+                retention=self.retention,
+                history=self._history.digest() if self.retention == "bounded" else None,
+            )
+            if type(value) is not dict or value.get("schema") != "native-stream-projection-v1":
+                raise RuntimeError("Unsupported native stream projection")
+            return value
 
     def state_bytes(self) -> bytes:
         with self._lock:
@@ -238,6 +272,7 @@ class NativeStream:
     def close(self) -> None:
         with self._lock:
             if self._engine is not None:
+                self._generation += 1
                 engine, self._engine = self._engine, None
                 try:
                     (self._module.retention_close if self.retention == "bounded" else self._module.close)(engine)
@@ -371,6 +406,50 @@ class NativeProduction(ExecutionBackend):
                 )
             )
         ).hexdigest()
+
+    def state_projection(self) -> dict[str, Any]:
+        """Observe versioned native material/reporting plus the full state authority.
+
+        Available only while live at a synchronized managed boundary. The provider
+        owns native serialization; callers need no binary-layout or owner access.
+        ``input_state`` must be pure, as for the existing authoritative digest.
+        Model-specific action-history composition stays with the model.
+        """
+        stream = self._live()
+        with stream._lock:
+            self._synchronized()
+            generation = stream._generation
+            inputs = None if self._input_state is None else freeze(self._input_state())
+            value = stream.state_projection()
+            after = None if self._input_state is None else freeze(self._input_state())
+            if stream._generation != generation or canonical_pack(inputs) != canonical_pack(after):
+                raise ValueError("Impure input_state during native projection")
+            self._synchronized()
+            assert self._context is not None
+            preimage = dict(schema=self.capabilities.state_schema, native=value["native_sha256"], inputs=inputs)
+            authority = dict(
+                schema=self.capabilities.state_schema,
+                digest=hashlib.sha256(canonical_pack(freeze(preimage))).hexdigest(),
+            )
+            result = dict(
+                schema="native-production-projection-v1",
+                trajectory=value["trajectory"],
+                reporting=dict(
+                    configuration=self._context.stopping.to_dict(),
+                    catalog=[
+                        dict(name=k.name, unit=k.unit, observation=k.observation, aggregation=k.aggregation)
+                        for k in self.kpis
+                    ],
+                    snapshot=value["snapshot"],
+                ),
+                scope=dict(
+                    backend=self.capabilities.name, scope=self._context.scope, time_unit=self._context.env.time_unit
+                ),
+                authority=authority,
+                authority_preimage=preimage,
+                native_bytes=value["native_bytes"],
+            )
+            return _detached(freeze(result))
 
     def finish(self) -> None:
         stream = self._live()

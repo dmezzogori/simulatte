@@ -1,0 +1,36 @@
+{
+  "passed": true,
+  "regressions": "3626 passed, 1 skipped; 99.05% coverage; 351.34s",
+  "focused": "40 passed; 34 new API cases +6 fixture cases",
+  "sanitizers": "123 passed, both full and bounded projection allocation-failure recovery passed; fully instrumented binding +engine; Python leak detection disabled",
+  "checks": [
+    "Ruff check src tests native prototypes/native_provider_projection",
+    "Ruff format --check changed Python sources",
+    "ty check src",
+    "python -m zensical build",
+    "uv lock --check"
+  ],
+  "platform": "macOS 27.2 arm64, CPython 3.14.3",
+  "files": {
+    "coverage.xml": "e9bbb9a78f26a99b28759178085c47c49017f00e459544c584435093ec0d6950",
+    "docs.log": "64057159f1ebf5a7bd22f42316e31dc670b01c2df119644502ad768991aec9ea",
+    "focused-tests.log": "9c8508f39fb8de3ce40c51b93ddc41b445e784ead74d69b80037be0b00e2b586",
+    "install/installed.json": "92dbc40648ba1744cb1d350223d199494a2bf1def2869a25f946e2e4709f6fd5",
+    "install/metadata.json": "e2e57394276a743c25037af5fe7ce27a5f5c05f2d40b248e36aa3c93ff39cd7a",
+    "install/rejections.json": "15b75c23337f11cf4d5eb3ff3065da8bd3fd73e9a9327085eb141aa7f83d59bf",
+    "install/verification.json": "ada2e12c186deee7e084860c216637b4c5a46911dfccccae5d0c72d850df4e5c",
+    "install-check.log": "fb9bffc2438dd3af144b9043aedc572d938a8f1dd05b6157dc3a5a30e64e279d",
+    "lock.log": "f7f4302fc9dab313bd8ca3431b0c6cfce9fa5ff94a8c51885c63cee3cc99e7a1",
+    "regressions.log": "5da2b2a1d7fede3c3cd855f266f4182cf6279af636ad73efe17f5f39d3785088",
+    "regressions.xml": "4b0d5da3b01c02b231f302b4d1630237937f9df01d39a6be80a71591452a0289",
+    "safety/allocation-faults.log": "306b9b83609d698ee09fba4a839869afe55ea2c170fa5e099cb7df96fb853e68",
+    "safety/binding-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "safety/checks.json": "c9703f45bc2302e495eff6f6752862f1bfe2c24598c856c8d7f2247057824040",
+    "safety/engine-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "safety/install.log": "53c14d7da9d710519e1484dbec4b9324c3bf6b591f0d859f05aee7f3279e6b3f",
+    "safety/native-tests.log": "732cc40ea7eb582941f0a8c4810c6e20f30bb1ae895d847438ac0ad9c82d4e92",
+    "safety/path.log": "52311d0a7a8d27ff7f69747a78c237dd95395e23709def3f1bdfa8a69c85cc87",
+    "safety/stock-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "safety/venv.log": "41439cad4149a9df6fdbb75204a0b3c83a2d0ee741813f414036623a724c2db2"
+  }
+}

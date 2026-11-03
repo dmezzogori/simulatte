@@ -117,6 +117,13 @@ def verify():
         _verify()
 
 
+def project_state(owner, *, retention, history=None):
+    """Private companion hook, called under NativeStream's owner lock."""
+    from ._projection import project
+
+    return project(_loaded if _loaded is not None else load(), owner, retention, history)
+
+
 def info():
     """Detached deterministic build/ABI evidence; contains no installation paths."""
     with _lock:

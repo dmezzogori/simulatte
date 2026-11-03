@@ -291,18 +291,7 @@ static PyObject *stock_kpis(PyObject *self, PyObject *capsule) {
     int rc = nd_stock_kpis(s->engine, &snapshot);
     if (rc == -2) return PyErr_NoMemory();
     if (rc) { PyErr_SetString(PyExc_RuntimeError, "stock KPIs unavailable"); return NULL; }
-    const char *names[] = {"shopfloor/makespan", "shopfloor/lateness", "shopfloor/tardiness",
-        "shopfloor/tardy_fraction", "shopfloor/total_queue_time", "shopfloor/throughput",
-        "shopfloor/utilization", "shopfloor/jobs_in_system"};
-    PyObject *values = PyDict_New();
-    if (!values) return NULL;
-    for (unsigned i = 0; i < 8; ++i) {
-        if ((snapshot.present & (1u << i)) && put(values, names[i], PyFloat_FromDouble(snapshot.values[i]))) {
-            Py_DECREF(values); return NULL;
-        }
-    }
-    return Py_BuildValue("{s:(ddO),s:N}", "window", snapshot.start, snapshot.end,
-                         snapshot.closed ? Py_True : Py_False, "scalars", values);
+    return nd_stock_snapshot_dict(&snapshot);
 }
 static PyObject *state_bytes(PyObject *self, PyObject *capsule) {
     (void)self;
@@ -327,6 +316,35 @@ static PyObject *state_bytes(PyObject *self, PyObject *capsule) {
         PyErr_SetString(PyExc_RuntimeError, "native state unavailable"); return NULL;
     }
     return bytes;
+}
+static PyObject *state_projection(PyObject *self, PyObject *capsule) {
+    (void)self; scalar *s = get(capsule, 0); if (!s) return NULL;
+    size_t n;
+    if (nd_state_size(s->engine, &n) || n > (size_t)PY_SSIZE_T_MAX) {
+        PyErr_SetString(PyExc_RuntimeError, "native projection size unavailable"); return NULL;
+    }
+    PyObject *raw = NULL, *snapshot = NULL, *result = NULL;
+    nd_kpi_snapshot stock; int rc;
+    s->busy = 1;
+    raw = PyBytes_FromStringAndSize(NULL, (Py_ssize_t)n);
+    if (!raw) goto done;
+    unsigned char *p = (unsigned char *)PyBytes_AS_STRING(raw);
+    Py_BEGIN_ALLOW_THREADS
+    rc = nd_state_write(s->engine, p, n);
+    if (!rc) rc = nd_stock_kpis(s->engine, &stock);
+    Py_END_ALLOW_THREADS
+    if (rc) {
+        if (rc == -2) PyErr_NoMemory();
+        else PyErr_SetString(PyExc_RuntimeError, "native projection unavailable");
+        goto done;
+    }
+    snapshot = nd_stock_snapshot_dict(&stock);
+    if (snapshot) result = Py_BuildValue("{s:s,s:s,s:O,s:O}",
+        "schema", "native-provider-raw-projection-v1", "codec", "NSTA0001",
+        "native", raw, "snapshot", snapshot);
+done:
+    Py_XDECREF(raw); Py_XDECREF(snapshot); s->busy = 0;
+    return result;
 }
 static PyObject *close_stream(PyObject *self, PyObject *capsule) {
     (void)self;
@@ -358,6 +376,7 @@ static PyMethodDef methods[] = {
     {"enable_stock_kpis", enable_stock_kpis, METH_VARARGS, NULL},
     {"stock_kpis", stock_kpis, METH_O, NULL},
     {"state_bytes", state_bytes, METH_O, NULL},
+    {"state_projection", state_projection, METH_O, NULL},
     {"now", now, METH_O, NULL}, {"result", result, METH_O, NULL},
     {"storage_stats", storage_stats, METH_O, NULL},
     {"close", close_stream, METH_O, NULL}, {NULL, NULL, 0, NULL}

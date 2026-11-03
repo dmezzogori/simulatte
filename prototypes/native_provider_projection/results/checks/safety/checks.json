@@ -1,0 +1,184 @@
+{
+  "platform": "darwin",
+  "commands": [
+    {
+      "name": "venv",
+      "command": [
+        "/opt/homebrew/bin/uv",
+        "venv",
+        "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-safety-final/venv",
+        "--python",
+        "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/.venv/bin/python"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "install",
+      "command": [
+        "/opt/homebrew/bin/uv",
+        "pip",
+        "install",
+        "--python",
+        "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-safety-final/venv/bin/python",
+        "--link-mode=copy",
+        "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/core/simulatte-0.17.0-py3-none-any.whl",
+        "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/native/simulatte_native-0.17.0-cp314-cp314-macosx_27_0_arm64.whl",
+        "pytest==9.1.1",
+        "pytest-timeout==2.4.0"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "path",
+      "command": [
+        "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-safety-final/venv/bin/python",
+        "-I",
+        "-c",
+        "import sysconfig; print(sysconfig.get_path('purelib'))"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "stock-build",
+      "command": [
+        "cc",
+        "-std=c17",
+        "-O1",
+        "-g",
+        "-fPIC",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-fno-omit-frame-pointer",
+        "-DND_TEST_ALLOCATIONS",
+        "-ffp-contract=off",
+        "-c",
+        "native/csrc/stock_kpi.c",
+        "-o",
+        "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-safety-final/stock.o"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "engine-build",
+      "command": [
+        "cc",
+        "-std=c17",
+        "-O1",
+        "-g",
+        "-fPIC",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-fno-omit-frame-pointer",
+        "-DND_TEST_ALLOCATIONS",
+        "-dynamiclib",
+        "-Wl,-install_name,@loader_path/simulatte_native_engine.dylib",
+        "native/csrc/dynamic_engine.c",
+        "native/csrc/retention.c",
+        "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-safety-final/stock.o",
+        "-lm",
+        "-o",
+        "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-safety-final/venv/lib/python3.14/site-packages/simulatte_native/_bin/simulatte_native_engine.dylib"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "binding-build",
+      "command": [
+        "cc",
+        "-std=c17",
+        "-O1",
+        "-g",
+        "-fPIC",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-fno-omit-frame-pointer",
+        "-I/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/include/python3.14",
+        "-bundle",
+        "-undefined",
+        "dynamic_lookup",
+        "native/csrc/scalar_module.c",
+        "native/csrc/retention_module.c",
+        "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-safety-final/venv/lib/python3.14/site-packages/simulatte_native/_bin/simulatte_native_engine.dylib",
+        "-o",
+        "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-safety-final/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-darwin.so"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "native-tests",
+      "command": [
+        "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-safety-final/venv/bin/python",
+        "-m",
+        "pytest",
+        "-o",
+        "addopts=",
+        "-q",
+        "tests/experimental/test_native.py",
+        "tests/experimental/test_native_retention.py",
+        "tests/experimental/test_native_projection.py",
+        "prototypes/native_provider_projection/tests"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "allocation-faults",
+      "command": [
+        "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-safety-final/venv/bin/python",
+        "-I",
+        "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-safety-final/faults.py"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "passed": true,
+  "manifest": {
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "arm64",
+      "platform": "darwin",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-darwin",
+      "suffix": ".cpython-314-darwin.so"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-darwin.so": {
+        "sha256": "5084c8cb2503d69b4cd136ab4ad2537fdd692cb9be849e3920f8a18916965b59",
+        "size": 158240
+      },
+      "simulatte_native_engine.dylib": {
+        "sha256": "7ce38079300b73e8c1788a98f9092b5ebd89e04503b01b88cf6c1f030adef4ce",
+        "size": 184320
+      }
+    },
+    "provider_api": 2,
+    "schema": 1,
+    "sources": {
+      "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+      "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+      "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+      "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+      "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+      "csrc/retention_module.c": "1174d92ebcdc48d7818836463136c0e17f53332105a63e3efabf21aa5435c100",
+      "csrc/retention_module.h": "56b7511e83d68c2ee070f92f6a684a6cf74b1d36cf272d87ab9dd608cd025bff",
+      "csrc/scalar_module.c": "9734d16cedeca6193449cb76c88e446e61f0f53aa50e875c05b4f2ed15ab1859",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "version": "0.17.0"
+  },
+  "python_leak_detection": false
+}

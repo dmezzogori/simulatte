@@ -104,6 +104,55 @@ across modes and reproduce fingerprints within the same mode. Provider API 2
 requires rebuilding/reinstalling the matching local companion; the development
 pair remains 0.17.0 and is not a published v3 release.
 
+## Experimental state projection
+
+`state_projection()` observes one boundary without advancing simulation time.
+The provider captures native state and stock KPIs together; callers do not need
+private owner access or knowledge of binary layouts. Returned data is detached.
+
+```python
+from simulatte.experimental.native import Job, NativeStream
+
+with NativeStream(servers=2, retention="bounded") as engine:
+    engine.add(Job(0, (0, 1), (2, 3), due=10))
+    engine.advance(1)
+    view = engine.state_projection()
+    assert view["schema"] == "native-stream-projection-v1"
+    print(view["trajectory"])
+    print(view["snapshot"]["scalars"])
+```
+
+The stream view includes `trajectory` (encoding-specific native history/live
+material), `snapshot` (the current stock reporting snapshot), `native_sha256`
+(the SHA-256 of the existing `state_bytes()` commitment), and `native_bytes`.
+Full and bounded trajectory encodings remain distinct.
+
+`NativeProduction.state_projection()` is available while live at a synchronized
+managed Python boundary, for example inside a scheduled controller. Its schema is
+`native-production-projection-v1`; it returns `trajectory`, `reporting`
+(`configuration`, `catalog`, `snapshot`), execution `scope`, and `authority` plus
+`authority_preimage`. The authority digest equals the existing `state_digest()`
+for a pure callback and includes the complete `input_state`, not just realized
+native history. `native_bytes` reports queried state size. The query holds the
+stream owner lock and rejects changing callback values or reentrant mutations.
+Callbacks remain responsible for covering all future Python state. Failed impure
+callbacks do not roll back their side effects.
+
+Model-specific action-history commitments can be composed with this data by the
+model. Trajectory material alone cannot authorize reuse or reproduction: an
+unconsumed seed or control state can change future behavior without changing the
+past native path. Reporting configuration can also change later admission actions
+when a controller reads windowed KPIs. Keep the complete authoritative fingerprint
+and ordinary pinned Coordinator reproduction. The projection is neither a
+restoration interface nor an identity for arbitrary collector/trace history.
+
+This additive hook requires companion projection v1 within provider API 2. Rebuild
+and reinstall the matching local wheels to use it; older API-2 companions retain
+existing stream operations and report an actionable error if projection is
+requested. The local package pair remains 0.17.0. Queries copy/hash current native
+state; full retention cost grows with retained history. Use on-demand or periodic
+queries and measure their cost before capturing at every control poll.
+
 ## Managed experiments
 
 Save this as `plant.py` in a project:
@@ -171,7 +220,8 @@ native state. Dynamic admission without this callback fails explicitly. Avoid
 mixing eager future jobs with earlier incremental arrivals.
 
 The initial managed contract requires an empty layout, Horizon stopping and
-`level="kpi"`. The state projection is an opaque digest, not individual actors.
+`level="kpi"`. The state interface exposes commitments and scalar snapshots;
+individual native actors are not registered as Python entities.
 Full native trace playback, arbitrary actor APIs, other release policies,
 and intralogistics remain unsupported. SSH native worker execution has not been
 validated by this packaging gate.

@@ -155,6 +155,45 @@ static PyObject *state(PyObject *self, PyObject *capsule) {
     if (rc || n > PY_SSIZE_T_MAX) { PyErr_SetString(PyExc_RuntimeError, "state unavailable"); return NULL; }
     return PyBytes_FromStringAndSize((const char *)p, (Py_ssize_t)n);
 }
+PyObject *nd_stock_snapshot_dict(const nd_kpi_snapshot *s) {
+    const char *names[] = {"shopfloor/makespan", "shopfloor/lateness", "shopfloor/tardiness",
+        "shopfloor/tardy_fraction", "shopfloor/total_queue_time", "shopfloor/throughput",
+        "shopfloor/utilization", "shopfloor/jobs_in_system"};
+    PyObject *values = PyDict_New(); if (!values) return NULL;
+    for (unsigned i = 0; i < 8; ++i) {
+        if (!(s->present & (1u << i))) continue;
+        PyObject *v = PyFloat_FromDouble(s->values[i]);
+        if (!v) { Py_DECREF(values); return NULL; }
+        int rc = PyDict_SetItemString(values, names[i], v); Py_DECREF(v);
+        if (rc) { Py_DECREF(values); return NULL; }
+    }
+    return Py_BuildValue("{s:(ddO),s:N}", "window", s->start, s->end,
+                         s->closed ? Py_True : Py_False, "scalars", values);
+}
+static PyObject *state_projection(PyObject *self, PyObject *capsule) {
+    (void)self; owner *o = get(capsule, 0); if (!o) return NULL;
+    const unsigned char *p; size_t n; nd_kpi_snapshot stock; int rc;
+    PyObject *raw = NULL, *snapshot = NULL, *result = NULL;
+    o->busy = 1;
+    Py_BEGIN_ALLOW_THREADS
+    rc = bs_state(o->engine, &p, &n);
+    if (!rc) rc = bs_kpis(o->engine, &stock);
+    Py_END_ALLOW_THREADS
+    if (rc || n > (size_t)PY_SSIZE_T_MAX) {
+        if (rc == -2) PyErr_NoMemory();
+        else PyErr_SetString(PyExc_RuntimeError, "native projection unavailable");
+        goto done;
+    }
+    raw = PyBytes_FromStringAndSize((const char *)p, (Py_ssize_t)n);
+    if (!raw) goto done;
+    snapshot = nd_stock_snapshot_dict(&stock);
+    if (snapshot) result = Py_BuildValue("{s:s,s:s,s:O,s:O}",
+        "schema", "native-provider-raw-projection-v1", "codec", "NBST0001",
+        "native", raw, "snapshot", snapshot);
+done:
+    Py_XDECREF(raw); Py_XDECREF(snapshot); o->busy = 0;
+    return result;
+}
 PyObject *nd_retention_stats_dict(const nd_storage_stats *s) {
     return Py_BuildValue("{s:K,s:K,s:K,s:K,s:n,s:n,s:n,s:n,s:n,s:n,s:n,s:n}",
         "admitted", (unsigned long long)s->admitted, "completed", (unsigned long long)s->completed,
@@ -187,6 +226,7 @@ static PyMethodDef methods[] = {
     {"retention_advance", advance, METH_VARARGS, NULL}, {"retention_run", run, METH_O, NULL},
     {"retention_inspect", inspect, METH_VARARGS, NULL}, {"retention_snapshot", snapshot, METH_O, NULL},
     {"retention_state", state, METH_O, NULL}, {"retention_stats", stats, METH_O, NULL},
+    {"retention_state_projection", state_projection, METH_O, NULL},
     {"retention_now", now, METH_O, NULL}, {"retention_close", close_stream, METH_O, NULL},
     {"retention_accepting", accepting, METH_O, NULL}, {NULL, NULL, 0, NULL}
 };
