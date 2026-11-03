@@ -455,6 +455,52 @@ def test_local_package_roots_use_metadata_without_importing(tmp_path):
         m.local_package_roots(root, {}, [SimpleNamespace(metadata={"Name": "broken"}, read_text=lambda _: "{")])
 
 
+@pytest.mark.parametrize("info", [{}, {"editable": False}, {"editable": None}])
+def test_noneditable_directory_installs_are_runtime_dependencies(tmp_path, info):
+    import json
+    from types import SimpleNamespace
+
+    root = tmp_path / "project"
+    root.mkdir()
+    outside = tmp_path / "native-build-source"
+    outside.mkdir()
+    distribution = SimpleNamespace(
+        metadata={"Name": "simulatte-native"},
+        read_text=lambda _: json.dumps({"url": outside.as_uri(), "dir_info": info}),
+    )
+    assert api().local_package_roots(root, {}, [distribution]) == ()
+    outside.rmdir()
+    assert api().local_package_roots(root, {}, [distribution]) == ()
+
+
+@pytest.mark.parametrize("editable", [1, "true"])
+def test_invalid_installed_editable_flag_is_rejected(tmp_path, editable):
+    import json
+    from types import SimpleNamespace
+
+    distribution = SimpleNamespace(
+        metadata={"Name": "dependency"},
+        read_text=lambda _: json.dumps({"url": tmp_path.as_uri(), "dir_info": {"editable": editable}}),
+    )
+    with pytest.raises(ValueError, match="metadata"):
+        api().local_package_roots(tmp_path, {}, [distribution])
+
+
+def test_explicit_noneditable_source_does_not_add_import_root_but_stays_bounded(tmp_path):
+    root = tmp_path / "project"
+    package = root / "native"
+    (package / "src" / "simulatte_native").mkdir(parents=True)
+
+    def config(path):
+        return {"tool": {"uv": {"sources": {"simulatte-native": {"path": path, "editable": False}}}}}
+
+    assert api().local_package_roots(root, config("native"), []) == ()
+    with pytest.raises(ValueError, match="escapes"):
+        api().local_package_roots(root, config(".."), [])
+    with pytest.raises(ValueError, match="missing"):
+        api().local_package_roots(root, config("absent"), [])
+
+
 def test_input_capture_rechecks_source_after_copy_and_combined_file_bound(tmp_path, monkeypatch):
     from dataclasses import replace
 

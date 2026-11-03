@@ -1,0 +1,7 @@
+{
+  "csrc/dynamic_engine.c": "2a715d5a61fb45ffc67c53ed59eb8ef201dcf96e55f5d3d8298c3bfc25ef1625",
+  "csrc/dynamic_engine.h": "22bfc5dafbef189f671f66fedf2295dbb629ec09b8990fb329f254c9e7824d2b",
+  "csrc/scalar_module.c": "3c68225ed4d64f17911a4e4caeffac5a0b50d61d321d1eefb572879d238491d6",
+  "csrc/stock_kpi.c": "72bfd40a9d7d6b0258717f8432bbb3eabbf4d75a1a113e5aafc04ad2fe6ddc3f",
+  "csrc/stock_kpi.h": "89f0c6311aff7a0b2d5ab4baf7406557b951e8530c66277e3342e156cf2e3bc1"
+}

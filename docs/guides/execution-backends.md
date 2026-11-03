@@ -4,7 +4,8 @@ Managed models can opt into an `ExecutionBackend` with
 `env.attach_execution_backend(backend, scope="shopfloor")` during their synchronous
 build. Ordinary models continue to use SimPy. This initial backend contract is
 experimental and supports Horizon stopping, an empty layout and scalar KPI result
-files. The research native engine is not an installed backend package.
+files. An optional packaged provider is available through
+[`simulatte.experimental.native`](native-engine.md).
 
 Import the contract from `simulatte.execution.backend`. A backend declares
 `BackendCapabilities(name, state_schema)` and a tuple of scalar `KPI` declarations,
@@ -58,10 +59,14 @@ current platform/interpreter ABI.
 from simulatte import model
 from simulatte.execution.native_assets import NativeAssetBundle
 
-ENGINE = NativeAssetBundle("engine", (
-    "native/_engine.cpython-314-darwin.so",
-    "native/libengine.dylib",
-))
+ENGINE = NativeAssetBundle(
+    "engine",
+    (
+        "native/_engine.cpython-314-darwin.so",
+        "native/libengine.dylib",
+    ),
+)
+
 
 @model(params=Params, horizon=100, native_assets=(ENGINE,))
 def build(env, layout, params):
@@ -87,7 +92,8 @@ explicit native loader. For Python extensions, use checked loading in `prepare`:
 def prepare(self, context):
     engine = context.native_assets["engine"]
     self.module = engine.load_extension(
-        "_engine", "_engine.cpython-314-darwin.so",
+        "_engine",
+        "_engine.cpython-314-darwin.so",
         dependencies=("libengine.dylib",),
     )
 ```

@@ -183,7 +183,7 @@ def local_driver(tmp_path, monkeypatch, build, *, change=None, send_hook=None):
     monkeypatch.setattr(
         driver,
         "load_configuration",
-        lambda config: (metadata, decorated, SimpleNamespace(audit=lambda: {"fixture": "snapshot:plant.py"})),
+        lambda config, **kwargs: (metadata, decorated, SimpleNamespace(audit=lambda: {"fixture": "snapshot:plant.py"})),
     )
     control = Control()
     spool = Spool(tmp_path / "spool", control=control)
@@ -453,3 +453,80 @@ def test_execution_requires_measured_runtime_evidence_before_model_import(tmp_pa
     with pytest.raises(ValueError, match="runtime evidence"):
         local_driver(tmp_path, monkeypatch, build, change=omit)
     assert not built
+
+
+@pytest.mark.parametrize("mutated", [False, True])
+def test_driver_reverifies_native_assets_after_backend_close(tmp_path, monkeypatch, mutated):
+    import hashlib
+    from dataclasses import replace
+    from types import SimpleNamespace
+    from simulatte.execution import native_assets as assets
+    from simulatte.execution.references import write_document
+    from simulatte.execution.snapshot import Entry
+    from tests.execution.test_backend import FixedBackend
+
+    source = tmp_path / "source"
+    source.mkdir()
+    binary = source / "engine.so"
+    binary.write_bytes(b"engine")
+    bundle = assets.NativeAssetBundle("engine", ("engine.so",))
+    entry = Entry("engine.so", 6, hashlib.sha256(b"engine").hexdigest(), False)
+    manifest = assets.capture_manifest(SimpleNamespace(entries=(entry,), content_hash="a" * 64), (bundle,))
+    lease = assets.NativeAssetStore(tmp_path / "cache").acquire(source, manifest)
+    prepared = []
+
+    class Backend(FixedBackend):
+        def prepare(self, context):
+            super().prepare(context)
+            prepared.append(context.native_assets["engine"].path("engine.so").read_bytes())
+
+        def close(self):
+            super().close()
+            if mutated:
+                path = self.context.native_assets["engine"].directory / "engine.so"
+                path.chmod(0o644)
+                path.write_bytes(b"tamper")
+                path.chmod(0o444)
+
+    def build(env, layout, params):
+        env.attach_execution_backend(Backend())
+
+    def change(request, key, config):
+        request = replace(request, level="kpi")
+        key = replace(key, request_id=request_id(request))
+        config["expected_metadata"]["models"][0]["native_assets"] = [bundle.to_dict()]
+        config.update(
+            snapshot_root=str(source),
+            native_assets_ref=write_document(tmp_path / "docs", "native-assets", manifest),
+            native_bindings_ref=write_document(tmp_path / "docs", "native-bindings", lease.bindings()),
+        )
+        return request, key, config
+
+    try:
+        if mutated:
+            with pytest.raises(ValueError, match="hash/identity"):
+                local_driver(tmp_path, monkeypatch, build, change=change)
+        else:
+            proposal, _, _ = local_driver(tmp_path, monkeypatch, build, change=change)
+            assert list(proposal["fingerprint"]["kpis"].values()) == [1.0]
+        assert prepared == [b"engine"]
+    finally:
+        lease.close()
+        for path in tmp_path.rglob("*"):
+            if path.is_dir() and not path.is_symlink():
+                path.chmod(0o700)
+
+
+def test_changed_inspected_model_metadata_never_builds(tmp_path, monkeypatch):
+    built = []
+
+    def build(env, layout, params):
+        built.append(True)
+
+    def changed(request, key, config):
+        config["expected_metadata"] = {"models": [{"name": "build", "description": "stale"}], "selected": "build"}
+        return request, key, config
+
+    with pytest.raises(ValueError, match="metadata changed"):
+        local_driver(tmp_path, monkeypatch, build, change=changed)
+    assert built == []

@@ -24,6 +24,7 @@ nav = [
     { "Layouts & Networks" = "guides/layout.md" },
     { "Experiments & Comparisons" = "guides/experiments.md" },
     { "Execution Backends" = "guides/execution-backends.md" },
+    { "Native Engine (Experimental)" = "guides/native-engine.md" },
     { "Remote Workers" = "guides/remote-workers.md" },
     { "Reinforcement Learning" = "guides/reinforcement-learning.md" },
     { "Troubleshooting" = "guides/troubleshooting.md" },

@@ -225,14 +225,17 @@ def local_package_roots(root: Path, config: Mapping, distributions=None) -> tupl
 
     Flat and src layouts are supported automatically. Other layouts require an
     explicit bundle.python-path. The separately frozen trusted Simulatte runtime
-    is the only external editable-package exception.
+    is the only external editable-package exception. Noneditable installs are
+    runtime dependencies, not additional source import roots.
     """
     packages: set[Path] = set()
+    installed_only: set[Path] = set()
     uv = config.get("tool", {}).get("uv", {})
     for declaration in uv.get("sources", {}).values():
         for variant in declaration if isinstance(declaration, list) else [declaration]:
             if isinstance(variant, dict) and "path" in variant:
-                packages.add((root / variant["path"]).resolve())
+                path = (root / variant["path"]).resolve()
+                (installed_only if variant.get("editable") is False else packages).add(path)
     for name in uv.get("workspace", {}).get("members", []):
         _path(name, pattern=True)
         packages.update(path.resolve() for path in root.glob(name) if path.is_dir())
@@ -247,6 +250,11 @@ def local_package_roots(root: Path, config: Mapping, distributions=None) -> tupl
             url = urlsplit(data["url"])
             if url.scheme != "file" or url.netloc not in ("", "localhost"):
                 raise ValueError("Unsupported local package URL")
+            editable = data["dir_info"].get("editable")
+            if editable is not True:
+                if editable is not None and editable is not False:
+                    raise ValueError("Invalid installed editable flag")
+                continue
             path = Path(url2pathname(url.path)).resolve()
             if distribution.metadata["Name"].lower().replace("_", "-") == "simulatte" and not path.is_relative_to(root):
                 continue
@@ -254,11 +262,13 @@ def local_package_roots(root: Path, config: Mapping, distributions=None) -> tupl
         except (ValueError, TypeError, KeyError, AttributeError) as error:
             raise ValueError("Invalid installed local package metadata") from error
     roots = set()
-    for package in packages:
+    for package in packages | installed_only:
         if not package.is_relative_to(root):
             raise ValueError("Local path dependency escapes project root")
         if not package.is_dir():
             raise ValueError("Local package directory is missing")
+        if package not in packages:
+            continue
         candidate = package / "src" if (package / "src").is_dir() else package
         relative = candidate.relative_to(root).as_posix()
         if relative != ".":

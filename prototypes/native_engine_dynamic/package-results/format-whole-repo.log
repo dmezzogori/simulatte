@@ -1,0 +1,1538 @@
+unformatted: File would be reformatted
+   --> prototypes/native_engine_dynamic/assets_experiment.py:42:14
+    |
+41  | def sources():
+    -     extra = ("specs/research/2026-11-03-native-assets-integration-plan.md",
+    -              "tests/execution/test_native_assets.py", "tests/execution/test_native_assets_integration.py",
+    -              "docs/guides/experiments.md")
+42  +     extra = (
+43  +         "specs/research/2026-11-03-native-assets-integration-plan.md",
+44  +         "tests/execution/test_native_assets.py",
+45  +         "tests/execution/test_native_assets_integration.py",
+46  +         "docs/guides/experiments.md",
+47  +     )
+48  |     return {**previous.sources(), **{name: hashlib.sha256((REPO / name).read_bytes()).hexdigest() for name in extra}}
+--------------------------------------------------------------------------------
+52  |     value = previous.metadata()
+    -     value.update(files=sources(), source_sha256=digest(sources()), libraries=libraries(),
+    -                  production_code_changed="declared native assets, verified context handles and owned storage",
+    -                  native_C_changed=False, research_loader_configuration=False,
+    -                  scope="ordinary managed API, local POSIX; existing scalar native production slice")
+53  +     value.update(
+54  +         files=sources(),
+55  +         source_sha256=digest(sources()),
+56  +         libraries=libraries(),
+57  +         production_code_changed="declared native assets, verified context handles and owned storage",
+58  +         native_C_changed=False,
+59  +         research_loader_configuration=False,
+60  +         scope="ordinary managed API, local POSIX; existing scalar native production slice",
+61  +     )
+62  |     return value
+63  |
+64  |
+65  | def definition(parameters, mode, *, count=3, stopping=Horizon(30000, warmup=500), seed=100):
+    -     return replace(prior.prior.definition(parameters, count=count, stopping=stopping),
+    -                    model=MODELS[mode], replications=Replications(count=count, base_seed=seed))
+66  +     return replace(
+67  +         prior.prior.definition(parameters, count=count, stopping=stopping),
+68  +         model=MODELS[mode],
+69  +         replications=Replications(count=count, base_seed=seed),
+70  +     )
+71  |
+--------------------------------------------------------------------------------
+78  |             row["artifact_sha256"] = hashlib.sha256(
+    -                 (committed.path / "artifacts/native-scalar-result.json").read_bytes()).hexdigest()
+79  +                 (committed.path / "artifacts/native-scalar-result.json").read_bytes()
+80  +             ).hexdigest()
+81  |             row["attempt_id"] = item["attempt"]
+--------------------------------------------------------------------------------
+99  | def comparable(rows):
+    -     return [{key: r[key] for key in ("backend", "index", "seed", "kpis", "snapshot", "admitted", "steps", "proof",
+    -                                     "initial_state_digest", "backend_state", "fingerprint_digest", "artifact_sha256")}
+    -             for r in rows]
+100 +     return [
+101 +         {
+102 +             key: r[key]
+103 +             for key in (
+104 +                 "backend",
+105 +                 "index",
+106 +                 "seed",
+107 +                 "kpis",
+108 +                 "snapshot",
+109 +                 "admitted",
+110 +                 "steps",
+111 +                 "proof",
+112 +                 "initial_state_digest",
+113 +                 "backend_state",
+114 +                 "fingerprint_digest",
+115 +                 "artifact_sha256",
+116 +             )
+117 +         }
+118 +         for r in rows
+119 +     ]
+120 |
+--------------------------------------------------------------------------------
+136 |     started = time.perf_counter()
+    -     summary = run(definition(parameters, args.mode, count=1, seed=99, stopping=Horizon(1)),
+    -                   project=args.project, slots=SlotConfig(local=1), timeout=60)
+137 +     summary = run(
+138 +         definition(parameters, args.mode, count=1, seed=99, stopping=Horizon(1)),
+139 +         project=args.project,
+140 +         slots=SlotConfig(local=1),
+141 +         timeout=60,
+142 +     )
+143 |     assert summary["counts"]["succeeded"] == 1
+--------------------------------------------------------------------------------
+147 | def launch(project, mode, producer, jobs, *, warm=False):
+    -     command = [sys.executable, "-m", "prototypes.native_engine_dynamic.assets_experiment",
+    -                "worker", "--project", str(project), "--mode", mode, "--producer", producer, "--jobs", str(jobs)]
+148 +     command = [
+149 +         sys.executable,
+150 +         "-m",
+151 +         "prototypes.native_engine_dynamic.assets_experiment",
+152 +         "worker",
+153 +         "--project",
+154 +         str(project),
+155 +         "--mode",
+156 +         mode,
+157 +         "--producer",
+158 +         producer,
+159 +         "--jobs",
+160 +         str(jobs),
+161 +     ]
+162 |     prewarming = None
+163 |     if warm:
+164 |         prep = command.copy()
+165 |         prep[3] = "warmup"
+    -         prewarming = json.loads(subprocess.check_output(prep, cwd=REPO, text=True,
+    -                                                       env=dict(os.environ, PYTHONHASHSEED="0")))
+166 +         prewarming = json.loads(
+167 +             subprocess.check_output(prep, cwd=REPO, text=True, env=dict(os.environ, PYTHONHASHSEED="0"))
+168 +         )
+169 |     started = time.perf_counter()
+    -     result = json.loads(subprocess.check_output(command, cwd=REPO, text=True,
+    -                                                env=dict(os.environ, PYTHONHASHSEED="0")))
+170 +     result = json.loads(subprocess.check_output(command, cwd=REPO, text=True, env=dict(os.environ, PYTHONHASHSEED="0")))
+171 |     result.update(process_s=time.perf_counter() - started, store="warm" if warm else "cold", warmup=prewarming)
+--------------------------------------------------------------------------------
+185 |         for producer, policy, stopping in itertools.product(
+    -             ("independent", "feedback"), ("fifo", "spt"),
+186 +             ("independent", "feedback"),
+187 +             ("fifo", "spt"),
+188 |             (Horizon(1), Horizon(10, warmup=2), Horizon(200, warmup=20)),
+189 |         ):
+190 |             observed = []
+191 |             for mode, project in projects.items():
+    -                 params = [dict(backend=b, producer=producer, policy=policy, jobs=40, servers=3, wip_cap=2)
+    -                           for b in ("production", "native")]
+    -                 status = run(definition(params, mode, count=2, stopping=stopping), project=project,
+    -                              slots=SlotConfig(local=2), timeout=60)
+192 +                 params = [
+193 +                     dict(backend=b, producer=producer, policy=policy, jobs=40, servers=3, wip_cap=2)
+194 +                     for b in ("production", "native")
+195 +                 ]
+196 +                 status = run(
+197 +                     definition(params, mode, count=2, stopping=stopping),
+198 +                     project=project,
+199 +                     slots=SlotConfig(local=2),
+200 +                     timeout=60,
+201 +                 )
+202 |                 result = read_results(project, status["run_id"], mode, baseline="production/base")
+203 |                 prior.prior.same_outputs(result["replications"])
+204 |                 observed.append(result)
+205 |             assert comparable(observed[0]["replications"]) == comparable(observed[1]["replications"])
+    -             rows.append(dict(producer=producer, policy=policy, stopping=stopping.to_dict(),
+    -                              reference=observed[0], managed=observed[1]))
+206 +             rows.append(
+207 +                 dict(
+208 +                     producer=producer,
+209 +                     policy=policy,
+210 +                     stopping=stopping.to_dict(),
+211 +                     reference=observed[0],
+212 +                     managed=observed[1],
+213 +                 )
+214 +             )
+215 |             print(f"declared assets gate {len(rows)}/12 exact shared outputs, state and artifacts", flush=True)
+--------------------------------------------------------------------------------
+254 |         (output / (name + ".json")).write_text(json.dumps(value, separators=(",", ":")) + "\n")
+    -     certificate = dict(source_sha256=meta["source_sha256"], main_runs=96, request_mode_pairs=48,
+    -                        deleted_source_evicted_cache_reproductions=reproduced, ready_preview=True,
+    -                        corrupted_entry_rejected=True, explicit_prune_rebuild=True,
+    -                        ordinary_coordinator=True, native_C_unchanged=True)
+255 +     certificate = dict(
+256 +         source_sha256=meta["source_sha256"],
+257 +         main_runs=96,
+258 +         request_mode_pairs=48,
+259 +         deleted_source_evicted_cache_reproductions=reproduced,
+260 +         ready_preview=True,
+261 +         corrupted_entry_rejected=True,
+262 +         explicit_prune_rebuild=True,
+263 +         ordinary_coordinator=True,
+264 +         native_C_unchanged=True,
+265 +     )
+266 |     (output / "verification.json").write_text(json.dumps(certificate, indent=2) + "\n")
+--------------------------------------------------------------------------------
+270 | def cases():
+    -     return [dict(mode=mode, producer=producer, jobs=n, store=state, repeat=i)
+    -             for mode, producer, n, state, i in itertools.product(
+    -                 MODELS, ("independent", "feedback"), (5000, 20000), ("cold", "warm"), range(3))]
+271 +     return [
+272 +         dict(mode=mode, producer=producer, jobs=n, store=state, repeat=i)
+273 +         for mode, producer, n, state, i in itertools.product(
+274 +             MODELS, ("independent", "feedback"), (5000, 20000), ("cold", "warm"), range(3)
+275 +         )
+276 +     ]
+277 |
+--------------------------------------------------------------------------------
+303 |     random.Random(SEED).shuffle(order)
+    -     meta.update(case_order=order, seed=SEED,
+    -                 timing="fresh ordinary API worker, three replications; warm-store preparatory run outside timing")
+304 +     meta.update(
+305 +         case_order=order,
+306 +         seed=SEED,
+307 +         timing="fresh ordinary API worker, three replications; warm-store preparatory run outside timing",
+308 +     )
+309 |     with tempfile.TemporaryDirectory(prefix="declared-assets-matrix-") as tmp:
+--------------------------------------------------------------------------------
+343 |         medians = {mode: statistics.median(samples) for mode, samples in values.items()}
+    -         summary.append(dict(producer=producer, jobs=n, store=state, samples_s=values, medians_s=medians,
+    -                             reduction=1 - medians["managed"] / medians["reference"]))
+344 +         summary.append(
+345 +             dict(
+346 +                 producer=producer,
+347 +                 jobs=n,
+348 +                 store=state,
+349 +                 samples_s=values,
+350 +                 medians_s=medians,
+351 +                 reduction=1 - medians["managed"] / medians["reference"],
+352 +             )
+353 +         )
+354 |     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    -     certificate = dict(source_sha256=meta["source_sha256"], experiments=48, replications=144,
+    -                        untimed_preparatory_runs=24, exact_outcomes_fingerprints_artifacts=True,
+    -                        ordinary_api_no_private_loader_configuration=True,
+    -                        evidence={name: hashlib.sha256((output / name).read_bytes()).hexdigest()
+    -                                  for name in ("metadata.json", "matrix.jsonl", "summary.json")})
+355 +     certificate = dict(
+356 +         source_sha256=meta["source_sha256"],
+357 +         experiments=48,
+358 +         replications=144,
+359 +         untimed_preparatory_runs=24,
+360 +         exact_outcomes_fingerprints_artifacts=True,
+361 +         ordinary_api_no_private_loader_configuration=True,
+362 +         evidence={
+363 +             name: hashlib.sha256((output / name).read_bytes()).hexdigest()
+364 +             for name in ("metadata.json", "matrix.jsonl", "summary.json")
+365 +         },
+366 +     )
+367 |     (output / "verification.json").write_text(json.dumps(certificate, indent=2) + "\n")
+--------------------------------------------------------------------------------
+394 |                 assert path.read_bytes() == subprocess.check_output(
+    -                     ["git", "show", "1330e52:" + path.relative_to(REPO).as_posix()], cwd=REPO)
+395 +                     ["git", "show", "1330e52:" + path.relative_to(REPO).as_posix()], cwd=REPO
+396 +                 )
+397 |                 count += 1
+398 |     for path in (ROOT / "csrc").glob("*.[ch]"):
+399 |         assert path.read_bytes() == subprocess.check_output(
+    -             ["git", "show", "1330e52:" + path.relative_to(REPO).as_posix()], cwd=REPO)
+    -     certificate = dict(source_sha256=digest(sources()), historical_evidence_files=count,
+    -                        native_C_unchanged=True, rejected_corruptions=rejected,
+    -                        evidence={path.relative_to(output).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+    -                                  for path in sorted(output.rglob("*"))
+    -                                  if path.is_file() and path != output / "verification.json"})
+400 +             ["git", "show", "1330e52:" + path.relative_to(REPO).as_posix()], cwd=REPO
+401 +         )
+402 +     certificate = dict(
+403 +         source_sha256=digest(sources()),
+404 +         historical_evidence_files=count,
+405 +         native_C_unchanged=True,
+406 +         rejected_corruptions=rejected,
+407 +         evidence={
+408 +             path.relative_to(output).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+409 +             for path in sorted(output.rglob("*"))
+410 +             if path.is_file() and path != output / "verification.json"
+411 +         },
+412 +     )
+413 |     (output / "verification.json").write_text(json.dumps(certificate, indent=2) + "\n")
+    |
+
+unformatted: File would be reformatted
+  --> prototypes/native_engine_dynamic/assets_model.py:12:28
+   |
+11 | PREFIX = "prototypes/native_engine_dynamic/.build/"
+   - ENGINE = NativeAssetBundle("engine", (
+   -     PREFIX + "_nd_scalar" + sysconfig.get_config_var("EXT_SUFFIX"),
+   -     PREFIX + ("dynamic_engine.dylib" if sys.platform == "darwin" else "dynamic_engine.so"),
+   - ))
+12 + ENGINE = NativeAssetBundle(
+13 +     "engine",
+14 +     (
+15 +         PREFIX + "_nd_scalar" + sysconfig.get_config_var("EXT_SUFFIX"),
+16 +         PREFIX + ("dynamic_engine.dylib" if sys.platform == "darwin" else "dynamic_engine.so"),
+17 +     ),
+18 + )
+19 |
+   |
+
+unformatted: File would be reformatted
+   --> prototypes/native_engine_dynamic/immutable_assets.py:49:17
+    |
+48  |         files[path.name] = value
+    -     return dict(schema=1, implementation=sys.implementation.name,
+    -                 abi=sysconfig.get_config_var("SOABI"), platform=sys.platform, files=files)
+49  +     return dict(
+50  +         schema=1,
+51  +         implementation=sys.implementation.name,
+52  +         abi=sysconfig.get_config_var("SOABI"),
+53  +         platform=sys.platform,
+54  +         files=files,
+55  +     )
+56  |
+--------------------------------------------------------------------------------
+156 |     elif sys.platform.startswith("linux"):
+    -         images = [line.split(maxsplit=5)[-1] for line in Path("/proc/self/maps").read_text().splitlines()
+    -                   if len(line.split(maxsplit=5)) == 6]
+157 +         images = [
+158 +             line.split(maxsplit=5)[-1]
+159 +             for line in Path("/proc/self/maps").read_text().splitlines()
+160 +             if len(line.split(maxsplit=5)) == 6
+161 +         ]
+162 |     else:
+163 |         raise RuntimeError("native image inspection is unsupported on this experiment platform")
+    -     return sorted({str(Path(path).resolve()) for path in images
+    -                    if Path(path).name in ("dynamic_engine.dylib", "dynamic_engine.so")})
+164 +     return sorted(
+165 +         {
+166 +             str(Path(path).resolve())
+167 +             for path in images
+168 +             if Path(path).name in ("dynamic_engine.dylib", "dynamic_engine.so")
+169 +         }
+170 +     )
+171 |
+--------------------------------------------------------------------------------
+179 |     selected = extension.parent if store is None else Path(store) / address(document)
+    -     selected_identity = (verify_pair(selected, document, readonly=False) if store is None
+    -                          else verify_entry(selected, document))
+180 +     selected_identity = (
+181 +         verify_pair(selected, document, readonly=False) if store is None else verify_entry(selected, document)
+182 +     )
+183 |     verified = time.perf_counter_ns()
+--------------------------------------------------------------------------------
+191 |         raise ValueError("unexpected loaded native engine image")
+    -     actual = (verify_pair(selected, document, readonly=False) if store is None
+    -               else verify_entry(selected, document))
+192 +     actual = verify_pair(selected, document, readonly=False) if store is None else verify_entry(selected, document)
+193 |     if actual != selected_identity or verify_pair(extension.parent, document, readonly=False) != source_identity:
+194 |         raise ValueError("native asset changed during loading")
+195 |     checked = time.perf_counter_ns()
+    -     evidence = dict(schema=1, pid=os.getpid(), mode="attempt" if store is None else "immutable",
+    -                     address=address(document), files=document["files"], source=str(extension.parent),
+    -                     selected=str(selected), extension=str(Path(module.__file__).resolve()), images=images,
+    -                     identities={name: list(value) for name, value in selected_identity.items()},
+    -                     verification_s=(verified - started) / 1e9, import_s=(imported - verified) / 1e9,
+    -                     postcheck_s=(checked - imported) / 1e9, total_s=(checked - started) / 1e9)
+196 +     evidence = dict(
+197 +         schema=1,
+198 +         pid=os.getpid(),
+199 +         mode="attempt" if store is None else "immutable",
+200 +         address=address(document),
+201 +         files=document["files"],
+202 +         source=str(extension.parent),
+203 +         selected=str(selected),
+204 +         extension=str(Path(module.__file__).resolve()),
+205 +         images=images,
+206 +         identities={name: list(value) for name, value in selected_identity.items()},
+207 +         verification_s=(verified - started) / 1e9,
+208 +         import_s=(imported - verified) / 1e9,
+209 +         postcheck_s=(checked - imported) / 1e9,
+210 +         total_s=(checked - started) / 1e9,
+211 +     )
+212 |     diagnostic = os.environ.get(DIAGNOSTIC_ENV)
+    |
+
+unformatted: File would be reformatted
+   --> prototypes/native_engine_dynamic/linux_gate.py:50:17
+    |
+49  |     files = sources()
+    -     return dict(base=BASE, platform=platform.platform(), machine=platform.machine(),
+    -                 hostname=platform.node(), python=sys.version, abi=abi(),
+    -                 compiler=subprocess.check_output(["cc", "--version"], text=True),
+    -                 os_release=Path("/etc/os-release").read_text(), files=files, source_sha256=digest(files),
+    -                 native_assets_before_build=list((ROOT / ".build").glob("*")) != [],
+    -                 purpose="correctness/platform validation; no performance claim")
+50  +     return dict(
+51  +         base=BASE,
+52  +         platform=platform.platform(),
+53  +         machine=platform.machine(),
+54  +         hostname=platform.node(),
+55  +         python=sys.version,
+56  +         abi=abi(),
+57  +         compiler=subprocess.check_output(["cc", "--version"], text=True),
+58  +         os_release=Path("/etc/os-release").read_text(),
+59  +         files=files,
+60  +         source_sha256=digest(files),
+61  +         native_assets_before_build=list((ROOT / ".build").glob("*")) != [],
+62  +         purpose="correctness/platform validation; no performance claim",
+63  +     )
+64  |
+--------------------------------------------------------------------------------
+73  |     case = json.loads(case_path.read_text())
+    -     handle = VerifiedNativeBundle(case["bundle"]["name"], Path(case["directory"]), Path(case["source_root"]),
+    -                                   case["bundle"], case["abi"])
+74  +     handle = VerifiedNativeBundle(
+75  +         case["bundle"]["name"], Path(case["directory"]), Path(case["source_root"]), case["bundle"], case["abi"]
+76  +     )
+77  |     extension = next(name for name in handle.files if name.startswith("_nd_scalar."))
+--------------------------------------------------------------------------------
+92  |         result = dict(rejected=False, origin=module.__file__)
+    -     result.update(pid=os.getpid(), expected_directory=str(handle.directory),
+    -                   images=sorted(map(str, _images(library))), byte_identities_unchanged=handle.verify() == before)
+93  +     result.update(
+94  +         pid=os.getpid(),
+95  +         expected_directory=str(handle.directory),
+96  +         images=sorted(map(str, _images(library))),
+97  +         byte_identities_unchanged=handle.verify() == before,
+98  +     )
+99  |     assert result["byte_identities_unchanged"]
+--------------------------------------------------------------------------------
+112 |             case = root / "load-case.json"
+    -             write(case, dict(source_root=str(project), bundle=_plain(bundle), abi=_plain(manifest["abi"]),
+    -                              directory=lease.directories[bundle["name"]]))
+113 +             write(
+114 +                 case,
+115 +                 dict(
+116 +                     source_root=str(project),
+117 +                     bundle=_plain(bundle),
+118 +                     abi=_plain(manifest["abi"]),
+119 +                     directory=lease.directories[bundle["name"]],
+120 +                 ),
+121 +             )
+122 |             rows = []
+123 |             for wrong in (False, True):
+    -                 command = [sys.executable, "-m", "prototypes.native_engine_dynamic.linux_gate", "load-probe",
+    -                            "--case", str(case), *( ["--wrong"] if wrong else [])]
+124 +                 command = [
+125 +                     sys.executable,
+126 +                     "-m",
+127 +                     "prototypes.native_engine_dynamic.linux_gate",
+128 +                     "load-probe",
+129 +                     "--case",
+130 +                     str(case),
+131 +                     *(["--wrong"] if wrong else []),
+132 +                 ]
+133 |                 child = subprocess.run(command, text=True, capture_output=True, timeout=30)
+--------------------------------------------------------------------------------
+144 |     spec = discover_project(project / assets.MODELS["managed"].partition(":")[0], project)
+    -     definition = assets.definition([dict(backend="native", producer="feedback", jobs=20000, verify=False)],
+    -                                    "managed", count=4)
+145 +     definition = assets.definition(
+146 +         [dict(backend="native", producer="feedback", jobs=20000, verify=False)], "managed", count=4
+147 +     )
+148 |     samples, maximum, pruned = [], 0, False
+--------------------------------------------------------------------------------
+172 |         with coordinator.store._transaction() as db:
+    -             slots = [row[0] for row in db.execute(
+    -                 "SELECT DISTINCT slot FROM attempts WHERE id IN "
+    -                 "(SELECT attempt FROM replications WHERE run=?)", (identity,))]
+173 +             slots = [
+174 +                 row[0]
+175 +                 for row in db.execute(
+176 +                     "SELECT DISTINCT slot FROM attempts WHERE id IN (SELECT attempt FROM replications WHERE run=?)",
+177 +                     (identity,),
+178 +                 )
+179 +             ]
+180 |         assert set(slots) == {"local-1", "local-2"}
+181 |     observed = assets.read_results(project, identity, "managed")
+182 |     assert len({row["attempt_id"] for row in observed["replications"]}) == 4
+    -     return dict(maximum_simultaneous_leases=maximum, prune_while_active=samples, slots=sorted(slots),
+    -                 leases_after_cleanup=0, observed=observed)
+183 +     return dict(
+184 +         maximum_simultaneous_leases=maximum,
+185 +         prune_while_active=samples,
+186 +         slots=sorted(slots),
+187 +         leases_after_cleanup=0,
+188 +         observed=observed,
+189 +     )
+190 |
+--------------------------------------------------------------------------------
+207 |         for producer, policy, stopping in itertools.product(
+    -             ("independent", "feedback"), ("fifo", "spt"),
+208 +             ("independent", "feedback"),
+209 +             ("fifo", "spt"),
+210 |             (Horizon(1), Horizon(10, warmup=2), Horizon(200, warmup=20)),
+211 |         ):
+212 |             observed = {}
+213 |             for mode, project in projects.items():
+    -                 params = [dict(backend=backend, producer=producer, policy=policy, jobs=40, servers=3, wip_cap=2)
+    -                           for backend in ("production", "native")]
+    -                 status = run(assets.definition(params, mode, count=2, stopping=stopping), project=project,
+    -                              slots=SlotConfig(local=2), timeout=60)
+214 +                 params = [
+215 +                     dict(backend=backend, producer=producer, policy=policy, jobs=40, servers=3, wip_cap=2)
+216 +                     for backend in ("production", "native")
+217 +                 ]
+218 +                 status = run(
+219 +                     assets.definition(params, mode, count=2, stopping=stopping),
+220 +                     project=project,
+221 +                     slots=SlotConfig(local=2),
+222 +                     timeout=60,
+223 +                 )
+224 |                 observed[mode] = assets.read_results(project, status["run_id"], mode, baseline="production/base")
+--------------------------------------------------------------------------------
+265 |                 assert artifact == original["artifact_sha256"]
+    -                 reproduced.append(dict(backend=original["backend"], fingerprint=repeated.fingerprint["digest"],
+    -                                        artifact_sha256=artifact, original_attempt=original["attempt_id"],
+    -                                        repeated_attempt=repeated.key.attempt_id))
+    -         lifecycle = dict(loads=loads, concurrent=parallel, ready_preview=True,
+    -                          corruption=dict(error=failure, results_before=before, results_after=after),
+    -                          pruned=pruned, live_source_deleted=True, reproduced=reproduced)
+266 +                 reproduced.append(
+267 +                     dict(
+268 +                         backend=original["backend"],
+269 +                         fingerprint=repeated.fingerprint["digest"],
+270 +                         artifact_sha256=artifact,
+271 +                         original_attempt=original["attempt_id"],
+272 +                         repeated_attempt=repeated.key.attempt_id,
+273 +                     )
+274 +                 )
+275 +         lifecycle = dict(
+276 +             loads=loads,
+277 +             concurrent=parallel,
+278 +             ready_preview=True,
+279 +             corruption=dict(error=failure, results_before=before, results_after=after),
+280 +             pruned=pruned,
+281 +             live_source_deleted=True,
+282 +             reproduced=reproduced,
+283 +         )
+284 |     assert sources() == meta["files"]
+--------------------------------------------------------------------------------
+291 |     assert len(rows) == 12
+    -     expected = list(itertools.product(("independent", "feedback"), ("fifo", "spt"),
+    -                                      (Horizon(1), Horizon(10, warmup=2), Horizon(200, warmup=20))))
+292 +     expected = list(
+293 +         itertools.product(
+294 +             ("independent", "feedback"), ("fifo", "spt"), (Horizon(1), Horizon(10, warmup=2), Horizon(200, warmup=20))
+295 +         )
+296 +     )
+297 |     attempts = []
+--------------------------------------------------------------------------------
+304 |             assert {(r["backend"], r["seed"]) for r in replications} == set(
+    -                 itertools.product(("production", "native"), (100, 101)))
+305 +                 itertools.product(("production", "native"), (100, 101))
+306 +             )
+307 |             for replication in replications:
+--------------------------------------------------------------------------------
+352 |     for repeated in lifecycle["reproduced"]:
+    -         original = next(r for r in rows[-1]["managed"]["replications"]
+    -                         if r["attempt_id"] == repeated["original_attempt"])
+353 +         original = next(
+354 +             r for r in rows[-1]["managed"]["replications"] if r["attempt_id"] == repeated["original_attempt"]
+355 +         )
+356 |         assert repeated["fingerprint"] == original["fingerprint_digest"]
+--------------------------------------------------------------------------------
+383 |     historical = 0
+    -     folders = ("kpi-results", "execution-results", "backend-results", "phase-results",
+    -                "loading-results", "assets-results")
+384 +     folders = (
+385 +         "kpi-results",
+386 +         "execution-results",
+387 +         "backend-results",
+388 +         "phase-results",
+389 +         "loading-results",
+390 +         "assets-results",
+391 +     )
+392 |     for folder in folders:
+393 |         for path in (ROOT / folder).rglob("*"):
+394 |             if path.is_file():
+395 |                 assert path.read_bytes() == subprocess.check_output(
+    -                     ["git", "show", BASE + ":" + path.relative_to(REPO).as_posix()], cwd=REPO)
+396 +                     ["git", "show", BASE + ":" + path.relative_to(REPO).as_posix()], cwd=REPO
+397 +                 )
+398 |                 historical += 1
+    -     certificate = dict(source_sha256=meta["source_sha256"], main_runs=96, mode_pairs=48,
+    -                        concurrent_native_runs=4, fresh_deleted_source_reproductions=2,
+    -                        native_dependency_probe_children=2, rejected_corruptions=rejected,
+    -                        unchanged_production_and_C=unchanged, historical_evidence_files=historical,
+    -                        evidence={p.relative_to(output).as_posix(): sha(p) for p in sorted(output.rglob("*"))
+    -                                  if p.is_file() and p != output / "verification.json"})
+399 +     certificate = dict(
+400 +         source_sha256=meta["source_sha256"],
+401 +         main_runs=96,
+402 +         mode_pairs=48,
+403 +         concurrent_native_runs=4,
+404 +         fresh_deleted_source_reproductions=2,
+405 +         native_dependency_probe_children=2,
+406 +         rejected_corruptions=rejected,
+407 +         unchanged_production_and_C=unchanged,
+408 +         historical_evidence_files=historical,
+409 +         evidence={
+410 +             p.relative_to(output).as_posix(): sha(p)
+411 +             for p in sorted(output.rglob("*"))
+412 +             if p.is_file() and p != output / "verification.json"
+413 +         },
+414 +     )
+415 |     write(output / "verification.json", certificate)
+    |
+
+unformatted: File would be reformatted
+  --> prototypes/native_engine_dynamic/loading-results/independent_audit.py:2:1
+   |
+1  | """Read-only checks of saved gate, provenance, cold/warm and control evidence."""
+2  +
+3  | from collections import Counter
+--------------------------------------------------------------------------------
+29 |     for control in controls:
+   -         target = next(r for r in gate if r["producer"] == control["producer"] and
+   -                       r["loading"] == "immutable" and r["policy"] == "spt")
+30 +         target = next(
+31 +             r
+32 +             for r in gate
+33 +             if r["producer"] == control["producer"] and r["loading"] == "immutable" and r["policy"] == "spt"
+34 +         )
+35 |         for a, b in zip(control["original"]["replications"], target["replications"]):
+--------------------------------------------------------------------------------
+54 |             load = documents[replication["attempt_id"]]
+   -             expected = ("snapshot:prototypes/native_engine_dynamic/.build/" + Path(load["extension"]).name
+   -                         if row["loading"] == "attempt" else "external:" + load["extension"])
+55 +             expected = (
+56 +                 "snapshot:prototypes/native_engine_dynamic/.build/" + Path(load["extension"]).name
+57 +                 if row["loading"] == "attempt"
+58 +                 else "external:" + load["extension"]
+59 +             )
+60 |             assert replication["native_origin"] == expected
+--------------------------------------------------------------------------------
+65 |     assert analysis["warm_loads"] == 71
+   -     result = dict(gate_pairs=16, cross_path_native_loader_observations=8, original_controls=8,
+   -                   negative_cases=4, actual_native_origins_checked=144, first_use_retained=True,
+   -                   runtime_and_project_manifests_match=True)
+66 +     result = dict(
+67 +         gate_pairs=16,
+68 +         cross_path_native_loader_observations=8,
+69 +         original_controls=8,
+70 +         negative_cases=4,
+71 +         actual_native_origins_checked=144,
+72 +         first_use_retained=True,
+73 +         runtime_and_project_manifests_match=True,
+74 +     )
+75 |     (root / "independent-audit.json").write_text(json.dumps(result, indent=2) + "\n")
+   |
+
+unformatted: File would be reformatted
+  --> prototypes/native_engine_dynamic/loading-results/original-control-check.py:2:1
+   |
+1  | """Independent original-runtime comparison against the frozen immutable-loading gate."""
+2  +
+3  | import json
+--------------------------------------------------------------------------------
+22 |                 [dict(backend=b, producer=producer, jobs=40, servers=3, wip_cap=2) for b in ("production", "native")],
+   -                 count=2, stopping=Horizon(10, warmup=2),
+23 +                 count=2,
+24 +                 stopping=Horizon(10, warmup=2),
+25 |             )
+26 |             status = run(definition, project=project, slots=SlotConfig(local=1), timeout=60)
+27 |             current = baseline.read_results(project, status["run_id"], baseline="production/base")
+   -             reference = next(r for r in gate if r["loading"] == "immutable" and r["policy"] == "spt" and r["producer"] == producer)
+28 +             reference = next(
+29 +                 r for r in gate if r["loading"] == "immutable" and r["policy"] == "spt" and r["producer"] == producer
+30 +             )
+31 |             for a, b in zip(current["replications"], reference["replications"]):
+--------------------------------------------------------------------------------
+35 |                 assert a["request_id"] != b["request_id"]
+   -             records.append(dict(producer=producer, original=current, matched_fields=[
+   -                 "backend_state", "snapshot", "kpis", "proof", "steps", "fingerprint_digest"
+   -             ]))
+36 +             records.append(
+37 +                 dict(
+38 +                     producer=producer,
+39 +                     original=current,
+40 +                     matched_fields=["backend_state", "snapshot", "kpis", "proof", "steps", "fingerprint_digest"],
+41 +                 )
+42 +             )
+43 |     (output / "original-controls.json").write_text(json.dumps(records, indent=2) + "\n")
+   -     print("Eight original-runtime controls match shared outcomes, native/domain state and ordinary semantic fingerprints")
+44 +     print(
+45 +         "Eight original-runtime controls match shared outcomes, native/domain state and ordinary semantic fingerprints"
+46 +     )
+   |
+
+unformatted: File would be reformatted
+   --> prototypes/native_engine_dynamic/loading_experiment.py:42:23
+    |
+41  |     helper = module / "immutable_assets.py"
+    -     helper.write_text(transform(helper.read_text(), [
+    -         ("load_verified", "native.verified_load", True),
+    -         ("_import_extension", "native.binary_import", True),
+    -         ("verify_pair", "native.pair_verify", True),
+    -     ]))
+42  +     helper.write_text(
+43  +         transform(
+44  +             helper.read_text(),
+45  +             [
+46  +                 ("load_verified", "native.verified_load", True),
+47  +                 ("_import_extension", "native.binary_import", True),
+48  +                 ("verify_pair", "native.pair_verify", True),
+49  +             ],
+50  +         )
+51  +     )
+52  |     compiled = module / "compiled.py"
+--------------------------------------------------------------------------------
+64  |     assert code.count(marker) == 1
+    -     additions = "\n".join((marker,
+    -         "        settings = config.get('_immutable_native_assets')",
+    -         "        if settings is not None:",
+    -         "            if settings['store'] is None:",
+    -         "                os.environ.pop('" + STORE_ENV + "', None)",
+    -         "            else:",
+    -         "                os.environ['" + STORE_ENV + "'] = settings['store']",
+    -         "            os.environ['" + DIAGNOSTIC_ENV + "'] = settings['diagnostic']",
+    -     ))
+65  +     additions = "\n".join(
+66  +         (
+67  +             marker,
+68  +             "        settings = config.get('_immutable_native_assets')",
+69  +             "        if settings is not None:",
+70  +             "            if settings['store'] is None:",
+71  +             "                os.environ.pop('" + STORE_ENV + "', None)",
+72  +             "            else:",
+73  +             "                os.environ['" + STORE_ENV + "'] = settings['store']",
+74  +             "            os.environ['" + DIAGNOSTIC_ENV + "'] = settings['diagnostic']",
+75  +         )
+76  +     )
+77  |     code = code.replace(marker, additions)
+--------------------------------------------------------------------------------
+84  |     verify_entry(entry, descriptor(extension))
+    -     return dict(targets=changed, runtime_files=prior.tree_hashes(runtime), project_files=prior.tree_hashes(project),
+    -                 address=entry.name, files=descriptor(extension)["files"], publish_s=setup_s,
+    -                 entry=str(entry), native_preloaded=False)
+85  +     return dict(
+86  +         targets=changed,
+87  +         runtime_files=prior.tree_hashes(runtime),
+88  +         project_files=prior.tree_hashes(project),
+89  +         address=entry.name,
+90  +         files=descriptor(extension)["files"],
+91  +         publish_s=setup_s,
+92  +         entry=str(entry),
+93  +         native_preloaded=False,
+94  +     )
+95  |
+--------------------------------------------------------------------------------
+113 |                 # path. Only this addressed pair directory is an external root.
+    -                 configuration = {**configuration,
+    -                                  "external_roots": [*configuration["external_roots"], str(self.asset_entry)]}
+    -             body = {**body, "config": {**configuration, "_immutable_native_assets": dict(
+    -                 store=None if self.loading == "attempt" else str(self.asset_store),
+    -                 diagnostic=str(self.loader_output / (key.attempt_id + ".json")),
+    -             )}}
+114 +                 configuration = {
+115 +                     **configuration,
+116 +                     "external_roots": [*configuration["external_roots"], str(self.asset_entry)],
+117 +                 }
+118 +             body = {
+119 +                 **body,
+120 +                 "config": {
+121 +                     **configuration,
+122 +                     "_immutable_native_assets": dict(
+123 +                         store=None if self.loading == "attempt" else str(self.asset_store),
+124 +                         diagnostic=str(self.loader_output / (key.attempt_id + ".json")),
+125 +                     ),
+126 +                 },
+127 +             }
+128 |         return super()._send(worker, kind, body, key=key)
+--------------------------------------------------------------------------------
+142 |         if args.gate:
+    -             parameters = [dict(backend=b, producer=args.producer, policy=args.policy,
+    -                                jobs=40, servers=3, wip_cap=2) for b in ("production", "native")]
+143 +             parameters = [
+144 +                 dict(backend=b, producer=args.producer, policy=args.policy, jobs=40, servers=3, wip_cap=2)
+145 +                 for b in ("production", "native")
+146 +             ]
+147 |         else:
+148 |             parameters = [dict(backend="native", producer=args.producer, jobs=args.jobs, verify=False)]
+149 |         definition = prior.prior.prior.definition(
+    -             parameters, count=1 if special else 2 if args.gate else 3,
+150 +             parameters,
+151 +             count=1 if special else 2 if args.gate else 3,
+152 |             stopping=Horizon(10, warmup=2) if args.gate or special else Horizon(30000, warmup=500),
+153 |         )
+154 |         spec = discover_project(args.project / MODEL.partition(":")[0], args.project)
+155 |         started = time.perf_counter()
+    -         with LoadingCoordinator(spec, reference=MODEL, slots=SlotConfig(local=1), loading=args.loading,
+    -                                 asset_store=args.asset_store, loader_output=loader_dir,
+    -                                 cancel_ready=args.cancel_ready,
+    -                                 profile_output=profile_dir if enabled else None) as coordinator:
+156 +         with LoadingCoordinator(
+157 +             spec,
+158 +             reference=MODEL,
+159 +             slots=SlotConfig(local=1),
+160 +             loading=args.loading,
+161 +             asset_store=args.asset_store,
+162 +             loader_output=loader_dir,
+163 +             cancel_ready=args.cancel_ready,
+164 +             profile_output=profile_dir if enabled else None,
+165 +         ) as coordinator:
+166 |             run_id = coordinator.start_experiment(definition, timeout=60)
+--------------------------------------------------------------------------------
+186 |             observed = probe.timed("result.read_report")(prior.prior.read_results)(
+    -                 args.project, run_id, baseline="production/base" if args.gate else None)
+187 +                 args.project, run_id, baseline="production/base" if args.gate else None
+188 +             )
+189 |             if args.gate:
+--------------------------------------------------------------------------------
+194 |                     row["artifact_sha256"] = hashlib.sha256(
+    -                         (result.path / "artifacts/native-scalar-result.json").read_bytes()).hexdigest()
+195 +                         (result.path / "artifacts/native-scalar-result.json").read_bytes()
+196 +                     ).hexdigest()
+197 |                     row["attempt_id"] = item["attempt"]
+--------------------------------------------------------------------------------
+218 |                 loaded = by_attempt[row["attempt_id"]]
+    -                 origin = ("snapshot:prototypes/native_engine_dynamic/.build/" + Path(loaded["extension"]).name
+    -                           if loaded["mode"] == "attempt" else "external:" + loaded["extension"])
+219 +                 origin = (
+220 +                     "snapshot:prototypes/native_engine_dynamic/.build/" + Path(loaded["extension"]).name
+221 +                     if loaded["mode"] == "attempt"
+222 +                     else "external:" + loaded["extension"]
+223 +                 )
+224 |                 assert row["native_origin"] == origin
+    -     return dict(loading=args.loading, probe=args.probe, producer=args.producer, policy=args.policy,
+    -                 jobs=args.jobs, workflow_s=workflow_s, loaders=loaders, profiles=profiles, **observed)
+225 +     return dict(
+226 +         loading=args.loading,
+227 +         probe=args.probe,
+228 +         producer=args.producer,
+229 +         policy=args.policy,
+230 +         jobs=args.jobs,
+231 +         workflow_s=workflow_s,
+232 +         loaders=loaders,
+233 +         profiles=profiles,
+234 +         **observed,
+235 +     )
+236 |
+237 |
+    - def launch(runtime, project, output, store, *, loading, probe="dormant", producer="independent", jobs=40,
+    -            policy="spt", gate=False, cancel_ready=False, expect_failure=False):
+    -     command = [sys.executable, "-c", "import sys;sys.path.insert(0," + repr(str(runtime)) + ");"
+    -                "from prototypes.native_engine_dynamic.loading_experiment import main;main()",
+    -                "worker", "--project", str(project), "--output", str(output), "--asset-store", str(store),
+    -                "--loading", loading, "--probe", probe, "--producer", producer, "--jobs", str(jobs),
+    -                "--policy", policy]
+238 + def launch(
+239 +     runtime,
+240 +     project,
+241 +     output,
+242 +     store,
+243 +     *,
+244 +     loading,
+245 +     probe="dormant",
+246 +     producer="independent",
+247 +     jobs=40,
+248 +     policy="spt",
+249 +     gate=False,
+250 +     cancel_ready=False,
+251 +     expect_failure=False,
+252 + ):
+253 +     command = [
+254 +         sys.executable,
+255 +         "-c",
+256 +         "import sys;sys.path.insert(0," + repr(str(runtime)) + ");"
+257 +         "from prototypes.native_engine_dynamic.loading_experiment import main;main()",
+258 +         "worker",
+259 +         "--project",
+260 +         str(project),
+261 +         "--output",
+262 +         str(output),
+263 +         "--asset-store",
+264 +         str(store),
+265 +         "--loading",
+266 +         loading,
+267 +         "--probe",
+268 +         probe,
+269 +         "--producer",
+270 +         producer,
+271 +         "--jobs",
+272 +         str(jobs),
+273 +         "--policy",
+274 +         policy,
+275 +     ]
+276 |     for flag, selected in (("--gate", gate), ("--cancel-ready", cancel_ready), ("--expect-failure", expect_failure)):
+--------------------------------------------------------------------------------
+289 |     value = prior.metadata()
+    -     value.update(files=sources(), source_sha256=digest(sources()), libraries=libraries(),
+    -                  scope="local CPython; verified immutable binary paths vs per-attempt paths; fresh children")
+290 +     value.update(
+291 +         files=sources(),
+292 +         source_sha256=digest(sources()),
+293 +         libraries=libraries(),
+294 +         scope="local CPython; verified immutable binary paths vs per-attempt paths; fresh children",
+295 +     )
+296 |     return value
+297 |
+298 |
+299 | def comparable(row):
+    -     return [{key: r[key] for key in ("seed", "backend_state", "fingerprint_digest", "kpis", "snapshot", "proof",
+    -                                     "steps", "artifact_sha256", "request_id")} for r in row["replications"]]
+300 +     return [
+301 +         {
+302 +             key: r[key]
+303 +             for key in (
+304 +                 "seed",
+305 +                 "backend_state",
+306 +                 "fingerprint_digest",
+307 +                 "kpis",
+308 +                 "snapshot",
+309 +                 "proof",
+310 +                 "steps",
+311 +                 "artifact_sha256",
+312 +                 "request_id",
+313 +             )
+314 +         }
+315 +         for r in row["replications"]
+316 +     ]
+317 |
+--------------------------------------------------------------------------------
+341 |         meta["fixture"] = fixture
+    -         for loading, producer, policy in itertools.product(("attempt", "immutable"),
+    -                                                            ("independent", "feedback"), ("fifo", "spt")):
+342 +         for loading, producer, policy in itertools.product(
+343 +             ("attempt", "immutable"), ("independent", "feedback"), ("fifo", "spt")
+344 +         ):
+345 |             name = f"{loading}-{producer}-{policy}"
+346 |             project = root / name
+347 |             shutil.copytree(template, project)
+    -             row = launch(root / "runtime", project, root / (name + "-diagnostics"), root / "assets",
+    -                          loading=loading, producer=producer, policy=policy, probe="active", gate=True)
+348 +             row = launch(
+349 +                 root / "runtime",
+350 +                 project,
+351 +                 root / (name + "-diagnostics"),
+352 +                 root / "assets",
+353 +                 loading=loading,
+354 +                 producer=producer,
+355 +                 policy=policy,
+356 +                 probe="active",
+357 +                 gate=True,
+358 +             )
+359 |             verify_loaders(row, fixture, gate=True)
+--------------------------------------------------------------------------------
+368 |             shutil.copytree(template, project)
+    -             row = launch(root / "runtime", project, root / ("cancel-" + loading + "-diagnostics"), root / "assets",
+    -                          loading=loading, probe="active", cancel_ready=True)
+369 +             row = launch(
+370 +                 root / "runtime",
+371 +                 project,
+372 +                 root / ("cancel-" + loading + "-diagnostics"),
+373 +                 root / "assets",
+374 +                 loading=loading,
+375 +                 probe="active",
+376 +                 cancel_ready=True,
+377 +             )
+378 |             negatives.append(dict(case="ready-cancel-" + loading, **row))
+--------------------------------------------------------------------------------
+390 |             shutil.copytree(template, project)
+    -             row = launch(root / "runtime", project, root / (kind + "-diagnostics"), store,
+    -                          loading="immutable", probe="active", expect_failure=True)
+391 +             row = launch(
+392 +                 root / "runtime",
+393 +                 project,
+394 +                 root / (kind + "-diagnostics"),
+395 +                 store,
+396 +                 loading="immutable",
+397 +                 probe="active",
+398 +                 expect_failure=True,
+399 +             )
+400 |             negatives.append(dict(case=kind, **row))
+401 |     assert sources() == meta["files"] and libraries() == meta["libraries"]
+402 |     for name, data in (("metadata", meta), ("runs", rows), ("negatives", negatives)):
+403 |         (output / (name + ".json")).write_text(json.dumps(data, separators=(",", ":")) + "\n")
+    -     certificate = dict(source_sha256=meta["source_sha256"], main_runs=32, cross_path_reproductions=16,
+    -                        ready_cancellations=2, failed_cache_runs=2, request_fingerprint_artifact_identity=True)
+404 +     certificate = dict(
+405 +         source_sha256=meta["source_sha256"],
+406 +         main_runs=32,
+407 +         cross_path_reproductions=16,
+408 +         ready_cancellations=2,
+409 +         failed_cache_runs=2,
+410 +         request_fingerprint_artifact_identity=True,
+411 +     )
+412 |     (output / "verification.json").write_text(json.dumps(certificate, indent=2) + "\n")
+--------------------------------------------------------------------------------
+416 | def cases():
+    -     return [dict(loading=location, probe=probe, producer=producer, jobs=n, repeat=i)
+    -             for location, probe, producer, n, i in itertools.product(
+    -                 ("attempt", "immutable"), ("dormant", "active"),
+    -                 ("independent", "feedback"), (5000, 20000), range(3))]
+417 +     return [
+418 +         dict(loading=location, probe=probe, producer=producer, jobs=n, repeat=i)
+419 +         for location, probe, producer, n, i in itertools.product(
+420 +             ("attempt", "immutable"), ("dormant", "active"), ("independent", "feedback"), (5000, 20000), range(3)
+421 +         )
+422 +     ]
+423 |
+--------------------------------------------------------------------------------
+459 |             shutil.copytree(template, project)
+    -             row = launch(root / "runtime", project, root / (str(index) + "-diagnostics"), root / "assets",
+    -                          **{k: v for k, v in case.items() if k != "repeat"})
+460 +             row = launch(
+461 +                 root / "runtime",
+462 +                 project,
+463 +                 root / (str(index) + "-diagnostics"),
+464 +                 root / "assets",
+465 +                 **{k: v for k, v in case.items() if k != "repeat"},
+466 +             )
+467 |             row.update(repeat=case["repeat"], first_immutable_use=first_immutable and case["loading"] == "immutable")
+--------------------------------------------------------------------------------
+495 |             group = [r for r in selected if r["loading"] == loading]
+    -             values[loading] = dict(process_s=[r["process_s"] for r in group],
+496 +             values[loading] = dict(
+497 +                 process_s=[r["process_s"] for r in group],
+498 |                 median_s=statistics.median(r["process_s"] for r in group),
+499 |                 import_s=statistics.median(sum(d["import_s"] for d in r["loaders"]) for r in group),
+    -                 verified_load_s=statistics.median(sum(d["total_s"] for d in r["loaders"]) for r in group))
+    -         summary.append(dict(producer=producer, jobs=n, probe=probe, values=values,
+    -                             reduction=1 - values["immutable"]["median_s"] / values["attempt"]["median_s"]))
+500 +                 verified_load_s=statistics.median(sum(d["total_s"] for d in r["loaders"]) for r in group),
+501 +             )
+502 +         summary.append(
+503 +             dict(
+504 +                 producer=producer,
+505 +                 jobs=n,
+506 +                 probe=probe,
+507 +                 values=values,
+508 +                 reduction=1 - values["immutable"]["median_s"] / values["attempt"]["median_s"],
+509 +             )
+510 +         )
+511 |     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    -     certificate = dict(source_sha256=meta["source_sha256"], experiments=48, replications=144,
+    -                        fresh_native_processes=len({d["pid"] for r in rows for d in r["loaders"]}),
+    -                        outputs_requests_fingerprints_artifacts_equal=True,
+    -                        evidence={p: hashlib.sha256((output / p).read_bytes()).hexdigest()
+    -                                  for p in ("metadata.json", "matrix.jsonl", "summary.json")})
+512 +     certificate = dict(
+513 +         source_sha256=meta["source_sha256"],
+514 +         experiments=48,
+515 +         replications=144,
+516 +         fresh_native_processes=len({d["pid"] for r in rows for d in r["loaders"]}),
+517 +         outputs_requests_fingerprints_artifacts_equal=True,
+518 +         evidence={
+519 +             p: hashlib.sha256((output / p).read_bytes()).hexdigest()
+520 +             for p in ("metadata.json", "matrix.jsonl", "summary.json")
+521 +         },
+522 +     )
+523 |     (output / "verification.json").write_text(json.dumps(certificate, indent=2) + "\n")
+--------------------------------------------------------------------------------
+550 |                 assert path.read_bytes() == subprocess.check_output(
+    -                     ["git", "show", "5c16f6f:" + path.relative_to(REPO).as_posix()], cwd=REPO)
+551 +                     ["git", "show", "5c16f6f:" + path.relative_to(REPO).as_posix()], cwd=REPO
+552 +                 )
+553 |                 unchanged += 1
+554 |     for path in [*(REPO / "src/simulatte").rglob("*.py"), *(ROOT / "csrc").glob("*.[ch]")]:
+555 |         assert path.read_bytes() == subprocess.check_output(
+    -             ["git", "show", "5c16f6f:" + path.relative_to(REPO).as_posix()], cwd=REPO)
+    -     result = dict(source_sha256=digest(sources()), historical_evidence_files=unchanged,
+    -                   production_and_C_sources_unchanged=True, rejected_corruptions=rejected,
+    -                   evidence={p.relative_to(output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+    -                             for p in sorted(output.rglob("*")) if p.is_file() and p != output / "verification.json"})
+556 +             ["git", "show", "5c16f6f:" + path.relative_to(REPO).as_posix()], cwd=REPO
+557 +         )
+558 +     result = dict(
+559 +         source_sha256=digest(sources()),
+560 +         historical_evidence_files=unchanged,
+561 +         production_and_C_sources_unchanged=True,
+562 +         rejected_corruptions=rejected,
+563 +         evidence={
+564 +             p.relative_to(output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+565 +             for p in sorted(output.rglob("*"))
+566 +             if p.is_file() and p != output / "verification.json"
+567 +         },
+568 +     )
+569 |     (output / "verification.json").write_text(json.dumps(result, indent=2) + "\n")
+    |
+
+unformatted: File would be reformatted
+  --> prototypes/native_engine_dynamic/phase-results/original-control-check.py:2:1
+   |
+1  | """Independent original-runtime comparison against the frozen probe gate."""
+2  +
+3  | import json
+--------------------------------------------------------------------------------
+22 |                 [dict(backend=b, producer=producer, jobs=40, servers=3, wip_cap=2) for b in ("production", "native")],
+   -                 count=2, stopping=Horizon(10, warmup=2),
+23 +                 count=2,
+24 +                 stopping=Horizon(10, warmup=2),
+25 |             )
+--------------------------------------------------------------------------------
+33 |                 assert a["request_id"] != b["request_id"]
+   -             records.append(dict(producer=producer, original=current, matched_fields=[
+   -                 "backend_state", "snapshot", "kpis", "proof", "steps", "fingerprint_digest"
+   -             ]))
+34 +             records.append(
+35 +                 dict(
+36 +                     producer=producer,
+37 +                     original=current,
+38 +                     matched_fields=["backend_state", "snapshot", "kpis", "proof", "steps", "fingerprint_digest"],
+39 +                 )
+40 +             )
+41 |     (output / "original-controls.json").write_text(json.dumps(records, indent=2) + "\n")
+   -     print("Eight original-runtime controls match shared outcomes, native/domain state and ordinary semantic fingerprints")
+42 +     print(
+43 +         "Eight original-runtime controls match shared outcomes, native/domain state and ordinary semantic fingerprints"
+44 +     )
+   |
+
+unformatted: File would be reformatted
+   --> prototypes/native_engine_dynamic/phase_experiment.py:33:13
+    |
+32  | def sources():
+    -     return {**prior.sources(), "specs/research/2026-11-02-native-phase-profile-plan.md":
+    -             hashlib.sha256((REPO / "specs/research/2026-11-02-native-phase-profile-plan.md").read_bytes()).hexdigest()}
+33  +     return {
+34  +         **prior.sources(),
+35  +         "specs/research/2026-11-02-native-phase-profile-plan.md": hashlib.sha256(
+36  +             (REPO / "specs/research/2026-11-02-native-phase-profile-plan.md").read_bytes()
+37  +         ).hexdigest(),
+38  +     }
+39  |
+40  |
+41  | def tree_hashes(root):
+    -     return {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+    -             for p in sorted(root.rglob("*")) if p.is_file() and "__pycache__" not in p.parts}
+42  +     return {
+43  +         p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+44  +         for p in sorted(root.rglob("*"))
+45  +         if p.is_file() and "__pycache__" not in p.parts
+46  +     }
+47  |
+--------------------------------------------------------------------------------
+57  |         if self.profile_output is not None and kind in ("run", "inspect"):
+    -             body = {**body, "config": {**body["config"], "_phase_profile": dict(
+    -                 output=str(self.profile_output / (key.attempt_id + ".json")),
+    -                 label=kind + ":" + key.request_id,
+    -             )}}
+58  +             body = {
+59  +                 **body,
+60  +                 "config": {
+61  +                     **body["config"],
+62  +                     "_phase_profile": dict(
+63  +                         output=str(self.profile_output / (key.attempt_id + ".json")),
+64  +                         label=kind + ":" + key.request_id,
+65  +                     ),
+66  +                 },
+67  +             }
+68  |         return super()._send(worker, kind, body, key=key)
+--------------------------------------------------------------------------------
+109 |     try:
+    -         parameters = [dict(backend=b, producer=args.producer, jobs=args.jobs,
+    -                            servers=3 if args.gate else 10, wip_cap=2 if args.gate else 12,
+    -                            verify=args.gate) for b in ("production", "native")] if args.gate else [dict(
+    -                                backend=args.backend, producer=args.producer, jobs=args.jobs, verify=False)]
+110 +         parameters = (
+111 +             [
+112 +                 dict(
+113 +                     backend=b,
+114 +                     producer=args.producer,
+115 +                     jobs=args.jobs,
+116 +                     servers=3 if args.gate else 10,
+117 +                     wip_cap=2 if args.gate else 12,
+118 +                     verify=args.gate,
+119 +                 )
+120 +                 for b in ("production", "native")
+121 +             ]
+122 +             if args.gate
+123 +             else [dict(backend=args.backend, producer=args.producer, jobs=args.jobs, verify=False)]
+124 +         )
+125 |         definition = prior.prior.definition(
+    -             parameters, count=2 if args.gate else 3,
+126 +             parameters,
+127 +             count=2 if args.gate else 3,
+128 |             stopping=Horizon(10, warmup=2) if args.gate else Horizon(30000, warmup=500),
+129 |         )
+130 |         spec = discover_project(args.project / MODEL.partition(":")[0], args.project)
+131 |         started = time.perf_counter()
+    -         with DiagnosticCoordinator(spec, reference=MODEL, slots=SlotConfig(local=1),
+    -                                    profile_output=profile_dir if enabled else None) as coordinator:
+132 +         with DiagnosticCoordinator(
+133 +             spec, reference=MODEL, slots=SlotConfig(local=1), profile_output=profile_dir if enabled else None
+134 +         ) as coordinator:
+135 |             run_id = coordinator.start_experiment(definition, timeout=60)
+--------------------------------------------------------------------------------
+142 |                     assert reproduced.fingerprint == original.fingerprint
+    -         observed = probe.timed("result.read_report")(
+    -             prior.read_results
+    -         )(args.project, run_id, baseline="production/base" if args.gate else None)
+143 +         observed = probe.timed("result.read_report")(prior.read_results)(
+144 +             args.project, run_id, baseline="production/base" if args.gate else None
+145 +         )
+146 |         if args.gate:
+--------------------------------------------------------------------------------
+165 |         assert profiles == []
+    -     return dict(mode=args.mode, backend=args.backend, producer=args.producer, jobs=args.jobs,
+    -                 workflow_s=elapsed, profiles=profiles, **observed)
+166 +     return dict(
+167 +         mode=args.mode,
+168 +         backend=args.backend,
+169 +         producer=args.producer,
+170 +         jobs=args.jobs,
+171 +         workflow_s=elapsed,
+172 +         profiles=profiles,
+173 +         **observed,
+174 +     )
+175 |
+176 |
+177 | def launch(runtime, project, output, *, mode, backend="native", producer="independent", jobs=40, gate=False):
+    -     command = [sys.executable, "-c", (
+    -         "import sys;sys.path.insert(0," + repr(str(runtime)) + ");"
+    -         "from prototypes.native_engine_dynamic.phase_experiment import main;main()"
+    -     ), "worker", "--project", str(project), "--profile-output", str(output), "--mode", mode,
+    -         "--backend", backend, "--producer", producer, "--jobs", str(jobs)]
+178 +     command = [
+179 +         sys.executable,
+180 +         "-c",
+181 +         (
+182 +             "import sys;sys.path.insert(0," + repr(str(runtime)) + ");"
+183 +             "from prototypes.native_engine_dynamic.phase_experiment import main;main()"
+184 +         ),
+185 +         "worker",
+186 +         "--project",
+187 +         str(project),
+188 +         "--profile-output",
+189 +         str(output),
+190 +         "--mode",
+191 +         mode,
+192 +         "--backend",
+193 +         backend,
+194 +         "--producer",
+195 +         producer,
+196 +         "--jobs",
+197 +         str(jobs),
+198 +     ]
+199 |     if gate:
+--------------------------------------------------------------------------------
+212 |     files = sources()
+    -     return dict(created=datetime.now(UTC).isoformat(), files=files, source_sha256=digest(files),
+    -                 revision=subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip(),
+    -                 libraries=libraries(), python=sys.version, clock=time.get_clock_info("perf_counter").implementation,
+    -                 scope="local CPython; same fixed native production slice; diagnostic disposable copies only")
+213 +     return dict(
+214 +         created=datetime.now(UTC).isoformat(),
+215 +         files=files,
+216 +         source_sha256=digest(files),
+217 +         revision=subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip(),
+218 +         libraries=libraries(),
+219 +         python=sys.version,
+220 +         clock=time.get_clock_info("perf_counter").implementation,
+221 +         scope="local CPython; same fixed native production slice; diagnostic disposable copies only",
+222 +     )
+223 |
+--------------------------------------------------------------------------------
+237 |             shutil.copytree(project, target)
+    -             row = launch(root / "runtime", target, root / (mode + producer + "-profiles"),
+    -                          mode=mode, producer=producer, gate=True)
+238 +             row = launch(
+239 +                 root / "runtime",
+240 +                 target,
+241 +                 root / (mode + producer + "-profiles"),
+242 +                 mode=mode,
+243 +                 producer=producer,
+244 +                 gate=True,
+245 +             )
+246 |             rows.append(row)
+--------------------------------------------------------------------------------
+250 |             for a, b in zip(selected[0]["replications"], selected[1]["replications"]):
+    -                 for key in ("request_id", "fingerprint_digest", "backend_state", "snapshot", "kpis", "proof", "steps",
+    -                             "artifact_sha256"):
+251 +                 for key in (
+252 +                     "request_id",
+253 +                     "fingerprint_digest",
+254 +                     "backend_state",
+255 +                     "snapshot",
+256 +                     "kpis",
+257 +                     "proof",
+258 +                     "steps",
+259 +                     "artifact_sha256",
+260 +                 ):
+261 |                     assert a[key] == b[key], key
+--------------------------------------------------------------------------------
+266 |             [dict(backend=b, jobs=40, servers=3, wip_cap=2) for b in ("production", "native")],
+    -             count=2, stopping=Horizon(10, warmup=2),
+267 +             count=2,
+268 +             stopping=Horizon(10, warmup=2),
+269 |         )
+270 |         from simulatte.experiments import run
+271 +
+272 |         status = run(definition, project=original, slots=SlotConfig(local=1), timeout=60)
+--------------------------------------------------------------------------------
+280 |     (output / "runs.json").write_text(json.dumps(rows, separators=(",", ":")) + "\n")
+    -     certificate = dict(source_sha256=meta["source_sha256"], main_runs=20, reproductions=8,
+    -                        active_dormant_request_fingerprint_identity=True, original_shared_state_identity=True,
+    -                        diagnostics_outside_results=True)
+281 +     certificate = dict(
+282 +         source_sha256=meta["source_sha256"],
+283 +         main_runs=20,
+284 +         reproductions=8,
+285 +         active_dormant_request_fingerprint_identity=True,
+286 +         original_shared_state_identity=True,
+287 +         diagnostics_outside_results=True,
+288 +     )
+289 |     (output / "verification.json").write_text(json.dumps(certificate, indent=2) + "\n")
+--------------------------------------------------------------------------------
+293 | def cases():
+    -     return [dict(backend=b, producer=p, jobs=n, mode=m, repeat=r)
+    -             for b, p, n, m, r in itertools.product(("production", "native"), ("independent", "feedback"),
+    -                                                   (5000, 20000), ("dormant", "active"), range(3))]
+294 +     return [
+295 +         dict(backend=b, producer=p, jobs=n, mode=m, repeat=r)
+296 +         for b, p, n, m, r in itertools.product(
+297 +             ("production", "native"), ("independent", "feedback"), (5000, 20000), ("dormant", "active"), range(3)
+298 +         )
+299 +     ]
+300 |
+--------------------------------------------------------------------------------
+306 |         assert groups.setdefault((row["producer"], row["jobs"]), values) == values
+    -         state = [(r["seed"], r["request_id"], r["fingerprint_digest"], r["backend_state"], r["artifact_sha256"])
+    -                  for r in row["replications"]]
+307 +         state = [
+308 +             (r["seed"], r["request_id"], r["fingerprint_digest"], r["backend_state"], r["artifact_sha256"])
+309 +             for r in row["replications"]
+310 +         ]
+311 |         assert fingerprints.setdefault((row["backend"], row["producer"], row["jobs"]), state) == state
+--------------------------------------------------------------------------------
+330 |     meta.update(
+    -         seed=SEED, case_order=order,
+331 +         seed=SEED,
+332 +         case_order=order,
+333 |         timing="whole fresh-process experiment, three replications; active/dormant disposable instrumented copies",
+--------------------------------------------------------------------------------
+344 |             shutil.copytree(template, project)
+    -             row = launch(root / "runtime", project, root / (str(index) + "-profiles"),
+    -                          **{k: v for k, v in case.items() if k != "repeat"})
+345 +             row = launch(
+346 +                 root / "runtime",
+347 +                 project,
+348 +                 root / (str(index) + "-profiles"),
+349 +                 **{k: v for k, v in case.items() if k != "repeat"},
+350 +             )
+351 |             row["repeat"] = case["repeat"]
+--------------------------------------------------------------------------------
+380 |         names = set.intersection(*(set(a) for a in aggregate))
+    -         phases = {name: dict(inclusive_s=statistics.median(a[name]["inclusive_ns"] / 1e9 for a in aggregate),
+    -                              exclusive_s=statistics.median(a[name]["exclusive_ns"] / 1e9 for a in aggregate))
+    -                   for name in sorted(names)}
+    -         summary.append(dict(backend=backend, producer=producer, jobs=n, wall_s=wall,
+    -                             overhead_fraction=wall["active"] / wall["dormant"] - 1, phases=phases))
+381 +         phases = {
+382 +             name: dict(
+383 +                 inclusive_s=statistics.median(a[name]["inclusive_ns"] / 1e9 for a in aggregate),
+384 +                 exclusive_s=statistics.median(a[name]["exclusive_ns"] / 1e9 for a in aggregate),
+385 +             )
+386 +             for name in sorted(names)
+387 +         }
+388 +         summary.append(
+389 +             dict(
+390 +                 backend=backend,
+391 +                 producer=producer,
+392 +                 jobs=n,
+393 +                 wall_s=wall,
+394 +                 overhead_fraction=wall["active"] / wall["dormant"] - 1,
+395 +                 phases=phases,
+396 +             )
+397 +         )
+398 |     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    -     certificate = dict(source_sha256=meta["source_sha256"], experiments=48, replications=144,
+    -                        exact_shared_results=True, active_dormant_fingerprints_equal=True,
+    -                        evidence={p: hashlib.sha256((output / p).read_bytes()).hexdigest()
+    -                                  for p in ("metadata.json", "matrix.jsonl", "summary.json")})
+399 +     certificate = dict(
+400 +         source_sha256=meta["source_sha256"],
+401 +         experiments=48,
+402 +         replications=144,
+403 +         exact_shared_results=True,
+404 +         active_dormant_fingerprints_equal=True,
+405 +         evidence={
+406 +             p: hashlib.sha256((output / p).read_bytes()).hexdigest()
+407 +             for p in ("metadata.json", "matrix.jsonl", "summary.json")
+408 +         },
+409 +     )
+410 |     (output / "verification.json").write_text(json.dumps(certificate, indent=2) + "\n")
+--------------------------------------------------------------------------------
+447 |                 assert path.read_bytes() == subprocess.check_output(
+    -                     ["git", "show", "fee446b:" + path.relative_to(REPO).as_posix()], cwd=REPO)
+448 +                     ["git", "show", "fee446b:" + path.relative_to(REPO).as_posix()], cwd=REPO
+449 +                 )
+450 |                 historical += 1
+--------------------------------------------------------------------------------
+455 |         assert path.read_bytes() == subprocess.check_output(
+    -             ["git", "show", "fee446b:" + path.relative_to(REPO).as_posix()], cwd=REPO)
+    -     certificate = dict(source_sha256=digest(sources()), historical_evidence_files=historical,
+    -                        production_and_native_sources_unchanged=True, rejected_corruptions=rejected,
+    -                        evidence={p.relative_to(output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+    -                                  for p in sorted(output.rglob("*"))
+    -                                  if p.is_file() and p != output / "verification.json"})
+456 +             ["git", "show", "fee446b:" + path.relative_to(REPO).as_posix()], cwd=REPO
+457 +         )
+458 +     certificate = dict(
+459 +         source_sha256=digest(sources()),
+460 +         historical_evidence_files=historical,
+461 +         production_and_native_sources_unchanged=True,
+462 +         rejected_corruptions=rejected,
+463 +         evidence={
+464 +             p.relative_to(output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+465 +             for p in sorted(output.rglob("*"))
+466 +             if p.is_file() and p != output / "verification.json"
+467 +         },
+468 +     )
+469 |     (output / "verification.json").write_text(json.dumps(certificate, indent=2) + "\n")
+    |
+
+unformatted: File would be reformatted
+   --> prototypes/native_engine_dynamic/phase_instrument.py:73:21
+    |
+72  |     ],
+    -     "compiled.py": [("CompiledStream.state_bytes", "native.state_bytes", True),
+    -                     ("extension", "native.extension_load", True)],
+73  +     "compiled.py": [
+74  +         ("CompiledStream.state_bytes", "native.state_bytes", True),
+75  +         ("extension", "native.extension_load", True),
+76  +     ],
+77  | }
+--------------------------------------------------------------------------------
+97  |             label, span = self.targets[qualified]
+    -             node.decorator_list.append(ast.Call(
+    -                 func=ast.Name(id="_phase_timed", ctx=ast.Load()),
+    -                 args=[ast.Constant(label), ast.Constant(span)], keywords=[],
+    -             ))
+98  +             node.decorator_list.append(
+99  +                 ast.Call(
+100 +                     func=ast.Name(id="_phase_timed", ctx=ast.Load()),
+101 +                     args=[ast.Constant(label), ast.Constant(span)],
+102 +                     keywords=[],
+103 +                 )
+104 +             )
+105 |             assert qualified not in self.found
+--------------------------------------------------------------------------------
+115 |     index = 1 if isinstance(tree.body[0], ast.Expr) and isinstance(tree.body[0].value, ast.Constant) else 0
+    -     while (index < len(tree.body) and isinstance(tree.body[index], ast.ImportFrom)
+    -            and tree.body[index].module == "__future__"):
+116 +     while (
+117 +         index < len(tree.body)
+118 +         and isinstance(tree.body[index], ast.ImportFrom)
+119 +         and tree.body[index].module == "__future__"
+120 +     ):
+121 |         index += 1
+--------------------------------------------------------------------------------
+125 |         # Its package import (used by driver/inspection) gets the real probe.
+    -         helper = ("if __name__ == '__main__':\n"
+    -                   "    def _phase_timed(*args):\n"
+    -                   "        return lambda function: function\n"
+    -                   "else:\n    " + helper)
+126 +         helper = (
+127 +             "if __name__ == '__main__':\n"
+128 +             "    def _phase_timed(*args):\n"
+129 +             "        return lambda function: function\n"
+130 +             "else:\n    " + helper
+131 +         )
+132 |     tree.body[index:index] = ast.parse(helper).body
+--------------------------------------------------------------------------------
+139 |         assert result.count(marker) == 1
+    -         result = result.replace(marker, "\n".join((
+    -             "        from simulatte._phase_probe import configure as _phase_configure, finish as _phase_finish",
+    -             "        _phase_configure(config.get('_phase_profile'))", marker,
+    -         )))
+140 +         result = result.replace(
+141 +             marker,
+142 +             "\n".join(
+143 +                 (
+144 +                     "        from simulatte._phase_probe import configure as _phase_configure, finish as _phase_finish",
+145 +                     "        _phase_configure(config.get('_phase_profile'))",
+146 +                     marker,
+147 +                 )
+148 +             ),
+149 +         )
+150 |         marker = "        return serve(config, connection)"
+151 |         assert result.count(marker) == 1
+    -         result = result.replace(marker, "\n".join((
+    -             "        try:", "            return serve(config, connection)",
+    -             "        finally:", "            _phase_finish()",
+    -         )))
+152 +         result = result.replace(
+153 +             marker,
+154 +             "\n".join(
+155 +                 (
+156 +                     "        try:",
+157 +                     "            return serve(config, connection)",
+158 +                     "        finally:",
+159 +                     "            _phase_finish()",
+160 +                 )
+161 +             ),
+162 +         )
+163 |     compile(result, "<instrumented>", "exec")
+--------------------------------------------------------------------------------
+168 |     runtime = Path(runtime)
+    -     shutil.copytree(REPO / "src/simulatte", runtime / "simulatte",
+    -                     ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+169 +     shutil.copytree(
+170 +         REPO / "src/simulatte", runtime / "simulatte", ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+171 +     )
+172 |     shutil.copyfile(ROOT / "phase_probe.py", runtime / "simulatte/_phase_probe.py")
+173 |     changed = {}
+    -     for root, prefix, mapping in ((runtime / "simulatte", "runtime", RUNTIME),
+    -                                   (project / "prototypes/native_engine_dynamic", "project", PROJECT)):
+174 +     for root, prefix, mapping in (
+175 +         (runtime / "simulatte", "runtime", RUNTIME),
+176 +         (project / "prototypes/native_engine_dynamic", "project", PROJECT),
+177 +     ):
+178 |         for name, targets in mapping.items():
+179 |             path = root / name
+180 |             original = path.read_text()
+    -             measured = transform(original, targets, stopping=name == "stopping.py",
+    -                                  bootstrap=name == "execution/bootstrap.py")
+181 +             measured = transform(
+182 +                 original, targets, stopping=name == "stopping.py", bootstrap=name == "execution/bootstrap.py"
+183 +             )
+184 |             path.write_text(measured)
+    |
+
+unformatted: File would be reformatted
+   --> prototypes/native_engine_dynamic/phase_probe.py:62:22
+    |
+61  |         document = dict(
+    -             schema=1, pid=self.pid, label=self.label, started_ns=self.started, ended_ns=ended,
+62  +             schema=1,
+63  +             pid=self.pid,
+64  +             label=self.label,
+65  +             started_ns=self.started,
+66  +             ended_ns=ended,
+67  |             clock=time.get_clock_info("perf_counter").implementation,
+--------------------------------------------------------------------------------
+99  |                 return function(*args, **kwargs)
+100 +
+101 |         return measured
+102 +
+103 |     return decorate
+    |
+
+unformatted: File would be reformatted
+  --> prototypes/native_engine_dynamic/tests/test_immutable_assets.py:21:46
+   |
+20 |     library.write_bytes(b"engine")
+   -     (root / "native-assets.json").write_text(json.dumps(dict(schema=1, files={
+   -         p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in (extension, library)
+   -     })))
+21 +     (root / "native-assets.json").write_text(
+22 +         json.dumps(
+23 +             dict(
+24 +                 schema=1,
+25 +                 files={
+26 +                     p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+27 +                     for p in (extension, library)
+28 +                 },
+29 +             )
+30 +         )
+31 +     )
+32 |     yield extension
+--------------------------------------------------------------------------------
+68 |         marker.chmod(0o644)
+   -         marker.write_text('{}')
+69 +         marker.write_text("{}")
+70 |         marker.chmod(0o444)
+   |
+
+12 files would be reformatted, 650 files already formatted

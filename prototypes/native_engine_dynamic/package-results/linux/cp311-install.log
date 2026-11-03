@@ -1,0 +1,1 @@
+{"passed": true, "output": "/home/davide/Developer/simulatte-native-package-20261103/prototypes/native_engine_dynamic/package-results/linux/cp311", "rejected": ["abi", "api", "manifest", "binary", "dependency", "runtime-mutation", "wheel-tag"]}

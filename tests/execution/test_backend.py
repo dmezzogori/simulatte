@@ -45,6 +45,106 @@ class FixedBackend(ExecutionBackend):
         self.closed += 1
 
 
+@pytest.mark.parametrize("name,schema", [("bad name", "v1"), ("ok", ""), (None, "v1"), ("ok", "a" * 129)])
+def test_backend_capability_identifiers_are_bounded(name, schema):
+    with pytest.raises(ValueError):
+        BackendCapabilities(name, schema)
+
+
+@pytest.mark.parametrize("condition", ["closed", "active", "policy", "queue", "layout", "warmup", "type"])
+def test_registration_rejects_unsupported_context_before_opening_resources(condition):
+    from simulatte.stopping import FinitePopulation
+
+    backend = FixedBackend()
+    env = Environment(seed=0)
+    env._execution_policy = Horizon(2)
+    if condition == "closed":
+        env.close()
+    elif condition == "active":
+        env.activate()
+    elif condition == "policy":
+        env._execution_policy = FinitePopulation(arrivals=1, safety_limit=2)
+    elif condition == "queue":
+        env.timeout(1)
+    elif condition == "layout":
+        Layout.from_dict(env, {"schema_version": "1.0", "placements": {}})
+    elif condition == "warmup":
+        env.configure_kpis(warmup=1)
+    else:
+        backend.capabilities = {"name": "not-capabilities"}
+    with pytest.raises((ValueError, TypeError, RuntimeError)):
+        env.attach_execution_backend(backend)
+    assert backend.opened == backend.closed == 0
+    env.close()
+
+
+def test_preparation_and_finalization_cannot_close_their_owner():
+    class Premature(FixedBackend):
+        def prepare(self, context):
+            super().prepare(context)
+            context.env.close()
+
+    backend = Premature()
+    with pytest.raises(RuntimeError, match="during preparation"):
+        environment(backend)
+    assert backend.closed == 1
+
+    class Finalizing(FixedBackend):
+        def finish(self):
+            self.context.env.close()
+
+    backend = Finalizing()
+    env, _ = environment(backend)
+    with pytest.raises(RuntimeError, match="during finalization"):
+        execute_until(env, Horizon(2))
+    env.close()
+    assert backend.closed == 1
+
+
+def test_capabilities_and_warmup_cannot_change_after_registration():
+    backend = FixedBackend()
+    env, _ = environment(backend)
+    backend.capabilities = BackendCapabilities("changed", "v2")
+    with pytest.raises(ValueError, match="capabilities"):
+        execute_until(env, Horizon(2))
+    env.close()
+    backend = FixedBackend()
+    env, _ = environment(backend)
+    env.configure_kpis(warmup=1)
+    with pytest.raises(ValueError, match="warm-up"):
+        env.activate()
+    env.close()
+
+
+def test_failed_snapshot_close_invalidates_getters_and_still_releases_resources():
+    class Broken(FixedBackend):
+        def kpi_values(self):
+            raise RuntimeError("snapshot unavailable")
+
+    backend = Broken()
+    env, _ = environment(backend)
+    with pytest.raises(RuntimeError, match="snapshot unavailable"):
+        env.close()
+    assert backend.closed == 1
+    binding = env._execution_backend
+    for query in (binding.kpi_values, binding.finish, lambda: binding.advance(2)):
+        with pytest.raises(RuntimeError):
+            query()
+    env.close()
+
+
+def test_prepare_exception_is_preserved_even_if_cleanup_fails():
+    class Broken(FixedBackend):
+        def close(self):
+            super().close()
+            raise RuntimeError("close failed")
+
+    backend = Broken(fail="prepare")
+    with pytest.raises(RuntimeError, match="prepare failed"):
+        environment(backend)
+    assert backend.closed == 1
+
+
 def environment(backend, *, path=None):
     env = Environment(seed=0)
     env._execution_policy = Horizon(2)

@@ -89,8 +89,12 @@ def declarations(values):
 
 
 def abi():
-    return {"implementation": sys.implementation.name, "abi": sysconfig.get_config_var("SOABI"),
-            "platform": sys.platform, "cache_tag": sys.implementation.cache_tag}
+    return {
+        "implementation": sys.implementation.name,
+        "abi": sysconfig.get_config_var("SOABI"),
+        "platform": sys.platform,
+        "cache_tag": sys.implementation.cache_tag,
+    }
 
 
 def _supported():
@@ -99,9 +103,14 @@ def _supported():
 
 
 def _payload(bundle, runtime_abi):
-    return {"schema": 1, "abi": _plain(runtime_abi),
-            "files": [{k: file[k] for k in ("name", "sha256", "size")}
-                      for file in sorted(bundle["files"], key=lambda f: f["name"])]}
+    return {
+        "schema": 1,
+        "abi": _plain(runtime_abi),
+        "files": [
+            {k: file[k] for k in ("name", "sha256", "size")}
+            for file in sorted(bundle["files"], key=lambda f: f["name"])
+        ],
+    }
 
 
 def _address(bundle, runtime_abi):
@@ -189,21 +198,29 @@ def _marker(bundle, runtime_abi):
 
 def _verify_entry(directory, bundle, runtime_abi):
     info = directory.lstat()
-    if (not stat.S_ISDIR(info.st_mode) or info.st_mode & 0o222 or directory.resolve() != directory
-            or directory.name != bundle["address"]):
+    if (
+        not stat.S_ISDIR(info.st_mode)
+        or info.st_mode & 0o222
+        or directory.resolve() != directory
+        or directory.name != bundle["address"]
+    ):
         raise ValueError("Invalid immutable native asset directory")
     names = {file["name"] for file in bundle["files"]}
     if {path.name for path in directory.iterdir()} != {*names, "manifest.json"}:
         raise ValueError("Unexpected or missing native asset member")
     marker = _marker(bundle, runtime_abi)
     _checked(directory / "manifest.json", hashlib.sha256(marker).hexdigest(), len(marker), readonly=True)
-    return {file["name"]: _checked(directory / file["name"], file["sha256"], file["size"], readonly=True)
-            for file in bundle["files"]}
+    return {
+        file["name"]: _checked(directory / file["name"], file["sha256"], file["size"], readonly=True)
+        for file in bundle["files"]
+    }
 
 
 def _verify_source(root, bundle):
-    return {file["source"]: _checked(root / file["source"], file["sha256"], file["size"], readonly=False)
-            for file in bundle["files"]}
+    return {
+        file["source"]: _checked(root / file["source"], file["sha256"], file["size"], readonly=False)
+        for file in bundle["files"]
+    }
 
 
 def _images(basename):
@@ -214,8 +231,11 @@ def _images(basename):
         name.restype, name.argtypes = ctypes.c_char_p, [ctypes.c_uint32]
         paths = [os.fsdecode(name(index)) for index in range(count())]
     elif sys.platform.startswith("linux"):
-        paths = [line.split(maxsplit=5)[-1] for line in Path("/proc/self/maps").read_text().splitlines()
-                 if len(line.split(maxsplit=5)) == 6]
+        paths = [
+            line.split(maxsplit=5)[-1]
+            for line in Path("/proc/self/maps").read_text().splitlines()
+            if len(line.split(maxsplit=5)) == 6
+        ]
     else:
         raise ValueError("Native dependency image checks require macOS or Linux")
     return {Path(path).resolve() for path in paths if Path(path).name == basename}
@@ -247,7 +267,8 @@ class VerifiedNativeBundle:
         if self.runtime_abi != abi():
             raise ValueError("Native asset interpreter ABI changed")
         return _verify_source(self.source_root, self.bundle), _verify_entry(
-            self.directory, self.bundle, self.runtime_abi)
+            self.directory, self.bundle, self.runtime_abi
+        )
 
     def path(self, name: str) -> Path:
         if name not in self.files:
@@ -365,9 +386,11 @@ class NativeAssetStore:
                 return []
             if self.root.is_symlink():
                 raise ValueError("Native asset store cannot be a symlink")
-            selected = sorted(path.name for path in self.root.iterdir()
-                              if (path.name.startswith(".publish-") or _ADDRESS.fullmatch(path.name))
-                              and not self.leases[path.name])
+            selected = sorted(
+                path.name
+                for path in self.root.iterdir()
+                if (path.name.startswith(".publish-") or _ADDRESS.fullmatch(path.name)) and not self.leases[path.name]
+            )
             if not dry_run:
                 from simulatte.execution.store import _remove
 
@@ -390,18 +413,21 @@ def verify_for_execution(config, source_hash, expected, source_root):
     if validate_manifest(manifest, source_hash) != declarations_:
         raise ValueError("Native asset manifest differs from model declaration")
     bound = read_document(config["native_bindings_ref"], "native-bindings")
-    if (set(bound) != {"schema", "source_hash", "directories"} or type(bound["schema"]) is not int
-            or bound["schema"] != 1 or bound["source_hash"] != source_hash
-            or not isinstance(bound["directories"], Mapping)
-            or set(bound["directories"]) != {bundle.name for bundle in declarations_}):
+    if (
+        set(bound) != {"schema", "source_hash", "directories"}
+        or type(bound["schema"]) is not int
+        or bound["schema"] != 1
+        or bound["source_hash"] != source_hash
+        or not isinstance(bound["directories"], Mapping)
+        or set(bound["directories"]) != {bundle.name for bundle in declarations_}
+    ):
         raise ValueError("Invalid native bundle bindings")
     result = {}
     for bundle in manifest["bundles"]:
         directory = Path(bound["directories"][bundle["name"]])
         if not directory.is_absolute():
             raise ValueError("Native bundle directory must be absolute")
-        handle = VerifiedNativeBundle(bundle["name"], directory, Path(source_root).resolve(),
-                                      bundle, manifest["abi"])
+        handle = VerifiedNativeBundle(bundle["name"], directory, Path(source_root).resolve(), bundle, manifest["abi"])
         handle.verify()
         result[bundle["name"]] = handle
     return MappingProxyType(result)

@@ -113,7 +113,8 @@ def execute(config, raw_request, key, control, spool, send):
 
         source_root = config["snapshot_root"] if "snapshot_root" in config else config["snapshot_roots"][0]
         native_assets = verify_for_execution(
-            config, request.source_hash, selected.get("native_assets", ()), source_root)
+            config, request.source_hash, selected.get("native_assets", ()), source_root
+        )
         metadata, build, policy = load_configuration(config, native_assets=native_assets)
     else:
         native_assets = {}
@@ -184,11 +185,24 @@ def execute(config, raw_request, key, control, spool, send):
             capabilities={
                 "fresh_process": True,
                 "ready_barrier": True,
-                **({"native_assets": {"schema": 1, "bundles": [
-                    {"name": handle.name, "address": handle.bundle["address"],
-                     "files": _plain(handle.bundle["files"]), "abi": _plain(handle.runtime_abi)}
-                    for handle in native_assets.values()
-                ]}} if native_assets else {}),
+                **(
+                    {
+                        "native_assets": {
+                            "schema": 1,
+                            "bundles": [
+                                {
+                                    "name": handle.name,
+                                    "address": handle.bundle["address"],
+                                    "files": _plain(handle.bundle["files"]),
+                                    "abi": _plain(handle.runtime_abi),
+                                }
+                                for handle in native_assets.values()
+                            ],
+                        }
+                    }
+                    if native_assets
+                    else {}
+                ),
                 **(
                     {"execution_backend": env._execution_backend.capabilities.to_dict()}
                     if env._execution_backend is not None

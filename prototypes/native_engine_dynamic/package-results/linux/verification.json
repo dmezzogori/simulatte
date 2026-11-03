@@ -1,0 +1,51 @@
+{
+  "source_sha256": "52feb8cbdf988165ca7594e4280f60234fe996831e3086de299f6f5c257e7ccf",
+  "rows": [
+    {
+      "python": "3.11",
+      "wheel": "simulatte_native-0.17.0-cp311-cp311-linux_x86_64.whl",
+      "wheel_sha256": "96ccaf03e45de040cd46768a1308be9e56a345f69badaa5ab07404bd45832365",
+      "sdist_sha256": "1c7408bc58f3913602dc15118a0a5c4c759e209db274105653b3a715a79d2a08",
+      "managed_runs": 8,
+      "reproductions": 4
+    },
+    {
+      "python": "3.14",
+      "wheel": "simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl",
+      "wheel_sha256": "4d6bec5d408612310f2d5b9ec54273d46f6557026e322f20116323304886eb80",
+      "sdist_sha256": "1c7408bc58f3913602dc15118a0a5c4c759e209db274105653b3a715a79d2a08",
+      "managed_runs": 8,
+      "reproductions": 4
+    },
+    {
+      "python": "3.15",
+      "wheel": "simulatte_native-0.17.0-cp315-cp315-linux_x86_64.whl",
+      "wheel_sha256": "26097e54b7bf70585acbfa58383f1589874597f61a8b98041425c9d7d6dd8afc",
+      "sdist_sha256": "408b9e07edefe74ca2acb68ade36d50ab361319b3edc8d19d9f5d96d08594ff2",
+      "managed_runs": 8,
+      "reproductions": 4
+    }
+  ],
+  "exact_seeded_kpis_across_abis": true,
+  "evidence": {
+    "cp311/installed.json": "3bc3553f7397501fe44955bca7b50c974b5bd075c427d72c75ac4cfdec493ddf",
+    "cp311/metadata.json": "a03102a7ca6ce7ce68f68797c2d5bcdb0325595c1b3a006018509262c43789ee",
+    "cp311/rejections.json": "49935e80602367a3f141c8773b57d68b0dd81fd8214d61cb6debb809193c7deb",
+    "cp311/verification.json": "cc459939e38ca7b40a3da8e2103ef0eb28d6738ab48de92fd4d92d010657898c",
+    "cp311-build.log": "e96820f393f15b8801a922f8597f3e1a8260c0216e688d1e46c16a3a815e5c8f",
+    "cp311-install.log": "18fbcb36206994c552b36000de36f4d326387bfd258b521ac52f9add79c057f4",
+    "cp314/installed.json": "a0a1e303837d6b86510d73b56cebc89e2145165806e431c9b9ad4c69d09252b7",
+    "cp314/metadata.json": "dab9e1d38da9345520b180300c059641593f9374c005ecdc27c498a0fae85eb6",
+    "cp314/rejections.json": "16fbaf371f6ece32dc38fd3daedf474d544e3568254307f3b3bf6a06bc2e803c",
+    "cp314/verification.json": "622549ca002bbedbb3b4c50bbfe127156ab1c005b2fbc65c25002ba3c3ed7d92",
+    "cp314-build.log": "dc27f03d63681aba13666922063ee78bba2a3df23cfb4dadcd200aeb597db013",
+    "cp314-install.log": "4522d7ffd601a7fecf3c16af78024cbbc8c972d00585015e4f5f172dd0962fcb",
+    "cp315/installed.json": "44077af9fea83b3adb29122712653462ce38487c25c8970b6fca278c01870052",
+    "cp315/metadata.json": "0c742ab97761d3046a03cc5945862fb5adc936561b0cebdbe1ae2fa378e31b65",
+    "cp315/rejections.json": "f802287aab10390eebfb324456bc10d08a885777f2d782bdaec281a78e8cd465",
+    "cp315/verification.json": "8832450f9e06677f84448f5436b6c1b2028292e75aadcf6238a0985e3b081ef3",
+    "cp315-build.log": "431b61efec4c30cd619878234a7d61235854b955041f4506cc7cfed0f24957bf",
+    "cp315-install.log": "cf9fd3bb1dc5f21e55150e339242260136a74b96f1b58029e18998ef8129687c",
+    "metadata.json": "3178b177215be1a817cffee5587dab47cc2fa3eeaf28019f56e1fbea6e3d595b"
+  }
+}

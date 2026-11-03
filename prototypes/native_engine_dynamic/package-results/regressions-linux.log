@@ -1,0 +1,229 @@
+........................................................................ [  2%]
+........................................................................ [  4%]
+........................................................................ [  6%]
+........................................................................ [  8%]
+........................................................................ [ 10%]
+........................................................................ [ 12%]
+........................................................................ [ 14%]
+...................s.................................................... [ 16%]
+........................................................................ [ 18%]
+........................................................................ [ 20%]
+........................................................................ [ 22%]
+........................................................................ [ 24%]
+........................................................................ [ 26%]
+........................................................................ [ 28%]
+........................................................................ [ 30%]
+......................................ss................................ [ 32%]
+........................................................................ [ 34%]
+........................................................................ [ 36%]
+........................................................................ [ 38%]
+........................................................................ [ 40%]
+........................................................................ [ 42%]
+........................................................................ [ 44%]
+........................................................................ [ 46%]
+........................................................................ [ 48%]
+........................................................................ [ 50%]
+........................................................................ [ 52%]
+........................................................................ [ 54%]
+........................................................................ [ 56%]
+........................................................................ [ 58%]
+........................................................................ [ 60%]
+........................................................................ [ 62%]
+...........................................................s............ [ 64%]
+........................................................................ [ 66%]
+........................................................................ [ 68%]
+........................................................................ [ 70%]
+........................................................................ [ 72%]
+........................................................................ [ 74%]
+........................................................................ [ 76%]
+........................................................................ [ 78%]
+........................................................................ [ 81%]
+........................................................................ [ 83%]
+........................................................................ [ 85%]
+........................................................................ [ 87%]
+........................................................................ [ 89%]
+........................................................................ [ 91%]
+........................................................................ [ 93%]
+........................................................................ [ 95%]
+........................................................................ [ 97%]
+........................................................................ [ 99%]
+...........................                                              [100%]
+=============================== warnings summary ===============================
+tests/core/test_studio.py:11
+  /home/davide/Developer/simulatte-native-package-20261103/tests/core/test_studio.py:11: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient
+
+.venv/lib/python3.14/site-packages/websockets/legacy/__init__.py:6
+  /home/davide/Developer/simulatte-native-package-20261103/.venv/lib/python3.14/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+.venv/lib/python3.14/site-packages/uvicorn/protocols/websockets/websockets_impl.py:41
+  /home/davide/Developer/simulatte-native-package-20261103/.venv/lib/python3.14/site-packages/uvicorn/protocols/websockets/websockets_impl.py:41: UvicornDeprecationWarning: The `websockets` implementation is deprecated, and `--ws websockets` will point at the `websockets-sansio` implementation in a future release. Use `--ws websockets-sansio` or `--ws auto` to switch now.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.14.4-final-0 ________________
+
+Name                                                Stmts   Miss Branch BrPart  Cover   Missing
+-----------------------------------------------------------------------------------------------
+src/simulatte/__init__.py                              22      1      4      0    96%   61
+src/simulatte/__main__.py                               2      0      0      0   100%
+src/simulatte/_optional.py                             10      0      2      0   100%
+src/simulatte/_wire.py                                294      0    162      0   100%
+src/simulatte/builders.py                              80      0      4      0   100%
+src/simulatte/cli.py                                   66      0     16      0   100%
+src/simulatte/collectors.py                           156      0     32      0   100%
+src/simulatte/digest.py                               162      1     50      1    99%   148
+src/simulatte/dispatching_rules/__init__.py             9      0      0      0   100%
+src/simulatte/dispatching_rules/composite.py           18      0      4      0   100%
+src/simulatte/dispatching_rules/due_date.py            13      0      0      0   100%
+src/simulatte/dispatching_rules/focus.py              159      1     56      1    99%   366
+src/simulatte/dispatching_rules/processing.py           6      0      0      0   100%
+src/simulatte/dispatching_rules/slack.py               28      0      8      0   100%
+src/simulatte/dispatching_rules/tardiness_cost.py      41      0     16      0   100%
+src/simulatte/dispatching_rules/work_content.py        19      0      4      0   100%
+src/simulatte/distributions.py                        180      0     26      0   100%
+src/simulatte/entities.py                             246      1     96      1    99%   448
+src/simulatte/environment.py                          404      2    126      2    99%   438, 458
+src/simulatte/events.py                               470      1    172      1    99%   571
+src/simulatte/execution/__init__.py                     1      0      0      0   100%
+src/simulatte/execution/backend.py                    127      0     48      0   100%
+src/simulatte/execution/backend_events.py              14      0      0      0   100%
+src/simulatte/execution/bootstrap.py                  112      2     36      4    96%   31->36, 38, 111->exit, 177
+src/simulatte/execution/bootstrap_remote.py            44      0     14      0   100%
+src/simulatte/execution/child.py                      131      4     38      3    96%   31, 48->exit, 137, 169-170
+src/simulatte/execution/command.py                    312      6     82      2    98%   250-251, 343-348, 386
+src/simulatte/execution/control.py                     42      0      8      0   100%
+src/simulatte/execution/coordinator.py                967     10    314     12    98%   133, 738, 832, 935-936, 949, 1115, 1195, 1207->1213, 1267, 1282, 1295->1322, 1301->1318, 1318->1322
+src/simulatte/execution/cursor_hint.py                 47      0     30      0   100%
+src/simulatte/execution/diagnostics.py                 69      0     18      0   100%
+src/simulatte/execution/driver.py                     180      1     52      3    98%   57->56, 241, 285->287
+src/simulatte/execution/durability.py                  25      0      6      0   100%
+src/simulatte/execution/hashing.py                      6      0      0      0   100%
+src/simulatte/execution/imports.py                     82      2     50      2    97%   52, 73
+src/simulatte/execution/inputs.py                     310      3     94      3    99%   350, 374->388, 379-380, 437->439
+src/simulatte/execution/layout_files.py               103      1     26      2    98%   121, 145->exit
+src/simulatte/execution/native_assets.py              326      0    138      0   100%
+src/simulatte/execution/preflight.py                  113      0     50      0   100%
+src/simulatte/execution/process.py                    219     19     64      9    90%   83, 90->92, 94-96, 98->97, 126, 130-131, 137, 154, 165->167, 168, 232-235, 284-285, 289-291, 296
+src/simulatte/execution/protocol.py                   133      0     52      0   100%
+src/simulatte/execution/provisioning.py               384      0    122      0   100%
+src/simulatte/execution/publication.py                187      1     78      1    99%   239
+src/simulatte/execution/receipts.py                   185      2     76      3    98%   74->83, 78, 82
+src/simulatte/execution/references.py                  77      0     32      1    99%   98->100
+src/simulatte/execution/replay.py                      29      0     14      0   100%
+src/simulatte/execution/revisions.py                   10      0      0      0   100%
+src/simulatte/execution/runtime.py                     49      0     16      0   100%
+src/simulatte/execution/scheduler.py                  199      4     62      4    97%   184, 246-247, 274, 324->exit
+src/simulatte/execution/schema.py                     146      0     48      0   100%
+src/simulatte/execution/slots.py                       22      0      4      0   100%
+src/simulatte/execution/snapshot.py                   600      4    264      7    99%   180, 236->235, 274->276, 479->483, 508, 771, 783
+src/simulatte/execution/spool.py                      209      1     52      1    99%   237
+src/simulatte/execution/ssh.py                         64      0      8      0   100%
+src/simulatte/execution/staging.py                     90      3     32      0    98%   74, 110-111
+src/simulatte/execution/store.py                      570      1    240      3    99%   216->214, 236, 313->315
+src/simulatte/execution/supervisor.py                 396      9    142      6    97%   164->exit, 190-191, 236-237, 415, 430, 448, 485, 488
+src/simulatte/execution/transfer.py                   117      0     42      0   100%
+src/simulatte/execution/transport.py                  202      2     46      1    99%   109->exit, 205-206
+src/simulatte/execution/windows_job.py                114      0     36      1    99%   199->exit
+src/simulatte/execution/workers.py                    215      0     82      0   100%
+src/simulatte/execution/workers_cli.py                 79      0     30      0   100%
+src/simulatte/experimental/__init__.py                 11      0      2      0   100%
+src/simulatte/experimental/gymnasium.py                49      0      8      0   100%
+src/simulatte/experimental/native.py                  207      2     54      0    99%   184-185
+src/simulatte/experiments/__init__.py                   4      0      0      0   100%
+src/simulatte/experiments/definition.py               242      0    110      0   100%
+src/simulatte/experiments/expansion.py                106      0     40      0   100%
+src/simulatte/experiments/results.py                   87      0     14      0   100%
+src/simulatte/experiments/runner.py                    20      0      2      0   100%
+src/simulatte/intralogistics/__init__.py               17      0      0      0   100%
+src/simulatte/intralogistics/_resources.py             33      0      8      0   100%
+src/simulatte/intralogistics/agv.py                   162      1     38      1    99%   210
+src/simulatte/intralogistics/battery.py                35      0      2      0   100%
+src/simulatte/intralogistics/builders.py               73      0     26      0   100%
+src/simulatte/intralogistics/charging.py              116      0     24      0   100%
+src/simulatte/intralogistics/events.py                119      0      0      0   100%
+src/simulatte/intralogistics/fleet.py                 768      7    324     21    97%   591, 645->647, 651->653, 711, 714, 721->723, 723->725, 725->735, 765, 784->786, 798, 804->exit, 869->871, 881->883, 1087->1089, 1106->1111, 1127->1129, 1170-1171, 1194->1199, 1294->1285, 1302->1304
+src/simulatte/intralogistics/graph.py                  78      0     16      0   100%
+src/simulatte/intralogistics/metrics.py               167      0     42      0   100%
+src/simulatte/intralogistics/order.py                  40      0      0      0   100%
+src/simulatte/intralogistics/parking.py                74      0     16      1    99%   120->exit
+src/simulatte/intralogistics/pathfinding.py            69      2     32      2    96%   48, 91
+src/simulatte/intralogistics/policies.py               92      0     20      0   100%
+src/simulatte/intralogistics/sku.py                    14      0      4      0   100%
+src/simulatte/intralogistics/speed.py                  55      0     12      0   100%
+src/simulatte/intralogistics/traffic.py               183      0     68      0   100%
+src/simulatte/intralogistics/warehouse.py             119      0     22      1    99%   166->168
+src/simulatte/job.py                                  166      2     32      2    98%   115, 151
+src/simulatte/kpi.py                                  269      0     96      0   100%
+src/simulatte/layout/__init__.py                        5      0      0      0   100%
+src/simulatte/layout/auto.py                          252      0    114      0   100%
+src/simulatte/layout/binding.py                        82      0     42      0   100%
+src/simulatte/layout/bundle.py                        419     10    242     13    97%   127, 132, 152, 208, 214, 218, 227, 230, 236->231, 258->260, 261, 589->599, 624
+src/simulatte/layout/connectors.py                    109      0     34      0   100%
+src/simulatte/layout/dependencies.py                  180      0     70      0   100%
+src/simulatte/layout/errors.py                         34      0      2      0   100%
+src/simulatte/layout/geometry.py                      106      0     26      0   100%
+src/simulatte/layout/identity.py                       54      0     24      0   100%
+src/simulatte/layout/io.py                             71      0     30      1    99%   92->exit
+src/simulatte/layout/layers.py                        214      1    104      2    99%   167->162, 181
+src/simulatte/layout/layout.py                        266      1    108      2    99%   139->149, 248
+src/simulatte/layout/lifecycle.py                     250      0     84      0   100%
+src/simulatte/layout/network.py                       427      0    206      0   100%
+src/simulatte/layout/overrides.py                      80      0     46      1    99%   62->64
+src/simulatte/layout/refs.py                           65      0     14      0   100%
+src/simulatte/layout/schema/__init__.py               110      0     70      0   100%
+src/simulatte/layout/stages.py                         70      0     18      0   100%
+src/simulatte/layout/topology.py                       61      0     28      0   100%
+src/simulatte/layout/types.py                         233      0     76      0   100%
+src/simulatte/logsinks.py                             234      0     50      0   100%
+src/simulatte/model.py                                272      5    150      6    97%   80, 82, 89, 152, 232->236, 402
+src/simulatte/policies/__init__.py                     11      0      0      0   100%
+src/simulatte/policies/continuous_release.py           35      0     14      0   100%
+src/simulatte/policies/conwip.py                       28      0     12      0   100%
+src/simulatte/policies/draco.py                       101      0     36      0   100%
+src/simulatte/policies/events.py                        8      0      0      0   100%
+src/simulatte/policies/lumscor.py                      52      0     20      0   100%
+src/simulatte/policies/norms.py                        22      0     10      0   100%
+src/simulatte/policies/slar.py                         58      0     20      0   100%
+src/simulatte/policies/slar_limit.py                   23      0      8      0   100%
+src/simulatte/policies/starvation_avoidance.py          7      0      4      0   100%
+src/simulatte/policies/triggers.py                     15      0      2      0   100%
+src/simulatte/provenance.py                            65      0     12      0   100%
+src/simulatte/psp.py                                   76      0     10      0   100%
+src/simulatte/rng.py                                   56      0     16      0   100%
+src/simulatte/router.py                                56      0      4      0   100%
+src/simulatte/runner.py                                51      0      8      0   100%
+src/simulatte/scenario.py                             122      1     34      1    99%   222
+src/simulatte/server.py                               216      0     48      0   100%
+src/simulatte/shopfloor.py                            234      1     68      1    99%   761
+src/simulatte/statistics.py                           132      0     48      0   100%
+src/simulatte/stopping.py                             180      5     74      5    96%   103, 129, 179, 181, 187
+src/simulatte/studio/__init__.py                        0      0      0      0   100%
+src/simulatte/studio/app.py                           429     11    176      6    97%   216->218, 299, 365-366, 382-384, 409-410, 430-431, 505
+src/simulatte/studio/auth.py                           55      0     10      0   100%
+src/simulatte/studio/command.py                        59      0     14      0   100%
+src/simulatte/studio/experiments.py                   301      4     86      3    98%   226, 229->exit, 331, 378->384, 381-382
+src/simulatte/studio/http.py                          166      0     58      0   100%
+src/simulatte/studio/lifecycle.py                     169      0     60      0   100%
+src/simulatte/studio/monitor.py                       128      0     38      2    99%   87->85, 122->144
+src/simulatte/studio/server.py                        163      0     66      0   100%
+src/simulatte/studio/watcher.py                       195      0     64      1    99%   116->115
+src/simulatte/studio/websocket.py                     276      0    100      0   100%
+src/simulatte/trace/__init__.py                         5      0      0      0   100%
+src/simulatte/trace/execution.py                       61      0     22      0   100%
+src/simulatte/trace/format.py                          38      0      0      0   100%
+src/simulatte/trace/reader.py                         640      0    272      0   100%
+src/simulatte/trace/sink.py                            66      0     16      1    99%   83->85
+src/simulatte/trace/writer.py                         577      1    204      1    99%   600
+src/simulatte/typing.py                                21      0      0      0   100%
+-----------------------------------------------------------------------------------------------
+TOTAL                                               21558    136   7508    148    99%
+Coverage XML written to file coverage.xml
+Required test coverage of 99% reached. Total coverage: 99.02%
+=========================== short test summary info ============================
+SKIPPED [1] tests/core/test_g1_acceptance.py:237: golden values are pinned on macOS arm64 for CPython and PyPy (libm-dependent samples)
+SKIPPED [2] tests/core/test_studio_packaging.py:121: Node is not available
+SKIPPED [1] tests/execution/test_windows_job.py:115: Requires native Windows Job API
+3551 passed, 4 skipped, 3 warnings in 426.54s (0:07:06)

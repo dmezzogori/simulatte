@@ -14,7 +14,7 @@ from simulatte.stopping import Horizon
 
 pytestmark = pytest.mark.skipif(os.name != "posix", reason="native assets initially support local POSIX execution")
 
-MODEL = '''from dataclasses import dataclass
+MODEL = """from dataclasses import dataclass
 import hashlib
 from simulatte import model, KPI
 from simulatte.execution.backend import ExecutionBackend, BackendCapabilities
@@ -50,7 +50,7 @@ class Backend(ExecutionBackend):
 @model(params=Params, horizon=2, native_assets=(NativeAssetBundle("engine", ("engine.so",)),))
 def build(env, layout, params):
     env.attach_execution_backend(Backend(params.corrupt))
-'''
+"""
 
 
 def project(tmp_path):
@@ -65,9 +65,14 @@ def project(tmp_path):
 def test_two_slots_eviction_and_reproduction_use_captured_assets(tmp_path):
     spec = project(tmp_path)
     with Coordinator(spec, slots=SlotConfig(local=2)) as coordinator:
-        experiment = Experiment(name="assets", model="plant.py:build", stopping=Horizon(2),
-                                configurations=Explicit([dict(label="one", parameters={})]),
-                                replications=Replications(count=4, base_seed=100), level="kpi")
+        experiment = Experiment(
+            name="assets",
+            model="plant.py:build",
+            stopping=Horizon(2),
+            configurations=Explicit([dict(label="one", parameters={})]),
+            replications=Replications(count=4, base_seed=100),
+            level="kpi",
+        )
         identity = coordinator.start_experiment(experiment, timeout=15)
         assert coordinator.wait_experiment(identity)["counts"]["succeeded"] == 4
         rows = coordinator.store.replications(identity)

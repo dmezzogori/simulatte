@@ -1,6 +1,10 @@
 # Experimental API
 
 This module contains unstable APIs that may change or be removed without prior notice.
+
+The optional [native production backend](../guides/native-engine.md) exposes
+`Job`, `JobHandle`, `NativeStream` and `NativeProduction` through
+`simulatte.experimental.native`.
 `SimulatteEnv` is an abstract base class (ABC) that wraps a Simulatte simulation as a
 [Gymnasium](https://gymnasium.farama.org/) `Env`, enabling reinforcement-learning training
 loops. Subclasses implement six abstract methods (`setup`, `get_observation`, `apply_action`,
@@ -14,4 +18,10 @@ See the [Reinforcement Learning guide](../guides/reinforcement-learning.md) and 
     options:
       heading_level: 2
       members: null
+      filters: ["!^_"]
+
+::: simulatte.experimental.native
+    options:
+      heading_level: 2
+      members: [Job, JobHandle, NativeStream, NativeProduction]
       filters: ["!^_"]

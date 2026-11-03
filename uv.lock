@@ -1822,6 +1822,9 @@ all = [
     { name = "watchfiles" },
     { name = "websockets" },
 ]
+native = [
+    { name = "simulatte-native", marker = "(implementation_name == 'cpython' and sys_platform == 'darwin') or (implementation_name == 'cpython' and sys_platform == 'linux')" },
+]
 plot = [
     { name = "matplotlib" },
 ]
@@ -1858,6 +1861,7 @@ requires-dist = [
     { name = "msgpack", specifier = ">=1.0.8" },
     { name = "simpy", specifier = ">=4.0.1" },
     { name = "simulatte", extras = ["plot", "rl", "studio"], marker = "extra == 'all'" },
+    { name = "simulatte-native", marker = "(implementation_name == 'cpython' and sys_platform == 'darwin' and extra == 'native') or (implementation_name == 'cpython' and sys_platform == 'linux' and extra == 'native')", directory = "native" },
     { name = "starlette", marker = "extra == 'studio'", specifier = ">=0.48" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
@@ -1865,7 +1869,7 @@ requires-dist = [
     { name = "watchfiles", marker = "extra == 'studio'", specifier = ">=1.1" },
     { name = "websockets", marker = "extra == 'studio'", specifier = ">=15" },
 ]
-provides-extras = ["plot", "rl", "studio", "all"]
+provides-extras = ["native", "plot", "rl", "studio", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1882,6 +1886,17 @@ dev = [
     { name = "ty", specifier = ">=0.0.85" },
     { name = "zensical", specifier = ">=0.0.14" },
 ]
+
+[[package]]
+name = "simulatte-native"
+version = "0.17.0"
+source = { directory = "native" }
+dependencies = [
+    { name = "simulatte" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "simulatte", specifier = "==0.17.0" }]
 
 [[package]]
 name = "six"

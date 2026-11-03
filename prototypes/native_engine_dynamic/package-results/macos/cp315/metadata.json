@@ -1,0 +1,12 @@
+{
+  "core": "simulatte-0.17.0-py3-none-any.whl",
+  "core_sha256": "bc09b90df7b0bfe67cb94b31c13b14390bf6c46710f7dfee3441b9a19076f235",
+  "native": "simulatte_native-0.17.0-cp315-cp315-macosx_27_0_arm64.whl",
+  "native_sha256": "5a286b163a51a4bf9d770566ca8f5855c87954c4d1962a5bba3ca4d0ddf153dc",
+  "base_probe": "pure base and optional dependency error pass\n",
+  "compiler_unavailable_at_runtime": true,
+  "native_extra_installs_provider": true,
+  "runner_sha256": "170db6eba41f9c9e782f2c7488b80daf6ab162af7fb0ca18a6a75660cd8851d0",
+  "probe_sha256": "bc55aa2c10cc14b9db72533bee4005e903c2e4a960259385eefa035b1abc56ae",
+  "python": "3.15.2 (main, Oct 26 2026, 13:59:33) [Clang 23.1.3 ]"
+}

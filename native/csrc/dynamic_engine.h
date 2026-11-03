@@ -1,0 +1,66 @@
+#ifndef DYNAMIC_ENGINE_H
+#define DYNAMIC_ENGINE_H
+#include <stddef.h>
+#include <stdint.h>
+
+typedef struct nd_engine nd_engine;
+typedef struct {
+    const double *starts, *ends, *finished, *released;
+    const uint32_t *dispatch;
+    double makespan;
+    uint64_t completed, events, callbacks, records;
+    double total_flow, total_wait, total_tardiness;
+    const double *busy;
+    double wip_area;
+    uint64_t max_wip;
+    double total_pool_wait, floor_wip_area;
+    uint64_t max_floor_wip;
+} nd_result;
+typedef struct { double arrival, released, finished; uint32_t state; } nd_snapshot;
+typedef struct {
+    double start, end, values[8];
+    uint32_t present;
+    int closed;
+} nd_kpi_snapshot;
+/* Configure only before registration/advancement. Scalars use the production
+ * ShopFloorKPIs declaration order. Getter returns -2 for temporary allocation
+ * failure without poisoning; -1 for unavailable/failed state. */
+int nd_enable_stock_kpis(nd_engine *, double warmup);
+int nd_stock_kpis(const nd_engine *, nd_kpi_snapshot *);
+/* cap == 0 means unlimited. Every failed mutating call poisons the engine.
+ * Caller supplies readable arrays of exactly the declared lengths; lengths are
+ * checked against count before either array is read. IDs exclude UINT32_MAX.
+ * Returned result pointers are engine-owned, valid until nd_destroy only. */
+nd_engine *nd_create(uint32_t servers, uint32_t cap, int policy, int mode,
+                     const char *path, char *error, size_t error_capacity);
+int nd_add(nd_engine *, double arrival, double due, uint32_t count,
+           const uint32_t *routes, size_t route_length,
+           const double *durations, size_t duration_length, uint32_t *id);
+/* Copied contiguous batch; no advancement or callbacks between registrations.
+ * Offsets start at zero and end at route_length. On failure the engine is
+ * poisoned, including when earlier jobs in this batch were already copied. */
+int nd_add_many(nd_engine *, uint32_t jobs,
+                const double *arrivals, size_t arrival_length,
+                const double *due, size_t due_length,
+                const uint32_t *offsets, size_t offset_length,
+                const uint32_t *routes, size_t route_length,
+                const double *durations, size_t duration_length, uint32_t *first_id);
+int nd_advance(nd_engine *, double until);
+/* Flush already-produced journal bytes; no scheduling or time advancement. */
+int nd_flush(nd_engine *);
+int nd_run(nd_engine *);
+int nd_inspect(const nd_engine *, uint32_t id, nd_snapshot *);
+/* Pure versioned logical-state encoding, excluding observer/allocator details.
+ * Exact capacity from size() is required; -2 means temporary allocation failure.
+ * Caller serializes access and owns the writable destination. No pointers escape. */
+int nd_state_size(const nd_engine *, size_t *);
+int nd_state_write(const nd_engine *, unsigned char *, size_t capacity);
+double nd_now(const nd_engine *);
+const nd_result *nd_get_result(const nd_engine *);
+const char *nd_error(const nd_engine *);
+void nd_destroy(nd_engine *);
+#ifdef ND_TEST_ALLOCATIONS
+void nd_test_fail_allocation(size_t nth);
+void nd_test_sequence(nd_engine *, uint64_t value);
+#endif
+#endif

@@ -1,0 +1,32 @@
+[project]
+name = "simulatte-native"
+version = "0.17.0"
+description = "Optional experimental native scalar production backend for Simulatte"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = ["simulatte==0.17.0"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: C",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { file = "hatch_build.py" }, { file = "sources.json" }, { file = "README.md" }, { file = "LICENSE" }, { file = "csrc/*" }, { file = "src/**/*.py" }, { env = "CC" }]
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/simulatte_native"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/csrc", "/hatch_build.py", "/pyproject.toml", "/README.md", "/LICENSE", "/sources.json"]

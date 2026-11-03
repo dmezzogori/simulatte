@@ -395,8 +395,9 @@ class Coordinator:
         if selected.get("native_assets"):
             from simulatte.execution.native_assets import NativeAssetBundle, capture_manifest
 
-            manifest = capture_manifest(snapshot.source, tuple(
-                NativeAssetBundle.from_dict(value) for value in selected["native_assets"]))
+            manifest = capture_manifest(
+                snapshot.source, tuple(NativeAssetBundle.from_dict(value) for value in selected["native_assets"])
+            )
             documents["native_assets_ref"] = self._document("native-assets", manifest)
         return PreparedModel(
             snapshot, revision, project.model + ":" + metadata["selected"], metadata, layer, runtime, documents
@@ -1132,8 +1133,11 @@ class SlotActor:
                     "reference": job.request.model,
                     "metadata_artifacts": True,
                     **job.documents,
-                    **({"native_bindings_ref": c._document("native-bindings", native_lease.bindings())}
-                       if native_lease is not None else {}),
+                    **(
+                        {"native_bindings_ref": c._document("native-bindings", native_lease.bindings())}
+                        if native_lease is not None
+                        else {}
+                    ),
                 }
                 body = {
                     "config": config,

@@ -1,0 +1,22 @@
+[
+  {
+    "command": ".venv/bin/ruff check src tests native",
+    "exit_code": 0,
+    "log": "lint.log"
+  },
+  {
+    "command": ".venv/bin/ruff format --check src tests native docs/guides/native-engine.md docs/guides/execution-backends.md",
+    "exit_code": 0,
+    "log": "format.log"
+  },
+  {
+    "command": ".venv/bin/ty check src",
+    "exit_code": 0,
+    "log": "types.log"
+  },
+  {
+    "command": "uv lock --check",
+    "exit_code": 0,
+    "log": "lock.log"
+  }
+]

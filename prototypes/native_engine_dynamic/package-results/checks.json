@@ -1,0 +1,109 @@
+{
+  "source_sha256": "52feb8cbdf988165ca7594e4280f60234fe996831e3086de299f6f5c257e7ccf",
+  "commands": [
+    {
+      "command": ".venv/bin/ruff check src tests native",
+      "exit_code": 0,
+      "log": "lint.log"
+    },
+    {
+      "command": ".venv/bin/ruff format --check src tests native docs/guides/native-engine.md docs/guides/execution-backends.md",
+      "exit_code": 0,
+      "log": "format.log"
+    },
+    {
+      "command": ".venv/bin/ty check src",
+      "exit_code": 0,
+      "log": "types.log"
+    },
+    {
+      "command": "uv lock --check",
+      "exit_code": 0,
+      "log": "lock.log"
+    },
+    {
+      "command": ".venv/bin/zensical build",
+      "exit_code": 0,
+      "log": "docs.log"
+    },
+    {
+      "command": "CI YAML six-case matrix, provider/core version pins and uv noneditable source consistency",
+      "exit_code": 0
+    },
+    {
+      "command": "native/package_matrix.py: macos CPython 3.11/3.14/3.15",
+      "exit_code": 0
+    },
+    {
+      "command": "native/package_matrix.py: linux CPython 3.11/3.14/3.15",
+      "exit_code": 0
+    }
+  ],
+  "regressions": [
+    {
+      "host": "macos",
+      "command": ".venv/bin/python -m pytest",
+      "exit_code": 0,
+      "passed": 3554,
+      "skipped": 1,
+      "coverage_percent": 99.05043693662698,
+      "coverage_counts": {
+        "lines-valid": 21558,
+        "lines-covered": 21431,
+        "branches-valid": 7508,
+        "branches-covered": 7359
+      },
+      "log": "regressions-macos.log",
+      "sha256": "c6d866fb1ea68366b3c3a4f13ddb27d66a9de8223e2e5c10c88c6e204177a888"
+    },
+    {
+      "host": "linux",
+      "command": ".venv/bin/python -I -S prototypes/native_engine_dynamic/linux-results/isolated_pytest.py tests -o addopts=\"--cov=src/simulatte --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=99\" -q --tb=short -ra",
+      "exit_code": 0,
+      "passed": 3551,
+      "skipped": 4,
+      "coverage_percent": 99.01603247780912,
+      "coverage_counts": {
+        "lines-valid": 21558,
+        "lines-covered": 21422,
+        "branches-valid": 7508,
+        "branches-covered": 7358
+      },
+      "log": "regressions-linux.log",
+      "sha256": "e19034b5882846820eb56059768a922ef474adda714bf9c7703fe043347a2e93"
+    }
+  ],
+  "pre_existing_failures": [
+    {
+      "command": ".venv/bin/ruff format --check",
+      "exit_code": 1,
+      "files": [
+        "prototypes/native_engine_dynamic/assets_experiment.py",
+        "prototypes/native_engine_dynamic/assets_model.py",
+        "prototypes/native_engine_dynamic/immutable_assets.py",
+        "prototypes/native_engine_dynamic/linux_gate.py",
+        "prototypes/native_engine_dynamic/loading-results/independent_audit.py",
+        "prototypes/native_engine_dynamic/loading-results/original-control-check.py",
+        "prototypes/native_engine_dynamic/loading_experiment.py",
+        "prototypes/native_engine_dynamic/phase-results/original-control-check.py",
+        "prototypes/native_engine_dynamic/phase_experiment.py",
+        "prototypes/native_engine_dynamic/phase_instrument.py",
+        "prototypes/native_engine_dynamic/phase_probe.py",
+        "prototypes/native_engine_dynamic/tests/test_immutable_assets.py"
+      ],
+      "reason": "Existing research source/evidence retained byte-for-byte; formatter check unchanged."
+    }
+  ],
+  "evidence": {
+    "command-results.json": "469a8269cae3b320de0cc976bda8da9f91efdccaa4c92d725a28f329033c8d4a",
+    "docs.log": "113cd0823d385bd29c0e6a7b9a628bd86d36261972aaf7da3105466cb7ba79bd",
+    "format-whole-repo.log": "ed950b48cc3b31cc8494b9f57e18a266b20a9a11c588a13046a5cb900982e02b",
+    "format.log": "b40f1e967eb74e3fa70c9cb281e42a928c81b1afa41d2231388b968e892afa10",
+    "lint.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "lock.log": "dc881ffac89b01d7ee466b37ddf2221877a8f0ca558e013b7e14d9dbe22ed2d1",
+    "regressions-linux.log": "e19034b5882846820eb56059768a922ef474adda714bf9c7703fe043347a2e93",
+    "regressions-macos.log": "c6d866fb1ea68366b3c3a4f13ddb27d66a9de8223e2e5c10c88c6e204177a888",
+    "types.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "verify.py": "67af43214b31f434e52f8b3a82307885bce723f53b2f2f502fdf1bbca50fab2f"
+  }
+}

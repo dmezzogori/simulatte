@@ -37,6 +37,7 @@ dependencies = [
 simulatte = "simulatte.cli:main"
 
 [project.optional-dependencies]
+native = ["simulatte-native==0.17.0; implementation_name == 'cpython' and (sys_platform == 'darwin' or sys_platform == 'linux')"]
 plot = ["matplotlib>=3.7.2"]
 rl = ["gymnasium>=1.0.0"]
 studio = [
@@ -50,6 +51,9 @@ all = ["simulatte[plot,rl,studio]"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.uv.sources]
+simulatte-native = { path = "native", editable = false }
 
 [tool.hatch.build.hooks.custom]
 path = "hatch_build.py"
@@ -75,6 +79,8 @@ exclude = [
   "codecov.yml",
   "zensical.toml",
   "uv.lock",
+  "/native",
+  "/prototypes",
 ]
 
 [dependency-groups]

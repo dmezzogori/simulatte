@@ -1,0 +1,51 @@
+{
+  "source_sha256": "52feb8cbdf988165ca7594e4280f60234fe996831e3086de299f6f5c257e7ccf",
+  "rows": [
+    {
+      "python": "3.11",
+      "wheel": "simulatte_native-0.17.0-cp311-cp311-macosx_27_0_arm64.whl",
+      "wheel_sha256": "5ae31fa75071c5a3f6d453a72eeedcf26bb1177ce028faeda9e807a920764088",
+      "sdist_sha256": "1c7408bc58f3913602dc15118a0a5c4c759e209db274105653b3a715a79d2a08",
+      "managed_runs": 8,
+      "reproductions": 4
+    },
+    {
+      "python": "3.14",
+      "wheel": "simulatte_native-0.17.0-cp314-cp314-macosx_27_0_arm64.whl",
+      "wheel_sha256": "231c95c6b4a4704eb785bb558e29b7a12e349c32f526865416330dbc22a0674b",
+      "sdist_sha256": "1c7408bc58f3913602dc15118a0a5c4c759e209db274105653b3a715a79d2a08",
+      "managed_runs": 8,
+      "reproductions": 4
+    },
+    {
+      "python": "3.15",
+      "wheel": "simulatte_native-0.17.0-cp315-cp315-macosx_27_0_arm64.whl",
+      "wheel_sha256": "5a286b163a51a4bf9d770566ca8f5855c87954c4d1962a5bba3ca4d0ddf153dc",
+      "sdist_sha256": "408b9e07edefe74ca2acb68ade36d50ab361319b3edc8d19d9f5d96d08594ff2",
+      "managed_runs": 8,
+      "reproductions": 4
+    }
+  ],
+  "exact_seeded_kpis_across_abis": true,
+  "evidence": {
+    "cp311/installed.json": "5193985b3a5a0d9bc2d1900e527d8361cdf011bc947d082a4f66e9a4927780aa",
+    "cp311/metadata.json": "613695d1f8c21f065fbc6e37ee00bd655792c6556a843f9868dcfe3aefa7821b",
+    "cp311/rejections.json": "258026a8e3708edf9379304ed24fb00295d3803b9b0543d1cc350b8a2d25b066",
+    "cp311/verification.json": "209e712acc985e1e30c4de71cfc665fb82111e2bd4fc8c4565af78714655b064",
+    "cp311-build.log": "7a000d8222a295c37b01a8d2742ee01009df7b6ea1cf156067e49aa450ced0b9",
+    "cp311-install.log": "f53c25592eda572b42d570269a1a998dd5e5b3526e60403e846101aab5ce5b03",
+    "cp314/installed.json": "633d695db21173ce48e700226c502f63c1bb540cc437efe15c1e66b3cffc038d",
+    "cp314/metadata.json": "03edd253dcbe8e164f797709ed4b6762ca99bbae0026d6fbe9a4fd497a343810",
+    "cp314/rejections.json": "cb1d2e5373b5c4e61c11a60446f9fa7b6e374ec70b6753ec75f844f1545e3a52",
+    "cp314/verification.json": "e0f4a0aae9eec2c1a0c8f749d61024d757f004f795e61abf9b23b7f8c9349145",
+    "cp314-build.log": "8b0eb2d5126e30c9509910edf9f809d2ddc444a075931c966d5a5f4a5477afbd",
+    "cp314-install.log": "f7e6b3aafb5bd5b2b396007a3059d0296417bfd3b3c2e817ae9bac3251bff8ac",
+    "cp315/installed.json": "e505ee153b8c462e815b7dbbc687921bdb899e6272d655b62be324a338813e38",
+    "cp315/metadata.json": "258e746035dbb44a2315768e397f4b5a93048b3af9f9fd86bb7fa5702c2656f6",
+    "cp315/rejections.json": "2970cc0884b26c0fc2a49fbe2077e2396a6647e403263dd94f4383b5ab3308d1",
+    "cp315/verification.json": "3496aab133088e14a4194cd77a7e276fb0c4db5942a21fd4676f75782f7a5762",
+    "cp315-build.log": "7b3b4d589dfbec6033ad38ac6e6cad78996e9c83b75d5351f804555f29722205",
+    "cp315-install.log": "d5faeac26331e2d6020c916b72b5c26236d919a1a6f535313d6b5bfb3192c60a",
+    "metadata.json": "50e95740ae45fbe93430a5b1943debc400ef154fc94569611ba19e7121c60d41"
+  }
+}

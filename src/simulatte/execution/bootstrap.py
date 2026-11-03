@@ -50,8 +50,11 @@ def load_model(reference: str, roots: tuple[Path, ...], *, source_root: Path | N
                 "description": metadata.description,
                 "parameters": metadata.schema.to_dict(),
                 "inputs": list(metadata.inputs),
-                **({"native_assets": [bundle.to_dict() for bundle in metadata.native_assets]}
-                   if metadata.native_assets else {}),
+                **(
+                    {"native_assets": [bundle.to_dict() for bundle in metadata.native_assets]}
+                    if metadata.native_assets
+                    else {}
+                ),
                 "time_unit": metadata.time_unit,
                 "stopping": metadata.stop.to_dict()
                 if metadata.stop is not None
@@ -92,8 +95,11 @@ def load_configuration(config: dict[str, Any], *, native_assets=None):
         snapshot,
         (*external, *standard),
         source_root=source_root if "snapshot_root" in config else None,
-        native_files=tuple(path for bundle in (native_assets or {}).values()
-                           for path in (bundle.directory / file["name"] for file in bundle.bundle["files"])),
+        native_files=tuple(
+            path
+            for bundle in (native_assets or {}).values()
+            for path in (bundle.directory / file["name"] for file in bundle.bundle["files"])
+        ),
     )
     os.chdir(source_root)
     opened: set[str] = set()
