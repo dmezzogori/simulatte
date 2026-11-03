@@ -1,0 +1,87 @@
+{
+  "passed": true,
+  "cases": 36,
+  "paired_cases": 18,
+  "regenerated_inputs": 14,
+  "source_sha256": "f340ad0f020b60240ed0cb961205ef27859db9de23ec045fa2ca3113959c68f7",
+  "preserved_base_files": 1688,
+  "deliberate_corruptions_rejected": 5,
+  "exact_retention_and_environment_parity": true,
+  "stable_summary": [
+    {
+      "jobs": 16384,
+      "full": {
+        "peak_rss_mib": 39.671875,
+        "loop_seconds": 0.057672249677125365,
+        "loop_seconds_range": [
+          0.05739865597570315,
+          0.07282808527816087
+        ],
+        "state_query_ms": 0.10308396304026246,
+        "max_retained_jobs": 16384,
+        "max_native_bytes": 3970647
+      },
+      "bounded": {
+        "peak_rss_mib": 34.6875,
+        "loop_seconds": 0.055742737371474504,
+        "loop_seconds_range": [
+          0.05529325839597732,
+          0.05586532183224335
+        ],
+        "state_query_ms": 0.07520802319049835,
+        "max_retained_jobs": 68,
+        "max_native_bytes": 40663
+      }
+    },
+    {
+      "jobs": 131072,
+      "full": {
+        "peak_rss_mib": 71.890625,
+        "loop_seconds": 0.44787698052823544,
+        "loop_seconds_range": [
+          0.4449011210235767,
+          0.44972154404968023
+        ],
+        "state_query_ms": 0.17899996601045132,
+        "max_retained_jobs": 131072,
+        "max_native_bytes": 31610455
+      },
+      "bounded": {
+        "peak_rss_mib": 34.90625,
+        "loop_seconds": 0.4405211982666515,
+        "loop_seconds_range": [
+          0.4396354439086281,
+          0.45658107748022303
+        ],
+        "state_query_ms": 0.10400003520771861,
+        "max_retained_jobs": 68,
+        "max_native_bytes": 40663
+      }
+    },
+    {
+      "jobs": 1048576,
+      "full": {
+        "peak_rss_mib": 132.109375,
+        "loop_seconds": 3.612255636835471,
+        "loop_seconds_range": [
+          3.5597038267878816,
+          3.6142505960306153
+        ],
+        "state_query_ms": 0.7222089916467667,
+        "max_retained_jobs": 1048576,
+        "max_native_bytes": 252728919
+      },
+      "bounded": {
+        "peak_rss_mib": 34.828125,
+        "loop_seconds": 3.518463082611561,
+        "loop_seconds_range": [
+          3.498331288516056,
+          3.798891418031417
+        ],
+        "state_query_ms": 0.10787497740238905,
+        "max_retained_jobs": 68,
+        "max_native_bytes": 40663
+      }
+    }
+  ]
+}

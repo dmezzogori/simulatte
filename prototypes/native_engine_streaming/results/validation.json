@@ -1,0 +1,115 @@
+{
+  "source_sha256": "f340ad0f020b60240ed0cb961205ef27859db9de23ec045fa2ca3113959c68f7",
+  "base": "9ecc2629b0db0fa67f1e39efa7e48d60dfff81fa",
+  "commands": [
+    {
+      "command": "ruff check prototypes/native_engine_streaming",
+      "exit_code": 0,
+      "log": "lint.log"
+    },
+    {
+      "command": "ruff format --check prototypes/native_engine_streaming",
+      "exit_code": 0,
+      "log": "format.log"
+    },
+    {
+      "command": "pytest streaming + legacy dynamic + public API + backend, -o addopts=\"\"",
+      "exit_code": 0,
+      "passed": 534,
+      "skipped": 1,
+      "log": "regressions.log"
+    },
+    {
+      "command": "standalone ASan/UBSan, mutating and read-only failures",
+      "exit_code": 0,
+      "allocation_failure_positions": 320,
+      "log": "sanitizer-run.log"
+    },
+    {
+      "command": "new CPython C API ASan/UBSan against release engine; PYTHONMALLOC=malloc; leak detection disabled",
+      "exit_code": 0,
+      "passed": 71,
+      "log": "boundary-tests.log"
+    },
+    {
+      "command": "ASan/UBSan stable logical IDs across uint32 boundary",
+      "exit_code": 0,
+      "log": "id-boundary.log"
+    },
+    {
+      "command": "36 serial cold-process cases followed by source/evidence/input/control audit",
+      "exit_code": 0,
+      "log": "audit.log"
+    },
+    {
+      "command": "previous optional native six-ABI packaging audit unchanged",
+      "exit_code": 0,
+      "log": "previous-package-audit.json"
+    },
+    {
+      "command": "independent installed-engine trajectory array reconstruction",
+      "exit_code": 0,
+      "passed": 16,
+      "log": "trajectory-oracle.log"
+    }
+  ],
+  "evidence": {
+    "asan_boundary.py": "81e2140cc346b500a30d34defa7e0ba7db1eeb7360ea6a356bd58bb0d568367f",
+    "audit.log": "263b2b3b52a88bd00ae7df1626f573d37ccf30fbf6745fc0896b2576b7b3facc",
+    "boundary-build.json": "183ccdc76ad8504432c1aad479a060fd3284bbc2dea09d5cf3e1c37adcba1e6f",
+    "boundary-tests.log": "3a1b78095693e660a47a7a0bbfe8ef7a4bceb5b6bf96d282e095c25f54aa4e93",
+    "final-streaming-tests.log": "6894e52c0f9cf5eb237835761f054f661e2dcb6adc7a4ddbddebb2ea615e3b20",
+    "format.log": "5b9f70ad96522f492ef846065642c069b5627379aff2ab3f74acd2e3b9ecfe34",
+    "gate/00-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/01-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/02-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/03-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/04-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/05-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/06-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/07-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/08-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/09-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/10-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/11-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/12-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/13-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/14-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/15-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/16-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/17-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/18-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/19-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/20-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/21-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/22-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/23-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/24-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/25-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/26-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/27-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/28-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/29-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/30-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/31-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/32-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/33-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/34-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/35-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate/audit.json": "263b2b3b52a88bd00ae7df1626f573d37ccf30fbf6745fc0896b2576b7b3facc",
+    "gate/memory.png": "0f88472b821b20bc3cb1e2a45d859fc0220f3603f369d7a73927b5b08e489b26",
+    "gate/metadata.json": "462f2d991d5fd7de20c29282cda823ba812e7d428bc0755ccaa5792e2522f842",
+    "gate/rows.json": "1d67bda4c29ce880ef244d2416ca899d8b9bf2b2359fd3b90db2255f6c8abfe2",
+    "gate/verification.json": "b371f043817ff20ee7dce7a8736252438036462b05b8dd4d954b545a0b16d92e",
+    "id-boundary.log": "7f6c7c06b910bb2b5c000094458148cd22645a026f9da32b56c32fb090d436e5",
+    "id_boundary.c": "0fec69ea46aa4f05ca3c185408d790f81e3fd7c2623cfe633823a6fd179db763",
+    "lint.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "matrix.log": "c626fc436584bf90c867d9a7a457ab4ca8d826cb8bbdd5faafcf4422bd75388d",
+    "previous-package-audit.json": "cfe93312a61536ec35d94d1abf7ecb2f4572a84de1f3958992c805bba60da174",
+    "regressions.log": "c817ec0c438189495f808465294cc24ba75df5f03f38d8c7a9f9f37436f0035f",
+    "sanitizer-build.log": "e34f3e7906e91416fd83e7845c8aff85bbadaf8330a98717bd41badbe7faba60",
+    "sanitizer-run.log": "7a55b29e1bf44ba3b1339bef8e15386842a20442bd4c3da854a32e2dcb3c489a",
+    "trajectory-oracle.log": "b13429426fba612f5b783a28f66f8ae1475eca0c4dc89a05594a30155dc0761f",
+    "trajectory_oracle.py": "153fdf0f5b245781c56cb84daac6d9393e7d0e62033bab21becee0ae6062cf34"
+  }
+}

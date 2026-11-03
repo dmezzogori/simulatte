@@ -1,0 +1,1 @@
+Stable logical IDs cross uint32 boundary without aliasing

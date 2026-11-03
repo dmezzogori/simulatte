@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "source_sha256": "52feb8cbdf988165ca7594e4280f60234fe996831e3086de299f6f5c257e7ccf",
+  "source_files": 180,
+  "managed_runs": 48,
+  "source_deleted_reproductions": 24,
+  "negative_rejections": 42,
+  "exact_cross_platform_abi_kpis": true,
+  "unchanged_historical_files": 430
+}

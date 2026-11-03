@@ -1,0 +1,74 @@
+{
+  "base": "9ecc2629b0db0fa67f1e39efa7e48d60dfff81fa",
+  "source": {
+    "prototypes/native_engine_dynamic/csrc/dynamic_engine.c": "2a715d5a61fb45ffc67c53ed59eb8ef201dcf96e55f5d3d8298c3bfc25ef1625",
+    "prototypes/native_engine_dynamic/csrc/dynamic_engine.h": "22bfc5dafbef189f671f66fedf2295dbb629ec09b8990fb329f254c9e7824d2b",
+    "prototypes/native_engine_dynamic/csrc/scalar_module.c": "3c68225ed4d64f17911a4e4caeffac5a0b50d61d321d1eefb572879d238491d6",
+    "prototypes/native_engine_dynamic/csrc/stock_kpi.c": "72bfd40a9d7d6b0258717f8432bbb3eabbf4d75a1a113e5aafc04ad2fe6ddc3f",
+    "prototypes/native_engine_dynamic/csrc/stock_kpi.h": "89f0c6311aff7a0b2d5ab4baf7406557b951e8530c66277e3342e156cf2e3bc1",
+    "prototypes/native_engine_streaming/README.md": "bd0f95cedd8ae837cb003c9a97229c7be4f8be3b7a5ed1f4fcdefacf211c3c1f",
+    "prototypes/native_engine_streaming/analysis.py": "00c4811c34af9e332d92d4f1d35b44ad726924e7345a24e0aad6341a8227326c",
+    "prototypes/native_engine_streaming/backend.py": "4855009575ce4cac7cdc55e64a96aaa92d5effb6db254f1a73084227bc975114",
+    "prototypes/native_engine_streaming/build.py": "cdf06e8e598ef52c5e5cc542efeeddf0f176341e9ce0bbe0001eaff73573d509",
+    "prototypes/native_engine_streaming/csrc/module.c": "02a064177b30ca6974874894b7761ac88240dd710646e39837d5ea39672d03e1",
+    "prototypes/native_engine_streaming/csrc/stock_metrics.c": "ceb29389179abb3bbf89188fa2a2cd2534327c9869416e3f3b5ddeb8791ab625",
+    "prototypes/native_engine_streaming/csrc/streaming_engine.c": "14d4b55bddc28828fe932aadbd2c2b79e14ac37a06dd15108b6e9a2f5f7e5ecf",
+    "prototypes/native_engine_streaming/csrc/streaming_engine.h": "89f370d4590bc77096bb5851bb77eb1942a7031f74f99eb2fe3f278882b9dea5",
+    "prototypes/native_engine_streaming/experiment.py": "aef70105a51cfc3fa10d17242419b8c33b9730ac6079a6445dd45b5c82b8a6cc",
+    "prototypes/native_engine_streaming/producer.py": "98456276677aa9c2cf1d55fc0b70e336bfcce4aa950958cc9488fa2700544a02",
+    "prototypes/native_engine_streaming/stream.py": "9f4e8e12a1ca4dfb2a6c33d8515d4c902a381f2e6d5e85c7601c33a1f67126bc",
+    "prototypes/native_engine_streaming/tests/sanitizer.c": "b562c105f2addfbf77b3e7f382a0a02685797de1fc88bcae669aed2eac727f09",
+    "prototypes/native_engine_streaming/tests/test_stream.py": "bd9decc81339fab5b9fac8f313f3c90b173d1b89c2bba2cc2ee73b2776b47d2c",
+    "specs/research/2026-11-03-native-streaming-plan.md": "0b009afeb5a627eb5dfd50a1f246c547e88b0e30601a0ed73e52aea7e4943b08",
+    "src/simulatte/experimental/native.py": "e01421b77013d4db4e16258f3a2fddbe2bc608603ee08aa8ecbbc28a7ed4d8c9"
+  },
+  "source_sha256": "f340ad0f020b60240ed0cb961205ef27859db9de23ec045fa2ca3113959c68f7",
+  "build_manifest": {
+    "sources": {
+      "prototypes/native_engine_dynamic/csrc/dynamic_engine.c": "2a715d5a61fb45ffc67c53ed59eb8ef201dcf96e55f5d3d8298c3bfc25ef1625",
+      "prototypes/native_engine_dynamic/csrc/dynamic_engine.h": "22bfc5dafbef189f671f66fedf2295dbb629ec09b8990fb329f254c9e7824d2b",
+      "prototypes/native_engine_dynamic/csrc/scalar_module.c": "3c68225ed4d64f17911a4e4caeffac5a0b50d61d321d1eefb572879d238491d6",
+      "prototypes/native_engine_dynamic/csrc/stock_kpi.c": "72bfd40a9d7d6b0258717f8432bbb3eabbf4d75a1a113e5aafc04ad2fe6ddc3f",
+      "prototypes/native_engine_dynamic/csrc/stock_kpi.h": "89f0c6311aff7a0b2d5ab4baf7406557b951e8530c66277e3342e156cf2e3bc1",
+      "prototypes/native_engine_streaming/README.md": "bd0f95cedd8ae837cb003c9a97229c7be4f8be3b7a5ed1f4fcdefacf211c3c1f",
+      "prototypes/native_engine_streaming/analysis.py": "00c4811c34af9e332d92d4f1d35b44ad726924e7345a24e0aad6341a8227326c",
+      "prototypes/native_engine_streaming/backend.py": "4855009575ce4cac7cdc55e64a96aaa92d5effb6db254f1a73084227bc975114",
+      "prototypes/native_engine_streaming/build.py": "cdf06e8e598ef52c5e5cc542efeeddf0f176341e9ce0bbe0001eaff73573d509",
+      "prototypes/native_engine_streaming/csrc/module.c": "02a064177b30ca6974874894b7761ac88240dd710646e39837d5ea39672d03e1",
+      "prototypes/native_engine_streaming/csrc/stock_metrics.c": "ceb29389179abb3bbf89188fa2a2cd2534327c9869416e3f3b5ddeb8791ab625",
+      "prototypes/native_engine_streaming/csrc/streaming_engine.c": "14d4b55bddc28828fe932aadbd2c2b79e14ac37a06dd15108b6e9a2f5f7e5ecf",
+      "prototypes/native_engine_streaming/csrc/streaming_engine.h": "89f370d4590bc77096bb5851bb77eb1942a7031f74f99eb2fe3f278882b9dea5",
+      "prototypes/native_engine_streaming/experiment.py": "aef70105a51cfc3fa10d17242419b8c33b9730ac6079a6445dd45b5c82b8a6cc",
+      "prototypes/native_engine_streaming/producer.py": "98456276677aa9c2cf1d55fc0b70e336bfcce4aa950958cc9488fa2700544a02",
+      "prototypes/native_engine_streaming/stream.py": "9f4e8e12a1ca4dfb2a6c33d8515d4c902a381f2e6d5e85c7601c33a1f67126bc",
+      "prototypes/native_engine_streaming/tests/sanitizer.c": "b562c105f2addfbf77b3e7f382a0a02685797de1fc88bcae669aed2eac727f09",
+      "prototypes/native_engine_streaming/tests/test_stream.py": "bd9decc81339fab5b9fac8f313f3c90b173d1b89c2bba2cc2ee73b2776b47d2c",
+      "specs/research/2026-11-03-native-streaming-plan.md": "0b009afeb5a627eb5dfd50a1f246c547e88b0e30601a0ed73e52aea7e4943b08",
+      "src/simulatte/experimental/native.py": "e01421b77013d4db4e16258f3a2fddbe2bc608603ee08aa8ecbbc28a7ed4d8c9"
+    },
+    "files": {
+      "streaming_engine.dylib": {
+        "sha256": "8fa6dfb847ca0f1fe4d17f59490e358a18f25cb2f5e55b6290502b6cbe531d5d",
+        "size": 52760
+      },
+      "_nb_stream.cpython-314-darwin.so": {
+        "sha256": "6682a7ac7b3d0ea2e551d1bed7291c0e80cf48de1e317e987f454f87676eacbe",
+        "size": 53472
+      }
+    }
+  },
+  "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+  "platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+  "machine": "arm64",
+  "hostname": "bigboss.local",
+  "recorded_at": "2026-11-03T14:31:55.343730+00:00",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.4.1.1)\nTarget: arm64-apple-darwin27.2.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin\n",
+  "jobs": [
+    16384,
+    131072,
+    1048576
+  ],
+  "repeats": 3,
+  "window": 64,
+  "timing_scope": "Create/load + lazy input generation/validation/hash + admission/advance/completion hashing + finish/close. Direct loop excludes RSS/state polling; environment loop includes it. instrumented_loop_seconds includes polling for both paths."
+}
