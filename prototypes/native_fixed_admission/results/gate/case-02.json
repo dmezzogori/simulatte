@@ -1,0 +1,199 @@
+{
+  "engine": "full",
+  "ticks": 32768,
+  "seed": 100,
+  "warmup": 10.0,
+  "parameters": {
+    "engine": "full",
+    "policy": "spt",
+    "hard_limit": 12,
+    "wip_cap": 4,
+    "burst": 3,
+    "interval": 0.5,
+    "feedback": true,
+    "record": false
+  },
+  "result": {
+    "engine": "full",
+    "parameters": {
+      "engine": "full",
+      "policy": "spt",
+      "hard_limit": 12,
+      "wip_cap": 4,
+      "burst": 3,
+      "interval": 0.5,
+      "feedback": true,
+      "record": false
+    },
+    "scenario": null,
+    "seed": 100,
+    "warmup": 10.0,
+    "request": "95fb724037226c11bb7f93a3993df38920c9c8b38b22cda78233faa8a07d292a",
+    "attempt": "f5ca296c2740a08b8ec86cea097cb47e",
+    "fingerprint": {
+      "digest": "f2b867a7c3269c2b6cf996bda0e547d96120307a53f094ecc7687ac58f24cee1",
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.0106266031513376,
+        "shopfloor/lateness": -4.313792752442997,
+        "shopfloor/makespan": 6.296539087947883,
+        "shopfloor/tardiness": 0.33534201954397397,
+        "shopfloor/tardy_fraction": 0.1487785016286645,
+        "shopfloor/throughput": 0.7499694637840478,
+        "shopfloor/total_queue_time": 1.3902687296416938,
+        "shopfloor/utilization": 0.6561316721631855
+      }
+    },
+    "control": {
+      "controller": {
+        "admissions_sha256": "3ae1b7abef9318b5261e6727108ec4529e5f6fa5613f8a6d0b6159e305339e1e",
+        "blocked": 11778,
+        "burst": 3,
+        "completed": 12288,
+        "cursor": 12288,
+        "decisions_sha256": "6797145aa81d3f0a998544a3cd4b9fcb8088cbda084913683223f58c2970425b",
+        "delay_eighths": 132836,
+        "feedback": true,
+        "hard_limit": 12,
+        "idle": 15002,
+        "interval": 0.5,
+        "live": [],
+        "next_at": 16384.0,
+        "phase": "horizon",
+        "pool_polls": 17705,
+        "pressure_q": 0,
+        "relaxed_polls": 14664,
+        "schema": "fixed-admission-controller-v1",
+        "seed": 1883867035,
+        "specifications_sha256": "be81c3588b8c4ab34213a1b9b69eb8e8333a111f1f902ac1788d92d6cc96d42d",
+        "switches": 2048,
+        "tick": 32768,
+        "tight_mode": false,
+        "tight_polls": 18104
+      },
+      "final_observed": []
+    },
+    "reporting": {
+      "kpis": {
+        "jobs_in_system": 3.0106266031513376,
+        "lateness": -4.313792752442997,
+        "makespan": 6.296539087947883,
+        "tardiness": 0.33534201954397397,
+        "tardy_fraction": 0.1487785016286645,
+        "throughput": 0.7499694637840478,
+        "total_queue_time": 1.3902687296416938,
+        "utilization": 0.6561316721631855
+      },
+      "reports_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "native": {
+      "digest": "3d189d21af8caa8ad805eae89c5dd588fa229d10416d10e953e1d81c2536e584",
+      "schema": "native-production-v1"
+    },
+    "control_sha256": "5d500d0b39371403fe6b63b59e542d70ca1ccc23f1e3dd9bd805b2564a788e09",
+    "reporting_sha256": "eb87717365d82ac0e3a27a4eefd9607bb348414acbaf2c0a8eac869cb8a0b212",
+    "proof_sha256": {
+      "controls": null,
+      "reports": null
+    },
+    "artifact_sha256": {
+      "control.json": "5d500d0b39371403fe6b63b59e542d70ca1ccc23f1e3dd9bd805b2564a788e09",
+      "native.json": "188857dbd07ac1b26cf34b662ab82c3f1741be670d161570202827b51d21ed32",
+      "reporting.json": "eb87717365d82ac0e3a27a4eefd9607bb348414acbaf2c0a8eac869cb8a0b212"
+    },
+    "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-fixed-admission-installed-nq094b1o/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-darwin.so",
+    "trace_bytes": 57021
+  },
+  "repetitions": [],
+  "parent_checkpoints": [
+    47792128
+  ],
+  "store_bytes": 16070399,
+  "provider": {
+    "schema": 1,
+    "provider_api": 2,
+    "version": "0.17.0",
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "arm64",
+      "platform": "darwin",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-darwin",
+      "suffix": ".cpython-314-darwin.so"
+    },
+    "sources": {
+      "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+      "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+      "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+      "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+      "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+      "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+      "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+      "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-darwin.so": {
+        "sha256": "8bb82fd69086d1017a931d5ae2b503949d59dab2fca074d8e1664fd7cc4971af",
+        "size": 72480
+      },
+      "simulatte_native_engine.dylib": {
+        "sha256": "b7edfa9d37f4a8d12cb096f8c59ce44f7a623240d617e3934cc79470044ff8ff",
+        "size": 53024
+      }
+    }
+  },
+  "coordinator_pid": 4689,
+  "runtime": {
+    "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+    "platform": "macOS-27.2-arm64-64bit",
+    "machine": "arm64"
+  },
+  "usage": {
+    "parent_pid": 4689,
+    "tree_peak_rss": 156532736,
+    "parent_peak_rss": 47726592,
+    "per_pid_peak_rss": {
+      "4689": 47726592,
+      "4695": 31047680,
+      "4697": 33406976,
+      "4699": 23347200,
+      "4701": 40714240,
+      "4707": 23478272,
+      "4708": 53657600
+    },
+    "max_descendants": 3,
+    "samples": 38,
+    "wall_seconds": 2.3055437920011173
+  },
+  "extra_queries": false,
+  "diagnostics": [
+    {
+      "entities": 2,
+      "expired_reads": 0,
+      "max_callback_bytes": 1291,
+      "max_owned": 10,
+      "peak_rss": 53706752,
+      "pid": 4708,
+      "storage": {
+        "admitted": 12288,
+        "calendar_capacity": 32,
+        "completed": 12288,
+        "completion_capacity": 0,
+        "events": 201587,
+        "forgotten": 0,
+        "job_capacity": 16384,
+        "native_bytes": 3819759,
+        "op_capacity": 65536,
+        "retained_jobs": 12288,
+        "retained_operations": 36864,
+        "state_capacity": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "passed": true,
+  "physical_scenarios": 20,
+  "control_proofs": 10,
+  "report_proofs": 20,
+  "audited_control_rows": 1289,
+  "window_invariant_groups": 18,
+  "python_digest_invariant_groups": 6,
+  "digest_invariant_groups_by_engine": {
+    "python": 6,
+    "full": 6,
+    "bounded": 0
+  },
+  "reporting_changed_groups": 18,
+  "source_deleted_reproductions": 14,
+  "memory_cases": 23,
+  "deliberate_corruptions_rejected": 3,
+  "preserved_base_files": 2048,
+  "stable_summary": [
+    {
+      "ticks": 4096,
+      "full": {
+        "jobs": 1536,
+        "tree_mib": 143.78125,
+        "child_mib": 45.84375,
+        "parent_mib": 44.75,
+        "wall_seconds": 1.3597513329987123
+      },
+      "bounded": {
+        "jobs": 1536,
+        "tree_mib": 143.484375,
+        "child_mib": 45.515625,
+        "parent_mib": 44.921875,
+        "wall_seconds": 1.3932872920013324
+      }
+    },
+    {
+      "ticks": 32768,
+      "full": {
+        "jobs": 12288,
+        "tree_mib": 148.59375,
+        "child_mib": 50.671875,
+        "parent_mib": 45.1875,
+        "wall_seconds": 2.3055437920011173
+      },
+      "bounded": {
+        "jobs": 12288,
+        "tree_mib": 143.28125,
+        "child_mib": 45.359375,
+        "parent_mib": 44.921875,
+        "wall_seconds": 2.354504375001852
+      }
+    },
+    {
+      "ticks": 262144,
+      "full": {
+        "jobs": 98304,
+        "tree_mib": 194.84375,
+        "child_mib": 96.203125,
+        "parent_mib": 45.5625,
+        "wall_seconds": 9.883734250000998
+      },
+      "bounded": {
+        "jobs": 98304,
+        "tree_mib": 143.28125,
+        "child_mib": 45.421875,
+        "parent_mib": 44.953125,
+        "wall_seconds": 10.47870633400089
+      }
+    }
+  ]
+}
