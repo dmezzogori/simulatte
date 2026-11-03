@@ -68,8 +68,41 @@ production KPI definitions: `makespan` is mean job flow time, not the final
 completion timestamp. Its `window` tuple records start, end and exhaustion closure.
 `result()` additionally exposes detached trajectories and legacy engine totals.
 
-Completed jobs and operations remain in memory until close; there is no bounded
-infinite-stream retention guarantee, cancellation or preemption.
+Full retention is the default: completed jobs and operations remain until close.
+For a lazy stream, select `retention="bounded"` on `NativeStream` or
+`NativeProduction`. Completed handles then raise `ExpiredHandleError` after a
+successful advance/run; live handles retain their identities through compaction.
+`result()` trajectories require full retention. `snapshot()` works in both modes.
+`storage_stats()` reports detached native allocation/capacity counters; on the
+managed backend it is available while live at synchronized boundaries.
+
+```python
+from simulatte.experimental.native import ExpiredHandleError, Job, NativeStream
+
+with NativeStream(servers=2, retention="bounded") as engine:
+    handle = engine.add(Job(0, (0, 1), (2, 3), due=10))
+    engine.advance(6)
+    print(engine.snapshot()["scalars"])
+    try:
+        engine.inspect(handle)
+    except ExpiredHandleError:
+        print("completed job deliberately forgotten")
+```
+
+Storage is proportional to high-water outstanding work and input lookahead, not
+completed history. ConWIP limits the floor, not an overloaded pre-shop pool.
+Eagerly admitting an entire workload, retaining handles/history in Python, or a
+growing controller callback still consumes memory. Fixed job references held by
+the adapter are released after native admission. There is no unconditional
+infinite-stream bound, cancellation or preemption.
+
+Full retention keeps `NSTA0001` / `native-production-v1`. Bounded mode uses
+`NRST0001` / `native-production-bounded-v1`, with a rolling completion-history
+commitment, live logical state and scalar state. Those are fingerprint encodings;
+restoring an engine from them is outside this API. Compare physical results/KPIs
+across modes and reproduce fingerprints within the same mode. Provider API 2
+requires rebuilding/reinstalling the matching local companion; the development
+pair remains 0.17.0 and is not a published v3 release.
 
 ## Managed experiments
 
@@ -160,8 +193,11 @@ Non-editable local installs stay runtime dependencies; editable local source
 packages retain the existing snapshot-root and path-escape checks.
 Native code and installed Python dependencies remain trusted, not sandboxed.
 
-The companion's C sources are byte-identical to the validated research engine;
-`native/sources.json` and CI check that identity. The clean-install gate also checks
+The companion shares validated event transitions through a private engine
+interface and separate retention, stock KPI and binding translation units.
+`native/sources.json` and CI check the integrated source hashes; the retention
+research audit checks preserved transition bodies and historical evidence.
+The clean-install gate also checks
 base-only installs, ABI/provider API rejection before extension import, corrupt
 bytes, actual wrong dependency mappings, runtime mutation without publication,
 source-deleted reproduction and incompatible wheel tags outside the checkout.

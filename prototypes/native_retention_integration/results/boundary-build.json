@@ -1,0 +1,66 @@
+{
+  "command": [
+    "cc",
+    "-std=c17",
+    "-O1",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fsanitize=address,undefined",
+    "-fno-sanitize-recover=all",
+    "-fno-omit-frame-pointer",
+    "-I/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/include/python3.14",
+    "-bundle",
+    "-undefined",
+    "dynamic_lookup",
+    "native/csrc/scalar_module.c",
+    "native/csrc/retention_module.c",
+    "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_retention_integration/.build/boundary/venv/lib/python3.14/site-packages/simulatte_native/_bin/simulatte_native_engine.dylib",
+    "-o",
+    "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_retention_integration/.build/boundary/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-darwin.so"
+  ],
+  "engine": "release wheel; separately fully instrumented standalone",
+  "provider_manifest": {
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "arm64",
+      "platform": "darwin",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-darwin",
+      "suffix": ".cpython-314-darwin.so"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-darwin.so": {
+        "sha256": "69f951853ec9a269c34fe43b1808d731543735b32e692767dba14deec9b1dec1",
+        "size": 154912
+      },
+      "simulatte_native_engine.dylib": {
+        "sha256": "b7edfa9d37f4a8d12cb096f8c59ce44f7a623240d617e3934cc79470044ff8ff",
+        "size": 53024
+      }
+    },
+    "provider_api": 2,
+    "schema": 1,
+    "sources": {
+      "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+      "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+      "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+      "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+      "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+      "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+      "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+      "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "version": "0.17.0"
+  },
+  "python_leak_detection": false,
+  "exit_code": 0
+}

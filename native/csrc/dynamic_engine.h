@@ -5,6 +5,13 @@
 
 typedef struct nd_engine nd_engine;
 typedef struct {
+    uint64_t admitted, completed, forgotten, events;
+    size_t jobs, operations, job_capacity, op_capacity, calendar_capacity;
+    size_t native_bytes, completion_capacity, state_capacity;
+} nd_storage_stats;
+int nd_storage(const nd_engine *, nd_storage_stats *);
+
+typedef struct {
     const double *starts, *ends, *finished, *released;
     const uint32_t *dispatch;
     double makespan;

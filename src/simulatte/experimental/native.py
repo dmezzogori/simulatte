@@ -19,7 +19,7 @@ from simulatte._wire import canonical_pack, freeze
 from simulatte.collectors import ShopFloorKPIs
 from simulatte.execution.backend import BackendCapabilities, BackendContext, ExecutionBackend
 
-__all__ = ["Job", "JobHandle", "NativeStream", "NativeProduction"]
+__all__ = ["Job", "JobHandle", "ExpiredHandleError", "NativeStream", "NativeProduction"]
 
 
 def _number(value: float, name: str) -> float:
@@ -76,16 +76,31 @@ class JobHandle:
     id: int
 
 
+class ExpiredHandleError(KeyError):
+    """A completed job was deliberately released by bounded retention."""
+
+
+def _retention(value: str) -> str:
+    if type(value) is not str or value not in ("full", "bounded"):
+        raise ValueError("retention must be full or bounded")
+    return value
+
+
 class NativeStream:
     """Owned scalar stream. ``advance(t)`` leaves events exactly at t pending.
 
     Register arrivals in nondecreasing order, at/after current time. ``run()``
-    seals input and drains once. Completed state is retained until ``close()``.
+    seals input and drains once. Full retention (default) keeps completed state;
+    bounded retention expires completed handles after each advance/run boundary.
     """
 
-    def __init__(self, servers: int, *, wip_cap: int | None = 12, policy: str = "spt", warmup: float = 0):
+    def __init__(
+        self, servers: int, *, wip_cap: int | None = 12, policy: str = "spt", warmup: float = 0, retention: str = "full"
+    ):
         self._engine: Any = None
         self._lock, self._owner = RLock(), object()
+        self._retention = _retention(retention)
+        self._history = hashlib.sha256()
         n, cap, policy = _configuration(servers, wip_cap, policy)
         warmup = _number(warmup, "warmup")
         if warmup < 0:
@@ -96,7 +111,12 @@ class NativeStream:
             if error.name != "simulatte_native":
                 raise
             raise ImportError("Install the optional matching simulatte[native] package to use NativeStream") from error
+        if getattr(self._provider, "API_VERSION", None) != 2:
+            raise ImportError("Install/rebuild the matching simulatte-native provider API 2")
         self._module = self._provider.load()
+        if self._retention == "bounded":
+            self._engine = self._module.retention_create(n, cap, int(policy == "spt"), 1, warmup)
+            return
         self._engine = self._module.create(n, cap, int(policy == "spt"), 0, None)
         try:
             self._module.enable_stock_kpis(self._engine, warmup)
@@ -109,53 +129,106 @@ class NativeStream:
             raise RuntimeError("Native stream is closed")
 
     @property
+    def retention(self) -> str:
+        return self._retention
+
+    @property
     def now(self) -> float:
         with self._lock:
             self._check()
-            return self._module.now(self._engine)
+            return (self._module.retention_now if self.retention == "bounded" else self._module.now)(self._engine)
 
     def add(self, job: Job) -> JobHandle:
         with self._lock:
             self._check()
-            self._module.accepting(self._engine)
+            (self._module.retention_accepting if self.retention == "bounded" else self._module.accepting)(self._engine)
             if type(job) is not Job:
                 raise TypeError("add requires a validated native Job")
-            identity = self._module.add(self._engine, job.arrival, job.due, job.route, job.durations)
+            add = self._module.retention_add if self.retention == "bounded" else self._module.add
+            identity = add(self._engine, job.arrival, job.due, job.route, job.durations)
             return JobHandle(self._owner, identity)
 
     def advance(self, until: float) -> None:
         with self._lock:
             self._check()
-            self._module.advance(self._engine, _number(until, "until"))
+            until = _number(until, "until")
+            if self.retention == "bounded":
+                self._commit(self._module.retention_advance(self._engine, until))
+            else:
+                self._module.advance(self._engine, until)
 
     def inspect(self, handle: JobHandle) -> dict[str, Any]:
         with self._lock:
             self._check()
-            self._module.now(self._engine)
+            (self._module.retention_now if self.retention == "bounded" else self._module.now)(self._engine)
             if type(handle) is not JobHandle or handle._owner is not self._owner:
                 raise ValueError("foreign native job handle")
+            if self.retention == "bounded":
+                try:
+                    return self._module.retention_inspect(self._engine, handle.id)
+                except KeyError as error:
+                    raise ExpiredHandleError(handle.id) from error
             return self._module.inspect(self._engine, handle.id)
 
     def run(self) -> None:
         with self._lock:
             self._check()
-            self._module.run(self._engine)
+            if self.retention == "bounded":
+                self._commit(self._module.retention_run(self._engine))
+            else:
+                self._module.run(self._engine)
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             self._check()
+            if self.retention == "bounded":
+                start, end, closed, values = self._module.retention_snapshot(self._engine)
+                return dict(
+                    window=(start, end, closed),
+                    scalars={
+                        "shopfloor/" + kpi.name: value
+                        for kpi, value in zip(ShopFloorKPIs.kpis, values)
+                        if value is not None
+                    },
+                )
             return self._module.stock_kpis(self._engine)
 
     def result(self) -> dict[str, Any]:
         """Detached trajectories and legacy engine totals after successful run."""
         with self._lock:
             self._check()
+            if self.retention == "bounded":
+                raise RuntimeError("Full trajectories require retention='full'; use snapshot() for bounded streams")
             return self._module.result(self._engine)
 
     def state_bytes(self) -> bytes:
         with self._lock:
             self._check()
+            if self.retention == "bounded":
+                raw = self._module.retention_state(self._engine)
+                return (
+                    b"NRST0001"
+                    + self._history.digest()
+                    + len(raw).to_bytes(8, "little")
+                    + raw
+                    + canonical_pack(freeze(self.snapshot()))
+                )
             return self._module.state_bytes(self._engine)
+
+    def _commit(self, records: bytes) -> None:
+        try:
+            self._history.update(records)
+        except BaseException:
+            self.close()
+            raise
+
+    def storage_stats(self) -> dict[str, int]:
+        """Detached high-water storage counters; excludes Python/OS allocator overhead."""
+        with self._lock:
+            self._check()
+            return (self._module.retention_stats if self.retention == "bounded" else self._module.storage_stats)(
+                self._engine
+            )
 
     def verify(self) -> None:
         """Recheck installed bytes/manifest/ABI and actual loaded image locations."""
@@ -167,7 +240,7 @@ class NativeStream:
             if self._engine is not None:
                 engine, self._engine = self._engine, None
                 try:
-                    self._module.close(engine)
+                    (self._module.retention_close if self.retention == "bounded" else self._module.close)(engine)
                 finally:
                     self._provider.verify()
 
@@ -191,6 +264,8 @@ class NativeProduction(ExecutionBackend):
     Attach with ``env.attach_execution_backend(backend)`` during build. Dynamic
     ``add`` is allowed only with a pure ``input_state`` callback covering future
     Python inputs/controller state. Fixed jobs are copied and registered eagerly.
+    Bounded retention reclaims completed native execution data; lazy input is
+    required to bound the whole workload. Full retention remains the default.
     """
 
     capabilities = BackendCapabilities("native-production", "native-production-v1")
@@ -204,8 +279,12 @@ class NativeProduction(ExecutionBackend):
         wip_cap: int | None = 12,
         policy: str = "spt",
         input_state: Callable[[], Any] | None = None,
+        retention: str = "full",
     ):
         _configuration(servers, wip_cap, policy)
+        self._retention = _retention(retention)
+        if retention == "bounded":
+            self.capabilities = BackendCapabilities("native-production", "native-production-bounded-v1")
         self.servers, self.wip_cap, self.policy = servers, wip_cap, policy
         self._jobs = tuple(jobs)
         if any(type(job) is not Job for job in self._jobs):
@@ -228,10 +307,15 @@ class NativeProduction(ExecutionBackend):
             raise RuntimeError("Native backend is single-use")
         self._context = context
         self._stream = NativeStream(
-            self.servers, wip_cap=self.wip_cap, policy=self.policy, warmup=context.stopping.warmup
+            self.servers,
+            wip_cap=self.wip_cap,
+            policy=self.policy,
+            warmup=context.stopping.warmup,
+            retention=self._retention,
         )
         for job in self._jobs:
             self._stream.add(job)
+        self._jobs = ()
 
     def _live(self) -> NativeStream:
         if self._closed or self._finished or self._stream is None:
@@ -246,6 +330,11 @@ class NativeProduction(ExecutionBackend):
 
     def inspect(self, handle: JobHandle) -> dict[str, Any]:
         return self._live().inspect(handle)
+
+    def storage_stats(self) -> dict[str, int]:
+        """Live, detached native storage diagnostics; not part of semantic state."""
+        self._synchronized()
+        return self._live().storage_stats()
 
     def advance(self, until: float) -> None:
         self._live().advance(until)
@@ -268,14 +357,14 @@ class NativeProduction(ExecutionBackend):
             return self._state
         self._synchronized()
         state = self._live().state_bytes()
-        if not state.startswith(b"NSTA0001"):
+        if not state.startswith(b"NRST0001" if self._retention == "bounded" else b"NSTA0001"):
             raise RuntimeError("Unsupported native state encoding")
         inputs = None if self._input_state is None else freeze(self._input_state())
         return hashlib.sha256(
             canonical_pack(
                 freeze(
                     dict(
-                        schema="native-production-v1",
+                        schema=self.capabilities.state_schema,
                         native=hashlib.sha256(state).hexdigest(),
                         inputs=inputs,
                     )

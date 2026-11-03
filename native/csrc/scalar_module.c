@@ -1,6 +1,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include "dynamic_engine.h"
+#include "retention_module.h"
 #include <math.h>
 #include <string.h>
 
@@ -340,6 +341,12 @@ static PyObject *close_stream(PyObject *self, PyObject *capsule) {
     s->busy = 0;
     Py_RETURN_NONE;
 }
+static PyObject *storage_stats(PyObject *self, PyObject *capsule) {
+    (void)self; scalar *s = get(capsule, 0); if (!s) return NULL;
+    nd_storage_stats out;
+    if (nd_storage(s->engine, &out)) { PyErr_SetString(PyExc_RuntimeError, "storage unavailable"); return NULL; }
+    return nd_retention_stats_dict(&out);
+}
 static PyMethodDef methods[] = {
 #ifdef SCALAR_TEST_ALLOCATIONS
     {"_fail_allocation", fail_allocation, METH_O, NULL},
@@ -352,10 +359,15 @@ static PyMethodDef methods[] = {
     {"stock_kpis", stock_kpis, METH_O, NULL},
     {"state_bytes", state_bytes, METH_O, NULL},
     {"now", now, METH_O, NULL}, {"result", result, METH_O, NULL},
+    {"storage_stats", storage_stats, METH_O, NULL},
     {"close", close_stream, METH_O, NULL}, {NULL, NULL, 0, NULL}
 };
 static struct PyModuleDef definition = {
     PyModuleDef_HEAD_INIT, "_nd_scalar", "Research scalar boundary, GIL-enabled interpreters only.",
     0, methods, NULL, NULL, NULL, NULL
 };
-PyMODINIT_FUNC PyInit__nd_scalar(void) { return PyModule_Create(&definition); }
+PyMODINIT_FUNC PyInit__nd_scalar(void) {
+    PyObject *module = PyModule_Create(&definition);
+    if (module && nd_add_retention_methods(module)) { Py_DECREF(module); return NULL; }
+    return module;
+}

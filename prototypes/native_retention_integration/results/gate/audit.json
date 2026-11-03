@@ -1,0 +1,71 @@
+{
+  "passed": true,
+  "source_sha256": "5c5f37ddef4e6d56720bcbfe050c719b154de7bf325a28e9b7238daf1f337414",
+  "gate_runs": 16,
+  "source_deleted_reproductions": 8,
+  "memory_cases": 25,
+  "paired_scenarios": 11,
+  "regenerated_inputs": 11,
+  "preserved_historical_files": 1039,
+  "unchanged_transition_functions": 12,
+  "deliberate_corruptions_rejected": 2,
+  "stable_summary": [
+    {
+      "jobs": 16384,
+      "full": {
+        "parent_mib": 44.3125,
+        "tree_mib": 149.671875,
+        "child_self_mib": 51.625,
+        "wall_seconds": 1.1762495410002884,
+        "trace_bytes": 55870,
+        "store_bytes": 16050474
+      },
+      "bounded": {
+        "parent_mib": 44.515625,
+        "tree_mib": 143.078125,
+        "child_self_mib": 45.34375,
+        "wall_seconds": 1.1569326250000813,
+        "trace_bytes": 55892,
+        "store_bytes": 16050584
+      }
+    },
+    {
+      "jobs": 131072,
+      "full": {
+        "parent_mib": 44.171875,
+        "tree_mib": 199.109375,
+        "child_self_mib": 101.53125,
+        "wall_seconds": 1.5418523749999622,
+        "trace_bytes": 55874,
+        "store_bytes": 16050508
+      },
+      "bounded": {
+        "parent_mib": 44.359375,
+        "tree_mib": 144.109375,
+        "child_self_mib": 45.375,
+        "wall_seconds": 1.5304357499999242,
+        "trace_bytes": 55896,
+        "store_bytes": 16050616
+      }
+    },
+    {
+      "jobs": 1048576,
+      "full": {
+        "parent_mib": 44.65625,
+        "tree_mib": 534.71875,
+        "child_self_mib": 436.609375,
+        "wall_seconds": 4.757616041999881,
+        "trace_bytes": 55874,
+        "store_bytes": 16050522
+      },
+      "bounded": {
+        "parent_mib": 44.546875,
+        "tree_mib": 144.046875,
+        "child_self_mib": 45.40625,
+        "wall_seconds": 4.6518502919998355,
+        "trace_bytes": 55896,
+        "store_bytes": 16050628
+      }
+    }
+  ]
+}

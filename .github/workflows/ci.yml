@@ -258,7 +258,7 @@ jobs:
         with:
           name: native-core-wheel
           path: ${{ runner.temp }}/native-core-wheel
-      - name: Check vendored native source identity
+      - name: Check native source manifest and versions
         run: |
           uv run --no-project --python ${{ matrix.python }} - <<'PY'
           from pathlib import Path
@@ -269,7 +269,6 @@ jobs:
           for name, sha in json.loads((native/"sources.json").read_text()).items():
               path = native / name
               assert hashlib.sha256(path.read_bytes()).hexdigest() == sha
-              assert path.read_bytes() == (root/"prototypes/native_engine_dynamic/csrc"/path.name).read_bytes()
           PY
       - name: Build standalone sdist and matching ABI wheel
         run: uv build native --python ${{ matrix.python }} --out-dir "$RUNNER_TEMP/native-build"

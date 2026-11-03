@@ -1,0 +1,147 @@
+{
+  "retention": "bounded",
+  "jobs": 131072,
+  "seed": 100,
+  "spacing": 1.5,
+  "observe": false,
+  "result": {
+    "configuration": null,
+    "seed": null,
+    "fingerprint": {
+      "digest": "165436623f9f39411fafcb4b2fed2408e53888436d8f5d7306b746d5b8d71039",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.1589769882142202,
+        "shopfloor/lateness": -0.7604041830464486,
+        "shopfloor/makespan": 3.2384660890805694,
+        "shopfloor/tardiness": 1.7813213236136025,
+        "shopfloor/tardy_fraction": 0.4485935651311019,
+        "shopfloor/throughput": 0.6666649703828852,
+        "shopfloor/total_queue_time": 0.6131559864127324,
+        "shopfloor/utilization": 0.5834028809683744
+      }
+    },
+    "attempt": "e51a9347d738bfb412c7e420665864cc",
+    "request": "5a7ae1b54b8d3a05277757ab9f84feead81962faf10e738cc34f2e8348663b95",
+    "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-retention-installed-jmt_h9bf/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-darwin.so",
+    "summary": {
+      "admitted": 131072,
+      "backend_state": "0836d8fed834d07f3e47347cb70e5fa1dc3aaa969364fb87c3abd3dc733527ba",
+      "counts": {
+        "admitted": 131072,
+        "completed": 131070,
+        "events": 2175684,
+        "forgotten": 131070,
+        "retained_jobs": 2,
+        "retained_operations": 6
+      },
+      "input_sha256": "f2be4b9833c91d5ccb7731d5bed4bfc2c72f28b20e28d2632a90050c5f8b182f",
+      "producer": {
+        "cursor": 131072,
+        "schema": "counter-input-v1",
+        "seed": 1150614869,
+        "spacing": 1.5
+      },
+      "schema": "native-production-bounded-v1"
+    },
+    "trace_bytes": 55896,
+    "artifact_sha256": "463b95ca07e018b9f348666761e10a479d2ceb9f8eaa62fb5b47c43c3d242e6c"
+  },
+  "store_bytes": 16050616,
+  "repetitions": [],
+  "parent_checkpoints": [
+    47087616
+  ],
+  "runtime": {
+    "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+    "platform": "macOS-27.2-arm64-64bit",
+    "machine": "arm64"
+  },
+  "coordinator_pid": 17097,
+  "provider": {
+    "schema": 1,
+    "provider_api": 2,
+    "version": "0.17.0",
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "arm64",
+      "platform": "darwin",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-darwin",
+      "suffix": ".cpython-314-darwin.so"
+    },
+    "sources": {
+      "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+      "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+      "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+      "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+      "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+      "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+      "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+      "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-darwin.so": {
+        "sha256": "8bb82fd69086d1017a931d5ae2b503949d59dab2fca074d8e1664fd7cc4971af",
+        "size": 72480
+      },
+      "simulatte_native_engine.dylib": {
+        "sha256": "b7edfa9d37f4a8d12cb096f8c59ce44f7a623240d617e3934cc79470044ff8ff",
+        "size": 53024
+      }
+    }
+  },
+  "distributions": {
+    "simpy": "4.1.2",
+    "simulatte": "0.17.0",
+    "simulatte-native": "0.17.0",
+    "tqdm": "4.70.1",
+    "tabulate": "0.10.0",
+    "msgpack": "1.2.4"
+  },
+  "usage": {
+    "parent_pid": 17097,
+    "tree_peak_rss": 150028288,
+    "parent_peak_rss": 46268416,
+    "per_pid_peak_rss": {
+      "17097": 46268416,
+      "17103": 30015488,
+      "17107": 33013760,
+      "17108": 23298048,
+      "17110": 40714240,
+      "17116": 23347200,
+      "17118": 47562752
+    },
+    "max_descendants": 3,
+    "samples": 26,
+    "wall_seconds": 1.5122081669996987
+  },
+  "diagnostics": [
+    {
+      "pid": 17118,
+      "peak_rss": 47579136,
+      "storage": {
+        "admitted": 131072,
+        "completed": 131070,
+        "forgotten": 131070,
+        "events": 2175684,
+        "retained_jobs": 2,
+        "retained_operations": 6,
+        "job_capacity": 128,
+        "op_capacity": 256,
+        "calendar_capacity": 128,
+        "native_bytes": 40663,
+        "completion_capacity": 16384,
+        "state_capacity": 1024
+      },
+      "cursor": 131072
+    }
+  ],
+  "extra_queries": false
+}

@@ -11,6 +11,7 @@ void nd_sum_destroy(nd_sum *);
 typedef struct nd_stock_state nd_stock_state;
 nd_stock_state *nd_stock_create(double warmup);
 void nd_stock_destroy(nd_stock_state *);
+size_t nd_stock_bytes(const nd_stock_state *);
 int nd_stock_busy(nd_stock_state *, double now, int delta);
 int nd_stock_floor(nd_stock_state *, double now, int delta);
 int nd_stock_finish(nd_stock_state *, double now, double arrival, double due,

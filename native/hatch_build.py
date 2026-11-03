@@ -51,6 +51,7 @@ class CustomBuildHook(BuildHookInterface):
                     else ["-shared", "-Wl,-soname," + library.name]
                 ),
                 str(root / "csrc/dynamic_engine.c"),
+                str(root / "csrc/retention.c"),
                 str(stock),
                 "-lm",
                 "-o",
@@ -65,6 +66,7 @@ class CustomBuildHook(BuildHookInterface):
                     else ["-shared", "-Wl,-rpath,$ORIGIN"]
                 ),
                 str(root / "csrc/scalar_module.c"),
+                str(root / "csrc/retention_module.c"),
                 str(library),
                 "-o",
                 str(extension),
@@ -75,7 +77,7 @@ class CustomBuildHook(BuildHookInterface):
                 subprocess.run(command, check=True)
             manifest = dict(
                 schema=1,
-                provider_api=1,
+                provider_api=2,
                 version=self.metadata.version,
                 abi=dict(
                     implementation=sys.implementation.name,

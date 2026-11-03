@@ -24,7 +24,18 @@ integrates this engine with managed Horizon execution, state fingerprints and
 reproduction. Full tracing, arbitrary production actors, remote native slots,
 Windows, PyPy and free-threading are outside this provider's supported scope.
 
-The package vendors the unchanged validated research C implementation; see
+`retention="full"` remains the default. Opt-in `retention="bounded"` reclaims
+completed execution data at advance/run boundaries and expires its handles
+explicitly. Live logical identities survive compaction. Full trajectory results
+require full retention. Lazy input and bounded outstanding work are required for
+bounded resident memory; ConWIP alone does not limit the pre-shop pool.
+
+Full state remains NSTA0001/native-production-v1; bounded state is the distinct
+NRST0001/native-production-bounded-v1 commitment. It includes a rolling history
+hash and live/KPI state. Provider API 2 and matching core code are required.
+
+The package shares validated event transitions through a private C engine
+interface and separate retention/stock/binding translation units; see
 `sources.json`. The build manifest pins ABI and binary bytes. Installed files are
 verified against that manifest and its wheel RECORD, including actual linked
 engine origin. These are integrity/provenance checks for trusted code, not a

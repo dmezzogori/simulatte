@@ -13,6 +13,8 @@ from threading import RLock
 
 from simulatte.execution.native_assets import _checked, _images
 
+API_VERSION = 2
+
 _lock = RLock()
 _loaded = None
 _pin = None
@@ -50,7 +52,7 @@ def _read():
     if (
         set(value) != {"schema", "provider_api", "version", "abi", "sources", "files"}
         or value["schema"] != 1
-        or value["provider_api"] != 1
+        or value["provider_api"] != API_VERSION
     ):
         raise ImportError("Unsupported native provider API/manifest")
     if value["version"] != dist.version or value["version"] != metadata.version("simulatte"):

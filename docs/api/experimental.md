@@ -25,3 +25,5 @@ See the [Reinforcement Learning guide](../guides/reinforcement-learning.md) and 
       heading_level: 2
       members: [Job, JobHandle, NativeStream, NativeProduction]
       filters: ["!^_"]
+
+::: simulatte.experimental.native.ExpiredHandleError

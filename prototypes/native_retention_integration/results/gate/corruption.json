@@ -1,0 +1,59 @@
+{
+  "rejected": true,
+  "published_results": 0,
+  "error": "Native asset length differs from captured source",
+  "runtime": {
+    "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+    "platform": "macOS-27.2-arm64-64bit",
+    "machine": "arm64"
+  },
+  "coordinator_pid": 16911,
+  "provider": null,
+  "distributions": {
+    "simpy": "4.1.2",
+    "simulatte": "0.17.0",
+    "simulatte-native": "0.17.0",
+    "tqdm": "4.70.1",
+    "tabulate": "0.10.0",
+    "msgpack": "1.2.4"
+  },
+  "usage": {
+    "parent_pid": 16911,
+    "tree_peak_rss": 150241280,
+    "parent_peak_rss": 46301184,
+    "per_pid_peak_rss": {
+      "16911": 46301184,
+      "16918": 31588352,
+      "16920": 32980992,
+      "16922": 23347200,
+      "16923": 41582592,
+      "16929": 23281664,
+      "16930": 47677440
+    },
+    "max_descendants": 3,
+    "samples": 21,
+    "wall_seconds": 1.2642622499997742
+  },
+  "diagnostics": [
+    {
+      "pid": 16930,
+      "peak_rss": 47546368,
+      "storage": {
+        "admitted": 40,
+        "completed": 6,
+        "forgotten": 6,
+        "events": 207,
+        "retained_jobs": 34,
+        "retained_operations": 102,
+        "job_capacity": 64,
+        "op_capacity": 128,
+        "calendar_capacity": 32,
+        "native_bytes": 20375,
+        "completion_capacity": 512,
+        "state_capacity": 8192
+      },
+      "cursor": 40
+    }
+  ],
+  "extra_queries": false
+}

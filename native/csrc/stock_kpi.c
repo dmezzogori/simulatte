@@ -144,3 +144,10 @@ int nd_stock_snapshot(const nd_stock_state *s, double now, uint32_t servers, int
     }
     return 0;
 }
+
+size_t nd_stock_bytes(const nd_stock_state *s) {
+    if (!s) return 0;
+    return sizeof(*s) + sizeof(double) * (s->flow.capacity + s->late.capacity +
+        s->tardiness.capacity + s->wait.capacity + s->scratch.capacity +
+        s->busy.area.capacity + s->floor.area.capacity);
+}

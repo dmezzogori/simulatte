@@ -1,5 +1,5 @@
 #include "dynamic_engine.h"
-#include "stock_kpi.h"
+#include "dynamic_engine_internal.h"
 
 #include <float.h>
 #include <math.h>
@@ -24,34 +24,6 @@ void *nd_test_realloc(void *p, size_t size) {
 
 _Static_assert(sizeof(double) == 8 && DBL_MANT_DIG == 53 && DBL_MAX_EXP == 1024,
                "native engine requires IEEE binary64 doubles");
-#define NONE UINT32_MAX
-#define RECORD_BUFFER_SIZE 65536u
-enum { ARRIVAL, START, END, ADVANCE, RELEASE_DISPATCH, INITIALIZE, POLICY_WAKE };
-typedef struct { double time; uint64_t sequence; uint32_t kind, id; } event;
-
-struct nd_engine {
-    uint32_t servers, jobs, operations, cap;
-    int policy, mode, state; /* 0 accepting, 1 sealed/failed, 2 successful */
-    int policy_pending;
-    double now;
-    uint64_t sequence, wip, floor_wip;
-    double last_wip_time, last_floor_time;
-    double *arrivals, *due, *durations, *queued, *released;
-    uint32_t *offsets, *routes, *job_of, *next, *head, *tail, *pool;
-    unsigned char *occupied, *job_state;
-    double *starts, *ends, *finished, *busy;
-    uint32_t *dispatch;
-    size_t dispatched, job_capacity, op_capacity, pool_size;
-    event *heap;
-    size_t heap_size, heap_capacity;
-    FILE *file;
-    unsigned char *record_buffer;
-    size_t record_used;
-    nd_stock_state *stock;
-    int stock_horizon;
-    nd_result result;
-    char error[256];
-};
 #ifdef ND_TEST_ALLOCATIONS
 void nd_test_sequence(nd_engine *e, uint64_t value) { e->sequence = value; }
 #endif
@@ -451,21 +423,23 @@ failure:
     nd_destroy(e);
     return NULL;
 }
-static int drain(nd_engine *e, double until) {
+static int drain(nd_engine *e, double until, nd_completion_callback callback, void *context) {
     while (e->heap_size && e->heap[0].time < until) {
         event ev = pop(e);
         e->now = ev.time;
         if (e->result.events == UINT64_MAX) return fail(e, "event counter overflow");
         ++e->result.events;
         if (process(e, ev)) return -1;
+        if (callback && ev.kind == ADVANCE && e->job_state[e->job_of[ev.id]] == 3 &&
+            callback(context, e->job_of[ev.id])) return fail(e, "completion allocation failed");
     }
     return 0;
 }
-int nd_advance(nd_engine *e, double until) {
+int nd_internal_advance(nd_engine *e, double until, nd_completion_callback callback, void *context) {
     if (!e) return -1;
     if (e->state || !isfinite(until) || until < e->now) return fail(e, "invalid advance or engine state");
     double previous = e->now;
-    if (drain(e, until)) return -1;
+    if (drain(e, until, callback, context)) return -1;
     if (until > previous) e->stock_horizon = 1;
     e->now = until;
     return 0;
@@ -476,12 +450,13 @@ int nd_flush(nd_engine *e) {
     if (e->file && (flush_records(e) || fflush(e->file))) return fail(e, "record flush failed");
     return 0;
 }
-int nd_run(nd_engine *e) {
+int nd_internal_run(nd_engine *e, uint64_t forgotten, nd_completion_callback callback, void *context) {
     if (!e) return -1;
     if (e->state) return fail(e, "engine can only run once");
     e->state = 1;
-    if (drain(e, INFINITY)) return -1;
-    if (e->result.completed != e->jobs || e->dispatched != e->operations || e->floor_wip || e->pool_size)
+    if (forgotten > e->result.completed) return fail(e, "invalid forgotten accounting");
+    if (drain(e, INFINITY, callback, context)) return -1;
+    if (e->result.completed - forgotten != e->jobs || e->dispatched != e->operations || e->floor_wip || e->pool_size)
         return fail(e, "incomplete simulation");
     if (e->mode >= 2 && (flush_records(e) || fflush(e->file))) return fail(e, "record flush failed");
     e->result.starts = e->starts;
@@ -611,3 +586,23 @@ void nd_destroy(nd_engine *e) {
     nd_stock_destroy(e->stock);
     free(e);
 }
+
+int nd_advance(nd_engine *e, double until) { return nd_internal_advance(e, until, NULL, NULL); }
+int nd_run(nd_engine *e) { return nd_internal_run(e, 0, NULL, NULL); }
+int nd_internal_fail(nd_engine *e, const char *text) { return fail(e, text); }
+int nd_internal_event_compare(const void *a, const void *b) { return state_event_compare(a, b); }
+int nd_storage(const nd_engine *e, nd_storage_stats *out) {
+    if (!e || e->state == 1 || !out) return -1;
+    *out = (nd_storage_stats) {0};
+    out->admitted = out->jobs = e->jobs;
+    out->completed = e->result.completed; out->events = e->result.events;
+    out->operations = e->operations; out->job_capacity = e->job_capacity;
+    out->op_capacity = e->op_capacity; out->calendar_capacity = e->heap_capacity;
+    out->native_bytes = sizeof(*e) + e->job_capacity * 41 + (e->job_capacity ? 4 : 0) +
+        e->op_capacity * 48 + e->heap_capacity * sizeof(event) + e->servers * 17 +
+        (e->mode >= 2 ? RECORD_BUFFER_SIZE : 0) + nd_stock_bytes(e->stock);
+    return 0;
+}
+#ifdef ND_TEST_ALLOCATIONS
+size_t nd_internal_test_attempts(void) { return allocation_attempt; }
+#endif

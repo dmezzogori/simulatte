@@ -1,0 +1,3 @@
+full allocation-failure positions: 164
+bounded allocation-failure positions: 156
+streaming ASan/UBSan checks pass
