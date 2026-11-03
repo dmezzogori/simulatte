@@ -1,0 +1,277 @@
+{
+  "retention": "bounded",
+  "jobs": 131072,
+  "seed": 101,
+  "spacing": 1.5,
+  "observe": false,
+  "result": {
+    "configuration": null,
+    "seed": null,
+    "fingerprint": {
+      "digest": "8e9293c0c33ee6d691c1bff9b93ee46d084f2911ba0c859e008b213fa2884355",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.156983430700022,
+        "shopfloor/lateness": -0.7575550551505668,
+        "shopfloor/makespan": 3.235475745200565,
+        "shopfloor/tardiness": 1.7815674974237625,
+        "shopfloor/tardy_fraction": 0.4479447349337812,
+        "shopfloor/throughput": 0.6666649703828852,
+        "shopfloor/total_queue_time": 0.610482424334949,
+        "shopfloor/utilization": 0.5833329092623879
+      }
+    },
+    "attempt": "5b951a4e9ae401abbe159a0be7b16040",
+    "request": "1f3b4bb8e039227bdd1cb524034130c6a32a38fb23137636a1a6f53eed98c1c1",
+    "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+    "summary": {
+      "admitted": 131072,
+      "backend_state": "36f390ec6c2738b99d950bb069a5f7d4c4e63520f899369cda6bb3b6f5b72db1",
+      "counts": {
+        "admitted": 131072,
+        "completed": 131070,
+        "events": 2176390,
+        "forgotten": 131070,
+        "retained_jobs": 2,
+        "retained_operations": 6
+      },
+      "input_sha256": "e8cbf167638c0374f8e1675e1c7d0e4ee30ea2d39827e6cf6dbbb19131079b1a",
+      "producer": {
+        "cursor": 131072,
+        "schema": "counter-input-v1",
+        "seed": 2256736018,
+        "spacing": 1.5
+      },
+      "schema": "native-production-bounded-v1"
+    },
+    "trace_bytes": 50183,
+    "artifact_sha256": "ba5f0fb6244c6a8faa92981d4204939dc7fc63c501c7a7ddbefcf9dc6a2b10fa"
+  },
+  "store_bytes": 16618650,
+  "repetitions": [
+    {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "8e9293c0c33ee6d691c1bff9b93ee46d084f2911ba0c859e008b213fa2884355",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.156983430700022,
+          "shopfloor/lateness": -0.7575550551505668,
+          "shopfloor/makespan": 3.235475745200565,
+          "shopfloor/tardiness": 1.7815674974237625,
+          "shopfloor/tardy_fraction": 0.4479447349337812,
+          "shopfloor/throughput": 0.6666649703828852,
+          "shopfloor/total_queue_time": 0.610482424334949,
+          "shopfloor/utilization": 0.5833329092623879
+        }
+      },
+      "attempt": "28280f6ad922d95c1dace8fa88029bf3",
+      "request": "1f3b4bb8e039227bdd1cb524034130c6a32a38fb23137636a1a6f53eed98c1c1",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 131072,
+        "backend_state": "36f390ec6c2738b99d950bb069a5f7d4c4e63520f899369cda6bb3b6f5b72db1",
+        "counts": {
+          "admitted": 131072,
+          "completed": 131070,
+          "events": 2176390,
+          "forgotten": 131070,
+          "retained_jobs": 2,
+          "retained_operations": 6
+        },
+        "input_sha256": "e8cbf167638c0374f8e1675e1c7d0e4ee30ea2d39827e6cf6dbbb19131079b1a",
+        "producer": {
+          "cursor": 131072,
+          "schema": "counter-input-v1",
+          "seed": 2256736018,
+          "spacing": 1.5
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50183,
+      "artifact_sha256": "ba5f0fb6244c6a8faa92981d4204939dc7fc63c501c7a7ddbefcf9dc6a2b10fa"
+    },
+    {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "8e9293c0c33ee6d691c1bff9b93ee46d084f2911ba0c859e008b213fa2884355",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.156983430700022,
+          "shopfloor/lateness": -0.7575550551505668,
+          "shopfloor/makespan": 3.235475745200565,
+          "shopfloor/tardiness": 1.7815674974237625,
+          "shopfloor/tardy_fraction": 0.4479447349337812,
+          "shopfloor/throughput": 0.6666649703828852,
+          "shopfloor/total_queue_time": 0.610482424334949,
+          "shopfloor/utilization": 0.5833329092623879
+        }
+      },
+      "attempt": "3bd59e84ae4e4d15981e425525bd8c02",
+      "request": "1f3b4bb8e039227bdd1cb524034130c6a32a38fb23137636a1a6f53eed98c1c1",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 131072,
+        "backend_state": "36f390ec6c2738b99d950bb069a5f7d4c4e63520f899369cda6bb3b6f5b72db1",
+        "counts": {
+          "admitted": 131072,
+          "completed": 131070,
+          "events": 2176390,
+          "forgotten": 131070,
+          "retained_jobs": 2,
+          "retained_operations": 6
+        },
+        "input_sha256": "e8cbf167638c0374f8e1675e1c7d0e4ee30ea2d39827e6cf6dbbb19131079b1a",
+        "producer": {
+          "cursor": 131072,
+          "schema": "counter-input-v1",
+          "seed": 2256736018,
+          "spacing": 1.5
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50183,
+      "artifact_sha256": "ba5f0fb6244c6a8faa92981d4204939dc7fc63c501c7a7ddbefcf9dc6a2b10fa"
+    }
+  ],
+  "parent_checkpoints": [
+    39624704,
+    40787968,
+    40787968
+  ],
+  "runtime": {
+    "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+    "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+    "machine": "x86_64"
+  },
+  "coordinator_pid": 209384,
+  "provider": {
+    "schema": 1,
+    "provider_api": 2,
+    "version": "0.17.0",
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "x86_64",
+      "platform": "linux",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-x86_64-linux-gnu",
+      "suffix": ".cpython-314-x86_64-linux-gnu.so"
+    },
+    "sources": {
+      "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+      "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+      "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+      "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+      "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+      "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+      "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+      "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+        "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+        "size": 46176
+      },
+      "simulatte_native_engine.so": {
+        "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+        "size": 51328
+      }
+    }
+  },
+  "distributions": {
+    "simulatte": "0.17.0",
+    "simulatte-native": "0.17.0",
+    "simpy": "4.1.2",
+    "tqdm": "4.70.1",
+    "msgpack": "1.2.4",
+    "tabulate": "0.10.0"
+  },
+  "usage": {
+    "parent_pid": 209384,
+    "tree_peak_rss": 131522560,
+    "parent_peak_rss": 41230336,
+    "per_pid_peak_rss": {
+      "209384": 41230336,
+      "209391": 27742208,
+      "209400": 29409280,
+      "209408": 19685376,
+      "209410": 37048320,
+      "209439": 19701760,
+      "209441": 42242048,
+      "209499": 29437952,
+      "209521": 19697664,
+      "209522": 40976384,
+      "209590": 19726336,
+      "209591": 41140224
+    },
+    "max_descendants": 3,
+    "samples": 100,
+    "wall_seconds": 5.610157962000812
+  },
+  "diagnostics": [
+    {
+      "pid": 209441,
+      "peak_rss": 41295872,
+      "storage": {
+        "admitted": 131072,
+        "completed": 131070,
+        "forgotten": 131070,
+        "events": 2176390,
+        "retained_jobs": 2,
+        "retained_operations": 6,
+        "job_capacity": 128,
+        "op_capacity": 256,
+        "calendar_capacity": 128,
+        "native_bytes": 40663,
+        "completion_capacity": 16384,
+        "state_capacity": 1024
+      },
+      "cursor": 131072
+    },
+    {
+      "pid": 209522,
+      "peak_rss": 40206336,
+      "storage": {
+        "admitted": 131072,
+        "completed": 131070,
+        "forgotten": 131070,
+        "events": 2176390,
+        "retained_jobs": 2,
+        "retained_operations": 6,
+        "job_capacity": 128,
+        "op_capacity": 256,
+        "calendar_capacity": 128,
+        "native_bytes": 40663,
+        "completion_capacity": 16384,
+        "state_capacity": 1024
+      },
+      "cursor": 131072
+    },
+    {
+      "pid": 209591,
+      "peak_rss": 40026112,
+      "storage": {
+        "admitted": 131072,
+        "completed": 131070,
+        "forgotten": 131070,
+        "events": 2176390,
+        "retained_jobs": 2,
+        "retained_operations": 6,
+        "job_capacity": 128,
+        "op_capacity": 256,
+        "calendar_capacity": 128,
+        "native_bytes": 40663,
+        "completion_capacity": 16384,
+        "state_capacity": 1024
+      },
+      "cursor": 131072
+    }
+  ],
+  "extra_queries": false
+}

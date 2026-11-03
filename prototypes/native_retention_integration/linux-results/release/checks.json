@@ -1,0 +1,96 @@
+{
+  "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+  "executable": "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/.venv/bin/python",
+  "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+  "libc": [
+    "glibc",
+    "2.43"
+  ],
+  "base": "dfbb1a1e21eb885013f44ada987c8172e469aef1",
+  "compiler": "gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0\nCopyright (C) 2025 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "commands": [
+    {
+      "name": "native-build",
+      "command": [
+        "/home/davide/.local/bin/uv",
+        "build",
+        "native",
+        "--python",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/.venv/bin/python",
+        "--out-dir",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/native"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "install-check",
+      "command": [
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/.venv/bin/python",
+        "native/check_install.py",
+        "--python",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/.venv/bin/python",
+        "--core-wheel",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/core/simulatte-0.17.0-py3-none-any.whl",
+        "--native-wheel",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/native/simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl",
+        "--output",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/linux-results/release/install-check"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "regressions",
+      "command": [
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/.venv/bin/python",
+        "-m",
+        "pytest",
+        "--junitxml=/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/linux-results/release/regressions.xml"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "lint",
+      "command": [
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/.venv/bin/ruff",
+        "check",
+        "src",
+        "tests",
+        "native",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "format",
+      "command": [
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/.venv/bin/ruff",
+        "format",
+        "--check",
+        "src",
+        "tests",
+        "native",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "types",
+      "command": [
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/.venv/bin/ty",
+        "check",
+        "src"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "lock",
+      "command": [
+        "/home/davide/.local/bin/uv",
+        "lock",
+        "--check"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "passed": true
+}

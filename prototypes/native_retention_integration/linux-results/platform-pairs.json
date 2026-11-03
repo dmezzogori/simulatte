@@ -1,0 +1,553 @@
+[
+  {
+    "kind": "gate",
+    "key": [
+      0,
+      100
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      1,
+      100
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      2,
+      100
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      3,
+      100
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      4,
+      100
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      5,
+      100
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      6,
+      100
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      7,
+      100
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      0,
+      101
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      1,
+      101
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      2,
+      101
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      3,
+      101
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      4,
+      101
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      5,
+      101
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      6,
+      101
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "gate",
+    "key": [
+      7,
+      101
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "full",
+      16384,
+      100,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "full",
+      16384,
+      100,
+      0.125,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "full",
+      131072,
+      100,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "bounded",
+      65536,
+      100,
+      0.125,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "bounded",
+      131072,
+      100,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "bounded",
+      16384,
+      100,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "bounded",
+      16384,
+      100,
+      0.125,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "full",
+      1048576,
+      101,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "bounded",
+      131072,
+      101,
+      1.5,
+      false,
+      2
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "bounded",
+      1048576,
+      102,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "bounded",
+      131072,
+      102,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "bounded",
+      131072,
+      101,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "bounded",
+      16384,
+      101,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "bounded",
+      16384,
+      102,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "bounded",
+      1048576,
+      100,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "full",
+      1048576,
+      102,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "bounded",
+      1048576,
+      101,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "full",
+      16384,
+      101,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "bounded",
+      16384,
+      100,
+      1.5,
+      true,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "full",
+      65536,
+      100,
+      0.125,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "full",
+      1048576,
+      100,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "full",
+      16384,
+      100,
+      1.5,
+      true,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "full",
+      131072,
+      102,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "full",
+      131072,
+      101,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  },
+  {
+    "kind": "memory",
+    "key": [
+      "full",
+      16384,
+      102,
+      1.5,
+      false,
+      0
+    ],
+    "physical_equal": true,
+    "backend_state_equal": true,
+    "semantic_fingerprint_equal": true,
+    "artifact_equal": true
+  }
+]

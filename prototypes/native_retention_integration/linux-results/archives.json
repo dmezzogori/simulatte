@@ -1,0 +1,19 @@
+{
+  "archives": {
+    "simulatte-0.17.0-py3-none-any.whl": {
+      "sha256": "8e8b2cc88c4e16426831c9c6b2299630d4a4ff64e1f2555c24b6d952522b34a2",
+      "size": 1302457
+    },
+    "simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl": {
+      "sha256": "62fd31a20aa5b5dfd5a477693a15780eb073eae13b93b58bfe67f50dcc398096",
+      "size": 42951
+    },
+    "simulatte_native-0.17.0.tar.gz": {
+      "sha256": "d996db9680fcfd511e4c9b66031bc0cd386c682f74e44da0508717622aebb4a4",
+      "size": 25456
+    }
+  },
+  "current_sdist_sources": true,
+  "manifest_matches_wheel": true,
+  "core_pure": true
+}

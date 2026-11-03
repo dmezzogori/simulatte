@@ -1,0 +1,147 @@
+{
+  "retention": "full",
+  "jobs": 1048576,
+  "seed": 101,
+  "spacing": 1.5,
+  "observe": false,
+  "result": {
+    "configuration": null,
+    "seed": null,
+    "fingerprint": {
+      "digest": "c96e1590bf454e09eff6dc8997ba6b4cb7ddf570fddfa1c762cd231ee4f293d3",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.1584290459344184,
+        "shopfloor/lateness": -0.7621324546260885,
+        "shopfloor/makespan": 3.2376434178024054,
+        "shopfloor/tardiness": 1.7816944998140218,
+        "shopfloor/tardy_fraction": 0.4480615349400578,
+        "shopfloor/throughput": 0.6666670905488681,
+        "shopfloor/total_queue_time": 0.6125568664104301,
+        "shopfloor/utilization": 0.5833525140029485
+      }
+    },
+    "attempt": "72170c25af1a2c864ed472741c132e86",
+    "request": "296c50daf034b3a519f0c219058684d1b9230a016beaa333cdbe2e05ac6a6ccb",
+    "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+    "summary": {
+      "admitted": 1048576,
+      "backend_state": "f4204e9bb8149ff23a7c720d2d66ab41071e015d50ffe824ea83f85f69310e03",
+      "counts": {
+        "admitted": 1048576,
+        "completed": 1048575,
+        "events": 17410274,
+        "forgotten": 0,
+        "retained_jobs": 1048576,
+        "retained_operations": 3145728
+      },
+      "input_sha256": "40212ce71e097bf903e677011e308220805447e4e7aab5f6709be23f0b0b6533",
+      "producer": {
+        "cursor": 1048576,
+        "schema": "counter-input-v1",
+        "seed": 2256736018,
+        "spacing": 1.5
+      },
+      "schema": "native-production-v1"
+    },
+    "trace_bytes": 50161,
+    "artifact_sha256": "b3a3bea1089576615b2b1b099fa4ff3425952b759cdd75c78278823bbe8cbbb7"
+  },
+  "store_bytes": 15983042,
+  "repetitions": [],
+  "parent_checkpoints": [
+    39694336
+  ],
+  "runtime": {
+    "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+    "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+    "machine": "x86_64"
+  },
+  "coordinator_pid": 209017,
+  "provider": {
+    "schema": 1,
+    "provider_api": 2,
+    "version": "0.17.0",
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "x86_64",
+      "platform": "linux",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-x86_64-linux-gnu",
+      "suffix": ".cpython-314-x86_64-linux-gnu.so"
+    },
+    "sources": {
+      "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+      "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+      "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+      "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+      "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+      "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+      "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+      "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+        "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+        "size": 46176
+      },
+      "simulatte_native_engine.so": {
+        "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+        "size": 51328
+      }
+    }
+  },
+  "distributions": {
+    "simulatte": "0.17.0",
+    "simulatte-native": "0.17.0",
+    "simpy": "4.1.2",
+    "tqdm": "4.70.1",
+    "msgpack": "1.2.4",
+    "tabulate": "0.10.0"
+  },
+  "usage": {
+    "parent_pid": 209017,
+    "tree_peak_rss": 518455296,
+    "parent_peak_rss": 40292352,
+    "per_pid_peak_rss": {
+      "209017": 40292352,
+      "209024": 27537408,
+      "209033": 29384704,
+      "209041": 19738624,
+      "209043": 35921920,
+      "209072": 19636224,
+      "209074": 430133248
+    },
+    "max_descendants": 3,
+    "samples": 144,
+    "wall_seconds": 8.127850376000424
+  },
+  "diagnostics": [
+    {
+      "pid": 209074,
+      "peak_rss": 429363200,
+      "storage": {
+        "admitted": 1048576,
+        "completed": 1048575,
+        "forgotten": 0,
+        "events": 17410274,
+        "retained_jobs": 1048576,
+        "retained_operations": 3145728,
+        "job_capacity": 1048576,
+        "op_capacity": 4194304,
+        "calendar_capacity": 128,
+        "native_bytes": 244322799,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "cursor": 1048576
+    }
+  ],
+  "extra_queries": false
+}

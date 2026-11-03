@@ -1,0 +1,202 @@
+{
+  "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+  "executable": "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/.venv/bin/python",
+  "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+  "libc": [
+    "glibc",
+    "2.43"
+  ],
+  "base": "dfbb1a1e21eb885013f44ada987c8172e469aef1",
+  "compiler": "gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0\nCopyright (C) 2025 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "commands": [
+    {
+      "name": "stock-sanitizer-build",
+      "command": [
+        "gcc",
+        "-std=c17",
+        "-O1",
+        "-g",
+        "-fPIC",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-fno-omit-frame-pointer",
+        "-DND_TEST_ALLOCATIONS",
+        "-ffp-contract=off",
+        "-c",
+        "native/csrc/stock_kpi.c",
+        "-o",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/stock-test-sanitized.o"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "standalone-sanitizer-build",
+      "command": [
+        "gcc",
+        "-std=c17",
+        "-O1",
+        "-g",
+        "-fPIC",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-fno-omit-frame-pointer",
+        "-DND_TEST_ALLOCATIONS",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/tests/retention_sanitizer.c",
+        "native/csrc/dynamic_engine.c",
+        "native/csrc/retention.c",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/stock-test-sanitized.o",
+        "-lm",
+        "-o",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/retention-sanitizer"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "standalone-sanitizer",
+      "command": [
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/retention-sanitizer"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "boundary-stock-build",
+      "command": [
+        "gcc",
+        "-std=c17",
+        "-O1",
+        "-g",
+        "-fPIC",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-fno-omit-frame-pointer",
+        "-ffp-contract=off",
+        "-c",
+        "native/csrc/stock_kpi.c",
+        "-o",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/stock-sanitized.o"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "boundary-venv",
+      "command": [
+        "/home/davide/.local/bin/uv",
+        "venv",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/sanitized-venv",
+        "--python",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/.venv/bin/python"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "boundary-install",
+      "command": [
+        "/home/davide/.local/bin/uv",
+        "pip",
+        "install",
+        "--python",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/sanitized-venv/bin/python",
+        "--link-mode=copy",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/core/simulatte-0.17.0-py3-none-any.whl",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/native/simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl",
+        "pytest==9.1.1",
+        "pytest-timeout==2.4.0"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "boundary-path",
+      "command": [
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/sanitized-venv/bin/python",
+        "-I",
+        "-c",
+        "import sysconfig; print(sysconfig.get_path('purelib'))"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "engine-sanitizer-build",
+      "command": [
+        "gcc",
+        "-std=c17",
+        "-O1",
+        "-g",
+        "-fPIC",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-fno-omit-frame-pointer",
+        "-shared",
+        "-Wl,-soname,simulatte_native_engine.so",
+        "native/csrc/dynamic_engine.c",
+        "native/csrc/retention.c",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/stock-sanitized.o",
+        "-lm",
+        "-o",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/sanitized-venv/lib/python3.14/site-packages/simulatte_native/_bin/simulatte_native_engine.so"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "binding-sanitizer-build",
+      "command": [
+        "gcc",
+        "-std=c17",
+        "-O1",
+        "-g",
+        "-fPIC",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-fno-omit-frame-pointer",
+        "-I/home/davide/.local/share/uv/python/cpython-3.14-linux-x86_64-gnu/include/python3.14",
+        "-shared",
+        "-Wl,-rpath,$ORIGIN",
+        "native/csrc/scalar_module.c",
+        "native/csrc/retention_module.c",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/sanitized-venv/lib/python3.14/site-packages/simulatte_native/_bin/simulatte_native_engine.so",
+        "-o",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/sanitized-venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "boundary-tests",
+      "command": [
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/sanitized-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/experimental/test_native.py",
+        "tests/experimental/test_native_retention.py",
+        "-o",
+        "addopts=",
+        "-q"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "boundary-elf",
+      "command": [
+        "readelf",
+        "-d",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/sanitized-venv/lib/python3.14/site-packages/simulatte_native/_bin/simulatte_native_engine.so",
+        "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/sanitized-venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "passed": true
+}

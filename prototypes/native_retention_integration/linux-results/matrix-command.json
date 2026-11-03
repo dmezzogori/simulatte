@@ -1,0 +1,26 @@
+{
+  "command": [
+    "/home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/.venv/bin/python",
+    "-m",
+    "prototypes.native_retention_integration.run",
+    "--core-wheel",
+    "prototypes/native_retention_integration/.build/linux/core/simulatte-0.17.0-py3-none-any.whl",
+    "--native-wheel",
+    "prototypes/native_retention_integration/.build/linux/native/simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl",
+    "--python",
+    "/home/davide/.local/share/uv/python/cpython-3.14-linux-x86_64-gnu/bin/python3.14",
+    "--output",
+    "prototypes/native_retention_integration/linux-results/gate"
+  ],
+  "load_before": "1.39 0.90 0.45 1/962 207167\n",
+  "source_sha256": "5c5f37ddef4e6d56720bcbfe050c719b154de7bf325a28e9b7238daf1f337414",
+  "linux_sources": {
+    "prototypes/native_retention_integration/linux/README.md": "0ab693cb7e90972ce11ef9c523675d47055fc0500bf9f912b5ec03817ef22e76",
+    "prototypes/native_retention_integration/linux/checks.py": "179ad3495d8a464651bb4863287df89202d54935b54d9bec779ac70ededbeb48",
+    "prototypes/native_retention_integration/linux/verify.py": "7188e8cff1a9a531a23337327872a312a42fc224f18aa6c993462aae8131517d",
+    "specs/research/2026-11-03-native-retention-linux-plan.md": "5a4f2268cce4f3e527a6b2c73f4c8a76a8e1c37b868c0c34a3f89bbcda422557"
+  },
+  "compiler_tests_running": false,
+  "exit_code": 0,
+  "load_after": "1.46 1.10 0.58 1/959 212875\n"
+}

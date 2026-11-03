@@ -1,0 +1,3807 @@
+[
+  {
+    "retention": "full",
+    "jobs": 16384,
+    "seed": 100,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "9961a5e658224d14d6c5c42bfacdaddbac10c1eb9d79e58bfbd3e584e7fcb9d2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1624550580160156,
+          "shopfloor/lateness": -0.7001133786848073,
+          "shopfloor/makespan": 3.2436875651161365,
+          "shopfloor/tardiness": 1.807302200159343,
+          "shopfloor/tardy_fraction": 0.45523074094502664,
+          "shopfloor/throughput": 0.6666530478836411,
+          "shopfloor/total_queue_time": 0.6193080835937979,
+          "shopfloor/utilization": 0.5831733126327832
+        }
+      },
+      "attempt": "cee25278d834dea1e411c143cc3ab2f6",
+      "request": "340ba4c242daf29812a8aa89685fce452b19732045a3355d137826f3642748ab",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 16384,
+        "backend_state": "522de4691a96078b8e1d8ca2eb88c3a5e4f44b01a74a0ef8f07e9e859916fa60",
+        "counts": {
+          "admitted": 16384,
+          "completed": 16382,
+          "events": 271921,
+          "forgotten": 0,
+          "retained_jobs": 16384,
+          "retained_operations": 49152
+        },
+        "input_sha256": "e34c291272f1ca76b5a9128fbf3371d4e55875cf44a01f94770daf6ad30661ca",
+        "producer": {
+          "cursor": 16384,
+          "schema": "counter-input-v1",
+          "seed": 1150614869,
+          "spacing": 1.5
+        },
+        "schema": "native-production-v1"
+      },
+      "trace_bytes": 50157,
+      "artifact_sha256": "fba00818a03a43e37e0497a41926a509d54d65fbd916323de33333f2aa481ace"
+    },
+    "store_bytes": 15982994,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39616512
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 208148,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 208148,
+      "tree_peak_rss": 133185536,
+      "parent_peak_rss": 40271872,
+      "per_pid_peak_rss": {
+        "208148": 40271872,
+        "208155": 28676096,
+        "208177": 29384704,
+        "208186": 19734528,
+        "208187": 35991552,
+        "208204": 19701760,
+        "208206": 44871680
+      },
+      "max_descendants": 3,
+      "samples": 32,
+      "wall_seconds": 1.821617261000938
+    },
+    "diagnostics": [
+      {
+        "pid": 208206,
+        "peak_rss": 46927872,
+        "storage": {
+          "admitted": 16384,
+          "completed": 16382,
+          "forgotten": 0,
+          "events": 271921,
+          "retained_jobs": 16384,
+          "retained_operations": 49152,
+          "job_capacity": 16384,
+          "op_capacity": 65536,
+          "calendar_capacity": 128,
+          "native_bytes": 3822063,
+          "completion_capacity": 0,
+          "state_capacity": 0
+        },
+        "cursor": 16384
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "full",
+    "jobs": 16384,
+    "seed": 100,
+    "spacing": 0.125,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "f32ed2d3de30b50ea5dd554038815364dac944a5f5c28364dff3cca8684a12c3",
+        "kpis": {
+          "shopfloor/jobs_in_system": 12.0,
+          "shopfloor/lateness": 916.6632548032937,
+          "shopfloor/makespan": 920.5269327538883,
+          "shopfloor/tardiness": 916.6632548032937,
+          "shopfloor/tardy_fraction": 1.0,
+          "shopfloor/throughput": 1.12217659137577,
+          "shopfloor/total_queue_time": 8.05975526075023,
+          "shopfloor/utilization": 0.9835301163586584
+        }
+      },
+      "attempt": "6547d6665491fbf20b4a1fcf944c1840",
+      "request": "d6b290049a5708b6a949b3cb1f46ca93c049ddd0c95e9aa37704c4aed34556ec",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 16384,
+        "backend_state": "2dfbdba6b16c44c9bae1b35c9fcb0458f3a2ed410522b850811ee464dd9a8c9a",
+        "counts": {
+          "admitted": 16384,
+          "completed": 2298,
+          "events": 51633,
+          "forgotten": 0,
+          "retained_jobs": 16384,
+          "retained_operations": 49152
+        },
+        "input_sha256": "fd3ce6268b8ded8e0beeab618f3aa60a9b429c11171861830b9ccd8e3ed1c4c4",
+        "producer": {
+          "cursor": 16384,
+          "schema": "counter-input-v1",
+          "seed": 1150614869,
+          "spacing": 0.125
+        },
+        "schema": "native-production-v1"
+      },
+      "trace_bytes": 50157,
+      "artifact_sha256": "b8d72c6c576d7e8074a4d82f01efe689516e22d7031d4fe483a97c2f344ae0d2"
+    },
+    "store_bytes": 15982994,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39936000
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 208246,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 208246,
+      "tree_peak_rss": 133746688,
+      "parent_peak_rss": 40296448,
+      "per_pid_peak_rss": {
+        "208246": 40296448,
+        "208257": 26238976,
+        "208266": 29388800,
+        "208287": 19632128,
+        "208289": 35913728,
+        "208306": 19705856,
+        "208307": 44998656
+      },
+      "max_descendants": 3,
+      "samples": 31,
+      "wall_seconds": 1.725584613999672
+    },
+    "diagnostics": [
+      {
+        "pid": 208307,
+        "peak_rss": 47116288,
+        "storage": {
+          "admitted": 16384,
+          "completed": 2298,
+          "forgotten": 0,
+          "events": 51633,
+          "retained_jobs": 16384,
+          "retained_operations": 49152,
+          "job_capacity": 16384,
+          "op_capacity": 65536,
+          "calendar_capacity": 128,
+          "native_bytes": 3822063,
+          "completion_capacity": 0,
+          "state_capacity": 0
+        },
+        "cursor": 16384
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "full",
+    "jobs": 131072,
+    "seed": 100,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "2218475b921c511c8cb6c8be25e63a91bc89497ae699f92c15429b95300db117",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1589769882142202,
+          "shopfloor/lateness": -0.7604041830464486,
+          "shopfloor/makespan": 3.2384660890805694,
+          "shopfloor/tardiness": 1.7813213236136025,
+          "shopfloor/tardy_fraction": 0.4485935651311019,
+          "shopfloor/throughput": 0.6666649703828852,
+          "shopfloor/total_queue_time": 0.6131559864127324,
+          "shopfloor/utilization": 0.5834028809683744
+        }
+      },
+      "attempt": "65ef28320e3f835d1dd7c4717c5dc1cd",
+      "request": "b239275ac32427bf801de213f3ed7b99dc9a47ede6a6a3d3a326203017dc0291",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 131072,
+        "backend_state": "b588302376d3e5cd77bd2263006132b71d79479e7d0ae5ae7de85c24d4189ddd",
+        "counts": {
+          "admitted": 131072,
+          "completed": 131070,
+          "events": 2175684,
+          "forgotten": 0,
+          "retained_jobs": 131072,
+          "retained_operations": 393216
+        },
+        "input_sha256": "f2be4b9833c91d5ccb7731d5bed4bfc2c72f28b20e28d2632a90050c5f8b182f",
+        "producer": {
+          "cursor": 131072,
+          "schema": "counter-input-v1",
+          "seed": 1150614869,
+          "spacing": 1.5
+        },
+        "schema": "native-production-v1"
+      },
+      "trace_bytes": 50161,
+      "artifact_sha256": "732d4055253fd3f6ad4b841bf6b4e339f8475d11a264260a8c2fbbe5c43a628a"
+    },
+    "store_bytes": 15983028,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39616512
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 208347,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 208347,
+      "tree_peak_rss": 183504896,
+      "parent_peak_rss": 40222720,
+      "per_pid_peak_rss": {
+        "208347": 40222720,
+        "208354": 28004352,
+        "208362": 29405184,
+        "208371": 19705856,
+        "208372": 35831808,
+        "208402": 19734528,
+        "208403": 95162368
+      },
+      "max_descendants": 3,
+      "samples": 43,
+      "wall_seconds": 2.4725351739998587
+    },
+    "diagnostics": [
+      {
+        "pid": 208403,
+        "peak_rss": 94277632,
+        "storage": {
+          "admitted": 131072,
+          "completed": 131070,
+          "forgotten": 0,
+          "events": 2175684,
+          "retained_jobs": 131072,
+          "retained_operations": 393216,
+          "job_capacity": 131072,
+          "op_capacity": 524288,
+          "calendar_capacity": 128,
+          "native_bytes": 30544367,
+          "completion_capacity": 0,
+          "state_capacity": 0
+        },
+        "cursor": 131072
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "bounded",
+    "jobs": 65536,
+    "seed": 100,
+    "spacing": 0.125,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "512bd8321064a2cc58c6b7a1f550f3a970a8880fbcd2092e02fb3005d23f1bc6",
+        "kpis": {
+          "shopfloor/jobs_in_system": 12.0,
+          "shopfloor/lateness": 3555.905485115766,
+          "shopfloor/makespan": 3559.781670341786,
+          "shopfloor/tardiness": 3555.905485115766,
+          "shopfloor/tardy_fraction": 1.0,
+          "shopfloor/throughput": 1.1208601087493821,
+          "shopfloor/total_queue_time": 8.08074696802646,
+          "shopfloor/utilization": 0.9808555775251278
+        }
+      },
+      "attempt": "f3c8d47dc2709b0191c8f75970002bde",
+      "request": "a9032ac9b16fda7469b05cee6e937cc3b4eae6032df8b05562ad55ad96aed603",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 65536,
+        "backend_state": "f5b1dcb9e549e70002dd4db94d4c08943543cc855f387e70cf30f8472b7f5501",
+        "counts": {
+          "admitted": 65536,
+          "completed": 9182,
+          "events": 205766,
+          "forgotten": 9182,
+          "retained_jobs": 56354,
+          "retained_operations": 169062
+        },
+        "input_sha256": "98ae7bcaba30cd2f7ff9beaa4a882e83cf19936f3f4e0853900a192ed3eedbc0",
+        "producer": {
+          "cursor": 65536,
+          "schema": "counter-input-v1",
+          "seed": 1150614869,
+          "spacing": 0.125
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50183,
+      "artifact_sha256": "62337c7cd2fabe4e52b221e80a1218d589bfcffdce5e7a4f190bad1eb744e9db"
+    },
+    "store_bytes": 15983142,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39821312
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 208456,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 208456,
+      "tree_peak_rss": 156106752,
+      "parent_peak_rss": 40230912,
+      "per_pid_peak_rss": {
+        "208456": 40230912,
+        "208476": 27836416,
+        "208485": 29458432,
+        "208493": 19705856,
+        "208495": 36962304,
+        "208527": 19640320,
+        "208531": 67780608
+      },
+      "max_descendants": 3,
+      "samples": 45,
+      "wall_seconds": 2.5138058189986623
+    },
+    "diagnostics": [
+      {
+        "pid": 208531,
+        "peak_rss": 100810752,
+        "storage": {
+          "admitted": 65536,
+          "completed": 9182,
+          "forgotten": 9182,
+          "events": 205766,
+          "retained_jobs": 56354,
+          "retained_operations": 169062,
+          "job_capacity": 65536,
+          "op_capacity": 262144,
+          "calendar_capacity": 128,
+          "native_bytes": 32578135,
+          "completion_capacity": 2048,
+          "state_capacity": 16777216
+        },
+        "cursor": 65536
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "bounded",
+    "jobs": 131072,
+    "seed": 100,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "165436623f9f39411fafcb4b2fed2408e53888436d8f5d7306b746d5b8d71039",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1589769882142202,
+          "shopfloor/lateness": -0.7604041830464486,
+          "shopfloor/makespan": 3.2384660890805694,
+          "shopfloor/tardiness": 1.7813213236136025,
+          "shopfloor/tardy_fraction": 0.4485935651311019,
+          "shopfloor/throughput": 0.6666649703828852,
+          "shopfloor/total_queue_time": 0.6131559864127324,
+          "shopfloor/utilization": 0.5834028809683744
+        }
+      },
+      "attempt": "d58f3cd32bfa346ec360b718daa88943",
+      "request": "8fe75337fb73650c68f7448c1f1be79440606c46cfdfcd62ceab161f718227c2",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 131072,
+        "backend_state": "0836d8fed834d07f3e47347cb70e5fa1dc3aaa969364fb87c3abd3dc733527ba",
+        "counts": {
+          "admitted": 131072,
+          "completed": 131070,
+          "events": 2175684,
+          "forgotten": 131070,
+          "retained_jobs": 2,
+          "retained_operations": 6
+        },
+        "input_sha256": "f2be4b9833c91d5ccb7731d5bed4bfc2c72f28b20e28d2632a90050c5f8b182f",
+        "producer": {
+          "cursor": 131072,
+          "schema": "counter-input-v1",
+          "seed": 1150614869,
+          "spacing": 1.5
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50183,
+      "artifact_sha256": "463b95ca07e018b9f348666761e10a479d2ceb9f8eaa62fb5b47c43c3d242e6c"
+    },
+    "store_bytes": 15983136,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39604224
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 208600,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 208600,
+      "tree_peak_rss": 130441216,
+      "parent_peak_rss": 40230912,
+      "per_pid_peak_rss": {
+        "208600": 40230912,
+        "208607": 26939392,
+        "208616": 29319168,
+        "208624": 19705856,
+        "208626": 36626432,
+        "208656": 19718144,
+        "208657": 42168320
+      },
+      "max_descendants": 3,
+      "samples": 43,
+      "wall_seconds": 2.4095424200004345
+    },
+    "diagnostics": [
+      {
+        "pid": 208657,
+        "peak_rss": 41365504,
+        "storage": {
+          "admitted": 131072,
+          "completed": 131070,
+          "forgotten": 131070,
+          "events": 2175684,
+          "retained_jobs": 2,
+          "retained_operations": 6,
+          "job_capacity": 128,
+          "op_capacity": 256,
+          "calendar_capacity": 128,
+          "native_bytes": 40663,
+          "completion_capacity": 16384,
+          "state_capacity": 1024
+        },
+        "cursor": 131072
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "bounded",
+    "jobs": 16384,
+    "seed": 100,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "5438157efc67a8be3b58fad0617596efd6f44760194d22fda391459ad42c3a1a",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1624550580160156,
+          "shopfloor/lateness": -0.7001133786848073,
+          "shopfloor/makespan": 3.2436875651161365,
+          "shopfloor/tardiness": 1.807302200159343,
+          "shopfloor/tardy_fraction": 0.45523074094502664,
+          "shopfloor/throughput": 0.6666530478836411,
+          "shopfloor/total_queue_time": 0.6193080835937979,
+          "shopfloor/utilization": 0.5831733126327832
+        }
+      },
+      "attempt": "42d196183e12779f01a66e70610610bc",
+      "request": "219592a41445a3f341364cedcce89161043c87b5a8224d05a6ca3af64f1317bb",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 16384,
+        "backend_state": "6f035ffd897e904f6b22c60f3ae7f8a7786927302eba07802264b047860a8d00",
+        "counts": {
+          "admitted": 16384,
+          "completed": 16382,
+          "events": 271921,
+          "forgotten": 16382,
+          "retained_jobs": 2,
+          "retained_operations": 6
+        },
+        "input_sha256": "e34c291272f1ca76b5a9128fbf3371d4e55875cf44a01f94770daf6ad30661ca",
+        "producer": {
+          "cursor": 16384,
+          "schema": "counter-input-v1",
+          "seed": 1150614869,
+          "spacing": 1.5
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50179,
+      "artifact_sha256": "de2f7a1a0d17d2065dab398895769fcd395b483eaea4417418024008cfc13c58"
+    },
+    "store_bytes": 15983104,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39866368
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 208743,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 208743,
+      "tree_peak_rss": 131031040,
+      "parent_peak_rss": 40198144,
+      "per_pid_peak_rss": {
+        "208743": 40198144,
+        "208827": 26120192,
+        "208849": 29446144,
+        "208857": 19726336,
+        "208859": 35909632,
+        "208875": 19783680,
+        "208876": 42233856
+      },
+      "max_descendants": 3,
+      "samples": 30,
+      "wall_seconds": 1.7412860299991735
+    },
+    "diagnostics": [
+      {
+        "pid": 208876,
+        "peak_rss": 41504768,
+        "storage": {
+          "admitted": 16384,
+          "completed": 16382,
+          "forgotten": 16382,
+          "events": 271921,
+          "retained_jobs": 2,
+          "retained_operations": 6,
+          "job_capacity": 128,
+          "op_capacity": 256,
+          "calendar_capacity": 128,
+          "native_bytes": 40663,
+          "completion_capacity": 16384,
+          "state_capacity": 1024
+        },
+        "cursor": 16384
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "bounded",
+    "jobs": 16384,
+    "seed": 100,
+    "spacing": 0.125,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "b7f27c130883450a9960ea25d5a50091bf94c42f013ca597da264301f3f1bac1",
+        "kpis": {
+          "shopfloor/jobs_in_system": 12.0,
+          "shopfloor/lateness": 916.6632548032937,
+          "shopfloor/makespan": 920.5269327538883,
+          "shopfloor/tardiness": 916.6632548032937,
+          "shopfloor/tardy_fraction": 1.0,
+          "shopfloor/throughput": 1.12217659137577,
+          "shopfloor/total_queue_time": 8.05975526075023,
+          "shopfloor/utilization": 0.9835301163586584
+        }
+      },
+      "attempt": "21d02a7ea2b1d68d951b3ef8eced82e4",
+      "request": "2c3805b7194106b47851fb0c4bc512d54293c2aca6ba7109a5c3b92b835b0252",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 16384,
+        "backend_state": "b8bd524d595efd253b7ad78a2e2ae94740202427a2ffa78440e07990416df257",
+        "counts": {
+          "admitted": 16384,
+          "completed": 2298,
+          "events": 51633,
+          "forgotten": 2298,
+          "retained_jobs": 14086,
+          "retained_operations": 42258
+        },
+        "input_sha256": "fd3ce6268b8ded8e0beeab618f3aa60a9b429c11171861830b9ccd8e3ed1c4c4",
+        "producer": {
+          "cursor": 16384,
+          "schema": "counter-input-v1",
+          "seed": 1150614869,
+          "spacing": 0.125
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50179,
+      "artifact_sha256": "a813e161f75a7d6b290edc591ac3f91f95ef3a97de7da6da5e30b3ac78d48b2d"
+    },
+    "store_bytes": 15983118,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39944192
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 208920,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 208920,
+      "tree_peak_rss": 134184960,
+      "parent_peak_rss": 40296448,
+      "per_pid_peak_rss": {
+        "208920": 40296448,
+        "208927": 27848704,
+        "208935": 29380608,
+        "208944": 19701760,
+        "208945": 36515840,
+        "208976": 45850624,
+        "208975": 19636224
+      },
+      "max_descendants": 3,
+      "samples": 31,
+      "wall_seconds": 1.7746971279993886
+    },
+    "diagnostics": [
+      {
+        "pid": 208976,
+        "peak_rss": 56377344,
+        "storage": {
+          "admitted": 16384,
+          "completed": 2298,
+          "forgotten": 2298,
+          "events": 51633,
+          "retained_jobs": 14086,
+          "retained_operations": 42258,
+          "job_capacity": 16384,
+          "op_capacity": 65536,
+          "calendar_capacity": 128,
+          "native_bytes": 8149591,
+          "completion_capacity": 2048,
+          "state_capacity": 4194304
+        },
+        "cursor": 16384
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "full",
+    "jobs": 1048576,
+    "seed": 101,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "c96e1590bf454e09eff6dc8997ba6b4cb7ddf570fddfa1c762cd231ee4f293d3",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1584290459344184,
+          "shopfloor/lateness": -0.7621324546260885,
+          "shopfloor/makespan": 3.2376434178024054,
+          "shopfloor/tardiness": 1.7816944998140218,
+          "shopfloor/tardy_fraction": 0.4480615349400578,
+          "shopfloor/throughput": 0.6666670905488681,
+          "shopfloor/total_queue_time": 0.6125568664104301,
+          "shopfloor/utilization": 0.5833525140029485
+        }
+      },
+      "attempt": "72170c25af1a2c864ed472741c132e86",
+      "request": "296c50daf034b3a519f0c219058684d1b9230a016beaa333cdbe2e05ac6a6ccb",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 1048576,
+        "backend_state": "f4204e9bb8149ff23a7c720d2d66ab41071e015d50ffe824ea83f85f69310e03",
+        "counts": {
+          "admitted": 1048576,
+          "completed": 1048575,
+          "events": 17410274,
+          "forgotten": 0,
+          "retained_jobs": 1048576,
+          "retained_operations": 3145728
+        },
+        "input_sha256": "40212ce71e097bf903e677011e308220805447e4e7aab5f6709be23f0b0b6533",
+        "producer": {
+          "cursor": 1048576,
+          "schema": "counter-input-v1",
+          "seed": 2256736018,
+          "spacing": 1.5
+        },
+        "schema": "native-production-v1"
+      },
+      "trace_bytes": 50161,
+      "artifact_sha256": "b3a3bea1089576615b2b1b099fa4ff3425952b759cdd75c78278823bbe8cbbb7"
+    },
+    "store_bytes": 15983042,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39694336
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 209017,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 209017,
+      "tree_peak_rss": 518455296,
+      "parent_peak_rss": 40292352,
+      "per_pid_peak_rss": {
+        "209017": 40292352,
+        "209024": 27537408,
+        "209033": 29384704,
+        "209041": 19738624,
+        "209043": 35921920,
+        "209072": 19636224,
+        "209074": 430133248
+      },
+      "max_descendants": 3,
+      "samples": 144,
+      "wall_seconds": 8.127850376000424
+    },
+    "diagnostics": [
+      {
+        "pid": 209074,
+        "peak_rss": 429363200,
+        "storage": {
+          "admitted": 1048576,
+          "completed": 1048575,
+          "forgotten": 0,
+          "events": 17410274,
+          "retained_jobs": 1048576,
+          "retained_operations": 3145728,
+          "job_capacity": 1048576,
+          "op_capacity": 4194304,
+          "calendar_capacity": 128,
+          "native_bytes": 244322799,
+          "completion_capacity": 0,
+          "state_capacity": 0
+        },
+        "cursor": 1048576
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "bounded",
+    "jobs": 131072,
+    "seed": 101,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "8e9293c0c33ee6d691c1bff9b93ee46d084f2911ba0c859e008b213fa2884355",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.156983430700022,
+          "shopfloor/lateness": -0.7575550551505668,
+          "shopfloor/makespan": 3.235475745200565,
+          "shopfloor/tardiness": 1.7815674974237625,
+          "shopfloor/tardy_fraction": 0.4479447349337812,
+          "shopfloor/throughput": 0.6666649703828852,
+          "shopfloor/total_queue_time": 0.610482424334949,
+          "shopfloor/utilization": 0.5833329092623879
+        }
+      },
+      "attempt": "5b951a4e9ae401abbe159a0be7b16040",
+      "request": "1f3b4bb8e039227bdd1cb524034130c6a32a38fb23137636a1a6f53eed98c1c1",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 131072,
+        "backend_state": "36f390ec6c2738b99d950bb069a5f7d4c4e63520f899369cda6bb3b6f5b72db1",
+        "counts": {
+          "admitted": 131072,
+          "completed": 131070,
+          "events": 2176390,
+          "forgotten": 131070,
+          "retained_jobs": 2,
+          "retained_operations": 6
+        },
+        "input_sha256": "e8cbf167638c0374f8e1675e1c7d0e4ee30ea2d39827e6cf6dbbb19131079b1a",
+        "producer": {
+          "cursor": 131072,
+          "schema": "counter-input-v1",
+          "seed": 2256736018,
+          "spacing": 1.5
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50183,
+      "artifact_sha256": "ba5f0fb6244c6a8faa92981d4204939dc7fc63c501c7a7ddbefcf9dc6a2b10fa"
+    },
+    "store_bytes": 16618650,
+    "repetitions": [
+      {
+        "configuration": null,
+        "seed": null,
+        "fingerprint": {
+          "digest": "8e9293c0c33ee6d691c1bff9b93ee46d084f2911ba0c859e008b213fa2884355",
+          "kpis": {
+            "shopfloor/jobs_in_system": 2.156983430700022,
+            "shopfloor/lateness": -0.7575550551505668,
+            "shopfloor/makespan": 3.235475745200565,
+            "shopfloor/tardiness": 1.7815674974237625,
+            "shopfloor/tardy_fraction": 0.4479447349337812,
+            "shopfloor/throughput": 0.6666649703828852,
+            "shopfloor/total_queue_time": 0.610482424334949,
+            "shopfloor/utilization": 0.5833329092623879
+          }
+        },
+        "attempt": "28280f6ad922d95c1dace8fa88029bf3",
+        "request": "1f3b4bb8e039227bdd1cb524034130c6a32a38fb23137636a1a6f53eed98c1c1",
+        "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+        "summary": {
+          "admitted": 131072,
+          "backend_state": "36f390ec6c2738b99d950bb069a5f7d4c4e63520f899369cda6bb3b6f5b72db1",
+          "counts": {
+            "admitted": 131072,
+            "completed": 131070,
+            "events": 2176390,
+            "forgotten": 131070,
+            "retained_jobs": 2,
+            "retained_operations": 6
+          },
+          "input_sha256": "e8cbf167638c0374f8e1675e1c7d0e4ee30ea2d39827e6cf6dbbb19131079b1a",
+          "producer": {
+            "cursor": 131072,
+            "schema": "counter-input-v1",
+            "seed": 2256736018,
+            "spacing": 1.5
+          },
+          "schema": "native-production-bounded-v1"
+        },
+        "trace_bytes": 50183,
+        "artifact_sha256": "ba5f0fb6244c6a8faa92981d4204939dc7fc63c501c7a7ddbefcf9dc6a2b10fa"
+      },
+      {
+        "configuration": null,
+        "seed": null,
+        "fingerprint": {
+          "digest": "8e9293c0c33ee6d691c1bff9b93ee46d084f2911ba0c859e008b213fa2884355",
+          "kpis": {
+            "shopfloor/jobs_in_system": 2.156983430700022,
+            "shopfloor/lateness": -0.7575550551505668,
+            "shopfloor/makespan": 3.235475745200565,
+            "shopfloor/tardiness": 1.7815674974237625,
+            "shopfloor/tardy_fraction": 0.4479447349337812,
+            "shopfloor/throughput": 0.6666649703828852,
+            "shopfloor/total_queue_time": 0.610482424334949,
+            "shopfloor/utilization": 0.5833329092623879
+          }
+        },
+        "attempt": "3bd59e84ae4e4d15981e425525bd8c02",
+        "request": "1f3b4bb8e039227bdd1cb524034130c6a32a38fb23137636a1a6f53eed98c1c1",
+        "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+        "summary": {
+          "admitted": 131072,
+          "backend_state": "36f390ec6c2738b99d950bb069a5f7d4c4e63520f899369cda6bb3b6f5b72db1",
+          "counts": {
+            "admitted": 131072,
+            "completed": 131070,
+            "events": 2176390,
+            "forgotten": 131070,
+            "retained_jobs": 2,
+            "retained_operations": 6
+          },
+          "input_sha256": "e8cbf167638c0374f8e1675e1c7d0e4ee30ea2d39827e6cf6dbbb19131079b1a",
+          "producer": {
+            "cursor": 131072,
+            "schema": "counter-input-v1",
+            "seed": 2256736018,
+            "spacing": 1.5
+          },
+          "schema": "native-production-bounded-v1"
+        },
+        "trace_bytes": 50183,
+        "artifact_sha256": "ba5f0fb6244c6a8faa92981d4204939dc7fc63c501c7a7ddbefcf9dc6a2b10fa"
+      }
+    ],
+    "parent_checkpoints": [
+      39624704,
+      40787968,
+      40787968
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 209384,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 209384,
+      "tree_peak_rss": 131522560,
+      "parent_peak_rss": 41230336,
+      "per_pid_peak_rss": {
+        "209384": 41230336,
+        "209391": 27742208,
+        "209400": 29409280,
+        "209408": 19685376,
+        "209410": 37048320,
+        "209439": 19701760,
+        "209441": 42242048,
+        "209499": 29437952,
+        "209521": 19697664,
+        "209522": 40976384,
+        "209590": 19726336,
+        "209591": 41140224
+      },
+      "max_descendants": 3,
+      "samples": 100,
+      "wall_seconds": 5.610157962000812
+    },
+    "diagnostics": [
+      {
+        "pid": 209441,
+        "peak_rss": 41295872,
+        "storage": {
+          "admitted": 131072,
+          "completed": 131070,
+          "forgotten": 131070,
+          "events": 2176390,
+          "retained_jobs": 2,
+          "retained_operations": 6,
+          "job_capacity": 128,
+          "op_capacity": 256,
+          "calendar_capacity": 128,
+          "native_bytes": 40663,
+          "completion_capacity": 16384,
+          "state_capacity": 1024
+        },
+        "cursor": 131072
+      },
+      {
+        "pid": 209522,
+        "peak_rss": 40206336,
+        "storage": {
+          "admitted": 131072,
+          "completed": 131070,
+          "forgotten": 131070,
+          "events": 2176390,
+          "retained_jobs": 2,
+          "retained_operations": 6,
+          "job_capacity": 128,
+          "op_capacity": 256,
+          "calendar_capacity": 128,
+          "native_bytes": 40663,
+          "completion_capacity": 16384,
+          "state_capacity": 1024
+        },
+        "cursor": 131072
+      },
+      {
+        "pid": 209591,
+        "peak_rss": 40026112,
+        "storage": {
+          "admitted": 131072,
+          "completed": 131070,
+          "forgotten": 131070,
+          "events": 2176390,
+          "retained_jobs": 2,
+          "retained_operations": 6,
+          "job_capacity": 128,
+          "op_capacity": 256,
+          "calendar_capacity": 128,
+          "native_bytes": 40663,
+          "completion_capacity": 16384,
+          "state_capacity": 1024
+        },
+        "cursor": 131072
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "bounded",
+    "jobs": 1048576,
+    "seed": 102,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "758fd6429ea1f6032e1285eb54f5a692d55037b2b3bdbdf78f87b0f0e7b2d8fa",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1571038312168893,
+          "shopfloor/lateness": -0.7642993526998815,
+          "shopfloor/makespan": 3.2356558217430655,
+          "shopfloor/tardiness": 1.7791566405247834,
+          "shopfloor/tardy_fraction": 0.44764994864135643,
+          "shopfloor/throughput": 0.666666454725566,
+          "shopfloor/total_queue_time": 0.6107513144856171,
+          "shopfloor/utilization": 0.583312033252711
+        }
+      },
+      "attempt": "c83982f061ea99f75d021ea9d30ed389",
+      "request": "39a90d3c29968018c33afaf4cb994b54d3e8e0b1869afc4f7865b18225e7ad2c",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 1048576,
+        "backend_state": "bb5004ddb6098ab2ffe7bacd9cc4b5576059111d2b5f69430bc997c0e715c333",
+        "counts": {
+          "admitted": 1048576,
+          "completed": 1048574,
+          "events": 17408831,
+          "forgotten": 1048574,
+          "retained_jobs": 2,
+          "retained_operations": 6
+        },
+        "input_sha256": "13c20b9d3c2c3c36d114374b95f7af64c27399c572e1d323ab4e006903089a98",
+        "producer": {
+          "cursor": 1048576,
+          "schema": "counter-input-v1",
+          "seed": 3261328115,
+          "spacing": 1.5
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50183,
+      "artifact_sha256": "b65c3ac6fcad350d112346b38e846dda47e55460293774d07f7c28eae0afaa95"
+    },
+    "store_bytes": 15983148,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39890944
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 209660,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 209660,
+      "tree_peak_rss": 130715648,
+      "parent_peak_rss": 40226816,
+      "per_pid_peak_rss": {
+        "209660": 40226816,
+        "209716": 26013696,
+        "209736": 29372416,
+        "209744": 19693568,
+        "209746": 36519936,
+        "209763": 19800064,
+        "209764": 42287104
+      },
+      "max_descendants": 3,
+      "samples": 149,
+      "wall_seconds": 8.317584295000415
+    },
+    "diagnostics": [
+      {
+        "pid": 209764,
+        "peak_rss": 41476096,
+        "storage": {
+          "admitted": 1048576,
+          "completed": 1048574,
+          "forgotten": 1048574,
+          "events": 17408831,
+          "retained_jobs": 2,
+          "retained_operations": 6,
+          "job_capacity": 128,
+          "op_capacity": 256,
+          "calendar_capacity": 128,
+          "native_bytes": 40663,
+          "completion_capacity": 16384,
+          "state_capacity": 1024
+        },
+        "cursor": 1048576
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "bounded",
+    "jobs": 131072,
+    "seed": 102,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "d707847bedd3b53177c72f8d2220e247ce4548808638db9b2c2234691034407f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.154544598693183,
+          "shopfloor/lateness": -0.7673504828059998,
+          "shopfloor/makespan": 3.2318174878821417,
+          "shopfloor/tardiness": 1.7750849204228847,
+          "shopfloor/tardy_fraction": 0.4467768405786039,
+          "shopfloor/throughput": 0.6666649703828852,
+          "shopfloor/total_queue_time": 0.6070436242891493,
+          "shopfloor/utilization": 0.5832841411036701
+        }
+      },
+      "attempt": "78f0ecde8d7b167cbfa767a3d00cd2db",
+      "request": "047bff7e82dce0efaf5a34fba0a47e1912893de2330b202ec766571dc65e69de",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 131072,
+        "backend_state": "dde77ae1274d6600c4abb7744d10262a2db3b55f0519b664b28a556f177b2b9a",
+        "counts": {
+          "admitted": 131072,
+          "completed": 131070,
+          "events": 2176358,
+          "forgotten": 131070,
+          "retained_jobs": 2,
+          "retained_operations": 6
+        },
+        "input_sha256": "1c4c329f25db8972109b714f9071f43c2c0b52554cfcaeccbc71148bf6e4d896",
+        "producer": {
+          "cursor": 131072,
+          "schema": "counter-input-v1",
+          "seed": 3261328115,
+          "spacing": 1.5
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50183,
+      "artifact_sha256": "046c766435ad61e2e837edc807c0aa4203bad761fa5a645ecb844335446e3b78"
+    },
+    "store_bytes": 15983136,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39673856
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 210048,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 210048,
+      "tree_peak_rss": 130551808,
+      "parent_peak_rss": 40153088,
+      "per_pid_peak_rss": {
+        "210048": 40153088,
+        "210071": 27721728,
+        "210080": 29315072,
+        "210088": 19697664,
+        "210089": 36646912,
+        "210123": 19697664,
+        "210125": 42287104
+      },
+      "max_descendants": 3,
+      "samples": 44,
+      "wall_seconds": 2.5023804160009604
+    },
+    "diagnostics": [
+      {
+        "pid": 210125,
+        "peak_rss": 41619456,
+        "storage": {
+          "admitted": 131072,
+          "completed": 131070,
+          "forgotten": 131070,
+          "events": 2176358,
+          "retained_jobs": 2,
+          "retained_operations": 6,
+          "job_capacity": 128,
+          "op_capacity": 256,
+          "calendar_capacity": 128,
+          "native_bytes": 40663,
+          "completion_capacity": 16384,
+          "state_capacity": 1024
+        },
+        "cursor": 131072
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "bounded",
+    "jobs": 131072,
+    "seed": 101,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "8e9293c0c33ee6d691c1bff9b93ee46d084f2911ba0c859e008b213fa2884355",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.156983430700022,
+          "shopfloor/lateness": -0.7575550551505668,
+          "shopfloor/makespan": 3.235475745200565,
+          "shopfloor/tardiness": 1.7815674974237625,
+          "shopfloor/tardy_fraction": 0.4479447349337812,
+          "shopfloor/throughput": 0.6666649703828852,
+          "shopfloor/total_queue_time": 0.610482424334949,
+          "shopfloor/utilization": 0.5833329092623879
+        }
+      },
+      "attempt": "c1f3613e66d37c1e38c7c8abe9282eef",
+      "request": "1f3b4bb8e039227bdd1cb524034130c6a32a38fb23137636a1a6f53eed98c1c1",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 131072,
+        "backend_state": "36f390ec6c2738b99d950bb069a5f7d4c4e63520f899369cda6bb3b6f5b72db1",
+        "counts": {
+          "admitted": 131072,
+          "completed": 131070,
+          "events": 2176390,
+          "forgotten": 131070,
+          "retained_jobs": 2,
+          "retained_operations": 6
+        },
+        "input_sha256": "e8cbf167638c0374f8e1675e1c7d0e4ee30ea2d39827e6cf6dbbb19131079b1a",
+        "producer": {
+          "cursor": 131072,
+          "schema": "counter-input-v1",
+          "seed": 2256736018,
+          "spacing": 1.5
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50183,
+      "artifact_sha256": "ba5f0fb6244c6a8faa92981d4204939dc7fc63c501c7a7ddbefcf9dc6a2b10fa"
+    },
+    "store_bytes": 15983136,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39862272
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 210178,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 210178,
+      "tree_peak_rss": 130555904,
+      "parent_peak_rss": 40222720,
+      "per_pid_peak_rss": {
+        "210178": 40222720,
+        "210198": 26083328,
+        "210207": 29462528,
+        "210215": 19734528,
+        "210217": 36085760,
+        "210264": 19902464,
+        "210265": 42160128
+      },
+      "max_descendants": 3,
+      "samples": 44,
+      "wall_seconds": 2.428293341999961
+    },
+    "diagnostics": [
+      {
+        "pid": 210265,
+        "peak_rss": 41689088,
+        "storage": {
+          "admitted": 131072,
+          "completed": 131070,
+          "forgotten": 131070,
+          "events": 2176390,
+          "retained_jobs": 2,
+          "retained_operations": 6,
+          "job_capacity": 128,
+          "op_capacity": 256,
+          "calendar_capacity": 128,
+          "native_bytes": 40663,
+          "completion_capacity": 16384,
+          "state_capacity": 1024
+        },
+        "cursor": 131072
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "bounded",
+    "jobs": 16384,
+    "seed": 101,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "4168b783dd64ab7126f03b2d177b021c73b7f95bc555517996709f411edcc5ba",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1556116195456774,
+          "shopfloor/lateness": -0.7171508242936815,
+          "shopfloor/makespan": 3.2333302690445547,
+          "shopfloor/tardiness": 1.7935895078752222,
+          "shopfloor/tardy_fraction": 0.45161488018630874,
+          "shopfloor/throughput": 0.6666530478836411,
+          "shopfloor/total_queue_time": 0.6068517497088926,
+          "shopfloor/utilization": 0.5836567794301901
+        }
+      },
+      "attempt": "915380a64a0baae655a9b8c0a129326a",
+      "request": "54cb196b613dc96be666586554185975061d7b0bc855e6d5b8a777e6d7246624",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 16384,
+        "backend_state": "250d34107566a0f926b9d012af9ba5f8367f2c84267fc719a0a8a159b72a530c",
+        "counts": {
+          "admitted": 16384,
+          "completed": 16382,
+          "events": 272009,
+          "forgotten": 16382,
+          "retained_jobs": 2,
+          "retained_operations": 6
+        },
+        "input_sha256": "824466b440ff8727aa01904cc0c0ae1e0ddaec0fbfc37a81b5a3306a3fd44654",
+        "producer": {
+          "cursor": 16384,
+          "schema": "counter-input-v1",
+          "seed": 2256736018,
+          "spacing": 1.5
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50179,
+      "artifact_sha256": "4a4905209d5b57ee4296b40e1c7f122c15a139af42dd43b292d7c655088a0a99"
+    },
+    "store_bytes": 15983104,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39878656
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 210331,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 210331,
+      "tree_peak_rss": 130981888,
+      "parent_peak_rss": 40214528,
+      "per_pid_peak_rss": {
+        "210331": 40214528,
+        "210338": 27815936,
+        "210347": 29392896,
+        "210355": 19705856,
+        "210356": 36016128,
+        "210390": 19701760,
+        "210391": 42307584
+      },
+      "max_descendants": 3,
+      "samples": 30,
+      "wall_seconds": 1.7456599319993984
+    },
+    "diagnostics": [
+      {
+        "pid": 210391,
+        "peak_rss": 41574400,
+        "storage": {
+          "admitted": 16384,
+          "completed": 16382,
+          "forgotten": 16382,
+          "events": 272009,
+          "retained_jobs": 2,
+          "retained_operations": 6,
+          "job_capacity": 128,
+          "op_capacity": 256,
+          "calendar_capacity": 128,
+          "native_bytes": 40663,
+          "completion_capacity": 16384,
+          "state_capacity": 1024
+        },
+        "cursor": 16384
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "bounded",
+    "jobs": 16384,
+    "seed": 102,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "063f5411bc904a9520b3683566034ec86e3c6a9e01a7bc58e4545cf9aceedcb1",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1548966334368362,
+          "shopfloor/lateness": -0.7589012133839932,
+          "shopfloor/makespan": 3.2323354577766885,
+          "shopfloor/tardiness": 1.7974935653879152,
+          "shopfloor/tardy_fraction": 0.4485231033214855,
+          "shopfloor/throughput": 0.6666939042327178,
+          "shopfloor/total_queue_time": 0.6081321240348082,
+          "shopfloor/utilization": 0.5831665032412704
+        }
+      },
+      "attempt": "fc7355abd67e80f53cd04968fa4a9e4a",
+      "request": "20425b619d18f108419c4f5b7c1ffeb092f86a275cb3dc1519372e912464e9ea",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 16384,
+        "backend_state": "0ec203087eccf3ff17657c4bf963b79d65140cee108a8e420e219231d5b78b07",
+        "counts": {
+          "admitted": 16384,
+          "completed": 16383,
+          "events": 272033,
+          "forgotten": 16383,
+          "retained_jobs": 1,
+          "retained_operations": 3
+        },
+        "input_sha256": "fbb5d61f9db924470f890ded34169167cdf34365aa3cb8e433f8aaf4f6a17514",
+        "producer": {
+          "cursor": 16384,
+          "schema": "counter-input-v1",
+          "seed": 3261328115,
+          "spacing": 1.5
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50179,
+      "artifact_sha256": "7c709bfc3c28e838aa7d34f4aabe2eb787f4b177c7fc520b538159ba18119c7e"
+    },
+    "store_bytes": 15983104,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39608320
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 210432,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 210432,
+      "tree_peak_rss": 130940928,
+      "parent_peak_rss": 40218624,
+      "per_pid_peak_rss": {
+        "210432": 40218624,
+        "210439": 27525120,
+        "210448": 29376512,
+        "210456": 19787776,
+        "210458": 36671488,
+        "210488": 19734528,
+        "210489": 42246144
+      },
+      "max_descendants": 3,
+      "samples": 31,
+      "wall_seconds": 1.7801764420000836
+    },
+    "diagnostics": [
+      {
+        "pid": 210489,
+        "peak_rss": 41361408,
+        "storage": {
+          "admitted": 16384,
+          "completed": 16383,
+          "forgotten": 16383,
+          "events": 272033,
+          "retained_jobs": 1,
+          "retained_operations": 3,
+          "job_capacity": 128,
+          "op_capacity": 256,
+          "calendar_capacity": 128,
+          "native_bytes": 40151,
+          "completion_capacity": 16384,
+          "state_capacity": 512
+        },
+        "cursor": 16384
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "bounded",
+    "jobs": 1048576,
+    "seed": 100,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "db77618783bcd5b6ea7744a1b2f56eb07755a2e608d8b6831ff47a13d5b429be",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1584004338858214,
+          "shopfloor/lateness": -0.7629686535833264,
+          "shopfloor/makespan": 3.2376007263647715,
+          "shopfloor/tardiness": 1.7818330600881824,
+          "shopfloor/tardy_fraction": 0.44804002636124246,
+          "shopfloor/throughput": 0.666666454725566,
+          "shopfloor/total_queue_time": 0.6126342263156539,
+          "shopfloor/utilization": 0.5833259153948082
+        }
+      },
+      "attempt": "81a1a44b69f24583646cc56b3b766b67",
+      "request": "c6b02c19e95984039451547021cd386559b992f90e01e81d57d629bbdb5a09ec",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 1048576,
+        "backend_state": "602e1783a04f05eb0c02ff7fe04bb61c338a86991294a76d82c83a6f7bfd9444",
+        "counts": {
+          "admitted": 1048576,
+          "completed": 1048574,
+          "events": 17404544,
+          "forgotten": 1048574,
+          "retained_jobs": 2,
+          "retained_operations": 6
+        },
+        "input_sha256": "844652fc4114d4cad6e982f8308b897b0e602da6548362b7646139943c795dbc",
+        "producer": {
+          "cursor": 1048576,
+          "schema": "counter-input-v1",
+          "seed": 1150614869,
+          "spacing": 1.5
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50183,
+      "artifact_sha256": "03754a2acd0f1877d6fc586ac22bda83b047f949424d65dc9308e67390c34fda"
+    },
+    "store_bytes": 15983148,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39550976
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 210516,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 210516,
+      "tree_peak_rss": 130543616,
+      "parent_peak_rss": 40161280,
+      "per_pid_peak_rss": {
+        "210516": 40161280,
+        "210536": 26148864,
+        "210545": 29462528,
+        "210553": 19705856,
+        "210555": 37060608,
+        "210571": 19775488,
+        "210573": 42135552
+      },
+      "max_descendants": 3,
+      "samples": 146,
+      "wall_seconds": 8.259710318001453
+    },
+    "diagnostics": [
+      {
+        "pid": 210573,
+        "peak_rss": 41345024,
+        "storage": {
+          "admitted": 1048576,
+          "completed": 1048574,
+          "forgotten": 1048574,
+          "events": 17404544,
+          "retained_jobs": 2,
+          "retained_operations": 6,
+          "job_capacity": 128,
+          "op_capacity": 256,
+          "calendar_capacity": 128,
+          "native_bytes": 40663,
+          "completion_capacity": 16384,
+          "state_capacity": 1024
+        },
+        "cursor": 1048576
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "full",
+    "jobs": 1048576,
+    "seed": 102,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "a60ae512d4d956b8b0684d86f7ed9fda84ee92a1330583224fb606ec2e561d2e",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1571038312168893,
+          "shopfloor/lateness": -0.7642993526998815,
+          "shopfloor/makespan": 3.2356558217430655,
+          "shopfloor/tardiness": 1.7791566405247834,
+          "shopfloor/tardy_fraction": 0.44764994864135643,
+          "shopfloor/throughput": 0.666666454725566,
+          "shopfloor/total_queue_time": 0.6107513144856171,
+          "shopfloor/utilization": 0.583312033252711
+        }
+      },
+      "attempt": "408df5525922cbcb57fc5c0ff48b72cd",
+      "request": "97f6fd77047f0f0b3adc8df8048c94513d43af956176aee52c04862570cac7f7",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 1048576,
+        "backend_state": "3d9849e6052a77b20e9b602a2738555e259e5b2d12ec253c3b82aa6a9e56a946",
+        "counts": {
+          "admitted": 1048576,
+          "completed": 1048574,
+          "events": 17408831,
+          "forgotten": 0,
+          "retained_jobs": 1048576,
+          "retained_operations": 3145728
+        },
+        "input_sha256": "13c20b9d3c2c3c36d114374b95f7af64c27399c572e1d323ab4e006903089a98",
+        "producer": {
+          "cursor": 1048576,
+          "schema": "counter-input-v1",
+          "seed": 3261328115,
+          "spacing": 1.5
+        },
+        "schema": "native-production-v1"
+      },
+      "trace_bytes": 50161,
+      "artifact_sha256": "f3ca931985c0bf664b913f67c6f26f099952880a18ff91ecb5ea889eb2be184c"
+    },
+    "store_bytes": 15983042,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39649280
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 210873,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 210873,
+      "tree_peak_rss": 521568256,
+      "parent_peak_rss": 40263680,
+      "per_pid_peak_rss": {
+        "210873": 40263680,
+        "210880": 26345472,
+        "210889": 29323264,
+        "210897": 19697664,
+        "210899": 37117952,
+        "210928": 19972096,
+        "210930": 433274880
+      },
+      "max_descendants": 3,
+      "samples": 145,
+      "wall_seconds": 8.123527931000353
+    },
+    "diagnostics": [
+      {
+        "pid": 210930,
+        "peak_rss": 432758784,
+        "storage": {
+          "admitted": 1048576,
+          "completed": 1048574,
+          "forgotten": 0,
+          "events": 17408831,
+          "retained_jobs": 1048576,
+          "retained_operations": 3145728,
+          "job_capacity": 1048576,
+          "op_capacity": 4194304,
+          "calendar_capacity": 128,
+          "native_bytes": 244322799,
+          "completion_capacity": 0,
+          "state_capacity": 0
+        },
+        "cursor": 1048576
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "bounded",
+    "jobs": 1048576,
+    "seed": 101,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "ff2bccdf1a404a3597c8e4d02bc6a581e156c3e5145e8b39477b8a784c69af96",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1584290459344184,
+          "shopfloor/lateness": -0.7621324546260885,
+          "shopfloor/makespan": 3.2376434178024054,
+          "shopfloor/tardiness": 1.7816944998140218,
+          "shopfloor/tardy_fraction": 0.4480615349400578,
+          "shopfloor/throughput": 0.6666670905488681,
+          "shopfloor/total_queue_time": 0.6125568664104301,
+          "shopfloor/utilization": 0.5833525140029485
+        }
+      },
+      "attempt": "1c9bcb858df87ab3a10dda8a41a59c8d",
+      "request": "b8966efdba104f5c66d1d48c60e4143d95374fd780d418e8717543606b1e781b",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 1048576,
+        "backend_state": "944173429e4f110add08789dacde4cd72a94e0100c35ba0562a3b93e1d750164",
+        "counts": {
+          "admitted": 1048576,
+          "completed": 1048575,
+          "events": 17410274,
+          "forgotten": 1048575,
+          "retained_jobs": 1,
+          "retained_operations": 3
+        },
+        "input_sha256": "40212ce71e097bf903e677011e308220805447e4e7aab5f6709be23f0b0b6533",
+        "producer": {
+          "cursor": 1048576,
+          "schema": "counter-input-v1",
+          "seed": 2256736018,
+          "spacing": 1.5
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50183,
+      "artifact_sha256": "610a63ff5964f5fb4efc356cebee2a3c46bd35fa44697a13e68879560cd9f9ef"
+    },
+    "store_bytes": 15983148,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39866368
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 211298,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 211298,
+      "tree_peak_rss": 130764800,
+      "parent_peak_rss": 40202240,
+      "per_pid_peak_rss": {
+        "211298": 40202240,
+        "211305": 27721728,
+        "211314": 29380608,
+        "211322": 19693568,
+        "211324": 37048320,
+        "211394": 19898368,
+        "211395": 42385408
+      },
+      "max_descendants": 3,
+      "samples": 146,
+      "wall_seconds": 8.054922856999838
+    },
+    "diagnostics": [
+      {
+        "pid": 211395,
+        "peak_rss": 41574400,
+        "storage": {
+          "admitted": 1048576,
+          "completed": 1048575,
+          "forgotten": 1048575,
+          "events": 17410274,
+          "retained_jobs": 1,
+          "retained_operations": 3,
+          "job_capacity": 128,
+          "op_capacity": 256,
+          "calendar_capacity": 128,
+          "native_bytes": 40151,
+          "completion_capacity": 16384,
+          "state_capacity": 512
+        },
+        "cursor": 1048576
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "full",
+    "jobs": 16384,
+    "seed": 101,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "18ec6bca436ec64fac17b83c05a9a3627df5165d9c1d45b89b558519adc18b98",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1556116195456774,
+          "shopfloor/lateness": -0.7171508242936815,
+          "shopfloor/makespan": 3.2333302690445547,
+          "shopfloor/tardiness": 1.7935895078752222,
+          "shopfloor/tardy_fraction": 0.45161488018630874,
+          "shopfloor/throughput": 0.6666530478836411,
+          "shopfloor/total_queue_time": 0.6068517497088926,
+          "shopfloor/utilization": 0.5836567794301901
+        }
+      },
+      "attempt": "2467ce1a12e97f6745128f05a5a1bed8",
+      "request": "e8776a60885e1507f85546bcf01615a0711e7c5355b02244180b7098ed827aec",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 16384,
+        "backend_state": "0dcba8a4ef5127054d3e39fa5b35839b57c5889f4eb888191327208e7e5d04f5",
+        "counts": {
+          "admitted": 16384,
+          "completed": 16382,
+          "events": 272009,
+          "forgotten": 0,
+          "retained_jobs": 16384,
+          "retained_operations": 49152
+        },
+        "input_sha256": "824466b440ff8727aa01904cc0c0ae1e0ddaec0fbfc37a81b5a3306a3fd44654",
+        "producer": {
+          "cursor": 16384,
+          "schema": "counter-input-v1",
+          "seed": 2256736018,
+          "spacing": 1.5
+        },
+        "schema": "native-production-v1"
+      },
+      "trace_bytes": 50157,
+      "artifact_sha256": "5a1724ac63593c16c99a8ee807a5fd851bcfef0b02fb5e741ff505812610ad3f"
+    },
+    "store_bytes": 15982994,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39620608
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 211652,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 211652,
+      "tree_peak_rss": 133525504,
+      "parent_peak_rss": 40226816,
+      "per_pid_peak_rss": {
+        "211652": 40226816,
+        "211659": 26112000,
+        "211668": 29413376,
+        "211676": 19959808,
+        "211678": 36646912,
+        "211740": 19701760,
+        "211741": 45088768
+      },
+      "max_descendants": 3,
+      "samples": 32,
+      "wall_seconds": 1.7956745459996455
+    },
+    "diagnostics": [
+      {
+        "pid": 211741,
+        "peak_rss": 47284224,
+        "storage": {
+          "admitted": 16384,
+          "completed": 16382,
+          "forgotten": 0,
+          "events": 272009,
+          "retained_jobs": 16384,
+          "retained_operations": 49152,
+          "job_capacity": 16384,
+          "op_capacity": 65536,
+          "calendar_capacity": 128,
+          "native_bytes": 3822063,
+          "completion_capacity": 0,
+          "state_capacity": 0
+        },
+        "cursor": 16384
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "bounded",
+    "jobs": 16384,
+    "seed": 100,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "5438157efc67a8be3b58fad0617596efd6f44760194d22fda391459ad42c3a1a",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1624550580160156,
+          "shopfloor/lateness": -0.7001133786848073,
+          "shopfloor/makespan": 3.2436875651161365,
+          "shopfloor/tardiness": 1.807302200159343,
+          "shopfloor/tardy_fraction": 0.45523074094502664,
+          "shopfloor/throughput": 0.6666530478836411,
+          "shopfloor/total_queue_time": 0.6193080835937979,
+          "shopfloor/utilization": 0.5831733126327832
+        }
+      },
+      "attempt": "6649a38e1afb2cace1074e867daa864e",
+      "request": "219592a41445a3f341364cedcce89161043c87b5a8224d05a6ca3af64f1317bb",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 16384,
+        "backend_state": "6f035ffd897e904f6b22c60f3ae7f8a7786927302eba07802264b047860a8d00",
+        "counts": {
+          "admitted": 16384,
+          "completed": 16382,
+          "events": 271921,
+          "forgotten": 16382,
+          "retained_jobs": 2,
+          "retained_operations": 6
+        },
+        "input_sha256": "e34c291272f1ca76b5a9128fbf3371d4e55875cf44a01f94770daf6ad30661ca",
+        "producer": {
+          "cursor": 16384,
+          "schema": "counter-input-v1",
+          "seed": 1150614869,
+          "spacing": 1.5
+        },
+        "schema": "native-production-bounded-v1"
+      },
+      "trace_bytes": 50179,
+      "artifact_sha256": "de2f7a1a0d17d2065dab398895769fcd395b483eaea4417418024008cfc13c58"
+    },
+    "store_bytes": 15983104,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39645184
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 211782,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 211782,
+      "tree_peak_rss": 130580480,
+      "parent_peak_rss": 40247296,
+      "per_pid_peak_rss": {
+        "211782": 40247296,
+        "211789": 27508736,
+        "211798": 29245440,
+        "211806": 19701760,
+        "211808": 35901440,
+        "211837": 19701760,
+        "211839": 42229760
+      },
+      "max_descendants": 3,
+      "samples": 31,
+      "wall_seconds": 1.7900808969989157
+    },
+    "diagnostics": [
+      {
+        "pid": 211839,
+        "peak_rss": 41279488,
+        "storage": {
+          "admitted": 16384,
+          "completed": 16382,
+          "forgotten": 16382,
+          "events": 271921,
+          "retained_jobs": 2,
+          "retained_operations": 6,
+          "job_capacity": 128,
+          "op_capacity": 256,
+          "calendar_capacity": 128,
+          "native_bytes": 56023,
+          "completion_capacity": 16384,
+          "state_capacity": 16384
+        },
+        "cursor": 16384
+      }
+    ],
+    "extra_queries": true
+  },
+  {
+    "retention": "full",
+    "jobs": 65536,
+    "seed": 100,
+    "spacing": 0.125,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "e0dcf03822df12a33fb6cd66d9d61e80eacf3ff6b987a4e6f5aebdd281fc6f8f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 12.0,
+          "shopfloor/lateness": 3555.905485115766,
+          "shopfloor/makespan": 3559.781670341786,
+          "shopfloor/tardiness": 3555.905485115766,
+          "shopfloor/tardy_fraction": 1.0,
+          "shopfloor/throughput": 1.1208601087493821,
+          "shopfloor/total_queue_time": 8.08074696802646,
+          "shopfloor/utilization": 0.9808555775251278
+        }
+      },
+      "attempt": "c6264e9542acb0987df98936c4e44d1e",
+      "request": "a0a0ba5fb7c589e949fb9ea104829f13e99281fd8ebe34ccfd597388029b1488",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 65536,
+        "backend_state": "f567732bf43e3693e3043368fba85996d69348a8a236130b9ada664af86b82dc",
+        "counts": {
+          "admitted": 65536,
+          "completed": 9182,
+          "events": 205766,
+          "forgotten": 0,
+          "retained_jobs": 65536,
+          "retained_operations": 196608
+        },
+        "input_sha256": "98ae7bcaba30cd2f7ff9beaa4a882e83cf19936f3f4e0853900a192ed3eedbc0",
+        "producer": {
+          "cursor": 65536,
+          "schema": "counter-input-v1",
+          "seed": 1150614869,
+          "spacing": 0.125
+        },
+        "schema": "native-production-v1"
+      },
+      "trace_bytes": 50161,
+      "artifact_sha256": "b6ccaa47fc36540da60caf4ca865a83f1f9645ac1eff189fc7fbd362f48ce02e"
+    },
+    "store_bytes": 15983018,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39776256
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 211883,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 211883,
+      "tree_peak_rss": 156725248,
+      "parent_peak_rss": 40222720,
+      "per_pid_peak_rss": {
+        "211883": 40222720,
+        "211890": 28307456,
+        "211898": 29454336,
+        "211907": 19705856,
+        "211908": 36962304,
+        "211925": 19898368,
+        "211927": 68345856
+      },
+      "max_descendants": 3,
+      "samples": 36,
+      "wall_seconds": 2.0287446490001457
+    },
+    "diagnostics": [
+      {
+        "pid": 211927,
+        "peak_rss": 67788800,
+        "storage": {
+          "admitted": 65536,
+          "completed": 9182,
+          "forgotten": 0,
+          "events": 205766,
+          "retained_jobs": 65536,
+          "retained_operations": 196608,
+          "job_capacity": 65536,
+          "op_capacity": 262144,
+          "calendar_capacity": 128,
+          "native_bytes": 15274479,
+          "completion_capacity": 0,
+          "state_capacity": 0
+        },
+        "cursor": 65536
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "full",
+    "jobs": 1048576,
+    "seed": 100,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "9b56b5fdbde1ed6e82eabae15307ecca738cb9244891c2b686e7508ff4331642",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1584004338858214,
+          "shopfloor/lateness": -0.7629686535833264,
+          "shopfloor/makespan": 3.2376007263647715,
+          "shopfloor/tardiness": 1.7818330600881824,
+          "shopfloor/tardy_fraction": 0.44804002636124246,
+          "shopfloor/throughput": 0.666666454725566,
+          "shopfloor/total_queue_time": 0.6126342263156539,
+          "shopfloor/utilization": 0.5833259153948082
+        }
+      },
+      "attempt": "34f834dbfb8a1b07c28294cad7c0a9a8",
+      "request": "d11395201f6f38ba26959cb8eadfdb903223795290eb1ac3629ab4dcb72fc996",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 1048576,
+        "backend_state": "d86b07734528d62385081ec4dd42d06f5dce18917225cae70567b4c9d86a2dd6",
+        "counts": {
+          "admitted": 1048576,
+          "completed": 1048574,
+          "events": 17404544,
+          "forgotten": 0,
+          "retained_jobs": 1048576,
+          "retained_operations": 3145728
+        },
+        "input_sha256": "844652fc4114d4cad6e982f8308b897b0e602da6548362b7646139943c795dbc",
+        "producer": {
+          "cursor": 1048576,
+          "schema": "counter-input-v1",
+          "seed": 1150614869,
+          "spacing": 1.5
+        },
+        "schema": "native-production-v1"
+      },
+      "trace_bytes": 50161,
+      "artifact_sha256": "1377c58c189c1a7213c3f689b5b73eaed0dbba0df5ff6f78a8e9bf65a642f7a7"
+    },
+    "store_bytes": 15983042,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39636992
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 211985,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 211985,
+      "tree_peak_rss": 518385664,
+      "parent_peak_rss": 40226816,
+      "per_pid_peak_rss": {
+        "211985": 40226816,
+        "211992": 26042368,
+        "212001": 29384704,
+        "212009": 19836928,
+        "212011": 36171776,
+        "212042": 430059520,
+        "212028": 19697664
+      },
+      "max_descendants": 3,
+      "samples": 148,
+      "wall_seconds": 8.246526713999629
+    },
+    "diagnostics": [
+      {
+        "pid": 212042,
+        "peak_rss": 429264896,
+        "storage": {
+          "admitted": 1048576,
+          "completed": 1048574,
+          "forgotten": 0,
+          "events": 17404544,
+          "retained_jobs": 1048576,
+          "retained_operations": 3145728,
+          "job_capacity": 1048576,
+          "op_capacity": 4194304,
+          "calendar_capacity": 128,
+          "native_bytes": 244322799,
+          "completion_capacity": 0,
+          "state_capacity": 0
+        },
+        "cursor": 1048576
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "full",
+    "jobs": 16384,
+    "seed": 100,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "9961a5e658224d14d6c5c42bfacdaddbac10c1eb9d79e58bfbd3e584e7fcb9d2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1624550580160156,
+          "shopfloor/lateness": -0.7001133786848073,
+          "shopfloor/makespan": 3.2436875651161365,
+          "shopfloor/tardiness": 1.807302200159343,
+          "shopfloor/tardy_fraction": 0.45523074094502664,
+          "shopfloor/throughput": 0.6666530478836411,
+          "shopfloor/total_queue_time": 0.6193080835937979,
+          "shopfloor/utilization": 0.5831733126327832
+        }
+      },
+      "attempt": "d5d1379b2a9da156471c3df0f56e0882",
+      "request": "340ba4c242daf29812a8aa89685fce452b19732045a3355d137826f3642748ab",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 16384,
+        "backend_state": "522de4691a96078b8e1d8ca2eb88c3a5e4f44b01a74a0ef8f07e9e859916fa60",
+        "counts": {
+          "admitted": 16384,
+          "completed": 16382,
+          "events": 271921,
+          "forgotten": 0,
+          "retained_jobs": 16384,
+          "retained_operations": 49152
+        },
+        "input_sha256": "e34c291272f1ca76b5a9128fbf3371d4e55875cf44a01f94770daf6ad30661ca",
+        "producer": {
+          "cursor": 16384,
+          "schema": "counter-input-v1",
+          "seed": 1150614869,
+          "spacing": 1.5
+        },
+        "schema": "native-production-v1"
+      },
+      "trace_bytes": 50157,
+      "artifact_sha256": "fba00818a03a43e37e0497a41926a509d54d65fbd916323de33333f2aa481ace"
+    },
+    "store_bytes": 15982994,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39628800
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 212332,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 212332,
+      "tree_peak_rss": 135815168,
+      "parent_peak_rss": 40226816,
+      "per_pid_peak_rss": {
+        "212332": 40226816,
+        "212339": 27709440,
+        "212348": 29392896,
+        "212356": 19685376,
+        "212358": 36519936,
+        "212388": 19709952,
+        "212390": 47489024
+      },
+      "max_descendants": 3,
+      "samples": 37,
+      "wall_seconds": 2.0973843850006233
+    },
+    "diagnostics": [
+      {
+        "pid": 212390,
+        "peak_rss": 47079424,
+        "storage": {
+          "admitted": 16384,
+          "completed": 16382,
+          "forgotten": 0,
+          "events": 271921,
+          "retained_jobs": 16384,
+          "retained_operations": 49152,
+          "job_capacity": 16384,
+          "op_capacity": 65536,
+          "calendar_capacity": 128,
+          "native_bytes": 3822063,
+          "completion_capacity": 0,
+          "state_capacity": 0
+        },
+        "cursor": 16384
+      }
+    ],
+    "extra_queries": true
+  },
+  {
+    "retention": "full",
+    "jobs": 131072,
+    "seed": 102,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "0f239991b7278d49de04a3f5f64076f1679007bb4c138bc312c545ac3e9aa805",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.154544598693183,
+          "shopfloor/lateness": -0.7673504828059998,
+          "shopfloor/makespan": 3.2318174878821417,
+          "shopfloor/tardiness": 1.7750849204228847,
+          "shopfloor/tardy_fraction": 0.4467768405786039,
+          "shopfloor/throughput": 0.6666649703828852,
+          "shopfloor/total_queue_time": 0.6070436242891493,
+          "shopfloor/utilization": 0.5832841411036701
+        }
+      },
+      "attempt": "5f3f2c5a5e6621fd3a29e96d27a2632f",
+      "request": "9cdd06e2794eda59f6ab44412dd7eba6e0838be61ae6e6023327e1816ef086a7",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 131072,
+        "backend_state": "5949443a7d3988811645cb853270f3ef8072bc0e2029af976986a61c4820f2cb",
+        "counts": {
+          "admitted": 131072,
+          "completed": 131070,
+          "events": 2176358,
+          "forgotten": 0,
+          "retained_jobs": 131072,
+          "retained_operations": 393216
+        },
+        "input_sha256": "1c4c329f25db8972109b714f9071f43c2c0b52554cfcaeccbc71148bf6e4d896",
+        "producer": {
+          "cursor": 131072,
+          "schema": "counter-input-v1",
+          "seed": 3261328115,
+          "spacing": 1.5
+        },
+        "schema": "native-production-v1"
+      },
+      "trace_bytes": 50161,
+      "artifact_sha256": "89681a7ef5181f40bbc4253a82a5a8a6ca89c2cdd0c0f18d45daf06643e2ddee"
+    },
+    "store_bytes": 15983028,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39899136
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 212435,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 212435,
+      "tree_peak_rss": 158703616,
+      "parent_peak_rss": 40230912,
+      "per_pid_peak_rss": {
+        "212435": 40230912,
+        "212442": 27807744,
+        "212451": 29388800,
+        "212459": 19636224,
+        "212461": 35917824,
+        "212490": 19701760,
+        "212492": 70373376
+      },
+      "max_descendants": 3,
+      "samples": 44,
+      "wall_seconds": 2.492063130999668
+    },
+    "diagnostics": [
+      {
+        "pid": 212492,
+        "peak_rss": 94326784,
+        "storage": {
+          "admitted": 131072,
+          "completed": 131070,
+          "forgotten": 0,
+          "events": 2176358,
+          "retained_jobs": 131072,
+          "retained_operations": 393216,
+          "job_capacity": 131072,
+          "op_capacity": 524288,
+          "calendar_capacity": 128,
+          "native_bytes": 30544367,
+          "completion_capacity": 0,
+          "state_capacity": 0
+        },
+        "cursor": 131072
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "full",
+    "jobs": 131072,
+    "seed": 101,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "1cb2e63274177da3c5b041264602cf0165bc32d5571505f72f92d284942e7cd8",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.156983430700022,
+          "shopfloor/lateness": -0.7575550551505668,
+          "shopfloor/makespan": 3.235475745200565,
+          "shopfloor/tardiness": 1.7815674974237625,
+          "shopfloor/tardy_fraction": 0.4479447349337812,
+          "shopfloor/throughput": 0.6666649703828852,
+          "shopfloor/total_queue_time": 0.610482424334949,
+          "shopfloor/utilization": 0.5833329092623879
+        }
+      },
+      "attempt": "567afb8751260ef07edbe7bea19e3587",
+      "request": "ddc66cc5957f173fc904a427e69f0c61b0abfad327fe9fcf2e3ff7c6f044abd3",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 131072,
+        "backend_state": "45a5e7be5ad53d0a5ffc8d8cb6b2892c251daf9c8ae1a3a91f218a9375b6a100",
+        "counts": {
+          "admitted": 131072,
+          "completed": 131070,
+          "events": 2176390,
+          "forgotten": 0,
+          "retained_jobs": 131072,
+          "retained_operations": 393216
+        },
+        "input_sha256": "e8cbf167638c0374f8e1675e1c7d0e4ee30ea2d39827e6cf6dbbb19131079b1a",
+        "producer": {
+          "cursor": 131072,
+          "schema": "counter-input-v1",
+          "seed": 2256736018,
+          "spacing": 1.5
+        },
+        "schema": "native-production-v1"
+      },
+      "trace_bytes": 50161,
+      "artifact_sha256": "6b4cbe09a9b78d90169617b185cd20c21f8c8c1a0933f542cc3b27706520fab5"
+    },
+    "store_bytes": 15983028,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39940096
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 212565,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 212565,
+      "tree_peak_rss": 158871552,
+      "parent_peak_rss": 40300544,
+      "per_pid_peak_rss": {
+        "212565": 40300544,
+        "212585": 27496448,
+        "212594": 29319168,
+        "212638": 19632128,
+        "212652": 36933632,
+        "212681": 19697664,
+        "212682": 70557696
+      },
+      "max_descendants": 3,
+      "samples": 44,
+      "wall_seconds": 2.5251929220012244
+    },
+    "diagnostics": [
+      {
+        "pid": 212682,
+        "peak_rss": 94318592,
+        "storage": {
+          "admitted": 131072,
+          "completed": 131070,
+          "forgotten": 0,
+          "events": 2176390,
+          "retained_jobs": 131072,
+          "retained_operations": 393216,
+          "job_capacity": 131072,
+          "op_capacity": 524288,
+          "calendar_capacity": 128,
+          "native_bytes": 30544367,
+          "completion_capacity": 0,
+          "state_capacity": 0
+        },
+        "cursor": 131072
+      }
+    ],
+    "extra_queries": false
+  },
+  {
+    "retention": "full",
+    "jobs": 16384,
+    "seed": 102,
+    "spacing": 1.5,
+    "observe": false,
+    "result": {
+      "configuration": null,
+      "seed": null,
+      "fingerprint": {
+        "digest": "96f3acf5c61a14711f5cc04a48d525c02225770ed0b759368b8e63cb0bb9a9bd",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.1548966334368362,
+          "shopfloor/lateness": -0.7589012133839932,
+          "shopfloor/makespan": 3.2323354577766885,
+          "shopfloor/tardiness": 1.7974935653879152,
+          "shopfloor/tardy_fraction": 0.4485231033214855,
+          "shopfloor/throughput": 0.6666939042327178,
+          "shopfloor/total_queue_time": 0.6081321240348082,
+          "shopfloor/utilization": 0.5831665032412704
+        }
+      },
+      "attempt": "a368669e3f28f4915edffba261a406fb",
+      "request": "9c19076b7b2450a6d3a286d2af043e18f7f6cc79e45c05fd16f3617752efe6e9",
+      "origin": "external:/tmp/simulatte-retention-installed-7r5hev7m/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so",
+      "summary": {
+        "admitted": 16384,
+        "backend_state": "a9a8887178dc7a4b7844968d2febaa5fe3d595e40f20f5ba4087001b09a1ebb6",
+        "counts": {
+          "admitted": 16384,
+          "completed": 16383,
+          "events": 272033,
+          "forgotten": 0,
+          "retained_jobs": 16384,
+          "retained_operations": 49152
+        },
+        "input_sha256": "fbb5d61f9db924470f890ded34169167cdf34365aa3cb8e433f8aaf4f6a17514",
+        "producer": {
+          "cursor": 16384,
+          "schema": "counter-input-v1",
+          "seed": 3261328115,
+          "spacing": 1.5
+        },
+        "schema": "native-production-v1"
+      },
+      "trace_bytes": 50157,
+      "artifact_sha256": "84be4a6588fab30f86cbec5729196302ab43441c0fde29f70ad6b5519129dcc2"
+    },
+    "store_bytes": 15982994,
+    "repetitions": [],
+    "parent_checkpoints": [
+      39616512
+    ],
+    "runtime": {
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+      "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+      "machine": "x86_64"
+    },
+    "coordinator_pid": 212779,
+    "provider": {
+      "schema": 1,
+      "provider_api": 2,
+      "version": "0.17.0",
+      "abi": {
+        "bits": 64,
+        "free_threaded": false,
+        "implementation": "cpython",
+        "machine": "x86_64",
+        "platform": "linux",
+        "python": [
+          3,
+          14
+        ],
+        "soabi": "cpython-314-x86_64-linux-gnu",
+        "suffix": ".cpython-314-x86_64-linux-gnu.so"
+      },
+      "sources": {
+        "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+        "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+        "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+        "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+        "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+        "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+        "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+        "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+        "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+        "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+      },
+      "files": {
+        "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+          "sha256": "9fa853998ab1cd2c93ee08840bb1f1c6e65f203ef2b568850972e171f1d23b2f",
+          "size": 46176
+        },
+        "simulatte_native_engine.so": {
+          "sha256": "bf1524e89c772794512553e3eb1e2332e77e0d3ea52ef11fc6795bd1198c6b87",
+          "size": 51328
+        }
+      }
+    },
+    "distributions": {
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "simpy": "4.1.2",
+      "tqdm": "4.70.1",
+      "msgpack": "1.2.4",
+      "tabulate": "0.10.0"
+    },
+    "usage": {
+      "parent_pid": 212779,
+      "tree_peak_rss": 133275648,
+      "parent_peak_rss": 40222720,
+      "per_pid_peak_rss": {
+        "212779": 40222720,
+        "212786": 28205056,
+        "212794": 29376512,
+        "212817": 37031936,
+        "212803": 19685376,
+        "212835": 19968000,
+        "212837": 44961792
+      },
+      "max_descendants": 3,
+      "samples": 31,
+      "wall_seconds": 1.7917872490015725
+    },
+    "diagnostics": [
+      {
+        "pid": 212837,
+        "peak_rss": 46850048,
+        "storage": {
+          "admitted": 16384,
+          "completed": 16383,
+          "forgotten": 0,
+          "events": 272033,
+          "retained_jobs": 16384,
+          "retained_operations": 49152,
+          "job_capacity": 16384,
+          "op_capacity": 65536,
+          "calendar_capacity": 128,
+          "native_bytes": 3822063,
+          "completion_capacity": 0,
+          "state_capacity": 0
+        },
+        "cursor": 16384
+      }
+    ],
+    "extra_queries": false
+  }
+]

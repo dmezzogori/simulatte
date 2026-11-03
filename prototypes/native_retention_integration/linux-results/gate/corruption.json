@@ -1,0 +1,59 @@
+{
+  "rejected": true,
+  "published_results": 0,
+  "error": "Native asset length differs from captured source",
+  "runtime": {
+    "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]",
+    "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+    "machine": "x86_64"
+  },
+  "coordinator_pid": 207977,
+  "provider": null,
+  "distributions": {
+    "tabulate": "0.10.0",
+    "msgpack": "1.2.4",
+    "tqdm": "4.70.1",
+    "simpy": "4.1.2",
+    "simulatte-native": "0.17.0",
+    "simulatte": "0.17.0"
+  },
+  "usage": {
+    "parent_pid": 207977,
+    "tree_peak_rss": 130326528,
+    "parent_peak_rss": 39337984,
+    "per_pid_peak_rss": {
+      "207977": 39337984,
+      "208044": 28835840,
+      "208053": 29241344,
+      "208062": 19730432,
+      "208064": 36118528,
+      "208094": 19709952,
+      "208096": 42037248
+    },
+    "max_descendants": 3,
+    "samples": 27,
+    "wall_seconds": 1.5311051499993482
+  },
+  "diagnostics": [
+    {
+      "pid": 208096,
+      "peak_rss": 41267200,
+      "storage": {
+        "admitted": 40,
+        "completed": 6,
+        "forgotten": 6,
+        "events": 207,
+        "retained_jobs": 34,
+        "retained_operations": 102,
+        "job_capacity": 64,
+        "op_capacity": 128,
+        "calendar_capacity": 32,
+        "native_bytes": 20375,
+        "completion_capacity": 512,
+        "state_capacity": 8192
+      },
+      "cursor": 40
+    }
+  ],
+  "extra_queries": false
+}

@@ -1,0 +1,91 @@
+{
+  "passed": true,
+  "source_sha256": "5c5f37ddef4e6d56720bcbfe050c719b154de7bf325a28e9b7238daf1f337414",
+  "common_audit": {
+    "passed": true,
+    "source_sha256": "5c5f37ddef4e6d56720bcbfe050c719b154de7bf325a28e9b7238daf1f337414",
+    "gate_runs": 16,
+    "source_deleted_reproductions": 8,
+    "memory_cases": 25,
+    "paired_scenarios": 11,
+    "regenerated_inputs": 11,
+    "preserved_historical_files": 1039,
+    "unchanged_transition_functions": 12,
+    "deliberate_corruptions_rejected": 2,
+    "stable_summary": [
+      {
+        "jobs": 16384,
+        "full": {
+          "parent_mib": 38.36328125,
+          "tree_mib": 127.1015625,
+          "child_self_mib": 44.75390625,
+          "wall_seconds": 1.7956745459996455,
+          "trace_bytes": 50157,
+          "store_bytes": 15982994
+        },
+        "bounded": {
+          "parent_mib": 38.3515625,
+          "tree_mib": 124.9140625,
+          "child_self_mib": 39.58203125,
+          "wall_seconds": 1.7456599319993984,
+          "trace_bytes": 50179,
+          "store_bytes": 15983104
+        }
+      },
+      {
+        "jobs": 131072,
+        "full": {
+          "parent_mib": 38.3671875,
+          "tree_mib": 151.51171875,
+          "child_self_mib": 89.94921875,
+          "wall_seconds": 2.492063130999668,
+          "trace_bytes": 50161,
+          "store_bytes": 15983028
+        },
+        "bounded": {
+          "parent_mib": 38.359375,
+          "tree_mib": 124.50390625,
+          "child_self_mib": 39.69140625,
+          "wall_seconds": 2.428293341999961,
+          "trace_bytes": 50183,
+          "store_bytes": 15983136
+        }
+      },
+      {
+        "jobs": 1048576,
+        "full": {
+          "parent_mib": 38.3984375,
+          "tree_mib": 494.4375,
+          "child_self_mib": 409.47265625,
+          "wall_seconds": 8.127850376000424,
+          "trace_bytes": 50161,
+          "store_bytes": 15983042
+        },
+        "bounded": {
+          "parent_mib": 38.33984375,
+          "tree_mib": 124.66015625,
+          "child_self_mib": 39.5546875,
+          "wall_seconds": 8.259710318001453,
+          "trace_bytes": 50183,
+          "store_bytes": 15983148
+        }
+      }
+    ]
+  },
+  "regression": {
+    "passed": 3589,
+    "skipped": 4,
+    "combined_coverage_percent": 99.01843017469197,
+    "native_cases": 83
+  },
+  "platform_pairs": 41,
+  "backend_state_matches": 41,
+  "semantic_fingerprint_matches": 41,
+  "artifact_matches": 41,
+  "preserved_base_files": 1857,
+  "linux_scripts": {
+    "prototypes/native_retention_integration/linux/README.md": "0ab693cb7e90972ce11ef9c523675d47055fc0500bf9f912b5ec03817ef22e76",
+    "prototypes/native_retention_integration/linux/checks.py": "179ad3495d8a464651bb4863287df89202d54935b54d9bec779ac70ededbeb48",
+    "prototypes/native_retention_integration/linux/verify.py": "7188e8cff1a9a531a23337327872a312a42fc224f18aa6c993462aae8131517d"
+  }
+}

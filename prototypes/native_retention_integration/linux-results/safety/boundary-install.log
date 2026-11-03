@@ -1,0 +1,16 @@
+Using Python 3.14.0 environment at: prototypes/native_retention_integration/.build/linux/sanitized-venv
+Resolved 12 packages in 99ms
+Prepared 1 package in 3ms
+Installed 12 packages in 56ms
+ + iniconfig==2.3.1
+ + msgpack==1.2.4
+ + packaging==26.3
+ + pluggy==1.7.0
+ + pygments==2.21.0
+ + pytest==9.1.1
+ + pytest-timeout==2.4.0
+ + simpy==4.1.2
+ + simulatte==0.17.0 (from file:///home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/core/simulatte-0.17.0-py3-none-any.whl)
+ + simulatte-native==0.17.0 (from file:///home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/native/simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl)
+ + tabulate==0.10.0
+ + tqdm==4.70.1

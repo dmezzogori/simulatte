@@ -1,0 +1,9 @@
+Using Python 3.14.0 environment at: /tmp/simulatte-retention-installed-7r5hev7m/venv
+Resolved 6 packages in 6ms
+Installed 6 packages in 8ms
+ + msgpack==1.2.4
+ + simpy==4.1.2
+ + simulatte==0.17.0 (from file:///home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/core/simulatte-0.17.0-py3-none-any.whl)
+ + simulatte-native==0.17.0 (from file:///home/davide/Developer/simulatte-retention-linux-20261103-dfbb1a1/prototypes/native_retention_integration/.build/linux/native/simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl)
+ + tabulate==0.10.0
+ + tqdm==4.70.1
