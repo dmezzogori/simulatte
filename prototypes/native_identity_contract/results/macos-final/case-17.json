@@ -1,0 +1,263 @@
+{
+  "fixture": "coupled",
+  "ticks": 4096,
+  "seed": 100,
+  "result": {
+    "parameters": {
+      "fixture": "coupled",
+      "engine": "bounded",
+      "policy": "spt",
+      "hard_limit": 12,
+      "wip_cap": 4,
+      "burst": 3,
+      "interval": 0.5,
+      "feedback": true,
+      "record": false
+    },
+    "seed": 100,
+    "warmup": 10,
+    "request": "a69c2e5e55302759869e0310383ac1dbac0ad6e1125a7a9da3ee507f7388a569",
+    "attempt": "002c19d107c540123749069d9f2530a5",
+    "fingerprint": {
+      "digest": "8804eb0efc82a22d3bffdcd7816197d8a6c51152507f875738c2de70a5898ab4",
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.9924558390578997,
+        "shopfloor/lateness": -0.1529162512462612,
+        "shopfloor/makespan": 3.7616733133931537,
+        "shopfloor/tardiness": 2.0412512462612162,
+        "shopfloor/tardy_fraction": 0.48255234297108673,
+        "shopfloor/throughput": 1.4764474975466144,
+        "shopfloor/total_queue_time": 1.0581173147224991,
+        "shopfloor/utilization": 0.8106190709846254
+      }
+    },
+    "physical": {
+      "controller": {
+        "blocked": 1787,
+        "burst": 3,
+        "completed": 3022,
+        "cursor": 3028,
+        "decisions_sha256": "ac2011682651807dfc9935644ff74c8c17c77686d49da5be49d14f0f4c400198",
+        "feedback": true,
+        "hard_limit": 12,
+        "interval": 0.5,
+        "jobs_sha256": "06035947428ae7c15561d667820384653cee4c9786a54081a79d543eb6113a30",
+        "live": [
+          {
+            "arrival": 2041.0,
+            "due": 2048.0,
+            "id": 3022
+          },
+          {
+            "arrival": 2044.5,
+            "due": 2049.5,
+            "id": 3023
+          },
+          {
+            "arrival": 2044.5,
+            "due": 2052.5,
+            "id": 3024
+          },
+          {
+            "arrival": 2045.0,
+            "due": 2041.0,
+            "id": 3025
+          },
+          {
+            "arrival": 2046.5,
+            "due": 2049.5,
+            "id": 3026
+          },
+          {
+            "arrival": 2046.5,
+            "due": 2056.5,
+            "id": 3027
+          }
+        ],
+        "next_at": 2048.0,
+        "normal": 1342,
+        "phase": "horizon",
+        "pool_polls": 3467,
+        "relaxed": 21,
+        "schema": "feedback-controller-v1",
+        "seed": 2700758554,
+        "short": 1686,
+        "tick": 4096,
+        "tight": 4075
+      },
+      "final_observed": [
+        {
+          "arrival": 2041.0,
+          "due": 2048.0,
+          "id": 3022,
+          "released": 2044.0,
+          "state": "active"
+        },
+        {
+          "arrival": 2044.5,
+          "due": 2049.5,
+          "id": 3023,
+          "released": 2044.5,
+          "state": "active"
+        },
+        {
+          "arrival": 2044.5,
+          "due": 2052.5,
+          "id": 3024,
+          "released": 2046.25,
+          "state": "active"
+        },
+        {
+          "arrival": 2045.0,
+          "due": 2041.0,
+          "id": 3025,
+          "released": 2046.25,
+          "state": "active"
+        },
+        {
+          "arrival": 2046.5,
+          "due": 2049.5,
+          "id": 3026,
+          "released": null,
+          "state": "pool"
+        },
+        {
+          "arrival": 2046.5,
+          "due": 2056.5,
+          "id": 3027,
+          "released": null,
+          "state": "pool"
+        }
+      ],
+      "kpis": {
+        "jobs_in_system": 3.9924558390578997,
+        "lateness": -0.1529162512462612,
+        "makespan": 3.7616733133931537,
+        "tardiness": 2.0412512462612162,
+        "tardy_fraction": 0.48255234297108673,
+        "throughput": 1.4764474975466144,
+        "total_queue_time": 1.0581173147224991,
+        "utilization": 0.8106190709846254
+      }
+    },
+    "reporting": {
+      "kpis": {
+        "jobs_in_system": 3.9924558390578997,
+        "lateness": -0.1529162512462612,
+        "makespan": 3.7616733133931537,
+        "tardiness": 2.0412512462612162,
+        "tardy_fraction": 0.48255234297108673,
+        "throughput": 1.4764474975466144,
+        "total_queue_time": 1.0581173147224991,
+        "utilization": 0.8106190709846254
+      }
+    },
+    "native": {
+      "digest": "99a468064c7b2d76f0e77a20967734472c44fbf1662710b1cc1f96a2fed099d0",
+      "schema": "native-production-bounded-v1"
+    },
+    "identities": null,
+    "proof_sha256": {},
+    "artifact_sha256": {
+      "native.json": "15810886f4e7f957712b38071fd8b40a8e62476072a0060acae46c1f9c669593",
+      "physical.json": "027c58e0d49f975738cb31169208de638a31a462603b3a82753c72933c9d7225"
+    },
+    "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-identity-installed-uqp8vr_5/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-darwin.so",
+    "trace_bytes": 57460
+  },
+  "repetitions": [],
+  "parent_checkpoints": [
+    47202304
+  ],
+  "store_bytes": 16104489,
+  "provider": {
+    "schema": 1,
+    "provider_api": 2,
+    "version": "0.17.0",
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "arm64",
+      "platform": "darwin",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-darwin",
+      "suffix": ".cpython-314-darwin.so"
+    },
+    "sources": {
+      "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+      "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+      "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+      "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+      "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+      "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+      "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+      "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-darwin.so": {
+        "sha256": "8bb82fd69086d1017a931d5ae2b503949d59dab2fca074d8e1664fd7cc4971af",
+        "size": 72480
+      },
+      "simulatte_native_engine.dylib": {
+        "sha256": "b7edfa9d37f4a8d12cb096f8c59ce44f7a623240d617e3934cc79470044ff8ff",
+        "size": 53024
+      }
+    }
+  },
+  "coordinator_pid": 21247,
+  "runtime": {
+    "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+    "platform": "macOS-27.2-arm64-64bit",
+    "machine": "arm64"
+  },
+  "usage": {
+    "parent_pid": 21247,
+    "tree_peak_rss": 150421504,
+    "parent_peak_rss": 46563328,
+    "per_pid_peak_rss": {
+      "21247": 46563328,
+      "21255": 31391744,
+      "21257": 32833536,
+      "21259": 23379968,
+      "21260": 41844736,
+      "21266": 23429120,
+      "21268": 47824896
+    },
+    "max_descendants": 3,
+    "samples": 21,
+    "wall_seconds": 1.3050514999995357
+  },
+  "query_every": 0,
+  "disabled": true,
+  "diagnostics": [
+    {
+      "entities": 2,
+      "expired_reads": 3022,
+      "max_callback_bytes": 847,
+      "max_owned": 12,
+      "peak_rss": 47808512,
+      "pid": 21268,
+      "storage": {
+        "admitted": 3028,
+        "calendar_capacity": 32,
+        "completed": 3022,
+        "completion_capacity": 512,
+        "events": 41958,
+        "forgotten": 3022,
+        "job_capacity": 16,
+        "native_bytes": 7271,
+        "op_capacity": 32,
+        "retained_jobs": 6,
+        "retained_operations": 17,
+        "state_capacity": 2048
+      }
+    }
+  ],
+  "identity_diagnostics": []
+}

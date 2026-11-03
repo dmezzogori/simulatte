@@ -1,0 +1,9 @@
+Using Python 3.14.3 environment at: /var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-identity-installed-uqp8vr_5/venv
+Resolved 6 packages in 1ms
+Installed 6 packages in 55ms
+ + msgpack==1.2.4
+ + simpy==4.1.2
+ + simulatte==0.17.0 (from file:///Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_retention_integration/.build/core/simulatte-0.17.0-py3-none-any.whl)
+ + simulatte-native==0.17.0 (from file:///Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_retention_integration/.build/native/simulatte_native-0.17.0-cp314-cp314-macosx_27_0_arm64.whl)
+ + tabulate==0.10.0
+ + tqdm==4.70.1

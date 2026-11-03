@@ -1,0 +1,18 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility
+configfile: pyproject.toml
+plugins: cov-7.1.0, timeout-2.4.0, platformdirs-4.12.3, anyio-4.15.1
+timeout: 60.0s
+timeout method: thread
+timeout func_only: False
+collected 84 items
+
+prototypes/native_identity_contract/tests/test_identity.py ............. [ 15%]
+..........                                                               [ 27%]
+prototypes/native_fixed_admission/tests/test_control.py ................ [ 46%]
+.........                                                                [ 57%]
+prototypes/native_feedback_retention/tests/test_feedback.py ............ [ 71%]
+........................                                                 [100%]
+
+============================== 84 passed in 2.83s ==============================

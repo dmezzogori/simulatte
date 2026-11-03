@@ -1,0 +1,72 @@
+{
+  "passed": true,
+  "primary_cases": 72,
+  "physical_scenarios": 24,
+  "physical_boundaries": 4224,
+  "proof_streams": 28,
+  "fixed_trajectory_invariant_groups": 8,
+  "coupled_trajectory_changed_groups": 8,
+  "initial_equal_trajectory_groups": 16,
+  "source_deleted_reproductions": 14,
+  "baseline_controls": 6,
+  "dense_query_controls": 4,
+  "memory_cases": 23,
+  "fresh_attempts": 119,
+  "preserved_base_files": 2148,
+  "stable_summary": [
+    {
+      "fixture": "fixed",
+      "ticks": 4096,
+      "jobs": 1536,
+      "tree_mib": 143.8125,
+      "parent_mib": 45.015625,
+      "child_mib": 45.53125,
+      "wall_seconds": 1.3857760840000992
+    },
+    {
+      "fixture": "fixed",
+      "ticks": 32768,
+      "jobs": 12288,
+      "tree_mib": 143.8125,
+      "parent_mib": 45.078125,
+      "child_mib": 45.640625,
+      "wall_seconds": 2.6994945000005828
+    },
+    {
+      "fixture": "fixed",
+      "ticks": 262144,
+      "jobs": 98304,
+      "tree_mib": 144.859375,
+      "parent_mib": 45.9375,
+      "child_mib": 45.828125,
+      "wall_seconds": 13.455956334000803
+    },
+    {
+      "fixture": "coupled",
+      "ticks": 4096,
+      "jobs": 3070,
+      "tree_mib": 144.3125,
+      "parent_mib": 44.640625,
+      "child_mib": 45.734375,
+      "wall_seconds": 1.3833294579999347
+    },
+    {
+      "fixture": "coupled",
+      "ticks": 32768,
+      "jobs": 24230,
+      "tree_mib": 144.640625,
+      "parent_mib": 45.15625,
+      "child_mib": 45.875,
+      "wall_seconds": 2.973573209001188
+    },
+    {
+      "fixture": "coupled",
+      "ticks": 262144,
+      "jobs": 193863,
+      "tree_mib": 143.90625,
+      "parent_mib": 44.328125,
+      "child_mib": 45.828125,
+      "wall_seconds": 16.191489374999946
+    }
+  ]
+}
