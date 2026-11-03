@@ -23,7 +23,7 @@ def extension():
 
 
 class CompiledStream:
-    def __init__(self, servers, *, wip_cap=None, policy="fifo", mode="none", trace_path=None):
+    def __init__(self, servers, *, wip_cap=None, policy="fifo", mode="none", trace_path=None, module=None):
         self._engine = None
         self._lock, self._owner = RLock(), object()
         servers = _count(servers, "servers", positive=True)
@@ -35,7 +35,7 @@ class CompiledStream:
         path = os.fsencode(trace_path) if trace_path is not None else None
         if path is not None and (not path or b"\x00" in path):
             raise ValueError("invalid trace path")
-        self._module = extension()
+        self._module = extension() if module is None else module
         self._engine = self._module.create(
             servers, cap, int(policy == "spt"), ("none", "kpi", "record", "studio").index(mode), path
         )

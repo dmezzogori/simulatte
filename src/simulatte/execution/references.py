@@ -14,7 +14,7 @@ from simulatte.execution.durability import replace_durable, sync_directory
 from simulatte.execution.schema import _hash, _plain
 
 MAX_DOCUMENT = 128 << 20
-_KINDS = frozenset(("request", "model-info", "layout", "runtime"))
+_KINDS = frozenset(("request", "model-info", "layout", "runtime", "native-assets", "native-bindings"))
 _WINDOWS = os.name == "nt"
 
 

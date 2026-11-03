@@ -120,6 +120,7 @@ class Environment(simpy.Environment):
         self._population = None
         self._execution_policy = None
         self._execution_backend: BackendBinding | None = None
+        self._native_assets = {}
         self._digest: SemanticDigest | None = None
         self._requested: FrozenMap | None = None
         self._requested_inputs: tuple[int, str | None, Provenance | None, float] | None = None

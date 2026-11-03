@@ -45,3 +45,61 @@ This opaque projection does not expose individual backend actors or establish fu
 event tracing/replay. Full tracing and finite-population stopping are rejected in
 this first contract. Time measurements belong in volatile metadata, so semantic
 artifacts remain reproducible.
+
+## Declared native binaries
+
+Managed local POSIX models can declare native binary bundles. Include every
+member in the project's source bundle (`tool.simulatte.bundle.include`); native
+files cannot also be declared data inputs. Paths are normalized project-relative
+files, with unique basenames within each bundle. The filenames must match the
+current platform/interpreter ABI.
+
+```python
+from simulatte import model
+from simulatte.execution.native_assets import NativeAssetBundle
+
+ENGINE = NativeAssetBundle("engine", (
+    "native/_engine.cpython-314-darwin.so",
+    "native/libengine.dylib",
+))
+
+@model(params=Params, horizon=100, native_assets=(ENGINE,))
+def build(env, layout, params):
+    env.attach_execution_backend(MyBackend(params))
+```
+
+Preparation pins member hashes to the captured source. The coordinator publishes
+an immutable entry under the run store's `native-assets/` directory and leases it
+until the execution child and descendant cleanup finish. Slot threads share the
+store safely; the ordinary exclusive run-store owner lock fences other processes.
+The child verifies captured and cached bytes before importing the model, permits
+only declared native files through origin auditing, and rechecks before result
+publication. Missing entries rebuild from captured source; invalid existing entries
+fail without automatic repair. Resolved execution capabilities record bundle
+addresses/hashes, and import provenance retains the actual loaded paths.
+
+Backends receive named `VerifiedNativeBundle` handles through
+`BackendContext.native_assets`. `files` lists member basenames, `address` is the
+deterministic bundle identity, and `path(name)` returns a verified path for an
+explicit native loader. For Python extensions, use checked loading in `prepare`:
+
+```python
+def prepare(self, context):
+    engine = context.native_assets["engine"]
+    self.module = engine.load_extension(
+        "_engine", "_engine.cpython-314-darwin.so",
+        dependencies=("libengine.dylib",),
+    )
+```
+
+Checked extension loading validates before/after byte identities, the extension
+origin and the actual mapped locations of specified bundled dependencies (macOS
+and Linux). Keep these paths out of deterministic artifacts/model state. Native
+libraries remain trusted code; the checks do not create a security sandbox.
+
+`simulatte store prune --dry-run` lists idle native entries and abandoned
+publication staging; `simulatte store prune` removes them. Active leases are kept.
+Source snapshots and requests retain their existing retention rules, so later
+execution/reproduction can rebuild an evicted entry. No automatic eviction is
+performed between replications. Native assets currently reject remote and Windows
+execution explicitly; ordinary models retain their existing support.

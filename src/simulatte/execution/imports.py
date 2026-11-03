@@ -21,8 +21,10 @@ class ImportPolicy(importlib.abc.MetaPathFinder):
         external_roots: tuple[Path, ...],
         *,
         source_root: Path | None = None,
+        native_files: tuple[Path, ...] = (),
     ):
         self.project_root = project_root.resolve()
+        self.native_files = frozenset(native_files)
         self.snapshot_roots = tuple(root.resolve() for root in snapshot_roots)
         self.external_roots = tuple(root.resolve() for root in external_roots if root.exists())
         self.source_root = None if source_root is None else source_root.resolve()
@@ -57,6 +59,8 @@ class ImportPolicy(importlib.abc.MetaPathFinder):
         if origin in ("built-in", "frozen"):
             return origin
         path = Path(origin).resolve()
+        if path in self.native_files:
+            return "external:" + str(path)
         for root in (self.source_root,) if self.source_root is not None else self.snapshot_roots:
             if path.is_relative_to(root):
                 return "snapshot:" + path.relative_to(root).as_posix()
@@ -106,9 +110,11 @@ def install_import_policy(
     external_roots: tuple[Path, ...],
     *,
     source_root: Path | None = None,
+    native_files: tuple[Path, ...] = (),
 ) -> ImportPolicy:
     """Install only in a fresh isolated child, before any model imports."""
-    policy = ImportPolicy(project_root, snapshot_roots, external_roots, source_root=source_root)
+    policy = ImportPolicy(project_root, snapshot_roots, external_roots, source_root=source_root,
+                          native_files=native_files)
     # Never add .pth/.start/sitecustomize hooks. This explicitly replaces editable
     # finders; unsupported hook-dependent packages fail through normal imports.
     sys.path[:] = [str(root) for root in (*policy.snapshot_roots, *policy.external_roots)]

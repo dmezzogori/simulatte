@@ -19,9 +19,9 @@ def _warmup(value):
 
 
 class NativeKPIStream(CompiledStream):
-    def __init__(self, servers, *, wip_cap=12, policy="spt", warmup=0):
+    def __init__(self, servers, *, wip_cap=12, policy="spt", warmup=0, module=None):
         warmup = _warmup(warmup)
-        super().__init__(servers, wip_cap=wip_cap, policy=policy, mode="none")
+        super().__init__(servers, wip_cap=wip_cap, policy=policy, mode="none", module=module)
         try:
             self._module.enable_stock_kpis(self._engine, warmup)
         except BaseException:

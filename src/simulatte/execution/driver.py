@@ -100,12 +100,24 @@ def execute(config, raw_request, key, control, spool, send):
     if "runtime_ref" not in config:
         raise ValueError("Execution requires measured runtime evidence")
     actual_runtime, dependencies, warnings = verify_runtime(config, request.runtime)
-    metadata, build, policy = load_configuration(config)
     expected = (
         read_document(config["expected_metadata_ref"], "model-info")
         if "expected_metadata_ref" in config
         else config["expected_metadata"]
     )
+    selected = next((item for item in expected["models"] if item["name"] == expected["selected"]), None)
+    if selected is None:
+        raise ValueError("Model metadata changed after inspection")
+    if selected.get("native_assets") or "native_assets_ref" in config or "native_bindings_ref" in config:
+        from simulatte.execution.native_assets import verify_for_execution
+
+        source_root = config["snapshot_root"] if "snapshot_root" in config else config["snapshot_roots"][0]
+        native_assets = verify_for_execution(
+            config, request.source_hash, selected.get("native_assets", ()), source_root)
+        metadata, build, policy = load_configuration(config, native_assets=native_assets)
+    else:
+        native_assets = {}
+        metadata, build, policy = load_configuration(config)
     if any(_plain(metadata[name]) != _plain(expected[name]) for name in ("models", "selected")):
         raise ValueError("Model metadata changed after inspection")
     spec = get_model_spec(build)
@@ -127,6 +139,7 @@ def execute(config, raw_request, key, control, spool, send):
         ),
     )
     env._execution_policy = stopping
+    env._native_assets = native_assets
     env.configure_kpis(warmup=stopping.warmup if isinstance(stopping, Horizon) else 0)
     sink = _DigestSink(spool)
     resolved = None
@@ -171,6 +184,11 @@ def execute(config, raw_request, key, control, spool, send):
             capabilities={
                 "fresh_process": True,
                 "ready_barrier": True,
+                **({"native_assets": {"schema": 1, "bundles": [
+                    {"name": handle.name, "address": handle.bundle["address"],
+                     "files": _plain(handle.bundle["files"]), "abi": _plain(handle.runtime_abi)}
+                    for handle in native_assets.values()
+                ]}} if native_assets else {}),
                 **(
                     {"execution_backend": env._execution_backend.capabilities.to_dict()}
                     if env._execution_backend is not None
@@ -221,6 +239,8 @@ def execute(config, raw_request, key, control, spool, send):
         control.phase = "finalizing"
         recorder.close(termination=stop.reason)
         env.close()
+        for bundle in native_assets.values():
+            bundle.verify()
         outputs = _artifacts(artifacts, spool)
         verify_runtime(config, request.runtime)
         assert resolved is not None

@@ -1,0 +1,23 @@
+{
+  "source_sha256": "7390ab23fc58be7fd630f463869be49fb04b4b6a40aebd844cf1a9140a5a16d8",
+  "historical_evidence_files": 56,
+  "native_C_unchanged": true,
+  "rejected_corruptions": [
+    "fingerprint_digest",
+    "artifact_sha256",
+    "backend_state",
+    "kpis",
+    "native_origin",
+    "native_assets"
+  ],
+  "evidence": {
+    "checks.json": "236359727cb192aa927d3e3005bf666b75bb54eaeab6dd5433dd5964a41ecdb4",
+    "gate/metadata.json": "5058ea31b41e60517fa3b45c28ec81a6c4d0e7c83a4f7fd75205df0943394b19",
+    "gate/runs.json": "ea5f041df4681fd2f6bc6b4b7f2415cb1d69542646d4a5ec2cf6c64e9ae797c0",
+    "gate/verification.json": "e092c4f8df911c9d36fd1f913d17314a30a715fd051bcf415cf3f8f5ae0610c8",
+    "scaling/matrix.jsonl": "a2e7fc4fd908f112a0bad4e2b34d6d063eb5fa2e1077b1a280489a8785faf33b",
+    "scaling/metadata.json": "63cf4a9d27cbe9f8aa5f7f43c674dc338c74bc59065fea680928a94fc8e552c5",
+    "scaling/summary.json": "ca4bd1e2308f281b523f0d1229d638c660d5a894dc8525c8f626e41940b710dd",
+    "scaling/verification.json": "550a968d38e528ee480738cb7cd91934027c3b847fa61e27e9e704edcca4d53c"
+  }
+}

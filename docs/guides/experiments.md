@@ -209,6 +209,11 @@ simulatte store prune
 
 `experiment delete` removes a run and the results that only that run references. `store prune` removes results that no experiment run, replay or view references and that are not among the newest 20 interactive results, plus snapshots that no stored request uses. Both update the index in one transaction and remove directories afterwards, so an interrupted prune leaves only unindexed directories that the next start removes. Studio offers the same delete action.
 
+For models declaring native binary bundles, `store prune` also removes idle derived
+native entries and abandoned publication staging. Active execution leases are
+retained. The original source snapshots keep their existing retention rules, so
+execution or reproduction can rebuild an evicted native entry.
+
 ## Store migration
 
 The 0.17 store uses schema 2 (slots, experiments, replications and replays). A store from 0.16 migrates automatically in one transaction when it is first opened, and keeps its request ids and results. A store written by a newer version is refused. To reset instead, delete `.simulatte/`. Protocol version 1.1 adds staging and provisioning messages for remote workers; local execution is unchanged.

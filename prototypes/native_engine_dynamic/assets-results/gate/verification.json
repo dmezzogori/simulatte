@@ -1,0 +1,14 @@
+{
+  "source_sha256": "7390ab23fc58be7fd630f463869be49fb04b4b6a40aebd844cf1a9140a5a16d8",
+  "main_runs": 96,
+  "request_mode_pairs": 48,
+  "deleted_source_evicted_cache_reproductions": [
+    "production",
+    "native"
+  ],
+  "ready_preview": true,
+  "corrupted_entry_rejected": true,
+  "explicit_prune_rebuild": true,
+  "ordinary_coordinator": true,
+  "native_C_unchanged": true
+}

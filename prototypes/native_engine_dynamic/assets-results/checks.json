@@ -1,0 +1,62 @@
+{
+  "source_sha256": "7390ab23fc58be7fd630f463869be49fb04b4b6a40aebd844cf1a9140a5a16d8",
+  "recorded_from": "Observed completed command results in this session; counts overlap between suites.",
+  "checks": [
+    {
+      "command": ".venv/bin/python -m pytest tests/core tests/execution tests/intralogistics tests/experimental tests/layout -o addopts='' -q --tb=short -x",
+      "passed": 3431,
+      "skipped": 1,
+      "seconds": 335.53,
+      "notes": "Three existing dependency warnings. Before additional post-rename fault test and final harness-only corrections; production implementation unchanged except whitespace."
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/execution/test_native_assets.py tests/execution/test_native_assets_integration.py tests/execution/test_backend.py prototypes/native_engine/tests prototypes/native_engine_dynamic/tests -o addopts='' --import-mode=importlib -q --tb=short -x",
+      "passed": 548,
+      "skipped": 1,
+      "seconds": 27.84,
+      "notes": "Includes final post-rename fault test and all 19 new native-asset cases."
+    },
+    {
+      "scope": "Store, driver, import and coordinator regressions",
+      "passed": 93,
+      "seconds": 26.16
+    },
+    {
+      "scope": "TypeScript trace reader",
+      "passed": 301,
+      "typecheck": "passed"
+    },
+    {
+      "command": ".venv/bin/ty check src",
+      "result": "passed"
+    },
+    {
+      "scope": "Ruff: all changed Python production, prototype and test files",
+      "result": "passed"
+    },
+    {
+      "command": ".venv/bin/zensical build",
+      "result": "passed",
+      "seconds": 1.69
+    },
+    {
+      "scope": "Real native-declared bundle trace read by unchanged TypeScript reader",
+      "result": "passed",
+      "verified": [
+        "bundle schema/address/member count",
+        "actual cached native extension origin",
+        "normal semantic fingerprint"
+      ]
+    }
+  ],
+  "manual_review": [
+    "RunStore process fence and per-store thread lock; atomic readonly publication and abandoned-stage pruning",
+    "Lease release follows supervisor terminal cleanup or worker.close on protocol/error paths",
+    "Source/ABI/declaration pinning before model import; byte verification before result proposal",
+    "Exact native file import allowlist preserves actual external origin; no directory-wide external allowance",
+    "Empty-declaration path preserves ordinary load_configuration call and lazy imports",
+    "Explicit local POSIX support boundary; remote and Windows fail"
+  ],
+  "benchmark_isolation": "No pytest, compiler or TypeScript build workload overlapped the final timing matrix.",
+  "superseded_attempt": "An earlier matrix stopped after 3 rows during out-of-timing deletion of readonly cached binaries. Cleanup now uses the existing store removal helper. Gate and all timings were regenerated after freezing this final harness; no partial timings reused."
+}

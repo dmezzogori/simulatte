@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
 from typing import TYPE_CHECKING, ClassVar
+from types import MappingProxyType
 
 from simulatte.events import Deltas
 from simulatte.kpi import Collector, KPI
@@ -20,6 +21,7 @@ from .backend_events import BackendState, BackendStateCaptured
 
 if TYPE_CHECKING:
     from simulatte.environment import Environment
+    from .native_assets import VerifiedNativeBundle
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +50,7 @@ class BackendContext:
     env: Environment
     stopping: Horizon
     scope: str
+    native_assets: Mapping[str, VerifiedNativeBundle] = field(default_factory=lambda: MappingProxyType({}))
 
 
 class ExecutionBackend(ABC):
@@ -186,7 +189,7 @@ def bind_backend(env, backend, scope):
         raise ValueError("unsupported full tracing for scalar backend")
     if env.warmup != env._execution_policy.warmup:
         raise ValueError("unsupported backend warm-up mismatch")
-    context = BackendContext(env, env._execution_policy, scope)
+    context = BackendContext(env, env._execution_policy, scope, MappingProxyType(dict(env._native_assets)))
     object.__setattr__(backend, "_simulatte_backend_claimed", True)
     binding = BackendBinding(env, backend, context)
     env._execution_backend = binding

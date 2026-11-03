@@ -83,11 +83,18 @@ class ExecutionAdapter(ExecutionBackend):
         env.attach_execution_backend(self)
 
     def prepare(self, context):
+        options = {}
+        if self.params.backend == "native" and context.native_assets:
+            bundle = context.native_assets["engine"]
+            extension = next(name for name in bundle.files if name.startswith("_nd_scalar."))
+            library = next(name for name in bundle.files if name.startswith("dynamic_engine."))
+            options["module"] = bundle.load_extension("_nd_scalar", extension, dependencies=(library,))
         self.stream = FACTORIES[self.params.backend](
             self.params.servers,
             wip_cap=self.params.wip_cap,
             policy=self.params.policy,
             warmup=context.stopping.warmup,
+            **options,
         )
         self._templates_digest = _digest([(j.arrival, j.route, j.durations, j.due) for j in self.data.jobs])
         context.env.process(self.produce())

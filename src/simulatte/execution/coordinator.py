@@ -126,6 +126,12 @@ def selected_model(metadata):
             raise ValueError("Invalid declared inputs")
         if not isinstance(item["stopping"], Mapping):
             raise ValueError("Invalid stopping metadata")
+        if "native_assets" in item:
+            from simulatte.execution.native_assets import NativeAssetBundle, declarations
+
+            if not isinstance(item["native_assets"], (list, tuple)):
+                raise ValueError("Invalid native asset declarations")
+            declarations(NativeAssetBundle.from_dict(value) for value in item["native_assets"])
         if name == metadata.get("selected"):
             selected = item
     if selected is None:
@@ -386,6 +392,12 @@ class Coordinator:
             if _on_revision is not None:
                 _on_revision(revision)
         documents["expected_metadata_ref"] = self._document("model-info", metadata)
+        if selected.get("native_assets"):
+            from simulatte.execution.native_assets import NativeAssetBundle, capture_manifest
+
+            manifest = capture_manifest(snapshot.source, tuple(
+                NativeAssetBundle.from_dict(value) for value in selected["native_assets"]))
+            documents["native_assets_ref"] = self._document("native-assets", manifest)
         return PreparedModel(
             snapshot, revision, project.model + ":" + metadata["selected"], metadata, layer, runtime, documents
         )
@@ -815,6 +827,8 @@ class Coordinator:
             runtimes["uv"] = checked.spec
         bound = None if self._inputs is None else self._inputs._prepared
         prepared = self.prepare(timeout=timeout) if bound is None else bound
+        if remote and "native_assets_ref" in prepared.documents:
+            raise ValueError("Declared native assets currently require local execution")
         if "local" in names:
             runtimes["local"] = prepared.runtime
         project = prepared.snapshot.source.project
@@ -1086,6 +1100,7 @@ class SlotActor:
         c = self.coordinator
         key = job.key
         receiver = None
+        native_lease = None
         snapshot_path = c.store.root / "staging" / key.attempt_id / "snapshot"
         self._reached = False
         try:
@@ -1095,9 +1110,17 @@ class SlotActor:
             c._remaining(job.deadline)
             inspect = isinstance(job.request, InspectionRequest)
             if self.kind == "uv" and not inspect:
+                if "native_assets_ref" in job.documents:
+                    raise ValueError("Declared native assets currently require local execution")
                 worker, body = self._remote(job)
             else:
                 paths = materialize(job.snapshot, snapshot_path)
+                if not inspect and "native_assets_ref" in job.documents:
+                    from simulatte.execution.native_assets import validate_manifest
+
+                    manifest = read_document(job.documents["native_assets_ref"], "native-assets")
+                    validate_manifest(manifest, job.request.source_hash)
+                    native_lease = c.store._native_assets().acquire(paths.root, manifest)
                 c._remaining(job.deadline)
                 worker = self._start_worker()
                 config = {
@@ -1109,6 +1132,8 @@ class SlotActor:
                     "reference": job.request.model,
                     "metadata_artifacts": True,
                     **job.documents,
+                    **({"native_bindings_ref": c._document("native-bindings", native_lease.bindings())}
+                       if native_lease is not None else {}),
                 }
                 body = {
                     "config": config,
@@ -1290,6 +1315,8 @@ class SlotActor:
                 self.worker.close()
                 self.worker = None
         finally:
+            if native_lease is not None:
+                native_lease.close()
             if snapshot_path.exists():
                 try:
                     _remove(snapshot_path)

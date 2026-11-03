@@ -228,6 +228,17 @@ class RunStore:
         self._db: sqlite3.Connection | None = None
         self._closed = False
         self._receiver: Any = None
+        self._native_asset_manager: Any = None
+
+    def _native_assets(self):
+        with self._mutex:
+            if self._closed:
+                raise RuntimeError("Run store is closed")
+            if self._native_asset_manager is None:
+                from simulatte.execution.native_assets import NativeAssetStore
+
+                self._native_asset_manager = NativeAssetStore(self.root / "native-assets")
+            return self._native_asset_manager
 
     @classmethod
     def open(cls, root: Path) -> RunStore:
@@ -1013,6 +1024,9 @@ class RunStore:
         live preparation that has not created a request yet (the CLI opens the store alone).
         The index transaction commits first; directories are removed afterwards, so an
         interrupted prune leaves only unindexed directories that ``recover`` removes.
+        Native binary entries are derived from retained source snapshots: idle entries
+        and abandoned publication staging can be pruned and recreated on demand.
+        Execution-scoped leases keep live native entries from being removed.
         """
         with self._transaction() as db:
             attempts = self._unreferenced(db)
@@ -1036,7 +1050,10 @@ class RunStore:
             self._remove_results(attempts)
             for name in snapshots:
                 _remove(self.root / "snapshots" / name)
-        return {"results": attempts, "snapshots": snapshots}
+        result = {"results": attempts, "snapshots": snapshots}
+        if (self.root / "native-assets").exists() or (self.root / "native-assets").is_symlink():
+            result["native_assets"] = self._native_assets().prune(dry_run)
+        return result
 
     def delete_experiment_run(self, run_id: str) -> dict:
         """Remove a run's rows, then the results no other run, replay, view or recent history keeps.

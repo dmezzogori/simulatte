@@ -11,9 +11,12 @@ from dataclasses import MISSING, dataclass, fields, is_dataclass
 from enum import Enum
 import math
 from pathlib import PurePosixPath
-from typing import Annotated, Any, Literal, TypeVar, cast, get_args, get_origin, get_type_hints
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeVar, cast, get_args, get_origin, get_type_hints
 
 from simulatte._wire import MAX_SAFE_INT
+
+if TYPE_CHECKING:
+    from simulatte.execution.native_assets import NativeAssetBundle
 
 F = TypeVar("F", bound=Callable[..., Any])
 Scalar = str | int | float | bool
@@ -250,6 +253,7 @@ class ModelSpec:
     schema: ParameterSchema
     name: str
     description: str
+    native_assets: tuple[NativeAssetBundle, ...] = ()
 
 
 def model(
@@ -260,6 +264,7 @@ def model(
     time_unit: str | None = None,
     inputs: Iterable[str] = (),
     stop: Any = None,
+    native_assets: Iterable[NativeAssetBundle] = (),
 ) -> Callable[[F], F]:
     """Describe a build function without wrapping it or changing ordinary calls."""
     if (horizon is None) == (stop is None):
@@ -293,6 +298,18 @@ def model(
             raise ValueError("inputs must be normalized project-relative file paths")
     if len(set(captured)) != len(captured):
         raise ValueError("Duplicate declared inputs")
+    if isinstance(native_assets, (str, bytes)):
+        raise ValueError("Native assets require a sequence of bundles")
+    try:
+        assets = tuple(native_assets)
+    except TypeError as error:
+        raise ValueError("Native assets require a sequence of bundles") from error
+    if assets:
+        from simulatte.execution.native_assets import declarations
+
+        assets = declarations(assets)
+        if set(captured) & {path for bundle in assets for path in bundle.files}:
+            raise ValueError("Native assets must remain captured source, separate from data inputs")
     schema = _schema(params)
 
     def decorate(build: F) -> F:
@@ -308,6 +325,7 @@ def model(
             schema,
             getattr(build, "__name__", type(build).__name__),
             build.__doc__ or "",
+            assets,
         )
         setattr(build, "__simulatte_model__", spec)
         return build
