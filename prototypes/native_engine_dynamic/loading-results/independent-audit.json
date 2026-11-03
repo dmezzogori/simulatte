@@ -1,0 +1,9 @@
+{
+  "gate_pairs": 16,
+  "cross_path_native_loader_observations": 8,
+  "original_controls": 8,
+  "negative_cases": 4,
+  "actual_native_origins_checked": 144,
+  "first_use_retained": true,
+  "runtime_and_project_manifests_match": true
+}

@@ -1,0 +1,8 @@
+{
+  "source_sha256": "83254469619c51bdc9691a8aeb91077d7a05b9806c3dc0c52f2a209252132f43",
+  "main_runs": 32,
+  "cross_path_reproductions": 16,
+  "ready_cancellations": 2,
+  "failed_cache_runs": 2,
+  "request_fingerprint_artifact_identity": true
+}

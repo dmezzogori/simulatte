@@ -1,0 +1,1442 @@
+[
+  {
+    "producer": "independent",
+    "original": {
+      "run_id": "5c8a1dc077813da86570168bfdb6ffdebefb1881c97c17ce591df729e1ea09c1",
+      "replications": [
+        {
+          "configuration": 0,
+          "index": 0,
+          "seed": 100,
+          "request_id": "64fbbae7a4871ca07a9bdf559707cece99018a13c26821c9e7b3a24c6e7f39f5",
+          "content_id": "6cd6d3aded8fff1c78ebf04b875f2b010434b07709acccf3f63b48ad12a7c8ab",
+          "trace_sha256": "6d48a7250f89c1868e36b1f7ef1b855c7a0d363872197852e039c8a46dceec92",
+          "trace_bytes": 69362,
+          "times": {
+            "managed_run_s": 0.039995791972614825
+          },
+          "kpis": {
+            "shopfloor/jobs_in_system": 2.0,
+            "shopfloor/lateness": -31.99220060861478,
+            "shopfloor/makespan": 2.8225002250935387,
+            "shopfloor/tardiness": 0.0,
+            "shopfloor/tardy_fraction": 0.0,
+            "shopfloor/throughput": 0.875,
+            "shopfloor/total_queue_time": 0.3000343493156758,
+            "shopfloor/utilization": 0.5791566481162612
+          },
+          "snapshot": {
+            "window": [
+              2.0,
+              10.0,
+              false
+            ],
+            "scalars": {
+              "shopfloor/makespan": 2.8225002250935387,
+              "shopfloor/lateness": -31.99220060861478,
+              "shopfloor/tardiness": 0.0,
+              "shopfloor/tardy_fraction": 0.0,
+              "shopfloor/total_queue_time": 0.3000343493156758,
+              "shopfloor/throughput": 0.875,
+              "shopfloor/utilization": 0.5791566481162612,
+              "shopfloor/jobs_in_system": 2.0
+            }
+          },
+          "proof": {
+            "generated": "793268f5d700bc1a99cbe4826c1f8e5aca0e8bee62782cb7c6ff2dc2c07294e2",
+            "decisions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "states": "fb62bb32017a3d53f3bdf73aecc4c5f64bce4bf93a778e7a66a1357d28bf435f"
+          },
+          "admitted": 16,
+          "steps": 18,
+          "backend": "production",
+          "backend_state": {
+            "schema": "production-domain-state-v1",
+            "digest": "79fabfdf111cfd7b73bc7abd575ee9f42594ec2932ebb508f4e88bc0562656b4"
+          },
+          "fingerprint_digest": "24ccdfe26e953e67d6eb939a0d4c60de13880d673951caf8c893be31b87115bc",
+          "initial_state_digest": "334f1c5b1e62f3d64bb3c4fbbeee50ed9aa13e49127c354a6cb2fa44ed0d1e02",
+          "source_hash": "84e6ab237fd318a0d4d19e10b25017306e995a83e0bd6946db0af9c8605061b4"
+        },
+        {
+          "configuration": 1,
+          "index": 0,
+          "seed": 100,
+          "request_id": "c2d084ccc999598f3cc810fa77c82d6aac55306d2ec06359653e4bdf8745cf3e",
+          "content_id": "75b2aad22f53454b0cfab0fc1f04367c3b300e02f732422f94d61b7b3c543de2",
+          "trace_sha256": "1eee887b3bfba7a29ff1b612a7eb541ace103fa908c1b8cf687afa596bbefe5c",
+          "trace_bytes": 69440,
+          "times": {
+            "managed_run_s": 0.08494070800952613
+          },
+          "kpis": {
+            "shopfloor/jobs_in_system": 2.0,
+            "shopfloor/lateness": -31.99220060861478,
+            "shopfloor/makespan": 2.8225002250935387,
+            "shopfloor/tardiness": 0.0,
+            "shopfloor/tardy_fraction": 0.0,
+            "shopfloor/throughput": 0.875,
+            "shopfloor/total_queue_time": 0.3000343493156758,
+            "shopfloor/utilization": 0.5791566481162612
+          },
+          "snapshot": {
+            "window": [
+              2.0,
+              10.0,
+              false
+            ],
+            "scalars": {
+              "shopfloor/makespan": 2.8225002250935387,
+              "shopfloor/lateness": -31.99220060861478,
+              "shopfloor/tardiness": 0.0,
+              "shopfloor/tardy_fraction": 0.0,
+              "shopfloor/total_queue_time": 0.3000343493156758,
+              "shopfloor/throughput": 0.875,
+              "shopfloor/utilization": 0.5791566481162612,
+              "shopfloor/jobs_in_system": 2.0
+            }
+          },
+          "proof": {
+            "generated": "793268f5d700bc1a99cbe4826c1f8e5aca0e8bee62782cb7c6ff2dc2c07294e2",
+            "decisions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "states": "fb62bb32017a3d53f3bdf73aecc4c5f64bce4bf93a778e7a66a1357d28bf435f"
+          },
+          "admitted": 16,
+          "steps": 18,
+          "backend": "native",
+          "backend_state": {
+            "schema": "native-production-state-v1",
+            "digest": "e925b220d8e3d024d9f81829da1c4b55ed97862adab800eea148512c4071a64f"
+          },
+          "fingerprint_digest": "d6cfa77521b8241594da3891559bfd75b9eb18e3fc763c41ebfab623b23b996f",
+          "initial_state_digest": "34a92ba2bcb268bcbe36c30d5f5d77decd2bed2734a102b7a07ec05e8e2d5789",
+          "source_hash": "84e6ab237fd318a0d4d19e10b25017306e995a83e0bd6946db0af9c8605061b4"
+        },
+        {
+          "configuration": 0,
+          "index": 1,
+          "seed": 101,
+          "request_id": "c049b126eff1a63d8bb94febb0dc0c3dba90e45661338b6da7366701a40692c3",
+          "content_id": "db179eca07b9a3601cdc71568506812f9b1b72f34f588a4dabe377d8ffb94d4e",
+          "trace_sha256": "fb97cb6005d2652ef8a818105102d0293986212fa0bb6d314185a4b19d252b1c",
+          "trace_bytes": 69362,
+          "times": {
+            "managed_run_s": 0.03961499995784834
+          },
+          "kpis": {
+            "shopfloor/jobs_in_system": 1.975268723590815,
+            "shopfloor/lateness": -32.051743422860184,
+            "shopfloor/makespan": 3.3603265446698316,
+            "shopfloor/tardiness": 0.0,
+            "shopfloor/tardy_fraction": 0.0,
+            "shopfloor/throughput": 0.625,
+            "shopfloor/total_queue_time": 0.34267226601739864,
+            "shopfloor/utilization": 0.528250233947758
+          },
+          "snapshot": {
+            "window": [
+              2.0,
+              10.0,
+              false
+            ],
+            "scalars": {
+              "shopfloor/makespan": 3.3603265446698316,
+              "shopfloor/lateness": -32.051743422860184,
+              "shopfloor/tardiness": 0.0,
+              "shopfloor/tardy_fraction": 0.0,
+              "shopfloor/total_queue_time": 0.34267226601739864,
+              "shopfloor/throughput": 0.625,
+              "shopfloor/utilization": 0.528250233947758,
+              "shopfloor/jobs_in_system": 1.975268723590815
+            }
+          },
+          "proof": {
+            "generated": "f924e6045278706d8dba372cb94edeb612afac26ad7c8d99a9fa0e8af3f1a7c1",
+            "decisions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "states": "bb5f805acad0de13bc97d0a49d6c4547e79764317195043c5700042c271e202e"
+          },
+          "admitted": 17,
+          "steps": 19,
+          "backend": "production",
+          "backend_state": {
+            "schema": "production-domain-state-v1",
+            "digest": "6487f348a4850fa0473dc417ba5ee3db56e197ec735705a1e6ff18fc53c04239"
+          },
+          "fingerprint_digest": "ada5da92cf1624d1a64503caba8ca501fbe2173b7ac808163ed28608d8968ace",
+          "initial_state_digest": "07a4922a7369b7a2b51ea89ccee7870e571ddb6e9aadd60aaec608f8ff919596",
+          "source_hash": "84e6ab237fd318a0d4d19e10b25017306e995a83e0bd6946db0af9c8605061b4"
+        },
+        {
+          "configuration": 1,
+          "index": 1,
+          "seed": 101,
+          "request_id": "93da794b8739aa0d65222f4bb1973559164303e26a99b757614cc5397cf6f193",
+          "content_id": "479892c60c0726a947fef529dc536b15035280ee45f4de312461972d54ef2a23",
+          "trace_sha256": "bc89fc2d8c4e283a02c4e815312d54a2000ed4b9eeca31c9e93ed50d8c162f83",
+          "trace_bytes": 69440,
+          "times": {
+            "managed_run_s": 0.08904620801331475
+          },
+          "kpis": {
+            "shopfloor/jobs_in_system": 1.975268723590815,
+            "shopfloor/lateness": -32.051743422860184,
+            "shopfloor/makespan": 3.3603265446698316,
+            "shopfloor/tardiness": 0.0,
+            "shopfloor/tardy_fraction": 0.0,
+            "shopfloor/throughput": 0.625,
+            "shopfloor/total_queue_time": 0.34267226601739864,
+            "shopfloor/utilization": 0.528250233947758
+          },
+          "snapshot": {
+            "window": [
+              2.0,
+              10.0,
+              false
+            ],
+            "scalars": {
+              "shopfloor/makespan": 3.3603265446698316,
+              "shopfloor/lateness": -32.051743422860184,
+              "shopfloor/tardiness": 0.0,
+              "shopfloor/tardy_fraction": 0.0,
+              "shopfloor/total_queue_time": 0.34267226601739864,
+              "shopfloor/throughput": 0.625,
+              "shopfloor/utilization": 0.528250233947758,
+              "shopfloor/jobs_in_system": 1.975268723590815
+            }
+          },
+          "proof": {
+            "generated": "f924e6045278706d8dba372cb94edeb612afac26ad7c8d99a9fa0e8af3f1a7c1",
+            "decisions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "states": "bb5f805acad0de13bc97d0a49d6c4547e79764317195043c5700042c271e202e"
+          },
+          "admitted": 17,
+          "steps": 19,
+          "backend": "native",
+          "backend_state": {
+            "schema": "native-production-state-v1",
+            "digest": "2375dac7a2f3c359865517ff5e8d3d6cf6e4ba1d98d90d37b070c3f9703ee5ee"
+          },
+          "fingerprint_digest": "94793b249e7c924b8c27dd133b754a127d8cc9a5ba0e271ea56597dc5f175353",
+          "initial_state_digest": "7fe15d1fe0e2acf5337ed93033c232e5e8e3c0c403ce773f4e931f9f096af07a",
+          "source_hash": "84e6ab237fd318a0d4d19e10b25017306e995a83e0bd6946db0af9c8605061b4"
+        }
+      ],
+      "report": {
+        "run_id": "5c8a1dc077813da86570168bfdb6ffdebefb1881c97c17ce591df729e1ea09c1",
+        "name": "native scalar execution",
+        "status": "completed",
+        "level": 0.95,
+        "effective_level": 0.95,
+        "pointwise": true,
+        "m": 16,
+        "configurations": [
+          {
+            "index": 0,
+            "label": "production/base",
+            "parameters": {
+              "backend": "production",
+              "jobs": 40,
+              "load": 0.95,
+              "policy": "spt",
+              "producer": "independent",
+              "servers": 3,
+              "verify": true,
+              "wip_cap": 2
+            },
+            "counts": {
+              "pending": 0,
+              "dispatched": 0,
+              "succeeded": 2,
+              "failed": 0,
+              "lost": 0,
+              "cancelled": 0,
+              "reused": 0
+            },
+            "mixed_runtime": false
+          },
+          {
+            "index": 1,
+            "label": "native/base",
+            "parameters": {
+              "backend": "native",
+              "jobs": 40,
+              "load": 0.95,
+              "policy": "spt",
+              "producer": "independent",
+              "servers": 3,
+              "verify": true,
+              "wip_cap": 2
+            },
+            "counts": {
+              "pending": 0,
+              "dispatched": 0,
+              "succeeded": 2,
+              "failed": 0,
+              "lost": 0,
+              "cancelled": 0,
+              "reused": 0
+            },
+            "mixed_runtime": false
+          }
+        ],
+        "rows": [
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/jobs_in_system",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 1.9876343617954075,
+              "sd": 0.017487653256333554,
+              "half_width": 0.15712033072101486,
+              "lower": 1.8305140310743926,
+              "upper": 2.1447546925164223,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/lateness",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": -32.02197201573748,
+              "sd": 0.04210312772385611,
+              "half_width": 0.37828159418505936,
+              "lower": -32.400253609922544,
+              "upper": -31.643690421552424,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/makespan",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 3.091413384881685,
+              "sd": 0.38030063767299993,
+              "half_width": 3.416865664519834,
+              "lower": -0.32545227963814893,
+              "upper": 6.508279049401519,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/tardiness",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/tardy_fraction",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/throughput",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.75,
+              "sd": 0.1767766952966369,
+              "half_width": 1.58827559202183,
+              "lower": -0.8382755920218301,
+              "upper": 2.33827559202183,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/total_queue_time",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.32135330766653725,
+              "sd": 0.030149560035455374,
+              "half_width": 0.2708830495680253,
+              "lower": 0.050470258098511966,
+              "upper": 0.5922363572345626,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/utilization",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.5537034410320096,
+              "sd": 0.03599627066443953,
+              "half_width": 0.32341366040475134,
+              "lower": 0.2302897806272583,
+              "upper": 0.8771171014367609,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/jobs_in_system",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 1.9876343617954075,
+              "sd": 0.017487653256333554,
+              "half_width": 0.15712033072101486,
+              "lower": 1.8305140310743926,
+              "upper": 2.1447546925164223,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/lateness",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": -32.02197201573748,
+              "sd": 0.04210312772385611,
+              "half_width": 0.37828159418505936,
+              "lower": -32.400253609922544,
+              "upper": -31.643690421552424,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/makespan",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 3.091413384881685,
+              "sd": 0.38030063767299993,
+              "half_width": 3.416865664519834,
+              "lower": -0.32545227963814893,
+              "upper": 6.508279049401519,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/tardiness",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/tardy_fraction",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/throughput",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.75,
+              "sd": 0.1767766952966369,
+              "half_width": 1.58827559202183,
+              "lower": -0.8382755920218301,
+              "upper": 2.33827559202183,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/total_queue_time",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.32135330766653725,
+              "sd": 0.030149560035455374,
+              "half_width": 0.2708830495680253,
+              "lower": 0.050470258098511966,
+              "upper": 0.5922363572345626,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/utilization",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.5537034410320096,
+              "sd": 0.03599627066443953,
+              "half_width": 0.32341366040475134,
+              "lower": 0.2302897806272583,
+              "upper": 0.8771171014367609,
+              "state": "ok",
+              "level": 0.95
+            }
+          }
+        ],
+        "missing": [],
+        "missing_total": 0,
+        "replications": [
+          {
+            "configuration": 0,
+            "index": 0,
+            "status": "succeeded",
+            "attempt": "d152223311cb2cd9bc5aebb540889307"
+          },
+          {
+            "configuration": 1,
+            "index": 0,
+            "status": "succeeded",
+            "attempt": "3f648eaadabefcdf56ab35624f633b86"
+          },
+          {
+            "configuration": 0,
+            "index": 1,
+            "status": "succeeded",
+            "attempt": "4da56ea1795f86c51c3dec3340f5528c"
+          },
+          {
+            "configuration": 1,
+            "index": 1,
+            "status": "succeeded",
+            "attempt": "3b4049feeff25030d93a2dea4dfa97cd"
+          }
+        ],
+        "replications_total": 4,
+        "baseline": "production/base",
+        "paired_m": 8,
+        "paired_effective_level": 0.95,
+        "paired": [
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/jobs_in_system",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/lateness",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/makespan",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/tardiness",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/tardy_fraction",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/throughput",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/total_queue_time",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/utilization",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          }
+        ]
+      },
+      "statistics_s": 0.006667707988526672
+    },
+    "matched_fields": [
+      "backend_state",
+      "snapshot",
+      "kpis",
+      "proof",
+      "steps",
+      "fingerprint_digest"
+    ]
+  },
+  {
+    "producer": "feedback",
+    "original": {
+      "run_id": "aa62c773f680f06782d0d047177f4fa68c6e683c828be05de56873ebe0e65d1c",
+      "replications": [
+        {
+          "configuration": 0,
+          "index": 0,
+          "seed": 100,
+          "request_id": "6e7dd58c2559c30cbf9ae6399e79a75879a7b37c554647e91bbcc8091b650225",
+          "content_id": "6232213815f278e08b1d0c124aab49765686ef1b9a919ad01110ced56527015b",
+          "trace_sha256": "216ebf3c920fb547b34a3ce2065077946bbf171d3f589dfbe9b479ec63844a7e",
+          "trace_bytes": 69053,
+          "times": {
+            "managed_run_s": 0.05865333299152553
+          },
+          "kpis": {
+            "shopfloor/jobs_in_system": 2.0,
+            "shopfloor/lateness": -31.966560604944082,
+            "shopfloor/makespan": 2.8481402287642363,
+            "shopfloor/tardiness": 0.0,
+            "shopfloor/tardy_fraction": 0.0,
+            "shopfloor/throughput": 0.875,
+            "shopfloor/total_queue_time": 0.25369034427388437,
+            "shopfloor/utilization": 0.5926736495867838
+          },
+          "snapshot": {
+            "window": [
+              2.0,
+              10.0,
+              false
+            ],
+            "scalars": {
+              "shopfloor/makespan": 2.8481402287642363,
+              "shopfloor/lateness": -31.966560604944082,
+              "shopfloor/tardiness": 0.0,
+              "shopfloor/tardy_fraction": 0.0,
+              "shopfloor/total_queue_time": 0.25369034427388437,
+              "shopfloor/throughput": 0.875,
+              "shopfloor/utilization": 0.5926736495867838,
+              "shopfloor/jobs_in_system": 2.0
+            }
+          },
+          "proof": {
+            "generated": "e55d355155f505bafbf43afa09aead72107d0d4cf05c527151039e28b9227c76",
+            "decisions": "a956b359954a4269ee1d715dc72707635338a3095ee04aff7fa6a779c3d9b3b5",
+            "states": "8a0151402f7fec706a9eda38224d4cdeb31648b336102ee46eaaf7753c3fae84"
+          },
+          "admitted": 16,
+          "steps": 18,
+          "backend": "production",
+          "backend_state": {
+            "schema": "production-domain-state-v1",
+            "digest": "765f83e5513fd30ae6c2878464066a1acf09ceb4e5624fb6f7691ac4db8ec680"
+          },
+          "fingerprint_digest": "65c16c05335ab870ae89c36512ab5fefda7e4923cc63a2ff37d1ef3df281121b",
+          "initial_state_digest": "898083add48138217e437a7294699d41b4f471b26f4d6d417953e678be9612cd",
+          "source_hash": "84e6ab237fd318a0d4d19e10b25017306e995a83e0bd6946db0af9c8605061b4"
+        },
+        {
+          "configuration": 1,
+          "index": 0,
+          "seed": 100,
+          "request_id": "bc79ebf10b3a5f1b3f12783de73913526f06fb3440c041e4b7a1105ea3a0b711",
+          "content_id": "dc44f4b7033698c9786e13439928e6be32e4220b835e7dbc7795131d853c5637",
+          "trace_sha256": "6313442fbcde347a54b7535b84e1877e57e1283acf11dad1e99b8a5ba9bc97ef",
+          "trace_bytes": 69131,
+          "times": {
+            "managed_run_s": 0.07919104199390858
+          },
+          "kpis": {
+            "shopfloor/jobs_in_system": 2.0,
+            "shopfloor/lateness": -31.966560604944082,
+            "shopfloor/makespan": 2.8481402287642363,
+            "shopfloor/tardiness": 0.0,
+            "shopfloor/tardy_fraction": 0.0,
+            "shopfloor/throughput": 0.875,
+            "shopfloor/total_queue_time": 0.25369034427388437,
+            "shopfloor/utilization": 0.5926736495867838
+          },
+          "snapshot": {
+            "window": [
+              2.0,
+              10.0,
+              false
+            ],
+            "scalars": {
+              "shopfloor/makespan": 2.8481402287642363,
+              "shopfloor/lateness": -31.966560604944082,
+              "shopfloor/tardiness": 0.0,
+              "shopfloor/tardy_fraction": 0.0,
+              "shopfloor/total_queue_time": 0.25369034427388437,
+              "shopfloor/throughput": 0.875,
+              "shopfloor/utilization": 0.5926736495867838,
+              "shopfloor/jobs_in_system": 2.0
+            }
+          },
+          "proof": {
+            "generated": "e55d355155f505bafbf43afa09aead72107d0d4cf05c527151039e28b9227c76",
+            "decisions": "a956b359954a4269ee1d715dc72707635338a3095ee04aff7fa6a779c3d9b3b5",
+            "states": "8a0151402f7fec706a9eda38224d4cdeb31648b336102ee46eaaf7753c3fae84"
+          },
+          "admitted": 16,
+          "steps": 18,
+          "backend": "native",
+          "backend_state": {
+            "schema": "native-production-state-v1",
+            "digest": "fa9edb6b563ae94e974433a6715f1ab627ddc0e91291e5ff03e5a1f6493b04ed"
+          },
+          "fingerprint_digest": "b2f486cc544b2a80a04d3e1217afe1d115eb80e5571df69e1003218c17656885",
+          "initial_state_digest": "17553cfe26aad99b6f79321b7566c7c0d93b0006eb1c28702b3b80c91eeae300",
+          "source_hash": "84e6ab237fd318a0d4d19e10b25017306e995a83e0bd6946db0af9c8605061b4"
+        },
+        {
+          "configuration": 0,
+          "index": 1,
+          "seed": 101,
+          "request_id": "ca99dc207823190d16729d09180219bbb4f61bc7846787086a71b8d2b9f74c85",
+          "content_id": "d4e82edc2d8773fa8f79e4abc68ed0db458ccff9803aa6653d1aadf922de1a51",
+          "trace_sha256": "4771375f8771a81ebd8d60f010bb33b290ec0228a5d80dc2121943c8006cd05a",
+          "trace_bytes": 69053,
+          "times": {
+            "managed_run_s": 0.06382029200904071
+          },
+          "kpis": {
+            "shopfloor/jobs_in_system": 1.975268723590815,
+            "shopfloor/lateness": -32.051743422860184,
+            "shopfloor/makespan": 3.3603265446698316,
+            "shopfloor/tardiness": 0.0,
+            "shopfloor/tardy_fraction": 0.0,
+            "shopfloor/throughput": 0.625,
+            "shopfloor/total_queue_time": 0.34267226601739864,
+            "shopfloor/utilization": 0.528250233947758
+          },
+          "snapshot": {
+            "window": [
+              2.0,
+              10.0,
+              false
+            ],
+            "scalars": {
+              "shopfloor/makespan": 3.3603265446698316,
+              "shopfloor/lateness": -32.051743422860184,
+              "shopfloor/tardiness": 0.0,
+              "shopfloor/tardy_fraction": 0.0,
+              "shopfloor/total_queue_time": 0.34267226601739864,
+              "shopfloor/throughput": 0.625,
+              "shopfloor/utilization": 0.528250233947758,
+              "shopfloor/jobs_in_system": 1.975268723590815
+            }
+          },
+          "proof": {
+            "generated": "f924e6045278706d8dba372cb94edeb612afac26ad7c8d99a9fa0e8af3f1a7c1",
+            "decisions": "63c4f97658374a888b6498af8be2ba2a39281446d91a0f4c5265668fec511ea9",
+            "states": "bb5f805acad0de13bc97d0a49d6c4547e79764317195043c5700042c271e202e"
+          },
+          "admitted": 17,
+          "steps": 19,
+          "backend": "production",
+          "backend_state": {
+            "schema": "production-domain-state-v1",
+            "digest": "6969706100a2ec629d383f55e177221d3f2323aa8bc73a7cefdec0bbf9577769"
+          },
+          "fingerprint_digest": "0dfba59ad83167a7f14d566bfe3d83f8ba6572851b2cf5ef82701a77149c6d1d",
+          "initial_state_digest": "2421295901acf39992ec326c74be6da4db53a27a5f26212466f65bc6d7e61fb2",
+          "source_hash": "84e6ab237fd318a0d4d19e10b25017306e995a83e0bd6946db0af9c8605061b4"
+        },
+        {
+          "configuration": 1,
+          "index": 1,
+          "seed": 101,
+          "request_id": "bbabac9e55a213210bc603abacf3e53de31d7a1897cc7d07de52c9c4f407f359",
+          "content_id": "77f6d2a395f4880b64019209822d7291cfe496718ce3eb4202bcb03abcbb70af",
+          "trace_sha256": "a6afff8d1721d1d6039fb406ccfc1ac4809a352afcf80a181a0442a31117cae2",
+          "trace_bytes": 69131,
+          "times": {
+            "managed_run_s": 0.08451295894337818
+          },
+          "kpis": {
+            "shopfloor/jobs_in_system": 1.975268723590815,
+            "shopfloor/lateness": -32.051743422860184,
+            "shopfloor/makespan": 3.3603265446698316,
+            "shopfloor/tardiness": 0.0,
+            "shopfloor/tardy_fraction": 0.0,
+            "shopfloor/throughput": 0.625,
+            "shopfloor/total_queue_time": 0.34267226601739864,
+            "shopfloor/utilization": 0.528250233947758
+          },
+          "snapshot": {
+            "window": [
+              2.0,
+              10.0,
+              false
+            ],
+            "scalars": {
+              "shopfloor/makespan": 3.3603265446698316,
+              "shopfloor/lateness": -32.051743422860184,
+              "shopfloor/tardiness": 0.0,
+              "shopfloor/tardy_fraction": 0.0,
+              "shopfloor/total_queue_time": 0.34267226601739864,
+              "shopfloor/throughput": 0.625,
+              "shopfloor/utilization": 0.528250233947758,
+              "shopfloor/jobs_in_system": 1.975268723590815
+            }
+          },
+          "proof": {
+            "generated": "f924e6045278706d8dba372cb94edeb612afac26ad7c8d99a9fa0e8af3f1a7c1",
+            "decisions": "63c4f97658374a888b6498af8be2ba2a39281446d91a0f4c5265668fec511ea9",
+            "states": "bb5f805acad0de13bc97d0a49d6c4547e79764317195043c5700042c271e202e"
+          },
+          "admitted": 17,
+          "steps": 19,
+          "backend": "native",
+          "backend_state": {
+            "schema": "native-production-state-v1",
+            "digest": "5cc8050bbc9fb6c5f8218de57b76b3384ee106afdfb5c936a45a57647c2b3cb1"
+          },
+          "fingerprint_digest": "4bd5abcd9286aa5217f37b86c6f9c0365fd24dc80143a8d35d8cb7aa05a36d8d",
+          "initial_state_digest": "a2a062ec3ac73c24d87133d42b68208119f90ad5b543d318c0b470ea9f384366",
+          "source_hash": "84e6ab237fd318a0d4d19e10b25017306e995a83e0bd6946db0af9c8605061b4"
+        }
+      ],
+      "report": {
+        "run_id": "aa62c773f680f06782d0d047177f4fa68c6e683c828be05de56873ebe0e65d1c",
+        "name": "native scalar execution",
+        "status": "completed",
+        "level": 0.95,
+        "effective_level": 0.95,
+        "pointwise": true,
+        "m": 16,
+        "configurations": [
+          {
+            "index": 0,
+            "label": "production/base",
+            "parameters": {
+              "backend": "production",
+              "jobs": 40,
+              "load": 0.95,
+              "policy": "spt",
+              "producer": "feedback",
+              "servers": 3,
+              "verify": true,
+              "wip_cap": 2
+            },
+            "counts": {
+              "pending": 0,
+              "dispatched": 0,
+              "succeeded": 2,
+              "failed": 0,
+              "lost": 0,
+              "cancelled": 0,
+              "reused": 0
+            },
+            "mixed_runtime": false
+          },
+          {
+            "index": 1,
+            "label": "native/base",
+            "parameters": {
+              "backend": "native",
+              "jobs": 40,
+              "load": 0.95,
+              "policy": "spt",
+              "producer": "feedback",
+              "servers": 3,
+              "verify": true,
+              "wip_cap": 2
+            },
+            "counts": {
+              "pending": 0,
+              "dispatched": 0,
+              "succeeded": 2,
+              "failed": 0,
+              "lost": 0,
+              "cancelled": 0,
+              "reused": 0
+            },
+            "mixed_runtime": false
+          }
+        ],
+        "rows": [
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/jobs_in_system",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 1.9876343617954075,
+              "sd": 0.017487653256333554,
+              "half_width": 0.15712033072101486,
+              "lower": 1.8305140310743926,
+              "upper": 2.1447546925164223,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/lateness",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": -32.00915201390213,
+              "sd": 0.06023334818905501,
+              "half_width": 0.5411751622231418,
+              "lower": -32.55032717612527,
+              "upper": -31.46797685167899,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/makespan",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 3.104233386717034,
+              "sd": 0.36217041720780163,
+              "half_width": 3.2539720964817573,
+              "lower": -0.14973870976472314,
+              "upper": 6.358205483198791,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/tardiness",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/tardy_fraction",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/throughput",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.75,
+              "sd": 0.1767766952966369,
+              "half_width": 1.58827559202183,
+              "lower": -0.8382755920218301,
+              "upper": 2.33827559202183,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/total_queue_time",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.2981813051456415,
+              "sd": 0.06291972026784963,
+              "half_width": 0.565311257745681,
+              "lower": -0.2671299526000395,
+              "upper": 0.8634925628913226,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 0,
+            "label": "production/base",
+            "kpi": "shopfloor/utilization",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.5604619417672709,
+              "sd": 0.045554234065554595,
+              "half_width": 0.40928855445656825,
+              "lower": 0.15117338731070268,
+              "upper": 0.9697504962238392,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/jobs_in_system",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 1.9876343617954075,
+              "sd": 0.017487653256333554,
+              "half_width": 0.15712033072101486,
+              "lower": 1.8305140310743926,
+              "upper": 2.1447546925164223,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/lateness",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": -32.00915201390213,
+              "sd": 0.06023334818905501,
+              "half_width": 0.5411751622231418,
+              "lower": -32.55032717612527,
+              "upper": -31.46797685167899,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/makespan",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 3.104233386717034,
+              "sd": 0.36217041720780163,
+              "half_width": 3.2539720964817573,
+              "lower": -0.14973870976472314,
+              "upper": 6.358205483198791,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/tardiness",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/tardy_fraction",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/throughput",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.75,
+              "sd": 0.1767766952966369,
+              "half_width": 1.58827559202183,
+              "lower": -0.8382755920218301,
+              "upper": 2.33827559202183,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/total_queue_time",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.2981813051456415,
+              "sd": 0.06291972026784963,
+              "half_width": 0.565311257745681,
+              "lower": -0.2671299526000395,
+              "upper": 0.8634925628913226,
+              "state": "ok",
+              "level": 0.95
+            }
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/utilization",
+            "n_succeeded": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.5604619417672709,
+              "sd": 0.045554234065554595,
+              "half_width": 0.40928855445656825,
+              "lower": 0.15117338731070268,
+              "upper": 0.9697504962238392,
+              "state": "ok",
+              "level": 0.95
+            }
+          }
+        ],
+        "missing": [],
+        "missing_total": 0,
+        "replications": [
+          {
+            "configuration": 0,
+            "index": 0,
+            "status": "succeeded",
+            "attempt": "744fed48d01891017a939896f1e044ce"
+          },
+          {
+            "configuration": 1,
+            "index": 0,
+            "status": "succeeded",
+            "attempt": "fc2dc3c18c1ce2caa91e12b973f21dd9"
+          },
+          {
+            "configuration": 0,
+            "index": 1,
+            "status": "succeeded",
+            "attempt": "b089b4cb80110da74e9afa4e172ca78c"
+          },
+          {
+            "configuration": 1,
+            "index": 1,
+            "status": "succeeded",
+            "attempt": "ad18eb3c910c4d030b2c2a12bca91a94"
+          }
+        ],
+        "replications_total": 4,
+        "baseline": "production/base",
+        "paired_m": 8,
+        "paired_effective_level": 0.95,
+        "paired": [
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/jobs_in_system",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/lateness",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/makespan",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/tardiness",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/tardy_fraction",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/throughput",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/total_queue_time",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          },
+          {
+            "configuration": 1,
+            "label": "native/base",
+            "kpi": "shopfloor/utilization",
+            "n": 2,
+            "estimate": {
+              "n": 2,
+              "mean": 0.0,
+              "sd": 0.0,
+              "half_width": 0.0,
+              "lower": 0.0,
+              "upper": 0.0,
+              "state": "degenerate",
+              "level": 0.95
+            },
+            "missing": []
+          }
+        ]
+      },
+      "statistics_s": 0.006035375001374632
+    },
+    "matched_fields": [
+      "backend_state",
+      "snapshot",
+      "kpis",
+      "proof",
+      "steps",
+      "fingerprint_digest"
+    ]
+  }
+]

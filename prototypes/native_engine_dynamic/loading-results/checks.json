@@ -1,0 +1,66 @@
+{
+  "source_sha256": "83254469619c51bdc9691a8aeb91077d7a05b9806c3dc0c52f2a209252132f43",
+  "files": 285,
+  "platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+  "libraries": {
+    "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+    "dynamic": "638eb4b10466535a200e7497e7b38da0d882ba52910865d3d4de24f48b31a75c",
+    "_nd_scalar.cpython-314-darwin.so": "9cc13fcbfe7d8be90faf6589fcdfba655aba3a92ed0d3743635a941f4eacf87e",
+    "_nd_scalar.pypy311-pp73-darwin.so": "f036a45db93c799e58c91ade5b96d6300ff585457f85fc8f6263e445d774997b"
+  },
+  "tests": [
+    {
+      "command": "pytest tests/execution/test_backend.py prototypes/native_engine/tests prototypes/native_engine_dynamic/tests -o addopts= --import-mode=importlib -q --tb=short -x",
+      "passed": 529,
+      "skipped": 1,
+      "seconds": 21.86
+    },
+    {
+      "command": "pytest test_immutable_assets.py",
+      "passed": 15,
+      "included_in_broad_suite": true
+    },
+    {
+      "command": "ruff check immutable_assets.py loading_experiment.py tests/test_immutable_assets.py",
+      "passed": true
+    },
+    {
+      "command": "loading_experiment gate",
+      "main_runs": 32,
+      "cross_path_reproductions": 16,
+      "ready_cancellations": 2,
+      "failed_cache_runs": 2
+    },
+    {
+      "command": "original-control-check.py",
+      "original_loader_runs": 8,
+      "outcomes_state_semantic_fingerprints_equal": true
+    },
+    {
+      "command": "loading_experiment matrix",
+      "experiments": 48,
+      "replications": 144,
+      "distinct_native_pids": 144,
+      "requests_fingerprints_artifacts_equal": true
+    },
+    {
+      "command": "PYTHONPATH=. .venv/bin/python prototypes/native_engine_dynamic/loading-results/independent_audit.py",
+      "passed": true,
+      "gate_pairs": 16,
+      "native_origins_checked": 144,
+      "negative_cases": 4,
+      "first_shared_path_use_retained": true,
+      "gate_matrix_final_manifests_equal": true
+    }
+  ],
+  "notes": [
+    "No production Python, native C or old evidence edits.",
+    "Ordinary import-origin enforcement retained; only the addressed native entry is a declared external root.",
+    "Actual extension and linked engine paths verified and retained in sidecars/provenance.",
+    "Per-run snapshotted and selected pairs hash-checked before import and rechecked afterwards; shared file identities remain constant.",
+    "Fixture-local single-publisher store, not a production concurrent cache.",
+    "No preloaded native images; cache construction outside timing is measured separately. First shared-path load retained.",
+    "Dormant phase-control rows still record low-volume loader diagnostics; all verification and diagnostic costs remain in process wall time.",
+    "No regression/compiler job ran concurrently with timed matrix."
+  ]
+}

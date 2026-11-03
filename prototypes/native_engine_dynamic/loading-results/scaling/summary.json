@@ -1,0 +1,226 @@
+[
+  {
+    "producer": "independent",
+    "jobs": 5000,
+    "probe": "dormant",
+    "values": {
+      "attempt": {
+        "process_s": [
+          2.585044292,
+          2.5510845,
+          2.443057833
+        ],
+        "median_s": 2.5510845,
+        "import_s": 0.28314687299999997,
+        "verified_load_s": 0.288740084
+      },
+      "immutable": {
+        "process_s": [
+          2.230670292,
+          2.24298425,
+          2.3453845
+        ],
+        "median_s": 2.24298425,
+        "import_s": 0.001297709,
+        "verified_load_s": 0.005246834
+      }
+    },
+    "reduction": 0.12077226371764627
+  },
+  {
+    "producer": "independent",
+    "jobs": 5000,
+    "probe": "active",
+    "values": {
+      "attempt": {
+        "process_s": [
+          2.577853417,
+          2.570771125,
+          2.551406375
+        ],
+        "median_s": 2.570771125,
+        "import_s": 0.283084748,
+        "verified_load_s": 0.288955792
+      },
+      "immutable": {
+        "process_s": [
+          2.358285375,
+          2.313703584,
+          2.339273709
+        ],
+        "median_s": 2.339273709,
+        "import_s": 0.001375541,
+        "verified_load_s": 0.005305917
+      }
+    },
+    "reduction": 0.09004979624547471
+  },
+  {
+    "producer": "independent",
+    "jobs": 20000,
+    "probe": "dormant",
+    "values": {
+      "attempt": {
+        "process_s": [
+          3.159585959,
+          2.982860583,
+          2.982222416
+        ],
+        "median_s": 2.982860583,
+        "import_s": 0.283211334,
+        "verified_load_s": 0.288224625
+      },
+      "immutable": {
+        "process_s": [
+          2.799248667,
+          2.75733,
+          2.825203333
+        ],
+        "median_s": 2.799248667,
+        "import_s": 0.001322833,
+        "verified_load_s": 0.005220165
+      }
+    },
+    "reduction": 0.06155564797310531
+  },
+  {
+    "producer": "independent",
+    "jobs": 20000,
+    "probe": "active",
+    "values": {
+      "attempt": {
+        "process_s": [
+          3.240629625,
+          3.190041459,
+          3.199523042
+        ],
+        "median_s": 3.199523042,
+        "import_s": 0.273657832,
+        "verified_load_s": 0.278774458
+      },
+      "immutable": {
+        "process_s": [
+          2.926492458,
+          2.960174084,
+          2.987410542
+        ],
+        "median_s": 2.960174084,
+        "import_s": 0.001298459,
+        "verified_load_s": 0.005061958
+      }
+    },
+    "reduction": 0.07480769941584309
+  },
+  {
+    "producer": "feedback",
+    "jobs": 5000,
+    "probe": "dormant",
+    "values": {
+      "attempt": {
+        "process_s": [
+          2.591774375,
+          2.589680167,
+          2.593543125
+        ],
+        "median_s": 2.591774375,
+        "import_s": 0.283370085,
+        "verified_load_s": 0.288939583
+      },
+      "immutable": {
+        "process_s": [
+          2.256451041,
+          2.270634375,
+          2.382606542
+        ],
+        "median_s": 2.270634375,
+        "import_s": 0.00132675,
+        "verified_load_s": 0.005158666
+      }
+    },
+    "reduction": 0.12390739066551648
+  },
+  {
+    "producer": "feedback",
+    "jobs": 5000,
+    "probe": "active",
+    "values": {
+      "attempt": {
+        "process_s": [
+          2.617485875,
+          2.501420416,
+          2.593542625
+        ],
+        "median_s": 2.593542625,
+        "import_s": 0.282867501,
+        "verified_load_s": 0.289433334
+      },
+      "immutable": {
+        "process_s": [
+          2.290043042,
+          2.397465917,
+          2.373906959
+        ],
+        "median_s": 2.373906959,
+        "import_s": 0.00131125,
+        "verified_load_s": 0.005249542
+      }
+    },
+    "reduction": 0.08468558175325913
+  },
+  {
+    "producer": "feedback",
+    "jobs": 20000,
+    "probe": "dormant",
+    "values": {
+      "attempt": {
+        "process_s": [
+          3.203712333,
+          3.228080167,
+          3.310681208
+        ],
+        "median_s": 3.228080167,
+        "import_s": 0.27241154300000003,
+        "verified_load_s": 0.27724625
+      },
+      "immutable": {
+        "process_s": [
+          2.982674333,
+          3.015108,
+          2.984133708
+        ],
+        "median_s": 2.984133708,
+        "import_s": 0.0013283750000000001,
+        "verified_load_s": 0.005454291
+      }
+    },
+    "reduction": 0.07557013654549682
+  },
+  {
+    "producer": "feedback",
+    "jobs": 20000,
+    "probe": "active",
+    "values": {
+      "attempt": {
+        "process_s": [
+          3.375471042,
+          3.305178625,
+          3.405202833
+        ],
+        "median_s": 3.375471042,
+        "import_s": 0.28093650000000003,
+        "verified_load_s": 0.286506167
+      },
+      "immutable": {
+        "process_s": [
+          3.099615458,
+          3.144002167,
+          3.152908041
+        ],
+        "median_s": 3.144002167,
+        "import_s": 0.001314584,
+        "verified_load_s": 0.005164333
+      }
+    },
+    "reduction": 0.06857379966229915
+  }
+]

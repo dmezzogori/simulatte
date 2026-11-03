@@ -1,0 +1,29 @@
+{
+  "source_sha256": "83254469619c51bdc9691a8aeb91077d7a05b9806c3dc0c52f2a209252132f43",
+  "historical_evidence_files": 41,
+  "production_and_C_sources_unchanged": true,
+  "rejected_corruptions": [
+    "fingerprint_digest",
+    "artifact_sha256",
+    "backend_state",
+    "kpis",
+    "images",
+    "files"
+  ],
+  "evidence": {
+    "analysis.json": "89fd225a10c62b143823f0c14f254927bbcfa2867c31ff647fe1ff6ab8efdf6e",
+    "checks.json": "ca98b985c827e5f18372e8ae2782c347246766a22d8aeff22da5dd9161ae9b30",
+    "gate/metadata.json": "ff7a14da8278ee338b1dbe47b59532aaeb03cbfd2a43268a35d17678131515d8",
+    "gate/negatives.json": "e7dcd38d39ead12f6297358d897d3173d6d829d094d5e07e34082f6b499522ec",
+    "gate/runs.json": "d0e8c7f7625c2bdbf3476b41c45add9ffde3dd12e84b63b35a3f3a0882c159dc",
+    "gate/verification.json": "456612d8470feb73b28cbfc1f682f07a8e6578b4bce3bdce68edb5a1320dade7",
+    "independent-audit.json": "b5a0c50d449ed0eb4f12bf3727c5ef4b03a4ad2d77541f583970e5148a0f9c40",
+    "independent_audit.py": "0c8bbe165429dc2cda9a24a178eeafc36c148d4743d907dd90769c32da105743",
+    "original-control-check.py": "b8a2e136614c50a92ee676f3850b7b24a51f833bfba5a4efca51fde36f59c817",
+    "original-controls.json": "338694b750629acc30c1e502a52609a3543e78bf495b9a863cabcf831d9d712d",
+    "scaling/matrix.jsonl": "323736ada4d74338d022838eddae1dd0c78998da39d1a820b9ea60afefc780b1",
+    "scaling/metadata.json": "52e9ad99d2b83324f2f80552bc7e6b76bac740ed0f6ed7e021127b7c0060d0ec",
+    "scaling/summary.json": "226d3b1dca238ff0f75c214d27330623f028f4d324c649c9f71d7ba167e60db5",
+    "scaling/verification.json": "bf81860544f0ee093b829b082a7614bb0c070872d4818f6305eaac474b0da0ed"
+  }
+}

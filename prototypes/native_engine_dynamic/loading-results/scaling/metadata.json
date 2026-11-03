@@ -1,0 +1,1144 @@
+{
+  "created": "2026-11-03T07:56:04.379562+00:00",
+  "files": {
+    "prototypes/native_engine/analyze.py": "9e61fb419286ede490f9f154fa4422359cfe9469cd4fccc08b49f3660dca3d11",
+    "prototypes/native_engine/baseline.py": "fedbcdc2301da868ecc1d75b417e964c62c807baf2e8e1b1a1e544f0375a21d8",
+    "prototypes/native_engine/benchmark.py": "bb08c822d8c0a5bc9ee9234ae1b2158c56fc59065992116d20e9f01d4a927577",
+    "prototypes/native_engine/build.py": "52af16e61c5b6de181d6514e083e5225bf186e9774e1af90d0f88fb3484f0ade",
+    "prototypes/native_engine/csrc/native_engine.c": "3ef9ff3a8a7722d0a35e0aa1001bdc0e9f7801135dd0404be493cd3801ea4ec7",
+    "prototypes/native_engine/csrc/native_engine.h": "aab5e20dcb57a62c45fb5c96f1955a41be8381a19b21a77311af5ed4271005af",
+    "prototypes/native_engine/hooks.py": "e8f097ff347ef36b74ff9483c7065166311bb555a4a74992fa0aab3f4b48c635",
+    "prototypes/native_engine/model.py": "bd6f81455a683d47f1c8964cdd845df408e21f722554be02bdbfcbbac830150f",
+    "prototypes/native_engine/native.py": "8b72c464dbb9672cc2082dd8377353adedc3251bc75aa1012c62b43c736d6f27",
+    "prototypes/native_engine/recording.py": "5a37000a9e32b2d629d4734103cd128cba0faae90d6032563e2a26222f07d476",
+    "prototypes/native_engine/reference.py": "a8a6a844db42d8c1bf06fceb06928a26086738cd646a64587b6bf8aed19b5c13",
+    "prototypes/native_engine/tuned.py": "1f03357fca709a48efa3e36f95ad207e8d931aa2c74f6b6a3ea1482631a30178",
+    "prototypes/native_engine/validation.py": "821c597806a2504d33e32b4f50a94ca1115cb4ee32f686a955917be71d5a91fc",
+    "prototypes/native_engine/workloads.py": "1490e36d0f61d0edc58c0895e9b1478bfeed9fd21560f7c86a632eb8b188fbf1",
+    "prototypes/native_engine_dynamic/backend_experiment.py": "cf2bcb8b36ae921bbd79e7fe8b95ed0f05cf495d559027cbbdce6696601b4b3a",
+    "prototypes/native_engine_dynamic/benchmark.py": "7523534c461397b5f57382d79172541acda54f9e2ad6d1c4d06b9a8be2b540fa",
+    "prototypes/native_engine_dynamic/build.py": "97f3c63ab586f6ab42ed0c0124132d69bff3062e03ef4c20be1cc01c6b7e4d52",
+    "prototypes/native_engine_dynamic/compiled.py": "366315df9a83c1bd7862e4a79c788c4740fb43cb8bdeeaad50d42d19641cbc0a",
+    "prototypes/native_engine_dynamic/compiled_build.py": "4cf7e83b1722e897f21d5d7197dd96aa95d323eb8ec4845ac0373c6930e7d4f9",
+    "prototypes/native_engine_dynamic/csrc/dynamic_engine.c": "2a715d5a61fb45ffc67c53ed59eb8ef201dcf96e55f5d3d8298c3bfc25ef1625",
+    "prototypes/native_engine_dynamic/csrc/dynamic_engine.h": "22bfc5dafbef189f671f66fedf2295dbb629ec09b8990fb329f254c9e7824d2b",
+    "prototypes/native_engine_dynamic/csrc/scalar_module.c": "3c68225ed4d64f17911a4e4caeffac5a0b50d61d321d1eefb572879d238491d6",
+    "prototypes/native_engine_dynamic/csrc/stock_kpi.c": "72bfd40a9d7d6b0258717f8432bbb3eabbf4d75a1a113e5aafc04ad2fe6ddc3f",
+    "prototypes/native_engine_dynamic/csrc/stock_kpi.h": "89f0c6311aff7a0b2d5ab4baf7406557b951e8530c66277e3342e156cf2e3bc1",
+    "prototypes/native_engine_dynamic/direct_trace.py": "a0c0e0a8b82bee28e2342533fa41cd41a03b6a062b40e4944c761de8a6031348",
+    "prototypes/native_engine_dynamic/execution_adapter.py": "ac1a4eef2dc95c4c4a4ffe15923409d069dbf1ce49b4091bc53cf0d285a132d2",
+    "prototypes/native_engine_dynamic/execution_experiment.py": "1f586da277576db88ebbb9684ee0712bc0ff7a614fbd5167ad6ba76688ba3d5f",
+    "prototypes/native_engine_dynamic/execution_model.py": "916a2b23074b6c4a82185ae86c2cdbdde021d3d4c22cf016a3ac2eb5d69237d3",
+    "prototypes/native_engine_dynamic/execution_project.py": "8569583c8018c3b689181bd3eda49db0a5dfc56a5608c770fe1c793e8d8b9e80",
+    "prototypes/native_engine_dynamic/feedback.py": "b1a8b82c185c829771eba9c8bb9366729c141218cd3de35db631fbeac71a54f3",
+    "prototypes/native_engine_dynamic/handles.py": "32baa1d957dd288dd576c5def239b58c72f3533cbbcbd3aa01cb1c01b5cb61aa",
+    "prototypes/native_engine_dynamic/immutable_assets.py": "081aa3c747f3d68dd0ea082267e01200677d8a1abae9f11c7dccde6c77935230",
+    "prototypes/native_engine_dynamic/interest_benchmark.py": "6b3196c4fa5355d1bea9ad3b2a356ff2aed99b33e1fc39cf1ebb7712bc6eaea5",
+    "prototypes/native_engine_dynamic/kpi_experiment.py": "bb4d31790a77daab4c52e80bc413e489fac94de4996df115b30184d292e38721",
+    "prototypes/native_engine_dynamic/live_observation.py": "7ce15a693975b1206cbd73952adc49266575a788d69af9f0fa7241f105278ed8",
+    "prototypes/native_engine_dynamic/loading_experiment.py": "d9bfda1b02a18765b992c1513ce8acece7b40bafcb87665b16a75eed9d6e40c0",
+    "prototypes/native_engine_dynamic/native.py": "ebf16592658a7dd671a1463c50cada37b940af8fa8010a2d9f1a03faea3fa38c",
+    "prototypes/native_engine_dynamic/native_kpis.py": "16530cd490ea0575f13b4c796ddeafa942fd306be080223105f8c47b6b0ffdec",
+    "prototypes/native_engine_dynamic/observation_benchmark.py": "51bda1907b4b43c048f7ac2144a5d5e9128ae9245b47e1f0ae68e8926477a077",
+    "prototypes/native_engine_dynamic/observation_fixture.py": "4ca010ed7a7006271f5e54807f3717bad38debe3807f9df28b31eee3758907a7",
+    "prototypes/native_engine_dynamic/observation_gate.py": "6305f2dd692a25bc65890ed16e1236cf1645d4732809742d49ee945afb9a982c",
+    "prototypes/native_engine_dynamic/phase_experiment.py": "b8f390495e7da08651d8655a32fc6f84bae81f95de12ca2d33709f2083c8bbd4",
+    "prototypes/native_engine_dynamic/phase_instrument.py": "18459d56c21f6e78ecedaac335362052a2f8f7df7a4b173ab6d62d0a1ac8b39b",
+    "prototypes/native_engine_dynamic/phase_probe.py": "9332c6db815b11c5b1d20a765e4bb105f4386c35469b0d1d26f20c7ce9f682da",
+    "prototypes/native_engine_dynamic/production.py": "8fcb0ca02d0ae2e41462350a05ec2d236ac37248eb55ad1b0aa2ec44dc95bf48",
+    "prototypes/native_engine_dynamic/production_benchmark.py": "64d8237a0f6e6541d9d810566c2c5993c786a4ee786d4be389405b9aa4fde442",
+    "prototypes/native_engine_dynamic/recording.py": "733998f534687f5297d9e0afbbbfe5b091664b0d705f2b7456dc43241a69b924",
+    "prototypes/native_engine_dynamic/reference.py": "b9f23f790d7bd0d79d383dc96d14ca53445a5d36b150a86ae0ea0247e59e418c",
+    "prototypes/native_engine_dynamic/registration_benchmark.py": "4bc536d7e2057b98b81196f5df5e457effb7868fcd2cd2112401bd998d1916c1",
+    "prototypes/native_engine_dynamic/rich_recording.py": "a8fa06436aaf426972f8f84e7049591f71bda1fe711683aeaa8336095a278a3e",
+    "prototypes/native_engine_dynamic/scalar_benchmark.py": "1e7bd357aa54d348c44243f18444f542e1b83aa5fd77aa0b24069460d9be0c69",
+    "prototypes/native_engine_dynamic/scaling_benchmark.py": "e919ff357eafa36b695dd51181dd21c896d7d0c1c6446088e89c3ca032ce4d4e",
+    "prototypes/native_engine_dynamic/semantics_gate.py": "c11c335255049ccb8a5674b96f43e3d3bf115fff8c56e17337626e9f6465ac68",
+    "prototypes/native_engine_dynamic/simultaneous.py": "e72389b94562d09d934637cea9dff85574587ca5e160c3c7eed0d6fd02704a58",
+    "prototypes/native_engine_dynamic/state_codec.py": "5507b905063007274c22aa4f2bfcc1178d9fb49ac4e5607200e652bb8d1d6d02",
+    "prototypes/native_engine_dynamic/studio_trace.py": "26a509bdc279f50e087e4be16b3cab46afc96800b52ec6c4c584f9951e0905fa",
+    "prototypes/native_engine_dynamic/trace_benchmark.py": "aa97d23108e5360e907e5a407852d952f45a492e78e76aae0b0a04093914d2e7",
+    "prototypes/native_engine_dynamic/trace_fixture.py": "c0ec17e5014a1742876f56c91615713968b0b5f30401453430010239356b9338",
+    "prototypes/native_engine_dynamic/tuned.py": "858ab408d676683bbfeb45ab5793dfa8438c8050e2cc7b6b35a84c568f573c1e",
+    "prototypes/native_engine_dynamic/untraced_benchmark.py": "527b7f6c8b1943f858cfa74bc0f25715f5a545a775dff6d50dd0bb78c2f11a21",
+    "prototypes/native_engine_dynamic/untraced_gate.py": "aa4ce23e96812ec86c7798e9381960ec31e36aa59bb1f793560dd9b1e14bf685",
+    "prototypes/native_engine_dynamic/validation.py": "dff13339074a306833a744a76ac0f4e6631b8e27a22b4df44e5cd57713ea50a2",
+    "prototypes/native_engine_dynamic/fixtures/direct.expected.json": "03de14daf78e607e9ac0bb1411e2c35cd74baeea2305fc87e2afccb4ba71227b",
+    "prototypes/native_engine_dynamic/fixtures/direct.simtrace": "fa64ed0eb4720c8e8c35e5435c2b53ef0c08613f3aa6d446ce4ffffcbee992d1",
+    "prototypes/native_engine_dynamic/fixtures/direct.source": "d3e2a013c511a9fe20a1121f872a6a31fc6a4e9ef4ec259c3cefce1468329743",
+    "prototypes/native_engine_dynamic/fixtures/lifecycle.expected.json": "03de14daf78e607e9ac0bb1411e2c35cd74baeea2305fc87e2afccb4ba71227b",
+    "prototypes/native_engine_dynamic/fixtures/lifecycle.simtrace": "33da9ef6869b734539c9bc893d75c60e2bf32ce330ebcec377b9aa79eb2d54ec",
+    "prototypes/native_engine_dynamic/fixtures/lifecycle.source": "d3e2a013c511a9fe20a1121f872a6a31fc6a4e9ef4ec259c3cefce1468329743",
+    "prototypes/native_engine_dynamic/fixtures/native.expected.json": "068969970f13a763a307e8351a3cb7f2726155a8b7ded9803846f08d62fd40f3",
+    "prototypes/native_engine_dynamic/fixtures/native.simtrace": "074aacc71d50c8e1e3fe0d40754eca7c8a1eea1b9219c717c4b8a80475445a63",
+    "prototypes/native_engine_dynamic/fixtures/native.source": "d3e2a013c511a9fe20a1121f872a6a31fc6a4e9ef4ec259c3cefce1468329743",
+    "prototypes/native_engine_dynamic/fixtures/observed.expected.json": "3d9eeeba1a35fab9fb9b9e4294cca51b3749d326202198a09ce35e116fb68461",
+    "prototypes/native_engine_dynamic/fixtures/observed.simtrace": "15a7434f2567fa1977c237968fe3b6a06f2fd847770361b35cfb27e54f9cf8e7",
+    "prototypes/native_engine_dynamic/fixtures/observed.source": "eeca2daa944f6aa320abebb0bdfcf668f4082e0fd9fc4b83506fad6acdde1446",
+    "prototypes/native_engine_dynamic/fixtures/semantics.expected.json": "7423859c3d0b319bd810f2785334f366df8ce4247574866491d3735a3c07cd74",
+    "prototypes/native_engine_dynamic/fixtures/semantics.simtrace": "3def242badc8375eda756e428f38524b09ec9a525e65b5356f7021edb0393f5a",
+    "prototypes/native_engine_dynamic/fixtures/semantics.source": "eeca2daa944f6aa320abebb0bdfcf668f4082e0fd9fc4b83506fad6acdde1446",
+    "studio/browser/native-prototype.spec.ts": "0007377f12b7a0ee1b7a5078cf4bad00326a83120c55cb1811a61bd2c72fa5f1",
+    "studio/packages/playback/src/index.ts": "c3614b81d9e1a6400d760491bb89645aa7b094d770c02d5b268694d39034cd33",
+    "studio/packages/playback/src/presentation.ts": "5f186f5ef5a0dfd2ae9264b4d53623a4797461e328365fc6fdf6289af1b82404",
+    "studio/packages/playback/test/native-prototype.test.ts": "4619f6a7af954fae2241635706ac41650a7b8d30229fa6a5144d1ec510a5b1c9",
+    "studio/packages/scene/src/index.ts": "ef24c1d2e4e3c65da0d175fd82fb0cc48b14123d1509a5a9ea7420c9ba37a855",
+    "studio/packages/scene/src/motion.ts": "f60bdb1a97aaee1e654de6f7db49d1de94d65df6e60d9e36a1b76d7104fbfaf0",
+    "studio/packages/scene/src/project.ts": "acb7aa483b7c28a3bdc4d16041edacd17df710014d3b65dbfabdcc22034af1be",
+    "studio/packages/trace/src/container.ts": "2c8a45f03320e9f6d8998210c2b9b25af598737102b05ecba1182c87174c9558",
+    "studio/packages/trace/src/deltas.ts": "756667511fdda53bc9e580f52bbaf1741830afaad9201da508c5268545477f7b",
+    "studio/packages/trace/src/execution.ts": "28b03109e8428b6eabe1b207f5fa09f524d4ea90e44478e21206143e502e3f8b",
+    "studio/packages/trace/src/index.ts": "5347adafd6b12e02fe15ffb6a19951a31078f1879b69c05810d68b792ef38b58",
+    "studio/packages/trace/src/layout-schema.ts": "b1a82cf4d0948f1d108070e9d46d7fdc31662e1185509ea674a2878adefc3a93",
+    "studio/packages/trace/src/layout.ts": "9b14d60e595f1ce094f9efddae9e144f860e84c9feeeafca5e4b463458ac9dbf",
+    "studio/packages/trace/src/live.ts": "57a4e2c75417a3735b1cf55ea46505454f1dc2001be66431f5f261673ca7a46f",
+    "studio/packages/trace/src/recording.ts": "2a13a014a95e157c8f8906793cb762432fcec53487f53512cfd692cf3b8b208f",
+    "studio/packages/trace/src/source.ts": "e29911c3d7b919b99e74fee2bb8b4da7840d2f668d2e6619ce76c878f18381ac",
+    "studio/packages/trace/src/trace.ts": "aff48ba7a1478137cff368ada6055cae20685c0b69aae62348fff52a9b1be3d9",
+    "studio/packages/trace/src/wire.ts": "e5695c7fcedf9b4971db1d0f60786f34a2067252c31b1b24b36b6e6bf589b123",
+    "src/simulatte/__init__.py": "80d16b51f0ba51741cd958102275d20a33449b36a95567671fd93599ba759642",
+    "src/simulatte/__main__.py": "764167ac9627a87106c026e9777c8f7f1c40c6348004a9b4547ba5aff497da08",
+    "src/simulatte/_optional.py": "6909331a53304849b420402551b7c6ab88f8203af5dcc3183d837f526c332926",
+    "src/simulatte/_wire.py": "0bb0fffeceadd80cf4b85448202ef6526cd57d3f209494c15c8af2d30404b2dd",
+    "src/simulatte/builders.py": "942137eb58e4c54a08929427683411d46984a55952f27f56001e8c7875ae4146",
+    "src/simulatte/cli.py": "4b5766744f1032ecd25f1dd1f894c0bb5fdb35e3f1fdbaf2e119ef32edfc9a32",
+    "src/simulatte/collectors.py": "2115bf451440334d40a02f7a9e57a37a7bbf43c57ef17564076497b502835918",
+    "src/simulatte/digest.py": "8d54e376bca2346fa5533809b2cc858a2afb795989b7c66e9d73b1f90686cb2d",
+    "src/simulatte/dispatching_rules/__init__.py": "9fab098a35cebe1eeddca7fee64b42c1c0a5b166f57c39d44aaf32b6b0abbaaf",
+    "src/simulatte/dispatching_rules/composite.py": "150cfd318ea6f2a7541c0c0e0b227f73b09645cb63670189b010531b471f6d52",
+    "src/simulatte/dispatching_rules/due_date.py": "bd8ef2c8d2f422179205e0d674060a6bc260bd88f2c298431fb63cf46dc4745c",
+    "src/simulatte/dispatching_rules/focus.py": "db75f9115cea3e08c4a3918ac3be307d906304f758e017b5c2b7dd4a233f1c4d",
+    "src/simulatte/dispatching_rules/processing.py": "b20b2e4bc103329846066e5fc5ec5c8390f7a00553205f62fecf11fe5f8a060b",
+    "src/simulatte/dispatching_rules/slack.py": "8571bf0b201ad81bf45af995e65dd8eae421996027cabd4e63c35f983ec18095",
+    "src/simulatte/dispatching_rules/tardiness_cost.py": "0f24cb829a0916440f7166b9f32f169a7660632776045a81a00bb5cccb940649",
+    "src/simulatte/dispatching_rules/work_content.py": "ae6bd8c0a6305b6763b1ddb679795320b86baed05605eff1bd12f5421760bb5b",
+    "src/simulatte/distributions.py": "d956091322c272b5cc280dfb7f01bc1b4e4640e7ba7a7d8be66c42214d27c08f",
+    "src/simulatte/entities.py": "bab30ce8d4b56c1f85dea381544cc3e4d795f71335de3bfe18d94bcc8e8357ab",
+    "src/simulatte/environment.py": "755f245f439108b78d50b751675f661242bd2ddf5a773fe34a5ee0d4a23e4f35",
+    "src/simulatte/events.py": "73493f196b2f297a077bc636a0145f7ff435696be45f3769db741a40c976cf57",
+    "src/simulatte/execution/__init__.py": "661a24c1808bbc4692cbf3ec518b07f75a95a59e5b86c217dcfeae813cb61a6c",
+    "src/simulatte/execution/backend.py": "5620e98347b9918031c0b4b02fb1c68398e4f3628e358090807e315e0a4772ee",
+    "src/simulatte/execution/backend_events.py": "c7e75f51a8a24c5de399813cb62bcac766a1e2e2bd49f71e2f2f3917e46c1305",
+    "src/simulatte/execution/bootstrap.py": "14541e060773b01b4dc007493632e763a9bb89d3186f17b402540af00d411c68",
+    "src/simulatte/execution/bootstrap_remote.py": "eab5bfb4c8d199c85c90c06531c74f711ac14a37ad976f3ff2d4d5c09692dd35",
+    "src/simulatte/execution/child.py": "be8c2a560b8365ff1f1a362db30c35b11701f08ae3b98be2cc19878ff2298071",
+    "src/simulatte/execution/command.py": "235ad7fa0074caec0ef103cf4f0f674effb88628eb3f76fb1a89faaa0b588305",
+    "src/simulatte/execution/control.py": "e92047e9b489bfa5896bfcada16ef9bed1839654c1fb553161304d79ec4cacda",
+    "src/simulatte/execution/coordinator.py": "3d3d77e49489af6530bc2dc7595d7d8fd1d48aba7e7e7626938478d5d8eb1a58",
+    "src/simulatte/execution/cursor_hint.py": "8c09f7f1ad44a1ffff68d04c2f4709e52727528c422d5d00e2174ca110791ad5",
+    "src/simulatte/execution/diagnostics.py": "30b775ed83cab3fb53b5742d130464469b87e3d43e29a8ba50f9dca43807e858",
+    "src/simulatte/execution/driver.py": "5fe386b868a420cc0af2570583bc9e3164b83cfb08371b67a00d458de7d10ac0",
+    "src/simulatte/execution/durability.py": "e544006df3317d67588bf2f9bc5017eb7c375a8bd9bc8cf75732ac5594c2a03a",
+    "src/simulatte/execution/hashing.py": "c9f9730616ae18f0e8964ef3323c4b3c5077d608e3534e851ae6895922bd19d0",
+    "src/simulatte/execution/imports.py": "0a948e531cac68b4d245b9efa2b1d2fe7dbb0f4f677aa37b2c107c226a60d597",
+    "src/simulatte/execution/inputs.py": "ceaaf3fb417e70c5830f26bd75e51bd86c31269c70869860e14e4b449c078170",
+    "src/simulatte/execution/layout_files.py": "76e03eb2d7a7dd0158b4c26adb89004bf0f9800929fcbc7c3dcf45f9b3f13dd8",
+    "src/simulatte/execution/preflight.py": "fa9acdcdab34a960caeb24bd24afeca6ae22427c4b76befc579eb485012ae94a",
+    "src/simulatte/execution/process.py": "8fa65942e4804b95f54f9b3cb8aaf2be13890a3c6f45d6b3ee134e12ed0f8d4f",
+    "src/simulatte/execution/protocol.py": "a0fddbd46bebf78a6183edf7945aa8ab35540c4e48b8358fdcc2fc508b260775",
+    "src/simulatte/execution/provisioning.py": "d6e410d89e629ceb025538001c76ac73f23f23843ac48771f63523d263a8a596",
+    "src/simulatte/execution/publication.py": "9591adbeb2db53856a809c74b1ee3935ee236b0a5c0b481975e6348f2fd072f7",
+    "src/simulatte/execution/receipts.py": "e804f52856efd2c455058b5d997cce5c6a0885f1303b21dea49c41f853de4f13",
+    "src/simulatte/execution/references.py": "97c7645c7367ffdf5adac737d545e61484b693de9146eb0c890d511689a807b7",
+    "src/simulatte/execution/replay.py": "6b07805b00124d28631cd85c609b0157bec823e8a825a1ba26fc7188a2f58b2d",
+    "src/simulatte/execution/revisions.py": "62d056e06f2f21e4ad1c4d8257e7d14a718053d11c7b285e6cb3b594a85c28bf",
+    "src/simulatte/execution/runtime.py": "64b93b1a3f7af5dd47dd3f597db89a9f22c8b6fbbc21fbe88f8f4c5fe93dc2e1",
+    "src/simulatte/execution/scheduler.py": "84df6433d6748141c0ceeaab6071c52c0b69ba0b42bf56dd82129b962cd44d93",
+    "src/simulatte/execution/schema.py": "18b9d33e1cc6498e6682840fbca31845b159c8ea743a83b98c48fe22a67fab07",
+    "src/simulatte/execution/slots.py": "b0daa923c0f7b3f983db7b146f25499a1ae6d3de8d296f39327946abfc444153",
+    "src/simulatte/execution/snapshot.py": "7669d6d0f53a39649d1481f966f802ce61d0e14b83bd1ef7d42c70734b4ccaac",
+    "src/simulatte/execution/spool.py": "a3a4754d4595c4302ab072bacc74659efae8a201ae0fb6ad73f023de63bb1823",
+    "src/simulatte/execution/ssh.py": "928056aba23cf6ddcafea25be9428488babf4e8c51ba0c481b856815e5cb5184",
+    "src/simulatte/execution/staging.py": "ae423cb803b9d5ae56b662005ad58eb88938de99740f9bd99f4ebefb497550ba",
+    "src/simulatte/execution/store.py": "d1254e9a8b18647d766703d9d3ee9dc4a74b6ed0e38a4bb1e27db6ad49eac859",
+    "src/simulatte/execution/supervisor.py": "f528985b7e19435b8c4c0ec6bc4b28d64058e2e98ef265d89b377e94e6cff9f4",
+    "src/simulatte/execution/transfer.py": "3e3b545f31f510f9ee7415b46faccd01ab88781b9640539b76c65739561d279d",
+    "src/simulatte/execution/transport.py": "df7f828633c56807d0cebd820b9d1517943edcc62ad81573b1704741391639ba",
+    "src/simulatte/execution/windows_job.py": "9bf8e1ba4bb4237352deeb448e0d8e032e1442213380caefec0e4fc7fc4d1efb",
+    "src/simulatte/execution/workers.py": "cf81b7a9c66360923c8f8634d4356127eb7aa1d69fa760eaf1e5868c4c20e499",
+    "src/simulatte/execution/workers_cli.py": "c709d4217d0322b41637587156bf4793d738eebc149487af92a29f599693e010",
+    "src/simulatte/experimental/__init__.py": "74951933a2c6e07633bb3fef3e1f8aba4c43000e683e1fcfbeeeba0b9c0e61ef",
+    "src/simulatte/experimental/gymnasium.py": "28da45f037df16c59161c414ac1e7460d1b966e7cdb55bb215f5db7a7c485bae",
+    "src/simulatte/experiments/__init__.py": "39ee0edabd93da214063bd282b816c7f234debe9086880e4a63513a277064348",
+    "src/simulatte/experiments/definition.py": "9988cf6d66b4d65c01cb9afc2fd49fcbddd281440e148fd43efa16e1917fb3a0",
+    "src/simulatte/experiments/expansion.py": "7e519a1423a605d7e4042619ecbbc5e8ead4a61174bdd8801d9324e2c8f46719",
+    "src/simulatte/experiments/results.py": "5a655ce47a710c807f21350b24ee0d95d2d9660927646c23166149b7b341ae4a",
+    "src/simulatte/experiments/runner.py": "df0842233a543058726bb2bbdabbbfb72ecf4d2db393becb59415ff923f515c9",
+    "src/simulatte/intralogistics/__init__.py": "9c9b8ff634b05dcd88d55e082d13981b40a910ab874f9bdd8b75d3627664abf2",
+    "src/simulatte/intralogistics/_resources.py": "395124816ccf7484b93c613e484f08aa5fb38ba9d8c7ff654710cea619ce755e",
+    "src/simulatte/intralogistics/agv.py": "e532e892d93d4b51dc1bbb7fe1bd3ab70c9122b6ddf945573350a3c1e626af45",
+    "src/simulatte/intralogistics/battery.py": "f49157fca2149736907b61210efa7cdb97ec708ca2b807b283018b4ac9da8999",
+    "src/simulatte/intralogistics/builders.py": "5a384c344198fb5a399886f20bd957ec697d8cdeaf2b1d6ad5f1fe190c591911",
+    "src/simulatte/intralogistics/charging.py": "f16bbdcad61c146755c07ab632ad505e50e7ce941d3bfd21ba1758ab8a438688",
+    "src/simulatte/intralogistics/events.py": "6f8fc8bd6d12a07267a0d8511fdf1bf79d8d3ba43aa6c061cca726f3ff450bae",
+    "src/simulatte/intralogistics/fleet.py": "81168039ecbb34cd4dcbbf58db066251bc9affc8250eaff83aec5fcbcac0b24d",
+    "src/simulatte/intralogistics/graph.py": "3eba604a32ec3c380c9ca719d7d4eef7cb58c12bb3a34be28f5b4a09d6cd1908",
+    "src/simulatte/intralogistics/metrics.py": "31a116d5fd82c4924dedd73e5ad1c11e892d95cd6331d2484f0795a53c759526",
+    "src/simulatte/intralogistics/order.py": "d5f2d47695668bdd88a039a13593f2dcb4c0ee170e42c3f6d6c09d5bbcf4f2c0",
+    "src/simulatte/intralogistics/parking.py": "b3454af7c52a4344f2e29f514f874325ebb4cb066cbd57e000335f92beba0276",
+    "src/simulatte/intralogistics/pathfinding.py": "c522f0509c55e2ef060c6adc6c7b404f4451ea3bcdaf52dbbdea15a83c4ce60e",
+    "src/simulatte/intralogistics/policies.py": "3cec05d6a8b313d729d5ad9da734f382afe2dee3baaa817751acab74424930c1",
+    "src/simulatte/intralogistics/sku.py": "fcb705b73714df9ba6c3b6f42e5c1c67f0b122fa425bea6f2eca4859f90fd0e7",
+    "src/simulatte/intralogistics/speed.py": "2bb4efe48d32e02c52ebbbf1836b4f8bddf995f13a2eea4e8cfd5e05de9a50f8",
+    "src/simulatte/intralogistics/traffic.py": "96cad7698c974ae4fa70556f3bce5022dd372be04f2772e7232c188aae807149",
+    "src/simulatte/intralogistics/warehouse.py": "a2697a53c754a90757dc2c7ffcb87be3e25c0b7ceac2cecced2b75b1174ee82c",
+    "src/simulatte/job.py": "6816e2980da6a1117fde157305bb7f08f8b9f5dc4cc048e91086d477ba10a770",
+    "src/simulatte/kpi.py": "734a4da648673567892fc45209aca0fd4543ab383afb6417edce4a56cd15b894",
+    "src/simulatte/layout/__init__.py": "ebb9770423e69230be67323694c7f89933332f6ef13e9e1257b15c2253d27742",
+    "src/simulatte/layout/auto.py": "48052f2dd869a7c4c7b220aa24155611991273f7f3768b269ddcf07450115d36",
+    "src/simulatte/layout/binding.py": "29e8269518a39a8414120ef48642a1dc34fe328141acc39474c29be65a3b6c92",
+    "src/simulatte/layout/bundle.py": "bbd1783dcae13e41e2242d6f30d79c8967e18d4a2a071f383bc37c17fd883e58",
+    "src/simulatte/layout/connectors.py": "e570d1c7cb4ec6e640e3af99e7f0f1e0a7cf4b23d08d4f99d90b87d5ae6a96e1",
+    "src/simulatte/layout/dependencies.py": "0e54e24dc010996504c4922211533554dbecfdaddc1fdc00808dfbd9dfc397eb",
+    "src/simulatte/layout/errors.py": "16994d03aa83b7e3ff556fd821127a03e66f59239b9b354dd59e7af1a9b71cb4",
+    "src/simulatte/layout/geometry.py": "aa4a504c6ac8960dd0d166106fa5e1a3689b3b4462da0c0e4ffb8406c6eef0f4",
+    "src/simulatte/layout/identity.py": "356d7d008de89cd8917f09eb4dfe6b264116940467363149d406b4a512a17f0e",
+    "src/simulatte/layout/io.py": "6f6ba44a2c52af55c3ecaea4729004ba58939c435b85698a2e9a82b87da06ff8",
+    "src/simulatte/layout/layers.py": "179898254f8f1db0f07db04361055579cd1c45ca3d1f2c4e4a8eb36c6ee847cb",
+    "src/simulatte/layout/layout.py": "00ffeebd29fee33211b139ab42a7ed2757d233f9e0635d5f8668db012d3c6ed5",
+    "src/simulatte/layout/lifecycle.py": "61ded1ccff9f8af25ca2d5698d3667bc0921a20fe36eaa1ecbaf36ebc871ae5b",
+    "src/simulatte/layout/network.py": "3f4b25db95c917d4c520a26954ada350dcc411ea0a2a13b73576c60bda0a0351",
+    "src/simulatte/layout/overrides.py": "03314f46021192101c221f8107c22da350335e1a8a5d2a347fac821904d3bd25",
+    "src/simulatte/layout/refs.py": "1695490c192519f0c45c4f951a3e602af448418380ebc891aef0a09666d0d744",
+    "src/simulatte/layout/schema/__init__.py": "2ee04b84878ee64e7c6d7631135235ec1db3ce3d90b712cd6f9f62e30b7fd203",
+    "src/simulatte/layout/stages.py": "82b9457de37acefd44e2e5c5f6f12a3772036f7e00a4c02a7a8efbbe843ed3e7",
+    "src/simulatte/layout/topology.py": "2bb70ef77b9f9e424db23ee4121243610c6496ac54b29dedd42d97244b12560e",
+    "src/simulatte/layout/types.py": "5ca16d3f374a688b53da28f56ca40de2cef11a90001db4a651791bc2aea2153d",
+    "src/simulatte/logsinks.py": "efb62ba02756c2e9eb56dc0819dfdb7909e80f2c3a395621377c788fb3ab08f5",
+    "src/simulatte/model.py": "73eb1f52afdb360170ca8c82c5a3deabb2fd70d6c3518b974a04ddbb0f49efc1",
+    "src/simulatte/policies/__init__.py": "79b0d44b799e3472acb05b262803e99b77990f10a38b5de271c2c55e0fdfce63",
+    "src/simulatte/policies/continuous_release.py": "04f751a3a6f1bc1e9b973b2072befecb13829cffed6ce78097d8d8ad77e0bb21",
+    "src/simulatte/policies/conwip.py": "97be344a366ce339204ab491d8b88a1f89d6ff80c289e78f4ed281fe30ed242a",
+    "src/simulatte/policies/draco.py": "3f4caa25a272cbbfa8a06aeefe96835d8f4babf1b02eaf41c8235d0fb58df299",
+    "src/simulatte/policies/events.py": "05bf3f2d84d8a33847695a3b35a2009bd71a53bb8ce9a1b00b27860d60513c3c",
+    "src/simulatte/policies/lumscor.py": "b857e1dc3ddad8d714bad2388fdaa9c9946b1e38abe7eb888ade26f6601e7dee",
+    "src/simulatte/policies/norms.py": "29d0a5762390406f7f56a7ee8b3511f37e8b31316c41a5f5ef4016f619a18790",
+    "src/simulatte/policies/slar.py": "abf96daa50699a78979ea9527630bc8bd653293cfbfbc448ad95f01598356d39",
+    "src/simulatte/policies/slar_limit.py": "440a9b1476be784fb80e3d4e00c7f92ff7ece01c11f9c02b2a146923d9e68cdf",
+    "src/simulatte/policies/starvation_avoidance.py": "ed60439406ad4051594041e147cd179b7e0b1ce950380ee31cafb492f31d2750",
+    "src/simulatte/policies/triggers.py": "7a738d0b5ce2cff017e326f825867fa0984b8a36f14d6ac7b8f2c3a2a6473d53",
+    "src/simulatte/provenance.py": "5823b7a18ebcd5ca08a821e8f7f7c963a998ddcca3dc8e83c080dd692e1a6097",
+    "src/simulatte/psp.py": "9000f632dcaac0222e47657fc95f53cea7b946a0da989a61dd02da7a8411b5bf",
+    "src/simulatte/rng.py": "c2a0aaed3b332d1a98d525858f2207abdc3579521bed2bc6397615a7dfebcfee",
+    "src/simulatte/router.py": "990aa7bc11622a87f7e3895958e4c684b2a6d861f98fb3617d60a83f3ca7b98b",
+    "src/simulatte/runner.py": "e7ab8ac3f5987c6e14178b50185addadaf08b88124f10bf9a54d969161bbcbbe",
+    "src/simulatte/scenario.py": "1e5147bc7339960113140c084b6f9e4a202c728cf3fe7cce33228cae8110e5ca",
+    "src/simulatte/server.py": "bfa3733566f13a9509f7855c863cb2eaa60c1817bf36187355a14215faa50694",
+    "src/simulatte/shopfloor.py": "88501683edae0d8ae2dbd15577282f94a69e3130b0de990af531d0aef49d010b",
+    "src/simulatte/statistics.py": "86ddc3784600ca2ea9a90b30f0dad75727f59c6faaff2d4c574d4cb5bd973ce9",
+    "src/simulatte/stopping.py": "e92afeeddcc8648dcd3b429c42d4520cfec8d7479e82aa762dce8895217fedf5",
+    "src/simulatte/studio/__init__.py": "c6f103a354cc076242ccd3bdc412a0612554232b12b4656651eca78cbd158206",
+    "src/simulatte/studio/app.py": "a7ac18e8c0c41869670328113921e93f655e30f9fdd230aede6e3b5163751811",
+    "src/simulatte/studio/auth.py": "d8e929ed0f0c47eb9b36cc31735d600431e66258eff395bebbcf3354d0919fe2",
+    "src/simulatte/studio/command.py": "2578f58cce051703de7b45f43986af920a022210c21848db26a7657338be0b28",
+    "src/simulatte/studio/experiments.py": "f8ecf9134bfd7a8efbac952c4c0327edd848e930e9b46b9c79a892d62fda2910",
+    "src/simulatte/studio/http.py": "01146ce09a796aa578295f6ca8dc85f8d5fca08ccea9b6410182acca1953ea14",
+    "src/simulatte/studio/lifecycle.py": "f402381f59efa9772725dc47a429c3c95a39ddc7bbc243adbb07a57eb656825b",
+    "src/simulatte/studio/monitor.py": "390c07b0b1e3756c0132846845cab93f8d01481bacb14c08c7812b46df5de892",
+    "src/simulatte/studio/server.py": "395b7dc91f8c6e4c2cb570278629db78688972ffffa88ad75874fe66d0891e55",
+    "src/simulatte/studio/watcher.py": "600ba498285e3f53cb40721ae8d307f8dbec56ee7ef814bcc648830a3d854160",
+    "src/simulatte/studio/websocket.py": "fde30bf4852a725d696df0042c53d437a552c724a6127d30322996128b31eaf0",
+    "src/simulatte/trace/__init__.py": "288b57c63bead81c549815e6b39503ac41ab63f4ad84b274f28907247b29ecad",
+    "src/simulatte/trace/execution.py": "c05a756d77831008db05ec71e6ad0eb7b7813d2770f49dac3391fe6678473697",
+    "src/simulatte/trace/format.py": "bc6156490d82ba9ecac83952f6229c79e0540bd5d3265a3034182fdd1b4c7cc4",
+    "src/simulatte/trace/reader.py": "31c8c5bb6a304163da09824f0ba0162df8ab2e6b97b5424a26ed0149be369f23",
+    "src/simulatte/trace/sink.py": "39cb5d8a0d8a4ec981cd0f889b56b76d58d644fc108c2109028a3cdc1a9b3e06",
+    "src/simulatte/trace/writer.py": "05cb510b71354fa5579f427ed9616833c45d95c4986e3536130b84c9597da030",
+    "src/simulatte/typing.py": "c86e4199750f3698fa8789d85c5cc7385d17e66d150a16d14e531587f0f4a2df",
+    "uv.lock": "cd66712924a9ed92c946f434fc5bf6b787a64879172605ecffe8abf9eebe2c2c",
+    "pyproject.toml": "5d2ecca2c3b6a53a0a1a5529448cebda786243df0c6f665ab77a82866e43e832",
+    "studio/pnpm-lock.yaml": "db511e5fe119c7996ec2e8b5653a477d6f32093c167cabe5aac292dd114b7720",
+    "specs/research/native-engine-data/production_analysis.py": "6b80fd617d3fbe4a6218d2829254ac86f8a5a1ac04e224450621913c5c4be115",
+    "prototypes/native_engine_dynamic/tests/test_production.py": "df47488bef1cc475e2ffa36b928512a27fe90c0d50e568fe1d08653ea097ee9d",
+    "prototypes/native_engine_dynamic/tests/test_trace_lifecycle.py": "fca09dd418f23c2d2dfe80125afadf94f6756a5260f6c7863176467bba7e7d26",
+    "prototypes/native_engine_dynamic/tests/test_direct_trace.py": "aad572bc2fa0aeb6b8aa5894aa4c89717e1b814f21deaea54db9c6036e2127db",
+    "prototypes/native_engine_dynamic/tests/test_studio_trace.py": "be857880d1931f44f3496ba578eadd6b39d5c565ffa48ffde95c71e84b8adb4d",
+    "prototypes/native_engine_dynamic/README.md": "6aaf59c406ae3b764cf651c6d3d00755da381676bb4d74dba264368ba46c38ca",
+    "prototypes/native_engine_dynamic/CONTRACT.md": "24ac8d16e2d6984cba46170536e93838c6f3e733797f9ae50a56d3ec787fcbb6",
+    "prototypes/native_engine_dynamic/tests/native_sanitizer.c": "ea178ec4044c59c636a0734a02950f5b9728431a4341d9d406a41b276d2bc7c7",
+    "prototypes/native_engine_dynamic/tests/run_scalar_sanitizer.py": "0a98dd5d412e5509ee37040e8c171b1c15b6c9babceb1a0d3006302dde1d4020",
+    "prototypes/native_engine_dynamic/tests/test_benchmark.py": "083c164f188e71a5c0f64376a239ed3882cf7ecca10c0864a9a4b8803271ef8b",
+    "prototypes/native_engine_dynamic/tests/test_bulk.py": "65ae4eb85c7fbfa844e57a02fef0f3a5c73eed77eb45764df093e945de45282f",
+    "prototypes/native_engine_dynamic/tests/test_compiled.py": "2006a9cc1066afd832494b79e26f3b275d390216cc291e185fb48a73c15690e1",
+    "prototypes/native_engine_dynamic/tests/test_execution_adapter.py": "a150fba2be9a481bfc8dfa57d3ce250577cb3f203cf1809fd49553d61e5f0e50",
+    "prototypes/native_engine_dynamic/tests/test_feedback.py": "32d1d7cf137212e66944602e3f4e699398de45ac6ee76915e437c913df362702",
+    "prototypes/native_engine_dynamic/tests/test_immutable_assets.py": "7de2c0e620255df9663ed59dfdc61ca641f04a10e1392c8d7b121bc5179a8a8e",
+    "prototypes/native_engine_dynamic/tests/test_interest.py": "f6c0615b78380cbec8665e40a256f26d2bd1a3b04208a40d1873a35c643faeec",
+    "prototypes/native_engine_dynamic/tests/test_live_observation.py": "4450d0cc36ffd78bfbcbf9749b12adb0adc8bba5e73b50563c6664e858ce0aea",
+    "prototypes/native_engine_dynamic/tests/test_live_untraced.py": "4d5c2535b0a9c05b11caae45544fd6178723a1e230d56225f0ff0a31fa64943c",
+    "prototypes/native_engine_dynamic/tests/test_native.py": "3bef6eafa1b4570d463df418400d8c1adecb248e6b68a3bcf4aeafaef434a37d",
+    "prototypes/native_engine_dynamic/tests/test_native_kpis.py": "46476b45bfb49f7b24a599af5bdbbfc670e793651a7e0109d219cbe4573a5764",
+    "prototypes/native_engine_dynamic/tests/test_parity.py": "3a2816c9346aec73f18721970fd62bafb238d9c2e04fa658fcc83ae6eeaa75f1",
+    "prototypes/native_engine_dynamic/tests/test_phase_probe.py": "deb37983959bbeaad7d18d8718d8644aed6a7ed78cab43397321d983c53e89d2",
+    "prototypes/native_engine_dynamic/tests/test_reference.py": "58ab1ec55f12463449ff13cd1d16fb6a63e3fff141beb37a12dcdef6a4c2af90",
+    "prototypes/native_engine_dynamic/tests/test_registration_benchmark.py": "8a3e768b7652a85c8059716815b0cd80c127faa006209ae99d04c436596e792c",
+    "prototypes/native_engine_dynamic/tests/test_rich_recording.py": "7c3d5ca5d07e345aa007653963b48592e7beafd85c4d08781c46296510020294",
+    "prototypes/native_engine_dynamic/tests/test_scalar_benchmark.py": "8c42c1cd8cb7e68b96b279be0e88d54a29e45195b832752f254f6af80095f8be",
+    "prototypes/native_engine_dynamic/tests/test_semantics_gate.py": "9099ccfb15c83f25d4580095e58056b815a53784ea33adff569b80c1dcba8df7",
+    "prototypes/native_engine_dynamic/tests/test_simultaneous.py": "dfda13de7caef2d3e43dbc893488d8403264a0c9e8c0065e4513d2b5fb554165",
+    "prototypes/native_engine_dynamic/tests/test_state_codec.py": "0623d34dc8d023bc7f5d6bd467e725e3d369e6b7f033ab199bbcb074d0a9d052",
+    "prototypes/native_engine_dynamic/tests/test_trace_benchmark.py": "4bf3161b5e5d09a54badef0217db5141bbeab16c39104fd85251091ae9b59f82",
+    "specs/research/2026-11-02-native-kpi-plan.md": "fb42893fb0870392de411f6fcbbc935158bb7fcd5a86cb76759f3c3fceab1f86",
+    "specs/research/2026-11-02-native-execution-plan.md": "0b4e3fca2e5dab4e91ef30e3cfde2ba0fa100b762d80d17fe40cad00993c072f",
+    "specs/research/2026-11-02-native-backend-plan.md": "1956b0cf05a4b997808391940703bc325dc6dace6904f37378d1e5aa83cc51ec",
+    "docs/guides/execution-backends.md": "2fc63dd10450c2fa7b31264ff068291019a2e9e6d11b5353249f73518e98a1c7",
+    "zensical.toml": "a11d5b7192157374c170e6c541ed9bc4d13d7035dd909227377962a81af9cdc1",
+    "tests/execution/test_backend.py": "b0aa23381b78a62a1d524042dd4ff06b346892c6d7d2da0cc53d6f87a91ded80",
+    "specs/research/2026-11-02-native-phase-profile-plan.md": "68c8aba8ad80265040ecdd5f25fa4f6f4c9704639817065de1afec8f6e869c86",
+    "specs/research/2026-11-03-native-immutable-loading-plan.md": "c0ab8ca3bd23ab5e1b5418fcc62fd74b301c28f83b64a03e90da16ed0e2f5ab4"
+  },
+  "source_sha256": "83254469619c51bdc9691a8aeb91077d7a05b9806c3dc0c52f2a209252132f43",
+  "revision": "5c16f6f1f402f8310db34d35b966eb0d76a18607",
+  "libraries": {
+    "static": "46385e00a680543ec453ce8e7667670e0391982049721f7d326595aa6d2a8dfb",
+    "dynamic": "638eb4b10466535a200e7497e7b38da0d882ba52910865d3d4de24f48b31a75c",
+    "_nd_scalar.cpython-314-darwin.so": "9cc13fcbfe7d8be90faf6589fcdfba655aba3a92ed0d3743635a941f4eacf87e",
+    "_nd_scalar.pypy311-pp73-darwin.so": "f036a45db93c799e58c91ade5b96d6300ff585457f85fc8f6263e445d774997b"
+  },
+  "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+  "clock": "mach_absolute_time()",
+  "scope": "local CPython; verified immutable binary paths vs per-attempt paths; fresh children",
+  "case_order": [
+    {
+      "loading": "attempt",
+      "probe": "active",
+      "producer": "independent",
+      "jobs": 20000,
+      "repeat": 0
+    },
+    {
+      "loading": "attempt",
+      "probe": "active",
+      "producer": "feedback",
+      "jobs": 20000,
+      "repeat": 0
+    },
+    {
+      "loading": "immutable",
+      "probe": "active",
+      "producer": "independent",
+      "jobs": 5000,
+      "repeat": 0
+    },
+    {
+      "loading": "immutable",
+      "probe": "active",
+      "producer": "feedback",
+      "jobs": 20000,
+      "repeat": 1
+    },
+    {
+      "loading": "attempt",
+      "probe": "active",
+      "producer": "feedback",
+      "jobs": 20000,
+      "repeat": 1
+    },
+    {
+      "loading": "immutable",
+      "probe": "dormant",
+      "producer": "feedback",
+      "jobs": 5000,
+      "repeat": 1
+    },
+    {
+      "loading": "attempt",
+      "probe": "active",
+      "producer": "feedback",
+      "jobs": 5000,
+      "repeat": 0
+    },
+    {
+      "loading": "immutable",
+      "probe": "dormant",
+      "producer": "independent",
+      "jobs": 20000,
+      "repeat": 0
+    },
+    {
+      "loading": "immutable",
+      "probe": "dormant",
+      "producer": "independent",
+      "jobs": 20000,
+      "repeat": 2
+    },
+    {
+      "loading": "attempt",
+      "probe": "dormant",
+      "producer": "independent",
+      "jobs": 5000,
+      "repeat": 1
+    },
+    {
+      "loading": "attempt",
+      "probe": "active",
+      "producer": "independent",
+      "jobs": 5000,
+      "repeat": 1
+    },
+    {
+      "loading": "attempt",
+      "probe": "active",
+      "producer": "feedback",
+      "jobs": 5000,
+      "repeat": 1
+    },
+    {
+      "loading": "immutable",
+      "probe": "active",
+      "producer": "independent",
+      "jobs": 20000,
+      "repeat": 1
+    },
+    {
+      "loading": "attempt",
+      "probe": "active",
+      "producer": "independent",
+      "jobs": 20000,
+      "repeat": 2
+    },
+    {
+      "loading": "attempt",
+      "probe": "dormant",
+      "producer": "independent",
+      "jobs": 20000,
+      "repeat": 1
+    },
+    {
+      "loading": "attempt",
+      "probe": "dormant",
+      "producer": "independent",
+      "jobs": 5000,
+      "repeat": 2
+    },
+    {
+      "loading": "attempt",
+      "probe": "dormant",
+      "producer": "independent",
+      "jobs": 5000,
+      "repeat": 0
+    },
+    {
+      "loading": "immutable",
+      "probe": "active",
+      "producer": "independent",
+      "jobs": 20000,
+      "repeat": 2
+    },
+    {
+      "loading": "immutable",
+      "probe": "dormant",
+      "producer": "feedback",
+      "jobs": 20000,
+      "repeat": 2
+    },
+    {
+      "loading": "immutable",
+      "probe": "dormant",
+      "producer": "feedback",
+      "jobs": 20000,
+      "repeat": 1
+    },
+    {
+      "loading": "attempt",
+      "probe": "dormant",
+      "producer": "feedback",
+      "jobs": 5000,
+      "repeat": 0
+    },
+    {
+      "loading": "immutable",
+      "probe": "dormant",
+      "producer": "independent",
+      "jobs": 5000,
+      "repeat": 0
+    },
+    {
+      "loading": "immutable",
+      "probe": "dormant",
+      "producer": "independent",
+      "jobs": 5000,
+      "repeat": 1
+    },
+    {
+      "loading": "attempt",
+      "probe": "active",
+      "producer": "feedback",
+      "jobs": 20000,
+      "repeat": 2
+    },
+    {
+      "loading": "attempt",
+      "probe": "active",
+      "producer": "independent",
+      "jobs": 5000,
+      "repeat": 2
+    },
+    {
+      "loading": "immutable",
+      "probe": "dormant",
+      "producer": "independent",
+      "jobs": 5000,
+      "repeat": 2
+    },
+    {
+      "loading": "immutable",
+      "probe": "dormant",
+      "producer": "feedback",
+      "jobs": 5000,
+      "repeat": 0
+    },
+    {
+      "loading": "immutable",
+      "probe": "active",
+      "producer": "feedback",
+      "jobs": 20000,
+      "repeat": 2
+    },
+    {
+      "loading": "immutable",
+      "probe": "active",
+      "producer": "independent",
+      "jobs": 5000,
+      "repeat": 1
+    },
+    {
+      "loading": "attempt",
+      "probe": "active",
+      "producer": "feedback",
+      "jobs": 5000,
+      "repeat": 2
+    },
+    {
+      "loading": "immutable",
+      "probe": "active",
+      "producer": "feedback",
+      "jobs": 5000,
+      "repeat": 2
+    },
+    {
+      "loading": "immutable",
+      "probe": "active",
+      "producer": "feedback",
+      "jobs": 5000,
+      "repeat": 1
+    },
+    {
+      "loading": "immutable",
+      "probe": "dormant",
+      "producer": "independent",
+      "jobs": 20000,
+      "repeat": 1
+    },
+    {
+      "loading": "attempt",
+      "probe": "dormant",
+      "producer": "feedback",
+      "jobs": 20000,
+      "repeat": 2
+    },
+    {
+      "loading": "attempt",
+      "probe": "dormant",
+      "producer": "feedback",
+      "jobs": 5000,
+      "repeat": 1
+    },
+    {
+      "loading": "immutable",
+      "probe": "dormant",
+      "producer": "feedback",
+      "jobs": 5000,
+      "repeat": 2
+    },
+    {
+      "loading": "immutable",
+      "probe": "active",
+      "producer": "independent",
+      "jobs": 5000,
+      "repeat": 2
+    },
+    {
+      "loading": "attempt",
+      "probe": "active",
+      "producer": "independent",
+      "jobs": 20000,
+      "repeat": 1
+    },
+    {
+      "loading": "immutable",
+      "probe": "dormant",
+      "producer": "feedback",
+      "jobs": 20000,
+      "repeat": 0
+    },
+    {
+      "loading": "attempt",
+      "probe": "dormant",
+      "producer": "independent",
+      "jobs": 20000,
+      "repeat": 0
+    },
+    {
+      "loading": "attempt",
+      "probe": "dormant",
+      "producer": "feedback",
+      "jobs": 5000,
+      "repeat": 2
+    },
+    {
+      "loading": "immutable",
+      "probe": "active",
+      "producer": "feedback",
+      "jobs": 5000,
+      "repeat": 0
+    },
+    {
+      "loading": "immutable",
+      "probe": "active",
+      "producer": "independent",
+      "jobs": 20000,
+      "repeat": 0
+    },
+    {
+      "loading": "attempt",
+      "probe": "active",
+      "producer": "independent",
+      "jobs": 5000,
+      "repeat": 0
+    },
+    {
+      "loading": "immutable",
+      "probe": "active",
+      "producer": "feedback",
+      "jobs": 20000,
+      "repeat": 0
+    },
+    {
+      "loading": "attempt",
+      "probe": "dormant",
+      "producer": "feedback",
+      "jobs": 20000,
+      "repeat": 1
+    },
+    {
+      "loading": "attempt",
+      "probe": "dormant",
+      "producer": "feedback",
+      "jobs": 20000,
+      "repeat": 0
+    },
+    {
+      "loading": "attempt",
+      "probe": "dormant",
+      "producer": "independent",
+      "jobs": 20000,
+      "repeat": 2
+    }
+  ],
+  "seed": 20261103,
+  "fixture": {
+    "targets": {
+      "runtime/execution/snapshot.py": {
+        "original_sha256": "7669d6d0f53a39649d1481f966f802ce61d0e14b83bd1ef7d42c70734b4ccaac",
+        "instrumented_sha256": "887d859cbe2c49f3656d65e2f76e2daba6f32bbec01b38f5c9fea49183b0d054",
+        "targets": [
+          [
+            "freeze_runtime",
+            "runtime.freeze",
+            true
+          ],
+          [
+            "capture_source",
+            "source.capture",
+            true
+          ],
+          [
+            "capture_inputs",
+            "inputs.capture",
+            true
+          ],
+          [
+            "materialize",
+            "source.materialize",
+            true
+          ],
+          [
+            "_check_supervisor",
+            "runtime.supervisor_check",
+            true
+          ]
+        ]
+      },
+      "runtime/execution/runtime.py": {
+        "original_sha256": "64b93b1a3f7af5dd47dd3f597db89a9f22c8b6fbbc21fbe88f8f4c5fe93dc2e1",
+        "instrumented_sha256": "d0091de00f7afd8535493b32b8e449a79680c19148ab408854097769de46f4a1",
+        "targets": [
+          [
+            "describe_runtime",
+            "runtime.distributions",
+            true
+          ],
+          [
+            "verify_runtime",
+            "runtime.verify",
+            true
+          ]
+        ]
+      },
+      "runtime/execution/imports.py": {
+        "original_sha256": "0a948e531cac68b4d245b9efa2b1d2fe7dbb0f4f677aa37b2c107c226a60d597",
+        "instrumented_sha256": "e02e55b3eef88d397cb1414ef2beb99cfa5cc3639618c3a81fa746c09d5f58ba",
+        "targets": [
+          [
+            "ImportPolicy.audit",
+            "imports.audit",
+            true
+          ]
+        ]
+      },
+      "runtime/environment.py": {
+        "original_sha256": "755f245f439108b78d50b751675f661242bd2ddf5a773fe34a5ee0d4a23e4f35",
+        "instrumented_sha256": "600421a6733e6e5b07c0a469e842ea02c62a6c79de7331407e5133b3bb1c7a8a",
+        "targets": [
+          [
+            "Environment.__init__",
+            "environment.create",
+            true
+          ],
+          [
+            "Environment.activate",
+            "activation.total",
+            true
+          ],
+          [
+            "Environment.fingerprint",
+            "fingerprint.query",
+            true
+          ]
+        ]
+      },
+      "runtime/trace/writer.py": {
+        "original_sha256": "05cb510b71354fa5579f427ed9616833c45d95c4986e3536130b84c9597da030",
+        "instrumented_sha256": "0ed9f6785ba3f56937735b677007147aaad92513f1a648593683f79e2c48b2d8",
+        "targets": [
+          [
+            "TraceRecorder.__init__",
+            "trace.open",
+            true
+          ],
+          [
+            "TraceRecorder.close",
+            "trace.close",
+            true
+          ]
+        ]
+      },
+      "runtime/execution/bootstrap.py": {
+        "original_sha256": "14541e060773b01b4dc007493632e763a9bb89d3186f17b402540af00d411c68",
+        "instrumented_sha256": "d6e592fa292288dc146390a8a0509fa247f8d319839e32cf09eda40cc7795b87",
+        "targets": [
+          [
+            "load_configuration",
+            "model.import",
+            true
+          ]
+        ]
+      },
+      "runtime/execution/child.py": {
+        "original_sha256": "be8c2a560b8365ff1f1a362db30c35b11701f08ae3b98be2cc19878ff2298071",
+        "instrumented_sha256": "45654a7b77441e43be0b375d3b28e39d4d5ab366ece470b41790a7f9929cb7c5",
+        "targets": [
+          [
+            "serve",
+            "child.serve",
+            true
+          ]
+        ]
+      },
+      "runtime/execution/driver.py": {
+        "original_sha256": "5fe386b868a420cc0af2570583bc9e3164b83cfb08371b67a00d458de7d10ac0",
+        "instrumented_sha256": "9527bb4cbc5f04f7f446f5796d442fd1db3ac263822acb1d6d1cab0295f5610f",
+        "targets": [
+          [
+            "execute",
+            "child.execute",
+            true
+          ],
+          [
+            "execute.resolve",
+            "model.resolve",
+            true
+          ],
+          [
+            "execute.ready",
+            "ready.barrier",
+            true
+          ],
+          [
+            "_artifacts",
+            "artifacts.transfer",
+            true
+          ],
+          [
+            "metadata_segment",
+            "metadata.transfer",
+            true
+          ]
+        ]
+      },
+      "runtime/execution/coordinator.py": {
+        "original_sha256": "3d3d77e49489af6530bc2dc7595d7d8fd1d48aba7e7e7626938478d5d8eb1a58",
+        "instrumented_sha256": "c016701c515fe6885edde18dce90edd1af8485530d9a3a4265255e6f34e61c8a",
+        "targets": [
+          [
+            "Coordinator.__init__",
+            "coordinator.open",
+            true
+          ],
+          [
+            "Coordinator.prepare",
+            "coordinator.prepare",
+            true
+          ],
+          [
+            "Coordinator.start_experiment",
+            "experiment.start",
+            true
+          ],
+          [
+            "Coordinator.wait_experiment",
+            "experiment.wait",
+            true
+          ],
+          [
+            "Coordinator.close",
+            "coordinator.close",
+            true
+          ],
+          [
+            "SlotActor._run_job",
+            "assignment.total",
+            true
+          ],
+          [
+            "SlotActor._start_worker",
+            "supervisor.start",
+            true
+          ]
+        ]
+      },
+      "runtime/execution/publication.py": {
+        "original_sha256": "9591adbeb2db53856a809c74b1ee3935ee236b0a5c0b481975e6348f2fd072f7",
+        "instrumented_sha256": "32516d36569cb08984aa12f810dabc4b5ee80246764d6fc9a785c7290dce1821",
+        "targets": [
+          [
+            "publish",
+            "result.publish",
+            true
+          ],
+          [
+            "publish.assemble",
+            "result.assemble",
+            true
+          ]
+        ]
+      },
+      "runtime/stopping.py": {
+        "original_sha256": "e92afeeddcc8648dcd3b429c42d4520cfec8d7479e82aa762dce8895217fedf5",
+        "instrumented_sha256": "37e5195983afd0c272ab010d1e72daab6c962d30e8f1b645de908d05085e3177",
+        "targets": [
+          [
+            "execute_until",
+            "managed.execute",
+            true
+          ]
+        ]
+      },
+      "runtime/execution/backend.py": {
+        "original_sha256": "5620e98347b9918031c0b4b02fb1c68398e4f3628e358090807e315e0a4772ee",
+        "instrumented_sha256": "8724ad889b6a711c455e101c97cea685e95278827c20d280d4d8c9e28a07933a",
+        "targets": [
+          [
+            "BackendBinding.prepare",
+            "binding.prepare",
+            true
+          ],
+          [
+            "BackendBinding.activate",
+            "binding.activate",
+            true
+          ],
+          [
+            "BackendBinding.finish",
+            "binding.finish",
+            true
+          ],
+          [
+            "BackendBinding.close",
+            "binding.close",
+            true
+          ]
+        ]
+      },
+      "project/execution_model.py": {
+        "original_sha256": "916a2b23074b6c4a82185ae86c2cdbdde021d3d4c22cf016a3ac2eb5d69237d3",
+        "instrumented_sha256": "130ad635933a631aca6152266f24049cc085fa66a37421ab2735ca4f4d2d8574",
+        "targets": [
+          [
+            "build",
+            "model.build",
+            true
+          ],
+          [
+            "verify_assets",
+            "native.assets_verify",
+            true
+          ]
+        ]
+      },
+      "project/execution_adapter.py": {
+        "original_sha256": "ac1a4eef2dc95c4c4a4ffe15923409d069dbf1ce49b4091bc53cf0d285a132d2",
+        "instrumented_sha256": "35b83328e397673544154d7e3e736215517919172d210f6669fae458f9883b47",
+        "targets": [
+          [
+            "templates",
+            "inputs.generate",
+            true
+          ],
+          [
+            "ExecutionAdapter.prepare",
+            "backend.prepare",
+            true
+          ],
+          [
+            "ExecutionAdapter.advance",
+            "backend.advance",
+            false
+          ],
+          [
+            "ExecutionAdapter.state_digest",
+            "backend.state_digest",
+            true
+          ],
+          [
+            "ExecutionAdapter.finish",
+            "backend.finish",
+            true
+          ],
+          [
+            "ExecutionAdapter.close",
+            "backend.close",
+            true
+          ]
+        ]
+      },
+      "project/compiled.py": {
+        "original_sha256": "366315df9a83c1bd7862e4a79c788c4740fb43cb8bdeeaad50d42d19641cbc0a",
+        "instrumented_sha256": "6c60547d29255530129d5a24d5dcaeb9cdf80afe882e662eda47fe3fc1211ee8",
+        "targets": [
+          [
+            "CompiledStream.state_bytes",
+            "native.state_bytes",
+            true
+          ],
+          [
+            "extension",
+            "native.extension_load",
+            true
+          ]
+        ]
+      }
+    },
+    "runtime_files": {
+      "simulatte/__init__.py": "80d16b51f0ba51741cd958102275d20a33449b36a95567671fd93599ba759642",
+      "simulatte/__main__.py": "764167ac9627a87106c026e9777c8f7f1c40c6348004a9b4547ba5aff497da08",
+      "simulatte/_optional.py": "6909331a53304849b420402551b7c6ab88f8203af5dcc3183d837f526c332926",
+      "simulatte/_phase_probe.py": "9332c6db815b11c5b1d20a765e4bb105f4386c35469b0d1d26f20c7ce9f682da",
+      "simulatte/_wire.py": "0bb0fffeceadd80cf4b85448202ef6526cd57d3f209494c15c8af2d30404b2dd",
+      "simulatte/builders.py": "942137eb58e4c54a08929427683411d46984a55952f27f56001e8c7875ae4146",
+      "simulatte/cli.py": "4b5766744f1032ecd25f1dd1f894c0bb5fdb35e3f1fdbaf2e119ef32edfc9a32",
+      "simulatte/collectors.py": "2115bf451440334d40a02f7a9e57a37a7bbf43c57ef17564076497b502835918",
+      "simulatte/digest.py": "8d54e376bca2346fa5533809b2cc858a2afb795989b7c66e9d73b1f90686cb2d",
+      "simulatte/dispatching_rules/__init__.py": "9fab098a35cebe1eeddca7fee64b42c1c0a5b166f57c39d44aaf32b6b0abbaaf",
+      "simulatte/dispatching_rules/composite.py": "150cfd318ea6f2a7541c0c0e0b227f73b09645cb63670189b010531b471f6d52",
+      "simulatte/dispatching_rules/due_date.py": "bd8ef2c8d2f422179205e0d674060a6bc260bd88f2c298431fb63cf46dc4745c",
+      "simulatte/dispatching_rules/focus.py": "db75f9115cea3e08c4a3918ac3be307d906304f758e017b5c2b7dd4a233f1c4d",
+      "simulatte/dispatching_rules/processing.py": "b20b2e4bc103329846066e5fc5ec5c8390f7a00553205f62fecf11fe5f8a060b",
+      "simulatte/dispatching_rules/slack.py": "8571bf0b201ad81bf45af995e65dd8eae421996027cabd4e63c35f983ec18095",
+      "simulatte/dispatching_rules/tardiness_cost.py": "0f24cb829a0916440f7166b9f32f169a7660632776045a81a00bb5cccb940649",
+      "simulatte/dispatching_rules/work_content.py": "ae6bd8c0a6305b6763b1ddb679795320b86baed05605eff1bd12f5421760bb5b",
+      "simulatte/distributions.py": "d956091322c272b5cc280dfb7f01bc1b4e4640e7ba7a7d8be66c42214d27c08f",
+      "simulatte/entities.py": "bab30ce8d4b56c1f85dea381544cc3e4d795f71335de3bfe18d94bcc8e8357ab",
+      "simulatte/environment.py": "600421a6733e6e5b07c0a469e842ea02c62a6c79de7331407e5133b3bb1c7a8a",
+      "simulatte/events.py": "73493f196b2f297a077bc636a0145f7ff435696be45f3769db741a40c976cf57",
+      "simulatte/execution/__init__.py": "661a24c1808bbc4692cbf3ec518b07f75a95a59e5b86c217dcfeae813cb61a6c",
+      "simulatte/execution/backend.py": "8724ad889b6a711c455e101c97cea685e95278827c20d280d4d8c9e28a07933a",
+      "simulatte/execution/backend_events.py": "c7e75f51a8a24c5de399813cb62bcac766a1e2e2bd49f71e2f2f3917e46c1305",
+      "simulatte/execution/bootstrap.py": "c86c97f0c537a686f2f82644aaff13ef8ff67755bbe1f8623e4986df3ef513f9",
+      "simulatte/execution/bootstrap_remote.py": "eab5bfb4c8d199c85c90c06531c74f711ac14a37ad976f3ff2d4d5c09692dd35",
+      "simulatte/execution/child.py": "45654a7b77441e43be0b375d3b28e39d4d5ab366ece470b41790a7f9929cb7c5",
+      "simulatte/execution/command.py": "235ad7fa0074caec0ef103cf4f0f674effb88628eb3f76fb1a89faaa0b588305",
+      "simulatte/execution/control.py": "e92047e9b489bfa5896bfcada16ef9bed1839654c1fb553161304d79ec4cacda",
+      "simulatte/execution/coordinator.py": "c016701c515fe6885edde18dce90edd1af8485530d9a3a4265255e6f34e61c8a",
+      "simulatte/execution/cursor_hint.py": "8c09f7f1ad44a1ffff68d04c2f4709e52727528c422d5d00e2174ca110791ad5",
+      "simulatte/execution/diagnostics.py": "30b775ed83cab3fb53b5742d130464469b87e3d43e29a8ba50f9dca43807e858",
+      "simulatte/execution/driver.py": "9527bb4cbc5f04f7f446f5796d442fd1db3ac263822acb1d6d1cab0295f5610f",
+      "simulatte/execution/durability.py": "e544006df3317d67588bf2f9bc5017eb7c375a8bd9bc8cf75732ac5594c2a03a",
+      "simulatte/execution/hashing.py": "c9f9730616ae18f0e8964ef3323c4b3c5077d608e3534e851ae6895922bd19d0",
+      "simulatte/execution/imports.py": "e02e55b3eef88d397cb1414ef2beb99cfa5cc3639618c3a81fa746c09d5f58ba",
+      "simulatte/execution/inputs.py": "ceaaf3fb417e70c5830f26bd75e51bd86c31269c70869860e14e4b449c078170",
+      "simulatte/execution/layout_files.py": "76e03eb2d7a7dd0158b4c26adb89004bf0f9800929fcbc7c3dcf45f9b3f13dd8",
+      "simulatte/execution/preflight.py": "fa9acdcdab34a960caeb24bd24afeca6ae22427c4b76befc579eb485012ae94a",
+      "simulatte/execution/process.py": "8fa65942e4804b95f54f9b3cb8aaf2be13890a3c6f45d6b3ee134e12ed0f8d4f",
+      "simulatte/execution/protocol.py": "a0fddbd46bebf78a6183edf7945aa8ab35540c4e48b8358fdcc2fc508b260775",
+      "simulatte/execution/provisioning.py": "d6e410d89e629ceb025538001c76ac73f23f23843ac48771f63523d263a8a596",
+      "simulatte/execution/publication.py": "32516d36569cb08984aa12f810dabc4b5ee80246764d6fc9a785c7290dce1821",
+      "simulatte/execution/receipts.py": "e804f52856efd2c455058b5d997cce5c6a0885f1303b21dea49c41f853de4f13",
+      "simulatte/execution/references.py": "97c7645c7367ffdf5adac737d545e61484b693de9146eb0c890d511689a807b7",
+      "simulatte/execution/replay.py": "6b07805b00124d28631cd85c609b0157bec823e8a825a1ba26fc7188a2f58b2d",
+      "simulatte/execution/revisions.py": "62d056e06f2f21e4ad1c4d8257e7d14a718053d11c7b285e6cb3b594a85c28bf",
+      "simulatte/execution/runtime.py": "d0091de00f7afd8535493b32b8e449a79680c19148ab408854097769de46f4a1",
+      "simulatte/execution/scheduler.py": "84df6433d6748141c0ceeaab6071c52c0b69ba0b42bf56dd82129b962cd44d93",
+      "simulatte/execution/schema.py": "18b9d33e1cc6498e6682840fbca31845b159c8ea743a83b98c48fe22a67fab07",
+      "simulatte/execution/slots.py": "b0daa923c0f7b3f983db7b146f25499a1ae6d3de8d296f39327946abfc444153",
+      "simulatte/execution/snapshot.py": "887d859cbe2c49f3656d65e2f76e2daba6f32bbec01b38f5c9fea49183b0d054",
+      "simulatte/execution/spool.py": "a3a4754d4595c4302ab072bacc74659efae8a201ae0fb6ad73f023de63bb1823",
+      "simulatte/execution/ssh.py": "928056aba23cf6ddcafea25be9428488babf4e8c51ba0c481b856815e5cb5184",
+      "simulatte/execution/staging.py": "ae423cb803b9d5ae56b662005ad58eb88938de99740f9bd99f4ebefb497550ba",
+      "simulatte/execution/store.py": "d1254e9a8b18647d766703d9d3ee9dc4a74b6ed0e38a4bb1e27db6ad49eac859",
+      "simulatte/execution/supervisor.py": "f528985b7e19435b8c4c0ec6bc4b28d64058e2e98ef265d89b377e94e6cff9f4",
+      "simulatte/execution/transfer.py": "3e3b545f31f510f9ee7415b46faccd01ab88781b9640539b76c65739561d279d",
+      "simulatte/execution/transport.py": "df7f828633c56807d0cebd820b9d1517943edcc62ad81573b1704741391639ba",
+      "simulatte/execution/windows_job.py": "9bf8e1ba4bb4237352deeb448e0d8e032e1442213380caefec0e4fc7fc4d1efb",
+      "simulatte/execution/workers.py": "cf81b7a9c66360923c8f8634d4356127eb7aa1d69fa760eaf1e5868c4c20e499",
+      "simulatte/execution/workers_cli.py": "c709d4217d0322b41637587156bf4793d738eebc149487af92a29f599693e010",
+      "simulatte/experimental/__init__.py": "74951933a2c6e07633bb3fef3e1f8aba4c43000e683e1fcfbeeeba0b9c0e61ef",
+      "simulatte/experimental/gymnasium.py": "28da45f037df16c59161c414ac1e7460d1b966e7cdb55bb215f5db7a7c485bae",
+      "simulatte/experiments/__init__.py": "39ee0edabd93da214063bd282b816c7f234debe9086880e4a63513a277064348",
+      "simulatte/experiments/definition.py": "9988cf6d66b4d65c01cb9afc2fd49fcbddd281440e148fd43efa16e1917fb3a0",
+      "simulatte/experiments/expansion.py": "7e519a1423a605d7e4042619ecbbc5e8ead4a61174bdd8801d9324e2c8f46719",
+      "simulatte/experiments/results.py": "5a655ce47a710c807f21350b24ee0d95d2d9660927646c23166149b7b341ae4a",
+      "simulatte/experiments/runner.py": "df0842233a543058726bb2bbdabbbfb72ecf4d2db393becb59415ff923f515c9",
+      "simulatte/experiments/schema/experiment-v1.schema.json": "4226427505a4506ffe36695d3f7923e21bf2d922de8cafcbaebd2395c776ccae",
+      "simulatte/intralogistics/__init__.py": "9c9b8ff634b05dcd88d55e082d13981b40a910ab874f9bdd8b75d3627664abf2",
+      "simulatte/intralogistics/_resources.py": "395124816ccf7484b93c613e484f08aa5fb38ba9d8c7ff654710cea619ce755e",
+      "simulatte/intralogistics/agv.py": "e532e892d93d4b51dc1bbb7fe1bd3ab70c9122b6ddf945573350a3c1e626af45",
+      "simulatte/intralogistics/battery.py": "f49157fca2149736907b61210efa7cdb97ec708ca2b807b283018b4ac9da8999",
+      "simulatte/intralogistics/builders.py": "5a384c344198fb5a399886f20bd957ec697d8cdeaf2b1d6ad5f1fe190c591911",
+      "simulatte/intralogistics/charging.py": "f16bbdcad61c146755c07ab632ad505e50e7ce941d3bfd21ba1758ab8a438688",
+      "simulatte/intralogistics/events.py": "6f8fc8bd6d12a07267a0d8511fdf1bf79d8d3ba43aa6c061cca726f3ff450bae",
+      "simulatte/intralogistics/fleet.py": "81168039ecbb34cd4dcbbf58db066251bc9affc8250eaff83aec5fcbcac0b24d",
+      "simulatte/intralogistics/graph.py": "3eba604a32ec3c380c9ca719d7d4eef7cb58c12bb3a34be28f5b4a09d6cd1908",
+      "simulatte/intralogistics/metrics.py": "31a116d5fd82c4924dedd73e5ad1c11e892d95cd6331d2484f0795a53c759526",
+      "simulatte/intralogistics/order.py": "d5f2d47695668bdd88a039a13593f2dcb4c0ee170e42c3f6d6c09d5bbcf4f2c0",
+      "simulatte/intralogistics/parking.py": "b3454af7c52a4344f2e29f514f874325ebb4cb066cbd57e000335f92beba0276",
+      "simulatte/intralogistics/pathfinding.py": "c522f0509c55e2ef060c6adc6c7b404f4451ea3bcdaf52dbbdea15a83c4ce60e",
+      "simulatte/intralogistics/policies.py": "3cec05d6a8b313d729d5ad9da734f382afe2dee3baaa817751acab74424930c1",
+      "simulatte/intralogistics/sku.py": "fcb705b73714df9ba6c3b6f42e5c1c67f0b122fa425bea6f2eca4859f90fd0e7",
+      "simulatte/intralogistics/speed.py": "2bb4efe48d32e02c52ebbbf1836b4f8bddf995f13a2eea4e8cfd5e05de9a50f8",
+      "simulatte/intralogistics/traffic.py": "96cad7698c974ae4fa70556f3bce5022dd372be04f2772e7232c188aae807149",
+      "simulatte/intralogistics/warehouse.py": "a2697a53c754a90757dc2c7ffcb87be3e25c0b7ceac2cecced2b75b1174ee82c",
+      "simulatte/job.py": "6816e2980da6a1117fde157305bb7f08f8b9f5dc4cc048e91086d477ba10a770",
+      "simulatte/kpi.py": "734a4da648673567892fc45209aca0fd4543ab383afb6417edce4a56cd15b894",
+      "simulatte/layout/__init__.py": "ebb9770423e69230be67323694c7f89933332f6ef13e9e1257b15c2253d27742",
+      "simulatte/layout/auto.py": "48052f2dd869a7c4c7b220aa24155611991273f7f3768b269ddcf07450115d36",
+      "simulatte/layout/binding.py": "29e8269518a39a8414120ef48642a1dc34fe328141acc39474c29be65a3b6c92",
+      "simulatte/layout/bundle.py": "bbd1783dcae13e41e2242d6f30d79c8967e18d4a2a071f383bc37c17fd883e58",
+      "simulatte/layout/connectors.py": "e570d1c7cb4ec6e640e3af99e7f0f1e0a7cf4b23d08d4f99d90b87d5ae6a96e1",
+      "simulatte/layout/dependencies.py": "0e54e24dc010996504c4922211533554dbecfdaddc1fdc00808dfbd9dfc397eb",
+      "simulatte/layout/errors.py": "16994d03aa83b7e3ff556fd821127a03e66f59239b9b354dd59e7af1a9b71cb4",
+      "simulatte/layout/geometry.py": "aa4a504c6ac8960dd0d166106fa5e1a3689b3b4462da0c0e4ffb8406c6eef0f4",
+      "simulatte/layout/identity.py": "356d7d008de89cd8917f09eb4dfe6b264116940467363149d406b4a512a17f0e",
+      "simulatte/layout/io.py": "6f6ba44a2c52af55c3ecaea4729004ba58939c435b85698a2e9a82b87da06ff8",
+      "simulatte/layout/layers.py": "179898254f8f1db0f07db04361055579cd1c45ca3d1f2c4e4a8eb36c6ee847cb",
+      "simulatte/layout/layout.py": "00ffeebd29fee33211b139ab42a7ed2757d233f9e0635d5f8668db012d3c6ed5",
+      "simulatte/layout/lifecycle.py": "61ded1ccff9f8af25ca2d5698d3667bc0921a20fe36eaa1ecbaf36ebc871ae5b",
+      "simulatte/layout/network.py": "3f4b25db95c917d4c520a26954ada350dcc411ea0a2a13b73576c60bda0a0351",
+      "simulatte/layout/overrides.py": "03314f46021192101c221f8107c22da350335e1a8a5d2a347fac821904d3bd25",
+      "simulatte/layout/refs.py": "1695490c192519f0c45c4f951a3e602af448418380ebc891aef0a09666d0d744",
+      "simulatte/layout/schema/__init__.py": "2ee04b84878ee64e7c6d7631135235ec1db3ce3d90b712cd6f9f62e30b7fd203",
+      "simulatte/layout/schema/layout-v1.schema.json": "4f251e76a5a3dccb2ec8dd666745cae5368f32bc3c22c087480de232deda18c7",
+      "simulatte/layout/stages.py": "82b9457de37acefd44e2e5c5f6f12a3772036f7e00a4c02a7a8efbbe843ed3e7",
+      "simulatte/layout/topology.py": "2bb70ef77b9f9e424db23ee4121243610c6496ac54b29dedd42d97244b12560e",
+      "simulatte/layout/types.py": "5ca16d3f374a688b53da28f56ca40de2cef11a90001db4a651791bc2aea2153d",
+      "simulatte/logsinks.py": "efb62ba02756c2e9eb56dc0819dfdb7909e80f2c3a395621377c788fb3ab08f5",
+      "simulatte/model.py": "73eb1f52afdb360170ca8c82c5a3deabb2fd70d6c3518b974a04ddbb0f49efc1",
+      "simulatte/policies/__init__.py": "79b0d44b799e3472acb05b262803e99b77990f10a38b5de271c2c55e0fdfce63",
+      "simulatte/policies/continuous_release.py": "04f751a3a6f1bc1e9b973b2072befecb13829cffed6ce78097d8d8ad77e0bb21",
+      "simulatte/policies/conwip.py": "97be344a366ce339204ab491d8b88a1f89d6ff80c289e78f4ed281fe30ed242a",
+      "simulatte/policies/draco.py": "3f4caa25a272cbbfa8a06aeefe96835d8f4babf1b02eaf41c8235d0fb58df299",
+      "simulatte/policies/events.py": "05bf3f2d84d8a33847695a3b35a2009bd71a53bb8ce9a1b00b27860d60513c3c",
+      "simulatte/policies/lumscor.py": "b857e1dc3ddad8d714bad2388fdaa9c9946b1e38abe7eb888ade26f6601e7dee",
+      "simulatte/policies/norms.py": "29d0a5762390406f7f56a7ee8b3511f37e8b31316c41a5f5ef4016f619a18790",
+      "simulatte/policies/slar.py": "abf96daa50699a78979ea9527630bc8bd653293cfbfbc448ad95f01598356d39",
+      "simulatte/policies/slar_limit.py": "440a9b1476be784fb80e3d4e00c7f92ff7ece01c11f9c02b2a146923d9e68cdf",
+      "simulatte/policies/starvation_avoidance.py": "ed60439406ad4051594041e147cd179b7e0b1ce950380ee31cafb492f31d2750",
+      "simulatte/policies/triggers.py": "7a738d0b5ce2cff017e326f825867fa0984b8a36f14d6ac7b8f2c3a2a6473d53",
+      "simulatte/provenance.py": "5823b7a18ebcd5ca08a821e8f7f7c963a998ddcca3dc8e83c080dd692e1a6097",
+      "simulatte/psp.py": "9000f632dcaac0222e47657fc95f53cea7b946a0da989a61dd02da7a8411b5bf",
+      "simulatte/rng.py": "c2a0aaed3b332d1a98d525858f2207abdc3579521bed2bc6397615a7dfebcfee",
+      "simulatte/router.py": "990aa7bc11622a87f7e3895958e4c684b2a6d861f98fb3617d60a83f3ca7b98b",
+      "simulatte/runner.py": "e7ab8ac3f5987c6e14178b50185addadaf08b88124f10bf9a54d969161bbcbbe",
+      "simulatte/scenario.py": "1e5147bc7339960113140c084b6f9e4a202c728cf3fe7cce33228cae8110e5ca",
+      "simulatte/server.py": "bfa3733566f13a9509f7855c863cb2eaa60c1817bf36187355a14215faa50694",
+      "simulatte/shopfloor.py": "88501683edae0d8ae2dbd15577282f94a69e3130b0de990af531d0aef49d010b",
+      "simulatte/statistics.py": "86ddc3784600ca2ea9a90b30f0dad75727f59c6faaff2d4c574d4cb5bd973ce9",
+      "simulatte/stopping.py": "37e5195983afd0c272ab010d1e72daab6c962d30e8f1b645de908d05085e3177",
+      "simulatte/studio/__init__.py": "c6f103a354cc076242ccd3bdc412a0612554232b12b4656651eca78cbd158206",
+      "simulatte/studio/app.py": "a7ac18e8c0c41869670328113921e93f655e30f9fdd230aede6e3b5163751811",
+      "simulatte/studio/auth.py": "d8e929ed0f0c47eb9b36cc31735d600431e66258eff395bebbcf3354d0919fe2",
+      "simulatte/studio/command.py": "2578f58cce051703de7b45f43986af920a022210c21848db26a7657338be0b28",
+      "simulatte/studio/experiments.py": "f8ecf9134bfd7a8efbac952c4c0327edd848e930e9b46b9c79a892d62fda2910",
+      "simulatte/studio/http.py": "01146ce09a796aa578295f6ca8dc85f8d5fca08ccea9b6410182acca1953ea14",
+      "simulatte/studio/lifecycle.py": "f402381f59efa9772725dc47a429c3c95a39ddc7bbc243adbb07a57eb656825b",
+      "simulatte/studio/monitor.py": "390c07b0b1e3756c0132846845cab93f8d01481bacb14c08c7812b46df5de892",
+      "simulatte/studio/server.py": "395b7dc91f8c6e4c2cb570278629db78688972ffffa88ad75874fe66d0891e55",
+      "simulatte/studio/watcher.py": "600ba498285e3f53cb40721ae8d307f8dbec56ee7ef814bcc648830a3d854160",
+      "simulatte/studio/websocket.py": "fde30bf4852a725d696df0042c53d437a552c724a6127d30322996128b31eaf0",
+      "simulatte/trace/__init__.py": "288b57c63bead81c549815e6b39503ac41ab63f4ad84b274f28907247b29ecad",
+      "simulatte/trace/execution.py": "c05a756d77831008db05ec71e6ad0eb7b7813d2770f49dac3391fe6678473697",
+      "simulatte/trace/format.py": "bc6156490d82ba9ecac83952f6229c79e0540bd5d3265a3034182fdd1b4c7cc4",
+      "simulatte/trace/reader.py": "31c8c5bb6a304163da09824f0ba0162df8ab2e6b97b5424a26ed0149be369f23",
+      "simulatte/trace/sink.py": "39cb5d8a0d8a4ec981cd0f889b56b76d58d644fc108c2109028a3cdc1a9b3e06",
+      "simulatte/trace/writer.py": "0ed9f6785ba3f56937735b677007147aaad92513f1a648593683f79e2c48b2d8",
+      "simulatte/typing.py": "c86e4199750f3698fa8789d85c5cc7385d17e66d150a16d14e531587f0f4a2df"
+    },
+    "project_files": {
+      "layout.json": "4fde2c62eaeb82fe10581324384d0af72f965f0cc1d8375b234453bbd24c1857",
+      "native-assets.json": "d0668007d8c37155d202748170495c308e3a999e20098b687b61eef3699f2984",
+      "prototypes/native_engine/model.py": "bd6f81455a683d47f1c8964cdd845df408e21f722554be02bdbfcbbac830150f",
+      "prototypes/native_engine/recording.py": "5a37000a9e32b2d629d4734103cd128cba0faae90d6032563e2a26222f07d476",
+      "prototypes/native_engine_dynamic/.build/_nd_scalar.cpython-314-darwin.so": "c38ed0db5a8e5bfd7f3c3998d043d623fc2c79b5542b2350cc8b93d0322d2fa1",
+      "prototypes/native_engine_dynamic/.build/dynamic_engine.dylib": "3aec319af23545f5f292f30c170e11b4a35609d8df5e4d5ec132aed9e79cec0d",
+      "prototypes/native_engine_dynamic/build.py": "97f3c63ab586f6ab42ed0c0124132d69bff3062e03ef4c20be1cc01c6b7e4d52",
+      "prototypes/native_engine_dynamic/compiled.py": "31c04dfa40515ac49969a6beacf01eee8fb0c43b4acaf3a54ca88ba5356f1847",
+      "prototypes/native_engine_dynamic/compiled_build.py": "4cf7e83b1722e897f21d5d7197dd96aa95d323eb8ec4845ac0373c6930e7d4f9",
+      "prototypes/native_engine_dynamic/csrc/dynamic_engine.c": "2a715d5a61fb45ffc67c53ed59eb8ef201dcf96e55f5d3d8298c3bfc25ef1625",
+      "prototypes/native_engine_dynamic/csrc/dynamic_engine.h": "22bfc5dafbef189f671f66fedf2295dbb629ec09b8990fb329f254c9e7824d2b",
+      "prototypes/native_engine_dynamic/csrc/scalar_module.c": "3c68225ed4d64f17911a4e4caeffac5a0b50d61d321d1eefb572879d238491d6",
+      "prototypes/native_engine_dynamic/csrc/stock_kpi.c": "72bfd40a9d7d6b0258717f8432bbb3eabbf4d75a1a113e5aafc04ad2fe6ddc3f",
+      "prototypes/native_engine_dynamic/csrc/stock_kpi.h": "89f0c6311aff7a0b2d5ab4baf7406557b951e8530c66277e3342e156cf2e3bc1",
+      "prototypes/native_engine_dynamic/execution_adapter.py": "35b83328e397673544154d7e3e736215517919172d210f6669fae458f9883b47",
+      "prototypes/native_engine_dynamic/execution_model.py": "130ad635933a631aca6152266f24049cc085fa66a37421ab2735ca4f4d2d8574",
+      "prototypes/native_engine_dynamic/handles.py": "32baa1d957dd288dd576c5def239b58c72f3533cbbcbd3aa01cb1c01b5cb61aa",
+      "prototypes/native_engine_dynamic/immutable_assets.py": "49a6814acbfa1542cbb1035226d57d79e828c290b161c92040ce3e9969491fba",
+      "prototypes/native_engine_dynamic/native.py": "ebf16592658a7dd671a1463c50cada37b940af8fa8010a2d9f1a03faea3fa38c",
+      "prototypes/native_engine_dynamic/native_kpis.py": "16530cd490ea0575f13b4c796ddeafa942fd306be080223105f8c47b6b0ffdec",
+      "prototypes/native_engine_dynamic/production.py": "8fcb0ca02d0ae2e41462350a05ec2d236ac37248eb55ad1b0aa2ec44dc95bf48",
+      "prototypes/native_engine_dynamic/recording.py": "733998f534687f5297d9e0afbbbfe5b091664b0d705f2b7456dc43241a69b924",
+      "prototypes/native_engine_dynamic/rich_recording.py": "a8fa06436aaf426972f8f84e7049591f71bda1fe711683aeaa8336095a278a3e",
+      "prototypes/native_engine_dynamic/studio_trace.py": "26a509bdc279f50e087e4be16b3cab46afc96800b52ec6c4c584f9951e0905fa",
+      "prototypes/native_engine_dynamic/validation.py": "dff13339074a306833a744a76ac0f4e6631b8e27a22b4df44e5cd57713ea50a2",
+      "pyproject.toml": "88cb057eb058461febc107d40156615253cb056b8778489de53a79aae6aec27b"
+    },
+    "address": "94ae7f8ebe55cc22ee5cb77995217add4a78ae1033d23f27dc421c2636001096",
+    "files": {
+      "_nd_scalar.cpython-314-darwin.so": "c38ed0db5a8e5bfd7f3c3998d043d623fc2c79b5542b2350cc8b93d0322d2fa1",
+      "dynamic_engine.dylib": "3aec319af23545f5f292f30c170e11b4a35609d8df5e4d5ec132aed9e79cec0d"
+    },
+    "publish_s": 0.001234250026755035,
+    "entry": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/immutable-loading-timing-jxn0jrjg/assets/94ae7f8ebe55cc22ee5cb77995217add4a78ae1033d23f27dc421c2636001096",
+    "native_preloaded": false
+  }
+}

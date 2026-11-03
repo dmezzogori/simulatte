@@ -1,0 +1,69 @@
+{
+  "source_sha256": "83254469619c51bdc9691a8aeb91077d7a05b9806c3dc0c52f2a209252132f43",
+  "warm_loads": 71,
+  "first_shared_path_load": {
+    "attempt_id": "327f525cb68f629f6862b2c6b0826375",
+    "schema": 1,
+    "pid": 38248,
+    "mode": "immutable",
+    "address": "94ae7f8ebe55cc22ee5cb77995217add4a78ae1033d23f27dc421c2636001096",
+    "files": {
+      "_nd_scalar.cpython-314-darwin.so": "c38ed0db5a8e5bfd7f3c3998d043d623fc2c79b5542b2350cc8b93d0322d2fa1",
+      "dynamic_engine.dylib": "3aec319af23545f5f292f30c170e11b4a35609d8df5e4d5ec132aed9e79cec0d"
+    },
+    "source": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/immutable-loading-timing-jxn0jrjg/2/.simulatte/staging/327f525cb68f629f6862b2c6b0826375/snapshot/prototypes/native_engine_dynamic/.build",
+    "selected": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/immutable-loading-timing-jxn0jrjg/assets/94ae7f8ebe55cc22ee5cb77995217add4a78ae1033d23f27dc421c2636001096",
+    "extension": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/immutable-loading-timing-jxn0jrjg/assets/94ae7f8ebe55cc22ee5cb77995217add4a78ae1033d23f27dc421c2636001096/_nd_scalar.cpython-314-darwin.so",
+    "images": [
+      "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/immutable-loading-timing-jxn0jrjg/assets/94ae7f8ebe55cc22ee5cb77995217add4a78ae1033d23f27dc421c2636001096/dynamic_engine.dylib"
+    ],
+    "identities": {
+      "_nd_scalar.cpython-314-darwin.so": [
+        16777234,
+        163818644,
+        54256,
+        1793692564764534367,
+        1793692564764596784
+      ],
+      "dynamic_engine.dylib": [
+        16777234,
+        163818645,
+        51912,
+        1793692564764689202,
+        1793692564764728785
+      ]
+    },
+    "verification_s": 0.000490459,
+    "import_s": 0.092151291,
+    "postcheck_s": 0.0015555,
+    "total_s": 0.09419725
+  },
+  "first_shared_experiment": {
+    "producer": "independent",
+    "jobs": 5000,
+    "probe": "active",
+    "process_s": 2.358285375
+  },
+  "first_load_included_in_matrix": true,
+  "publication_s": 0.001234250026755035,
+  "import_s": {
+    "attempt": {
+      "count": 72,
+      "min": 0.08015575,
+      "median": 0.09333158350000001,
+      "max": 0.121549542
+    },
+    "immutable": {
+      "count": 72,
+      "min": 0.000413709,
+      "median": 0.00043514599999999997,
+      "max": 0.092151291
+    }
+  },
+  "warm_import_s": {
+    "min": 0.000413709,
+    "median": 0.000434917,
+    "max": 0.00051375
+  },
+  "method": "All randomized cases retained, including first immutable-path load. Workflow medians sum three replications; per-load timings are individual fresh processes. First-path use is not an OS cold-cache guarantee."
+}
