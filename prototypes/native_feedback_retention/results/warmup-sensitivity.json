@@ -1,0 +1,34 @@
+{
+  "passed": true,
+  "method": "direct public bounded backend, identical source/seed/policy/caps/horizon; warmup only varied",
+  "rows": [
+    {
+      "feedback": true,
+      "warmup": 0,
+      "admitted": 122,
+      "jobs_sha256": "6ac3283b8f887a1d2819f02897bb7f4ebcedb523cb4a7728a3b6ac0bc926edef",
+      "tight_polls": 148
+    },
+    {
+      "feedback": true,
+      "warmup": 10,
+      "admitted": 122,
+      "jobs_sha256": "93686f7bb3154710d1c1dfd6858f3e47889b45c5212de59b2dad16a70df07527",
+      "tight_polls": 139
+    },
+    {
+      "feedback": false,
+      "warmup": 0,
+      "admitted": 81,
+      "jobs_sha256": "1accea7fe127fb4d2537ac7574184e3dc56ae98bd71cef908155eb0446f54adb",
+      "tight_polls": 0
+    },
+    {
+      "feedback": false,
+      "warmup": 10,
+      "admitted": 81,
+      "jobs_sha256": "1accea7fe127fb4d2537ac7574184e3dc56ae98bd71cef908155eb0446f54adb",
+      "tight_polls": 0
+    }
+  ]
+}

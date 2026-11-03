@@ -1,0 +1,259 @@
+{
+  "engine": "full",
+  "ticks": 4096,
+  "seed": 102,
+  "parameters": {
+    "engine": "full",
+    "policy": "spt",
+    "hard_limit": 12,
+    "wip_cap": 4,
+    "burst": 3,
+    "interval": 0.5,
+    "feedback": true,
+    "record": false
+  },
+  "result": {
+    "engine": "full",
+    "parameters": {
+      "engine": "full",
+      "policy": "spt",
+      "hard_limit": 12,
+      "wip_cap": 4,
+      "burst": 3,
+      "interval": 0.5,
+      "feedback": true,
+      "record": false
+    },
+    "scenario": null,
+    "seed": 102,
+    "request": "ae8be27824297471621517229c6a3df92baf5fd6d974f8fdf61458f62767493f",
+    "attempt": "be157b258ba570eeef44fccf3c91d748",
+    "fingerprint": {
+      "digest": "9a38d00e632ffa92bd4ca0832e4b3db6c6ca32d9991309b5011bcfbf6f81abab",
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.993682531894014,
+        "shopfloor/lateness": -0.23282223679895048,
+        "shopfloor/makespan": 3.7045342735323055,
+        "shopfloor/tardiness": 1.9478517546736636,
+        "shopfloor/tardy_fraction": 0.4817973105936373,
+        "shopfloor/throughput": 1.4960745829244357,
+        "shopfloor/total_queue_time": 1.052107248278124,
+        "shopfloor/utilization": 0.8066936539090612
+      }
+    },
+    "physical": {
+      "controller": {
+        "blocked": 1724,
+        "burst": 3,
+        "completed": 3064,
+        "cursor": 3070,
+        "decisions_sha256": "2461c57f140837c18298e1076c4a2f5a4fdf63b787428d0bc42bf5b21b461512",
+        "feedback": true,
+        "hard_limit": 12,
+        "interval": 0.5,
+        "jobs_sha256": "51476b02faf5a865d0180fd0fb31df88e15d7ca184ec7d087558ae9e5b300be8",
+        "live": [
+          {
+            "arrival": 2045.0,
+            "due": 2049.0,
+            "id": 3063
+          },
+          {
+            "arrival": 2045.0,
+            "due": 2047.0,
+            "id": 3064
+          },
+          {
+            "arrival": 2046.0,
+            "due": 2052.0,
+            "id": 3066
+          },
+          {
+            "arrival": 2046.0,
+            "due": 2057.0,
+            "id": 3067
+          },
+          {
+            "arrival": 2047.0,
+            "due": 2058.0,
+            "id": 3068
+          },
+          {
+            "arrival": 2047.5,
+            "due": 2057.5,
+            "id": 3069
+          }
+        ],
+        "next_at": 2048.0,
+        "normal": 1304,
+        "phase": "horizon",
+        "pool_polls": 3481,
+        "relaxed": 21,
+        "schema": "feedback-controller-v1",
+        "seed": 2622692749,
+        "short": 1766,
+        "tick": 4096,
+        "tight": 4075
+      },
+      "final_observed": [
+        {
+          "arrival": 2045.0,
+          "due": 2049.0,
+          "id": 3063,
+          "released": 2045.875,
+          "state": "active"
+        },
+        {
+          "arrival": 2045.0,
+          "due": 2047.0,
+          "id": 3064,
+          "released": 2045.375,
+          "state": "active"
+        },
+        {
+          "arrival": 2046.0,
+          "due": 2052.0,
+          "id": 3066,
+          "released": 2046.625,
+          "state": "active"
+        },
+        {
+          "arrival": 2046.0,
+          "due": 2057.0,
+          "id": 3067,
+          "released": 2047.375,
+          "state": "active"
+        },
+        {
+          "arrival": 2047.0,
+          "due": 2058.0,
+          "id": 3068,
+          "released": null,
+          "state": "pool"
+        },
+        {
+          "arrival": 2047.5,
+          "due": 2057.5,
+          "id": 3069,
+          "released": null,
+          "state": "pool"
+        }
+      ],
+      "kpis": {
+        "jobs_in_system": 3.993682531894014,
+        "lateness": -0.23282223679895048,
+        "makespan": 3.7045342735323055,
+        "tardiness": 1.9478517546736636,
+        "tardy_fraction": 0.4817973105936373,
+        "throughput": 1.4960745829244357,
+        "total_queue_time": 1.052107248278124,
+        "utilization": 0.8066936539090612
+      }
+    },
+    "physical_sha256": "6b86bae157d92272fab1de76f5107f6491ff903b764e2d42e7374c967210994f",
+    "native": {
+      "digest": "53c8efc8bc129ae953292838db5d5797c6f96587393cafc0d6d922d87a0a199a",
+      "schema": "native-production-v1"
+    },
+    "proof_sha256": null,
+    "artifact_sha256": {
+      "native.json": "283f1aa864060a7aefb82ff47ce22c03a4566f40eb9a73ed66ce43d21238f054",
+      "physical.json": "6b86bae157d92272fab1de76f5107f6491ff903b764e2d42e7374c967210994f"
+    },
+    "trace_bytes": 56289,
+    "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-feedback-installed-yt7i78uk/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-darwin.so"
+  },
+  "repetitions": [],
+  "parent_checkpoints": [
+    47808512
+  ],
+  "store_bytes": 16064182,
+  "provider": {
+    "schema": 1,
+    "provider_api": 2,
+    "version": "0.17.0",
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "arm64",
+      "platform": "darwin",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-darwin",
+      "suffix": ".cpython-314-darwin.so"
+    },
+    "sources": {
+      "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+      "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+      "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+      "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+      "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+      "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+      "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+      "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-darwin.so": {
+        "sha256": "8bb82fd69086d1017a931d5ae2b503949d59dab2fca074d8e1664fd7cc4971af",
+        "size": 72480
+      },
+      "simulatte_native_engine.dylib": {
+        "sha256": "b7edfa9d37f4a8d12cb096f8c59ce44f7a623240d617e3934cc79470044ff8ff",
+        "size": 53024
+      }
+    }
+  },
+  "coordinator_pid": 82059,
+  "runtime": {
+    "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+    "platform": "macOS-27.2-arm64-64bit",
+    "machine": "arm64"
+  },
+  "usage": {
+    "parent_pid": 82059,
+    "tree_peak_rss": 152649728,
+    "parent_peak_rss": 47742976,
+    "per_pid_peak_rss": {
+      "82059": 47742976,
+      "82065": 33046528,
+      "82090": 33357824,
+      "82096": 23560192,
+      "82097": 41009152,
+      "82104": 23429120,
+      "82106": 49053696
+    },
+    "max_descendants": 3,
+    "samples": 24,
+    "wall_seconds": 1.4341456669990293
+  },
+  "extra_queries": false,
+  "diagnostics": [
+    {
+      "entities": 2,
+      "expired_reads": 0,
+      "max_callback_bytes": 845,
+      "max_owned": 12,
+      "peak_rss": 49070080,
+      "pid": 82106,
+      "storage": {
+        "admitted": 3070,
+        "calendar_capacity": 32,
+        "completed": 3064,
+        "completion_capacity": 0,
+        "events": 42237,
+        "forgotten": 0,
+        "job_capacity": 4096,
+        "native_bytes": 563439,
+        "op_capacity": 8192,
+        "retained_jobs": 3070,
+        "retained_operations": 7444,
+        "state_capacity": 0
+      }
+    }
+  ]
+}

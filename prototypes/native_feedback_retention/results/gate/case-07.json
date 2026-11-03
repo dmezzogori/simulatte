@@ -1,0 +1,613 @@
+{
+  "engine": "bounded",
+  "ticks": 32768,
+  "seed": 101,
+  "parameters": {
+    "engine": "bounded",
+    "policy": "spt",
+    "hard_limit": 12,
+    "wip_cap": 4,
+    "burst": 3,
+    "interval": 0.5,
+    "feedback": true,
+    "record": false
+  },
+  "result": {
+    "engine": "bounded",
+    "parameters": {
+      "engine": "bounded",
+      "policy": "spt",
+      "hard_limit": 12,
+      "wip_cap": 4,
+      "burst": 3,
+      "interval": 0.5,
+      "feedback": true,
+      "record": false
+    },
+    "scenario": null,
+    "seed": 101,
+    "request": "87d3305388df91a1d2b23313ccd50e5e292d8c26f37b47813cd18d5a318615e8",
+    "attempt": "b4d245f54c5b26b6b374e91a9646fa1b",
+    "fingerprint": {
+      "digest": "5c68b4954c08e2b14533d5063ede917f544eafcdaf440135570e88b6f244b8df",
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.9939385611335045,
+        "shopfloor/lateness": -0.25470816561242093,
+        "shopfloor/makespan": 3.745949026534133,
+        "shopfloor/tardiness": 1.9422492401215805,
+        "shopfloor/tardy_fraction": 0.4712478435882691,
+        "shopfloor/throughput": 1.4868694271405887,
+        "shopfloor/total_queue_time": 1.049571798242011,
+        "shopfloor/utilization": 0.81113095965148
+      }
+    },
+    "physical": {
+      "controller": {
+        "blocked": 14078,
+        "burst": 3,
+        "completed": 24359,
+        "cursor": 24365,
+        "decisions_sha256": "61fb9ac30c7367cb6a5c9bd060c4c06990fa277773106e1564f4a2c98b879c72",
+        "feedback": true,
+        "hard_limit": 12,
+        "interval": 0.5,
+        "jobs_sha256": "de8a69edc3353e6d6fa984dae2b61ed84eb202bad53fee50154dc6704295076e",
+        "live": [
+          {
+            "arrival": 16376.0,
+            "due": 16384.0,
+            "id": 24355
+          },
+          {
+            "arrival": 16380.0,
+            "due": 16392.0,
+            "id": 24359
+          },
+          {
+            "arrival": 16381.0,
+            "due": 16393.0,
+            "id": 24361
+          },
+          {
+            "arrival": 16382.0,
+            "due": 16383.0,
+            "id": 24362
+          },
+          {
+            "arrival": 16382.5,
+            "due": 16388.5,
+            "id": 24363
+          },
+          {
+            "arrival": 16383.5,
+            "due": 16386.5,
+            "id": 24364
+          }
+        ],
+        "next_at": 16384.0,
+        "normal": 10602,
+        "phase": "horizon",
+        "pool_polls": 27731,
+        "relaxed": 204,
+        "schema": "feedback-controller-v1",
+        "seed": 99764467,
+        "short": 13763,
+        "tick": 32768,
+        "tight": 32564
+      },
+      "final_observed": [
+        {
+          "arrival": 16376.0,
+          "due": 16384.0,
+          "id": 24355,
+          "released": 16380.0,
+          "state": "active"
+        },
+        {
+          "arrival": 16380.0,
+          "due": 16392.0,
+          "id": 24359,
+          "released": null,
+          "state": "finished"
+        },
+        {
+          "arrival": 16381.0,
+          "due": 16393.0,
+          "id": 24361,
+          "released": 16383.75,
+          "state": "active"
+        },
+        {
+          "arrival": 16382.0,
+          "due": 16383.0,
+          "id": 24362,
+          "released": null,
+          "state": "finished"
+        },
+        {
+          "arrival": 16382.5,
+          "due": 16388.5,
+          "id": 24363,
+          "released": 16383.125,
+          "state": "active"
+        },
+        {
+          "arrival": 16383.5,
+          "due": 16386.5,
+          "id": 24364,
+          "released": 16383.5,
+          "state": "active"
+        }
+      ],
+      "kpis": {
+        "jobs_in_system": 3.9939385611335045,
+        "lateness": -0.25470816561242093,
+        "makespan": 3.745949026534133,
+        "tardiness": 1.9422492401215805,
+        "tardy_fraction": 0.4712478435882691,
+        "throughput": 1.4868694271405887,
+        "total_queue_time": 1.049571798242011,
+        "utilization": 0.81113095965148
+      }
+    },
+    "physical_sha256": "89440f9dc326f5ec7aa24ba9a24b08b0729c68af1736c9f877555a63e6beeca3",
+    "native": {
+      "digest": "e5655449e0035fc9c0af598d30a6630fb8ff40827fecbd74c033be5d9bc2d73d",
+      "schema": "native-production-bounded-v1"
+    },
+    "proof_sha256": null,
+    "artifact_sha256": {
+      "native.json": "f42c2a00f00bc4901dff0f1642ad378a39aa0abe185bcd23c7ac39a2b8f2890f",
+      "physical.json": "89440f9dc326f5ec7aa24ba9a24b08b0729c68af1736c9f877555a63e6beeca3"
+    },
+    "trace_bytes": 56311,
+    "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-feedback-installed-yt7i78uk/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-darwin.so"
+  },
+  "repetitions": [
+    {
+      "engine": "bounded",
+      "parameters": {
+        "engine": "bounded",
+        "policy": "spt",
+        "hard_limit": 12,
+        "wip_cap": 4,
+        "burst": 3,
+        "interval": 0.5,
+        "feedback": true,
+        "record": false
+      },
+      "scenario": null,
+      "seed": 101,
+      "request": "87d3305388df91a1d2b23313ccd50e5e292d8c26f37b47813cd18d5a318615e8",
+      "attempt": "52ed588d94c679a7accd1bd46f7b6dca",
+      "fingerprint": {
+        "digest": "5c68b4954c08e2b14533d5063ede917f544eafcdaf440135570e88b6f244b8df",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.9939385611335045,
+          "shopfloor/lateness": -0.25470816561242093,
+          "shopfloor/makespan": 3.745949026534133,
+          "shopfloor/tardiness": 1.9422492401215805,
+          "shopfloor/tardy_fraction": 0.4712478435882691,
+          "shopfloor/throughput": 1.4868694271405887,
+          "shopfloor/total_queue_time": 1.049571798242011,
+          "shopfloor/utilization": 0.81113095965148
+        }
+      },
+      "physical": {
+        "controller": {
+          "blocked": 14078,
+          "burst": 3,
+          "completed": 24359,
+          "cursor": 24365,
+          "decisions_sha256": "61fb9ac30c7367cb6a5c9bd060c4c06990fa277773106e1564f4a2c98b879c72",
+          "feedback": true,
+          "hard_limit": 12,
+          "interval": 0.5,
+          "jobs_sha256": "de8a69edc3353e6d6fa984dae2b61ed84eb202bad53fee50154dc6704295076e",
+          "live": [
+            {
+              "arrival": 16376.0,
+              "due": 16384.0,
+              "id": 24355
+            },
+            {
+              "arrival": 16380.0,
+              "due": 16392.0,
+              "id": 24359
+            },
+            {
+              "arrival": 16381.0,
+              "due": 16393.0,
+              "id": 24361
+            },
+            {
+              "arrival": 16382.0,
+              "due": 16383.0,
+              "id": 24362
+            },
+            {
+              "arrival": 16382.5,
+              "due": 16388.5,
+              "id": 24363
+            },
+            {
+              "arrival": 16383.5,
+              "due": 16386.5,
+              "id": 24364
+            }
+          ],
+          "next_at": 16384.0,
+          "normal": 10602,
+          "phase": "horizon",
+          "pool_polls": 27731,
+          "relaxed": 204,
+          "schema": "feedback-controller-v1",
+          "seed": 99764467,
+          "short": 13763,
+          "tick": 32768,
+          "tight": 32564
+        },
+        "final_observed": [
+          {
+            "arrival": 16376.0,
+            "due": 16384.0,
+            "id": 24355,
+            "released": 16380.0,
+            "state": "active"
+          },
+          {
+            "arrival": 16380.0,
+            "due": 16392.0,
+            "id": 24359,
+            "released": null,
+            "state": "finished"
+          },
+          {
+            "arrival": 16381.0,
+            "due": 16393.0,
+            "id": 24361,
+            "released": 16383.75,
+            "state": "active"
+          },
+          {
+            "arrival": 16382.0,
+            "due": 16383.0,
+            "id": 24362,
+            "released": null,
+            "state": "finished"
+          },
+          {
+            "arrival": 16382.5,
+            "due": 16388.5,
+            "id": 24363,
+            "released": 16383.125,
+            "state": "active"
+          },
+          {
+            "arrival": 16383.5,
+            "due": 16386.5,
+            "id": 24364,
+            "released": 16383.5,
+            "state": "active"
+          }
+        ],
+        "kpis": {
+          "jobs_in_system": 3.9939385611335045,
+          "lateness": -0.25470816561242093,
+          "makespan": 3.745949026534133,
+          "tardiness": 1.9422492401215805,
+          "tardy_fraction": 0.4712478435882691,
+          "throughput": 1.4868694271405887,
+          "total_queue_time": 1.049571798242011,
+          "utilization": 0.81113095965148
+        }
+      },
+      "physical_sha256": "89440f9dc326f5ec7aa24ba9a24b08b0729c68af1736c9f877555a63e6beeca3",
+      "native": {
+        "digest": "e5655449e0035fc9c0af598d30a6630fb8ff40827fecbd74c033be5d9bc2d73d",
+        "schema": "native-production-bounded-v1"
+      },
+      "proof_sha256": null,
+      "artifact_sha256": {
+        "native.json": "f42c2a00f00bc4901dff0f1642ad378a39aa0abe185bcd23c7ac39a2b8f2890f",
+        "physical.json": "89440f9dc326f5ec7aa24ba9a24b08b0729c68af1736c9f877555a63e6beeca3"
+      },
+      "trace_bytes": 56311,
+      "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-feedback-installed-yt7i78uk/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-darwin.so"
+    },
+    {
+      "engine": "bounded",
+      "parameters": {
+        "engine": "bounded",
+        "policy": "spt",
+        "hard_limit": 12,
+        "wip_cap": 4,
+        "burst": 3,
+        "interval": 0.5,
+        "feedback": true,
+        "record": false
+      },
+      "scenario": null,
+      "seed": 101,
+      "request": "87d3305388df91a1d2b23313ccd50e5e292d8c26f37b47813cd18d5a318615e8",
+      "attempt": "2a9456459db0b35f805604af04ba9840",
+      "fingerprint": {
+        "digest": "5c68b4954c08e2b14533d5063ede917f544eafcdaf440135570e88b6f244b8df",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.9939385611335045,
+          "shopfloor/lateness": -0.25470816561242093,
+          "shopfloor/makespan": 3.745949026534133,
+          "shopfloor/tardiness": 1.9422492401215805,
+          "shopfloor/tardy_fraction": 0.4712478435882691,
+          "shopfloor/throughput": 1.4868694271405887,
+          "shopfloor/total_queue_time": 1.049571798242011,
+          "shopfloor/utilization": 0.81113095965148
+        }
+      },
+      "physical": {
+        "controller": {
+          "blocked": 14078,
+          "burst": 3,
+          "completed": 24359,
+          "cursor": 24365,
+          "decisions_sha256": "61fb9ac30c7367cb6a5c9bd060c4c06990fa277773106e1564f4a2c98b879c72",
+          "feedback": true,
+          "hard_limit": 12,
+          "interval": 0.5,
+          "jobs_sha256": "de8a69edc3353e6d6fa984dae2b61ed84eb202bad53fee50154dc6704295076e",
+          "live": [
+            {
+              "arrival": 16376.0,
+              "due": 16384.0,
+              "id": 24355
+            },
+            {
+              "arrival": 16380.0,
+              "due": 16392.0,
+              "id": 24359
+            },
+            {
+              "arrival": 16381.0,
+              "due": 16393.0,
+              "id": 24361
+            },
+            {
+              "arrival": 16382.0,
+              "due": 16383.0,
+              "id": 24362
+            },
+            {
+              "arrival": 16382.5,
+              "due": 16388.5,
+              "id": 24363
+            },
+            {
+              "arrival": 16383.5,
+              "due": 16386.5,
+              "id": 24364
+            }
+          ],
+          "next_at": 16384.0,
+          "normal": 10602,
+          "phase": "horizon",
+          "pool_polls": 27731,
+          "relaxed": 204,
+          "schema": "feedback-controller-v1",
+          "seed": 99764467,
+          "short": 13763,
+          "tick": 32768,
+          "tight": 32564
+        },
+        "final_observed": [
+          {
+            "arrival": 16376.0,
+            "due": 16384.0,
+            "id": 24355,
+            "released": 16380.0,
+            "state": "active"
+          },
+          {
+            "arrival": 16380.0,
+            "due": 16392.0,
+            "id": 24359,
+            "released": null,
+            "state": "finished"
+          },
+          {
+            "arrival": 16381.0,
+            "due": 16393.0,
+            "id": 24361,
+            "released": 16383.75,
+            "state": "active"
+          },
+          {
+            "arrival": 16382.0,
+            "due": 16383.0,
+            "id": 24362,
+            "released": null,
+            "state": "finished"
+          },
+          {
+            "arrival": 16382.5,
+            "due": 16388.5,
+            "id": 24363,
+            "released": 16383.125,
+            "state": "active"
+          },
+          {
+            "arrival": 16383.5,
+            "due": 16386.5,
+            "id": 24364,
+            "released": 16383.5,
+            "state": "active"
+          }
+        ],
+        "kpis": {
+          "jobs_in_system": 3.9939385611335045,
+          "lateness": -0.25470816561242093,
+          "makespan": 3.745949026534133,
+          "tardiness": 1.9422492401215805,
+          "tardy_fraction": 0.4712478435882691,
+          "throughput": 1.4868694271405887,
+          "total_queue_time": 1.049571798242011,
+          "utilization": 0.81113095965148
+        }
+      },
+      "physical_sha256": "89440f9dc326f5ec7aa24ba9a24b08b0729c68af1736c9f877555a63e6beeca3",
+      "native": {
+        "digest": "e5655449e0035fc9c0af598d30a6630fb8ff40827fecbd74c033be5d9bc2d73d",
+        "schema": "native-production-bounded-v1"
+      },
+      "proof_sha256": null,
+      "artifact_sha256": {
+        "native.json": "f42c2a00f00bc4901dff0f1642ad378a39aa0abe185bcd23c7ac39a2b8f2890f",
+        "physical.json": "89440f9dc326f5ec7aa24ba9a24b08b0729c68af1736c9f877555a63e6beeca3"
+      },
+      "trace_bytes": 56311,
+      "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-feedback-installed-yt7i78uk/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-darwin.so"
+    }
+  ],
+  "parent_checkpoints": [
+    48857088,
+    51167232,
+    51314688
+  ],
+  "store_bytes": 16789619,
+  "provider": {
+    "schema": 1,
+    "provider_api": 2,
+    "version": "0.17.0",
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "arm64",
+      "platform": "darwin",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-darwin",
+      "suffix": ".cpython-314-darwin.so"
+    },
+    "sources": {
+      "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+      "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+      "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+      "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+      "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+      "csrc/retention_module.c": "31b22b12a4d408af747bf1f42c95cb6d1c9521d6e3395634a9c4ecc08c848b45",
+      "csrc/retention_module.h": "ed561915f13057e61ecc9e0e8aef9a2a90c521a5a22655db32dcf3beb2ff326d",
+      "csrc/scalar_module.c": "4046951b79e617fa5c9460aa8483fb122d59e794c2c0439cedacf5b33eec7e86",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-darwin.so": {
+        "sha256": "8bb82fd69086d1017a931d5ae2b503949d59dab2fca074d8e1664fd7cc4971af",
+        "size": 72480
+      },
+      "simulatte_native_engine.dylib": {
+        "sha256": "b7edfa9d37f4a8d12cb096f8c59ce44f7a623240d617e3934cc79470044ff8ff",
+        "size": 53024
+      }
+    }
+  },
+  "coordinator_pid": 73201,
+  "runtime": {
+    "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+    "platform": "macOS-27.2-arm64-64bit",
+    "machine": "arm64"
+  },
+  "usage": {
+    "parent_pid": 73201,
+    "tree_peak_rss": 155582464,
+    "parent_peak_rss": 51249152,
+    "per_pid_peak_rss": {
+      "73201": 51249152,
+      "73252": 34947072,
+      "73279": 33161216,
+      "73297": 42254336,
+      "73292": 23445504,
+      "73380": 23314432,
+      "73388": 47513600,
+      "73863": 33669120,
+      "73892": 47202304,
+      "73885": 23445504,
+      "74312": 23298048,
+      "74318": 47431680
+    },
+    "max_descendants": 3,
+    "samples": 101,
+    "wall_seconds": 5.9130642090003676
+  },
+  "extra_queries": false,
+  "diagnostics": [
+    {
+      "entities": 2,
+      "expired_reads": 24361,
+      "max_callback_bytes": 892,
+      "max_owned": 12,
+      "peak_rss": 47513600,
+      "pid": 73388,
+      "storage": {
+        "admitted": 24365,
+        "calendar_capacity": 32,
+        "completed": 24361,
+        "completion_capacity": 1024,
+        "events": 336689,
+        "forgotten": 24361,
+        "job_capacity": 16,
+        "native_bytes": 6759,
+        "op_capacity": 32,
+        "retained_jobs": 4,
+        "retained_operations": 9,
+        "state_capacity": 1024
+      }
+    },
+    {
+      "entities": 2,
+      "expired_reads": 24361,
+      "max_callback_bytes": 892,
+      "max_owned": 12,
+      "peak_rss": 47136768,
+      "pid": 73892,
+      "storage": {
+        "admitted": 24365,
+        "calendar_capacity": 32,
+        "completed": 24361,
+        "completion_capacity": 1024,
+        "events": 336689,
+        "forgotten": 24361,
+        "job_capacity": 16,
+        "native_bytes": 6759,
+        "op_capacity": 32,
+        "retained_jobs": 4,
+        "retained_operations": 9,
+        "state_capacity": 1024
+      }
+    },
+    {
+      "entities": 2,
+      "expired_reads": 24361,
+      "max_callback_bytes": 892,
+      "max_owned": 12,
+      "peak_rss": 47382528,
+      "pid": 74318,
+      "storage": {
+        "admitted": 24365,
+        "calendar_capacity": 32,
+        "completed": 24361,
+        "completion_capacity": 1024,
+        "events": 336689,
+        "forgotten": 24361,
+        "job_capacity": 16,
+        "native_bytes": 6759,
+        "op_capacity": 32,
+        "retained_jobs": 4,
+        "retained_operations": 9,
+        "state_capacity": 1024
+      }
+    }
+  ]
+}

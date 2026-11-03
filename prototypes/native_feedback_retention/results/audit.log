@@ -1,0 +1,64 @@
+{
+  "passed": true,
+  "physical_scenarios": 14,
+  "physical_boundaries": 1423,
+  "proofs": 13,
+  "decision_rows": 1388,
+  "source_deleted_reproductions": 12,
+  "memory_cases": 21,
+  "preserved_base_files": 1966,
+  "deliberate_corruptions_rejected": 3,
+  "stable_summary": [
+    {
+      "ticks": 4096,
+      "full": {
+        "jobs": 3070,
+        "tree_mib": 143.828125,
+        "child_mib": 46.125,
+        "parent_mib": 44.90625,
+        "wall_seconds": 1.4203508330010663
+      },
+      "bounded": {
+        "jobs": 3070,
+        "tree_mib": 144.546875,
+        "child_mib": 45.90625,
+        "parent_mib": 45.3125,
+        "wall_seconds": 1.3980859169987525
+      }
+    },
+    {
+      "ticks": 32768,
+      "full": {
+        "jobs": 24230,
+        "tree_mib": 151.5625,
+        "child_mib": 53.4375,
+        "parent_mib": 44.921875,
+        "wall_seconds": 2.4208469160003006
+      },
+      "bounded": {
+        "jobs": 24230,
+        "tree_mib": 144.28125,
+        "child_mib": 45.78125,
+        "parent_mib": 45.5,
+        "wall_seconds": 2.4399987910001073
+      }
+    },
+    {
+      "ticks": 262144,
+      "full": {
+        "jobs": 193863,
+        "tree_mib": 217.875,
+        "child_mib": 120.765625,
+        "parent_mib": 45.5,
+        "wall_seconds": 10.613560834000964
+      },
+      "bounded": {
+        "jobs": 193863,
+        "tree_mib": 143.1875,
+        "child_mib": 45.515625,
+        "parent_mib": 44.28125,
+        "wall_seconds": 11.033778666998842
+      }
+    }
+  ]
+}
