@@ -9,15 +9,16 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import re
 from typing import TYPE_CHECKING, ClassVar
 from types import MappingProxyType
 
-from simulatte.events import Deltas
+from simulatte.events import Deltas, KpiSample
 from simulatte.kpi import Collector, KPI
 from simulatte.stopping import Horizon
 from .backend_events import BackendState, BackendStateCaptured
+from .observation import BackendObservation
 
 if TYPE_CHECKING:
     from simulatte.environment import Environment
@@ -28,8 +29,11 @@ if TYPE_CHECKING:
 class BackendCapabilities:
     name: str
     state_schema: str
+    experimental: bool = False
 
     def __post_init__(self):
+        if type(self.experimental) is not bool:
+            raise ValueError("Backend experimental flag must be boolean")
         for value in (self.name, self.state_schema):
             if type(value) is not str or re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}", value) is None:
                 raise ValueError("Backend name and state schema must be bounded identifiers")
@@ -42,6 +46,7 @@ class BackendCapabilities:
             "trace_levels": ["kpi"],
             "stopping": ["horizon"],
             "state_projection": "opaque_digest",
+            **({"experimental": True} if self.experimental else {}),
         }
 
 
@@ -64,6 +69,7 @@ class ExecutionBackend(ABC):
     capabilities: BackendCapabilities
     _simulatte_backend_claimed: bool = False
     kpis: ClassVar[tuple[KPI, ...]] = ()
+    observation: BackendObservation | None = None
 
     @abstractmethod
     def prepare(self, context: BackendContext) -> None: ...
@@ -102,14 +108,39 @@ class BackendBinding:
         self.closed = self.finished = False
         self._values = None
         self.scope = BackendState(env, context.scope, backend.capabilities)
+        self.observation = backend.observation
+        self._collector = None
 
     def prepare(self):
         self.backend.prepare(self.context)
         if self.closed or self.env._closed:
             raise RuntimeError("Backend closed during preparation")
-        collector = type("BackendKPIs", (_BackendKPIs,), {"kpis": self.backend.kpis})
-        collector(self.scope, self).attach(self.env)
+        declarations = tuple(
+            replace(kpi, kind=(*kpi.kind, "series")) if self.observation and "series" not in kpi.kind else kpi
+            for kpi in self.backend.kpis
+        )
+        collector = type("BackendKPIs", (_BackendKPIs,), {"kpis": declarations})
+        self._collector = collector(self.scope, self).attach(self.env)
         self.env.on_activate(self.activate)
+
+    def description(self):
+        return self.capabilities.to_dict() | (
+            {"observation": self.observation.to_dict(self.context.stopping)} if self.observation else {}
+        )
+
+    def observation_times(self):
+        if self.observation is not None and self.env.wants(KpiSample):
+            return self.observation.times(self.context.stopping)
+        return ()
+
+    def observe(self):
+        if self.closed or self.finished:
+            raise RuntimeError("Backend is closed or finalized")
+        assert self._collector is not None
+        values = self.backend.kpi_values()
+        for kpi in self.backend.kpis:
+            value = values.get(kpi.name)
+            self._collector.sample(kpi.name, float("nan") if value is None else value)
 
     def activate(self):
         self.validate_stopping(self.context.stopping)
@@ -177,6 +208,8 @@ def bind_backend(env, backend, scope):
         raise TypeError("Expected an ExecutionBackend with BackendCapabilities")
     if backend._simulatte_backend_claimed:
         raise RuntimeError("Backend instances are single-use and cannot share environments")
+    if backend.observation is not None and type(backend.observation) is not BackendObservation:
+        raise TypeError("Expected a validated backend observation configuration")
     if env._closed or env._activation_started or env._execution_backend is not None:
         raise RuntimeError("Backend registration requires a fresh open environment")
     if type(env._execution_policy) is not Horizon:
@@ -186,7 +219,7 @@ def bind_backend(env, backend, scope):
     if env.layout is not None and env.layout.to_dict() != {"schema_version": "1.0"}:
         raise ValueError("unsupported backend layout")
     if any(recorder._level != "kpi" for recorder in env._recorders):
-        raise ValueError("unsupported full tracing for scalar backend")
+        raise ValueError("unsupported full tracing for scalar backend; select KPI level (Studio: --level kpi)")
     if env.warmup != env._execution_policy.warmup:
         raise ValueError("unsupported backend warm-up mismatch")
     context = BackendContext(env, env._execution_policy, scope, MappingProxyType(dict(env._native_assets)))

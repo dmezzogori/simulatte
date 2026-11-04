@@ -18,8 +18,9 @@ from typing import Any
 from simulatte._wire import canonical_pack, freeze, FrozenMap
 from simulatte.collectors import ShopFloorKPIs
 from simulatte.execution.backend import BackendCapabilities, BackendContext, ExecutionBackend
+from simulatte.execution.observation import BackendObservation as NativeObservation
 
-__all__ = ["Job", "JobHandle", "ExpiredHandleError", "NativeStream", "NativeProduction"]
+__all__ = ["Job", "JobHandle", "ExpiredHandleError", "NativeStream", "NativeProduction", "NativeObservation"]
 
 
 def _number(value: float, name: str) -> float:
@@ -334,9 +335,11 @@ class NativeProduction(ExecutionBackend):
     Python inputs/controller state. Fixed jobs are copied and registered eagerly.
     Bounded retention reclaims completed native execution data; lazy input is
     required to bound the whole workload. Full retention remains the default.
+    ``observation=NativeObservation(...)`` emits bounded KPI snapshot series for
+    Studio at managed boundaries; omission keeps final scalars only.
     """
 
-    capabilities = BackendCapabilities("native-production", "native-production-v1")
+    capabilities = BackendCapabilities("native-production", "native-production-v1", experimental=True)
     kpis = ShopFloorKPIs.kpis
 
     def __init__(
@@ -349,14 +352,18 @@ class NativeProduction(ExecutionBackend):
         policy: str = "spt",
         input_state: Callable[[], Any] | None = None,
         retention: str = "full",
+        observation: NativeObservation | None = None,
     ):
         _configuration(servers, wip_cap, policy)
         self._capacities = _capacities(servers, capacities)
         self._retention = _retention(retention)
         schema = "native-production" + ("-capacity" if any(n != 1 for n in self.capacities) else "")
         self.capabilities = BackendCapabilities(
-            "native-production", schema + ("-bounded-v1" if retention == "bounded" else "-v1")
+            "native-production", schema + ("-bounded-v1" if retention == "bounded" else "-v1"), experimental=True
         )
+        if observation is not None and type(observation) is not NativeObservation:
+            raise TypeError("observation must be a NativeObservation configuration")
+        self.observation = observation
         self.servers, self.wip_cap, self.policy = servers, wip_cap, policy
         self._jobs = tuple(jobs)
         if any(type(job) is not Job for job in self._jobs):
@@ -479,7 +486,8 @@ class NativeProduction(ExecutionBackend):
                 schema="native-production-projection-v1",
                 trajectory=value["trajectory"],
                 reporting=dict(
-                    configuration=self._context.stopping.to_dict(),
+                    configuration=self._context.stopping.to_dict()
+                    | ({"observation": self.observation.to_dict(self._context.stopping)} if self.observation else {}),
                     catalog=[
                         dict(name=k.name, unit=k.unit, observation=k.observation, aggregation=k.aggregation)
                         for k in self.kpis

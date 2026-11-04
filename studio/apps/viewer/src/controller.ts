@@ -1,4 +1,5 @@
 import { inspectValue, clearInspection } from "./value-inspector";
+import {backendObservation} from './backend-observation';
 import { createDockview, themeLight, type DockviewApi } from "dockview";
 import uPlot from "uplot";
 import {
@@ -337,9 +338,10 @@ export class Controller {
       this.timeline.min = String(range?.[0] ?? 0);
       this.timeline.max = String(range?.[1] ?? 1);
       this.timeline.step = "any";
+      const backend = backendObservation(recording.trace.execution);
       this.onInfo?.(
         name,
-        `${recording.trace.level} trace · ${recording.trace.outcome ?? "incomplete"} · ${recording.trace.layout?.schema_version === "1.0" ? "recorded layout" : "viewer fallback layout"}${recording.trace.level === "kpi" ? " · KPI-only: no entity animation or event stepping" : ""}`,
+        `${recording.trace.level} trace · ${recording.trace.outcome ?? "incomplete"} · ${recording.trace.layout?.schema_version === "1.0" ? "recorded layout" : "viewer fallback layout"}${recording.trace.level === "kpi" ? " · KPI-only: no entity animation or event stepping" : ""}${backend ? ' · ' + backend : ''}`,
       );
       await this.charts();
       this.#after = undefined;
@@ -433,7 +435,8 @@ export class Controller {
         const range = state.recording.finiteRange;
         this.timeline.disabled = !range; this.timeline.min = String(range?.[0] ?? 0);
         this.timeline.max = String(range?.[1] ?? 1); this.timeline.step = 'any';
-        this.onInfo?.(name, `${state.recording.trace.level} trace · live committed prefix ${state.generation}`);
+        const backend = backendObservation(state.recording.trace.execution);
+        this.onInfo?.(name, `${state.recording.trace.level} trace · live committed prefix ${state.generation}${state.recording.trace.level === 'kpi' ? ' · KPI-only: no entity animation or event stepping' : ''}${backend ? ' · ' + backend : ''}`);
         this.#after = undefined;
         void this.charts().then(() => {if (this.#frame) this.updateKpis(this.#frame);}).catch(error => this.onError?.(String(error)));
         void this.history();

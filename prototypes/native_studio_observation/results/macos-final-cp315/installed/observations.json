@@ -1,0 +1,614 @@
+{
+  "rows": [
+    {
+      "configuration": 0,
+      "parameters": {
+        "retention": "full",
+        "policy": "fifo",
+        "dynamic": false,
+        "observation": "off"
+      },
+      "request": "00142c87e54e59cc977cc0b7dd3a9f76d0ba35f4e59013c1345736a350265e91",
+      "attempt": "74ade663b10aec956ca21bea060d8c99",
+      "fingerprint": {
+        "digest": "ca2938fd90593b916ea9b43704282cef55322f94031412eab586627ed9852939",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.0197368421052633,
+          "shopfloor/lateness": 3.953488372093023,
+          "shopfloor/makespan": 5.895348837209302,
+          "shopfloor/tardiness": 4.244186046511628,
+          "shopfloor/tardy_fraction": 0.8604651162790697,
+          "shopfloor/throughput": 1.131578947368421,
+          "shopfloor/total_queue_time": 0.7209302325581395,
+          "shopfloor/utilization": 0.20504385964912283
+        }
+      },
+      "samples_per_kpi": 0
+    },
+    {
+      "configuration": 1,
+      "parameters": {
+        "retention": "full",
+        "policy": "fifo",
+        "dynamic": false,
+        "observation": "fine"
+      },
+      "request": "38055a891306d1bc1c5bba96364b487e4066f11bc957a04821f129b09045b51a",
+      "attempt": "715f7be8dcf6f7799cf122f89bd89b8c",
+      "fingerprint": {
+        "digest": "ca2938fd90593b916ea9b43704282cef55322f94031412eab586627ed9852939",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.0197368421052633,
+          "shopfloor/lateness": 3.953488372093023,
+          "shopfloor/makespan": 5.895348837209302,
+          "shopfloor/tardiness": 4.244186046511628,
+          "shopfloor/tardy_fraction": 0.8604651162790697,
+          "shopfloor/throughput": 1.131578947368421,
+          "shopfloor/total_queue_time": 0.7209302325581395,
+          "shopfloor/utilization": 0.20504385964912283
+        }
+      },
+      "samples_per_kpi": 153
+    },
+    {
+      "configuration": 2,
+      "parameters": {
+        "retention": "full",
+        "policy": "fifo",
+        "dynamic": false,
+        "observation": "budgeted"
+      },
+      "request": "a717153c0aaa1349397ade4772e37bbad58521652f1c5787aa2c40a4c2b64e84",
+      "attempt": "59a1ea68f948a4dfd62c550661dd668c",
+      "fingerprint": {
+        "digest": "ca2938fd90593b916ea9b43704282cef55322f94031412eab586627ed9852939",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.0197368421052633,
+          "shopfloor/lateness": 3.953488372093023,
+          "shopfloor/makespan": 5.895348837209302,
+          "shopfloor/tardiness": 4.244186046511628,
+          "shopfloor/tardy_fraction": 0.8604651162790697,
+          "shopfloor/throughput": 1.131578947368421,
+          "shopfloor/total_queue_time": 0.7209302325581395,
+          "shopfloor/utilization": 0.20504385964912283
+        }
+      },
+      "samples_per_kpi": 17
+    },
+    {
+      "configuration": 3,
+      "parameters": {
+        "retention": "full",
+        "policy": "fifo",
+        "dynamic": true,
+        "observation": "off"
+      },
+      "request": "201e4a431d7c62ca9740a4d6a4619021ca92c1aad6fc4d38d63c1dba53809d85",
+      "attempt": "e55aa79d52c698f78e969a8bad166788",
+      "fingerprint": {
+        "digest": "733171640e296db0fa43a7d3c59e95efb5a51e86ab4b84f6374c46ad008d49d6",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.0197368421052633,
+          "shopfloor/lateness": 3.953488372093023,
+          "shopfloor/makespan": 5.895348837209302,
+          "shopfloor/tardiness": 4.244186046511628,
+          "shopfloor/tardy_fraction": 0.8604651162790697,
+          "shopfloor/throughput": 1.131578947368421,
+          "shopfloor/total_queue_time": 0.7209302325581395,
+          "shopfloor/utilization": 0.20504385964912283
+        }
+      },
+      "samples_per_kpi": 0
+    },
+    {
+      "configuration": 4,
+      "parameters": {
+        "retention": "full",
+        "policy": "fifo",
+        "dynamic": true,
+        "observation": "fine"
+      },
+      "request": "69d8c6437a23b66c0db535aef6a5ba4ed159bb11463fd52e0b01265a714949a3",
+      "attempt": "19300783db4ccf665b543c532e78346f",
+      "fingerprint": {
+        "digest": "733171640e296db0fa43a7d3c59e95efb5a51e86ab4b84f6374c46ad008d49d6",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.0197368421052633,
+          "shopfloor/lateness": 3.953488372093023,
+          "shopfloor/makespan": 5.895348837209302,
+          "shopfloor/tardiness": 4.244186046511628,
+          "shopfloor/tardy_fraction": 0.8604651162790697,
+          "shopfloor/throughput": 1.131578947368421,
+          "shopfloor/total_queue_time": 0.7209302325581395,
+          "shopfloor/utilization": 0.20504385964912283
+        }
+      },
+      "samples_per_kpi": 153
+    },
+    {
+      "configuration": 5,
+      "parameters": {
+        "retention": "full",
+        "policy": "fifo",
+        "dynamic": true,
+        "observation": "budgeted"
+      },
+      "request": "40a415917c7101693c51ffb871df29dbe742e33024c094c4d4743e8657e5af13",
+      "attempt": "e9d29c45367c951123de7d067ec9b244",
+      "fingerprint": {
+        "digest": "733171640e296db0fa43a7d3c59e95efb5a51e86ab4b84f6374c46ad008d49d6",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.0197368421052633,
+          "shopfloor/lateness": 3.953488372093023,
+          "shopfloor/makespan": 5.895348837209302,
+          "shopfloor/tardiness": 4.244186046511628,
+          "shopfloor/tardy_fraction": 0.8604651162790697,
+          "shopfloor/throughput": 1.131578947368421,
+          "shopfloor/total_queue_time": 0.7209302325581395,
+          "shopfloor/utilization": 0.20504385964912283
+        }
+      },
+      "samples_per_kpi": 17
+    },
+    {
+      "configuration": 6,
+      "parameters": {
+        "retention": "full",
+        "policy": "spt",
+        "dynamic": false,
+        "observation": "off"
+      },
+      "request": "c65f2ade904e4783890076fedef3b29a424df7ac1fa76c46fe9ccf8feca25d55",
+      "attempt": "96d530a397c9fe05d1b921489ff7fdf5",
+      "fingerprint": {
+        "digest": "91c079c7a69845f74f8862c3d218dd37c513890c3b0da95e3277d32703b66d03",
+        "kpis": {
+          "shopfloor/jobs_in_system": 1.986842105263158,
+          "shopfloor/lateness": 3.477272727272727,
+          "shopfloor/makespan": 5.443181818181818,
+          "shopfloor/tardiness": 3.897727272727273,
+          "shopfloor/tardy_fraction": 0.8181818181818182,
+          "shopfloor/throughput": 1.1578947368421053,
+          "shopfloor/total_queue_time": 0.6818181818181818,
+          "shopfloor/utilization": 0.20394736842105263
+        }
+      },
+      "samples_per_kpi": 0
+    },
+    {
+      "configuration": 7,
+      "parameters": {
+        "retention": "full",
+        "policy": "spt",
+        "dynamic": false,
+        "observation": "fine"
+      },
+      "request": "32560fa1374ffe3f8ba2e64a16d5d70e06071de84750c9ca06f524d8ee8b5060",
+      "attempt": "efde909ee98a01a4ef9de531c233796c",
+      "fingerprint": {
+        "digest": "91c079c7a69845f74f8862c3d218dd37c513890c3b0da95e3277d32703b66d03",
+        "kpis": {
+          "shopfloor/jobs_in_system": 1.986842105263158,
+          "shopfloor/lateness": 3.477272727272727,
+          "shopfloor/makespan": 5.443181818181818,
+          "shopfloor/tardiness": 3.897727272727273,
+          "shopfloor/tardy_fraction": 0.8181818181818182,
+          "shopfloor/throughput": 1.1578947368421053,
+          "shopfloor/total_queue_time": 0.6818181818181818,
+          "shopfloor/utilization": 0.20394736842105263
+        }
+      },
+      "samples_per_kpi": 153
+    },
+    {
+      "configuration": 8,
+      "parameters": {
+        "retention": "full",
+        "policy": "spt",
+        "dynamic": false,
+        "observation": "budgeted"
+      },
+      "request": "cf61a631bae382cda26007a0d9ba54cea3cc574edec3760ae94f56f630fa2687",
+      "attempt": "c89783f6decafa878cff6f4faf453ef1",
+      "fingerprint": {
+        "digest": "91c079c7a69845f74f8862c3d218dd37c513890c3b0da95e3277d32703b66d03",
+        "kpis": {
+          "shopfloor/jobs_in_system": 1.986842105263158,
+          "shopfloor/lateness": 3.477272727272727,
+          "shopfloor/makespan": 5.443181818181818,
+          "shopfloor/tardiness": 3.897727272727273,
+          "shopfloor/tardy_fraction": 0.8181818181818182,
+          "shopfloor/throughput": 1.1578947368421053,
+          "shopfloor/total_queue_time": 0.6818181818181818,
+          "shopfloor/utilization": 0.20394736842105263
+        }
+      },
+      "samples_per_kpi": 17
+    },
+    {
+      "configuration": 9,
+      "parameters": {
+        "retention": "full",
+        "policy": "spt",
+        "dynamic": true,
+        "observation": "off"
+      },
+      "request": "99fd0acb844b100c7b7c247f6c78b07e3426983697a3fbedb959f3b16a17d0a6",
+      "attempt": "e6625cbe51df00343b3c8412e105f12d",
+      "fingerprint": {
+        "digest": "ec59c9a8d2d97da4f2a269de622646173e53804a73d769b244ea3044088b5843",
+        "kpis": {
+          "shopfloor/jobs_in_system": 1.986842105263158,
+          "shopfloor/lateness": 3.477272727272727,
+          "shopfloor/makespan": 5.443181818181818,
+          "shopfloor/tardiness": 3.897727272727273,
+          "shopfloor/tardy_fraction": 0.8181818181818182,
+          "shopfloor/throughput": 1.1578947368421053,
+          "shopfloor/total_queue_time": 0.6818181818181818,
+          "shopfloor/utilization": 0.20394736842105263
+        }
+      },
+      "samples_per_kpi": 0
+    },
+    {
+      "configuration": 10,
+      "parameters": {
+        "retention": "full",
+        "policy": "spt",
+        "dynamic": true,
+        "observation": "fine"
+      },
+      "request": "b4838c9edca2d17ac8fcbef5831b8fd053764da26b8434ef454598b7b5ca9138",
+      "attempt": "64f0e14cfc9729919a125410ecfbf5c7",
+      "fingerprint": {
+        "digest": "ec59c9a8d2d97da4f2a269de622646173e53804a73d769b244ea3044088b5843",
+        "kpis": {
+          "shopfloor/jobs_in_system": 1.986842105263158,
+          "shopfloor/lateness": 3.477272727272727,
+          "shopfloor/makespan": 5.443181818181818,
+          "shopfloor/tardiness": 3.897727272727273,
+          "shopfloor/tardy_fraction": 0.8181818181818182,
+          "shopfloor/throughput": 1.1578947368421053,
+          "shopfloor/total_queue_time": 0.6818181818181818,
+          "shopfloor/utilization": 0.20394736842105263
+        }
+      },
+      "samples_per_kpi": 153
+    },
+    {
+      "configuration": 11,
+      "parameters": {
+        "retention": "full",
+        "policy": "spt",
+        "dynamic": true,
+        "observation": "budgeted"
+      },
+      "request": "95e0d30b81095d04d9471388ebd4f8382e3c276078b09b157819f7bb085bd2d6",
+      "attempt": "392712966983a69918b3489a7afce7b5",
+      "fingerprint": {
+        "digest": "ec59c9a8d2d97da4f2a269de622646173e53804a73d769b244ea3044088b5843",
+        "kpis": {
+          "shopfloor/jobs_in_system": 1.986842105263158,
+          "shopfloor/lateness": 3.477272727272727,
+          "shopfloor/makespan": 5.443181818181818,
+          "shopfloor/tardiness": 3.897727272727273,
+          "shopfloor/tardy_fraction": 0.8181818181818182,
+          "shopfloor/throughput": 1.1578947368421053,
+          "shopfloor/total_queue_time": 0.6818181818181818,
+          "shopfloor/utilization": 0.20394736842105263
+        }
+      },
+      "samples_per_kpi": 17
+    },
+    {
+      "configuration": 12,
+      "parameters": {
+        "retention": "bounded",
+        "policy": "fifo",
+        "dynamic": false,
+        "observation": "off"
+      },
+      "request": "543beb69ee9fadbd7d3e3514e9acd172732cc8b9e49b52decf581558926464f3",
+      "attempt": "416d2ff64716a8e832bb4a97d2442524",
+      "fingerprint": {
+        "digest": "1004be869f9fb20f2a1fb27788c626871ebd2a93f00a13f9f9b4aeed4442458a",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.0197368421052633,
+          "shopfloor/lateness": 3.953488372093023,
+          "shopfloor/makespan": 5.895348837209302,
+          "shopfloor/tardiness": 4.244186046511628,
+          "shopfloor/tardy_fraction": 0.8604651162790697,
+          "shopfloor/throughput": 1.131578947368421,
+          "shopfloor/total_queue_time": 0.7209302325581395,
+          "shopfloor/utilization": 0.20504385964912283
+        }
+      },
+      "samples_per_kpi": 0
+    },
+    {
+      "configuration": 13,
+      "parameters": {
+        "retention": "bounded",
+        "policy": "fifo",
+        "dynamic": false,
+        "observation": "fine"
+      },
+      "request": "302e92039ba46a9a35863a780c728f25bf695c11d3ae1c62834407e8ae6a2f1f",
+      "attempt": "e4f1393fa02fedcef8e062791524ce80",
+      "fingerprint": {
+        "digest": "1004be869f9fb20f2a1fb27788c626871ebd2a93f00a13f9f9b4aeed4442458a",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.0197368421052633,
+          "shopfloor/lateness": 3.953488372093023,
+          "shopfloor/makespan": 5.895348837209302,
+          "shopfloor/tardiness": 4.244186046511628,
+          "shopfloor/tardy_fraction": 0.8604651162790697,
+          "shopfloor/throughput": 1.131578947368421,
+          "shopfloor/total_queue_time": 0.7209302325581395,
+          "shopfloor/utilization": 0.20504385964912283
+        }
+      },
+      "samples_per_kpi": 153
+    },
+    {
+      "configuration": 14,
+      "parameters": {
+        "retention": "bounded",
+        "policy": "fifo",
+        "dynamic": false,
+        "observation": "budgeted"
+      },
+      "request": "d567f466263e28115caec051c20a96ee776281226995fe1425e244701c5bb4e4",
+      "attempt": "1cb054222f3d5770470b7d292ce24ecd",
+      "fingerprint": {
+        "digest": "1004be869f9fb20f2a1fb27788c626871ebd2a93f00a13f9f9b4aeed4442458a",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.0197368421052633,
+          "shopfloor/lateness": 3.953488372093023,
+          "shopfloor/makespan": 5.895348837209302,
+          "shopfloor/tardiness": 4.244186046511628,
+          "shopfloor/tardy_fraction": 0.8604651162790697,
+          "shopfloor/throughput": 1.131578947368421,
+          "shopfloor/total_queue_time": 0.7209302325581395,
+          "shopfloor/utilization": 0.20504385964912283
+        }
+      },
+      "samples_per_kpi": 17
+    },
+    {
+      "configuration": 15,
+      "parameters": {
+        "retention": "bounded",
+        "policy": "fifo",
+        "dynamic": true,
+        "observation": "off"
+      },
+      "request": "3fbe0317779d1adcad40f72bc267d820f9152034607cbb06b4dd0e6dfd3e2438",
+      "attempt": "63540248c1847eb34ece396363a0f4fd",
+      "fingerprint": {
+        "digest": "1ae20018f3174da669305b2fe154b54fb2c6f5586d9b3183e7d3cf062b2d844f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.0197368421052633,
+          "shopfloor/lateness": 3.953488372093023,
+          "shopfloor/makespan": 5.895348837209302,
+          "shopfloor/tardiness": 4.244186046511628,
+          "shopfloor/tardy_fraction": 0.8604651162790697,
+          "shopfloor/throughput": 1.131578947368421,
+          "shopfloor/total_queue_time": 0.7209302325581395,
+          "shopfloor/utilization": 0.20504385964912283
+        }
+      },
+      "samples_per_kpi": 0
+    },
+    {
+      "configuration": 16,
+      "parameters": {
+        "retention": "bounded",
+        "policy": "fifo",
+        "dynamic": true,
+        "observation": "fine"
+      },
+      "request": "6a380f9f583d055c6b9e16797068272da577c6d1c0c07856fd3427e14493c7a6",
+      "attempt": "63c81fa9e1ebed0f2739d79722ac38cc",
+      "fingerprint": {
+        "digest": "1ae20018f3174da669305b2fe154b54fb2c6f5586d9b3183e7d3cf062b2d844f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.0197368421052633,
+          "shopfloor/lateness": 3.953488372093023,
+          "shopfloor/makespan": 5.895348837209302,
+          "shopfloor/tardiness": 4.244186046511628,
+          "shopfloor/tardy_fraction": 0.8604651162790697,
+          "shopfloor/throughput": 1.131578947368421,
+          "shopfloor/total_queue_time": 0.7209302325581395,
+          "shopfloor/utilization": 0.20504385964912283
+        }
+      },
+      "samples_per_kpi": 153
+    },
+    {
+      "configuration": 17,
+      "parameters": {
+        "retention": "bounded",
+        "policy": "fifo",
+        "dynamic": true,
+        "observation": "budgeted"
+      },
+      "request": "f9112ddf954ee7e62fe5acfc4027f631e61cede092e5b06020693db48369e93b",
+      "attempt": "4bc2664b78f899d2d0c31dbd223600bc",
+      "fingerprint": {
+        "digest": "1ae20018f3174da669305b2fe154b54fb2c6f5586d9b3183e7d3cf062b2d844f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.0197368421052633,
+          "shopfloor/lateness": 3.953488372093023,
+          "shopfloor/makespan": 5.895348837209302,
+          "shopfloor/tardiness": 4.244186046511628,
+          "shopfloor/tardy_fraction": 0.8604651162790697,
+          "shopfloor/throughput": 1.131578947368421,
+          "shopfloor/total_queue_time": 0.7209302325581395,
+          "shopfloor/utilization": 0.20504385964912283
+        }
+      },
+      "samples_per_kpi": 17
+    },
+    {
+      "configuration": 18,
+      "parameters": {
+        "retention": "bounded",
+        "policy": "spt",
+        "dynamic": false,
+        "observation": "off"
+      },
+      "request": "08bca8c5d77533f1c2673ba77fd0df8c34f0d8551bb6f3e466ccab040ffc72f6",
+      "attempt": "5de25ceba5a02fd51fe4193c312d6e71",
+      "fingerprint": {
+        "digest": "2727c80f40e2945f1a4a8fe59bd406d5d0b5b5d6f806dd456eb236751dad3df1",
+        "kpis": {
+          "shopfloor/jobs_in_system": 1.986842105263158,
+          "shopfloor/lateness": 3.477272727272727,
+          "shopfloor/makespan": 5.443181818181818,
+          "shopfloor/tardiness": 3.897727272727273,
+          "shopfloor/tardy_fraction": 0.8181818181818182,
+          "shopfloor/throughput": 1.1578947368421053,
+          "shopfloor/total_queue_time": 0.6818181818181818,
+          "shopfloor/utilization": 0.20394736842105263
+        }
+      },
+      "samples_per_kpi": 0
+    },
+    {
+      "configuration": 19,
+      "parameters": {
+        "retention": "bounded",
+        "policy": "spt",
+        "dynamic": false,
+        "observation": "fine"
+      },
+      "request": "29cbf12670664389c318b0ec75d02e28cecef9b864c519d485e3045eaff50fcd",
+      "attempt": "5f8bde1a44d946f6cbae697cc75998bd",
+      "fingerprint": {
+        "digest": "2727c80f40e2945f1a4a8fe59bd406d5d0b5b5d6f806dd456eb236751dad3df1",
+        "kpis": {
+          "shopfloor/jobs_in_system": 1.986842105263158,
+          "shopfloor/lateness": 3.477272727272727,
+          "shopfloor/makespan": 5.443181818181818,
+          "shopfloor/tardiness": 3.897727272727273,
+          "shopfloor/tardy_fraction": 0.8181818181818182,
+          "shopfloor/throughput": 1.1578947368421053,
+          "shopfloor/total_queue_time": 0.6818181818181818,
+          "shopfloor/utilization": 0.20394736842105263
+        }
+      },
+      "samples_per_kpi": 153
+    },
+    {
+      "configuration": 20,
+      "parameters": {
+        "retention": "bounded",
+        "policy": "spt",
+        "dynamic": false,
+        "observation": "budgeted"
+      },
+      "request": "f48510357e3ae42e9fcc61c064a7a44ebeec5830f929d65ce1cab6fff7af2583",
+      "attempt": "5c5a82ddf52ac12849da568691c615a4",
+      "fingerprint": {
+        "digest": "2727c80f40e2945f1a4a8fe59bd406d5d0b5b5d6f806dd456eb236751dad3df1",
+        "kpis": {
+          "shopfloor/jobs_in_system": 1.986842105263158,
+          "shopfloor/lateness": 3.477272727272727,
+          "shopfloor/makespan": 5.443181818181818,
+          "shopfloor/tardiness": 3.897727272727273,
+          "shopfloor/tardy_fraction": 0.8181818181818182,
+          "shopfloor/throughput": 1.1578947368421053,
+          "shopfloor/total_queue_time": 0.6818181818181818,
+          "shopfloor/utilization": 0.20394736842105263
+        }
+      },
+      "samples_per_kpi": 17
+    },
+    {
+      "configuration": 21,
+      "parameters": {
+        "retention": "bounded",
+        "policy": "spt",
+        "dynamic": true,
+        "observation": "off"
+      },
+      "request": "36536ff42cba62105f2a5fe1a27b895029323be5efd9ba655a18c70395eb15f5",
+      "attempt": "5ef034a67c9732d80aa32b9ba5b0057e",
+      "fingerprint": {
+        "digest": "35a1bd21b40823c314a0ddf7a336fc577ca616792f810becb35a7d2b138e1ba2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 1.986842105263158,
+          "shopfloor/lateness": 3.477272727272727,
+          "shopfloor/makespan": 5.443181818181818,
+          "shopfloor/tardiness": 3.897727272727273,
+          "shopfloor/tardy_fraction": 0.8181818181818182,
+          "shopfloor/throughput": 1.1578947368421053,
+          "shopfloor/total_queue_time": 0.6818181818181818,
+          "shopfloor/utilization": 0.20394736842105263
+        }
+      },
+      "samples_per_kpi": 0
+    },
+    {
+      "configuration": 22,
+      "parameters": {
+        "retention": "bounded",
+        "policy": "spt",
+        "dynamic": true,
+        "observation": "fine"
+      },
+      "request": "d3764f86d7c2a9420d109990c475b6f4be4a540d1324566d8395343f0b7a8340",
+      "attempt": "433feb5af70bed56a08bcb13bfe4c7ff",
+      "fingerprint": {
+        "digest": "35a1bd21b40823c314a0ddf7a336fc577ca616792f810becb35a7d2b138e1ba2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 1.986842105263158,
+          "shopfloor/lateness": 3.477272727272727,
+          "shopfloor/makespan": 5.443181818181818,
+          "shopfloor/tardiness": 3.897727272727273,
+          "shopfloor/tardy_fraction": 0.8181818181818182,
+          "shopfloor/throughput": 1.1578947368421053,
+          "shopfloor/total_queue_time": 0.6818181818181818,
+          "shopfloor/utilization": 0.20394736842105263
+        }
+      },
+      "samples_per_kpi": 153
+    },
+    {
+      "configuration": 23,
+      "parameters": {
+        "retention": "bounded",
+        "policy": "spt",
+        "dynamic": true,
+        "observation": "budgeted"
+      },
+      "request": "f54679c67924ee1af06640f0c20225a838982133b8d01750f7645eb07ee3cfb3",
+      "attempt": "60f6c0eef730a1618cc8680b3fadd805",
+      "fingerprint": {
+        "digest": "35a1bd21b40823c314a0ddf7a336fc577ca616792f810becb35a7d2b138e1ba2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 1.986842105263158,
+          "shopfloor/lateness": 3.477272727272727,
+          "shopfloor/makespan": 5.443181818181818,
+          "shopfloor/tardiness": 3.897727272727273,
+          "shopfloor/tardy_fraction": 0.8181818181818182,
+          "shopfloor/throughput": 1.1578947368421053,
+          "shopfloor/total_queue_time": 0.6818181818181818,
+          "shopfloor/utilization": 0.20394736842105263
+        }
+      },
+      "samples_per_kpi": 17
+    }
+  ],
+  "source_deleted_reproductions": [
+    "a717153c0aaa1349397ade4772e37bbad58521652f1c5787aa2c40a4c2b64e84",
+    "40a415917c7101693c51ffb871df29dbe742e33024c094c4d4743e8657e5af13",
+    "cf61a631bae382cda26007a0d9ba54cea3cc574edec3760ae94f56f630fa2687",
+    "95e0d30b81095d04d9471388ebd4f8382e3c276078b09b157819f7bb085bd2d6",
+    "d567f466263e28115caec051c20a96ee776281226995fe1425e244701c5bb4e4",
+    "f9112ddf954ee7e62fe5acfc4027f631e61cede092e5b06020693db48369e93b",
+    "f48510357e3ae42e9fcc61c064a7a44ebeec5830f929d65ce1cab6fff7af2583",
+    "f54679c67924ee1af06640f0c20225a838982133b8d01750f7645eb07ee3cfb3"
+  ]
+}

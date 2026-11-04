@@ -1,0 +1,40 @@
+{
+  "passed": true,
+  "rows": [
+    {
+      "request": "a4c81488041a51c3ba67d2e26e9f5f0613a92e083cac078ded3e0b7b6daf1f2d",
+      "fingerprint": {
+        "digest": "b726a6cc2df60fbd0353e3e06ef64b09c90ee0e7f43138ffe47c902d35040748",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.3355555555555556,
+          "shopfloor/lateness": -9.901296111665005,
+          "shopfloor/makespan": 2.098703888334995,
+          "shopfloor/tardiness": 0.001744765702891326,
+          "shopfloor/tardy_fraction": 0.0029910269192422734,
+          "shopfloor/throughput": 1.1144444444444443,
+          "shopfloor/total_queue_time": 0.7265702891326022,
+          "shopfloor/utilization": 0.30544444444444446
+        }
+      },
+      "points": 91
+    },
+    {
+      "request": "2cae6c22765c87bccc42cf1d68b318f07d06d3de4f4ce614bcb410f60ee5dd9e",
+      "fingerprint": {
+        "digest": "31d16ef97599daa53285b9615eeca77c43ee1c72054fa308bf6908edb19033dc",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.3355555555555556,
+          "shopfloor/lateness": -9.901296111665005,
+          "shopfloor/makespan": 2.098703888334995,
+          "shopfloor/tardiness": 0.001744765702891326,
+          "shopfloor/tardy_fraction": 0.0029910269192422734,
+          "shopfloor/throughput": 1.1144444444444443,
+          "shopfloor/total_queue_time": 0.7265702891326022,
+          "shopfloor/utilization": 0.30544444444444446
+        }
+      },
+      "points": 17
+    }
+  ],
+  "source_deleted_reproductions": 2
+}

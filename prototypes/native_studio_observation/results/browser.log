@@ -1,0 +1,91 @@
+[WebServer] (node:12901) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+[WebServer] (node:12902) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+Running 69 tests using 1 worker
+
+(node:12913) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/69] [chromium] › browser/compare.spec.ts:98:5 › compare refreshes committed replications when the selected experiment completes
+[2/69] [chromium] › browser/compare.spec.ts:127:5 › two committed recordings play in lockstep and closing the compare view keeps the main viewer
+[3/69] [chromium] › browser/export.spec.ts:29:3 › exports mp4 through OPFS without moving the viewer
+[4/69] [chromium] › browser/export.spec.ts:29:3 › exports webm through OPFS without moving the viewer
+[5/69] [chromium] › browser/export.spec.ts:29:3 › exports png through OPFS without moving the viewer
+[6/69] [chromium] › browser/export.spec.ts:85:1 › cancels a running PNG export, keeps the viewer position and removes staging
+[7/69] [chromium] › browser/native-observation.spec.ts:52:7 › packaged full native observation displays experimental samples and final scalars
+[8/69] [chromium] › browser/native-observation.spec.ts:52:7 › packaged bounded native observation displays experimental samples and final scalars
+[9/69] [chromium] › browser/native-observation.spec.ts:70:5 › native KPI recording does not offer unsupported full entity replay
+[10/69] [chromium] › browser/native-observation.spec.ts:82:7 › native live prefix stays experimental and handles succeeded
+[11/69] [chromium] › browser/native-observation.spec.ts:82:7 › native live prefix stays experimental and handles cancelled
+[12/69] [chromium] › browser/native-observation.spec.ts:82:7 › native live prefix stays experimental and handles failed
+[13/69] [chromium] › browser/native-prototype.spec.ts:5:7 › native trace opens, steps both directions, seeks, plays and renders in the production viewer
+[14/69] [chromium] › browser/native-prototype.spec.ts:5:7 › lifecycle trace opens, steps both directions, seeks, plays and renders in the production viewer
+[15/69] [chromium] › browser/native-prototype.spec.ts:5:7 › direct trace opens, steps both directions, seeks, plays and renders in the production viewer
+[16/69] [chromium] › browser/native-prototype.spec.ts:5:7 › semantics trace opens, steps both directions, seeks, plays and renders in the production viewer
+[17/69] [chromium] › browser/native-prototype.spec.ts:5:7 › observed trace opens, steps both directions, seeks, plays and renders in the production viewer
+[18/69] [chromium] › browser/viewer.spec.ts:9:5 › production viewer loads, steps, seeks and presents under CSP
+[19/69] [chromium] › browser/viewer.spec.ts:47:5 › exported HTML works from file without network requests
+[20/69] [chromium] › browser/viewer.spec.ts:78:5 › format 1.2 KPI values respect duplicate times and hostile labels stay text
+[21/69] [chromium] › browser/viewer.spec.ts:102:5 › playback updates stay outside React commits and paged inspection filters safely
+[22/69] [chromium] › browser/viewer.spec.ts:137:5 › preparation history stays inspect-only and KPI tiles identify recorded sample time
+[23/69] [chromium] › browser/viewer.spec.ts:164:5 › retired selection keeps historical state separate from the live scene
+(node:13570) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[24/69] [firefox] › browser/compare.spec.ts:98:5 › compare refreshes committed replications when the selected experiment completes
+[25/69] [firefox] › browser/compare.spec.ts:127:5 › two committed recordings play in lockstep and closing the compare view keeps the main viewer
+[26/69] [firefox] › browser/export.spec.ts:29:3 › exports mp4 through OPFS without moving the viewer
+[27/69] [firefox] › browser/export.spec.ts:29:3 › exports webm through OPFS without moving the viewer
+[28/69] [firefox] › browser/export.spec.ts:29:3 › exports png through OPFS without moving the viewer
+[29/69] [firefox] › browser/export.spec.ts:85:1 › cancels a running PNG export, keeps the viewer position and removes staging
+[30/69] [firefox] › browser/native-observation.spec.ts:52:7 › packaged full native observation displays experimental samples and final scalars
+[31/69] [firefox] › browser/native-observation.spec.ts:52:7 › packaged bounded native observation displays experimental samples and final scalars
+[32/69] [firefox] › browser/native-observation.spec.ts:70:5 › native KPI recording does not offer unsupported full entity replay
+[33/69] [firefox] › browser/native-observation.spec.ts:82:7 › native live prefix stays experimental and handles succeeded
+[34/69] [firefox] › browser/native-observation.spec.ts:82:7 › native live prefix stays experimental and handles cancelled
+[35/69] [firefox] › browser/native-observation.spec.ts:82:7 › native live prefix stays experimental and handles failed
+[36/69] [firefox] › browser/native-prototype.spec.ts:5:7 › native trace opens, steps both directions, seeks, plays and renders in the production viewer
+[37/69] [firefox] › browser/native-prototype.spec.ts:5:7 › lifecycle trace opens, steps both directions, seeks, plays and renders in the production viewer
+[38/69] [firefox] › browser/native-prototype.spec.ts:5:7 › direct trace opens, steps both directions, seeks, plays and renders in the production viewer
+[39/69] [firefox] › browser/native-prototype.spec.ts:5:7 › semantics trace opens, steps both directions, seeks, plays and renders in the production viewer
+[40/69] [firefox] › browser/native-prototype.spec.ts:5:7 › observed trace opens, steps both directions, seeks, plays and renders in the production viewer
+[41/69] [firefox] › browser/viewer.spec.ts:9:5 › production viewer loads, steps, seeks and presents under CSP
+[42/69] [firefox] › browser/viewer.spec.ts:47:5 › exported HTML works from file without network requests
+[43/69] [firefox] › browser/viewer.spec.ts:78:5 › format 1.2 KPI values respect duplicate times and hostile labels stay text
+[44/69] [firefox] › browser/viewer.spec.ts:102:5 › playback updates stay outside React commits and paged inspection filters safely
+[45/69] [firefox] › browser/viewer.spec.ts:137:5 › preparation history stays inspect-only and KPI tiles identify recorded sample time
+[46/69] [firefox] › browser/viewer.spec.ts:164:5 › retired selection keeps historical state separate from the live scene
+(node:14325) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[47/69] [webkit] › browser/compare.spec.ts:98:5 › compare refreshes committed replications when the selected experiment completes
+[48/69] [webkit] › browser/compare.spec.ts:127:5 › two committed recordings play in lockstep and closing the compare view keeps the main viewer
+[49/69] [webkit] › browser/export.spec.ts:29:3 › exports mp4 through OPFS without moving the viewer
+[50/69] [webkit] › browser/export.spec.ts:29:3 › exports webm through OPFS without moving the viewer
+[51/69] [webkit] › browser/export.spec.ts:29:3 › exports png through OPFS without moving the viewer
+[52/69] [webkit] › browser/export.spec.ts:85:1 › cancels a running PNG export, keeps the viewer position and removes staging
+[53/69] [webkit] › browser/native-observation.spec.ts:52:7 › packaged full native observation displays experimental samples and final scalars
+[54/69] [webkit] › browser/native-observation.spec.ts:52:7 › packaged bounded native observation displays experimental samples and final scalars
+[55/69] [webkit] › browser/native-observation.spec.ts:70:5 › native KPI recording does not offer unsupported full entity replay
+[56/69] [webkit] › browser/native-observation.spec.ts:82:7 › native live prefix stays experimental and handles succeeded
+[57/69] [webkit] › browser/native-observation.spec.ts:82:7 › native live prefix stays experimental and handles cancelled
+[58/69] [webkit] › browser/native-observation.spec.ts:82:7 › native live prefix stays experimental and handles failed
+[59/69] [webkit] › browser/native-prototype.spec.ts:5:7 › native trace opens, steps both directions, seeks, plays and renders in the production viewer
+[60/69] [webkit] › browser/native-prototype.spec.ts:5:7 › lifecycle trace opens, steps both directions, seeks, plays and renders in the production viewer
+[61/69] [webkit] › browser/native-prototype.spec.ts:5:7 › direct trace opens, steps both directions, seeks, plays and renders in the production viewer
+[62/69] [webkit] › browser/native-prototype.spec.ts:5:7 › semantics trace opens, steps both directions, seeks, plays and renders in the production viewer
+[63/69] [webkit] › browser/native-prototype.spec.ts:5:7 › observed trace opens, steps both directions, seeks, plays and renders in the production viewer
+[64/69] [webkit] › browser/viewer.spec.ts:9:5 › production viewer loads, steps, seeks and presents under CSP
+[65/69] [webkit] › browser/viewer.spec.ts:47:5 › exported HTML works from file without network requests
+[66/69] [webkit] › browser/viewer.spec.ts:78:5 › format 1.2 KPI values respect duplicate times and hostile labels stay text
+[67/69] [webkit] › browser/viewer.spec.ts:102:5 › playback updates stay outside React commits and paged inspection filters safely
+[68/69] [webkit] › browser/viewer.spec.ts:137:5 › preparation history stays inspect-only and KPI tiles identify recorded sample time
+[69/69] [webkit] › browser/viewer.spec.ts:164:5 › retired selection keeps historical state separate from the live scene
+  69 passed (1.9m)

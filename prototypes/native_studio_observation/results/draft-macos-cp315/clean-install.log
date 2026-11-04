@@ -1,0 +1,1 @@
+{"passed": true, "output": "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_studio_observation/results/macos-final-cp315/installed", "rejected": ["abi", "api", "manifest", "binary", "dependency", "runtime-mutation", "wheel-tag"]}

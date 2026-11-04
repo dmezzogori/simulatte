@@ -1,0 +1,20 @@
+{
+  "clean-install.log": "a146ab9c2ed6a4a6ad4b973c5b745f99a3c02b2e9d3974551f0b364804693457",
+  "dependencies.log": "6fed95bb7ef730cb98a12dde99358c03bb542985e47b581e34d97703138e0551",
+  "installed/capacities.json": "ee063a5a65356b33211dafba6850b18c23e286a21cce454472755c65502219db",
+  "installed/identities.json": "729011a774cecd400eee7539da3a7b183b628497a94c273f2effac14660fca8c",
+  "installed/installed.json": "52af9e0a056553e9fac443ec8237be8533d64b2a307a7ee3c450ff3fda1c4c77",
+  "installed/metadata.json": "f76c2666bd286c2c7ad88cac5a31dc1b3acb4d23b91c3ac6f1826ea7b51c710d",
+  "installed/observation-bounded.simtrace": "9f3dffc7eedd3b859c6a66f45c9a36f5e3407679f1dab385f92cc2c42db26910",
+  "installed/observation-full.simtrace": "e43b78d6fa7f6f2d8f7f3b3a01efcf247c37a094dc2c693c02c88612406c9ede",
+  "installed/observations.json": "d40a9dd9a19fd6732c16b22acaa84ceba7543644f8a0b47fb24d884369f779aa",
+  "installed/rejections.json": "8ed99adacb5ca8cda884d74d8c45d1975cae99971db21fa2d08b576a1d2ddc76",
+  "installed/verification.json": "ee815b5885e17f3abe1c3b09732ae1bc94bb6a65707a0d556b8e57599e7029e5",
+  "metadata.json": "2e551454bdc1cfa521cefa389c91c8a0376bac3ceca4d52826e2037ea74f5b22",
+  "regressions.log": "0cdef7bab2b955cd3e99de0975e50bf42e46bf84d19c056595fa6932932752fa",
+  "studio/live-completed.simtrace": "0af7d1b9644fd43cf5492e164e0fec7f3ba85622bda1f31857170f5b44e1671a",
+  "studio/live-prefix.simtrace": "a62570194038db6c9d77c6f2655b5f07b68af60dfad3100282eb41a59d35e869",
+  "studio/studio.json": "4f7dc6266e0599725486f48ce03377164347627b7a178caf4d38160988056e6b",
+  "studio.log": "561379c5f673b36ee8e1c7001742bb8101506902eb517e8bd918358dcd931170",
+  "venv.log": "1304820eda1849e51d33062dc38128235ab1166ddf9da9b2bc93040c56aa963d"
+}

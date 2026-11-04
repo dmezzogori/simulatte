@@ -1,0 +1,30 @@
+{
+  "abi": {
+    "rejected": true,
+    "error": "Native wheel ABI mismatch: install a wheel built for this CPython/platform"
+  },
+  "api": {
+    "rejected": true,
+    "error": "Unsupported native provider API/manifest"
+  },
+  "manifest": {
+    "rejected": true,
+    "error": "Native manifest differs from the installed wheel RECORD"
+  },
+  "binary": {
+    "rejected": true,
+    "error": "Native asset length differs from captured source"
+  },
+  "dependency": {
+    "rejected": true,
+    "error": "Native images loaded from an unexpected origin"
+  },
+  "runtime-mutation": {
+    "rejected": true,
+    "error": "Native asset length differs from captured source"
+  },
+  "wheel-tag": {
+    "rejected": true,
+    "error": "Using Python 3.13.9 environment at: /tmp/native-installed-gate-a5ny4qeu/wrong-abi-install\nResolved 1 package in 1ms\nerror: Failed to determine installation plan\n  Caused by: A path dependency is incompatible with the current platform: /tmp/native-installed-gate-a5ny4qeu/simulatte_native-0.17.0-cp311-cp311-linux_x86_64.whl\n\nhint: The wheel is compatible with CPython 3.11 (`cp311`), but you're using CPython 3.13 (`cp313`)\n"
+  }
+}

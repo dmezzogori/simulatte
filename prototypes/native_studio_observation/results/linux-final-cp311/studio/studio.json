@@ -1,0 +1,32 @@
+{
+  "passed": true,
+  "prefix": {
+    "attempt": "96c191ba2d50c30d672e9f664b972e57",
+    "generation": 5,
+    "length": 57004,
+    "sha256": "1284e7fc08aad276e06aa1de5bd61218d1a8ee1ff9bd79e6c8eca35cd27c3a79",
+    "url": "/api/prefix/96c191ba2d50c30d672e9f664b972e57/5"
+  },
+  "completed": {
+    "attempt": "96c191ba2d50c30d672e9f664b972e57",
+    "generation": 8,
+    "length": 64971,
+    "sha256": "9d0ba835f7dc1826d606cdd66834b7115e5bc7597be92f3991862169f4f46447",
+    "url": "/api/prefix/96c191ba2d50c30d672e9f664b972e57/8"
+  },
+  "fingerprint": {
+    "digest": "7a2a0e77f24759c9767ac1f60d38228d359c19b7982160b03efb7c263d3dff2a",
+    "kpis": {
+      "shopfloor/jobs_in_system": 7.375,
+      "shopfloor/lateness": -13.902777777777779,
+      "shopfloor/makespan": 4.847222222222222,
+      "shopfloor/tardiness": 0.0,
+      "shopfloor/tardy_fraction": 0.0,
+      "shopfloor/throughput": 1.8,
+      "shopfloor/total_queue_time": 2.5972222222222223,
+      "shopfloor/utilization": 0.45
+    }
+  },
+  "source_deleted_reproduction": "6a4e758546fe270e65e562104e126f22",
+  "assets_sha256": "b2204f3657212f87848ee7feedf784700ea44e9939f36888bf51c1b9a3e2bf90"
+}

@@ -4,13 +4,15 @@ import {HttpSource, openRecording, type RecordingView} from '@simulatte/trace';
 import {Playback, Session, type Clock, type PlaybackStatus, type PreparedFrame} from '@simulatte/playback';
 import {Scene} from '@simulatte/scene';
 import type {Prefix} from './studio-client';
+import {supportsFullReplay} from './backend-observation';
 
 export type Side = 0 | 1;
 /** Why a committed result cannot join side-by-side playback. */
-export type CompareRefusal = {readonly code: 'kpi_only'; readonly level: string};
+export type CompareRefusal = {readonly code: 'kpi_only'; readonly level: string; readonly replaySupported?: false};
 export class CompareRefused extends Error {
   constructor(readonly reason: CompareRefusal) {
-    super(`A ${reason.level}-level recording has no entity events; replay it at full level to compare`);
+    super(reason.replaySupported === false ? 'This backend provides KPI observation only; full entity replay is unavailable'
+      : `A ${reason.level}-level recording has no entity events; replay it at full level to compare`);
     this.name = 'CompareRefused';
   }
 }
@@ -138,7 +140,8 @@ export class ComparePlayback {
       if (!current()) throw superseded();
       const recording = await openRecording(source, {}, abort.signal);
       if (!current()) throw superseded();
-      if (recording.trace.level !== 'full') throw new CompareRefused({code: 'kpi_only', level: recording.trace.level});
+      if (recording.trace.level !== 'full') throw new CompareRefused({code: 'kpi_only', level: recording.trace.level,
+        ...(!supportsFullReplay(recording.trace.execution) ? {replaySupported: false as const} : {})});
       const session = new Session(recording);
       session.setSeries(recording.seriesKeys.slice(0, 8));
       const playback = new Playback(session, this.clock);

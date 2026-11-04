@@ -1,0 +1,196 @@
+{
+  "direct": [
+    {
+      "capacities": [
+        1,
+        1
+      ],
+      "finished": [
+        2.25,
+        4.25,
+        6.25,
+        8.25
+      ],
+      "scalars": {
+        "shopfloor/makespan": 5.25,
+        "shopfloor/lateness": -4.75,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/total_queue_time": 3.0,
+        "shopfloor/throughput": 0.48484848484848486,
+        "shopfloor/utilization": 0.5454545454545454,
+        "shopfloor/jobs_in_system": 2.5454545454545454
+      }
+    },
+    {
+      "capacities": [
+        2,
+        1
+      ],
+      "finished": [
+        2.25,
+        2.5,
+        4.25,
+        4.5
+      ],
+      "scalars": {
+        "shopfloor/makespan": 3.375,
+        "shopfloor/lateness": -6.625,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/total_queue_time": 1.125,
+        "shopfloor/throughput": 0.8888888888888888,
+        "shopfloor/utilization": 0.6666666666666666,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  ],
+  "rows": [
+    {
+      "configuration": 0,
+      "request": "b21d651109d4a9d186b997250b6222f721c7f383a471ed423a01dc66bd7c1bcc",
+      "attempt": "f8f26f7d8bf466f5a9f064ef90018ab8",
+      "fingerprint": "ca2938fd90593b916ea9b43704282cef55322f94031412eab586627ed9852939",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0197368421052633,
+        "shopfloor/lateness": 3.953488372093023,
+        "shopfloor/makespan": 5.895348837209302,
+        "shopfloor/tardiness": 4.244186046511628,
+        "shopfloor/tardy_fraction": 0.8604651162790697,
+        "shopfloor/throughput": 1.131578947368421,
+        "shopfloor/total_queue_time": 0.7209302325581395,
+        "shopfloor/utilization": 0.20504385964912283
+      },
+      "observations_sha256": "3e5dc243ca0ea56caee044a9fd609b8d442e65d73a3ca9043bfbf3a327d74f4d"
+    },
+    {
+      "configuration": 1,
+      "request": "3443eab863a808f74ba699b0d6fa3e2b9a0501e1d7dc03371ad258c8b36b9ae0",
+      "attempt": "e58b5f411f553e4fa35694eba048fa95",
+      "fingerprint": "a634187b1042597179505332dab90a4de3ccdeb7a36ea93fa2afd8572538ff99",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0197368421052633,
+        "shopfloor/lateness": 3.953488372093023,
+        "shopfloor/makespan": 5.895348837209302,
+        "shopfloor/tardiness": 4.244186046511628,
+        "shopfloor/tardy_fraction": 0.8604651162790697,
+        "shopfloor/throughput": 1.131578947368421,
+        "shopfloor/total_queue_time": 0.7209302325581395,
+        "shopfloor/utilization": 0.20504385964912283
+      },
+      "observations_sha256": "26acda326cb8d56fb1f5c9cfd3bfbfb3a3e655235510cf1f0c9035d7cf3bd6b3"
+    },
+    {
+      "configuration": 2,
+      "request": "35490316763ffc0e6b96dd255bb08c932cd80c7f570d9a999f8e61e086e0581d",
+      "attempt": "9aa9110f506d9fd3627cd0b9830c7173",
+      "fingerprint": "1004be869f9fb20f2a1fb27788c626871ebd2a93f00a13f9f9b4aeed4442458a",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0197368421052633,
+        "shopfloor/lateness": 3.953488372093023,
+        "shopfloor/makespan": 5.895348837209302,
+        "shopfloor/tardiness": 4.244186046511628,
+        "shopfloor/tardy_fraction": 0.8604651162790697,
+        "shopfloor/throughput": 1.131578947368421,
+        "shopfloor/total_queue_time": 0.7209302325581395,
+        "shopfloor/utilization": 0.20504385964912283
+      },
+      "observations_sha256": "2431ea7fa038ab9d326d0f3458ae04a824d9e374f229c2f9055b07d65eb2d914"
+    },
+    {
+      "configuration": 3,
+      "request": "32e759603fc5911d7ec69303fb2a4d27293c7070a0d2d29f677943e139c3aa72",
+      "attempt": "db7a6476c9badd50d20d19b13b4290c9",
+      "fingerprint": "a130a6f184d33ea3361303308fd111ba71d863055dcfe7bcd1321cbcc9502c6a",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0197368421052633,
+        "shopfloor/lateness": 3.953488372093023,
+        "shopfloor/makespan": 5.895348837209302,
+        "shopfloor/tardiness": 4.244186046511628,
+        "shopfloor/tardy_fraction": 0.8604651162790697,
+        "shopfloor/throughput": 1.131578947368421,
+        "shopfloor/total_queue_time": 0.7209302325581395,
+        "shopfloor/utilization": 0.20504385964912283
+      },
+      "observations_sha256": "795a8806b30d4808fdf8f98982d33601f79568dd9ad5da159d824f8d444e5139"
+    },
+    {
+      "configuration": 4,
+      "request": "08bd9dc9ba3271d50f881f31f03f214f60ee9c555feaf1bc02b0057994f5c0dc",
+      "attempt": "7c2e5bbf8b334ec0347ebcb806ee0d58",
+      "fingerprint": "91c079c7a69845f74f8862c3d218dd37c513890c3b0da95e3277d32703b66d03",
+      "kpis": {
+        "shopfloor/jobs_in_system": 1.986842105263158,
+        "shopfloor/lateness": 3.477272727272727,
+        "shopfloor/makespan": 5.443181818181818,
+        "shopfloor/tardiness": 3.897727272727273,
+        "shopfloor/tardy_fraction": 0.8181818181818182,
+        "shopfloor/throughput": 1.1578947368421053,
+        "shopfloor/total_queue_time": 0.6818181818181818,
+        "shopfloor/utilization": 0.20394736842105263
+      },
+      "observations_sha256": "0d433c40d05bf171b6d2142ee9f7ea9d8e643d55c22a20fb6252e0e365416529"
+    },
+    {
+      "configuration": 5,
+      "request": "67f5f958e60aa3b5dd23bb68a5a20d8514c6863e704f1485d0639a4e408c08cc",
+      "attempt": "55af604efe3930299130103f908405b0",
+      "fingerprint": "4667d4910e8c02550827714310fe62d17c2c332599824089ceb5c40db4a731c1",
+      "kpis": {
+        "shopfloor/jobs_in_system": 1.986842105263158,
+        "shopfloor/lateness": 3.477272727272727,
+        "shopfloor/makespan": 5.443181818181818,
+        "shopfloor/tardiness": 3.897727272727273,
+        "shopfloor/tardy_fraction": 0.8181818181818182,
+        "shopfloor/throughput": 1.1578947368421053,
+        "shopfloor/total_queue_time": 0.6818181818181818,
+        "shopfloor/utilization": 0.20394736842105263
+      },
+      "observations_sha256": "1804d5e2f72cafb4880a8f810c31577cb272ec1288c948a98d0f11e00f7fd391"
+    },
+    {
+      "configuration": 6,
+      "request": "ba45f3aa0cbcbdc16d1eb3f297e40810e754abfa0b7bd5eceac01696bb479165",
+      "attempt": "0a7c8a5e5fd88a1be6291de9a5d59739",
+      "fingerprint": "2727c80f40e2945f1a4a8fe59bd406d5d0b5b5d6f806dd456eb236751dad3df1",
+      "kpis": {
+        "shopfloor/jobs_in_system": 1.986842105263158,
+        "shopfloor/lateness": 3.477272727272727,
+        "shopfloor/makespan": 5.443181818181818,
+        "shopfloor/tardiness": 3.897727272727273,
+        "shopfloor/tardy_fraction": 0.8181818181818182,
+        "shopfloor/throughput": 1.1578947368421053,
+        "shopfloor/total_queue_time": 0.6818181818181818,
+        "shopfloor/utilization": 0.20394736842105263
+      },
+      "observations_sha256": "60f9a2e8726206efb98b702ee62154ce00d432f823ab5c72ccc1a9071027c7e9"
+    },
+    {
+      "configuration": 7,
+      "request": "041ffe6fc7e97a5f1e6682d4635a5784310175ab594ffef633e9bd18185d3e1e",
+      "attempt": "6c5cf8277e20efecd63324a488e5b22c",
+      "fingerprint": "2805a089210a1a19083c1bb26dba4d2d4d0ca55a774aef8bf55b054a28274938",
+      "kpis": {
+        "shopfloor/jobs_in_system": 1.986842105263158,
+        "shopfloor/lateness": 3.477272727272727,
+        "shopfloor/makespan": 5.443181818181818,
+        "shopfloor/tardiness": 3.897727272727273,
+        "shopfloor/tardy_fraction": 0.8181818181818182,
+        "shopfloor/throughput": 1.1578947368421053,
+        "shopfloor/total_queue_time": 0.6818181818181818,
+        "shopfloor/utilization": 0.20394736842105263
+      },
+      "observations_sha256": "9f2cfef4eeddaea385475f080003584ca00643c5ae1d4d40f9afb30679b04801"
+    }
+  ],
+  "source_deleted_reproductions": [
+    "b21d651109d4a9d186b997250b6222f721c7f383a471ed423a01dc66bd7c1bcc",
+    "3443eab863a808f74ba699b0d6fa3e2b9a0501e1d7dc03371ad258c8b36b9ae0",
+    "35490316763ffc0e6b96dd255bb08c932cd80c7f570d9a999f8e61e086e0581d",
+    "32e759603fc5911d7ec69303fb2a4d27293c7070a0d2d29f677943e139c3aa72",
+    "08bd9dc9ba3271d50f881f31f03f214f60ee9c555feaf1bc02b0057994f5c0dc",
+    "67f5f958e60aa3b5dd23bb68a5a20d8514c6863e704f1485d0639a4e408c08cc",
+    "ba45f3aa0cbcbdc16d1eb3f297e40810e754abfa0b7bd5eceac01696bb479165",
+    "041ffe6fc7e97a5f1e6682d4635a5784310175ab594ffef633e9bd18185d3e1e"
+  ]
+}

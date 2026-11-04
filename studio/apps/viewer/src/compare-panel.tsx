@@ -84,7 +84,9 @@ export function CompareSideView({index, side, connected, onReplay, host, time, t
     {side.phase === 'ready' && <small> {side.level} trace</small>}
     {side.phase === 'error' && <span role="alert">{side.message}</span>}
     {side.phase === 'refused' && <p role="status">KPI-only recording: it has no entity events to play side by side.{' '}
-      <button disabled={!connected || !side.entry.request_id} onClick={onReplay}>Replay at full level</button></p>}
+      {side.reason.replaySupported === false
+        ? <span>This backend supports KPI observation only. Full entity replay is unavailable; use KPI charts to compare results.</span>
+        : <button disabled={!connected || !side.entry.request_id} onClick={onReplay}>Replay at full level</button>}</p>}
     {side.phase === 'replaying' && (side.status === 'succeeded'
       ? side.verified ? <p role="status">Replay verified; opening it.</p>
         : <p role="status"><ReplayBadge verified={false} reason={side.reason} /> Unverified replays are excluded from side-by-side playback; turn on Include unverified replays to compare it.</p>

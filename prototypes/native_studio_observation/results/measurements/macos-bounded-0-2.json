@@ -1,0 +1,38 @@
+{
+  "retention": "bounded",
+  "jobs": 65536,
+  "limit": 0,
+  "queries": 1,
+  "wall_seconds": 0.18364429099892732,
+  "storage": {
+    "admitted": 65536,
+    "completed": 65536,
+    "forgotten": 65536,
+    "events": 716800,
+    "retained_jobs": 0,
+    "retained_operations": 0,
+    "job_capacity": 16,
+    "op_capacity": 32,
+    "calendar_capacity": 32,
+    "native_bytes": 7052,
+    "completion_capacity": 2048,
+    "state_capacity": 256
+  },
+  "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+  "fingerprint": {
+    "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+    "kpis": {
+      "shopfloor/jobs_in_system": 0.5390625,
+      "shopfloor/lateness": -3.828125,
+      "shopfloor/makespan": 2.171875,
+      "shopfloor/tardiness": 0.0,
+      "shopfloor/tardy_fraction": 0.0,
+      "shopfloor/throughput": 0.5,
+      "shopfloor/total_queue_time": 0.328125,
+      "shopfloor/utilization": 0.0625
+    }
+  },
+  "trace_bytes": 8626,
+  "peak_rss_bytes": 37781504,
+  "samples": {}
+}

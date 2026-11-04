@@ -279,13 +279,19 @@ jobs:
             --core-wheel "$RUNNER_TEMP"/native-core-wheel/simulatte-*.whl \
             --native-wheel "$RUNNER_TEMP"/native-build/simulatte_native-*.whl \
             --output "$RUNNER_TEMP/native-check"
-      - name: Native capacities and execution failure diagnostics from installed wheels
+      - name: Native capacities, Studio observation and execution failures from installed wheels
         run: |
           uv venv "$RUNNER_TEMP/native-regressions" --python ${{ matrix.python }}
-          uv pip install --python "$RUNNER_TEMP/native-regressions/bin/python" --link-mode=copy \
-            "$RUNNER_TEMP"/native-core-wheel/simulatte-*.whl \
-            "$RUNNER_TEMP"/native-build/simulatte_native-*.whl pytest pytest-timeout
-          "$RUNNER_TEMP/native-regressions/bin/python" -m pytest -o addopts=-q tests/execution/test_native_lifecycle.py tests/experimental/test_native_capacity.py
+          uv run --no-project --python ${{ matrix.python }} - <<'PY'
+          from pathlib import Path
+          import os, subprocess
+          root = Path(os.environ["RUNNER_TEMP"])
+          core, = (root / "native-core-wheel").glob("simulatte-*.whl")
+          native, = (root / "native-build").glob("simulatte_native-*.whl")
+          subprocess.run(["uv", "pip", "install", "--python", str(root / "native-regressions/bin/python"),
+                          "--link-mode=copy", str(core) + "[studio]", str(native), "pytest", "pytest-timeout", "httpx"], check=True)
+          PY
+          "$RUNNER_TEMP/native-regressions/bin/python" -m pytest -o addopts=-q tests/execution/test_native_lifecycle.py tests/experimental/test_native_capacity.py tests/experimental/test_native_observation.py tests/core/test_studio_native.py
       - name: Upload native wheels and install evidence (no publication)
         uses: actions/upload-artifact@v7
         with:

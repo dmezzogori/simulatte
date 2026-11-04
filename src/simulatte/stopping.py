@@ -191,12 +191,13 @@ def execute_until(env: Any, policy: Horizon | FinitePopulation, control: Any = N
     reached = False
     owned = set()
 
-    def boundary(at: float, priority: int, callback: Any) -> None:
+    def boundary(at: float, priority: int, callback: Any, *, track: bool = True) -> None:
         event = simpy.Event(env)
         event._ok = True
         event._value = None
         event.callbacks.append(lambda _: callback())
-        owned.add(event)
+        if track:
+            owned.add(event)
         env.schedule(event, priority=priority, delay=at - env.now)
 
     def end() -> None:
@@ -210,6 +211,21 @@ def execute_until(env: Any, policy: Horizon | FinitePopulation, control: Any = N
         env.activate()
         if isinstance(policy, Horizon):
             boundary(policy.until, 0, end)
+            if backend is not None:
+                observations = iter(backend.observation_times())
+
+                def sample() -> None:
+                    backend.observe()
+                    schedule_sample()
+
+                def schedule_sample() -> None:
+                    at = next(observations, None)
+                    if at is not None:
+                        # Observe before Python callbacks at t, after native work
+                        # strictly before t. Only one sample event is pending.
+                        boundary(at, -1, sample, track=False)
+
+                schedule_sample()
         else:
             if policy.cutoff is not None and policy.cutoff > env.now:
                 boundary(policy.cutoff, -1, population._close)

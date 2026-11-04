@@ -1,0 +1,45 @@
+{
+  "before": {
+    "assets": {
+      "THIRD_PARTY_NOTICES.md": "f7cb90259d8a8b045d49ce3ad358b1ed3183f589536855b6f6173b7b195d6826",
+      "assets/CanvasRenderer-CI6vmKLH.js": "e117961efd639f06aa39cd75872e5eb15be2e4ba52a0d81531c02d7b63a8bf34",
+      "assets/Filter-CRdHaBXR.js": "55dbe344663ab331ddf407b4d88e6ea3d6fc1e64d0250418fd3195154f1c058c",
+      "assets/RenderTargetSystem-BfCpE4Y_.js": "b5b04a7aa6533784258089acc663578a7e8697fe77b776e142eb96c82e0b1e07",
+      "assets/WebGLRenderer-B3Qo5K_n.js": "b25295a2dbf9b43752b3cb449c524470979a6690797c39c90f75b5fcb9773e2c",
+      "assets/WebGPURenderer-Bv0Ver-f.js": "c697b066d51fefab76b376e5bb3b1f451566ed357d14cc2d121c3e184f8b9fd4",
+      "assets/browserAll-CShhp_Wh.js": "81ebf2c7e8fcd24e1b12eb4a312e4e0902b1a7cde5669fbaa848dd9b66cc5f46",
+      "assets/getTexelRangeRects-CjymI-Lp.js": "43438c524c791cc56904035da1b33bb44dfa1a8a68e6372201eafae52c497adb",
+      "assets/index-CbM0bcvm.js": "70b3c65f617683e1426210f71c2e25317845fca98aaa5226e66fc4ad5998a220",
+      "assets/index-pKzjj_yQ.css": "988de3af20b2ea9cd0fb6bbe934d2245d73a5d3f8a78a9d442689a5340a85979",
+      "assets/sink-worker-C_x9vrzf.js": "a59a24a7c1fc594618e583c242d4f61cfa4827899a92a95a49bec1c60c778e90",
+      "assets/webworkerAll-M3KvY7-v.js": "59bd854a9a9475f8d30b82afd2708c4aa21d904394a4b46c87fcbe07a6e325d1",
+      "build-stamp.json": "6403a223723fc78b965619ce477335c395a4db94fb5798ede0cbaa54af54cfda",
+      "index.html": "bc5afed06eb49ae157bb19ac951e720406afa0ccf851dc53bfc714755a6154be"
+    },
+    "source_fingerprint": "18e1e030aa98ef6b30f75d4bb6b492957e4de3b562134bfae1f6cb35ab6fe5c6",
+    "version": "0.17.0"
+  },
+  "after": {
+    "assets": {
+      "THIRD_PARTY_NOTICES.md": "f7cb90259d8a8b045d49ce3ad358b1ed3183f589536855b6f6173b7b195d6826",
+      "assets/CanvasRenderer-CI6vmKLH.js": "e117961efd639f06aa39cd75872e5eb15be2e4ba52a0d81531c02d7b63a8bf34",
+      "assets/Filter-CRdHaBXR.js": "55dbe344663ab331ddf407b4d88e6ea3d6fc1e64d0250418fd3195154f1c058c",
+      "assets/RenderTargetSystem-BfCpE4Y_.js": "b5b04a7aa6533784258089acc663578a7e8697fe77b776e142eb96c82e0b1e07",
+      "assets/WebGLRenderer-B3Qo5K_n.js": "b25295a2dbf9b43752b3cb449c524470979a6690797c39c90f75b5fcb9773e2c",
+      "assets/WebGPURenderer-Bv0Ver-f.js": "c697b066d51fefab76b376e5bb3b1f451566ed357d14cc2d121c3e184f8b9fd4",
+      "assets/browserAll-CShhp_Wh.js": "81ebf2c7e8fcd24e1b12eb4a312e4e0902b1a7cde5669fbaa848dd9b66cc5f46",
+      "assets/getTexelRangeRects-CjymI-Lp.js": "43438c524c791cc56904035da1b33bb44dfa1a8a68e6372201eafae52c497adb",
+      "assets/index-CbM0bcvm.js": "70b3c65f617683e1426210f71c2e25317845fca98aaa5226e66fc4ad5998a220",
+      "assets/index-pKzjj_yQ.css": "988de3af20b2ea9cd0fb6bbe934d2245d73a5d3f8a78a9d442689a5340a85979",
+      "assets/sink-worker-C_x9vrzf.js": "a59a24a7c1fc594618e583c242d4f61cfa4827899a92a95a49bec1c60c778e90",
+      "assets/webworkerAll-M3KvY7-v.js": "59bd854a9a9475f8d30b82afd2708c4aa21d904394a4b46c87fcbe07a6e325d1",
+      "build-stamp.json": "6b7fc488875b6c16925845c04d3aacef4a7b585380974efaea35da35fe26343f",
+      "index.html": "bc5afed06eb49ae157bb19ac951e720406afa0ccf851dc53bfc714755a6154be"
+    },
+    "source_fingerprint": "217c3df59663dea316a3ab1ab9328cd8ef16962e10380d7289805bb1505cf6f9",
+    "version": "0.17.0"
+  },
+  "changed": [
+    "build-stamp.json"
+  ]
+}

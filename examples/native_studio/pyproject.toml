@@ -1,0 +1,2 @@
+[tool.simulatte.bundle]
+include = ["plant.py"]

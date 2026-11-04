@@ -59,6 +59,14 @@ it('labels an unverified replay with its reason and explains the exclusion', () 
   expect(render({phase: 'replaying', entry, replay: 'e'.repeat(64), status: 'running', verified: null, reason: null})).toContain('Replay running');
 });
 
+it('does not offer unsupported entity replay for a native KPI recording', () => {
+  const entry = compareEntries(state([]), report, false).entries[0]!;
+  const html = render({phase: 'refused', entry, reason: {code: 'kpi_only', level: 'kpi', replaySupported: false}});
+  expect(html).toContain('Full entity replay is unavailable');
+  expect(html).toContain('KPI charts');
+  expect(html).not.toContain('>Replay at full level</button>');
+});
+
 it('routes replay_state notifications to subscribers', () => {
   const replays = new ReplayNotifications();
   const seen = vi.fn();

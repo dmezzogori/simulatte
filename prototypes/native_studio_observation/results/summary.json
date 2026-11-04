@@ -1,0 +1,1760 @@
+{
+  "passed": true,
+  "cells": [
+    {
+      "name": "linux-final-cp311",
+      "native": {
+        "name": "simulatte_native-0.17.0-cp311-cp311-linux_x86_64.whl",
+        "sha256": "ee61a1b50efe812409325920c3c7ab294407a5555aa6ce584ec4ff47d0b5498e"
+      },
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "243b4b8103cdf2c247f86ee961e3709f9621b7e8fef824731e513a8b0d16dfd0"
+      },
+      "observations": 24,
+      "reproductions": 8
+    },
+    {
+      "name": "linux-final-cp312",
+      "native": {
+        "name": "simulatte_native-0.17.0-cp312-cp312-linux_x86_64.whl",
+        "sha256": "6477a0d011ed1c0c0667a4f43e870c6eacd0f240f606f8c35247ece0c3b83664"
+      },
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "243b4b8103cdf2c247f86ee961e3709f9621b7e8fef824731e513a8b0d16dfd0"
+      },
+      "observations": 24,
+      "reproductions": 8
+    },
+    {
+      "name": "linux-final-cp313",
+      "native": {
+        "name": "simulatte_native-0.17.0-cp313-cp313-linux_x86_64.whl",
+        "sha256": "7369cfdb22c4991b51b2378f2d53834a0954c206df5200e3057f460707950e10"
+      },
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "243b4b8103cdf2c247f86ee961e3709f9621b7e8fef824731e513a8b0d16dfd0"
+      },
+      "observations": 24,
+      "reproductions": 8
+    },
+    {
+      "name": "linux-final-cp314",
+      "native": {
+        "name": "simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl",
+        "sha256": "3d713881ee9f065d7fff30a8141ee723e48370c024cddf337a860671f6102320"
+      },
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "243b4b8103cdf2c247f86ee961e3709f9621b7e8fef824731e513a8b0d16dfd0"
+      },
+      "observations": 24,
+      "reproductions": 8
+    },
+    {
+      "name": "linux-final-cp315",
+      "native": {
+        "name": "simulatte_native-0.17.0-cp315-cp315-linux_x86_64.whl",
+        "sha256": "4aad90e8ca91a6e795addfdb9ecf33bc61a976c3477335f56683ec9810b63330"
+      },
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "243b4b8103cdf2c247f86ee961e3709f9621b7e8fef824731e513a8b0d16dfd0"
+      },
+      "observations": 24,
+      "reproductions": 8
+    },
+    {
+      "name": "macos-final-cp311",
+      "native": {
+        "name": "simulatte_native-0.17.0-cp311-cp311-macosx_27_0_arm64.whl",
+        "sha256": "e9d0f75651d089dc47e6543b78590165a22ada013524b5100e7998108174e6cf"
+      },
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "243b4b8103cdf2c247f86ee961e3709f9621b7e8fef824731e513a8b0d16dfd0"
+      },
+      "observations": 24,
+      "reproductions": 8
+    },
+    {
+      "name": "macos-final-cp312",
+      "native": {
+        "name": "simulatte_native-0.17.0-cp312-cp312-macosx_27_0_arm64.whl",
+        "sha256": "61bf3cca650d20ed5cd3904c2e34fcc15efdc9c53135de803a3e6491e4ac7e0d"
+      },
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "243b4b8103cdf2c247f86ee961e3709f9621b7e8fef824731e513a8b0d16dfd0"
+      },
+      "observations": 24,
+      "reproductions": 8
+    },
+    {
+      "name": "macos-final-cp313",
+      "native": {
+        "name": "simulatte_native-0.17.0-cp313-cp313-macosx_27_0_arm64.whl",
+        "sha256": "ef3ca8498cb677cafb170ed591f07317183260c7bcf5238586a724d2a4a56708"
+      },
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "243b4b8103cdf2c247f86ee961e3709f9621b7e8fef824731e513a8b0d16dfd0"
+      },
+      "observations": 24,
+      "reproductions": 8
+    },
+    {
+      "name": "macos-final-cp314",
+      "native": {
+        "name": "simulatte_native-0.17.0-cp314-cp314-macosx_27_0_arm64.whl",
+        "sha256": "eb9ee3abc5325c856433453edf91f395cfda2d66d6e622d53a7e95725bef3c23"
+      },
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "243b4b8103cdf2c247f86ee961e3709f9621b7e8fef824731e513a8b0d16dfd0"
+      },
+      "observations": 24,
+      "reproductions": 8
+    },
+    {
+      "name": "macos-final-cp315",
+      "native": {
+        "name": "simulatte_native-0.17.0-cp315-cp315-macosx_27_0_arm64.whl",
+        "sha256": "f77fc5017340d59be937a130bc639322fe7959336101447909bdcd2cf0206530"
+      },
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "243b4b8103cdf2c247f86ee961e3709f9621b7e8fef824731e513a8b0d16dfd0"
+      },
+      "observations": 24,
+      "reproductions": 8
+    }
+  ],
+  "measurements": [
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 0,
+      "queries": 1,
+      "wall_seconds": 0.18198616700829007,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 8617,
+      "peak_rss_bytes": 57802752,
+      "samples": {}
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 0,
+      "queries": 1,
+      "wall_seconds": 0.16550433299562428,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 8617,
+      "peak_rss_bytes": 60096512,
+      "samples": {}
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 0,
+      "queries": 1,
+      "wall_seconds": 0.18061879198648967,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 8617,
+      "peak_rss_bytes": 59539456,
+      "samples": {}
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 1000,
+      "queries": 1001,
+      "wall_seconds": 0.2111829170025885,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 362778,
+      "peak_rss_bytes": 59047936,
+      "samples": {
+        "shopfloor/makespan": 1000,
+        "shopfloor/lateness": 1000,
+        "shopfloor/tardiness": 1000,
+        "shopfloor/tardy_fraction": 1000,
+        "shopfloor/total_queue_time": 1000,
+        "shopfloor/throughput": 1000,
+        "shopfloor/utilization": 1000,
+        "shopfloor/jobs_in_system": 1000
+      }
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 1000,
+      "queries": 1001,
+      "wall_seconds": 0.19038249998993706,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 362778,
+      "peak_rss_bytes": 59539456,
+      "samples": {
+        "shopfloor/makespan": 1000,
+        "shopfloor/lateness": 1000,
+        "shopfloor/tardiness": 1000,
+        "shopfloor/tardy_fraction": 1000,
+        "shopfloor/total_queue_time": 1000,
+        "shopfloor/throughput": 1000,
+        "shopfloor/utilization": 1000,
+        "shopfloor/jobs_in_system": 1000
+      }
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 1000,
+      "queries": 1001,
+      "wall_seconds": 0.21214520798821468,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 362778,
+      "peak_rss_bytes": 61374464,
+      "samples": {
+        "shopfloor/makespan": 1000,
+        "shopfloor/lateness": 1000,
+        "shopfloor/tardiness": 1000,
+        "shopfloor/tardy_fraction": 1000,
+        "shopfloor/total_queue_time": 1000,
+        "shopfloor/throughput": 1000,
+        "shopfloor/utilization": 1000,
+        "shopfloor/jobs_in_system": 1000
+      }
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 17,
+      "queries": 18,
+      "wall_seconds": 0.17182058400067035,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 14915,
+      "peak_rss_bytes": 59572224,
+      "samples": {
+        "shopfloor/makespan": 17,
+        "shopfloor/lateness": 17,
+        "shopfloor/tardiness": 17,
+        "shopfloor/tardy_fraction": 17,
+        "shopfloor/total_queue_time": 17,
+        "shopfloor/throughput": 17,
+        "shopfloor/utilization": 17,
+        "shopfloor/jobs_in_system": 17
+      }
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 17,
+      "queries": 18,
+      "wall_seconds": 0.1682062500040047,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 14915,
+      "peak_rss_bytes": 58261504,
+      "samples": {
+        "shopfloor/makespan": 17,
+        "shopfloor/lateness": 17,
+        "shopfloor/tardiness": 17,
+        "shopfloor/tardy_fraction": 17,
+        "shopfloor/total_queue_time": 17,
+        "shopfloor/throughput": 17,
+        "shopfloor/utilization": 17,
+        "shopfloor/jobs_in_system": 17
+      }
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 17,
+      "queries": 18,
+      "wall_seconds": 0.192021000009845,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 14915,
+      "peak_rss_bytes": 58802176,
+      "samples": {
+        "shopfloor/makespan": 17,
+        "shopfloor/lateness": 17,
+        "shopfloor/tardiness": 17,
+        "shopfloor/tardy_fraction": 17,
+        "shopfloor/total_queue_time": 17,
+        "shopfloor/throughput": 17,
+        "shopfloor/utilization": 17,
+        "shopfloor/jobs_in_system": 17
+      }
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 0,
+      "queries": 1,
+      "wall_seconds": 0.185448541000369,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 8626,
+      "peak_rss_bytes": 37650432,
+      "samples": {}
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 0,
+      "queries": 1,
+      "wall_seconds": 0.17020066700933967,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 8626,
+      "peak_rss_bytes": 37830656,
+      "samples": {}
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 0,
+      "queries": 1,
+      "wall_seconds": 0.18364429099892732,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 8626,
+      "peak_rss_bytes": 37781504,
+      "samples": {}
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 1000,
+      "queries": 1001,
+      "wall_seconds": 0.19121629100118298,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 362787,
+      "peak_rss_bytes": 39665664,
+      "samples": {
+        "shopfloor/makespan": 1000,
+        "shopfloor/lateness": 1000,
+        "shopfloor/tardiness": 1000,
+        "shopfloor/tardy_fraction": 1000,
+        "shopfloor/total_queue_time": 1000,
+        "shopfloor/throughput": 1000,
+        "shopfloor/utilization": 1000,
+        "shopfloor/jobs_in_system": 1000
+      }
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 1000,
+      "queries": 1001,
+      "wall_seconds": 0.20228866599791218,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 362787,
+      "peak_rss_bytes": 39731200,
+      "samples": {
+        "shopfloor/makespan": 1000,
+        "shopfloor/lateness": 1000,
+        "shopfloor/tardiness": 1000,
+        "shopfloor/tardy_fraction": 1000,
+        "shopfloor/total_queue_time": 1000,
+        "shopfloor/throughput": 1000,
+        "shopfloor/utilization": 1000,
+        "shopfloor/jobs_in_system": 1000
+      }
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 1000,
+      "queries": 1001,
+      "wall_seconds": 0.192537540991907,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 362787,
+      "peak_rss_bytes": 39223296,
+      "samples": {
+        "shopfloor/makespan": 1000,
+        "shopfloor/lateness": 1000,
+        "shopfloor/tardiness": 1000,
+        "shopfloor/tardy_fraction": 1000,
+        "shopfloor/total_queue_time": 1000,
+        "shopfloor/throughput": 1000,
+        "shopfloor/utilization": 1000,
+        "shopfloor/jobs_in_system": 1000
+      }
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 17,
+      "queries": 18,
+      "wall_seconds": 0.1696940830006497,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 14924,
+      "peak_rss_bytes": 37896192,
+      "samples": {
+        "shopfloor/makespan": 17,
+        "shopfloor/lateness": 17,
+        "shopfloor/tardiness": 17,
+        "shopfloor/tardy_fraction": 17,
+        "shopfloor/total_queue_time": 17,
+        "shopfloor/throughput": 17,
+        "shopfloor/utilization": 17,
+        "shopfloor/jobs_in_system": 17
+      }
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 17,
+      "queries": 18,
+      "wall_seconds": 0.18214541699853726,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 14924,
+      "peak_rss_bytes": 37863424,
+      "samples": {
+        "shopfloor/makespan": 17,
+        "shopfloor/lateness": 17,
+        "shopfloor/tardiness": 17,
+        "shopfloor/tardy_fraction": 17,
+        "shopfloor/total_queue_time": 17,
+        "shopfloor/throughput": 17,
+        "shopfloor/utilization": 17,
+        "shopfloor/jobs_in_system": 17
+      }
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 17,
+      "queries": 18,
+      "wall_seconds": 0.16786362499988172,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 14924,
+      "peak_rss_bytes": 37945344,
+      "samples": {
+        "shopfloor/makespan": 17,
+        "shopfloor/lateness": 17,
+        "shopfloor/tardiness": 17,
+        "shopfloor/tardy_fraction": 17,
+        "shopfloor/total_queue_time": 17,
+        "shopfloor/throughput": 17,
+        "shopfloor/utilization": 17,
+        "shopfloor/jobs_in_system": 17
+      }
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 0,
+      "queries": 1,
+      "wall_seconds": 0.2894738480099477,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 8613,
+      "peak_rss_bytes": 51200000,
+      "samples": {}
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 0,
+      "queries": 1,
+      "wall_seconds": 0.2858035910030594,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 8613,
+      "peak_rss_bytes": 51261440,
+      "samples": {}
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 0,
+      "queries": 1,
+      "wall_seconds": 0.2888248749950435,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 8613,
+      "peak_rss_bytes": 51191808,
+      "samples": {}
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 1000,
+      "queries": 1001,
+      "wall_seconds": 0.3472573350009043,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 362774,
+      "peak_rss_bytes": 52252672,
+      "samples": {
+        "shopfloor/makespan": 1000,
+        "shopfloor/lateness": 1000,
+        "shopfloor/tardiness": 1000,
+        "shopfloor/tardy_fraction": 1000,
+        "shopfloor/total_queue_time": 1000,
+        "shopfloor/throughput": 1000,
+        "shopfloor/utilization": 1000,
+        "shopfloor/jobs_in_system": 1000
+      }
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 1000,
+      "queries": 1001,
+      "wall_seconds": 0.33824903301137965,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 362774,
+      "peak_rss_bytes": 52162560,
+      "samples": {
+        "shopfloor/makespan": 1000,
+        "shopfloor/lateness": 1000,
+        "shopfloor/tardiness": 1000,
+        "shopfloor/tardy_fraction": 1000,
+        "shopfloor/total_queue_time": 1000,
+        "shopfloor/throughput": 1000,
+        "shopfloor/utilization": 1000,
+        "shopfloor/jobs_in_system": 1000
+      }
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 1000,
+      "queries": 1001,
+      "wall_seconds": 0.34494528399955016,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 362774,
+      "peak_rss_bytes": 52314112,
+      "samples": {
+        "shopfloor/makespan": 1000,
+        "shopfloor/lateness": 1000,
+        "shopfloor/tardiness": 1000,
+        "shopfloor/tardy_fraction": 1000,
+        "shopfloor/total_queue_time": 1000,
+        "shopfloor/throughput": 1000,
+        "shopfloor/utilization": 1000,
+        "shopfloor/jobs_in_system": 1000
+      }
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 17,
+      "queries": 18,
+      "wall_seconds": 0.28811065199261066,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 14911,
+      "peak_rss_bytes": 50999296,
+      "samples": {
+        "shopfloor/makespan": 17,
+        "shopfloor/lateness": 17,
+        "shopfloor/tardiness": 17,
+        "shopfloor/tardy_fraction": 17,
+        "shopfloor/total_queue_time": 17,
+        "shopfloor/throughput": 17,
+        "shopfloor/utilization": 17,
+        "shopfloor/jobs_in_system": 17
+      }
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 17,
+      "queries": 18,
+      "wall_seconds": 0.28450123500078917,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 14911,
+      "peak_rss_bytes": 51585024,
+      "samples": {
+        "shopfloor/makespan": 17,
+        "shopfloor/lateness": 17,
+        "shopfloor/tardiness": 17,
+        "shopfloor/tardy_fraction": 17,
+        "shopfloor/total_queue_time": 17,
+        "shopfloor/throughput": 17,
+        "shopfloor/utilization": 17,
+        "shopfloor/jobs_in_system": 17
+      }
+    },
+    {
+      "retention": "full",
+      "jobs": 65536,
+      "limit": 17,
+      "queries": 18,
+      "wall_seconds": 0.2894141069991747,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 0,
+        "events": 716800,
+        "retained_jobs": 65536,
+        "retained_operations": 131072,
+        "job_capacity": 65536,
+        "op_capacity": 131072,
+        "calendar_capacity": 32,
+        "native_bytes": 8980756,
+        "completion_capacity": 0,
+        "state_capacity": 0
+      },
+      "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+      "fingerprint": {
+        "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 14911,
+      "peak_rss_bytes": 51593216,
+      "samples": {
+        "shopfloor/makespan": 17,
+        "shopfloor/lateness": 17,
+        "shopfloor/tardiness": 17,
+        "shopfloor/tardy_fraction": 17,
+        "shopfloor/total_queue_time": 17,
+        "shopfloor/throughput": 17,
+        "shopfloor/utilization": 17,
+        "shopfloor/jobs_in_system": 17
+      }
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 0,
+      "queries": 1,
+      "wall_seconds": 0.28718308699899353,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 8622,
+      "peak_rss_bytes": 32440320,
+      "samples": {}
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 0,
+      "queries": 1,
+      "wall_seconds": 0.28288551699370146,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 8622,
+      "peak_rss_bytes": 32452608,
+      "samples": {}
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 0,
+      "queries": 1,
+      "wall_seconds": 0.2866392249998171,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 8622,
+      "peak_rss_bytes": 32468992,
+      "samples": {}
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 1000,
+      "queries": 1001,
+      "wall_seconds": 0.34712761400442105,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 362783,
+      "peak_rss_bytes": 33988608,
+      "samples": {
+        "shopfloor/makespan": 1000,
+        "shopfloor/lateness": 1000,
+        "shopfloor/tardiness": 1000,
+        "shopfloor/tardy_fraction": 1000,
+        "shopfloor/total_queue_time": 1000,
+        "shopfloor/throughput": 1000,
+        "shopfloor/utilization": 1000,
+        "shopfloor/jobs_in_system": 1000
+      }
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 1000,
+      "queries": 1001,
+      "wall_seconds": 0.34370278799906373,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 362783,
+      "peak_rss_bytes": 34148352,
+      "samples": {
+        "shopfloor/makespan": 1000,
+        "shopfloor/lateness": 1000,
+        "shopfloor/tardiness": 1000,
+        "shopfloor/tardy_fraction": 1000,
+        "shopfloor/total_queue_time": 1000,
+        "shopfloor/throughput": 1000,
+        "shopfloor/utilization": 1000,
+        "shopfloor/jobs_in_system": 1000
+      }
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 1000,
+      "queries": 1001,
+      "wall_seconds": 0.3385760340024717,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 362783,
+      "peak_rss_bytes": 34152448,
+      "samples": {
+        "shopfloor/makespan": 1000,
+        "shopfloor/lateness": 1000,
+        "shopfloor/tardiness": 1000,
+        "shopfloor/tardy_fraction": 1000,
+        "shopfloor/total_queue_time": 1000,
+        "shopfloor/throughput": 1000,
+        "shopfloor/utilization": 1000,
+        "shopfloor/jobs_in_system": 1000
+      }
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 17,
+      "queries": 18,
+      "wall_seconds": 0.28401231300085783,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 14920,
+      "peak_rss_bytes": 32579584,
+      "samples": {
+        "shopfloor/makespan": 17,
+        "shopfloor/lateness": 17,
+        "shopfloor/tardiness": 17,
+        "shopfloor/tardy_fraction": 17,
+        "shopfloor/total_queue_time": 17,
+        "shopfloor/throughput": 17,
+        "shopfloor/utilization": 17,
+        "shopfloor/jobs_in_system": 17
+      }
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 17,
+      "queries": 18,
+      "wall_seconds": 0.2890445160010131,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 14920,
+      "peak_rss_bytes": 32448512,
+      "samples": {
+        "shopfloor/makespan": 17,
+        "shopfloor/lateness": 17,
+        "shopfloor/tardiness": 17,
+        "shopfloor/tardy_fraction": 17,
+        "shopfloor/total_queue_time": 17,
+        "shopfloor/throughput": 17,
+        "shopfloor/utilization": 17,
+        "shopfloor/jobs_in_system": 17
+      }
+    },
+    {
+      "retention": "bounded",
+      "jobs": 65536,
+      "limit": 17,
+      "queries": 18,
+      "wall_seconds": 0.28236807500070427,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 7052,
+        "completion_capacity": 2048,
+        "state_capacity": 256
+      },
+      "native_state": "482ae8d72108a7f777970c7dbd30851914fc4e7c4b28546b76392d97fd1b3fa7",
+      "fingerprint": {
+        "digest": "d63810d15b97973b4d8804120bbe637a676aca30450215bd1c01249b000bccd2",
+        "kpis": {
+          "shopfloor/jobs_in_system": 0.5390625,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/utilization": 0.0625
+        }
+      },
+      "trace_bytes": 14920,
+      "peak_rss_bytes": 32571392,
+      "samples": {
+        "shopfloor/makespan": 17,
+        "shopfloor/lateness": 17,
+        "shopfloor/tardiness": 17,
+        "shopfloor/tardy_fraction": 17,
+        "shopfloor/total_queue_time": 17,
+        "shopfloor/throughput": 17,
+        "shopfloor/utilization": 17,
+        "shopfloor/jobs_in_system": 17
+      }
+    }
+  ],
+  "reviewed": [
+    {
+      "name": "linux-reviewed-cp314",
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "98056bab8f3ff2017fc6bc3615fb61e517712c95a5998c7a71ad33a7e2c7dada"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl",
+        "sha256": "3d713881ee9f065d7fff30a8141ee723e48370c024cddf337a860671f6102320"
+      }
+    },
+    {
+      "name": "macos-reviewed-cp314",
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "98056bab8f3ff2017fc6bc3615fb61e517712c95a5998c7a71ad33a7e2c7dada"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp314-cp314-macosx_27_0_arm64.whl",
+        "sha256": "eb9ee3abc5325c856433453edf91f395cfda2d66d6e622d53a7e95725bef3c23"
+      }
+    }
+  ],
+  "repository": {
+    "passed": 3771,
+    "skipped": 1,
+    "warnings": 3,
+    "coverage": 99.03
+  },
+  "browser_tests": 69,
+  "typescript_tests": 455,
+  "native_companion_unchanged": true,
+  "sources": {
+    "measure.py": "de5f187388a7be391554963b6f34e5a09fe5a21a7bdd0f9c633f9f75d9e65ca7",
+    "validate.py": "cdbac6ca489c075dab61fcc6695bfe8e09923d47dee9fde53d90fddf24ea8174",
+    "studio_probe.py": "12ac689d1cc95fca74461fbe9bbfa3c64427640936296d1c386c9cf2e6420ad7",
+    "analyze.py": "7e0f46dd49425bf31bf562bf4932065f50c5ca92a0281fa8252c7c84c1eceaf1"
+  }
+}

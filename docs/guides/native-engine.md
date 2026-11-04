@@ -312,6 +312,65 @@ Full native trace playback, arbitrary actor APIs, other release policies,
 and intralogistics remain unsupported. SSH native worker execution has not been
 validated by this packaging gate.
 
+## Experimental Studio observation
+
+The packaged backend can record bounded snapshot series of its eight stock KPIs:
+
+```python
+from simulatte.experimental.native import NativeObservation, NativeProduction
+
+backend = NativeProduction(
+    servers=3,
+    capacities=(2, 1, 3),
+    retention="bounded",
+    input_state=input_state,
+    observation=NativeObservation(interval=10, max_samples=1000),
+)
+env.attach_execution_backend(backend)
+```
+
+`interval` is in simulation time. Samples cover warmup through the horizon,
+including both endpoints, with at most `max_samples` points per KPI (2–4096;
+default 1000). If needed, the framework increases spacing to cover the whole
+window. Studio shows the effective spacing and sample count, including when it
+increased spacing to fit the limit. Only one sample event is pending at a time;
+no history grows beyond the configured bound. Trace writing retains its ordinary
+streaming/backpressure behavior. Setting `observation=None` keeps final scalars
+only, and no observation work is scheduled without a KPI subscriber.
+
+These are snapshots of the existing window/cohort statistics. Utilization is a
+window average, for example, rather than instantaneous busy-slot utilization.
+An undefined statistic records a missing-value gap; it is not replaced by zero.
+Snapshots occur at synchronized right-open boundaries, before Python callbacks
+and native events exactly at that timestamp. A read does not call user code inside
+C, serialize growing native state, or compose identities. Sampling does not change
+native state commitments, final KPI estimands or the semantic fingerprint.
+
+The `examples/native_studio` project lazily admits jobs with a bounded backlog and
+an explicit future-input commitment. In an environment with matching local native
+and Studio packages, run from that directory:
+
+```sh
+simulatte studio plant.py --level kpi
+```
+
+Studio labels the backend **experimental** on live prefixes and saved recordings.
+Recorded KPIs provides charts and sample-time tiles; final scalars remain a separate
+result. Parameter forms can vary `observation_interval`, `observation_limit`,
+`parallel_slots` and `retention` in the example. Observation settings are recorded
+in resolved trace provenance, independently of semantic state.
+The projection's reporting configuration also includes the observation plan, so
+composed reporting/reproduction identities distinguish sampling settings while
+native authority and trajectory/control identities remain unchanged.
+
+Run/cancel, committed range transport, source-deleted request reproduction and KPI
+comparison use the existing managed machinery. A cancelled or failed prefix is
+revoked and cannot become a successful result. There is no native actor animation
+or event stepping. Compare does not offer full entity replay for this scalar
+backend; use KPI charts/comparisons. Ordinary request reproduction still reruns at
+KPI level. The provider remains experimental v3 work; Studio integration does not
+select production deployment baselines or publish a package release.
+
 ## Cancellation and execution failures
 
 Managed cancellation and deadlines are checked at Python execution boundaries,

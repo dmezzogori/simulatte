@@ -204,7 +204,7 @@ def execute(config, raw_request, key, control, spool, send):
                     else {}
                 ),
                 **(
-                    {"execution_backend": env._execution_backend.capabilities.to_dict()}
+                    {"execution_backend": env._execution_backend.description()}
                     if env._execution_backend is not None
                     else {}
                 ),

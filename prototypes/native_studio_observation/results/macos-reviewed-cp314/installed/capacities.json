@@ -1,0 +1,196 @@
+{
+  "direct": [
+    {
+      "capacities": [
+        1,
+        1
+      ],
+      "finished": [
+        2.25,
+        4.25,
+        6.25,
+        8.25
+      ],
+      "scalars": {
+        "shopfloor/makespan": 5.25,
+        "shopfloor/lateness": -4.75,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/total_queue_time": 3.0,
+        "shopfloor/throughput": 0.48484848484848486,
+        "shopfloor/utilization": 0.5454545454545454,
+        "shopfloor/jobs_in_system": 2.5454545454545454
+      }
+    },
+    {
+      "capacities": [
+        2,
+        1
+      ],
+      "finished": [
+        2.25,
+        2.5,
+        4.25,
+        4.5
+      ],
+      "scalars": {
+        "shopfloor/makespan": 3.375,
+        "shopfloor/lateness": -6.625,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/total_queue_time": 1.125,
+        "shopfloor/throughput": 0.8888888888888888,
+        "shopfloor/utilization": 0.6666666666666666,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  ],
+  "rows": [
+    {
+      "configuration": 0,
+      "request": "9280821af5ff174aeb92b73029bdc5782af488a358f80cd714eb2b8ee41d5fb4",
+      "attempt": "82f9861d3649d642553bb66dd47574dc",
+      "fingerprint": "ca2938fd90593b916ea9b43704282cef55322f94031412eab586627ed9852939",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0197368421052633,
+        "shopfloor/lateness": 3.953488372093023,
+        "shopfloor/makespan": 5.895348837209302,
+        "shopfloor/tardiness": 4.244186046511628,
+        "shopfloor/tardy_fraction": 0.8604651162790697,
+        "shopfloor/throughput": 1.131578947368421,
+        "shopfloor/total_queue_time": 0.7209302325581395,
+        "shopfloor/utilization": 0.20504385964912283
+      },
+      "observations_sha256": "3e5dc243ca0ea56caee044a9fd609b8d442e65d73a3ca9043bfbf3a327d74f4d"
+    },
+    {
+      "configuration": 1,
+      "request": "77231f31b597dbdba6f3ab80f4beda7387982ca77ef75f737c8d26da535ce13f",
+      "attempt": "817029582c60f58701be318f9e7e323a",
+      "fingerprint": "a634187b1042597179505332dab90a4de3ccdeb7a36ea93fa2afd8572538ff99",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0197368421052633,
+        "shopfloor/lateness": 3.953488372093023,
+        "shopfloor/makespan": 5.895348837209302,
+        "shopfloor/tardiness": 4.244186046511628,
+        "shopfloor/tardy_fraction": 0.8604651162790697,
+        "shopfloor/throughput": 1.131578947368421,
+        "shopfloor/total_queue_time": 0.7209302325581395,
+        "shopfloor/utilization": 0.20504385964912283
+      },
+      "observations_sha256": "26acda326cb8d56fb1f5c9cfd3bfbfb3a3e655235510cf1f0c9035d7cf3bd6b3"
+    },
+    {
+      "configuration": 2,
+      "request": "4ec90b371be0e34d0e83a3503f9187f2d6c2794b30eda2de928ce53d1ddac84b",
+      "attempt": "4dd108c1c603a4b03b49113e3131adb9",
+      "fingerprint": "1004be869f9fb20f2a1fb27788c626871ebd2a93f00a13f9f9b4aeed4442458a",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0197368421052633,
+        "shopfloor/lateness": 3.953488372093023,
+        "shopfloor/makespan": 5.895348837209302,
+        "shopfloor/tardiness": 4.244186046511628,
+        "shopfloor/tardy_fraction": 0.8604651162790697,
+        "shopfloor/throughput": 1.131578947368421,
+        "shopfloor/total_queue_time": 0.7209302325581395,
+        "shopfloor/utilization": 0.20504385964912283
+      },
+      "observations_sha256": "2431ea7fa038ab9d326d0f3458ae04a824d9e374f229c2f9055b07d65eb2d914"
+    },
+    {
+      "configuration": 3,
+      "request": "ba0575e5babb42932a8f4479034107cd60641ce5362bcf75f5c0718011d69593",
+      "attempt": "2a0c5dcc67089ff2c1090f02a5821aca",
+      "fingerprint": "a130a6f184d33ea3361303308fd111ba71d863055dcfe7bcd1321cbcc9502c6a",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0197368421052633,
+        "shopfloor/lateness": 3.953488372093023,
+        "shopfloor/makespan": 5.895348837209302,
+        "shopfloor/tardiness": 4.244186046511628,
+        "shopfloor/tardy_fraction": 0.8604651162790697,
+        "shopfloor/throughput": 1.131578947368421,
+        "shopfloor/total_queue_time": 0.7209302325581395,
+        "shopfloor/utilization": 0.20504385964912283
+      },
+      "observations_sha256": "795a8806b30d4808fdf8f98982d33601f79568dd9ad5da159d824f8d444e5139"
+    },
+    {
+      "configuration": 4,
+      "request": "0174246e09639b37280ebf7bf84816bac60cefb50177d12c9b648ae7425118b6",
+      "attempt": "07029e70bd6e78f4ead442813762b5c2",
+      "fingerprint": "91c079c7a69845f74f8862c3d218dd37c513890c3b0da95e3277d32703b66d03",
+      "kpis": {
+        "shopfloor/jobs_in_system": 1.986842105263158,
+        "shopfloor/lateness": 3.477272727272727,
+        "shopfloor/makespan": 5.443181818181818,
+        "shopfloor/tardiness": 3.897727272727273,
+        "shopfloor/tardy_fraction": 0.8181818181818182,
+        "shopfloor/throughput": 1.1578947368421053,
+        "shopfloor/total_queue_time": 0.6818181818181818,
+        "shopfloor/utilization": 0.20394736842105263
+      },
+      "observations_sha256": "0d433c40d05bf171b6d2142ee9f7ea9d8e643d55c22a20fb6252e0e365416529"
+    },
+    {
+      "configuration": 5,
+      "request": "6442c6d279e8ccee4f81a19a1efa9887305240cf5fea1404320a8af36a2dbf20",
+      "attempt": "27f14978f26aae844df8c906538950d2",
+      "fingerprint": "4667d4910e8c02550827714310fe62d17c2c332599824089ceb5c40db4a731c1",
+      "kpis": {
+        "shopfloor/jobs_in_system": 1.986842105263158,
+        "shopfloor/lateness": 3.477272727272727,
+        "shopfloor/makespan": 5.443181818181818,
+        "shopfloor/tardiness": 3.897727272727273,
+        "shopfloor/tardy_fraction": 0.8181818181818182,
+        "shopfloor/throughput": 1.1578947368421053,
+        "shopfloor/total_queue_time": 0.6818181818181818,
+        "shopfloor/utilization": 0.20394736842105263
+      },
+      "observations_sha256": "1804d5e2f72cafb4880a8f810c31577cb272ec1288c948a98d0f11e00f7fd391"
+    },
+    {
+      "configuration": 6,
+      "request": "8d7c3faa95063b37b14295dc86f5e740ce73bc7502debe8d672e8d2041472450",
+      "attempt": "2a4f80f653fad5471edc2d5dab6f7504",
+      "fingerprint": "2727c80f40e2945f1a4a8fe59bd406d5d0b5b5d6f806dd456eb236751dad3df1",
+      "kpis": {
+        "shopfloor/jobs_in_system": 1.986842105263158,
+        "shopfloor/lateness": 3.477272727272727,
+        "shopfloor/makespan": 5.443181818181818,
+        "shopfloor/tardiness": 3.897727272727273,
+        "shopfloor/tardy_fraction": 0.8181818181818182,
+        "shopfloor/throughput": 1.1578947368421053,
+        "shopfloor/total_queue_time": 0.6818181818181818,
+        "shopfloor/utilization": 0.20394736842105263
+      },
+      "observations_sha256": "60f9a2e8726206efb98b702ee62154ce00d432f823ab5c72ccc1a9071027c7e9"
+    },
+    {
+      "configuration": 7,
+      "request": "cc8ef21a76fc30e9e87bd1abf234312eccd878fdcdcac445d454be63616a01f6",
+      "attempt": "d31dd315924d172b407893c3ddc6e377",
+      "fingerprint": "2805a089210a1a19083c1bb26dba4d2d4d0ca55a774aef8bf55b054a28274938",
+      "kpis": {
+        "shopfloor/jobs_in_system": 1.986842105263158,
+        "shopfloor/lateness": 3.477272727272727,
+        "shopfloor/makespan": 5.443181818181818,
+        "shopfloor/tardiness": 3.897727272727273,
+        "shopfloor/tardy_fraction": 0.8181818181818182,
+        "shopfloor/throughput": 1.1578947368421053,
+        "shopfloor/total_queue_time": 0.6818181818181818,
+        "shopfloor/utilization": 0.20394736842105263
+      },
+      "observations_sha256": "9f2cfef4eeddaea385475f080003584ca00643c5ae1d4d40f9afb30679b04801"
+    }
+  ],
+  "source_deleted_reproductions": [
+    "9280821af5ff174aeb92b73029bdc5782af488a358f80cd714eb2b8ee41d5fb4",
+    "77231f31b597dbdba6f3ab80f4beda7387982ca77ef75f737c8d26da535ce13f",
+    "4ec90b371be0e34d0e83a3503f9187f2d6c2794b30eda2de928ce53d1ddac84b",
+    "ba0575e5babb42932a8f4479034107cd60641ce5362bcf75f5c0718011d69593",
+    "0174246e09639b37280ebf7bf84816bac60cefb50177d12c9b648ae7425118b6",
+    "6442c6d279e8ccee4f81a19a1efa9887305240cf5fea1404320a8af36a2dbf20",
+    "8d7c3faa95063b37b14295dc86f5e740ce73bc7502debe8d672e8d2041472450",
+    "cc8ef21a76fc30e9e87bd1abf234312eccd878fdcdcac445d454be63616a01f6"
+  ]
+}

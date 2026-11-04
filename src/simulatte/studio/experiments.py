@@ -324,11 +324,14 @@ class ExperimentCommands:
             link = db.execute("SELECT original FROM replays WHERE request_id=?", (identity,)).fetchone()
             original = identity if link is None else link[0]
             committed = db.execute(
-                "SELECT 1 FROM results r JOIN attempts a ON a.id=r.attempt WHERE a.request_id=?", (original,)
+                "SELECT r.attempt FROM results r JOIN attempts a ON a.id=r.attempt WHERE a.request_id=?", (original,)
             ).fetchone()
         replay = request_id(replace(store.request(original), level="full"))
         if committed is None:
             raise ValueError("No committed result to replay")
+        capabilities = store.result(committed[0]).manifest["resolved"]["capabilities"].get("execution_backend")
+        if capabilities is not None and "full" not in capabilities.get("trace_levels", ()):
+            raise ValueError("This backend supports KPI observation only; full entity replay is unavailable")
         outcome = {"ok": True, "request_id": replay, "original": original}
         with self._replaying_lock:
             if replay in self._replaying or self._running(replay):

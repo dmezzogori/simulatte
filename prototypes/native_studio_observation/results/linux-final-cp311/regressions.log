@@ -1,0 +1,11 @@
+........................................................................ [ 25%]
+........................................................................ [ 50%]
+........................................................................ [ 75%]
+.....................................................................    [100%]
+=============================== warnings summary ===============================
+tests/core/test_studio_native.py:9
+  /home/davide/Developer/simulatte-native-observation-20261104-6049c9/tests/core/test_studio_native.py:9: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+285 passed, 1 warning in 23.72s

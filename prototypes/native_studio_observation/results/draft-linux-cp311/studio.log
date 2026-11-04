@@ -1,0 +1,9 @@
+/tmp/native-studio-installed-myt96x1x/studio_probe.py:9: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient
+Traceback (most recent call last):
+  File "/tmp/native-studio-installed-myt96x1x/studio_probe.py", line 103, in <module>
+    main(Path(sys.argv[1]), Path(sys.argv[2]))
+  File "/tmp/native-studio-installed-myt96x1x/studio_probe.py", line 35, in main
+    assert shell.status_code == 200 and 'id="root"' in shell.text
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

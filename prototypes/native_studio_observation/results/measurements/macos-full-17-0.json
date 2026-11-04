@@ -1,0 +1,47 @@
+{
+  "retention": "full",
+  "jobs": 65536,
+  "limit": 17,
+  "queries": 18,
+  "wall_seconds": 0.17182058400067035,
+  "storage": {
+    "admitted": 65536,
+    "completed": 65536,
+    "forgotten": 0,
+    "events": 716800,
+    "retained_jobs": 65536,
+    "retained_operations": 131072,
+    "job_capacity": 65536,
+    "op_capacity": 131072,
+    "calendar_capacity": 32,
+    "native_bytes": 8980756,
+    "completion_capacity": 0,
+    "state_capacity": 0
+  },
+  "native_state": "a060c79781ab5ed7e8965e9fe13bdf946aa14a66cca037c352b5eeda5f46c6bf",
+  "fingerprint": {
+    "digest": "240937ca3f0b5f57dd9e9a57f36ce9402ba924612dee9e591aeca6bf1f565f79",
+    "kpis": {
+      "shopfloor/jobs_in_system": 0.5390625,
+      "shopfloor/lateness": -3.828125,
+      "shopfloor/makespan": 2.171875,
+      "shopfloor/tardiness": 0.0,
+      "shopfloor/tardy_fraction": 0.0,
+      "shopfloor/throughput": 0.5,
+      "shopfloor/total_queue_time": 0.328125,
+      "shopfloor/utilization": 0.0625
+    }
+  },
+  "trace_bytes": 14915,
+  "peak_rss_bytes": 59572224,
+  "samples": {
+    "shopfloor/makespan": 17,
+    "shopfloor/lateness": 17,
+    "shopfloor/tardiness": 17,
+    "shopfloor/tardy_fraction": 17,
+    "shopfloor/total_queue_time": 17,
+    "shopfloor/throughput": 17,
+    "shopfloor/utilization": 17,
+    "shopfloor/jobs_in_system": 17
+  }
+}

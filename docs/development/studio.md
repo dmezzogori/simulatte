@@ -38,6 +38,20 @@ uv run python examples/studio_recording.py /tmp/fleet.simtrace --model fleet
 uv run --extra studio simulatte view /tmp/fleet.simtrace
 ```
 
+## Experimental native KPI observation
+
+The optional packaged native backend can feed live and recorded KPI snapshots to
+Studio. It remains experimental and requires `--level kpi`. The run header names
+the backend and shows the effective snapshot spacing and point count. Recorded
+KPIs charts and tiles show sampled values; final scalars remain separate. There
+is no native entity animation or full entity replay.
+
+Use `NativeProduction(..., observation=NativeObservation(interval=10,
+max_samples=1000))` to opt in. The sample cap coarsens spacing across the full
+reporting window. Cancellation/failure revokes the partial prefix through the
+ordinary Studio lifecycle. See the [native guide](../guides/native-engine.md#experimental-studio-observation)
+and `examples/native_studio` for the Python API and a bounded-admission example.
+
 ## Navigate and inspect
 
 The scene uses recorded equipment placements and motion. Without layout metadata,

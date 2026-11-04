@@ -1,0 +1,219 @@
+{
+  "direct": {
+    "window": [
+      0.0,
+      5.0,
+      true
+    ],
+    "scalars": {
+      "shopfloor/makespan": 4.0,
+      "shopfloor/lateness": -5.5,
+      "shopfloor/tardiness": 0.0,
+      "shopfloor/tardy_fraction": 0.0,
+      "shopfloor/total_queue_time": 0.0,
+      "shopfloor/throughput": 0.4,
+      "shopfloor/utilization": 0.8,
+      "shopfloor/jobs_in_system": 1.6
+    }
+  },
+  "rows": [
+    {
+      "configuration": 0,
+      "seed": 100,
+      "fingerprint": "7168e62a29f7196c4c331e3a6b0edcbd709f0035068176bb2a5f3cb3451cfa68",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0,
+        "shopfloor/lateness": -6.848278436318513,
+        "shopfloor/makespan": 5.401721563681487,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 0.875,
+        "shopfloor/total_queue_time": 0.47052321863380886,
+        "shopfloor/utilization": 0.5662383476627124
+      },
+      "attempt": "de18cccc2b63efe646a923ab08d59792",
+      "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-hbyn1970/venv/lib/python3.13/site-packages/simulatte_native/_bin/_nd_scalar.cpython-313-darwin.so",
+      "request": "fc3dbf8f8ef3b309eb607e6cd26b4e088b1e6e8400cc0876e5f2994d3a0e2bda"
+    },
+    {
+      "configuration": 1,
+      "seed": 100,
+      "fingerprint": "a2d92ce564bb2037a6b9205b2a7b800f28e616654ea7a6acdb820f31f50d51ff",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0,
+        "shopfloor/lateness": -6.848278436318513,
+        "shopfloor/makespan": 5.401721563681487,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 0.875,
+        "shopfloor/total_queue_time": 0.47052321863380886,
+        "shopfloor/utilization": 0.5662383476627124
+      },
+      "attempt": "aae2c5425a5aed97abecc85a825326a7",
+      "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-hbyn1970/venv/lib/python3.13/site-packages/simulatte_native/_bin/_nd_scalar.cpython-313-darwin.so",
+      "request": "858d7e34b654dddbfedbe71bbfdc37d34f643ffcbd3017d7e3e69602b4306741"
+    },
+    {
+      "configuration": 2,
+      "seed": 100,
+      "fingerprint": "8def542d82b404aa905ca6526d284b8d33935610b12eff0b6a30c41666dc5b29",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0,
+        "shopfloor/lateness": -6.989822578044745,
+        "shopfloor/makespan": 5.260177421955255,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 0.875,
+        "shopfloor/total_queue_time": 0.3667565817440294,
+        "shopfloor/utilization": 0.5889940689051377
+      },
+      "attempt": "8ca8488c03fc17eef80a86ef9d3c85a9",
+      "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-hbyn1970/venv/lib/python3.13/site-packages/simulatte_native/_bin/_nd_scalar.cpython-313-darwin.so",
+      "request": "94dd235f15706bc590eaa65dd20d29cf6d8733937338c3bd1a6eace17d5c2599"
+    },
+    {
+      "configuration": 3,
+      "seed": 100,
+      "fingerprint": "8979dcf9b252d4ee7216a27cf9f219cde466584a6fb8b86dde3f7ba2fb6bc259",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0,
+        "shopfloor/lateness": -6.989822578044745,
+        "shopfloor/makespan": 5.260177421955255,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 0.875,
+        "shopfloor/total_queue_time": 0.3667565817440294,
+        "shopfloor/utilization": 0.5889940689051377
+      },
+      "attempt": "83c4160a5c90d7d47e079cdca0beb6c5",
+      "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-hbyn1970/venv/lib/python3.13/site-packages/simulatte_native/_bin/_nd_scalar.cpython-313-darwin.so",
+      "request": "64c5bc509c7e59fdb5484bd8b0d3a86dce6dc17e857299cb1d55b0414834b4b4"
+    },
+    {
+      "configuration": 0,
+      "seed": 101,
+      "fingerprint": "58345a8f9b00e35e2117e19b2c0dabb22fb2481f011d28ea95132c20a872aa5c",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0,
+        "shopfloor/lateness": -8.103236212885884,
+        "shopfloor/makespan": 4.896763787114117,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 0.875,
+        "shopfloor/total_queue_time": 0.07553686845987104,
+        "shopfloor/utilization": 0.5905959807422871
+      },
+      "attempt": "ccb439215b62666c0af82e5cac85cf19",
+      "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-hbyn1970/venv/lib/python3.13/site-packages/simulatte_native/_bin/_nd_scalar.cpython-313-darwin.so",
+      "request": "f8c93c07c6ba67c684904ad863272b52cc6c513a4bd1fc4f141a7f2cb79d36f6"
+    },
+    {
+      "configuration": 1,
+      "seed": 101,
+      "fingerprint": "057e67cba09f69403d691d4ebd808f699c9c388f5435c83069b223fa5a683717",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0,
+        "shopfloor/lateness": -8.103236212885884,
+        "shopfloor/makespan": 4.896763787114117,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 0.875,
+        "shopfloor/total_queue_time": 0.07553686845987104,
+        "shopfloor/utilization": 0.5905959807422871
+      },
+      "attempt": "838408d2208161f6c6a535e22cce96f3",
+      "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-hbyn1970/venv/lib/python3.13/site-packages/simulatte_native/_bin/_nd_scalar.cpython-313-darwin.so",
+      "request": "b33f92d9dc8c98ad4eb3bcb71bb410d43d9754f8bc2c851bac17fac8a281d46d"
+    },
+    {
+      "configuration": 2,
+      "seed": 101,
+      "fingerprint": "42bffb8d9b6440478e43d8b2489f606d804d2f3708da8dc9e06c921d779e9612",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0,
+        "shopfloor/lateness": -8.103236212885884,
+        "shopfloor/makespan": 4.896763787114117,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 0.875,
+        "shopfloor/total_queue_time": 0.07553686845987104,
+        "shopfloor/utilization": 0.5905959807422871
+      },
+      "attempt": "8086ccefa9133f4a9890ccac30a17fa0",
+      "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-hbyn1970/venv/lib/python3.13/site-packages/simulatte_native/_bin/_nd_scalar.cpython-313-darwin.so",
+      "request": "f32a7b8e809044215f4909aee8e22a82666d47f6f4e40486e261bb60e92dc177"
+    },
+    {
+      "configuration": 3,
+      "seed": 101,
+      "fingerprint": "e4f2c8343eb47c1c9ae14ab6d58615a20603bce3cbbedf900d483e62e08c550f",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.0,
+        "shopfloor/lateness": -8.103236212885884,
+        "shopfloor/makespan": 4.896763787114117,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 0.875,
+        "shopfloor/total_queue_time": 0.07553686845987104,
+        "shopfloor/utilization": 0.5905959807422871
+      },
+      "attempt": "68fb1b13e412983bb56164784cb1772a",
+      "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-hbyn1970/venv/lib/python3.13/site-packages/simulatte_native/_bin/_nd_scalar.cpython-313-darwin.so",
+      "request": "693986e4aa41c39e7b380a56629184f5ad9f28e3566133c50c5f96a29a10763d"
+    }
+  ],
+  "source_deleted_reproductions": [
+    "fc3dbf8f8ef3b309eb607e6cd26b4e088b1e6e8400cc0876e5f2994d3a0e2bda",
+    "858d7e34b654dddbfedbe71bbfdc37d34f643ffcbd3017d7e3e69602b4306741",
+    "94dd235f15706bc590eaa65dd20d29cf6d8733937338c3bd1a6eace17d5c2599",
+    "64c5bc509c7e59fdb5484bd8b0d3a86dce6dc17e857299cb1d55b0414834b4b4"
+  ],
+  "provider": {
+    "schema": 1,
+    "provider_api": 2,
+    "version": "0.17.0",
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "arm64",
+      "platform": "darwin",
+      "python": [
+        3,
+        13
+      ],
+      "soabi": "cpython-313-darwin",
+      "suffix": ".cpython-313-darwin.so"
+    },
+    "sources": {
+      "csrc/dynamic_engine.c": "8622b96865136d8dfce00bdfe2088689248c4ffc88c22499ed197a606c42e509",
+      "csrc/dynamic_engine.h": "7d1c64cb22c5c0de9f179e613f0109879d780c67e59354b59ee7391f05757b5e",
+      "csrc/dynamic_engine_internal.h": "89f1cb6c46c7755edeabdbfa9efd0f1511fcbfb3ef9485e59303ac665f90a00a",
+      "csrc/retention.c": "31ab9b5135023c47184e82c75d9d63b5b84fc922ff3ed60bdc523878a9b111b5",
+      "csrc/retention.h": "c708e4cc1b3731275eb19f699e36727030e9147d3dd5f33806662687cc7e7a37",
+      "csrc/retention_module.c": "fa8b2c151f2c8c7cbeae84294c811142414d23a074627e2156976b790e64cb6f",
+      "csrc/retention_module.h": "b709e31ff8034ffd647e070af6fab44fda98f31cd4cdd9e27ee0af4a5b26802c",
+      "csrc/scalar_module.c": "541108c7368fafcbfd32801f09fa16909975ebaa81244f7a7cd7f3d02dec4ca7",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "files": {
+      "_nd_scalar.cpython-313-darwin.so": {
+        "sha256": "703d089a2c696c91cfa2da39e0d1b61fc927ac0724b8120bbed7fc2a5834baac",
+        "size": 73120
+      },
+      "simulatte_native_engine.dylib": {
+        "sha256": "f90438a8625624b225c6b9c529c05f8932513a769023f16bbcb831ab2ed4d59f",
+        "size": 53152
+      }
+    }
+  },
+  "distributions": {
+    "simpy": "4.1.2",
+    "simulatte": "0.17.0",
+    "simulatte-native": "0.17.0",
+    "tqdm": "4.70.1",
+    "tabulate": "0.10.0",
+    "msgpack": "1.2.4"
+  }
+}
