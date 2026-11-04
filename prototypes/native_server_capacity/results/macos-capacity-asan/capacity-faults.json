@@ -1,0 +1,66 @@
+{
+  "passed": true,
+  "rows": [
+    {
+      "retention": "full",
+      "kind": "configuration",
+      "failed": 1,
+      "succeeded": 32
+    },
+    {
+      "retention": "full",
+      "kind": "constructor",
+      "failed": 7,
+      "succeeded": 26
+    },
+    {
+      "retention": "full",
+      "kind": "admission",
+      "failed": 32,
+      "succeeded": 1
+    },
+    {
+      "retention": "full",
+      "kind": "advance",
+      "failed": 7,
+      "succeeded": 26
+    },
+    {
+      "retention": "full",
+      "kind": "projection",
+      "failed": 1,
+      "succeeded": 32
+    },
+    {
+      "retention": "bounded",
+      "kind": "configuration",
+      "failed": 1,
+      "succeeded": 32
+    },
+    {
+      "retention": "bounded",
+      "kind": "constructor",
+      "failed": 8,
+      "succeeded": 25
+    },
+    {
+      "retention": "bounded",
+      "kind": "admission",
+      "failed": 32,
+      "succeeded": 1
+    },
+    {
+      "retention": "bounded",
+      "kind": "advance",
+      "failed": 15,
+      "succeeded": 18
+    },
+    {
+      "retention": "bounded",
+      "kind": "projection",
+      "failed": 7,
+      "succeeded": 26
+    }
+  ],
+  "python_leak_detection": false
+}

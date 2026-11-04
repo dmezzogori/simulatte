@@ -1,0 +1,15 @@
+Using Python 3.14.3 environment at: prototypes/native_provider_projection/.build/sanitized-macos-capacity-asan/venv
+Resolved 12 packages in 64ms
+Installed 12 packages in 185ms
+ + iniconfig==2.3.1
+ + msgpack==1.2.4
+ + packaging==26.3
+ + pluggy==1.7.0
+ + pygments==2.21.0
+ + pytest==9.1.1
+ + pytest-timeout==2.4.0
+ + simpy==4.1.2
+ + simulatte==0.17.0 (from file:///Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_server_capacity/.build/core/simulatte-0.17.0-py3-none-any.whl)
+ + simulatte-native==0.17.0 (from file:///Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_server_capacity/.build/native/simulatte_native-0.17.0-cp314-cp314-macosx_27_0_arm64.whl)
+ + tabulate==0.10.0
+ + tqdm==4.70.1

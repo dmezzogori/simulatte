@@ -99,6 +99,20 @@ static PyObject *create(PyObject *self, PyObject *args) {
     if (!capsule) { nd_destroy(s->engine); PyMem_Free(s); }
     return capsule;
 }
+static PyObject *configure_capacities(PyObject *self, PyObject *args) {
+    (void)self;
+    PyObject *capsule, *values;
+    if (!PyArg_ParseTuple(args, "OO", &capsule, &values)) return NULL;
+    scalar *s = get(capsule, 1); if (!s) return NULL;
+    uint32_t *copy;
+    if (nd_capacity_tuple(values, s->servers, &copy)) return NULL;
+    int rc; s->busy = 1;
+    Py_BEGIN_ALLOW_THREADS
+    rc = nd_set_capacities(s->engine, copy, s->servers);
+    Py_END_ALLOW_THREADS
+    s->busy = 0; PyMem_Free(copy);
+    return status(s, rc);
+}
 static PyObject *accepting(PyObject *self, PyObject *capsule) {
     (void)self;
     if (!get(capsule, 1)) return NULL;
@@ -340,7 +354,7 @@ static PyObject *state_projection(PyObject *self, PyObject *capsule) {
     }
     snapshot = nd_stock_snapshot_dict(&stock);
     if (snapshot) result = Py_BuildValue("{s:s,s:s,s:O,s:O}",
-        "schema", "native-provider-raw-projection-v1", "codec", "NSTA0001",
+        "schema", "native-provider-raw-projection-v1", "codec", memcmp(p, "NSTA0002", 8) ? "NSTA0001" : "NSTA0002",
         "native", raw, "snapshot", snapshot);
 done:
     Py_XDECREF(raw); Py_XDECREF(snapshot); s->busy = 0;
@@ -366,6 +380,7 @@ static PyObject *storage_stats(PyObject *self, PyObject *capsule) {
     return nd_retention_stats_dict(&out);
 }
 static PyMethodDef methods[] = {
+    {"configure_capacities", configure_capacities, METH_VARARGS, NULL},
 #ifdef SCALAR_TEST_ALLOCATIONS
     {"_fail_allocation", fail_allocation, METH_O, NULL},
 #endif

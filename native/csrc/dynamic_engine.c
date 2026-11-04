@@ -134,7 +134,9 @@ static int wip_change(nd_engine *e, int delta) {
 }
 
 static int grant(nd_engine *e, uint32_t server) {
-    if (e->occupied[server] || e->head[server] == NONE) return 0;
+    uint32_t capacity = e->capacities ? e->capacities[server] : 1;
+    /* SimPy Resource._do_put stops after one request per arrival/release trigger. */
+    if (e->occupied[server] >= capacity || e->head[server] == NONE) return 0;
     uint32_t chosen = e->head[server];
     if (e->policy == 1) {
         for (uint32_t op = e->next[chosen]; op != NONE; op = e->next[op])
@@ -151,7 +153,7 @@ static int grant(nd_engine *e, uint32_t server) {
     if (e->tail[server] == chosen) e->tail[server] = previous;
     e->next[chosen] = NONE;
     if (e->stock && nd_stock_busy(e->stock, e->now, 1)) return fail(e, "KPI allocation failed");
-    e->occupied[server] = 1;
+    ++e->occupied[server];
     if (e->mode == 3 && record(e, 8, e->job_of[chosen], chosen, server)) return -1;
     return schedule(e, e->now, START, chosen);
 }
@@ -246,7 +248,7 @@ static int process(nd_engine *e, event ev) {
         return schedule(e, e->now, ADVANCE, op);
     }
     if (e->stock && nd_stock_busy(e->stock, e->now, -1)) return fail(e, "KPI allocation failed");
-    e->occupied[server] = 0;
+    --e->occupied[server];
     if (e->mode == 3 && record(e, 9, job, op, server)) return -1;
     /* main() signals job_processing_end before constructing the Release.
      * The waiting policy process resumes later at NORMAL priority. Multiple
@@ -399,6 +401,7 @@ nd_engine *nd_create(uint32_t servers, uint32_t cap, int policy, int mode,
         goto failure;
     }
     e->servers = servers;
+    e->total_capacity = servers;
     e->cap = cap;
     e->policy = policy;
     e->mode = mode;
@@ -422,6 +425,29 @@ failure:
     if (error && error_capacity) (void)snprintf(error, error_capacity, "%s", e->error);
     nd_destroy(e);
     return NULL;
+}
+int nd_set_capacities(nd_engine *e, const uint32_t *capacities, size_t count) {
+    if (!e) return -1;
+    if (e->state || e->mode || e->jobs || e->now != 0 || e->stock_horizon ||
+        count != e->servers || !capacities)
+        return fail(e, "invalid capacity configuration boundary");
+    uint64_t total = 0;
+    int parallel = 0;
+    for (size_t i = 0; i < count; ++i) {
+        if (!capacities[i] || capacities[i] == NONE) return fail(e, "invalid server capacity");
+        total += capacities[i];
+        if (total >= NONE) return fail(e, "total server capacity overflow");
+        parallel |= capacities[i] != 1;
+    }
+    uint32_t *copy = NULL;
+    if (parallel) {
+        copy = allocate(e, count, sizeof(*copy));
+        if (!copy) return -1;
+        memcpy(copy, capacities, count * sizeof(*copy));
+    }
+    free(e->capacities); e->capacities = copy;
+    e->total_capacity = (uint32_t)total;
+    return 0;
 }
 static int drain(nd_engine *e, double until, nd_completion_callback callback, void *context) {
     while (e->heap_size && e->heap[0].time < until) {
@@ -478,7 +504,7 @@ int nd_enable_stock_kpis(nd_engine *e, double warmup) {
 }
 int nd_stock_kpis(const nd_engine *e, nd_kpi_snapshot *out) {
     if (!e || e->state == 1 || !e->stock || !out) return -1;
-    return nd_stock_snapshot(e->stock, e->now, e->servers, e->stock_horizon, out) ? -2 : 0;
+    return nd_stock_snapshot(e->stock, e->now, e->total_capacity, e->stock_horizon, out) ? -2 : 0;
 }
 int nd_inspect(const nd_engine *e, uint32_t id, nd_snapshot *out) {
     if (!e || e->state == 1 || id >= e->jobs || !out) return -1;
@@ -496,7 +522,7 @@ static int state_size_add(size_t *size, size_t count, size_t width) {
 int nd_state_size(const nd_engine *e, size_t *out) {
     if (!e || e->state == 1 || !out) return -1;
     size_t size = 108; /* magic, seven u32s, now, seven u64s, makespan */
-    if (state_size_add(&size, e->servers, 12) || state_size_add(&size, e->jobs, 36) ||
+    if (state_size_add(&size, e->servers, e->capacities ? 16 : 12) || state_size_add(&size, e->jobs, 36) ||
         state_size_add(&size, (size_t)e->jobs + 1, 4) || state_size_add(&size, e->operations, 44) ||
         state_size_add(&size, e->dispatched, 4) || state_size_add(&size, e->pool_size, 4) ||
         state_size_add(&size, e->heap_size, 24)) return -1;
@@ -540,7 +566,7 @@ int nd_state_write(const nd_engine *e, unsigned char *destination, size_t capaci
         qsort(pool, e->pool_size, sizeof(uint32_t), state_id_compare);
     }
     unsigned char *p = destination;
-    memcpy(p, "NSTA0001", 8); p += 8;
+    memcpy(p, e->capacities ? "NSTA0002" : "NSTA0001", 8); p += 8;
 #define S32(value) do { put32(p, (uint32_t)(value)); p += 4; } while (0)
 #define S64(value) do { put64(p, (uint64_t)(value)); p += 8; } while (0)
 #define SD(value) do { state_double(p, (value)); p += 8; } while (0)
@@ -551,6 +577,7 @@ int nd_state_write(const nd_engine *e, unsigned char *destination, size_t capaci
     S64(e->result.completed); S64(e->result.events); S64(e->heap_size); S64(e->pool_size);
     SD(e->result.makespan);
     for (uint32_t i = 0; i < e->servers; ++i) {
+        if (e->capacities) S32(e->capacities[i]);
         S32(e->head[i]); S32(e->tail[i]); S32(e->occupied[i]);
     }
     for (uint32_t i = 0; i < e->jobs; ++i) {
@@ -580,7 +607,7 @@ void nd_destroy(nd_engine *e) {
     if (e->file) { (void)flush_records(e); (void)fclose(e->file); }
     free(e->arrivals); free(e->due); free(e->durations); free(e->queued); free(e->released);
     free(e->offsets); free(e->routes); free(e->job_of); free(e->next); free(e->job_state); free(e->pool);
-    free(e->head); free(e->tail); free(e->occupied);
+    free(e->head); free(e->tail); free(e->occupied); free(e->capacities);
     free(e->starts); free(e->ends); free(e->finished); free(e->busy); free(e->dispatch);
     free(e->heap); free(e->record_buffer);
     nd_stock_destroy(e->stock);
@@ -599,7 +626,7 @@ int nd_storage(const nd_engine *e, nd_storage_stats *out) {
     out->operations = e->operations; out->job_capacity = e->job_capacity;
     out->op_capacity = e->op_capacity; out->calendar_capacity = e->heap_capacity;
     out->native_bytes = sizeof(*e) + e->job_capacity * 41 + (e->job_capacity ? 4 : 0) +
-        e->op_capacity * 48 + e->heap_capacity * sizeof(event) + e->servers * 17 +
+        e->op_capacity * 48 + e->heap_capacity * sizeof(event) + (size_t)e->servers * (e->capacities ? 24 : 20) +
         (e->mode >= 2 ? RECORD_BUFFER_SIZE : 0) + nd_stock_bytes(e->stock);
     return 0;
 }

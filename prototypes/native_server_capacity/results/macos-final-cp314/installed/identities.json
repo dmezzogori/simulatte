@@ -1,0 +1,548 @@
+{
+  "passed": true,
+  "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+  "queries": [
+    {
+      "retention": "full",
+      "canonical_sha256": "4820b25c48e11d0a70912d33de6516a57b97974f1e83312fca3af7dc49b78f71",
+      "native_bytes": 124,
+      "view_bytes": 2256
+    },
+    {
+      "retention": "bounded",
+      "canonical_sha256": "5af1a085591e123fd713472c91ca2dd5512d076961f363407aa4df6407b9434a",
+      "native_bytes": 229,
+      "view_bytes": 2379
+    }
+  ],
+  "direct": [
+    {
+      "fixture": "fixed",
+      "retention": "full",
+      "mode": "helper",
+      "fingerprint": {
+        "digest": "9e8f54d44a1136a13f718113e2b03fea1ef9d7bfed1947bf94c31a213c8fbf44",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.875,
+          "shopfloor/lateness": -3.810546875,
+          "shopfloor/makespan": 6.40625,
+          "shopfloor/tardiness": 0.31640625,
+          "shopfloor/tardy_fraction": 0.15625,
+          "shopfloor/throughput": 0.7441860465116279,
+          "shopfloor/total_queue_time": 1.44140625,
+          "shopfloor/utilization": 0.627906976744186
+        }
+      },
+      "artifacts": {
+        "controls.jsonl.gz": "0ca1048c5c75148a6ac75da59df585895152388ae46380aac2a10530a4d4be52",
+        "identities.json": "d733ebafb1bc4d5aada552d9cf12474977f54d1aba40061fc54d943b4ea7365c",
+        "reports.jsonl.gz": "abc172f6f0972bab7fa9db3cc3db0defe6ff6465979470633c9bf1855381745a",
+        "native.json": "ae6142d84e5ec9b3b02167329a771c39761f9982a117bde3851e173538d32a0c",
+        "reporting.json": "e7acfcf8e6f6fd40dbb20424914e377f181bbbd494189a8d1855de53274eae3c",
+        "control.json": "a78052a35564bab281ba342c218cb4fad936c67dd7ee80925c4a84b832ec5391"
+      }
+    },
+    {
+      "fixture": "fixed",
+      "retention": "full",
+      "mode": "prepared",
+      "fingerprint": {
+        "digest": "9e8f54d44a1136a13f718113e2b03fea1ef9d7bfed1947bf94c31a213c8fbf44",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.875,
+          "shopfloor/lateness": -3.810546875,
+          "shopfloor/makespan": 6.40625,
+          "shopfloor/tardiness": 0.31640625,
+          "shopfloor/tardy_fraction": 0.15625,
+          "shopfloor/throughput": 0.7441860465116279,
+          "shopfloor/total_queue_time": 1.44140625,
+          "shopfloor/utilization": 0.627906976744186
+        }
+      },
+      "artifacts": {
+        "controls.jsonl.gz": "0ca1048c5c75148a6ac75da59df585895152388ae46380aac2a10530a4d4be52",
+        "identities.json": "d733ebafb1bc4d5aada552d9cf12474977f54d1aba40061fc54d943b4ea7365c",
+        "reports.jsonl.gz": "abc172f6f0972bab7fa9db3cc3db0defe6ff6465979470633c9bf1855381745a",
+        "native.json": "ae6142d84e5ec9b3b02167329a771c39761f9982a117bde3851e173538d32a0c",
+        "reporting.json": "e7acfcf8e6f6fd40dbb20424914e377f181bbbd494189a8d1855de53274eae3c",
+        "control.json": "a78052a35564bab281ba342c218cb4fad936c67dd7ee80925c4a84b832ec5391"
+      }
+    },
+    {
+      "fixture": "fixed",
+      "retention": "full",
+      "mode": "unprepared",
+      "fingerprint": {
+        "digest": "9e8f54d44a1136a13f718113e2b03fea1ef9d7bfed1947bf94c31a213c8fbf44",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.875,
+          "shopfloor/lateness": -3.810546875,
+          "shopfloor/makespan": 6.40625,
+          "shopfloor/tardiness": 0.31640625,
+          "shopfloor/tardy_fraction": 0.15625,
+          "shopfloor/throughput": 0.7441860465116279,
+          "shopfloor/total_queue_time": 1.44140625,
+          "shopfloor/utilization": 0.627906976744186
+        }
+      },
+      "artifacts": {
+        "controls.jsonl.gz": "0ca1048c5c75148a6ac75da59df585895152388ae46380aac2a10530a4d4be52",
+        "identities.json": "d733ebafb1bc4d5aada552d9cf12474977f54d1aba40061fc54d943b4ea7365c",
+        "reports.jsonl.gz": "abc172f6f0972bab7fa9db3cc3db0defe6ff6465979470633c9bf1855381745a",
+        "native.json": "ae6142d84e5ec9b3b02167329a771c39761f9982a117bde3851e173538d32a0c",
+        "reporting.json": "e7acfcf8e6f6fd40dbb20424914e377f181bbbd494189a8d1855de53274eae3c",
+        "control.json": "a78052a35564bab281ba342c218cb4fad936c67dd7ee80925c4a84b832ec5391"
+      }
+    },
+    {
+      "fixture": "fixed",
+      "retention": "full",
+      "mode": "reference",
+      "fingerprint": {
+        "digest": "9e8f54d44a1136a13f718113e2b03fea1ef9d7bfed1947bf94c31a213c8fbf44",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.875,
+          "shopfloor/lateness": -3.810546875,
+          "shopfloor/makespan": 6.40625,
+          "shopfloor/tardiness": 0.31640625,
+          "shopfloor/tardy_fraction": 0.15625,
+          "shopfloor/throughput": 0.7441860465116279,
+          "shopfloor/total_queue_time": 1.44140625,
+          "shopfloor/utilization": 0.627906976744186
+        }
+      },
+      "artifacts": {
+        "controls.jsonl.gz": "0ca1048c5c75148a6ac75da59df585895152388ae46380aac2a10530a4d4be52",
+        "identities.json": "d733ebafb1bc4d5aada552d9cf12474977f54d1aba40061fc54d943b4ea7365c",
+        "reports.jsonl.gz": "abc172f6f0972bab7fa9db3cc3db0defe6ff6465979470633c9bf1855381745a",
+        "native.json": "ae6142d84e5ec9b3b02167329a771c39761f9982a117bde3851e173538d32a0c",
+        "reporting.json": "e7acfcf8e6f6fd40dbb20424914e377f181bbbd494189a8d1855de53274eae3c",
+        "control.json": "a78052a35564bab281ba342c218cb4fad936c67dd7ee80925c4a84b832ec5391"
+      }
+    },
+    {
+      "fixture": "fixed",
+      "retention": "bounded",
+      "mode": "helper",
+      "fingerprint": {
+        "digest": "5bf89149be1f6e59b49a10beb0116b3ec09e4cb9774d9872857601252834bd76",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.875,
+          "shopfloor/lateness": -3.810546875,
+          "shopfloor/makespan": 6.40625,
+          "shopfloor/tardiness": 0.31640625,
+          "shopfloor/tardy_fraction": 0.15625,
+          "shopfloor/throughput": 0.7441860465116279,
+          "shopfloor/total_queue_time": 1.44140625,
+          "shopfloor/utilization": 0.627906976744186
+        }
+      },
+      "artifacts": {
+        "controls.jsonl.gz": "0ca1048c5c75148a6ac75da59df585895152388ae46380aac2a10530a4d4be52",
+        "identities.json": "411c3cdd9da6d8ff67b406adfb13ac8ed9f7f56e22f2aee947c10076538effe2",
+        "reports.jsonl.gz": "abc172f6f0972bab7fa9db3cc3db0defe6ff6465979470633c9bf1855381745a",
+        "native.json": "f660782ae7d064e6a95fedf74f8ef2b41b2f52ee0dc9a9cb8cf794a789aa1cb9",
+        "reporting.json": "e7acfcf8e6f6fd40dbb20424914e377f181bbbd494189a8d1855de53274eae3c",
+        "control.json": "a78052a35564bab281ba342c218cb4fad936c67dd7ee80925c4a84b832ec5391"
+      }
+    },
+    {
+      "fixture": "fixed",
+      "retention": "bounded",
+      "mode": "prepared",
+      "fingerprint": {
+        "digest": "5bf89149be1f6e59b49a10beb0116b3ec09e4cb9774d9872857601252834bd76",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.875,
+          "shopfloor/lateness": -3.810546875,
+          "shopfloor/makespan": 6.40625,
+          "shopfloor/tardiness": 0.31640625,
+          "shopfloor/tardy_fraction": 0.15625,
+          "shopfloor/throughput": 0.7441860465116279,
+          "shopfloor/total_queue_time": 1.44140625,
+          "shopfloor/utilization": 0.627906976744186
+        }
+      },
+      "artifacts": {
+        "controls.jsonl.gz": "0ca1048c5c75148a6ac75da59df585895152388ae46380aac2a10530a4d4be52",
+        "identities.json": "411c3cdd9da6d8ff67b406adfb13ac8ed9f7f56e22f2aee947c10076538effe2",
+        "reports.jsonl.gz": "abc172f6f0972bab7fa9db3cc3db0defe6ff6465979470633c9bf1855381745a",
+        "native.json": "f660782ae7d064e6a95fedf74f8ef2b41b2f52ee0dc9a9cb8cf794a789aa1cb9",
+        "reporting.json": "e7acfcf8e6f6fd40dbb20424914e377f181bbbd494189a8d1855de53274eae3c",
+        "control.json": "a78052a35564bab281ba342c218cb4fad936c67dd7ee80925c4a84b832ec5391"
+      }
+    },
+    {
+      "fixture": "fixed",
+      "retention": "bounded",
+      "mode": "unprepared",
+      "fingerprint": {
+        "digest": "5bf89149be1f6e59b49a10beb0116b3ec09e4cb9774d9872857601252834bd76",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.875,
+          "shopfloor/lateness": -3.810546875,
+          "shopfloor/makespan": 6.40625,
+          "shopfloor/tardiness": 0.31640625,
+          "shopfloor/tardy_fraction": 0.15625,
+          "shopfloor/throughput": 0.7441860465116279,
+          "shopfloor/total_queue_time": 1.44140625,
+          "shopfloor/utilization": 0.627906976744186
+        }
+      },
+      "artifacts": {
+        "controls.jsonl.gz": "0ca1048c5c75148a6ac75da59df585895152388ae46380aac2a10530a4d4be52",
+        "identities.json": "411c3cdd9da6d8ff67b406adfb13ac8ed9f7f56e22f2aee947c10076538effe2",
+        "reports.jsonl.gz": "abc172f6f0972bab7fa9db3cc3db0defe6ff6465979470633c9bf1855381745a",
+        "native.json": "f660782ae7d064e6a95fedf74f8ef2b41b2f52ee0dc9a9cb8cf794a789aa1cb9",
+        "reporting.json": "e7acfcf8e6f6fd40dbb20424914e377f181bbbd494189a8d1855de53274eae3c",
+        "control.json": "a78052a35564bab281ba342c218cb4fad936c67dd7ee80925c4a84b832ec5391"
+      }
+    },
+    {
+      "fixture": "fixed",
+      "retention": "bounded",
+      "mode": "reference",
+      "fingerprint": {
+        "digest": "5bf89149be1f6e59b49a10beb0116b3ec09e4cb9774d9872857601252834bd76",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.875,
+          "shopfloor/lateness": -3.810546875,
+          "shopfloor/makespan": 6.40625,
+          "shopfloor/tardiness": 0.31640625,
+          "shopfloor/tardy_fraction": 0.15625,
+          "shopfloor/throughput": 0.7441860465116279,
+          "shopfloor/total_queue_time": 1.44140625,
+          "shopfloor/utilization": 0.627906976744186
+        }
+      },
+      "artifacts": {
+        "controls.jsonl.gz": "0ca1048c5c75148a6ac75da59df585895152388ae46380aac2a10530a4d4be52",
+        "identities.json": "411c3cdd9da6d8ff67b406adfb13ac8ed9f7f56e22f2aee947c10076538effe2",
+        "reports.jsonl.gz": "abc172f6f0972bab7fa9db3cc3db0defe6ff6465979470633c9bf1855381745a",
+        "native.json": "f660782ae7d064e6a95fedf74f8ef2b41b2f52ee0dc9a9cb8cf794a789aa1cb9",
+        "reporting.json": "e7acfcf8e6f6fd40dbb20424914e377f181bbbd494189a8d1855de53274eae3c",
+        "control.json": "a78052a35564bab281ba342c218cb4fad936c67dd7ee80925c4a84b832ec5391"
+      }
+    },
+    {
+      "fixture": "coupled",
+      "retention": "full",
+      "mode": "helper",
+      "fingerprint": {
+        "digest": "76e1a7491165676f398b46e21b37590a1060b2832c7005d8b2a64d99c638d230",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.9803571428571427,
+          "shopfloor/lateness": -0.8858173076923077,
+          "shopfloor/makespan": 4.027644230769231,
+          "shopfloor/tardiness": 1.6995192307692308,
+          "shopfloor/tardy_fraction": 0.4423076923076923,
+          "shopfloor/throughput": 1.4857142857142858,
+          "shopfloor/total_queue_time": 1.0348557692307692,
+          "shopfloor/utilization": 0.8297619047619048
+        }
+      },
+      "artifacts": {
+        "identities.json": "c849d0062f61cf0e219e49d762cb5d7b9f503ed90db9c6ab93f98f646fd6fe2b",
+        "native.json": "e387487031f98e7c62e518086045ec28d2090b431eba51dca5eae8d78ee68651",
+        "physical.json": "c06a6466d2cf7c92bc17e169d8bd75e87d96ffd306f65dc201b8cd664cb14ad8",
+        "frames.jsonl.gz": "0987949b2f52e51848fb07460f357ee21589e6ff9d460d1db0ad50de5e3da2de"
+      }
+    },
+    {
+      "fixture": "coupled",
+      "retention": "full",
+      "mode": "prepared",
+      "fingerprint": {
+        "digest": "76e1a7491165676f398b46e21b37590a1060b2832c7005d8b2a64d99c638d230",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.9803571428571427,
+          "shopfloor/lateness": -0.8858173076923077,
+          "shopfloor/makespan": 4.027644230769231,
+          "shopfloor/tardiness": 1.6995192307692308,
+          "shopfloor/tardy_fraction": 0.4423076923076923,
+          "shopfloor/throughput": 1.4857142857142858,
+          "shopfloor/total_queue_time": 1.0348557692307692,
+          "shopfloor/utilization": 0.8297619047619048
+        }
+      },
+      "artifacts": {
+        "identities.json": "c849d0062f61cf0e219e49d762cb5d7b9f503ed90db9c6ab93f98f646fd6fe2b",
+        "native.json": "e387487031f98e7c62e518086045ec28d2090b431eba51dca5eae8d78ee68651",
+        "physical.json": "c06a6466d2cf7c92bc17e169d8bd75e87d96ffd306f65dc201b8cd664cb14ad8",
+        "frames.jsonl.gz": "0987949b2f52e51848fb07460f357ee21589e6ff9d460d1db0ad50de5e3da2de"
+      }
+    },
+    {
+      "fixture": "coupled",
+      "retention": "full",
+      "mode": "unprepared",
+      "fingerprint": {
+        "digest": "76e1a7491165676f398b46e21b37590a1060b2832c7005d8b2a64d99c638d230",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.9803571428571427,
+          "shopfloor/lateness": -0.8858173076923077,
+          "shopfloor/makespan": 4.027644230769231,
+          "shopfloor/tardiness": 1.6995192307692308,
+          "shopfloor/tardy_fraction": 0.4423076923076923,
+          "shopfloor/throughput": 1.4857142857142858,
+          "shopfloor/total_queue_time": 1.0348557692307692,
+          "shopfloor/utilization": 0.8297619047619048
+        }
+      },
+      "artifacts": {
+        "identities.json": "c849d0062f61cf0e219e49d762cb5d7b9f503ed90db9c6ab93f98f646fd6fe2b",
+        "native.json": "e387487031f98e7c62e518086045ec28d2090b431eba51dca5eae8d78ee68651",
+        "physical.json": "c06a6466d2cf7c92bc17e169d8bd75e87d96ffd306f65dc201b8cd664cb14ad8",
+        "frames.jsonl.gz": "0987949b2f52e51848fb07460f357ee21589e6ff9d460d1db0ad50de5e3da2de"
+      }
+    },
+    {
+      "fixture": "coupled",
+      "retention": "full",
+      "mode": "reference",
+      "fingerprint": {
+        "digest": "76e1a7491165676f398b46e21b37590a1060b2832c7005d8b2a64d99c638d230",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.9803571428571427,
+          "shopfloor/lateness": -0.8858173076923077,
+          "shopfloor/makespan": 4.027644230769231,
+          "shopfloor/tardiness": 1.6995192307692308,
+          "shopfloor/tardy_fraction": 0.4423076923076923,
+          "shopfloor/throughput": 1.4857142857142858,
+          "shopfloor/total_queue_time": 1.0348557692307692,
+          "shopfloor/utilization": 0.8297619047619048
+        }
+      },
+      "artifacts": {
+        "identities.json": "c849d0062f61cf0e219e49d762cb5d7b9f503ed90db9c6ab93f98f646fd6fe2b",
+        "native.json": "e387487031f98e7c62e518086045ec28d2090b431eba51dca5eae8d78ee68651",
+        "physical.json": "c06a6466d2cf7c92bc17e169d8bd75e87d96ffd306f65dc201b8cd664cb14ad8",
+        "frames.jsonl.gz": "0987949b2f52e51848fb07460f357ee21589e6ff9d460d1db0ad50de5e3da2de"
+      }
+    },
+    {
+      "fixture": "coupled",
+      "retention": "bounded",
+      "mode": "helper",
+      "fingerprint": {
+        "digest": "4a81bc43b55b8a09e69b8a546d77e9cbd75329091b0dc1ead7d347c51314fe33",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.9803571428571427,
+          "shopfloor/lateness": -0.8858173076923077,
+          "shopfloor/makespan": 4.027644230769231,
+          "shopfloor/tardiness": 1.6995192307692308,
+          "shopfloor/tardy_fraction": 0.4423076923076923,
+          "shopfloor/throughput": 1.4857142857142858,
+          "shopfloor/total_queue_time": 1.0348557692307692,
+          "shopfloor/utilization": 0.8297619047619048
+        }
+      },
+      "artifacts": {
+        "identities.json": "b469b67c2a98c764f2641627f62a3f04ff75f6b409fe94e55211febaaff3b79a",
+        "native.json": "43a1950593405882625db2d8372beadf800f1942832aea3af3abf6337c2e6384",
+        "physical.json": "c06a6466d2cf7c92bc17e169d8bd75e87d96ffd306f65dc201b8cd664cb14ad8",
+        "frames.jsonl.gz": "0987949b2f52e51848fb07460f357ee21589e6ff9d460d1db0ad50de5e3da2de"
+      }
+    },
+    {
+      "fixture": "coupled",
+      "retention": "bounded",
+      "mode": "prepared",
+      "fingerprint": {
+        "digest": "4a81bc43b55b8a09e69b8a546d77e9cbd75329091b0dc1ead7d347c51314fe33",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.9803571428571427,
+          "shopfloor/lateness": -0.8858173076923077,
+          "shopfloor/makespan": 4.027644230769231,
+          "shopfloor/tardiness": 1.6995192307692308,
+          "shopfloor/tardy_fraction": 0.4423076923076923,
+          "shopfloor/throughput": 1.4857142857142858,
+          "shopfloor/total_queue_time": 1.0348557692307692,
+          "shopfloor/utilization": 0.8297619047619048
+        }
+      },
+      "artifacts": {
+        "identities.json": "b469b67c2a98c764f2641627f62a3f04ff75f6b409fe94e55211febaaff3b79a",
+        "native.json": "43a1950593405882625db2d8372beadf800f1942832aea3af3abf6337c2e6384",
+        "physical.json": "c06a6466d2cf7c92bc17e169d8bd75e87d96ffd306f65dc201b8cd664cb14ad8",
+        "frames.jsonl.gz": "0987949b2f52e51848fb07460f357ee21589e6ff9d460d1db0ad50de5e3da2de"
+      }
+    },
+    {
+      "fixture": "coupled",
+      "retention": "bounded",
+      "mode": "unprepared",
+      "fingerprint": {
+        "digest": "4a81bc43b55b8a09e69b8a546d77e9cbd75329091b0dc1ead7d347c51314fe33",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.9803571428571427,
+          "shopfloor/lateness": -0.8858173076923077,
+          "shopfloor/makespan": 4.027644230769231,
+          "shopfloor/tardiness": 1.6995192307692308,
+          "shopfloor/tardy_fraction": 0.4423076923076923,
+          "shopfloor/throughput": 1.4857142857142858,
+          "shopfloor/total_queue_time": 1.0348557692307692,
+          "shopfloor/utilization": 0.8297619047619048
+        }
+      },
+      "artifacts": {
+        "identities.json": "b469b67c2a98c764f2641627f62a3f04ff75f6b409fe94e55211febaaff3b79a",
+        "native.json": "43a1950593405882625db2d8372beadf800f1942832aea3af3abf6337c2e6384",
+        "physical.json": "c06a6466d2cf7c92bc17e169d8bd75e87d96ffd306f65dc201b8cd664cb14ad8",
+        "frames.jsonl.gz": "0987949b2f52e51848fb07460f357ee21589e6ff9d460d1db0ad50de5e3da2de"
+      }
+    },
+    {
+      "fixture": "coupled",
+      "retention": "bounded",
+      "mode": "reference",
+      "fingerprint": {
+        "digest": "4a81bc43b55b8a09e69b8a546d77e9cbd75329091b0dc1ead7d347c51314fe33",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.9803571428571427,
+          "shopfloor/lateness": -0.8858173076923077,
+          "shopfloor/makespan": 4.027644230769231,
+          "shopfloor/tardiness": 1.6995192307692308,
+          "shopfloor/tardy_fraction": 0.4423076923076923,
+          "shopfloor/throughput": 1.4857142857142858,
+          "shopfloor/total_queue_time": 1.0348557692307692,
+          "shopfloor/utilization": 0.8297619047619048
+        }
+      },
+      "artifacts": {
+        "identities.json": "b469b67c2a98c764f2641627f62a3f04ff75f6b409fe94e55211febaaff3b79a",
+        "native.json": "43a1950593405882625db2d8372beadf800f1942832aea3af3abf6337c2e6384",
+        "physical.json": "c06a6466d2cf7c92bc17e169d8bd75e87d96ffd306f65dc201b8cd664cb14ad8",
+        "frames.jsonl.gz": "0987949b2f52e51848fb07460f357ee21589e6ff9d460d1db0ad50de5e3da2de"
+      }
+    }
+  ],
+  "managed": [
+    {
+      "fixture": "fixed",
+      "retention": "full",
+      "fingerprint": {
+        "digest": "9e8f54d44a1136a13f718113e2b03fea1ef9d7bfed1947bf94c31a213c8fbf44",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.875,
+          "shopfloor/lateness": -3.810546875,
+          "shopfloor/makespan": 6.40625,
+          "shopfloor/tardiness": 0.31640625,
+          "shopfloor/tardy_fraction": 0.15625,
+          "shopfloor/throughput": 0.7441860465116279,
+          "shopfloor/total_queue_time": 1.44140625,
+          "shopfloor/utilization": 0.627906976744186
+        }
+      },
+      "artifacts": {
+        "controls.jsonl.gz": "0ca1048c5c75148a6ac75da59df585895152388ae46380aac2a10530a4d4be52",
+        "identities.json": "d733ebafb1bc4d5aada552d9cf12474977f54d1aba40061fc54d943b4ea7365c",
+        "reports.jsonl.gz": "abc172f6f0972bab7fa9db3cc3db0defe6ff6465979470633c9bf1855381745a",
+        "native.json": "ae6142d84e5ec9b3b02167329a771c39761f9982a117bde3851e173538d32a0c",
+        "reporting.json": "e7acfcf8e6f6fd40dbb20424914e377f181bbbd494189a8d1855de53274eae3c",
+        "control.json": "a78052a35564bab281ba342c218cb4fad936c67dd7ee80925c4a84b832ec5391"
+      },
+      "request": "351faf437c8e2a91e2e098d43e1d2f9f63023f8cb7baef3c521be93181468bf7",
+      "attempt": "9496ba5fd15fdfc32c63445dc4a0b0e4",
+      "helper_origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-_07fw6ld/identity-project/.simulatte/tools/ac8bf58b81196ca10e6b9089dba3a9251e6ac05c4f899907b70be7dab066135f/simulatte/experimental/native_identity.py"
+    },
+    {
+      "fixture": "fixed",
+      "retention": "bounded",
+      "fingerprint": {
+        "digest": "5bf89149be1f6e59b49a10beb0116b3ec09e4cb9774d9872857601252834bd76",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.875,
+          "shopfloor/lateness": -3.810546875,
+          "shopfloor/makespan": 6.40625,
+          "shopfloor/tardiness": 0.31640625,
+          "shopfloor/tardy_fraction": 0.15625,
+          "shopfloor/throughput": 0.7441860465116279,
+          "shopfloor/total_queue_time": 1.44140625,
+          "shopfloor/utilization": 0.627906976744186
+        }
+      },
+      "artifacts": {
+        "controls.jsonl.gz": "0ca1048c5c75148a6ac75da59df585895152388ae46380aac2a10530a4d4be52",
+        "identities.json": "411c3cdd9da6d8ff67b406adfb13ac8ed9f7f56e22f2aee947c10076538effe2",
+        "reports.jsonl.gz": "abc172f6f0972bab7fa9db3cc3db0defe6ff6465979470633c9bf1855381745a",
+        "native.json": "f660782ae7d064e6a95fedf74f8ef2b41b2f52ee0dc9a9cb8cf794a789aa1cb9",
+        "reporting.json": "e7acfcf8e6f6fd40dbb20424914e377f181bbbd494189a8d1855de53274eae3c",
+        "control.json": "a78052a35564bab281ba342c218cb4fad936c67dd7ee80925c4a84b832ec5391"
+      },
+      "request": "7199460060b46c7bb0f6d1d0350b35d2eab6df56ffa92c6318307a127a908f49",
+      "attempt": "ac4b5178aaa9f1b97f7ddce0cec5eb56",
+      "helper_origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-_07fw6ld/identity-project/.simulatte/tools/ac8bf58b81196ca10e6b9089dba3a9251e6ac05c4f899907b70be7dab066135f/simulatte/experimental/native_identity.py"
+    },
+    {
+      "fixture": "coupled",
+      "retention": "full",
+      "fingerprint": {
+        "digest": "76e1a7491165676f398b46e21b37590a1060b2832c7005d8b2a64d99c638d230",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.9803571428571427,
+          "shopfloor/lateness": -0.8858173076923077,
+          "shopfloor/makespan": 4.027644230769231,
+          "shopfloor/tardiness": 1.6995192307692308,
+          "shopfloor/tardy_fraction": 0.4423076923076923,
+          "shopfloor/throughput": 1.4857142857142858,
+          "shopfloor/total_queue_time": 1.0348557692307692,
+          "shopfloor/utilization": 0.8297619047619048
+        }
+      },
+      "artifacts": {
+        "identities.json": "c849d0062f61cf0e219e49d762cb5d7b9f503ed90db9c6ab93f98f646fd6fe2b",
+        "native.json": "e387487031f98e7c62e518086045ec28d2090b431eba51dca5eae8d78ee68651",
+        "physical.json": "c06a6466d2cf7c92bc17e169d8bd75e87d96ffd306f65dc201b8cd664cb14ad8",
+        "frames.jsonl.gz": "0987949b2f52e51848fb07460f357ee21589e6ff9d460d1db0ad50de5e3da2de"
+      },
+      "request": "9fd89cc049b4e4925f73d29a88b62f0bd81c4f4253e77fb7d93d1a30fd34052c",
+      "attempt": "3bd96ec0d2c4db8fe7e268d822788c72",
+      "helper_origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-_07fw6ld/identity-project/.simulatte/tools/ac8bf58b81196ca10e6b9089dba3a9251e6ac05c4f899907b70be7dab066135f/simulatte/experimental/native_identity.py"
+    },
+    {
+      "fixture": "coupled",
+      "retention": "bounded",
+      "fingerprint": {
+        "digest": "4a81bc43b55b8a09e69b8a546d77e9cbd75329091b0dc1ead7d347c51314fe33",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.9803571428571427,
+          "shopfloor/lateness": -0.8858173076923077,
+          "shopfloor/makespan": 4.027644230769231,
+          "shopfloor/tardiness": 1.6995192307692308,
+          "shopfloor/tardy_fraction": 0.4423076923076923,
+          "shopfloor/throughput": 1.4857142857142858,
+          "shopfloor/total_queue_time": 1.0348557692307692,
+          "shopfloor/utilization": 0.8297619047619048
+        }
+      },
+      "artifacts": {
+        "identities.json": "b469b67c2a98c764f2641627f62a3f04ff75f6b409fe94e55211febaaff3b79a",
+        "native.json": "43a1950593405882625db2d8372beadf800f1942832aea3af3abf6337c2e6384",
+        "physical.json": "c06a6466d2cf7c92bc17e169d8bd75e87d96ffd306f65dc201b8cd664cb14ad8",
+        "frames.jsonl.gz": "0987949b2f52e51848fb07460f357ee21589e6ff9d460d1db0ad50de5e3da2de"
+      },
+      "request": "da1bfa9c6eac43acc1da10b3777006dd10b524a254e58e71feda5c44d829f7f6",
+      "attempt": "4600a81660542b7b9aaf10a6d209d63d",
+      "helper_origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-_07fw6ld/identity-project/.simulatte/tools/ac8bf58b81196ca10e6b9089dba3a9251e6ac05c4f899907b70be7dab066135f/simulatte/experimental/native_identity.py"
+    }
+  ],
+  "source_deleted_reproductions": [
+    {
+      "request": "351faf437c8e2a91e2e098d43e1d2f9f63023f8cb7baef3c521be93181468bf7",
+      "attempt": "3737934fae1c813fe168c0360c4cf08a"
+    },
+    {
+      "request": "7199460060b46c7bb0f6d1d0350b35d2eab6df56ffa92c6318307a127a908f49",
+      "attempt": "95b2ea4bacc05a53da7aba62a705d413"
+    },
+    {
+      "request": "9fd89cc049b4e4925f73d29a88b62f0bd81c4f4253e77fb7d93d1a30fd34052c",
+      "attempt": "e784e291f23ddb326fe84d52cf9af5d4"
+    },
+    {
+      "request": "da1bfa9c6eac43acc1da10b3777006dd10b524a254e58e71feda5c44d829f7f6",
+      "attempt": "099857f77ab04184402dd64c7cc5199f"
+    }
+  ]
+}

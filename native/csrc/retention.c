@@ -195,10 +195,16 @@ int bs_completions(const bs_engine *b, const unsigned char **p, size_t *n) {
     if (!b || !b->e || b->e->state == 1 || !p || !n) return -1;
     *p = b->completions.p; *n = b->completions.n; return 0;
 }
+int bs_set_capacities(bs_engine *b, const uint32_t *capacities, size_t count) {
+    if (!b || !b->e) return -1;
+    /* Compaction may leave no live jobs; lifetime admissions still forbid setup. */
+    if (b->admitted) return fail(b->e, "capacity configuration after admission");
+    return nd_set_capacities(b->e, capacities, count);
+}
 int bs_state(bs_engine *b, const unsigned char **p, size_t *n) {
     if (!b || !b->e || b->e->state == 1 || !p || !n) return -1;
     nd_engine *e = b->e; bs_buffer *out = &b->state; out->n = 0;
-    WRITE(bytes(out, "NBST0001", 8));
+    WRITE(bytes(out, e->capacities ? "NBST0002" : "NBST0001", 8));
     WRITE(u32(out, e->servers)); WRITE(u32(out, e->cap)); WRITE(u32(out, (uint32_t)e->policy));
     WRITE(u32(out, (uint32_t)e->state)); WRITE(u32(out, (uint32_t)e->policy_pending));
     WRITE(real(out, e->now)); WRITE(real(out, b->last_arrival));
@@ -209,6 +215,7 @@ int bs_state(bs_engine *b, const unsigned char **p, size_t *n) {
     for (uint32_t j = 0; j < e->jobs; ++j) live += e->job_state[j] != 3;
     WRITE(u32(out, live));
     for (uint32_t s = 0; s < e->servers; ++s) {
+        if (e->capacities) WRITE(u32(out, e->capacities[s]));
         WRITE(u32(out, e->occupied[s])); WRITE(operation(b, out, e->head[s])); WRITE(operation(b, out, e->tail[s]));
     }
     for (uint32_t j = 0; j < e->jobs; ++j) {

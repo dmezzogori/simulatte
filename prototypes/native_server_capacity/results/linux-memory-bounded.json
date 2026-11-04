@@ -1,0 +1,232 @@
+{
+  "retention": "bounded",
+  "rows": [
+    {
+      "jobs": 16,
+      "storage": {
+        "admitted": 16,
+        "completed": 16,
+        "forgotten": 16,
+        "events": 175,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 6796,
+        "completion_capacity": 2048,
+        "state_capacity": 0
+      },
+      "snapshot": {
+        "window": [
+          0.0,
+          32.0,
+          false
+        ],
+        "scalars": {
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/utilization": 0.0625,
+          "shopfloor/jobs_in_system": 0.5390625
+        }
+      },
+      "peak_rss_bytes": 31903744
+    },
+    {
+      "jobs": 128,
+      "storage": {
+        "admitted": 128,
+        "completed": 128,
+        "forgotten": 128,
+        "events": 1400,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 6796,
+        "completion_capacity": 2048,
+        "state_capacity": 0
+      },
+      "snapshot": {
+        "window": [
+          0.0,
+          256.0,
+          false
+        ],
+        "scalars": {
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/utilization": 0.0625,
+          "shopfloor/jobs_in_system": 0.5390625
+        }
+      },
+      "peak_rss_bytes": 31903744
+    },
+    {
+      "jobs": 1024,
+      "storage": {
+        "admitted": 1024,
+        "completed": 1024,
+        "forgotten": 1024,
+        "events": 11200,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 6796,
+        "completion_capacity": 2048,
+        "state_capacity": 0
+      },
+      "snapshot": {
+        "window": [
+          0.0,
+          2048.0,
+          false
+        ],
+        "scalars": {
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/utilization": 0.0625,
+          "shopfloor/jobs_in_system": 0.5390625
+        }
+      },
+      "peak_rss_bytes": 31903744
+    },
+    {
+      "jobs": 4096,
+      "storage": {
+        "admitted": 4096,
+        "completed": 4096,
+        "forgotten": 4096,
+        "events": 44800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 6796,
+        "completion_capacity": 2048,
+        "state_capacity": 0
+      },
+      "snapshot": {
+        "window": [
+          0.0,
+          8192.0,
+          false
+        ],
+        "scalars": {
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/utilization": 0.0625,
+          "shopfloor/jobs_in_system": 0.5390625
+        }
+      },
+      "peak_rss_bytes": 31903744
+    },
+    {
+      "jobs": 16384,
+      "storage": {
+        "admitted": 16384,
+        "completed": 16384,
+        "forgotten": 16384,
+        "events": 179200,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 6796,
+        "completion_capacity": 2048,
+        "state_capacity": 0
+      },
+      "snapshot": {
+        "window": [
+          0.0,
+          32768.0,
+          false
+        ],
+        "scalars": {
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/utilization": 0.0625,
+          "shopfloor/jobs_in_system": 0.5390625
+        }
+      },
+      "peak_rss_bytes": 31903744
+    },
+    {
+      "jobs": 65536,
+      "storage": {
+        "admitted": 65536,
+        "completed": 65536,
+        "forgotten": 65536,
+        "events": 716800,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "job_capacity": 16,
+        "op_capacity": 32,
+        "calendar_capacity": 32,
+        "native_bytes": 6796,
+        "completion_capacity": 2048,
+        "state_capacity": 0
+      },
+      "snapshot": {
+        "window": [
+          0.0,
+          131072.0,
+          false
+        ],
+        "scalars": {
+          "shopfloor/makespan": 2.171875,
+          "shopfloor/lateness": -3.828125,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/total_queue_time": 0.328125,
+          "shopfloor/throughput": 0.5,
+          "shopfloor/utilization": 0.0625,
+          "shopfloor/jobs_in_system": 0.5390625
+        }
+      },
+      "peak_rss_bytes": 31903744
+    }
+  ],
+  "final": {
+    "window": [
+      0.0,
+      131072.0,
+      true
+    ],
+    "scalars": {
+      "shopfloor/makespan": 2.171875,
+      "shopfloor/lateness": -3.828125,
+      "shopfloor/tardiness": 0.0,
+      "shopfloor/tardy_fraction": 0.0,
+      "shopfloor/total_queue_time": 0.328125,
+      "shopfloor/throughput": 0.5,
+      "shopfloor/utilization": 0.0625,
+      "shopfloor/jobs_in_system": 0.5390625
+    }
+  }
+}

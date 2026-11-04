@@ -145,6 +145,11 @@ print('pure base and optional dependency error pass')
         identities = root / "identities.json"
         execute([python, "-I", identity_probe, identities, fixtures], env=env, cwd=root)
         shutil.copyfile(identities, output / "identities.json")
+        capacity_probe = root / "capacity_probe.py"
+        shutil.copyfile(Path(__file__).with_name("capacity_probe.py"), capacity_probe)
+        capacities = root / "capacities.json"
+        execute([python, "-I", capacity_probe, capacities], env=env, cwd=root)
+        shutil.copyfile(capacities, output / "capacities.json")
         rejected = {}
         for kind in ("abi", "api", "manifest", "binary", "dependency", "runtime-mutation"):
             copy = root / kind
@@ -220,6 +225,7 @@ else: raise AssertionError('invalid native assets accepted')
             runner_sha256=digest(Path(__file__)),
             probe_sha256=digest(Path(__file__).with_name("install_probe.py")),
             identity_probe_sha256=digest(Path(__file__).with_name("identity_probe.py")),
+            capacity_probe_sha256=digest(Path(__file__).with_name("capacity_probe.py")),
             identity_fixtures=fixture_sources,
             python=execute([python, "-I", "-c", "import sys; print(sys.version)"]).stdout.strip(),
         )

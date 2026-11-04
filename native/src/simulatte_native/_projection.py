@@ -16,16 +16,17 @@ def project(module, owner, retention, history):
     if not callable(query):
         raise ImportError("Rebuild/install the matching native provider with state projection v1")
     value = query(owner)
-    codec = "NBST0001" if bounded else "NSTA0001"
+    codecs = ("NBST0001", "NBST0002") if bounded else ("NSTA0001", "NSTA0002")
     if (
         type(value) is not dict
         or set(value) != {"schema", "codec", "native", "snapshot"}
         or value["schema"] != "native-provider-raw-projection-v1"
-        or value["codec"] != codec
+        or value["codec"] not in codecs
         or type(value["native"]) is not bytes
-        or not value["native"].startswith(codec.encode("ascii"))
+        or not value["native"].startswith(value["codec"].encode("ascii"))
     ):
         raise RuntimeError("Unsupported native provider projection")
+    codec = value["codec"]
     snapshot = value["snapshot"]
     if type(snapshot) is not dict or set(snapshot) != {"window", "scalars"}:
         raise RuntimeError("Invalid native projection snapshot")
@@ -44,9 +45,9 @@ def project(module, owner, retention, history):
     trajectory = dict(codec=codec, physical_sha256=physical)
     state_hash, size = physical, len(raw)
     if bounded:
-        trajectory = dict(codec="NBST0001+completion-history-v1", history_sha256=history.hex(), live_sha256=physical)
-        # Exactly the existing NRST0001 commitment, without parsing or joining blobs.
-        state = hashlib.sha256(b"NRST0001")
+        trajectory = dict(codec=codec + "+completion-history-v1", history_sha256=history.hex(), live_sha256=physical)
+        # Exact versioned NRST commitment, without parsing or joining blobs.
+        state = hashlib.sha256(b"NRST0002" if codec == "NBST0002" else b"NRST0001")
         state.update(history)
         state.update(len(raw).to_bytes(8, "little"))
         state.update(raw)

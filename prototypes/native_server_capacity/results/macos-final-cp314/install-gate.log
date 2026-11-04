@@ -1,0 +1,1 @@
+{"passed": true, "output": "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_server_capacity/results/macos-final-cp314/installed", "rejected": ["abi", "api", "manifest", "binary", "dependency", "runtime-mutation", "wheel-tag"]}

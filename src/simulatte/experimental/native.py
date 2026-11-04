@@ -48,6 +48,15 @@ def _configuration(servers: int, wip_cap: int | None, policy: str) -> tuple[int,
     return servers, cap, policy
 
 
+def _capacities(servers: int, values: Iterable[int] | None) -> tuple[int, ...]:
+    result = (1,) * servers if values is None else tuple(values)
+    if len(result) != servers or any(type(n) is not int or not 0 < n < 0xFFFFFFFF for n in result):
+        raise ValueError("capacities must contain one positive uint32 integer per server")
+    if sum(result) >= 0xFFFFFFFF:
+        raise ValueError("total server capacity must be below UINT32_MAX")
+    return result
+
+
 @dataclass(frozen=True, slots=True)
 class Job:
     """Copied job input. Route indices are zero-based and cannot repeat."""
@@ -100,10 +109,18 @@ class NativeStream:
     Register arrivals in nondecreasing order, at/after current time. ``run()``
     seals input and drains once. Full retention (default) keeps completed state;
     bounded retention expires completed handles after each advance/run boundary.
+    ``capacities`` fixes the number of parallel slots per server (default: one).
     """
 
     def __init__(
-        self, servers: int, *, wip_cap: int | None = 12, policy: str = "spt", warmup: float = 0, retention: str = "full"
+        self,
+        servers: int,
+        *,
+        capacities: Iterable[int] | None = None,
+        wip_cap: int | None = 12,
+        policy: str = "spt",
+        warmup: float = 0,
+        retention: str = "full",
     ):
         self._engine: Any = None
         self._lock, self._owner = RLock(), object()
@@ -111,6 +128,7 @@ class NativeStream:
         self._retention = _retention(retention)
         self._history = hashlib.sha256()
         n, cap, policy = _configuration(servers, wip_cap, policy)
+        self._capacities = _capacities(n, capacities)
         warmup = _number(warmup, "warmup")
         if warmup < 0:
             raise ValueError("warmup must be nonnegative")
@@ -122,13 +140,24 @@ class NativeStream:
             raise ImportError("Install the optional matching simulatte[native] package to use NativeStream") from error
         if getattr(self._provider, "API_VERSION", None) != 2:
             raise ImportError("Install/rebuild the matching simulatte-native provider API 2")
+        parallel = any(n != 1 for n in self.capacities)
+        if parallel and getattr(self._provider, "CAPACITY_VERSION", None) != 1:
+            raise ImportError("Rebuild/install the matching native provider with static server capacities v1")
         self._module = self._provider.load()
         if self._retention == "bounded":
             self._engine = self._module.retention_create(n, cap, int(policy == "spt"), 1, warmup)
-            return
-        self._engine = self._module.create(n, cap, int(policy == "spt"), 0, None)
+        else:
+            self._engine = self._module.create(n, cap, int(policy == "spt"), 0, None)
         try:
-            self._module.enable_stock_kpis(self._engine, warmup)
+            if parallel:
+                configure = (
+                    self._module.retention_configure_capacities
+                    if self.retention == "bounded"
+                    else self._module.configure_capacities
+                )
+                configure(self._engine, self.capacities)
+            if self.retention == "full":
+                self._module.enable_stock_kpis(self._engine, warmup)
         except BaseException:
             self.close()
             raise
@@ -140,6 +169,10 @@ class NativeStream:
     @property
     def retention(self) -> str:
         return self._retention
+
+    @property
+    def capacities(self) -> tuple[int, ...]:
+        return self._capacities
 
     @property
     def now(self) -> float:
@@ -241,7 +274,7 @@ class NativeStream:
             if self.retention == "bounded":
                 raw = self._module.retention_state(self._engine)
                 return (
-                    b"NRST0001"
+                    (b"NRST0002" if raw.startswith(b"NBST0002") else b"NRST0001")
                     + self._history.digest()
                     + len(raw).to_bytes(8, "little")
                     + raw
@@ -311,15 +344,19 @@ class NativeProduction(ExecutionBackend):
         servers: int,
         jobs: Iterable[Job] = (),
         *,
+        capacities: Iterable[int] | None = None,
         wip_cap: int | None = 12,
         policy: str = "spt",
         input_state: Callable[[], Any] | None = None,
         retention: str = "full",
     ):
         _configuration(servers, wip_cap, policy)
+        self._capacities = _capacities(servers, capacities)
         self._retention = _retention(retention)
-        if retention == "bounded":
-            self.capabilities = BackendCapabilities("native-production", "native-production-bounded-v1")
+        schema = "native-production" + ("-capacity" if any(n != 1 for n in self.capacities) else "")
+        self.capabilities = BackendCapabilities(
+            "native-production", schema + ("-bounded-v1" if retention == "bounded" else "-v1")
+        )
         self.servers, self.wip_cap, self.policy = servers, wip_cap, policy
         self._jobs = tuple(jobs)
         if any(type(job) is not Job for job in self._jobs):
@@ -337,12 +374,17 @@ class NativeProduction(ExecutionBackend):
         self._state: str | None = None
         self._closed = self._finished = False
 
+    @property
+    def capacities(self) -> tuple[int, ...]:
+        return self._capacities
+
     def prepare(self, context: BackendContext) -> None:
         if self._closed or self._stream is not None:
             raise RuntimeError("Native backend is single-use")
         self._context = context
         self._stream = NativeStream(
             self.servers,
+            capacities=self.capacities,
             wip_cap=self.wip_cap,
             policy=self.policy,
             warmup=context.stopping.warmup,
@@ -392,7 +434,9 @@ class NativeProduction(ExecutionBackend):
             return self._state
         self._synchronized()
         state = self._live().state_bytes()
-        if not state.startswith(b"NRST0001" if self._retention == "bounded" else b"NSTA0001"):
+        prefix = b"NRST" if self._retention == "bounded" else b"NSTA"
+        version = b"0002" if any(n != 1 for n in self.capacities) else b"0001"
+        if not state.startswith(prefix + version):
             raise RuntimeError("Unsupported native state encoding")
         inputs = None if self._input_state is None else freeze(self._input_state())
         return hashlib.sha256(

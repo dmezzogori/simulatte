@@ -40,6 +40,10 @@ int nd_stock_kpis(const nd_engine *, nd_kpi_snapshot *);
  * Returned result pointers are engine-owned, valid until nd_destroy only. */
 nd_engine *nd_create(uint32_t servers, uint32_t cap, int policy, int mode,
                      const char *path, char *error, size_t error_capacity);
+/* Fixed slots, one positive count per server; total < UINT32_MAX. Mode 0 only,
+ * before any admission/advance. Copies the array; all ones retain v1 encoding.
+ * Invalid configuration/allocation poisons the owner like other mutations. */
+int nd_set_capacities(nd_engine *, const uint32_t *, size_t count);
 int nd_add(nd_engine *, double arrival, double due, uint32_t count,
            const uint32_t *routes, size_t route_length,
            const double *durations, size_t duration_length, uint32_t *id);

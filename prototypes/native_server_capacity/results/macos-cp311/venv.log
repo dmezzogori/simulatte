@@ -1,0 +1,3 @@
+Using CPython 3.11.13
+Creating virtual environment at: prototypes/native_server_capacity/.build/macos-cp311/regressions
+Activate with: source prototypes/native_server_capacity/.build/macos-cp311/regressions/bin/activate

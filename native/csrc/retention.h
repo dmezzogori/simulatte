@@ -5,6 +5,7 @@ typedef struct bs_engine bs_engine;
 typedef nd_storage_stats bs_stats;
 bs_engine *bs_create(uint32_t servers, uint32_t cap, int policy, int bounded,
                      double warmup, char *error, size_t capacity);
+int bs_set_capacities(bs_engine *, const uint32_t *, size_t count);
 int bs_add(bs_engine *, double arrival, double due, uint32_t count,
            const uint32_t *routes, const double *durations, uint64_t *identity);
 int bs_advance(bs_engine *, double until);

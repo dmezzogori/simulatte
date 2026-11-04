@@ -14,6 +14,7 @@ from threading import RLock
 from simulatte.execution.native_assets import _checked, _images
 
 API_VERSION = 2
+CAPACITY_VERSION = 1
 
 _lock = RLock()
 _loaded = None

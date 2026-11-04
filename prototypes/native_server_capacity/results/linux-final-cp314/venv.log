@@ -1,0 +1,3 @@
+Using CPython 3.14.0
+Creating virtual environment at: prototypes/native_server_capacity/.build/linux-final-cp314/regressions
+Activate with: source prototypes/native_server_capacity/.build/linux-final-cp314/regressions/bin/activate

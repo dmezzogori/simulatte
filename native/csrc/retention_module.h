@@ -5,4 +5,5 @@
 int nd_add_retention_methods(PyObject *);
 PyObject *nd_retention_stats_dict(const nd_storage_stats *);
 PyObject *nd_stock_snapshot_dict(const nd_kpi_snapshot *);
+int nd_capacity_tuple(PyObject *, uint32_t servers, uint32_t **out);
 #endif

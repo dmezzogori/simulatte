@@ -1,0 +1,1712 @@
+[
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": null,
+    "at": 0,
+    "raw": "ee6bb01eabd363f07fc8fe09870cedf5849b6ce41a87ed33ce5f3fa4ba717e24",
+    "projection": "926ff1c584bb49b85a929fdf75de4c5998c1d7a85a6c72bbe56ba967f0e7b7c5",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": null,
+    "at": 0.25,
+    "raw": "d3abcb8ae19e109dda62235c715f9f19672e28ab45034a9eb49613ca1dc1fe88",
+    "projection": "31334bb3f439cea4eaebfd941969ab30856e4823f866a9a00c2d3c734e65e135",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": null,
+    "at": 1,
+    "raw": "1b6568c4b21725cbedf99505fe7552927a263869a428df2699ce06e8ecce842f",
+    "projection": "db800d8110ab06cbb30ec0ce9dd291286b4eb56adac3ece658e6380e4bf7bee2",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": null,
+    "at": 2,
+    "raw": "f11cbc552cfb102683240605f198e94bff5ece5aa5357a07563351f327d511c9",
+    "projection": "e2de7ddf0bbe2da776292de6dc95f39d2f36232499d6ddbc72e8dd6e7018d3c3",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": null,
+    "at": 4,
+    "raw": "33d9152265d8fcf0e39c006f54cd2b402791346d42762c6703e4901fae5ce851",
+    "projection": "e410646539df927a1ee5622ab6a4c8b60f697177b188d7cafb6ab2d071e2885e",
+    "snapshot": {
+      "window": [
+        2.0,
+        4.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/throughput": 0.0,
+        "shopfloor/utilization": 1.0,
+        "shopfloor/jobs_in_system": 26.0
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": null,
+    "at": 10,
+    "raw": "7850c157caf8f9ed2f79c548c48a866d2a5de774ec81d5898a4e2472ffe54eeb",
+    "projection": "eddf2c6d4d15456ad2587de1fe7eddff5e9e7662f6eb1a67cbb517eeaff40fb6",
+    "snapshot": {
+      "window": [
+        2.0,
+        10.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 5.5,
+        "shopfloor/lateness": -5.5,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/total_queue_time": 2.25,
+        "shopfloor/throughput": 0.125,
+        "shopfloor/utilization": 1.0,
+        "shopfloor/jobs_in_system": 49.4375
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": null,
+    "at": 40,
+    "raw": "203badc23732bc2eec0bd22f962c3af32acb677ec91d009ffb7bdbb8a14903f1",
+    "projection": "ed6b664bfeb569dd096c3fe27c7ecdf4eaecaf16a6dcff15ce7ec66e696c2b7c",
+    "snapshot": {
+      "window": [
+        2.0,
+        40.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 25.977272727272727,
+        "shopfloor/lateness": 7.9772727272727275,
+        "shopfloor/tardiness": 8.545454545454545,
+        "shopfloor/tardy_fraction": 0.8181818181818182,
+        "shopfloor/total_queue_time": 23.40909090909091,
+        "shopfloor/throughput": 0.2894736842105263,
+        "shopfloor/utilization": 1.0,
+        "shopfloor/jobs_in_system": 82.07236842105263
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": null,
+    "at": 100,
+    "raw": "426fe194e3bb8503293b84a579d9e3739b2cedc76e2bd783259a4accf7f34d8b",
+    "projection": "2957a9f7c63d106b8aaf37ebb3894c5638340749c3256ad481d9f0201e196f55",
+    "snapshot": {
+      "window": [
+        2.0,
+        100.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 61.315104166666664,
+        "shopfloor/lateness": 46.200520833333336,
+        "shopfloor/tardiness": 46.265625,
+        "shopfloor/tardy_fraction": 0.9791666666666666,
+        "shopfloor/total_queue_time": 58.614583333333336,
+        "shopfloor/throughput": 0.9795918367346939,
+        "shopfloor/utilization": 0.8622448979591836,
+        "shopfloor/jobs_in_system": 59.859693877551024
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": null,
+    "at": 400,
+    "raw": "133f8929c11b9560f13ba6fbddbbeb6a1ab170787b2ff7dbc7c8e69ef8788e00",
+    "projection": "aa20515340ab636a855b6c5804288ffb670782288c77f773f041589cb14aaaec",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 61.315104166666664,
+        "shopfloor/lateness": 46.200520833333336,
+        "shopfloor/tardiness": 46.265625,
+        "shopfloor/tardy_fraction": 0.9791666666666666,
+        "shopfloor/total_queue_time": 58.614583333333336,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21231155778894473,
+        "shopfloor/jobs_in_system": 14.739321608040202
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": null,
+    "at": "run",
+    "raw": "a268c166cdbe58129e8d36b7f4c15878536b5a5c614eb411a27b0767cb50ff59",
+    "projection": "bb863d91e9508d011629ae8646b6f511796a04331e375b3947776f2d4ce5dda4",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        true
+      ],
+      "scalars": {
+        "shopfloor/makespan": 61.315104166666664,
+        "shopfloor/lateness": 46.200520833333336,
+        "shopfloor/tardiness": 46.265625,
+        "shopfloor/tardy_fraction": 0.9791666666666666,
+        "shopfloor/total_queue_time": 58.614583333333336,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21231155778894473,
+        "shopfloor/jobs_in_system": 14.739321608040202
+      }
+    },
+    "result": "9d03e77ffbd0ab2cf32bb438071de04c2ff3ce8b45fba8fe8cf1fb9745d7bc20"
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 0,
+    "raw": "070955e6a821a5070f7f8367fe99afb5fe1e8d108a9543b0a81e55a96805e472",
+    "projection": "f576dd35d44eb505519aaf2d1c9c5b5b9740c96e0946e249911e07dc7476f753",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 0.25,
+    "raw": "77159df104195480d9c6ac9ec3ad306528644a3d64cd1001f4523cad46049475",
+    "projection": "5b1a9346a0d9d0b0469805c696d22f42d72fceb0efa9aff57042fa77f8740f81",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 1,
+    "raw": "6aaa9296222d18c57aeda38ea22d3f6709fd5726b92cc8f8bfb669f21f2b20c5",
+    "projection": "69bf2932b4a398d7f0680fe7b1fb132d4f85e8720036e148489706ba5669473b",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 2,
+    "raw": "f49b34dd8a8d4d9a93d2c2309d01eccf9b0ef894e33bd892c85e58888232a493",
+    "projection": "a6576795b5547bee6bf82fe05b9efa61d5a55eebc50e075fc70367425ba34e0a",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 4,
+    "raw": "5807f977b2da37884023744486ac0da2e363ed42d5b0397fdba4988307e382e1",
+    "projection": "ebac6394d064ad3a599999adef0be8dd46e4edd027135ef11c68080d17b53b08",
+    "snapshot": {
+      "window": [
+        2.0,
+        4.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 2.875,
+        "shopfloor/lateness": -6.625,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/total_queue_time": 0.25,
+        "shopfloor/throughput": 1.0,
+        "shopfloor/utilization": 0.6666666666666666,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 10,
+    "raw": "b5d65a9f99c9e2a27452ab7015278b09b7dc90538bef4b6a14346167b03c6fb3",
+    "projection": "65d620cece772972212c2447aec9d2c2ec5ea21e70bd3cab7d9c15783b9090cf",
+    "snapshot": {
+      "window": [
+        2.0,
+        10.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 4.625,
+        "shopfloor/lateness": -2.375,
+        "shopfloor/tardiness": 1.625,
+        "shopfloor/tardy_fraction": 0.5,
+        "shopfloor/total_queue_time": 1.125,
+        "shopfloor/throughput": 0.75,
+        "shopfloor/utilization": 0.65625,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 40,
+    "raw": "3ec9e589b81fa9354e4145c4afef5c462f454caf833d8420fa795d3a9471eda9",
+    "projection": "69e14ba8a3615f9b7be8bbe54c759de12d1a1b0a003e42b0e1a08e6ea07c932e",
+    "snapshot": {
+      "window": [
+        2.0,
+        40.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 14.663461538461538,
+        "shopfloor/lateness": 13.067307692307692,
+        "shopfloor/tardiness": 13.990384615384615,
+        "shopfloor/tardy_fraction": 0.8846153846153846,
+        "shopfloor/total_queue_time": 1.4134615384615385,
+        "shopfloor/throughput": 0.6842105263157895,
+        "shopfloor/utilization": 0.6447368421052632,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 100,
+    "raw": "241d6509cdde0413b8c01371a914f40f7c0e1a490b2acb4edc610c5fc9747db7",
+    "projection": "757f2b89d5ff5fb5cbdd83ff962425b430f8dcb2d7c3cd25d3fb62d10609f8e0",
+    "snapshot": {
+      "window": [
+        2.0,
+        100.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 44.864583333333336,
+        "shopfloor/lateness": 34.892361111111114,
+        "shopfloor/tardiness": 35.22569444444444,
+        "shopfloor/tardy_fraction": 0.9583333333333334,
+        "shopfloor/total_queue_time": 1.4513888888888888,
+        "shopfloor/throughput": 0.7346938775510204,
+        "shopfloor/utilization": 0.6420068027210885,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 400,
+    "raw": "474068102ef4129868f6570a3634d8895df96c36a31c53c3f4387603c24e52c1",
+    "projection": "028713eba670d2d62f85d13d4fbe12f402eed6886c3ac3aa4a67f8e77ae37fe6",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 61.5703125,
+        "shopfloor/lateness": 46.455729166666664,
+        "shopfloor/tardiness": 46.705729166666664,
+        "shopfloor/tardy_fraction": 0.96875,
+        "shopfloor/total_queue_time": 1.4192708333333333,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21314907872696817,
+        "shopfloor/jobs_in_system": 0.9786432160804021
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "fifo",
+    "cap": 3,
+    "at": "run",
+    "raw": "cebc1793c171b4e2f930be280721dbc74605c2f147051688dcf8cc47755e42ad",
+    "projection": "6cd7c89eaaf85592d136d6a6c8edfbde4717e89d854eb1b989e6420c7c2e1f91",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        true
+      ],
+      "scalars": {
+        "shopfloor/makespan": 61.5703125,
+        "shopfloor/lateness": 46.455729166666664,
+        "shopfloor/tardiness": 46.705729166666664,
+        "shopfloor/tardy_fraction": 0.96875,
+        "shopfloor/total_queue_time": 1.4192708333333333,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21314907872696817,
+        "shopfloor/jobs_in_system": 0.9786432160804021
+      }
+    },
+    "result": "c2739a6ff25a3b760208afd7839822b4e4c25789fc2c6efa67783e3141939c9f"
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": null,
+    "at": 0,
+    "raw": "4adc98b115b29b587d7926881988543037b1f8550e09ee8013081f6a91674a84",
+    "projection": "f5cd0b40fd6609eade78d1b2bcce3fb0cf63019de136f77b1120b2f64c5cea42",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": null,
+    "at": 0.25,
+    "raw": "5814885459fd2a66d1b5ea09771124024e2f56669e822929cdfc6872869044f7",
+    "projection": "8669a691ecb18f2ada9118ef4fcd1e9931244495ab8d3cd4559403dd59c1096e",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": null,
+    "at": 1,
+    "raw": "34a0f2f04f7f2f8b4915663f51f93a4f4da1b9c34c585203c8ef3acfe2a4c032",
+    "projection": "197bb52132bc85fddcd2637488f453706e56344623902628b824feeef93398c1",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": null,
+    "at": 2,
+    "raw": "2f3ea241612665ccb09b5bad889a72f543baf20ef1e502879b283a2c5d2039f3",
+    "projection": "8bc54f763b029366e92d60248f91ddcebb6f365799d96e8366502192752efba4",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": null,
+    "at": 4,
+    "raw": "858a404bc7e313237cb7a8df3a5a7cd36accf9ab999149c41d5db452630edf43",
+    "projection": "f1898bd0c562da701e2be5a971300d1813a1a89a65d8023b94bbdc418ad6c344",
+    "snapshot": {
+      "window": [
+        2.0,
+        4.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 2.75,
+        "shopfloor/lateness": -15.25,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/total_queue_time": 0.25,
+        "shopfloor/throughput": 0.5,
+        "shopfloor/utilization": 1.0,
+        "shopfloor/jobs_in_system": 25.375
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": null,
+    "at": 10,
+    "raw": "ebc60cb74ba6a1fec4919feb08356ba7a1fe63dfcbf29c43a191f05416e737ed",
+    "projection": "0b8049e9bbfd4b7b8f75dba42ff58802a4541884b59fe85042ba80472d862c3e",
+    "snapshot": {
+      "window": [
+        2.0,
+        10.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 3.6785714285714284,
+        "shopfloor/lateness": -16.392857142857142,
+        "shopfloor/tardiness": 0.14285714285714285,
+        "shopfloor/tardy_fraction": 0.14285714285714285,
+        "shopfloor/total_queue_time": 2.357142857142857,
+        "shopfloor/throughput": 0.875,
+        "shopfloor/utilization": 1.0,
+        "shopfloor/jobs_in_system": 47.28125
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": null,
+    "at": 40,
+    "raw": "d4b0b2d4aa24372b503a0bc51f67b6d0df57b2e3b9378d151d90bfe75044ba1d",
+    "projection": "4972e6567d16e6071a5c7160b23622748706adead453bdfb769bb8466a0b7909",
+    "snapshot": {
+      "window": [
+        2.0,
+        40.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 18.5,
+        "shopfloor/lateness": 3.9680851063829787,
+        "shopfloor/tardiness": 9.175531914893616,
+        "shopfloor/tardy_fraction": 0.5531914893617021,
+        "shopfloor/total_queue_time": 16.68617021276596,
+        "shopfloor/throughput": 1.236842105263158,
+        "shopfloor/utilization": 1.0,
+        "shopfloor/jobs_in_system": 66.35526315789474
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": null,
+    "at": 100,
+    "raw": "2f2608c31f70ada1ce2245bc6b23db12848efa93ece5d99d2e65520eaa2d66c9",
+    "projection": "d1e324b854a6e7e15f85f7d402ac4670e62ef33606692ba311a3c302383e669a",
+    "snapshot": {
+      "window": [
+        2.0,
+        100.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 39.677083333333336,
+        "shopfloor/lateness": 24.5625,
+        "shopfloor/tardiness": 27.111979166666668,
+        "shopfloor/tardy_fraction": 0.78125,
+        "shopfloor/total_queue_time": 36.9765625,
+        "shopfloor/throughput": 0.9795918367346939,
+        "shopfloor/utilization": 0.8622448979591836,
+        "shopfloor/jobs_in_system": 38.66326530612245
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": null,
+    "at": 400,
+    "raw": "f278ccd97c2d0007066e173e29279c16aab2b1dcb058d70dec11d2643864415d",
+    "projection": "be7508d693c82cb642a7580de6a59738cd3a1cdd5a8df9a0869af5b705cb09b5",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 39.677083333333336,
+        "shopfloor/lateness": 24.5625,
+        "shopfloor/tardiness": 27.111979166666668,
+        "shopfloor/tardy_fraction": 0.78125,
+        "shopfloor/total_queue_time": 36.9765625,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21231155778894473,
+        "shopfloor/jobs_in_system": 9.520100502512562
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": null,
+    "at": "run",
+    "raw": "8e355668a8be2f10f4c2ccacc45f53fcac62f6b63b2cde78f396206b02c71ddf",
+    "projection": "9b9aaa77ba7b1165da49671897c05c834ad76a9b3ea287f03b957945c12885ab",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        true
+      ],
+      "scalars": {
+        "shopfloor/makespan": 39.677083333333336,
+        "shopfloor/lateness": 24.5625,
+        "shopfloor/tardiness": 27.111979166666668,
+        "shopfloor/tardy_fraction": 0.78125,
+        "shopfloor/total_queue_time": 36.9765625,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21231155778894473,
+        "shopfloor/jobs_in_system": 9.520100502512562
+      }
+    },
+    "result": "2795eec518f1d0ee0bfea6d614183dbf6d5dec6ba5e8ad898a8be550135ec782"
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": 3,
+    "at": 0,
+    "raw": "988e9e1d1bd8972c272cb61ee429ed3fd48880f72ba00ee3cbd9039b358af3dc",
+    "projection": "4129159ec2dfb40514e0abfbbf5af92d6b44178354f0259082efa826c1919fbc",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": 3,
+    "at": 0.25,
+    "raw": "04f075c3ad96b8734722fcddfb4618868805d8ffa4cd755e7484139d85b86c74",
+    "projection": "0b545de9b2fe84a5d9d50c8fd23fd574eb96247a7c4fc1441d923e5cb6929023",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": 3,
+    "at": 1,
+    "raw": "f2f95bbd7fe00cf2f63dfc456e527a518fab310600ef450bba5e8be0d46cc81d",
+    "projection": "98bdf6b66b1ec147d33f8431bb27fd0dbe657d1c17b2e5fb3b5763ab4881a5ca",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": 3,
+    "at": 2,
+    "raw": "680690593d36c47ec1b085c0e1d9d1b35abc6bd32f2dd7db56762d43be1c0118",
+    "projection": "36f30bf474a7e12bb9e9e8e0136acccf793b0e9faa23effe3e65fe7f99465d99",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": 3,
+    "at": 4,
+    "raw": "fbc3250efe429264bd546613df62d905c346a73422f1195fb69ba82460629347",
+    "projection": "39c6ff8720755dae3e29b81609507abd157882bb7c69103db2c492fbc92b7490",
+    "snapshot": {
+      "window": [
+        2.0,
+        4.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 2.875,
+        "shopfloor/lateness": -6.625,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/total_queue_time": 0.25,
+        "shopfloor/throughput": 1.0,
+        "shopfloor/utilization": 0.8333333333333334,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": 3,
+    "at": 10,
+    "raw": "f0cb02c037b632409094ae5586ea198d113cc2d3376f2ca1cee56d767c4b2880",
+    "projection": "6ac8d136f0b5875aaa5d047566248b418737a1bd83b22202d41292adf7046cb3",
+    "snapshot": {
+      "window": [
+        2.0,
+        10.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 3.9166666666666665,
+        "shopfloor/lateness": -2.5833333333333335,
+        "shopfloor/tardiness": 1.3333333333333333,
+        "shopfloor/tardy_fraction": 0.5,
+        "shopfloor/total_queue_time": 0.625,
+        "shopfloor/throughput": 0.75,
+        "shopfloor/utilization": 0.6770833333333334,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": 3,
+    "at": 40,
+    "raw": "8c6296c7eafeaf67f52c6a2ca09212c9f0f1ad1baf1dee4459c3a1c5441a2457",
+    "projection": "2f74cde380cd88a37f2f0f0bd18e5686271060fc7c480909bdee8b2a1ea3767a",
+    "snapshot": {
+      "window": [
+        2.0,
+        40.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 14.803571428571429,
+        "shopfloor/lateness": 12.821428571428571,
+        "shopfloor/tardiness": 13.660714285714286,
+        "shopfloor/tardy_fraction": 0.8928571428571429,
+        "shopfloor/total_queue_time": 1.1964285714285714,
+        "shopfloor/throughput": 0.7368421052631579,
+        "shopfloor/utilization": 0.6885964912280702,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": 3,
+    "at": 100,
+    "raw": "0bde841fca23d54d35c7c023df3ce2203e64e28723a659c999ee68dffea25883",
+    "projection": "79e8b721d8c2040250aac4ba651291c8b5e97e9d8c09d9477340fbcb8c2ed29c",
+    "snapshot": {
+      "window": [
+        2.0,
+        100.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 44.99342105263158,
+        "shopfloor/lateness": 34.046052631578945,
+        "shopfloor/tardiness": 34.35526315789474,
+        "shopfloor/tardy_fraction": 0.9605263157894737,
+        "shopfloor/total_queue_time": 1.256578947368421,
+        "shopfloor/throughput": 0.7755102040816326,
+        "shopfloor/utilization": 0.6743197278911565,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": 3,
+    "at": 400,
+    "raw": "9fe4a9869871172f75f7de4f37d5a92ea53fcfff91bfd0f97ec4c4b2e0f04b97",
+    "projection": "dced598f8d7fe2fb08d504de70e63481dc15dd07699033bed8314445d0d675b7",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 58.247395833333336,
+        "shopfloor/lateness": 43.1328125,
+        "shopfloor/tardiness": 43.377604166666664,
+        "shopfloor/tardy_fraction": 0.96875,
+        "shopfloor/total_queue_time": 1.2473958333333333,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21314907872696817,
+        "shopfloor/jobs_in_system": 0.9371859296482412
+      }
+    }
+  },
+  {
+    "retention": "full",
+    "policy": "spt",
+    "cap": 3,
+    "at": "run",
+    "raw": "36d48c652ef559f4e83ef9e9de92205366c2a165fb25f141172d60a843ee294f",
+    "projection": "82b7338970648260eb819830f06eb351fbfb5c339766ce642af2d793af986478",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        true
+      ],
+      "scalars": {
+        "shopfloor/makespan": 58.247395833333336,
+        "shopfloor/lateness": 43.1328125,
+        "shopfloor/tardiness": 43.377604166666664,
+        "shopfloor/tardy_fraction": 0.96875,
+        "shopfloor/total_queue_time": 1.2473958333333333,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21314907872696817,
+        "shopfloor/jobs_in_system": 0.9371859296482412
+      }
+    },
+    "result": "0e8e6e9c598f8ba7334dc46670e7b4e6500d286983964c45631b7c0e11e651d6"
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": null,
+    "at": 0,
+    "raw": "22995bedc5a93e5359d87305d77e6712e0e3fa2b3a4787fdc9c8c492f0eb4e79",
+    "projection": "4cdc1601edd86c4f09d2e68e7b3f89c9248b7dc5ad396455cc3b4e93605929e0",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": null,
+    "at": 0.25,
+    "raw": "86e7412f9a82e50bca130c2b6d617d57d3bc66f56b812f16708ae93f89b74511",
+    "projection": "d4cc858cc2b371e0d20fc973dab0bedc8a736fda427d34922752644d90bd9dc9",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": null,
+    "at": 1,
+    "raw": "e224f9b7a1b6ac20383927feebe08f7fff41f26f7996ef5bfbd3f6b065cb2eae",
+    "projection": "3de73eec3f9c2abaf4023274caf24bbb5e2be568c0c937668ee452d612e8a21c",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": null,
+    "at": 2,
+    "raw": "fc941a021192406cd7d5ce4304eef4f98c17faf58b40a7cc040e0ead768a3bb1",
+    "projection": "83b0410ac4027af63cb017c48a42b47067534edd8de823d2820765f45cec5e17",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": null,
+    "at": 4,
+    "raw": "71d6d633ef256a5150fe9dd825fe798896c72441567d46d8ad7f6d3886e7d89d",
+    "projection": "90e22ea2e7c54e983da1d5aeb88d3cfbfac65aa454f0062ec2265db757baf48c",
+    "snapshot": {
+      "window": [
+        2.0,
+        4.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/throughput": 0.0,
+        "shopfloor/utilization": 1.0,
+        "shopfloor/jobs_in_system": 26.0
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": null,
+    "at": 10,
+    "raw": "859b9847e25576a1b22652e1247c478324859996d7173f8c290e54dd7a31b3f4",
+    "projection": "fe368c3919fd911bbe0aecd2c0482f50cfa22ccb2c153a8926b234614122a0b6",
+    "snapshot": {
+      "window": [
+        2.0,
+        10.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 5.5,
+        "shopfloor/lateness": -5.5,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/total_queue_time": 2.25,
+        "shopfloor/throughput": 0.125,
+        "shopfloor/utilization": 1.0,
+        "shopfloor/jobs_in_system": 49.4375
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": null,
+    "at": 40,
+    "raw": "1c5f13e11895b4660c10da4ce7461159ffb1e8d6536c57167966565b4c6a3efa",
+    "projection": "33d0de6e97ebcf1577b81d01f05d0cfb061a897068f40e24d9f4aa23aac3a146",
+    "snapshot": {
+      "window": [
+        2.0,
+        40.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 25.977272727272727,
+        "shopfloor/lateness": 7.9772727272727275,
+        "shopfloor/tardiness": 8.545454545454545,
+        "shopfloor/tardy_fraction": 0.8181818181818182,
+        "shopfloor/total_queue_time": 23.40909090909091,
+        "shopfloor/throughput": 0.2894736842105263,
+        "shopfloor/utilization": 1.0,
+        "shopfloor/jobs_in_system": 82.07236842105263
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": null,
+    "at": 100,
+    "raw": "159d890b0b73e6dbec613bedd3bd32b5158c939e561c862ab7857e58e9d58ead",
+    "projection": "3b1c491f3701ac4cf3b6df4e065529257b824ba4b1c9bd04c513cc0f6682084b",
+    "snapshot": {
+      "window": [
+        2.0,
+        100.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 61.315104166666664,
+        "shopfloor/lateness": 46.200520833333336,
+        "shopfloor/tardiness": 46.265625,
+        "shopfloor/tardy_fraction": 0.9791666666666666,
+        "shopfloor/total_queue_time": 58.614583333333336,
+        "shopfloor/throughput": 0.9795918367346939,
+        "shopfloor/utilization": 0.8622448979591836,
+        "shopfloor/jobs_in_system": 59.859693877551024
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": null,
+    "at": 400,
+    "raw": "26c566f11ed308ae0f613582067c0b87fdfe9a9325c2fc9535d06e45710cb5fa",
+    "projection": "2ef61252e1fe440e97582bcec78b35fafb5465d6977edad5e1d96ff44c483660",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 61.315104166666664,
+        "shopfloor/lateness": 46.200520833333336,
+        "shopfloor/tardiness": 46.265625,
+        "shopfloor/tardy_fraction": 0.9791666666666666,
+        "shopfloor/total_queue_time": 58.614583333333336,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21231155778894473,
+        "shopfloor/jobs_in_system": 14.739321608040202
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": null,
+    "at": "run",
+    "raw": "412f3ac0de7ebd8cabdc293996eb8d5c59644b811bbfae1585efde7692186e03",
+    "projection": "16ea3b4cb7fd3cfa754786419016bc4ab832ce9967c31b2a9d0ed99bf92a8c3f",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        true
+      ],
+      "scalars": {
+        "shopfloor/makespan": 61.315104166666664,
+        "shopfloor/lateness": 46.200520833333336,
+        "shopfloor/tardiness": 46.265625,
+        "shopfloor/tardy_fraction": 0.9791666666666666,
+        "shopfloor/total_queue_time": 58.614583333333336,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21231155778894473,
+        "shopfloor/jobs_in_system": 14.739321608040202
+      }
+    },
+    "result": null
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 0,
+    "raw": "08e001fa6b9d84d69789b8ee5be1d27b11bad2d19d177ea958f02168dbe46ad7",
+    "projection": "16688dd7115835d6026c19e469f621f3f1d25b02140106d785cdead2de19e559",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 0.25,
+    "raw": "e223e3f2a8f7757ac7705cfe2a3ac339da0fb7a947e69c161b4c9271dd01a258",
+    "projection": "df2e22c55d8354d82594cf0ca6530b4d946d0bbc162d999e091207662f22765a",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 1,
+    "raw": "1e01510050ef5bfefe4982552c1667509bdb8e82680212b0129b8b794f7f6f99",
+    "projection": "53334edff9b7841c37c993730a865db4b54790eac2bcd289d2ce3c07fe2c9c36",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 2,
+    "raw": "02692ab75fa8c5babb7840f65dcca6d802720d1980d0d0fa8e45654c9938249b",
+    "projection": "8a831868a0e0b2e8cc0210b32727c060bbf0970144f9cf1d4352acdd82fd7c75",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 4,
+    "raw": "058ae9514314f55ec35cd78462ff02d99807649c976adb4da06423a170bc758e",
+    "projection": "0f0eff6084b94f0b0893d479036e46b122ca66342b5f9c4826c14c70cfb047af",
+    "snapshot": {
+      "window": [
+        2.0,
+        4.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 2.875,
+        "shopfloor/lateness": -6.625,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/total_queue_time": 0.25,
+        "shopfloor/throughput": 1.0,
+        "shopfloor/utilization": 0.6666666666666666,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 10,
+    "raw": "9fdae9333ef2e2e4d365c60c852bec864577c4156cf248071518e0c184ebf8b9",
+    "projection": "f885cd43ce5da0eaa8ee31e3be52b98154b3db08565eef07b3847b1b33be20e9",
+    "snapshot": {
+      "window": [
+        2.0,
+        10.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 4.625,
+        "shopfloor/lateness": -2.375,
+        "shopfloor/tardiness": 1.625,
+        "shopfloor/tardy_fraction": 0.5,
+        "shopfloor/total_queue_time": 1.125,
+        "shopfloor/throughput": 0.75,
+        "shopfloor/utilization": 0.65625,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 40,
+    "raw": "048614d7b6de7fbee12ce95571308a413d6d177fb3899021f48a605d6e413cd8",
+    "projection": "e8901ac7fae9f07d616d1a85e454ad4be88fbeae641df7e39ad1b8f197c23ffb",
+    "snapshot": {
+      "window": [
+        2.0,
+        40.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 14.663461538461538,
+        "shopfloor/lateness": 13.067307692307692,
+        "shopfloor/tardiness": 13.990384615384615,
+        "shopfloor/tardy_fraction": 0.8846153846153846,
+        "shopfloor/total_queue_time": 1.4134615384615385,
+        "shopfloor/throughput": 0.6842105263157895,
+        "shopfloor/utilization": 0.6447368421052632,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 100,
+    "raw": "c2c977f1589e4a6406e35f5d2ca4d78df30829bd4f2be426434e3435175e8980",
+    "projection": "62bb72133a504d17526577e47533032d7482326297eb92fff7e6385f1b368c7a",
+    "snapshot": {
+      "window": [
+        2.0,
+        100.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 44.864583333333336,
+        "shopfloor/lateness": 34.892361111111114,
+        "shopfloor/tardiness": 35.22569444444444,
+        "shopfloor/tardy_fraction": 0.9583333333333334,
+        "shopfloor/total_queue_time": 1.4513888888888888,
+        "shopfloor/throughput": 0.7346938775510204,
+        "shopfloor/utilization": 0.6420068027210885,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": 3,
+    "at": 400,
+    "raw": "47c0cee86df9f4f9c4177f9b283c483d112ad6107d29090ec684bd77784b7071",
+    "projection": "f86a16bfe80d3b3b61a726ebbaf5c3e5dd3e4e46ba175de625c00f9e7913cd30",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 61.5703125,
+        "shopfloor/lateness": 46.455729166666664,
+        "shopfloor/tardiness": 46.705729166666664,
+        "shopfloor/tardy_fraction": 0.96875,
+        "shopfloor/total_queue_time": 1.4192708333333333,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21314907872696817,
+        "shopfloor/jobs_in_system": 0.9786432160804021
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "fifo",
+    "cap": 3,
+    "at": "run",
+    "raw": "7d8c24e65e905e796e0005ed45ad5a949d44a2a66ca68404b34f87f8104ede17",
+    "projection": "95d20cd837115c04a079ac32803dfda6031086274c172a56b409e3f9e739822f",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        true
+      ],
+      "scalars": {
+        "shopfloor/makespan": 61.5703125,
+        "shopfloor/lateness": 46.455729166666664,
+        "shopfloor/tardiness": 46.705729166666664,
+        "shopfloor/tardy_fraction": 0.96875,
+        "shopfloor/total_queue_time": 1.4192708333333333,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21314907872696817,
+        "shopfloor/jobs_in_system": 0.9786432160804021
+      }
+    },
+    "result": null
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": null,
+    "at": 0,
+    "raw": "5bec24532ccd33607d0d7324b7fdc2b158c4d4958c9f165b4e2a2c0c83b2abf5",
+    "projection": "aa12619433a355f5250c74b9e823e7f0daf73648a60c541f1c413a65b31ddfad",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": null,
+    "at": 0.25,
+    "raw": "2b9d8f1107706c5616a9e6d14f54654b44b9e8d7be0cca3fc5ed802cdc9b1910",
+    "projection": "26eaf8b3e0b3a922d880c61cca905c9e46ee82430945d3fa0f62d7cc35a93d25",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": null,
+    "at": 1,
+    "raw": "0439736be8b2e659fd0d4178efd70221cc0ca4874eae8de544d81f16a18d5cac",
+    "projection": "03d3dc316eb8b1594bfd7fca814c2e1318e636a27b1979d2283fab689f45185d",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": null,
+    "at": 2,
+    "raw": "8ef180ba454a753aefcccee7805076437792481fd92a83f7e2a49afd961a0a2b",
+    "projection": "632c135339ac889767866921c4b1cbc783ddb7be9cb39258a1a6526fef82c317",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": null,
+    "at": 4,
+    "raw": "826adc69028edb291face3d52a864410f03378bfcd939d52331109049f4fa14f",
+    "projection": "3b4454312bf3f1f51f9971ba4f22e6e1f7f7b6ee77feec7c1ffea71920ec18a1",
+    "snapshot": {
+      "window": [
+        2.0,
+        4.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 2.75,
+        "shopfloor/lateness": -15.25,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/total_queue_time": 0.25,
+        "shopfloor/throughput": 0.5,
+        "shopfloor/utilization": 1.0,
+        "shopfloor/jobs_in_system": 25.375
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": null,
+    "at": 10,
+    "raw": "dbea73aba1d13624a07068d4b30c47fc01d093c1d8a95ed241afb3638046a0b6",
+    "projection": "fe007eeed347702e62fda8914bfe991742d71957e7d9ca711ac54cf900a57a90",
+    "snapshot": {
+      "window": [
+        2.0,
+        10.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 3.6785714285714284,
+        "shopfloor/lateness": -16.392857142857142,
+        "shopfloor/tardiness": 0.14285714285714285,
+        "shopfloor/tardy_fraction": 0.14285714285714285,
+        "shopfloor/total_queue_time": 2.357142857142857,
+        "shopfloor/throughput": 0.875,
+        "shopfloor/utilization": 1.0,
+        "shopfloor/jobs_in_system": 47.28125
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": null,
+    "at": 40,
+    "raw": "32c62c553ea0da24cf160a0a562428588af2265ad26dba80e69e6dfc49f0e812",
+    "projection": "4539e5adc23791b78d04da03ba9a8c82814c1a1617bcfc595561d739b82ad921",
+    "snapshot": {
+      "window": [
+        2.0,
+        40.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 18.5,
+        "shopfloor/lateness": 3.9680851063829787,
+        "shopfloor/tardiness": 9.175531914893616,
+        "shopfloor/tardy_fraction": 0.5531914893617021,
+        "shopfloor/total_queue_time": 16.68617021276596,
+        "shopfloor/throughput": 1.236842105263158,
+        "shopfloor/utilization": 1.0,
+        "shopfloor/jobs_in_system": 66.35526315789474
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": null,
+    "at": 100,
+    "raw": "9ce51661e8496c3faa1d2ad71e9afacbd547b789a34b16ad911b32f43b7d522f",
+    "projection": "b8062f0b4ee728606680b7fcb70b6c34046ec4f6fa45becb311a3fd28635af17",
+    "snapshot": {
+      "window": [
+        2.0,
+        100.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 39.677083333333336,
+        "shopfloor/lateness": 24.5625,
+        "shopfloor/tardiness": 27.111979166666668,
+        "shopfloor/tardy_fraction": 0.78125,
+        "shopfloor/total_queue_time": 36.9765625,
+        "shopfloor/throughput": 0.9795918367346939,
+        "shopfloor/utilization": 0.8622448979591836,
+        "shopfloor/jobs_in_system": 38.66326530612245
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": null,
+    "at": 400,
+    "raw": "d2582585ec7b7759c5c410ce1fbc434fe27ee50ccfd813e5401c1ba3d78580f8",
+    "projection": "d528a6dde33a6dc5dbfd637d34a0de71f5cebb2852dba01a457e89bab4b5773d",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 39.677083333333336,
+        "shopfloor/lateness": 24.5625,
+        "shopfloor/tardiness": 27.111979166666668,
+        "shopfloor/tardy_fraction": 0.78125,
+        "shopfloor/total_queue_time": 36.9765625,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21231155778894473,
+        "shopfloor/jobs_in_system": 9.520100502512562
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": null,
+    "at": "run",
+    "raw": "3a8e1daa52b4e9c5785ba5a7a55392d7941aece6d4ad18a7a1ec9a8f4872f074",
+    "projection": "39cbbbebf5912a020b3d33bd0db8d5efbc199b3e7048edc25fac3dd8c7483329",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        true
+      ],
+      "scalars": {
+        "shopfloor/makespan": 39.677083333333336,
+        "shopfloor/lateness": 24.5625,
+        "shopfloor/tardiness": 27.111979166666668,
+        "shopfloor/tardy_fraction": 0.78125,
+        "shopfloor/total_queue_time": 36.9765625,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21231155778894473,
+        "shopfloor/jobs_in_system": 9.520100502512562
+      }
+    },
+    "result": null
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": 3,
+    "at": 0,
+    "raw": "25cf10830b5ea8379e32b9c90568f6a8cfe836c79d2d5992bcd5b49702580e29",
+    "projection": "21678f071b93b8f1e34e3550f46063c310ec750a6b3ef93acd2f62edb009de52",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": 3,
+    "at": 0.25,
+    "raw": "5e4e3b2c5af8af107e67a45152de036fae5aacb674753f2f784c6ef81bbbd32d",
+    "projection": "c1bbc24b1419312f4f71a87ade9a6d5ae575505ef33ea20b3d4d781b7c88ea77",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": 3,
+    "at": 1,
+    "raw": "aa4803a5d63153c8fbd56a94ac19c4976304d93fb8643c3fac63cfc5e9322eb5",
+    "projection": "91556780e046ffce38ec0956686f2e2f57ef0f5cd247966b36b7f3e659c01794",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": 3,
+    "at": 2,
+    "raw": "82aaab11b7162f52983f862e896dea64a41a0a00e8edbf071020c9e09138595b",
+    "projection": "7d8f248f3344d6b753686cfadf568a793caaea33d45362deb06ad1712906a57e",
+    "snapshot": {
+      "window": [
+        2.0,
+        2.0,
+        false
+      ],
+      "scalars": {}
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": 3,
+    "at": 4,
+    "raw": "5c79154f9d8db86809e4ad9b10cf7f8068af7468f84412c23a0dba4682fb89c6",
+    "projection": "60d4dcf136469ed3680acd4fc34c444b6a1ca283c622cbbf5c1b88447cd94947",
+    "snapshot": {
+      "window": [
+        2.0,
+        4.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 2.875,
+        "shopfloor/lateness": -6.625,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/total_queue_time": 0.25,
+        "shopfloor/throughput": 1.0,
+        "shopfloor/utilization": 0.8333333333333334,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": 3,
+    "at": 10,
+    "raw": "3632d9b59317f0379b327987a72b3b8e1aa2c656a5a4401dece425f187cd7ef7",
+    "projection": "b2c7d33a9f4980475096ef4f09b95c45170349d37f24bf7830b27f2a2e7ff21c",
+    "snapshot": {
+      "window": [
+        2.0,
+        10.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 3.9166666666666665,
+        "shopfloor/lateness": -2.5833333333333335,
+        "shopfloor/tardiness": 1.3333333333333333,
+        "shopfloor/tardy_fraction": 0.5,
+        "shopfloor/total_queue_time": 0.625,
+        "shopfloor/throughput": 0.75,
+        "shopfloor/utilization": 0.6770833333333334,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": 3,
+    "at": 40,
+    "raw": "5a8827ae5be0e0a83b6892764ce6934cee4ac31ccd7b3ca4ae869c086e67a16b",
+    "projection": "ea99c76dab69ea315d4af32bd8ab5bcd2c19c3daae30b66773f3dd2bb62f3a07",
+    "snapshot": {
+      "window": [
+        2.0,
+        40.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 14.803571428571429,
+        "shopfloor/lateness": 12.821428571428571,
+        "shopfloor/tardiness": 13.660714285714286,
+        "shopfloor/tardy_fraction": 0.8928571428571429,
+        "shopfloor/total_queue_time": 1.1964285714285714,
+        "shopfloor/throughput": 0.7368421052631579,
+        "shopfloor/utilization": 0.6885964912280702,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": 3,
+    "at": 100,
+    "raw": "244859e692bcdc9b1bbf14d3b6a336318c73d6054344edbe35a36f83f9392de3",
+    "projection": "f8fc51a483845f237940bd6a275ac98a4529088cc972c27d489b6106694d64e4",
+    "snapshot": {
+      "window": [
+        2.0,
+        100.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 44.99342105263158,
+        "shopfloor/lateness": 34.046052631578945,
+        "shopfloor/tardiness": 34.35526315789474,
+        "shopfloor/tardy_fraction": 0.9605263157894737,
+        "shopfloor/total_queue_time": 1.256578947368421,
+        "shopfloor/throughput": 0.7755102040816326,
+        "shopfloor/utilization": 0.6743197278911565,
+        "shopfloor/jobs_in_system": 3.0
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": 3,
+    "at": 400,
+    "raw": "a5fd712fed244a1684fdd716e048171f6883ae9ddf51a73401c7314f98b1d331",
+    "projection": "614cd47f00d475b3dc3450209229b6076beedd271c19562c8abe318c03fbcb5d",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        false
+      ],
+      "scalars": {
+        "shopfloor/makespan": 58.247395833333336,
+        "shopfloor/lateness": 43.1328125,
+        "shopfloor/tardiness": 43.377604166666664,
+        "shopfloor/tardy_fraction": 0.96875,
+        "shopfloor/total_queue_time": 1.2473958333333333,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21314907872696817,
+        "shopfloor/jobs_in_system": 0.9371859296482412
+      }
+    }
+  },
+  {
+    "retention": "bounded",
+    "policy": "spt",
+    "cap": 3,
+    "at": "run",
+    "raw": "70fbcf58baa7cd55f8fba9bff21f26167dd27088510945cf620f8527223e0b34",
+    "projection": "19182da91ecd0cad1e6d7e172d6e06b28227a1a17135a4ac97ce17e3cf609110",
+    "snapshot": {
+      "window": [
+        2.0,
+        400.0,
+        true
+      ],
+      "scalars": {
+        "shopfloor/makespan": 58.247395833333336,
+        "shopfloor/lateness": 43.1328125,
+        "shopfloor/tardiness": 43.377604166666664,
+        "shopfloor/tardy_fraction": 0.96875,
+        "shopfloor/total_queue_time": 1.2473958333333333,
+        "shopfloor/throughput": 0.24120603015075376,
+        "shopfloor/utilization": 0.21314907872696817,
+        "shopfloor/jobs_in_system": 0.9371859296482412
+      }
+    },
+    "result": null
+  }
+]

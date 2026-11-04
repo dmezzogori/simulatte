@@ -1,0 +1,23 @@
+{
+  "core": "simulatte-0.17.0-py3-none-any.whl",
+  "core_sha256": "423c32d67c014bcc8dd5f64932da8877606815795c2c8d7544c210066f7401a7",
+  "native": "simulatte_native-0.17.0-cp313-cp313-macosx_27_0_arm64.whl",
+  "native_sha256": "ef3ca8498cb677cafb170ed591f07317183260c7bcf5238586a724d2a4a56708",
+  "base_probe": "pure base and optional dependency error pass\n",
+  "compiler_unavailable_at_runtime": true,
+  "native_extra_installs_provider": true,
+  "runner_sha256": "d2d723434f68c175b33915f3736c61117aa925025d5c2ff60bdb61a8feabdbce",
+  "probe_sha256": "bc55aa2c10cc14b9db72533bee4005e903c2e4a960259385eefa035b1abc56ae",
+  "identity_probe_sha256": "f696ff2708b453dea149d05e69a04bf2342a13919a9931e0ad0221b5124fdced",
+  "capacity_probe_sha256": "e63e764d99fd5e7e1bf9b0c94601933fb90189093236d9afeca7012303125cee",
+  "identity_fixtures": {
+    "prototypes/native_prepared_identity/plant.py": "0e2a847d9506fde9d70af7b41f60fa20b827e98eb89bd1f26c84a0de90ec8dc4",
+    "prototypes/native_prepared_identity/fixed_case.py": "d2d99e99129cce1c1b8bfe94a282e3f667b6778705d6baec36f685d8bea7e450",
+    "prototypes/native_prepared_identity/coupled_case.py": "59ea5cb94716cf0cfe56616bd0196c6b11b83ac049740413ddc60fc51418f191",
+    "prototypes/native_prepared_identity/reference_projection.py": "d2bbd2d2b64dee89844de814abbe57e8f8b4316c79ebe1e94d1d8c744caa7b3e",
+    "prototypes/native_prepared_identity/unprepared_projection.py": "900a68f9df58b45e210c0c307046d2ffbd82bc15579f389f5da23fda39d28552",
+    "prototypes/native_prepared_identity/projection.py": "bf20faea608f18de039d5932f0895126a185e800ca33d0f7037515436c459de3",
+    "prototypes/native_identity_helper/projection.py": "334e44683299aacdc43e88ba546c04fa4d790c1a890d5c6b24e075708891c572"
+  },
+  "python": "3.13.9 (main, Oct 28 2025, 12:02:14) [Clang 20.1.4 ]"
+}

@@ -1,7 +1,7 @@
 # Experimental native production backend
 
 The optional native provider accelerates a bounded production model: fixed
-unit-capacity servers, routes without repeated servers, FIFO/SPT dispatch, EDD
+servers with configurable parallel slots, routes without repeated servers, FIFO/SPT dispatch, EDD
 ConWIP and the eight `ShopFloorKPIs` scalars. Ordinary models keep their Python
 engine. Existing `ShopFloor` actors and policies are not automatically translated.
 
@@ -63,6 +63,40 @@ one stream and stay valid through native storage growth.
 `advance(t)` processes events strictly before `t`, leaving events at `t` pending.
 This permits Python to inspect state and add jobs at a synchronized boundary.
 `run()` seals input and drains once. Scalar/state queries never advance time.
+
+### Parallel processing slots
+
+Pass one fixed capacity per server to either `NativeStream` or `NativeProduction`:
+
+```python
+with NativeStream(servers=2, capacities=(2, 1), wip_cap=None, policy="fifo") as engine:
+    for _ in range(4):
+        engine.add(Job(0, route=(0, 1), durations=(2, 0.25), due=10))
+    engine.run()
+    print(engine.result()["finished"])  # [2.25, 2.5, 4.25, 4.5]
+```
+
+The first workstation processes up to two jobs concurrently; the second processes
+one. The same jobs with default `(1, 1)` finish at `[2.25, 4.25, 6.25, 8.25]`.
+This models interchangeable parallel slots with identical processing times at
+each workstation. Slot identities, different machine speeds, dynamic capacity,
+preemption and failures are outside this extension. ConWIP still caps jobs on the
+whole shop floor, independently of available slots.
+
+Capacity inputs are copied into a read-only tuple exposed as `capacities`.
+Each entry must be a positive primitive integer, one per server, and both each
+count and their sum must be below `UINT32_MAX`. Omission and explicit all-ones
+use the original unit-capacity behavior. No allocation scales with the number
+of slots; native storage scales with servers and retained jobs/operations.
+Shop utilization divides occupied slot-time by total available slot-time, as
+Python's `ShopFloorKPIs` does.
+
+Arrival and release triggers preserve the production resource's single-request
+grant ordering, including simultaneous completions. For Python comparisons, use
+the same external admission boundary: run strictly before arrival time, register
+that timestamp's arrivals as processes, then resume. An ordinary timeout producer
+can interleave differently with completions at the same timestamp; pre-registering
+native arrivals is not a general translation of arbitrary Python scheduling.
 Snapshots are detached; stream queries after close fail. Use `snapshot()` for
 production KPI definitions: `makespan` is mean job flow time, not the final
 completion timestamp. Its `window` tuple records start, end and exhaustion closure.
@@ -94,7 +128,7 @@ completed history. ConWIP limits the floor, not an overloaded pre-shop pool.
 Eagerly admitting an entire workload, retaining handles/history in Python, or a
 growing controller callback still consumes memory. Fixed job references held by
 the adapter are released after native admission. There is no unconditional
-infinite-stream bound, cancellation or preemption.
+infinite-stream bound, per-job cancellation or preemption.
 
 Full retention keeps `NSTA0001` / `native-production-v1`. Bounded mode uses
 `NRST0001` / `native-production-bounded-v1`, with a rolling completion-history
@@ -103,6 +137,16 @@ restoring an engine from them is outside this API. Compare physical results/KPIs
 across modes and reproduce fingerprints within the same mode. Provider API 2
 requires rebuilding/reinstalling the matching local companion; the development
 pair remains 0.17.0 and is not a published v3 release.
+
+Non-unit capacities use `NSTA0002` / `native-production-capacity-v1`, or
+`NBST0002` inside `NRST0002` / `native-production-capacity-bounded-v1`.
+The native encodings add each server's capacity to its state record, so different
+capacity vectors cannot share a trajectory commitment, even with no jobs.
+Projection and identity-composition APIs retain their envelope versions and
+include these codecs. Unit-capacity logical bytes, schemas and projections stay
+unchanged; native allocation diagnostics account for wider occupancy counters.
+Parallel slots require a rebuilt companion advertising `CAPACITY_VERSION=1`.
+An older API-2 companion remains usable for unit-capacity models.
 
 ## Experimental state projection
 
@@ -318,3 +362,5 @@ The clean-install gate also checks
 base-only installs, ABI/provider API rejection before extension import, corrupt
 bytes, actual wrong dependency mappings, runtime mutation without publication,
 source-deleted reproduction and incompatible wheel tags outside the checkout.
+It also runs fixed/dynamic parallel-slot models under FIFO/SPT with both retention
+modes and reproduces every capacity request after deleting the original source.

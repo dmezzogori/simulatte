@@ -1,0 +1,339 @@
+{
+  "passed": true,
+  "base": "29596aecbbd653713c0c0be5037b070deb15fc2a",
+  "cells": [
+    {
+      "cell": "macos-final-cp311",
+      "regressions": 225,
+      "capacity_requests": 8,
+      "capacity_reproductions": 8,
+      "rejections": 7,
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "423c32d67c014bcc8dd5f64932da8877606815795c2c8d7544c210066f7401a7"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp311-cp311-macosx_27_0_arm64.whl",
+        "sha256": "e9d0f75651d089dc47e6543b78590165a22ada013524b5100e7998108174e6cf"
+      }
+    },
+    {
+      "cell": "macos-final-cp312",
+      "regressions": 225,
+      "capacity_requests": 8,
+      "capacity_reproductions": 8,
+      "rejections": 7,
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "423c32d67c014bcc8dd5f64932da8877606815795c2c8d7544c210066f7401a7"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp312-cp312-macosx_27_0_arm64.whl",
+        "sha256": "61bf3cca650d20ed5cd3904c2e34fcc15efdc9c53135de803a3e6491e4ac7e0d"
+      }
+    },
+    {
+      "cell": "macos-final-cp313",
+      "regressions": 225,
+      "capacity_requests": 8,
+      "capacity_reproductions": 8,
+      "rejections": 7,
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "423c32d67c014bcc8dd5f64932da8877606815795c2c8d7544c210066f7401a7"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp313-cp313-macosx_27_0_arm64.whl",
+        "sha256": "ef3ca8498cb677cafb170ed591f07317183260c7bcf5238586a724d2a4a56708"
+      }
+    },
+    {
+      "cell": "macos-final-cp314",
+      "regressions": 225,
+      "capacity_requests": 8,
+      "capacity_reproductions": 8,
+      "rejections": 7,
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "423c32d67c014bcc8dd5f64932da8877606815795c2c8d7544c210066f7401a7"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp314-cp314-macosx_27_0_arm64.whl",
+        "sha256": "eb9ee3abc5325c856433453edf91f395cfda2d66d6e622d53a7e95725bef3c23"
+      }
+    },
+    {
+      "cell": "macos-final-cp315",
+      "regressions": 225,
+      "capacity_requests": 8,
+      "capacity_reproductions": 8,
+      "rejections": 7,
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "423c32d67c014bcc8dd5f64932da8877606815795c2c8d7544c210066f7401a7"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp315-cp315-macosx_27_0_arm64.whl",
+        "sha256": "f77fc5017340d59be937a130bc639322fe7959336101447909bdcd2cf0206530"
+      }
+    },
+    {
+      "cell": "linux-final-cp311",
+      "regressions": 225,
+      "capacity_requests": 8,
+      "capacity_reproductions": 8,
+      "rejections": 7,
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "423c32d67c014bcc8dd5f64932da8877606815795c2c8d7544c210066f7401a7"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp311-cp311-linux_x86_64.whl",
+        "sha256": "ee61a1b50efe812409325920c3c7ab294407a5555aa6ce584ec4ff47d0b5498e"
+      }
+    },
+    {
+      "cell": "linux-final-cp312",
+      "regressions": 225,
+      "capacity_requests": 8,
+      "capacity_reproductions": 8,
+      "rejections": 7,
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "423c32d67c014bcc8dd5f64932da8877606815795c2c8d7544c210066f7401a7"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp312-cp312-linux_x86_64.whl",
+        "sha256": "6477a0d011ed1c0c0667a4f43e870c6eacd0f240f606f8c35247ece0c3b83664"
+      }
+    },
+    {
+      "cell": "linux-final-cp313",
+      "regressions": 225,
+      "capacity_requests": 8,
+      "capacity_reproductions": 8,
+      "rejections": 7,
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "423c32d67c014bcc8dd5f64932da8877606815795c2c8d7544c210066f7401a7"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp313-cp313-linux_x86_64.whl",
+        "sha256": "7369cfdb22c4991b51b2378f2d53834a0954c206df5200e3057f460707950e10"
+      }
+    },
+    {
+      "cell": "linux-final-cp314",
+      "regressions": 225,
+      "capacity_requests": 8,
+      "capacity_reproductions": 8,
+      "rejections": 7,
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "423c32d67c014bcc8dd5f64932da8877606815795c2c8d7544c210066f7401a7"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl",
+        "sha256": "3d713881ee9f065d7fff30a8141ee723e48370c024cddf337a860671f6102320"
+      }
+    },
+    {
+      "cell": "linux-final-cp315",
+      "regressions": 225,
+      "capacity_requests": 8,
+      "capacity_reproductions": 8,
+      "rejections": 7,
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "423c32d67c014bcc8dd5f64932da8877606815795c2c8d7544c210066f7401a7"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp315-cp315-linux_x86_64.whl",
+        "sha256": "4aad90e8ca91a6e795addfdb9ecf33bc61a976c3477335f56683ec9810b63330"
+      }
+    }
+  ],
+  "capacity_requests": 80,
+  "capacity_source_deleted_reproductions": 80,
+  "production_parity_cases_per_host": 128,
+  "identical_cross_host_states": true,
+  "legacy_unit_observations": 80,
+  "memory": {
+    "macos": {
+      "full": {
+        "jobs": 65536,
+        "storage": {
+          "admitted": 65536,
+          "completed": 65536,
+          "forgotten": 0,
+          "events": 716800,
+          "retained_jobs": 65536,
+          "retained_operations": 131072,
+          "job_capacity": 65536,
+          "op_capacity": 131072,
+          "calendar_capacity": 32,
+          "native_bytes": 8980756,
+          "completion_capacity": 0,
+          "state_capacity": 0
+        },
+        "snapshot": {
+          "window": [
+            0.0,
+            131072.0,
+            false
+          ],
+          "scalars": {
+            "shopfloor/makespan": 2.171875,
+            "shopfloor/lateness": -3.828125,
+            "shopfloor/tardiness": 0.0,
+            "shopfloor/tardy_fraction": 0.0,
+            "shopfloor/total_queue_time": 0.328125,
+            "shopfloor/throughput": 0.5,
+            "shopfloor/utilization": 0.0625,
+            "shopfloor/jobs_in_system": 0.5390625
+          }
+        },
+        "peak_rss_bytes": 47513600
+      },
+      "bounded": {
+        "jobs": 65536,
+        "storage": {
+          "admitted": 65536,
+          "completed": 65536,
+          "forgotten": 65536,
+          "events": 716800,
+          "retained_jobs": 0,
+          "retained_operations": 0,
+          "job_capacity": 16,
+          "op_capacity": 32,
+          "calendar_capacity": 32,
+          "native_bytes": 6796,
+          "completion_capacity": 2048,
+          "state_capacity": 0
+        },
+        "snapshot": {
+          "window": [
+            0.0,
+            131072.0,
+            false
+          ],
+          "scalars": {
+            "shopfloor/makespan": 2.171875,
+            "shopfloor/lateness": -3.828125,
+            "shopfloor/tardiness": 0.0,
+            "shopfloor/tardy_fraction": 0.0,
+            "shopfloor/total_queue_time": 0.328125,
+            "shopfloor/throughput": 0.5,
+            "shopfloor/utilization": 0.0625,
+            "shopfloor/jobs_in_system": 0.5390625
+          }
+        },
+        "peak_rss_bytes": 36585472
+      }
+    },
+    "linux": {
+      "full": {
+        "jobs": 65536,
+        "storage": {
+          "admitted": 65536,
+          "completed": 65536,
+          "forgotten": 0,
+          "events": 716800,
+          "retained_jobs": 65536,
+          "retained_operations": 131072,
+          "job_capacity": 65536,
+          "op_capacity": 131072,
+          "calendar_capacity": 32,
+          "native_bytes": 8980756,
+          "completion_capacity": 0,
+          "state_capacity": 0
+        },
+        "snapshot": {
+          "window": [
+            0.0,
+            131072.0,
+            false
+          ],
+          "scalars": {
+            "shopfloor/makespan": 2.171875,
+            "shopfloor/lateness": -3.828125,
+            "shopfloor/tardiness": 0.0,
+            "shopfloor/tardy_fraction": 0.0,
+            "shopfloor/total_queue_time": 0.328125,
+            "shopfloor/throughput": 0.5,
+            "shopfloor/utilization": 0.0625,
+            "shopfloor/jobs_in_system": 0.5390625
+          }
+        },
+        "peak_rss_bytes": 42319872
+      },
+      "bounded": {
+        "jobs": 65536,
+        "storage": {
+          "admitted": 65536,
+          "completed": 65536,
+          "forgotten": 65536,
+          "events": 716800,
+          "retained_jobs": 0,
+          "retained_operations": 0,
+          "job_capacity": 16,
+          "op_capacity": 32,
+          "calendar_capacity": 32,
+          "native_bytes": 6796,
+          "completion_capacity": 2048,
+          "state_capacity": 0
+        },
+        "snapshot": {
+          "window": [
+            0.0,
+            131072.0,
+            false
+          ],
+          "scalars": {
+            "shopfloor/makespan": 2.171875,
+            "shopfloor/lateness": -3.828125,
+            "shopfloor/tardiness": 0.0,
+            "shopfloor/tardy_fraction": 0.0,
+            "shopfloor/total_queue_time": 0.328125,
+            "shopfloor/throughput": 0.5,
+            "shopfloor/utilization": 0.0625,
+            "shopfloor/jobs_in_system": 0.5390625
+          }
+        },
+        "peak_rss_bytes": 31903744
+      }
+    }
+  },
+  "sanitizer": {
+    "macos": {
+      "tests": 202,
+      "induced_failures": 111,
+      "successes": 219,
+      "python_leak_detection": false
+    },
+    "linux": {
+      "tests": 202,
+      "induced_failures": 111,
+      "successes": 219,
+      "python_leak_detection": false
+    }
+  },
+  "repository": {
+    "passed": 3738,
+    "skipped": 1,
+    "warnings": 3,
+    "combined_coverage": 99.03,
+    "line_coverage": 99.39,
+    "branch_coverage": 98.0
+  },
+  "sources": {
+    "prototypes/native_server_capacity/legacy.py": "16ee55ecaf14fcf3435f3ad41395d6f84774c55f58e953da7ee21d57448d623b",
+    "prototypes/native_server_capacity/memory.py": "2fc372c7a1ec5a2238fc41d0f6c1e42f9c58ca01a8c5dcba459022be61c5256e",
+    "prototypes/native_server_capacity/parity.py": "9000efaf76164e07f611281ec6e4ee13b5c7092cd5017ea7d4bf652358d16b02",
+    "prototypes/native_server_capacity/validate.py": "ddcd2cac06a7cfbea03190ed639455648cfd0984c4406b3cadfc78fd7017959c",
+    "prototypes/native_server_capacity/analyze.py": "60bd318e86a95e494cd14aa90404ef29f46f43ebff020876bdc6b15009f47d3a",
+    "prototypes/native_server_capacity/faults.py": "11914b2d160ed3baf79365e76f6090a2debd5ddc46efbc5b17e79a91e2751faf",
+    "prototypes/native_server_capacity/README.md": "d5be07b4c3af4f59914f71cc130e9a39206b64d8fe3f8af33172632d890f6ca7",
+    "specs/research/2026-11-04-native-server-capacity.md": "6758a41decca40873ddd32b6bb17cf3b21c479dd545268e8e13ddddbe5b3aedb"
+  }
+}

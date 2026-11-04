@@ -1,0 +1,183 @@
+{
+  "platform": "linux",
+  "commands": [
+    {
+      "name": "venv",
+      "command": [
+        "/home/davide/.local/bin/uv",
+        "venv",
+        "/home/davide/Developer/simulatte-native-capacity-20261104-8c4669/prototypes/native_provider_projection/.build/sanitized-linux-capacity-asan/venv",
+        "--python",
+        "/home/davide/Developer/simulatte-native-capacity-20261104-8c4669/prototypes/native_server_capacity/.build/linux-final-cp314/regressions/bin/python"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "install",
+      "command": [
+        "/home/davide/.local/bin/uv",
+        "pip",
+        "install",
+        "--python",
+        "/home/davide/Developer/simulatte-native-capacity-20261104-8c4669/prototypes/native_provider_projection/.build/sanitized-linux-capacity-asan/venv/bin/python",
+        "--link-mode=copy",
+        "/home/davide/Developer/simulatte-capacity-inputs-20261104-8c4669/simulatte-0.17.0-py3-none-any.whl",
+        "/home/davide/Developer/simulatte-native-capacity-20261104-8c4669/prototypes/native_server_capacity/.build/linux-final-cp314/simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl",
+        "pytest==9.2.0",
+        "pytest-timeout==2.4.0"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "path",
+      "command": [
+        "/home/davide/Developer/simulatte-native-capacity-20261104-8c4669/prototypes/native_provider_projection/.build/sanitized-linux-capacity-asan/venv/bin/python",
+        "-I",
+        "-c",
+        "import sysconfig; print(sysconfig.get_path('purelib'))"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "stock-build",
+      "command": [
+        "cc",
+        "-std=c17",
+        "-O1",
+        "-g",
+        "-fPIC",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-fno-omit-frame-pointer",
+        "-DND_TEST_ALLOCATIONS",
+        "-ffp-contract=off",
+        "-c",
+        "native/csrc/stock_kpi.c",
+        "-o",
+        "/home/davide/Developer/simulatte-native-capacity-20261104-8c4669/prototypes/native_provider_projection/.build/sanitized-linux-capacity-asan/stock.o"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "engine-build",
+      "command": [
+        "cc",
+        "-std=c17",
+        "-O1",
+        "-g",
+        "-fPIC",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-fno-omit-frame-pointer",
+        "-DND_TEST_ALLOCATIONS",
+        "-shared",
+        "-Wl,-soname,simulatte_native_engine.so",
+        "native/csrc/dynamic_engine.c",
+        "native/csrc/retention.c",
+        "/home/davide/Developer/simulatte-native-capacity-20261104-8c4669/prototypes/native_provider_projection/.build/sanitized-linux-capacity-asan/stock.o",
+        "-lm",
+        "-o",
+        "/home/davide/Developer/simulatte-native-capacity-20261104-8c4669/prototypes/native_provider_projection/.build/sanitized-linux-capacity-asan/venv/lib/python3.14/site-packages/simulatte_native/_bin/simulatte_native_engine.so"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "binding-build",
+      "command": [
+        "cc",
+        "-std=c17",
+        "-O1",
+        "-g",
+        "-fPIC",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-fno-omit-frame-pointer",
+        "-I/home/davide/.local/share/uv/python/cpython-3.14-linux-x86_64-gnu/include/python3.14",
+        "-shared",
+        "-Wl,-rpath,$ORIGIN",
+        "native/csrc/scalar_module.c",
+        "native/csrc/retention_module.c",
+        "/home/davide/Developer/simulatte-native-capacity-20261104-8c4669/prototypes/native_provider_projection/.build/sanitized-linux-capacity-asan/venv/lib/python3.14/site-packages/simulatte_native/_bin/simulatte_native_engine.so",
+        "-o",
+        "/home/davide/Developer/simulatte-native-capacity-20261104-8c4669/prototypes/native_provider_projection/.build/sanitized-linux-capacity-asan/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-x86_64-linux-gnu.so"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "native-tests",
+      "command": [
+        "/home/davide/Developer/simulatte-native-capacity-20261104-8c4669/prototypes/native_provider_projection/.build/sanitized-linux-capacity-asan/venv/bin/python",
+        "-m",
+        "pytest",
+        "-o",
+        "addopts=",
+        "-q",
+        "tests/experimental/test_native.py",
+        "tests/experimental/test_native_retention.py",
+        "tests/experimental/test_native_projection.py",
+        "prototypes/native_provider_projection/tests"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "allocation-faults",
+      "command": [
+        "/home/davide/Developer/simulatte-native-capacity-20261104-8c4669/prototypes/native_provider_projection/.build/sanitized-linux-capacity-asan/venv/bin/python",
+        "-I",
+        "/home/davide/Developer/simulatte-native-capacity-20261104-8c4669/prototypes/native_provider_projection/.build/sanitized-linux-capacity-asan/faults.py"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "passed": true,
+  "manifest": {
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "x86_64",
+      "platform": "linux",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-x86_64-linux-gnu",
+      "suffix": ".cpython-314-x86_64-linux-gnu.so"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-x86_64-linux-gnu.so": {
+        "sha256": "b749610784e80cbd464cf8437f4a2481491c7ed33ca641c99e1acfb52929bb3a",
+        "size": 301944
+      },
+      "simulatte_native_engine.so": {
+        "sha256": "792bddd6fbdd72fa7afe3660fbe311cc0db9dfbf2c1232a3f3ca6a443240e8ad",
+        "size": 506712
+      }
+    },
+    "provider_api": 2,
+    "schema": 1,
+    "sources": {
+      "csrc/dynamic_engine.c": "8622b96865136d8dfce00bdfe2088689248c4ffc88c22499ed197a606c42e509",
+      "csrc/dynamic_engine.h": "7d1c64cb22c5c0de9f179e613f0109879d780c67e59354b59ee7391f05757b5e",
+      "csrc/dynamic_engine_internal.h": "89f1cb6c46c7755edeabdbfa9efd0f1511fcbfb3ef9485e59303ac665f90a00a",
+      "csrc/retention.c": "31ab9b5135023c47184e82c75d9d63b5b84fc922ff3ed60bdc523878a9b111b5",
+      "csrc/retention.h": "c708e4cc1b3731275eb19f699e36727030e9147d3dd5f33806662687cc7e7a37",
+      "csrc/retention_module.c": "fa8b2c151f2c8c7cbeae84294c811142414d23a074627e2156976b790e64cb6f",
+      "csrc/retention_module.h": "b709e31ff8034ffd647e070af6fab44fda98f31cd4cdd9e27ee0af4a5b26802c",
+      "csrc/scalar_module.c": "541108c7368fafcbfd32801f09fa16909975ebaa81244f7a7cd7f3d02dec4ca7",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "version": "0.17.0"
+  },
+  "python_leak_detection": false
+}

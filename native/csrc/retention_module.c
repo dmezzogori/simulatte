@@ -28,6 +28,39 @@ static int integer(PyObject *p, uint32_t *n, int positive) {
     }
     *n = (uint32_t)value; return 0;
 }
+int nd_capacity_tuple(PyObject *values, uint32_t servers, uint32_t **out) {
+    size_t length = PyTuple_CheckExact(values) ? (size_t)PyTuple_GET_SIZE(values) : SIZE_MAX;
+    if (length != servers || length > SIZE_MAX / sizeof(uint32_t)) {
+        PyErr_SetString(PyExc_ValueError, "capacities require an exact tuple matching servers"); return -1;
+    }
+    uint32_t *copy = PyMem_Malloc((size_t)servers * sizeof(*copy));
+    if (!copy) { PyErr_NoMemory(); return -1; }
+    uint64_t total = 0;
+    for (uint32_t i = 0; i < servers; ++i) {
+        if (integer(PyTuple_GET_ITEM(values, i), copy + i, 1)) { PyMem_Free(copy); return -1; }
+        total += copy[i];
+        if (total >= UINT32_MAX) {
+            PyMem_Free(copy); PyErr_SetString(PyExc_ValueError, "total server capacity overflow"); return -1;
+        }
+    }
+    *out = copy;
+    return 0;
+}
+static PyObject *configure_capacities(PyObject *self, PyObject *args) {
+    (void)self;
+    PyObject *capsule, *values;
+    if (!PyArg_ParseTuple(args, "OO", &capsule, &values)) return NULL;
+    owner *o = get(capsule, 1); if (!o) return NULL;
+    uint32_t *copy;
+    if (nd_capacity_tuple(values, o->servers, &copy)) return NULL;
+    int rc; o->busy = 1;
+    Py_BEGIN_ALLOW_THREADS
+    rc = bs_set_capacities(o->engine, copy, o->servers);
+    Py_END_ALLOW_THREADS
+    o->busy = 0; PyMem_Free(copy);
+    if (rc) return error(o);
+    Py_RETURN_NONE;
+}
 static void destroy(PyObject *capsule) {
     owner *o = PyCapsule_GetPointer(capsule, CAPSULE);
     if (!o) { PyErr_Clear(); return; }
@@ -188,7 +221,7 @@ static PyObject *state_projection(PyObject *self, PyObject *capsule) {
     if (!raw) goto done;
     snapshot = nd_stock_snapshot_dict(&stock);
     if (snapshot) result = Py_BuildValue("{s:s,s:s,s:O,s:O}",
-        "schema", "native-provider-raw-projection-v1", "codec", "NBST0001",
+        "schema", "native-provider-raw-projection-v1", "codec", memcmp(p, "NBST0002", 8) ? "NBST0001" : "NBST0002",
         "native", raw, "snapshot", snapshot);
 done:
     Py_XDECREF(raw); Py_XDECREF(snapshot); o->busy = 0;
@@ -222,6 +255,7 @@ static PyObject *close_stream(PyObject *self, PyObject *capsule) {
     bs_destroy(o->engine); o->engine = NULL; Py_RETURN_NONE;
 }
 static PyMethodDef methods[] = {
+    {"retention_configure_capacities", configure_capacities, METH_VARARGS, NULL},
     {"retention_create", create, METH_VARARGS, NULL}, {"retention_add", add, METH_VARARGS, NULL},
     {"retention_advance", advance, METH_VARARGS, NULL}, {"retention_run", run, METH_O, NULL},
     {"retention_inspect", inspect, METH_VARARGS, NULL}, {"retention_snapshot", snapshot, METH_O, NULL},

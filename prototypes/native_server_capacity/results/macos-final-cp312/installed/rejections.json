@@ -1,0 +1,30 @@
+{
+  "abi": {
+    "rejected": true,
+    "error": "Native wheel ABI mismatch: install a wheel built for this CPython/platform"
+  },
+  "api": {
+    "rejected": true,
+    "error": "Unsupported native provider API/manifest"
+  },
+  "manifest": {
+    "rejected": true,
+    "error": "Native manifest differs from the installed wheel RECORD"
+  },
+  "binary": {
+    "rejected": true,
+    "error": "Native asset length differs from captured source"
+  },
+  "dependency": {
+    "rejected": true,
+    "error": "Native images loaded from an unexpected origin"
+  },
+  "runtime-mutation": {
+    "rejected": true,
+    "error": "Native asset length differs from captured source"
+  },
+  "wheel-tag": {
+    "rejected": true,
+    "error": "Using Python 3.12.8 environment at: /private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-7egdab6p/wrong-abi-install\nerror: No solution found when resolving dependencies\n  cause: Because only simulatte-native==0.17.0 is available and simulatte-native==0.17.0 has no wheels with a matching Python version tag (e.g., `cp312`), we can conclude that all versions of simulatte-native cannot be used.\n         And because you require simulatte-native, we can conclude that your requirements are unsatisfiable.\n"
+  }
+}

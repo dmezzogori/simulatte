@@ -10,7 +10,7 @@ enum { ARRIVAL, START, END, ADVANCE, RELEASE_DISPATCH, INITIALIZE, POLICY_WAKE }
 typedef struct { double time; uint64_t sequence; uint32_t kind, id; } event;
 
 struct nd_engine {
-    uint32_t servers, jobs, operations, cap;
+    uint32_t servers, jobs, operations, cap, total_capacity;
     int policy, mode, state; /* 0 accepting, 1 sealed/failed, 2 successful */
     int policy_pending;
     double now;
@@ -18,7 +18,8 @@ struct nd_engine {
     double last_wip_time, last_floor_time;
     double *arrivals, *due, *durations, *queued, *released;
     uint32_t *offsets, *routes, *job_of, *next, *head, *tail, *pool;
-    unsigned char *occupied, *job_state;
+    uint32_t *occupied, *capacities; /* NULL capacities means legacy unit slots. */
+    unsigned char *job_state;
     double *starts, *ends, *finished, *busy;
     uint32_t *dispatch;
     size_t dispatched, job_capacity, op_capacity, pool_size;
