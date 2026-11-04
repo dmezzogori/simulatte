@@ -1,0 +1,4 @@
+{"done": 1, "of": 4, "fixture": "fixed", "retention": "full", "at": 65}
+{"done": 2, "of": 4, "fixture": "fixed", "retention": "bounded", "at": 65}
+{"done": 3, "of": 4, "fixture": "coupled", "retention": "full", "at": 65}
+{"done": 4, "of": 4, "fixture": "coupled", "retention": "bounded", "at": 65}

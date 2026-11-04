@@ -1,0 +1,1352 @@
+[
+  {
+    "block": 0,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 105,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 0,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 105,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 0,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 105,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 1,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 102,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 1,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 102,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 1,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 102,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 2,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 105,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 2,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 105,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 2,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 105,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 3,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 102,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 3,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 102,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 3,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 102,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 4,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 100,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 4,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 100,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 4,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 100,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 5,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 102,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 5,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 102,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 5,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 102,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 6,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 102,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 6,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 102,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 6,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 102,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 7,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 100,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 7,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 100,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 7,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 100,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 8,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 105,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 8,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 105,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 8,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 105,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 9,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 103,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 9,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 103,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 9,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 103,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 10,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 101,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 10,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 101,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 10,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 101,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 11,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 101,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 11,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 101,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 11,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 101,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 12,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 100,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 12,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 100,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 12,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 100,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 13,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 102,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 13,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 102,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 13,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 102,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 14,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 103,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 14,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 103,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 14,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 103,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 15,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 101,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 15,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 101,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 15,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 101,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 16,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 104,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 16,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 104,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 16,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 104,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 17,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 104,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 17,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 104,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 17,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 104,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 18,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 103,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 18,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 103,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 18,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 103,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 19,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 100,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 19,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 100,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 19,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 100,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 20,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 100,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 20,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 100,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 20,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 100,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 21,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 103,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 21,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 103,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 21,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 103,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 22,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 103,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 22,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 103,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 22,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 103,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 23,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 101,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 23,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 101,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 23,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 64,
+    "seed": 101,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 24,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 104,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 24,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 104,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 24,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 104,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 25,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 103,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 25,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 103,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 25,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 103,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 26,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 105,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 26,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 105,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 26,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 105,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 27,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 100,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 27,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 100,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 27,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 100,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 28,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 105,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 28,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 105,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 28,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 105,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 29,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 103,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 29,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 103,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 29,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 103,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 30,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 103,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 30,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 103,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 30,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 103,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 31,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 104,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 31,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 104,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 31,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 104,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 32,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 104,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 32,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 104,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 32,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 104,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 33,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 102,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 33,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 102,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 33,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 102,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 34,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 105,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 34,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 105,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 34,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 105,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 35,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 104,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 35,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 104,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 35,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 104,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 36,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 104,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 36,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 104,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 36,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 104,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 37,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 100,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 37,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 100,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 37,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 100,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 38,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 100,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 38,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 100,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 38,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 100,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 39,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 102,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 39,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 102,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 39,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 102,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 40,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 101,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 40,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 101,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 40,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 101,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 41,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 101,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 41,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 101,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 41,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 101,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 42,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 101,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 42,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 101,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 42,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 64,
+    "seed": 101,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 43,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 105,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 43,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 105,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 43,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 105,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 44,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 102,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 44,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 102,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 44,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 1,
+    "seed": 102,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 45,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 101,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 45,
+    "order": 1,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 101,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 45,
+    "order": 2,
+    "fixture": "fixed",
+    "every": 16,
+    "seed": 101,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 46,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 104,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 46,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 104,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 46,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 16,
+    "seed": 104,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 47,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 105,
+    "mode": "helper",
+    "disabled": false
+  },
+  {
+    "block": 47,
+    "order": 1,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 105,
+    "mode": "prepared",
+    "disabled": false
+  },
+  {
+    "block": 47,
+    "order": 2,
+    "fixture": "coupled",
+    "every": 1,
+    "seed": 105,
+    "mode": "unprepared",
+    "disabled": false
+  },
+  {
+    "block": 48,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 100,
+    "mode": "helper",
+    "disabled": true
+  },
+  {
+    "block": 48,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 101,
+    "mode": "helper",
+    "disabled": true
+  },
+  {
+    "block": 48,
+    "order": 0,
+    "fixture": "fixed",
+    "every": 0,
+    "seed": 102,
+    "mode": "helper",
+    "disabled": true
+  },
+  {
+    "block": 48,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 100,
+    "mode": "helper",
+    "disabled": true
+  },
+  {
+    "block": 48,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 101,
+    "mode": "helper",
+    "disabled": true
+  },
+  {
+    "block": 48,
+    "order": 0,
+    "fixture": "coupled",
+    "every": 0,
+    "seed": 102,
+    "mode": "helper",
+    "disabled": true
+  }
+]

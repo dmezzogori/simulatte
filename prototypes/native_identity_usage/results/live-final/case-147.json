@@ -1,0 +1,246 @@
+{
+  "fixture": "coupled",
+  "ticks": 32768,
+  "seed": 100,
+  "mode": "helper",
+  "every": 0,
+  "disabled": true,
+  "result": {
+    "fingerprint": {
+      "digest": "971172d694d0b28a40849389e0d50622b9340a497622ab2487563915aa1c4309",
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.993564492488091,
+        "shopfloor/lateness": -0.2339690636487547,
+        "shopfloor/makespan": 3.74822911073479,
+        "shopfloor/tardiness": 1.9801691379951263,
+        "shopfloor/tardy_fraction": 0.47775804386435916,
+        "shopfloor/throughput": 1.4786246488335166,
+        "shopfloor/total_queue_time": 1.0567665523935401,
+        "shopfloor/utilization": 0.8104159032612679
+      }
+    },
+    "artifacts": {
+      "native.json": "65c16a323dbeb6b19096d9010f8b00a65b3146b468cb643c7e0034faf92a2dbf",
+      "physical.json": "c43a97e9d61aaff53312be9601e5f2fa97d5aa52268e67e816217501f9a21a18"
+    },
+    "data": {
+      "native": {
+        "digest": "aad133edc309da04693e3d246b1c92d2dc77913fe1d2c8b9f9fe2a563a898f64",
+        "schema": "native-production-bounded-v1"
+      },
+      "physical": {
+        "controller": {
+          "blocked": 14161,
+          "burst": 3,
+          "completed": 24224,
+          "cursor": 24230,
+          "decisions_sha256": "93b3c0a5c2c75cf14d75a131d3fca0c5cd8d3d4d65ebcb01fa2af32fe8e2bb75",
+          "feedback": true,
+          "hard_limit": 12,
+          "interval": 0.5,
+          "jobs_sha256": "be72563fc338adc00e6019369dcf453f749e4a41847a190aca491e7464abe910",
+          "live": [
+            {
+              "arrival": 16377.5,
+              "due": 16385.5,
+              "id": 24219
+            },
+            {
+              "arrival": 16382.0,
+              "due": 16382.0,
+              "id": 24225
+            },
+            {
+              "arrival": 16382.5,
+              "due": 16388.5,
+              "id": 24226
+            },
+            {
+              "arrival": 16382.5,
+              "due": 16394.5,
+              "id": 24227
+            },
+            {
+              "arrival": 16383.5,
+              "due": 16379.5,
+              "id": 24228
+            },
+            {
+              "arrival": 16383.5,
+              "due": 16394.5,
+              "id": 24229
+            }
+          ],
+          "next_at": 16384.0,
+          "normal": 10669,
+          "phase": "horizon",
+          "pool_polls": 27716,
+          "relaxed": 21,
+          "schema": "feedback-controller-v1",
+          "seed": 2700758554,
+          "short": 13561,
+          "tick": 32768,
+          "tight": 32747
+        },
+        "final_observed": [
+          {
+            "arrival": 16377.5,
+            "due": 16385.5,
+            "id": 24219,
+            "released": 16380.75,
+            "state": "active"
+          },
+          {
+            "arrival": 16382.0,
+            "due": 16382.0,
+            "id": 24225,
+            "released": 16382.125,
+            "state": "active"
+          },
+          {
+            "arrival": 16382.5,
+            "due": 16388.5,
+            "id": 24226,
+            "released": 16383.0,
+            "state": "active"
+          },
+          {
+            "arrival": 16382.5,
+            "due": 16394.5,
+            "id": 24227,
+            "released": 16383.0,
+            "state": "active"
+          },
+          {
+            "arrival": 16383.5,
+            "due": 16379.5,
+            "id": 24228,
+            "released": null,
+            "state": "pool"
+          },
+          {
+            "arrival": 16383.5,
+            "due": 16394.5,
+            "id": 24229,
+            "released": null,
+            "state": "pool"
+          }
+        ],
+        "kpis": {
+          "jobs_in_system": 3.993564492488091,
+          "lateness": -0.2339690636487547,
+          "makespan": 3.74822911073479,
+          "tardiness": 1.9801691379951263,
+          "tardy_fraction": 0.47775804386435916,
+          "throughput": 1.4786246488335166,
+          "total_queue_time": 1.0567665523935401,
+          "utilization": 0.8104159032612679
+        }
+      }
+    },
+    "attempt": "4ddece7560f8ac85b8f5b27836159eb6",
+    "request": "c8ade5095ec98f5e1a8f4659a61778a278f66a449197571e727a0568d390c56d",
+    "helper_origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-3e98qzjy/case-147/project/.simulatte/tools/abfa95cdcf21ac0c1864c5619be216eabd533e267236b4e8dceff2f65b0ee037/simulatte/experimental/native_identity.py",
+    "native_origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-3e98qzjy/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-darwin.so",
+    "trace_bytes": 56890
+  },
+  "reproduction": null,
+  "cold_seconds": 2.2839252920093713,
+  "dispatch_seconds": 1.7357448749971809,
+  "parent_pid": 74182,
+  "runtime": {
+    "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+    "platform": "macOS-27.2-arm64-64bit",
+    "gc": true,
+    "distributions": {
+      "simpy": "4.1.2",
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "tqdm": "4.70.1",
+      "tabulate": "0.10.0",
+      "msgpack": "1.2.4"
+    }
+  },
+  "provider": {
+    "schema": 1,
+    "provider_api": 2,
+    "version": "0.17.0",
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "arm64",
+      "platform": "darwin",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-darwin",
+      "suffix": ".cpython-314-darwin.so"
+    },
+    "sources": {
+      "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+      "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+      "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+      "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+      "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+      "csrc/retention_module.c": "1174d92ebcdc48d7818836463136c0e17f53332105a63e3efabf21aa5435c100",
+      "csrc/retention_module.h": "56b7511e83d68c2ee070f92f6a684a6cf74b1d36cf272d87ab9dd608cd025bff",
+      "csrc/scalar_module.c": "9734d16cedeca6193449cb76c88e446e61f0f53aa50e875c05b4f2ed15ab1859",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-darwin.so": {
+        "sha256": "439a743cbe7704b164cfe47ed3e6511acb4e069f6b106e8e442ece7892d7d69f",
+        "size": 72704
+      },
+      "simulatte_native_engine.dylib": {
+        "sha256": "b7edfa9d37f4a8d12cb096f8c59ce44f7a623240d617e3934cc79470044ff8ff",
+        "size": 53024
+      }
+    }
+  },
+  "usage": {
+    "parent_pid": 74182,
+    "tree_peak_rss": 152076288,
+    "parent_peak_rss": 47906816,
+    "per_pid_peak_rss": {
+      "74182": 47906816,
+      "74188": 30523392,
+      "74191": 33341440,
+      "74192": 23330816,
+      "74194": 41975808,
+      "74200": 23379968,
+      "74202": 47906816
+    },
+    "max_descendants": 3,
+    "samples": 40,
+    "wall_seconds": 2.4225270000024466
+  },
+  "diagnostics": [
+    {
+      "entities": 2,
+      "expired_reads": 24224,
+      "max_callback_bytes": 847,
+      "max_owned": 12,
+      "peak_rss": 47923200,
+      "pid": 74202,
+      "storage": {
+        "admitted": 24230,
+        "calendar_capacity": 32,
+        "completed": 24224,
+        "completion_capacity": 1024,
+        "events": 335676,
+        "forgotten": 24224,
+        "job_capacity": 16,
+        "native_bytes": 7783,
+        "op_capacity": 32,
+        "retained_jobs": 6,
+        "retained_operations": 17,
+        "state_capacity": 2048
+      }
+    }
+  ],
+  "identity_diagnostics": []
+}

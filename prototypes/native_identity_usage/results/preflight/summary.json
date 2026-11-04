@@ -1,0 +1,1468 @@
+{
+  "passed": true,
+  "source_sha256": "81d26ef4e54de8803357dc180435e64dad2f58dfcd00bb06069f18fab01935df",
+  "source_files": 194,
+  "quick": true,
+  "primary_attempts": 18,
+  "disabled_controls": 2,
+  "source_deleted_reproductions": [
+    "32c49206f74888d8c43fad0f2f51c2e3",
+    "0b1cb30ffa5b88ddc85cdfd358756262"
+  ],
+  "total_unique_attempts": 22,
+  "comparisons": [
+    {
+      "fixture": "fixed",
+      "every": 0,
+      "queries": 2,
+      "metrics": {
+        "cold_seconds": {
+          "medians": {
+            "helper": 1.0180701659992337,
+            "prepared": 1.366206417005742,
+            "unprepared": 0.9815129580092616
+          },
+          "helper_over_prepared": {
+            "median": 0.7451803426824007,
+            "min": 0.7451803426824007,
+            "max": 0.7451803426824007,
+            "values": [
+              0.7451803426824007
+            ]
+          },
+          "helper_reduction_vs_unprepared": {
+            "median": -3.7245772143567724,
+            "min": -3.7245772143567724,
+            "max": -3.7245772143567724,
+            "values": [
+              -3.7245772143567724
+            ]
+          }
+        },
+        "dispatch_seconds": {
+          "medians": {
+            "helper": 0.5405230830074288,
+            "prepared": 0.8074711249937536,
+            "unprepared": 0.5093283750029514
+          },
+          "helper_over_prepared": {
+            "median": 0.6694023678080255,
+            "min": 0.6694023678080255,
+            "max": 0.6694023678080255,
+            "values": [
+              0.6694023678080255
+            ]
+          },
+          "helper_reduction_vs_unprepared": {
+            "median": -6.12467506926091,
+            "min": -6.12467506926091,
+            "max": -6.12467506926091,
+            "values": [
+              -6.12467506926091
+            ]
+          }
+        }
+      }
+    },
+    {
+      "fixture": "fixed",
+      "every": 16,
+      "queries": 34,
+      "metrics": {
+        "cold_seconds": {
+          "medians": {
+            "helper": 0.9827705420029815,
+            "prepared": 1.0302914999920176,
+            "unprepared": 1.018510249996325
+          },
+          "helper_over_prepared": {
+            "median": 0.9538762010660048,
+            "min": 0.9538762010660048,
+            "max": 0.9538762010660048,
+            "values": [
+              0.9538762010660048
+            ]
+          },
+          "helper_reduction_vs_unprepared": {
+            "median": 3.5090179989325065,
+            "min": 3.5090179989325065,
+            "max": 3.5090179989325065,
+            "values": [
+              3.5090179989325065
+            ]
+          }
+        },
+        "dispatch_seconds": {
+          "medians": {
+            "helper": 0.5072877089987742,
+            "prepared": 0.5093929169961484,
+            "unprepared": 0.5113217089965474
+          },
+          "helper_over_prepared": {
+            "median": 0.9958672216924639,
+            "min": 0.9958672216924639,
+            "max": 0.9958672216924639,
+            "values": [
+              0.9958672216924639
+            ]
+          },
+          "helper_reduction_vs_unprepared": {
+            "median": 0.7889357965437882,
+            "min": 0.7889357965437882,
+            "max": 0.7889357965437882,
+            "values": [
+              0.7889357965437882
+            ]
+          }
+        }
+      }
+    },
+    {
+      "fixture": "fixed",
+      "every": 1,
+      "queries": 514,
+      "metrics": {
+        "cold_seconds": {
+          "medians": {
+            "helper": 1.1027302919974318,
+            "prepared": 1.099580917012645,
+            "unprepared": 1.1340617919922806
+          },
+          "helper_over_prepared": {
+            "median": 1.0028641593684102,
+            "min": 1.0028641593684102,
+            "max": 1.0028641593684102,
+            "values": [
+              1.0028641593684102
+            ]
+          },
+          "helper_reduction_vs_unprepared": {
+            "median": 2.762768326742293,
+            "min": 2.762768326742293,
+            "max": 2.762768326742293,
+            "values": [
+              2.762768326742293
+            ]
+          }
+        },
+        "dispatch_seconds": {
+          "medians": {
+            "helper": 0.6264542909921147,
+            "prepared": 0.6135904589900747,
+            "unprepared": 0.6621791659999872
+          },
+          "helper_over_prepared": {
+            "median": 1.0209648501106308,
+            "min": 1.0209648501106308,
+            "max": 1.0209648501106308,
+            "values": [
+              1.0209648501106308
+            ]
+          },
+          "helper_reduction_vs_unprepared": {
+            "median": 5.395046664436009,
+            "min": 5.395046664436009,
+            "max": 5.395046664436009,
+            "values": [
+              5.395046664436009
+            ]
+          }
+        }
+      }
+    },
+    {
+      "fixture": "coupled",
+      "every": 0,
+      "queries": 2,
+      "metrics": {
+        "cold_seconds": {
+          "medians": {
+            "helper": 1.0011725419899449,
+            "prepared": 1.023177625000244,
+            "unprepared": 1.018130625001504
+          },
+          "helper_over_prepared": {
+            "median": 0.9784933891509855,
+            "min": 0.9784933891509855,
+            "max": 0.9784933891509855,
+            "values": [
+              0.9784933891509855
+            ]
+          },
+          "helper_reduction_vs_unprepared": {
+            "median": 1.6656097552840143,
+            "min": 1.6656097552840143,
+            "max": 1.6656097552840143,
+            "values": [
+              1.6656097552840143
+            ]
+          }
+        },
+        "dispatch_seconds": {
+          "medians": {
+            "helper": 0.49433504199259914,
+            "prepared": 0.5151766249909997,
+            "unprepared": 0.5119470420031575
+          },
+          "helper_over_prepared": {
+            "median": 0.9595447813674297,
+            "min": 0.9595447813674297,
+            "max": 0.9595447813674297,
+            "values": [
+              0.9595447813674297
+            ]
+          },
+          "helper_reduction_vs_unprepared": {
+            "median": 3.4401995842471833,
+            "min": 3.4401995842471833,
+            "max": 3.4401995842471833,
+            "values": [
+              3.4401995842471833
+            ]
+          }
+        }
+      }
+    },
+    {
+      "fixture": "coupled",
+      "every": 16,
+      "queries": 34,
+      "metrics": {
+        "cold_seconds": {
+          "medians": {
+            "helper": 1.0079759579966776,
+            "prepared": 1.0034225420095026,
+            "unprepared": 0.9961665000009816
+          },
+          "helper_over_prepared": {
+            "median": 1.00453788488552,
+            "min": 1.00453788488552,
+            "max": 1.00453788488552,
+            "values": [
+              1.00453788488552
+            ]
+          },
+          "helper_reduction_vs_unprepared": {
+            "median": -1.1854903769283887,
+            "min": -1.1854903769283887,
+            "max": -1.1854903769283887,
+            "values": [
+              -1.1854903769283887
+            ]
+          }
+        },
+        "dispatch_seconds": {
+          "medians": {
+            "helper": 0.5306713749887422,
+            "prepared": 0.5317598749970784,
+            "unprepared": 0.5220643329957966
+          },
+          "helper_over_prepared": {
+            "median": 0.9979530234236981,
+            "min": 0.9979530234236981,
+            "max": 0.9979530234236981,
+            "values": [
+              0.9979530234236981
+            ]
+          },
+          "helper_reduction_vs_unprepared": {
+            "median": -1.6486554336235137,
+            "min": -1.6486554336235137,
+            "max": -1.6486554336235137,
+            "values": [
+              -1.6486554336235137
+            ]
+          }
+        }
+      }
+    },
+    {
+      "fixture": "coupled",
+      "every": 1,
+      "queries": 514,
+      "metrics": {
+        "cold_seconds": {
+          "medians": {
+            "helper": 1.058765082998434,
+            "prepared": 1.1129368749971036,
+            "unprepared": 1.1095979170058854
+          },
+          "helper_over_prepared": {
+            "median": 0.951325368746713,
+            "min": 0.951325368746713,
+            "max": 0.951325368746713,
+            "values": [
+              0.951325368746713
+            ]
+          },
+          "helper_reduction_vs_unprepared": {
+            "median": 4.58119407295009,
+            "min": 4.58119407295009,
+            "max": 4.58119407295009,
+            "values": [
+              4.58119407295009
+            ]
+          }
+        },
+        "dispatch_seconds": {
+          "medians": {
+            "helper": 0.5850647920015035,
+            "prepared": 0.6409353329945588,
+            "unprepared": 0.6085708750033518
+          },
+          "helper_over_prepared": {
+            "median": 0.9128296754494425,
+            "min": 0.9128296754494425,
+            "max": 0.9128296754494425,
+            "values": [
+              0.9128296754494425
+            ]
+          },
+          "helper_reduction_vs_unprepared": {
+            "median": 3.86250541512011,
+            "min": 3.86250541512011,
+            "max": 3.86250541512011,
+            "values": [
+              3.86250541512011
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "frequency_overhead": [
+    {
+      "fixture": "fixed",
+      "every": 0,
+      "helper_cold_over_endpoint": {
+        "median": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "values": [
+          1.0
+        ]
+      }
+    },
+    {
+      "fixture": "fixed",
+      "every": 16,
+      "helper_cold_over_endpoint": {
+        "median": 0.9653269242384628,
+        "min": 0.9653269242384628,
+        "max": 0.9653269242384628,
+        "values": [
+          0.9653269242384628
+        ]
+      }
+    },
+    {
+      "fixture": "fixed",
+      "every": 1,
+      "helper_cold_over_endpoint": {
+        "median": 1.08315745694709,
+        "min": 1.08315745694709,
+        "max": 1.08315745694709,
+        "values": [
+          1.08315745694709
+        ]
+      }
+    },
+    {
+      "fixture": "coupled",
+      "every": 0,
+      "helper_cold_over_endpoint": {
+        "median": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "values": [
+          1.0
+        ]
+      }
+    },
+    {
+      "fixture": "coupled",
+      "every": 16,
+      "helper_cold_over_endpoint": {
+        "median": 1.0067954480585437,
+        "min": 1.0067954480585437,
+        "max": 1.0067954480585437,
+        "values": [
+          1.0067954480585437
+        ]
+      }
+    },
+    {
+      "fixture": "coupled",
+      "every": 1,
+      "helper_cold_over_endpoint": {
+        "median": 1.057525090424491,
+        "min": 1.057525090424491,
+        "max": 1.057525090424491,
+        "values": [
+          1.057525090424491
+        ]
+      }
+    }
+  ],
+  "micro": [
+    {
+      "fixture": "fixed",
+      "retention": "full",
+      "at": 65.0,
+      "context": {
+        "state": {
+          "native": "bcd036f5a7e34e867807ccd2a8087818630f90688565eeaace6f640260d1772f",
+          "inputs": "6d79dd8d97956bd15fe2d0c42d304e5f6c16f7c1e3e71701d895ef37363daba4",
+          "authority": "8bdeef03a2c26e7e4cea5430a9ce69c78a704f7a7ecca82cd218de48b6d22d29",
+          "generation": 183
+        },
+        "native_bytes": 9724,
+        "identity_bytes": 3203,
+        "callback_bytes": 729,
+        "canonical_sha256": "32f99c99bd63b54e3606beff036e857abb308f1c6c71f1e226f19257e4e00a88",
+        "snapshot": {
+          "scalars": {
+            "shopfloor/jobs_in_system": 2.786363636363636,
+            "shopfloor/lateness": -3.909375,
+            "shopfloor/makespan": 6.4625,
+            "shopfloor/tardiness": 0.321875,
+            "shopfloor/tardy_fraction": 0.15,
+            "shopfloor/throughput": 0.7272727272727273,
+            "shopfloor/total_queue_time": 1.48125,
+            "shopfloor/utilization": 0.6060606060606061
+          },
+          "window": [
+            10.0,
+            65.0,
+            false
+          ]
+        }
+      },
+      "wall_ns": {
+        "helper_object": 41576.68389057751,
+        "helper_composition": 69021.84398976983,
+        "prepared_composition": 67374.26515151515,
+        "unprepared_composition": 105924.76984126984,
+        "detach_only": 27117.42060988433,
+        "managed_hook": 64026.395631067964,
+        "validation_only": 32428.616751269037,
+        "native_state_hash": 3729.4719908072393,
+        "callback_freeze_pack": 10239.044832826748,
+        "helper_pipeline": 172594.96753246753,
+        "prepared_pipeline": 169542.72151898735,
+        "unprepared_pipeline": 207307.42016806724
+      },
+      "cpu_ns": {
+        "helper_object": 41567.37537993921,
+        "helper_composition": 69020.88746803069,
+        "prepared_composition": 67373.6313131313,
+        "unprepared_composition": 105911.53968253969,
+        "detach_only": 27117.157728706625,
+        "managed_hook": 64016.99029126213,
+        "validation_only": 32428.352791878173,
+        "native_state_hash": 3729.4419706980752,
+        "callback_freeze_pack": 10238.918693009118,
+        "helper_pipeline": 172592.25974025973,
+        "prepared_pipeline": 169540.08227848102,
+        "unprepared_pipeline": 207300.42016806724
+      },
+      "helper_pipeline_reduction_vs_unprepared": 16.744433270867876,
+      "helper_composition_extra_ns": 1647.5788382546743,
+      "profiles": {
+        "helper_object": {
+          "calls": 128,
+          "self_categories": {
+            "wire_preparation": 0.010674831000000001,
+            "messagepack": 0.0027362610000000007,
+            "other_glue": 0.0032028599999999996,
+            "harness": 0.00016620100000000002,
+            "sha256": 0.00021708600000000002,
+            "detachment_access": 0.000124428
+          },
+          "accounted_seconds": 0.017121667000000004
+        },
+        "helper_composition": {
+          "calls": 128,
+          "self_categories": {
+            "detachment_access": 0.011427238999999999,
+            "wire_preparation": 0.010585295,
+            "other_glue": 0.008604994999999997,
+            "messagepack": 0.0027066169999999997,
+            "sha256": 0.00021344500000000001,
+            "harness": 0.00010657600000000002
+          },
+          "accounted_seconds": 0.033644167
+        },
+        "prepared_composition": {
+          "calls": 128,
+          "self_categories": {
+            "wire_preparation": 0.010763342,
+            "detachment_access": 0.011183996,
+            "other_glue": 0.0075480750000000004,
+            "messagepack": 0.002719464,
+            "sha256": 0.00021116500000000003,
+            "harness": 0.00010433299999999999
+          },
+          "accounted_seconds": 0.032530375
+        },
+        "helper_pipeline": {
+          "calls": 62,
+          "self_categories": {
+            "wire_preparation": 0.014937747000000001,
+            "detachment_access": 0.010033936,
+            "other_glue": 0.010135105999999998,
+            "messagepack": 0.002800797,
+            "sha256": 0.000588622,
+            "callback": 0.000245205,
+            "native_atomic": 0.000114796,
+            "harness": 9.0791e-05
+          },
+          "accounted_seconds": 0.03894700000000002
+        },
+        "prepared_pipeline": {
+          "calls": 63,
+          "self_categories": {
+            "wire_preparation": 0.015149222,
+            "detachment_access": 0.009765753,
+            "other_glue": 0.009528809999999997,
+            "messagepack": 0.0028313080000000003,
+            "sha256": 0.000594015,
+            "callback": 0.000250689,
+            "native_atomic": 0.00011675,
+            "harness": 9.5623e-05
+          },
+          "accounted_seconds": 0.03833217
+        }
+      },
+      "traced_python_memory": {
+        "helper_object": {
+          "calls": 8,
+          "current_with_last_result": 24551,
+          "peak_bytes": 294094,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 184,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            }
+          ]
+        },
+        "helper_composition": {
+          "calls": 8,
+          "current_with_last_result": 24091,
+          "peak_bytes": 294258,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        },
+        "prepared_composition": {
+          "calls": 8,
+          "current_with_last_result": 24019,
+          "peak_bytes": 293394,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        },
+        "helper_pipeline": {
+          "calls": 8,
+          "current_with_last_result": 25687,
+          "peak_bytes": 299794,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        },
+        "prepared_pipeline": {
+          "calls": 8,
+          "current_with_last_result": 25799,
+          "peak_bytes": 299282,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "fixed",
+      "retention": "bounded",
+      "at": 65.0,
+      "context": {
+        "state": {
+          "native": "819eef35d2a4336cfef3ecca5e98257cb70a8cdb827b083cec367b358435c3af",
+          "inputs": "6d79dd8d97956bd15fe2d0c42d304e5f6c16f7c1e3e71701d895ef37363daba4",
+          "authority": "e3d63898144e3de85c5cfdb2da6d27f49f403ed5a691d4b226dcdfd5968cb851",
+          "generation": 183
+        },
+        "native_bytes": 1367,
+        "identity_bytes": 3326,
+        "callback_bytes": 729,
+        "canonical_sha256": "fe02c3b358f5704f19976f22430596ba472b9bce64d4d5f9f9e23ed59e71e508",
+        "snapshot": {
+          "scalars": {
+            "shopfloor/jobs_in_system": 2.786363636363636,
+            "shopfloor/lateness": -3.909375,
+            "shopfloor/makespan": 6.4625,
+            "shopfloor/tardiness": 0.321875,
+            "shopfloor/tardy_fraction": 0.15,
+            "shopfloor/throughput": 0.7272727272727273,
+            "shopfloor/total_queue_time": 1.48125,
+            "shopfloor/utilization": 0.6060606060606061
+          },
+          "window": [
+            10.0,
+            65.0,
+            false
+          ]
+        }
+      },
+      "wall_ns": {
+        "helper_object": 41248.94960629921,
+        "helper_composition": 70940.13157894737,
+        "prepared_composition": 68501.91326530612,
+        "unprepared_composition": 106031.97142857143,
+        "detach_only": 27471.20103626943,
+        "managed_hook": 66918.42480211082,
+        "validation_only": 33050.709001233045,
+        "native_state_hash": 5193.378580589996,
+        "callback_freeze_pack": 10187.072249589492,
+        "helper_pipeline": 180257.08843537414,
+        "prepared_pipeline": 174476.23489932885,
+        "unprepared_pipeline": 212621.5819672131
+      },
+      "cpu_ns": {
+        "helper_object": 41248.555905511814,
+        "helper_composition": 70939.03421052631,
+        "prepared_composition": 68491.70918367348,
+        "unprepared_composition": 106030.2693877551,
+        "detach_only": 27470.941968911917,
+        "managed_hook": 66916.99736147757,
+        "validation_only": 33049.115906288534,
+        "native_state_hash": 5193.298418127405,
+        "callback_freeze_pack": 10186.969622331691,
+        "helper_pipeline": 180237.81632653062,
+        "prepared_pipeline": 174473.71140939597,
+        "unprepared_pipeline": 212619.87704918033
+      },
+      "helper_pipeline_reduction_vs_unprepared": 15.221640828930372,
+      "helper_composition_extra_ns": 2438.2183136412496,
+      "profiles": {
+        "helper_object": {
+          "calls": 128,
+          "self_categories": {
+            "wire_preparation": 0.010357728000000002,
+            "messagepack": 0.0027008290000000005,
+            "other_glue": 0.0031500320000000005,
+            "harness": 0.00016071200000000003,
+            "sha256": 0.000213202,
+            "detachment_access": 0.000130581
+          },
+          "accounted_seconds": 0.016713084
+        },
+        "helper_composition": {
+          "calls": 128,
+          "self_categories": {
+            "detachment_access": 0.011692032,
+            "wire_preparation": 0.010573398,
+            "other_glue": 0.008697225,
+            "messagepack": 0.002760028,
+            "sha256": 0.00021744800000000002,
+            "harness": 0.00011053600000000001
+          },
+          "accounted_seconds": 0.03405066700000001
+        },
+        "prepared_composition": {
+          "calls": 128,
+          "self_categories": {
+            "wire_preparation": 0.010333378999999998,
+            "detachment_access": 0.010889837,
+            "other_glue": 0.007339553,
+            "messagepack": 0.002700748,
+            "sha256": 0.000210155,
+            "harness": 0.000102662
+          },
+          "accounted_seconds": 0.031576334000000005
+        },
+        "helper_pipeline": {
+          "calls": 59,
+          "self_categories": {
+            "wire_preparation": 0.014756238000000001,
+            "detachment_access": 0.009617638999999999,
+            "other_glue": 0.010082223999999997,
+            "messagepack": 0.0028117,
+            "callback": 0.00023611200000000002,
+            "sha256": 0.000496675,
+            "native_atomic": 0.000129669,
+            "harness": 9.511799999999999e-05
+          },
+          "accounted_seconds": 0.038225375000000006
+        },
+        "prepared_pipeline": {
+          "calls": 60,
+          "self_categories": {
+            "wire_preparation": 0.015067242,
+            "detachment_access": 0.009683679,
+            "other_glue": 0.009560178000000006,
+            "messagepack": 0.0028562820000000004,
+            "callback": 0.00022998500000000001,
+            "sha256": 0.000505501,
+            "native_atomic": 0.00010238200000000001,
+            "harness": 8.512600000000001e-05
+          },
+          "accounted_seconds": 0.03809037500000002
+        }
+      },
+      "traced_python_memory": {
+        "helper_object": {
+          "calls": 8,
+          "current_with_last_result": 24674,
+          "peak_bytes": 294340,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 184,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            }
+          ]
+        },
+        "helper_composition": {
+          "calls": 8,
+          "current_with_last_result": 24091,
+          "peak_bytes": 294381,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        },
+        "prepared_composition": {
+          "calls": 8,
+          "current_with_last_result": 24019,
+          "peak_bytes": 293517,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        },
+        "helper_pipeline": {
+          "calls": 8,
+          "current_with_last_result": 25961,
+          "peak_bytes": 300521,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        },
+        "prepared_pipeline": {
+          "calls": 8,
+          "current_with_last_result": 26073,
+          "peak_bytes": 300009,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "coupled",
+      "retention": "full",
+      "at": 65.0,
+      "context": {
+        "state": {
+          "native": "1e2810d77665b58359b2a0073bc1451f0698022301a0fe7d6a209258bf93a767",
+          "inputs": "71feeef69eadb5d58e1573ea6b229d5e26f26d720dbb5c1030e7438df264212c",
+          "authority": "6807767f33c445f883d9d33d494695914e786ea80d7b59ed04b23b5e9c9a9e8b",
+          "generation": 232
+        },
+        "native_bytes": 16116,
+        "identity_bytes": 3050,
+        "callback_bytes": 576,
+        "canonical_sha256": "9105e245e3154814e9a9acf0f0cdc9381aaf90e0b72fa6917edb84bb847d5833",
+        "snapshot": {
+          "scalars": {
+            "shopfloor/jobs_in_system": 3.975,
+            "shopfloor/lateness": -1.3463855421686748,
+            "shopfloor/makespan": 3.9789156626506026,
+            "shopfloor/tardiness": 1.3825301204819278,
+            "shopfloor/tardy_fraction": 0.40963855421686746,
+            "shopfloor/throughput": 1.509090909090909,
+            "shopfloor/total_queue_time": 0.9683734939759037,
+            "shopfloor/utilization": 0.8333333333333334
+          },
+          "window": [
+            10.0,
+            65.0,
+            false
+          ]
+        }
+      },
+      "wall_ns": {
+        "helper_object": 41649.74478330658,
+        "helper_composition": 70342.9478021978,
+        "prepared_composition": 70923.61197916667,
+        "unprepared_composition": 108594.69834710743,
+        "detach_only": 27985.819327731093,
+        "managed_hook": 69974.4094488189,
+        "validation_only": 33314.06275579809,
+        "native_state_hash": 6135.287667698658,
+        "callback_freeze_pack": 10538.468944099379,
+        "helper_pipeline": 181537.3006993007,
+        "prepared_pipeline": 174281.94666666666,
+        "unprepared_pipeline": 218808.05737704918
+      },
+      "cpu_ns": {
+        "helper_object": 41649.21027287319,
+        "helper_composition": 70324.06043956045,
+        "prepared_composition": 70730.36197916667,
+        "unprepared_composition": 108581.26859504133,
+        "detach_only": 27966.298319327732,
+        "managed_hook": 69971.45669291339,
+        "validation_only": 33293.71350613915,
+        "native_state_hash": 6135.223168214654,
+        "callback_freeze_pack": 10535.381543921916,
+        "helper_pipeline": 181534.0909090909,
+        "prepared_pipeline": 174280.0,
+        "unprepared_pipeline": 218805.66393442624
+      },
+      "helper_pipeline_reduction_vs_unprepared": 17.03353940642308,
+      "helper_composition_extra_ns": -580.6641769688722,
+      "profiles": {
+        "helper_object": {
+          "calls": 128,
+          "self_categories": {
+            "wire_preparation": 0.010443861,
+            "messagepack": 0.0027215459999999996,
+            "other_glue": 0.0032647790000000006,
+            "harness": 0.000157538,
+            "sha256": 0.00020556300000000002,
+            "detachment_access": 0.00012638000000000002
+          },
+          "accounted_seconds": 0.016919667
+        },
+        "helper_composition": {
+          "calls": 128,
+          "self_categories": {
+            "detachment_access": 0.012043008999999999,
+            "wire_preparation": 0.011113666,
+            "other_glue": 0.009000985,
+            "messagepack": 0.002836733,
+            "sha256": 0.00021556800000000002,
+            "harness": 0.000108289
+          },
+          "accounted_seconds": 0.03531825
+        },
+        "prepared_composition": {
+          "calls": 128,
+          "self_categories": {
+            "wire_preparation": 0.010905041,
+            "detachment_access": 0.011168803000000001,
+            "other_glue": 0.007619953000000001,
+            "messagepack": 0.002808689,
+            "sha256": 0.000213598,
+            "harness": 0.000104333
+          },
+          "accounted_seconds": 0.03282041699999999
+        },
+        "helper_pipeline": {
+          "calls": 57,
+          "self_categories": {
+            "wire_preparation": 0.014072842,
+            "detachment_access": 0.009166057000000002,
+            "other_glue": 0.009313579,
+            "messagepack": 0.0026498200000000006,
+            "sha256": 0.000613549,
+            "callback": 0.000198118,
+            "native_atomic": 0.000123496,
+            "harness": 7.758100000000001e-05
+          },
+          "accounted_seconds": 0.03621504200000001
+        },
+        "prepared_pipeline": {
+          "calls": 60,
+          "self_categories": {
+            "wire_preparation": 0.014722759000000002,
+            "detachment_access": 0.009431648000000003,
+            "other_glue": 0.009175988999999997,
+            "messagepack": 0.002788887,
+            "sha256": 0.0006506600000000001,
+            "callback": 0.00020506000000000002,
+            "native_atomic": 0.00011792000000000001,
+            "harness": 7.6957e-05
+          },
+          "accounted_seconds": 0.037169879999999995
+        }
+      },
+      "traced_python_memory": {
+        "helper_object": {
+          "calls": 8,
+          "current_with_last_result": 24782,
+          "peak_bytes": 294044,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 184,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            }
+          ]
+        },
+        "helper_composition": {
+          "calls": 8,
+          "current_with_last_result": 24139,
+          "peak_bytes": 294137,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        },
+        "prepared_composition": {
+          "calls": 8,
+          "current_with_last_result": 24067,
+          "peak_bytes": 293273,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        },
+        "helper_pipeline": {
+          "calls": 8,
+          "current_with_last_result": 25854,
+          "peak_bytes": 299239,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        },
+        "prepared_pipeline": {
+          "calls": 8,
+          "current_with_last_result": 25966,
+          "peak_bytes": 298727,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "coupled",
+      "retention": "bounded",
+      "at": 65.0,
+      "context": {
+        "state": {
+          "native": "8f97508e8b96589c61f0e68e77880d2d362b29df8cad017526077413bb72fdf9",
+          "inputs": "71feeef69eadb5d58e1573ea6b229d5e26f26d720dbb5c1030e7438df264212c",
+          "authority": "0de359b0c3db0365bf94b2f853de0320921bd930433919448d9fa7de8b61b785",
+          "generation": 232
+        },
+        "native_bytes": 1519,
+        "identity_bytes": 3173,
+        "callback_bytes": 576,
+        "canonical_sha256": "6eac0bee3987c4af6a11f7facbc0487d495240cb7e336246981370cab0c2ad24",
+        "snapshot": {
+          "scalars": {
+            "shopfloor/jobs_in_system": 3.975,
+            "shopfloor/lateness": -1.3463855421686748,
+            "shopfloor/makespan": 3.9789156626506026,
+            "shopfloor/tardiness": 1.3825301204819278,
+            "shopfloor/tardy_fraction": 0.40963855421686746,
+            "shopfloor/throughput": 1.509090909090909,
+            "shopfloor/total_queue_time": 0.9683734939759037,
+            "shopfloor/utilization": 0.8333333333333334
+          },
+          "window": [
+            10.0,
+            65.0,
+            false
+          ]
+        }
+      },
+      "wall_ns": {
+        "helper_object": 40862.609634551496,
+        "helper_composition": 69488.82681564246,
+        "prepared_composition": 67504.04312668464,
+        "unprepared_composition": 105122.36286919832,
+        "detach_only": 27634.176863181314,
+        "managed_hook": 66377.24528301887,
+        "validation_only": 33139.38933333333,
+        "native_state_hash": 5179.60039543058,
+        "callback_freeze_pack": 10178.42505854801,
+        "helper_pipeline": 174197.39716312056,
+        "prepared_pipeline": 173287.64137931034,
+        "unprepared_pipeline": 210134.1779661017
+      },
+      "cpu_ns": {
+        "helper_object": 40862.126245847176,
+        "helper_composition": 69488.01396648044,
+        "prepared_composition": 67503.48247978436,
+        "unprepared_composition": 105120.95780590718,
+        "detach_only": 27633.8064516129,
+        "managed_hook": 66373.20485175202,
+        "validation_only": 33139.0,
+        "native_state_hash": 5179.445079086116,
+        "callback_freeze_pack": 10178.21350507416,
+        "helper_pipeline": 174193.26241134753,
+        "prepared_pipeline": 173285.6275862069,
+        "unprepared_pipeline": 210131.35593220338
+      },
+      "helper_pipeline_reduction_vs_unprepared": 17.10182567672469,
+      "helper_composition_extra_ns": 1984.7836889578175,
+      "profiles": {
+        "helper_object": {
+          "calls": 128,
+          "self_categories": {
+            "wire_preparation": 0.010138448000000001,
+            "messagepack": 0.002680757,
+            "other_glue": 0.003134811000000001,
+            "harness": 0.00014712400000000002,
+            "sha256": 0.000200359,
+            "detachment_access": 0.00012171000000000001
+          },
+          "accounted_seconds": 0.016423209
+        },
+        "helper_composition": {
+          "calls": 128,
+          "self_categories": {
+            "detachment_access": 0.011713175999999999,
+            "wire_preparation": 0.010640186,
+            "other_glue": 0.008693933000000003,
+            "messagepack": 0.00278851,
+            "sha256": 0.00020544600000000002,
+            "harness": 9.929e-05
+          },
+          "accounted_seconds": 0.034140541
+        },
+        "prepared_composition": {
+          "calls": 128,
+          "self_categories": {
+            "wire_preparation": 0.010656891,
+            "detachment_access": 0.011112574000000002,
+            "other_glue": 0.007489814,
+            "messagepack": 0.00279224,
+            "sha256": 0.000202892,
+            "harness": 9.6006e-05
+          },
+          "accounted_seconds": 0.032350417
+        },
+        "helper_pipeline": {
+          "calls": 56,
+          "self_categories": {
+            "wire_preparation": 0.013815047999999998,
+            "detachment_access": 0.00917402,
+            "other_glue": 0.009527392,
+            "messagepack": 0.002699688,
+            "callback": 0.000189864,
+            "sha256": 0.000420325,
+            "native_atomic": 0.000108418,
+            "harness": 7.787e-05
+          },
+          "accounted_seconds": 0.036012625
+        },
+        "prepared_pipeline": {
+          "calls": 58,
+          "self_categories": {
+            "wire_preparation": 0.014373479000000003,
+            "detachment_access": 0.009026978,
+            "other_glue": 0.009163524000000003,
+            "messagepack": 0.002798,
+            "sha256": 0.0004372600000000001,
+            "callback": 0.000192921,
+            "native_atomic": 0.00010391500000000001,
+            "harness": 7.995800000000001e-05
+          },
+          "accounted_seconds": 0.036176034999999995
+        }
+      },
+      "traced_python_memory": {
+        "helper_object": {
+          "calls": 8,
+          "current_with_last_result": 24905,
+          "peak_bytes": 294290,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 184,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            }
+          ]
+        },
+        "helper_composition": {
+          "calls": 8,
+          "current_with_last_result": 24139,
+          "peak_bytes": 294260,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        },
+        "prepared_composition": {
+          "calls": 8,
+          "current_with_last_result": 24067,
+          "peak_bytes": 293396,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        },
+        "helper_pipeline": {
+          "calls": 8,
+          "current_with_last_result": 26128,
+          "peak_bytes": 299966,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        },
+        "prepared_pipeline": {
+          "calls": 8,
+          "current_with_last_result": 26240,
+          "peak_bytes": 299454,
+          "after_release_bytes": 64,
+          "retained_sites": [
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:106",
+              "bytes": 96,
+              "blocks": 2
+            },
+            {
+              "trace": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-nlu6cr7l/reference_measurement.py:103",
+              "bytes": 64,
+              "blocks": 2
+            },
+            {
+              "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+              "bytes": 56,
+              "blocks": 1
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "resources": {
+    "max_queries": 514,
+    "max_callback_bytes": 1189,
+    "max_native_bytes": 2671,
+    "max_identity_bytes": 3658,
+    "max_owned": 12,
+    "max_native_allocated_bytes": 9319,
+    "child_peak_bytes": {
+      "median": 47915008.0,
+      "min": 47595520,
+      "max": 48398336,
+      "values": [
+        48398336,
+        47890432,
+        47923200,
+        47841280,
+        47972352,
+        47972352,
+        48218112,
+        47906816,
+        47923200,
+        47841280,
+        48087040,
+        47759360,
+        47972352,
+        47824896,
+        47792128,
+        48021504,
+        47628288,
+        47693824,
+        48021504,
+        47595520
+      ]
+    },
+    "tree_peak_bytes": {
+      "median": 150134784.0,
+      "min": 149618688,
+      "max": 157761536,
+      "values": [
+        157761536,
+        150142976,
+        149880832,
+        149946368,
+        150634496,
+        150061056,
+        152272896,
+        149979136,
+        150093824,
+        151896064,
+        150306816,
+        149618688,
+        150355968,
+        149749760,
+        151322624,
+        150126592,
+        151486464,
+        149848064,
+        150306816,
+        149667840
+      ]
+    }
+  },
+  "all_base_files_unchanged": true,
+  "all_outputs_identical_across_consumers_and_rates": true,
+  "limitations": [
+    "six paired seeds, one host/CPython ABI",
+    "periodic rates are model assumptions, not production measurements",
+    "disabled control also omits action-ledger work",
+    "cold Coordinator wall time includes startup/snapshot/scheduling overhead",
+    "instrumented self times and traced peaks are distinct from latency/native allocation/RSS"
+  ]
+}

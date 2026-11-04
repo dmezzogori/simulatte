@@ -1,0 +1,525 @@
+{
+  "fixture": "fixed",
+  "ticks": 32768,
+  "seed": 102,
+  "mode": "helper",
+  "every": 0,
+  "disabled": false,
+  "result": {
+    "fingerprint": {
+      "digest": "8ea0378149bdf88ac6944a889995f573bcce0847fc64297e755016b21a52664a",
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.016672773909857,
+        "shopfloor/lateness": -4.351435260586319,
+        "shopfloor/makespan": 6.313355048859935,
+        "shopfloor/tardiness": 0.32778908794788275,
+        "shopfloor/tardy_fraction": 0.1445439739413681,
+        "shopfloor/throughput": 0.7499694637840478,
+        "shopfloor/total_queue_time": 1.3990431596091206,
+        "shopfloor/utilization": 0.6558721143275925
+      }
+    },
+    "artifacts": {
+      "control.json": "48709ec65fdf1eecac0d9b711881cd7a61f7d16a03234179ad15fdbf85e3ca7c",
+      "identities.json": "958137f5455e5fbddeccfde88085afded16ebc05825537e84f54bd72a7d6b6ea",
+      "native.json": "4769565ec5ddbe8277953db8892cad04044830695a36f95cc2a5a3b7630f733d",
+      "reporting.json": "a69051b71b450e73c1496f4488d4625ffeb457c92e252e3d8c8fdc1df4e653b0"
+    },
+    "data": {
+      "identities": {
+        "actions": {
+          "digest": "5d7a55d562ff0f3d1be974cb3e560d1770073676dbaa5c746a97041ff37a36ea",
+          "rows": 32768,
+          "schema": "admission-actuation-v1"
+        },
+        "final": {
+          "authority": {
+            "digest": "d0d4acf604c13063a21d0fd01f2b6edfc0bc6be1f41aacafd74def7375f19a9a",
+            "schema": "native-production-bounded-v1"
+          },
+          "evidence": {
+            "authority_preimage": {
+              "inputs": {
+                "admissions_sha256": "da93894258f56b6b7989ffd55e001e2ae32a0eeb51788f13070e961c7d7dc519",
+                "blocked": 11819,
+                "burst": 3,
+                "completed": 12288,
+                "cursor": 12288,
+                "decisions_sha256": "6220c8f12afad5b6f074a205c97b41a44bff5d080376ef75e7497eddb32c67cd",
+                "delay_eighths": 132896,
+                "feedback": true,
+                "hard_limit": 12,
+                "idle": 14971,
+                "interval": 0.5,
+                "live": [],
+                "next_at": 16384.0,
+                "phase": "horizon",
+                "pool_polls": 17624,
+                "pressure_q": 0,
+                "relaxed_polls": 14694,
+                "schema": "fixed-admission-controller-v1",
+                "seed": 1858265390,
+                "specifications_sha256": "4d38bf9412c182fadd5699fe8680090740bf51dd392e630468c1d8fc32878c47",
+                "switches": 2048,
+                "tick": 32768,
+                "tight_mode": false,
+                "tight_polls": 18074
+              },
+              "native": "4da466e1b0bb5126842768ebd0c5b778c3211b58e47e0871bbb3b66cac2e4e7a",
+              "schema": "native-production-bounded-v1"
+            },
+            "report": {
+              "catalog": [
+                {
+                  "aggregation": "mean",
+                  "name": "makespan",
+                  "observation": "job",
+                  "unit": "time"
+                },
+                {
+                  "aggregation": "mean",
+                  "name": "lateness",
+                  "observation": "job",
+                  "unit": "time"
+                },
+                {
+                  "aggregation": "mean",
+                  "name": "tardiness",
+                  "observation": "job",
+                  "unit": "time"
+                },
+                {
+                  "aggregation": "mean",
+                  "name": "tardy_fraction",
+                  "observation": "job",
+                  "unit": "fraction"
+                },
+                {
+                  "aggregation": "mean",
+                  "name": "total_queue_time",
+                  "observation": "job",
+                  "unit": "time"
+                },
+                {
+                  "aggregation": "rate",
+                  "name": "throughput",
+                  "observation": "job",
+                  "unit": "jobs/time"
+                },
+                {
+                  "aggregation": "time_weighted_mean",
+                  "name": "utilization",
+                  "observation": "time_weighted",
+                  "unit": "fraction"
+                },
+                {
+                  "aggregation": "time_weighted_mean",
+                  "name": "jobs_in_system",
+                  "observation": "time_weighted",
+                  "unit": "jobs"
+                }
+              ],
+              "configuration": {
+                "horizon": 16384.0,
+                "type": "horizon",
+                "warmup": 10.0
+              },
+              "schema": "native-reporting-state-v1",
+              "scope": {
+                "backend": "native-production",
+                "scope": "shopfloor",
+                "time_unit": null
+              },
+              "snapshot": {
+                "scalars": {
+                  "shopfloor/jobs_in_system": 3.016672773909857,
+                  "shopfloor/lateness": -4.351435260586319,
+                  "shopfloor/makespan": 6.313355048859935,
+                  "shopfloor/tardiness": 0.32778908794788275,
+                  "shopfloor/tardy_fraction": 0.1445439739413681,
+                  "shopfloor/throughput": 0.7499694637840478,
+                  "shopfloor/total_queue_time": 1.3990431596091206,
+                  "shopfloor/utilization": 0.6558721143275925
+                },
+                "window": [
+                  10.0,
+                  16384.0,
+                  false
+                ]
+              }
+            },
+            "reproduction": {
+              "authority": {
+                "digest": "d0d4acf604c13063a21d0fd01f2b6edfc0bc6be1f41aacafd74def7375f19a9a",
+                "schema": "native-production-bounded-v1"
+              },
+              "reporting": {
+                "digest": "ec128bedb1393a38d31f8f7e31df5da329e823f410e2bf5c59f98d4e546a3f7c",
+                "schema": "native-reporting-state-v1"
+              },
+              "schema": "native-reproduction-state-v1",
+              "scope": {
+                "backend": "native-production",
+                "scope": "shopfloor",
+                "time_unit": null
+              },
+              "trajectory_control": {
+                "digest": "e34e95dc7d7d6b20c525678a9eeee9afec87dbe9a2b229b00a0bd13ef016d670",
+                "schema": "native-trajectory-control-v1"
+              }
+            },
+            "trajectory": {
+              "actions": {
+                "digest": "5d7a55d562ff0f3d1be974cb3e560d1770073676dbaa5c746a97041ff37a36ea",
+                "rows": 32768,
+                "schema": "admission-actuation-v1"
+              },
+              "native": {
+                "codec": "NBST0001+completion-history-v1",
+                "history_sha256": "65ad18e6592f2186be82932da232b88acade605ea97817b96dd431325b5a9361",
+                "live_sha256": "e83b0b9f05f08bbeded90df99927aa8583a830aaa861e0771e72c85baf2405fa"
+              },
+              "schema": "native-trajectory-control-v1",
+              "scope": {
+                "backend": "native-production",
+                "scope": "shopfloor",
+                "time_unit": null
+              }
+            }
+          },
+          "reporting": {
+            "digest": "ec128bedb1393a38d31f8f7e31df5da329e823f410e2bf5c59f98d4e546a3f7c",
+            "schema": "native-reporting-state-v1"
+          },
+          "reproduction_state": {
+            "digest": "494f65016ad2cfd3070f87adbe970c8333e29c49758c090709a5771ea33991e4",
+            "schema": "native-reproduction-state-v1"
+          },
+          "schema": "native-identity-set-v1",
+          "trajectory_control": {
+            "digest": "e34e95dc7d7d6b20c525678a9eeee9afec87dbe9a2b229b00a0bd13ef016d670",
+            "schema": "native-trajectory-control-v1"
+          }
+        },
+        "initial": {
+          "authority": {
+            "digest": "417eb02c21128375e80d13c0428589a26befec864a349b10cec4aab4d692fd74",
+            "schema": "native-production-bounded-v1"
+          },
+          "evidence": {
+            "authority_preimage": {
+              "inputs": {
+                "admissions_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "blocked": 0,
+                "burst": 3,
+                "completed": 0,
+                "cursor": 0,
+                "decisions_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "delay_eighths": 0,
+                "feedback": true,
+                "hard_limit": 12,
+                "idle": 0,
+                "interval": 0.5,
+                "live": [],
+                "next_at": 0.0,
+                "phase": "initial",
+                "pool_polls": 0,
+                "pressure_q": 0,
+                "relaxed_polls": 0,
+                "schema": "fixed-admission-controller-v1",
+                "seed": 1858265390,
+                "specifications_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "switches": 0,
+                "tick": 0,
+                "tight_mode": false,
+                "tight_polls": 0
+              },
+              "native": "80c5957b97b56e8fb1bb5eef16d1fcc2697d513c583a80f4fee1ba72c6f5bee0",
+              "schema": "native-production-bounded-v1"
+            },
+            "report": {
+              "catalog": [
+                {
+                  "aggregation": "mean",
+                  "name": "makespan",
+                  "observation": "job",
+                  "unit": "time"
+                },
+                {
+                  "aggregation": "mean",
+                  "name": "lateness",
+                  "observation": "job",
+                  "unit": "time"
+                },
+                {
+                  "aggregation": "mean",
+                  "name": "tardiness",
+                  "observation": "job",
+                  "unit": "time"
+                },
+                {
+                  "aggregation": "mean",
+                  "name": "tardy_fraction",
+                  "observation": "job",
+                  "unit": "fraction"
+                },
+                {
+                  "aggregation": "mean",
+                  "name": "total_queue_time",
+                  "observation": "job",
+                  "unit": "time"
+                },
+                {
+                  "aggregation": "rate",
+                  "name": "throughput",
+                  "observation": "job",
+                  "unit": "jobs/time"
+                },
+                {
+                  "aggregation": "time_weighted_mean",
+                  "name": "utilization",
+                  "observation": "time_weighted",
+                  "unit": "fraction"
+                },
+                {
+                  "aggregation": "time_weighted_mean",
+                  "name": "jobs_in_system",
+                  "observation": "time_weighted",
+                  "unit": "jobs"
+                }
+              ],
+              "configuration": {
+                "horizon": 16384.0,
+                "type": "horizon",
+                "warmup": 10.0
+              },
+              "schema": "native-reporting-state-v1",
+              "scope": {
+                "backend": "native-production",
+                "scope": "shopfloor",
+                "time_unit": null
+              },
+              "snapshot": {
+                "scalars": {},
+                "window": [
+                  10.0,
+                  10.0,
+                  false
+                ]
+              }
+            },
+            "reproduction": {
+              "authority": {
+                "digest": "417eb02c21128375e80d13c0428589a26befec864a349b10cec4aab4d692fd74",
+                "schema": "native-production-bounded-v1"
+              },
+              "reporting": {
+                "digest": "6592f4218a259844211fb445bf6128b8dea3ccfc8da3479a8019038554183c5b",
+                "schema": "native-reporting-state-v1"
+              },
+              "schema": "native-reproduction-state-v1",
+              "scope": {
+                "backend": "native-production",
+                "scope": "shopfloor",
+                "time_unit": null
+              },
+              "trajectory_control": {
+                "digest": "ff5dca6bbb2c12ffdf9a17ffb3ae0e350caef3b8ee1683224183910b1cf5e2da",
+                "schema": "native-trajectory-control-v1"
+              }
+            },
+            "trajectory": {
+              "actions": {
+                "digest": "65d24f95165d20785707476cb0db6dedb651e2b827499a55b03a652e91767aaf",
+                "rows": 0,
+                "schema": "admission-actuation-v1"
+              },
+              "native": {
+                "codec": "NBST0001+completion-history-v1",
+                "history_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "live_sha256": "697cc6d621df0785e2602ea50f11798fa6cb2404416a7b4b744d96a17c129cb1"
+              },
+              "schema": "native-trajectory-control-v1",
+              "scope": {
+                "backend": "native-production",
+                "scope": "shopfloor",
+                "time_unit": null
+              }
+            }
+          },
+          "reporting": {
+            "digest": "6592f4218a259844211fb445bf6128b8dea3ccfc8da3479a8019038554183c5b",
+            "schema": "native-reporting-state-v1"
+          },
+          "reproduction_state": {
+            "digest": "9945ab398e962c20196d605cdae393bf49dddf80d4adc557f2a3a5b76df24116",
+            "schema": "native-reproduction-state-v1"
+          },
+          "schema": "native-identity-set-v1",
+          "trajectory_control": {
+            "digest": "ff5dca6bbb2c12ffdf9a17ffb3ae0e350caef3b8ee1683224183910b1cf5e2da",
+            "schema": "native-trajectory-control-v1"
+          }
+        },
+        "schema": "native-identity-set-v1"
+      },
+      "native": {
+        "digest": "d0d4acf604c13063a21d0fd01f2b6edfc0bc6be1f41aacafd74def7375f19a9a",
+        "schema": "native-production-bounded-v1"
+      },
+      "reporting": {
+        "kpis": {
+          "jobs_in_system": 3.016672773909857,
+          "lateness": -4.351435260586319,
+          "makespan": 6.313355048859935,
+          "tardiness": 0.32778908794788275,
+          "tardy_fraction": 0.1445439739413681,
+          "throughput": 0.7499694637840478,
+          "total_queue_time": 1.3990431596091206,
+          "utilization": 0.6558721143275925
+        },
+        "reports_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "control": {
+        "controller": {
+          "admissions_sha256": "da93894258f56b6b7989ffd55e001e2ae32a0eeb51788f13070e961c7d7dc519",
+          "blocked": 11819,
+          "burst": 3,
+          "completed": 12288,
+          "cursor": 12288,
+          "decisions_sha256": "6220c8f12afad5b6f074a205c97b41a44bff5d080376ef75e7497eddb32c67cd",
+          "delay_eighths": 132896,
+          "feedback": true,
+          "hard_limit": 12,
+          "idle": 14971,
+          "interval": 0.5,
+          "live": [],
+          "next_at": 16384.0,
+          "phase": "horizon",
+          "pool_polls": 17624,
+          "pressure_q": 0,
+          "relaxed_polls": 14694,
+          "schema": "fixed-admission-controller-v1",
+          "seed": 1858265390,
+          "specifications_sha256": "4d38bf9412c182fadd5699fe8680090740bf51dd392e630468c1d8fc32878c47",
+          "switches": 2048,
+          "tick": 32768,
+          "tight_mode": false,
+          "tight_polls": 18074
+        },
+        "final_observed": []
+      }
+    },
+    "attempt": "86505620db6ac4c496d5a9d4e58cd20c",
+    "request": "bf987a32823aa1e369263ce79598d8226a24dc61b5fba9192643a53380b5e00d",
+    "helper_origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-3e98qzjy/case-005/project/.simulatte/tools/abfa95cdcf21ac0c1864c5619be216eabd533e267236b4e8dceff2f65b0ee037/simulatte/experimental/native_identity.py",
+    "native_origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-identity-usage-3e98qzjy/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-darwin.so",
+    "trace_bytes": 57091
+  },
+  "reproduction": null,
+  "cold_seconds": 2.353661874993122,
+  "dispatch_seconds": 1.856308791990159,
+  "parent_pid": 59690,
+  "runtime": {
+    "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+    "platform": "macOS-27.2-arm64-64bit",
+    "gc": true,
+    "distributions": {
+      "simpy": "4.1.2",
+      "simulatte": "0.17.0",
+      "simulatte-native": "0.17.0",
+      "tqdm": "4.70.1",
+      "tabulate": "0.10.0",
+      "msgpack": "1.2.4"
+    }
+  },
+  "provider": {
+    "schema": 1,
+    "provider_api": 2,
+    "version": "0.17.0",
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "arm64",
+      "platform": "darwin",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-darwin",
+      "suffix": ".cpython-314-darwin.so"
+    },
+    "sources": {
+      "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+      "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+      "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+      "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+      "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+      "csrc/retention_module.c": "1174d92ebcdc48d7818836463136c0e17f53332105a63e3efabf21aa5435c100",
+      "csrc/retention_module.h": "56b7511e83d68c2ee070f92f6a684a6cf74b1d36cf272d87ab9dd608cd025bff",
+      "csrc/scalar_module.c": "9734d16cedeca6193449cb76c88e446e61f0f53aa50e875c05b4f2ed15ab1859",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-darwin.so": {
+        "sha256": "439a743cbe7704b164cfe47ed3e6511acb4e069f6b106e8e442ece7892d7d69f",
+        "size": 72704
+      },
+      "simulatte_native_engine.dylib": {
+        "sha256": "b7edfa9d37f4a8d12cb096f8c59ce44f7a623240d617e3934cc79470044ff8ff",
+        "size": 53024
+      }
+    }
+  },
+  "usage": {
+    "parent_pid": 59690,
+    "tree_peak_rss": 152731648,
+    "parent_peak_rss": 47595520,
+    "per_pid_peak_rss": {
+      "59690": 47595520,
+      "59696": 30834688,
+      "59698": 33226752,
+      "59700": 23363584,
+      "59702": 41091072,
+      "59708": 23379968,
+      "59709": 48824320
+    },
+    "max_descendants": 3,
+    "samples": 41,
+    "wall_seconds": 2.478665707996697
+  },
+  "diagnostics": [
+    {
+      "entities": 2,
+      "expired_reads": 12288,
+      "max_callback_bytes": 1291,
+      "max_owned": 10,
+      "peak_rss": 48480256,
+      "pid": 59709,
+      "storage": {
+        "admitted": 12288,
+        "calendar_capacity": 32,
+        "completed": 12288,
+        "completion_capacity": 512,
+        "events": 201603,
+        "forgotten": 12288,
+        "job_capacity": 16,
+        "native_bytes": 5479,
+        "op_capacity": 32,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "state_capacity": 256
+      }
+    }
+  ],
+  "identity_diagnostics": [
+    {
+      "artifact_bytes": 7142,
+      "max_raw_bytes": 535,
+      "max_view_bytes": 3138,
+      "queries": 2
+    }
+  ]
+}

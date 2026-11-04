@@ -1,0 +1,96 @@
+{
+  "passed": true,
+  "fixture": "coupled",
+  "retention": "bounded",
+  "at": 65.0,
+  "baseline": {
+    "fingerprint": {
+      "digest": "c2017a65f9d0fd7cc9d692572f2fdeee484bded43bcf3c9607f81548c2df3265",
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.984011627906977,
+        "shopfloor/lateness": -0.16796875,
+        "shopfloor/makespan": 4.00390625,
+        "shopfloor/tardiness": 2.0283203125,
+        "shopfloor/tardy_fraction": 0.5,
+        "shopfloor/throughput": 1.4883720930232558,
+        "shopfloor/total_queue_time": 1.03125,
+        "shopfloor/utilization": 0.8333333333333334
+      }
+    },
+    "queries": [
+      "6eac0bee3987c4af6a11f7facbc0487d495240cb7e336246981370cab0c2ad24"
+    ],
+    "artifacts": {
+      "identities.json": "82318d323493ae2c598bd5108dc44f0bd4c8a8e796ff44ec7ec1e711e4607e5f",
+      "native.json": "1f9b98dd5dd510462e56d3376c50eb4fd9949cb11da2c5cfd75d2ff1d8f62e1a",
+      "physical.json": "67d997f2c1fe3409cdf845efb685a54ed1975767105dddce08a0bce31a4dc94f"
+    }
+  },
+  "measured": {
+    "fingerprint": {
+      "digest": "c2017a65f9d0fd7cc9d692572f2fdeee484bded43bcf3c9607f81548c2df3265",
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.984011627906977,
+        "shopfloor/lateness": -0.16796875,
+        "shopfloor/makespan": 4.00390625,
+        "shopfloor/tardiness": 2.0283203125,
+        "shopfloor/tardy_fraction": 0.5,
+        "shopfloor/throughput": 1.4883720930232558,
+        "shopfloor/total_queue_time": 1.03125,
+        "shopfloor/utilization": 0.8333333333333334
+      }
+    },
+    "queries": [
+      "6eac0bee3987c4af6a11f7facbc0487d495240cb7e336246981370cab0c2ad24"
+    ],
+    "artifacts": {
+      "identities.json": "82318d323493ae2c598bd5108dc44f0bd4c8a8e796ff44ec7ec1e711e4607e5f",
+      "native.json": "1f9b98dd5dd510462e56d3376c50eb4fd9949cb11da2c5cfd75d2ff1d8f62e1a",
+      "physical.json": "67d997f2c1fe3409cdf845efb685a54ed1975767105dddce08a0bce31a4dc94f"
+    }
+  },
+  "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+  "usage": {
+    "parent_pid": 74903,
+    "tree_peak_rss": 38584320,
+    "parent_peak_rss": 38584320,
+    "per_pid_peak_rss": {
+      "74903": 38584320
+    },
+    "max_descendants": 0,
+    "samples": 31,
+    "wall_seconds": 1.8713352079939796
+  },
+  "diagnostics": [
+    {
+      "entities": 2,
+      "expired_reads": 141,
+      "max_callback_bytes": 847,
+      "max_owned": 12,
+      "peak_rss": 38846464,
+      "pid": 74903,
+      "storage": {
+        "admitted": 145,
+        "calendar_capacity": 32,
+        "completed": 141,
+        "completion_capacity": 512,
+        "events": 1983,
+        "forgotten": 141,
+        "job_capacity": 16,
+        "native_bytes": 7271,
+        "op_capacity": 32,
+        "retained_jobs": 4,
+        "retained_operations": 11,
+        "state_capacity": 2048
+      }
+    }
+  ],
+  "identity_diagnostics": [
+    {
+      "artifact_bytes": 6937,
+      "max_raw_bytes": 1319,
+      "max_view_bytes": 3183,
+      "queries": 2
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "passed": true,
+  "fixture": "coupled",
+  "retention": "bounded",
+  "at": 4096.0,
+  "baseline": {
+    "fingerprint": {
+      "digest": "8dea18366a2afb2ff0841831dd787272cad4ecd2a8105c7c5690c4c98a702ca8",
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.9937607046733548,
+        "shopfloor/lateness": -0.21891020340664794,
+        "shopfloor/makespan": 3.7514883413262776,
+        "shopfloor/tardiness": 1.9868529849512155,
+        "shopfloor/tardy_fraction": 0.4742847693070944,
+        "shopfloor/throughput": 1.4795693662833374,
+        "shopfloor/total_queue_time": 1.058789482387961,
+        "shopfloor/utilization": 0.8094873990702226
+      }
+    },
+    "queries": [
+      "076001dbbfbe3475796ea386a1492b6a2011299b4199e16326a9897305964434"
+    ],
+    "artifacts": {
+      "identities.json": "7e4162540706d0e19a70180a72bf1a29aabcc7923225142729807ee220234786",
+      "native.json": "a77ca979e5522729d6da4d73712f28176bf9ef987c79debbd36fc6aff886e60b",
+      "physical.json": "903028998f6c4cb830367866def65bedbe55beec3afee64c003a6d1648759e1a"
+    }
+  },
+  "measured": {
+    "fingerprint": {
+      "digest": "8dea18366a2afb2ff0841831dd787272cad4ecd2a8105c7c5690c4c98a702ca8",
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.9937607046733548,
+        "shopfloor/lateness": -0.21891020340664794,
+        "shopfloor/makespan": 3.7514883413262776,
+        "shopfloor/tardiness": 1.9868529849512155,
+        "shopfloor/tardy_fraction": 0.4742847693070944,
+        "shopfloor/throughput": 1.4795693662833374,
+        "shopfloor/total_queue_time": 1.058789482387961,
+        "shopfloor/utilization": 0.8094873990702226
+      }
+    },
+    "queries": [
+      "076001dbbfbe3475796ea386a1492b6a2011299b4199e16326a9897305964434"
+    ],
+    "artifacts": {
+      "identities.json": "7e4162540706d0e19a70180a72bf1a29aabcc7923225142729807ee220234786",
+      "native.json": "a77ca979e5522729d6da4d73712f28176bf9ef987c79debbd36fc6aff886e60b",
+      "physical.json": "903028998f6c4cb830367866def65bedbe55beec3afee64c003a6d1648759e1a"
+    }
+  },
+  "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+  "usage": {
+    "parent_pid": 74937,
+    "tree_peak_rss": 38567936,
+    "parent_peak_rss": 38567936,
+    "per_pid_peak_rss": {
+      "74937": 38567936
+    },
+    "max_descendants": 0,
+    "samples": 43,
+    "wall_seconds": 2.6242507089918945
+  },
+  "diagnostics": [
+    {
+      "entities": 2,
+      "expired_reads": 6060,
+      "max_callback_bytes": 847,
+      "max_owned": 12,
+      "peak_rss": 38879232,
+      "pid": 74937,
+      "storage": {
+        "admitted": 6065,
+        "calendar_capacity": 32,
+        "completed": 6060,
+        "completion_capacity": 1024,
+        "events": 83958,
+        "forgotten": 6060,
+        "job_capacity": 16,
+        "native_bytes": 7783,
+        "op_capacity": 32,
+        "retained_jobs": 5,
+        "retained_operations": 13,
+        "state_capacity": 2048
+      }
+    }
+  ],
+  "identity_diagnostics": [
+    {
+      "artifact_bytes": 7036,
+      "max_raw_bytes": 1503,
+      "max_view_bytes": 3201,
+      "queries": 2
+    }
+  ]
+}
